@@ -189,7 +189,7 @@ The UI uses a **compact inline layout** with labels on the left and clickable op
 | **Octave** | 2, 3, 4, 5, 6 | 4 |
 | **Scale** | major, minor, chromatic, pentatonic, harmonic minor, melodic minor | major |
 | **Direction** | up, down, up+down, down+up | up |
-| **Note Length** | v.short, short, normal, long, v.long, super | v.long |
+| **Note Length** | v.short, short, normal, long, v.long, super | normal |
 | **Gap** | none, small, medium, large | none |
 | **Span** | 1 octave, 2 octaves | 1 octave |
 | **Wide** | off, +2, +3, +4, +5, +6 | off |
@@ -253,7 +253,7 @@ Voice modifiers override UI settings:
 
 1. **Voice modifiers** (highest): "slowly", "with a gap", etc.
 2. **UI buttons**: Used when no voice modifier specified
-3. **Built-in defaults**: v.long tempo, no gap, ascending
+3. **Built-in defaults**: normal tempo, no gap, ascending
 
 Example: If Note Length is "short" but you say "slowly chromatic scale", it plays slow.
 

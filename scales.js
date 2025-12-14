@@ -301,9 +301,7 @@ class ScalesController {
             scaleType: 'major',
             root: 'C',
             rangeExpansion: 0,  // 0-6: extra notes on each end for "wide scale"
-            octaveSpan: 1,      // 1 or 2: how many octaves to span
-            rising: 0,          // Semitones to rise after each repetition (0=off)
-            movementStyle: 'normal'  // How to traverse the scale
+            octaveSpan: 1       // 1 or 2: how many octaves to span
         };
 
         // Default settings for reset (and for voice commands which reset first)
@@ -316,29 +314,8 @@ class ScalesController {
             scaleType: 'major',
             root: 'C',
             rangeExpansion: 0,
-            octaveSpan: 1,
-            rising: 0,
-            movementStyle: 'normal'
+            octaveSpan: 1
         };
-
-        // Rising options: semitones to modulate up after each repetition
-        this.risingOptions = [
-            { value: 0, label: 'off', name: 'off' },
-            { value: 1, label: 'half', name: 'half step' },
-            { value: 2, label: 'whole', name: 'whole step' },
-            { value: 3, label: 'min 3rd', name: 'minor third' },
-            { value: 4, label: 'maj 3rd', name: 'major third' },
-            { value: 5, label: '4th', name: 'fourth' },
-            { value: 7, label: '5th', name: 'fifth' }
-        ];
-
-        // Movement styles: how to traverse the scale notes
-        this.movementStyles = [
-            { value: 'normal', label: 'normal', description: 'Play scale straight through' },
-            { value: 'step_back', label: 'step-back', description: '3 notes forward, 1 back: C-D-E, D-E-F, E-F-G...' },
-            { value: 'triadic', label: 'triadic', description: 'Triads on each degree: C-E-G, D-F-A, E-G-B...' },
-            { value: 'intervals', label: 'intervals', description: 'From root: C-C, C-D, C-E, C-F, C-G...' }
-        ];
 
         // Maps tempo/speed voice commands to noteLength indices (voice commands still work)
         this.tempoNameToIndex = {
@@ -397,10 +374,13 @@ class ScalesController {
 
     updateLoadingStatus(loaded, message = null) {
         const status = document.getElementById('status');
-        if (status && !loaded && message) {
-            status.textContent = message;
+        if (status) {
+            if (loaded) {
+                status.textContent = 'Ready - say a command or tap the piano';
+            } else if (message) {
+                status.textContent = message;
+            }
         }
-        // When loaded, don't set status - voice core's "Listening..." already indicates readiness
     }
 
     setupVoiceCore() {
@@ -594,22 +574,8 @@ class ScalesController {
             btn.classList.toggle('selected', range === this.settings.rangeExpansion);
         });
 
-        // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(btn => {
-            const rising = parseInt(btn.dataset.rising);
-            btn.classList.toggle('selected', rising === this.settings.rising);
-        });
-
-        // Movement style buttons
-        document.querySelectorAll('[data-movement]').forEach(btn => {
-            btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
-        });
-
         // Update piano scale preview
         this.updateScalePreview();
-
-        // Update pattern preview
-        this.updatePatternPreview();
     }
 
     // Reset all settings to defaults
@@ -654,14 +620,6 @@ class ScalesController {
             const repeatLabels = { 1: '', 2: 'x2', [Infinity]: 'loop' };
             const label = repeatLabels[s.repeatCount] || `x${s.repeatCount}`;
             if (label) parts.push(label);
-        }
-        if (s.rising !== d.rising && s.rising > 0) {
-            const risingOption = this.risingOptions.find(r => r.value === s.rising);
-            parts.push(`rise: ${risingOption ? risingOption.label : s.rising}`);
-        }
-        if (s.movementStyle !== d.movementStyle) {
-            const style = this.movementStyles.find(m => m.value === s.movementStyle);
-            parts.push(style ? style.label : s.movementStyle);
         }
 
         return parts.join(' | ');
@@ -743,22 +701,6 @@ class ScalesController {
         document.querySelectorAll('[data-range]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.settings.rangeExpansion = parseInt(btn.dataset.range);
-                this.syncUIToSettings();
-            });
-        });
-
-        // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.settings.rising = parseInt(btn.dataset.rising);
-                this.syncUIToSettings();
-            });
-        });
-
-        // Movement style buttons
-        document.querySelectorAll('[data-movement]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.settings.movementStyle = btn.dataset.movement;
                 this.syncUIToSettings();
             });
         });
@@ -877,53 +819,8 @@ class ScalesController {
             repeat: 1,          // number of times to repeat
             direction: null,    // 'ascending', 'descending', 'both'
             rangeExpansion: null, // null (use settings) or number of extra notes
-            octaveSpan: null,   // null (use settings) or 1/2
-            rising: null,       // null (use settings) or semitones to rise
-            movementStyle: null // null (use settings) or movement style name
+            octaveSpan: null    // null (use settings) or 1/2
         };
-
-        // Movement style modifiers (check first as they're distinctive)
-        if (text.match(/\bstep[\s-]?back\b/) || text.match(/\bthree\s+up\s+one\s+back\b/)) {
-            modifiers.movementStyle = 'step_back';
-            text = text.replace(/\bstep[\s-]?back\b/, '').replace(/\bthree\s+up\s+one\s+back\b/, '');
-        } else if (text.match(/\btriadic\b/) || text.match(/\btriads?\b/) || text.match(/\b1[\s-]?3[\s-]?5\b/)) {
-            modifiers.movementStyle = 'triadic';
-            text = text.replace(/\btriadic\b/, '').replace(/\btriads?\b/, '').replace(/\b1[\s-]?3[\s-]?5\b/, '');
-        } else if (text.match(/\bintervals?\b/) || text.match(/\bfrom\s+root\b/) || text.match(/\bfrom\s+one\b/)) {
-            modifiers.movementStyle = 'intervals';
-            text = text.replace(/\bintervals?\b/, '').replace(/\bfrom\s+root\b/, '').replace(/\bfrom\s+one\b/, '');
-        } else if (text.match(/\bnormal\s+movement\b/) || text.match(/\bstraight\b/)) {
-            modifiers.movementStyle = 'normal';
-            text = text.replace(/\bnormal\s+movement\b/, '').replace(/\bstraight\b/, '');
-        }
-
-        // Rising modifiers
-        if (text.match(/\brising\s+(by\s+)?(a\s+)?half(\s+step)?\b/) || text.match(/\bchromatic\s+rise\b/)) {
-            modifiers.rising = 1;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?half(\s+step)?\b/, '').replace(/\bchromatic\s+rise\b/, '');
-        } else if (text.match(/\brising\s+(by\s+)?(a\s+)?whole(\s+step)?\b/)) {
-            modifiers.rising = 2;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?whole(\s+step)?\b/, '');
-        } else if (text.match(/\brising\s+(by\s+)?(a\s+)?minor\s+third\b/)) {
-            modifiers.rising = 3;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?minor\s+third\b/, '');
-        } else if (text.match(/\brising\s+(by\s+)?(a\s+)?major\s+third\b/)) {
-            modifiers.rising = 4;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?major\s+third\b/, '');
-        } else if (text.match(/\brising\s+(by\s+)?(a\s+)?fourth\b/)) {
-            modifiers.rising = 5;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?fourth\b/, '');
-        } else if (text.match(/\brising\s+(by\s+)?(a\s+)?fifth\b/)) {
-            modifiers.rising = 7;
-            text = text.replace(/\brising\s+(by\s+)?(a\s+)?fifth\b/, '');
-        } else if (text.match(/\brising\b/) || text.match(/\bmodulating\b/)) {
-            // Just "rising" defaults to half step
-            modifiers.rising = 1;
-            text = text.replace(/\brising\b/, '').replace(/\bmodulating\b/, '');
-        } else if (text.match(/\bno\s+rising\b/) || text.match(/\bstatic\b/)) {
-            modifiers.rising = 0;
-            text = text.replace(/\bno\s+rising\b/, '').replace(/\bstatic\b/, '');
-        }
 
         // Wide scale modifier (check longer phrases first)
         if (text.match(/\bvery\s+wide\b/)) {
@@ -1320,14 +1217,6 @@ class ScalesController {
                 if (command.modifiers.repeat !== undefined && command.modifiers.repeat !== null) {
                     this.settings.repeatCount = command.modifiers.repeat;
                 }
-                // Apply rising modifier
-                if (command.modifiers.rising !== undefined && command.modifiers.rising !== null) {
-                    this.settings.rising = command.modifiers.rising;
-                }
-                // Apply movement style modifier
-                if (command.modifiers.movementStyle) {
-                    this.settings.movementStyle = command.modifiers.movementStyle;
-                }
                 this.syncUIToSettings();
 
                 this.voiceCore.updateStatus(this.buildStatusMessage(command));
@@ -1380,13 +1269,6 @@ class ScalesController {
         const rangeExpansion = mods.rangeExpansion ?? this.settings.rangeExpansion;
         if (rangeExpansion > 0) parts.push('wide');
 
-        // Movement style
-        const movementStyle = mods.movementStyle ?? this.settings.movementStyle;
-        if (movementStyle !== 'normal') {
-            const style = this.movementStyles.find(m => m.value === movementStyle);
-            if (style) parts.push(style.label);
-        }
-
         switch (command.type) {
             case 'scale':
                 parts.push(`${command.root} ${command.scaleType.replace('_', ' ')} scale`);
@@ -1408,13 +1290,6 @@ class ScalesController {
             parts.push('(loop)');
         } else if (mods.repeat > 1) {
             parts.push(`x${mods.repeat}`);
-        }
-
-        // Rising
-        const rising = mods.rising ?? this.settings.rising;
-        if (rising > 0) {
-            const risingOption = this.risingOptions.find(r => r.value === rising);
-            parts.push(`rising ${risingOption ? risingOption.name : rising}`);
         }
 
         return `Playing ${parts.join(' ')}`;
@@ -1579,28 +1454,33 @@ class ScalesController {
         this.audio.playNote(note, duration);
     }
 
-    // Generate base scale notes (without movement style applied)
-    generateBaseScaleNotes(root, scaleType, octave, options = {}) {
+    async playScale(root, scaleType, modifiers = {}) {
         const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return { notes: [], intervals: [] };
+        if (rootIndex === -1) return;
 
-        const octaveSpan = options.octaveSpan ?? this.settings.octaveSpan;
+        // Determine octave span (1 or 2 octaves)
+        const octaveSpan = modifiers.octaveSpan ?? this.settings.octaveSpan;
 
         // Build base pattern (potentially spanning 2 octaves)
         let fullPattern = [...pattern];
         if (octaveSpan === 2) {
+            // Add second octave: shift all intervals up by 12 (except skip the duplicate octave note)
             const secondOctave = pattern.slice(1).map(i => i + 12);
             fullPattern = [...pattern, ...secondOctave];
         }
 
-        // Range expansion
-        const rangeExpansion = options.rangeExpansion ?? this.settings.rangeExpansion;
+        // Determine range expansion
+        const rangeExpansion = modifiers.rangeExpansion ?? this.settings.rangeExpansion;
+
+        // Expand range if requested (add notes below and above)
         if (rangeExpansion > 0) {
+            // Add notes below the root
             const belowNotes = [];
             for (let i = rangeExpansion; i >= 1; i--) {
-                belowNotes.push(-i);
+                belowNotes.push(-i); // negative semitones = below root
             }
+            // Add notes above the top
             const topInterval = fullPattern[fullPattern.length - 1];
             const aboveNotes = [];
             for (let i = 1; i <= rangeExpansion; i++) {
@@ -1609,304 +1489,47 @@ class ScalesController {
             fullPattern = [...belowNotes, ...fullPattern, ...aboveNotes];
         }
 
-        const notes = fullPattern.map(interval => {
-            const noteIndex = ((rootIndex + interval) % 12 + 12) % 12;
+        let notes = fullPattern.map(interval => {
+            const noteIndex = ((rootIndex + interval) % 12 + 12) % 12; // Handle negative intervals
             const octaveOffset = Math.floor((rootIndex + interval) / 12);
-            return `${NOTE_NAMES[noteIndex]}${octave + octaveOffset}`;
+            return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
         });
 
-        return { notes, intervals: fullPattern };
-    }
+        // Track intervals for each note position
+        let intervals = [...fullPattern];
 
-    // Apply movement style to scale notes, returns array of phrase groups
-    // Each phrase is an array of notes to play together (with optional separator)
-    applyMovementStyle(notes, intervals, movementStyle) {
-        if (movementStyle === 'normal' || !movementStyle) {
-            // Normal: just play notes in sequence, one phrase
-            return [{ notes: [...notes], intervals: [...intervals] }];
-        }
-
-        const phrases = [];
-
-        if (movementStyle === 'step_back') {
-            // Step-back: 3 notes forward, step back 1
-            // C-D-E | D-E-F | E-F-G | F-G-A | G-A-B | A-B-C
-            for (let i = 0; i <= notes.length - 3; i++) {
-                phrases.push({
-                    notes: [notes[i], notes[i + 1], notes[i + 2]],
-                    intervals: [intervals[i], intervals[i + 1], intervals[i + 2]]
-                });
-            }
-        } else if (movementStyle === 'triadic') {
-            // Triadic: 1-3-5 on each degree
-            // C-E-G | D-F-A | E-G-B | F-A-C | G-B-D | A-C-E
-            for (let i = 0; i <= notes.length - 5; i++) {
-                phrases.push({
-                    notes: [notes[i], notes[i + 2], notes[i + 4]],
-                    intervals: [intervals[i], intervals[i + 2], intervals[i + 4]]
-                });
-            }
-        } else if (movementStyle === 'intervals') {
-            // Intervals from root: C-C, C-D, C-E, C-F, C-G, C-A, C-B, C-C
-            const rootNote = notes[0];
-            const rootInterval = intervals[0];
-            for (let i = 0; i < notes.length; i++) {
-                phrases.push({
-                    notes: [rootNote, notes[i]],
-                    intervals: [rootInterval, intervals[i]]
-                });
-            }
-        }
-
-        return phrases.length > 0 ? phrases : [{ notes: [...notes], intervals: [...intervals] }];
-    }
-
-    // Apply direction to notes and intervals
-    applyDirection(notes, intervals, direction) {
-        let resultNotes = [...notes];
-        let resultIntervals = [...intervals];
-
-        if (direction === 'descending') {
-            resultNotes = resultNotes.reverse();
-            resultIntervals = resultIntervals.reverse();
-        } else if (direction === 'both') {
-            const ascending = [...resultNotes];
-            const descending = [...resultNotes].reverse().slice(1);
-            resultNotes = [...ascending, ...descending];
-            const ascIntervals = [...resultIntervals];
-            const descIntervals = [...resultIntervals].reverse().slice(1);
-            resultIntervals = [...ascIntervals, ...descIntervals];
-        } else if (direction === 'down_and_up') {
-            const descending = [...resultNotes].reverse();
-            const ascending = [...resultNotes].slice(1);
-            resultNotes = [...descending, ...ascending];
-            const descIntervals = [...resultIntervals].reverse();
-            const ascIntervals = [...resultIntervals].slice(1);
-            resultIntervals = [...descIntervals, ...ascIntervals];
-        }
-
-        return { notes: resultNotes, intervals: resultIntervals };
-    }
-
-    // Transpose a note by semitones
-    transposeNote(note, semitones) {
-        const match = note.match(/^([A-G]#?)(\d+)$/);
-        if (!match) return note;
-
-        const noteName = match[1];
-        const octave = parseInt(match[2]);
-        const noteIndex = NOTE_NAMES.indexOf(noteName);
-        if (noteIndex === -1) return note;
-
-        const newIndex = noteIndex + semitones;
-        const newNoteIndex = ((newIndex % 12) + 12) % 12;
-        const octaveOffset = Math.floor(newIndex / 12);
-
-        return `${NOTE_NAMES[newNoteIndex]}${octave + octaveOffset}`;
-    }
-
-    // Get transposed root note name (without octave)
-    transposeRoot(root, semitones) {
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return root;
-        const newIndex = ((rootIndex + semitones) % 12 + 12) % 12;
-        return NOTE_NAMES[newIndex];
-    }
-
-    // Generate complete playback plan for preview
-    generatePlaybackPlan() {
-        const { root, scaleType, direction, movementStyle, rising, repeatCount, octaveSpan, rangeExpansion } = this.settings;
-
-        const reps = repeatCount === Infinity ? 3 : (repeatCount || 1); // Show max 3 for preview
-        const plan = [];
-
-        for (let r = 0; r < reps; r++) {
-            const transposeSemitones = rising * r;
-            const currentRoot = this.transposeRoot(root, transposeSemitones);
-            const currentOctave = this.settings.octave + Math.floor((NOTE_NAMES.indexOf(root) + transposeSemitones) / 12);
-
-            // Generate base notes for this transposition
-            const { notes, intervals } = this.generateBaseScaleNotes(
-                currentRoot, scaleType, currentOctave,
-                { octaveSpan, rangeExpansion }
-            );
-
-            // Apply direction
-            const directed = this.applyDirection(notes, intervals, direction);
-
-            // Apply movement style
-            const phrases = this.applyMovementStyle(directed.notes, directed.intervals, movementStyle);
-
-            plan.push({
-                rep: r + 1,
-                root: currentRoot,
-                octave: currentOctave,
-                phrases,
-                isInfinite: repeatCount === Infinity && r === reps - 1
-            });
-        }
-
-        return plan;
-    }
-
-    // Update the pattern preview display
-    updatePatternPreview() {
-        const preview = document.getElementById('patternPreview');
-        if (!preview) return;
-
-        const plan = this.generatePlaybackPlan();
-        if (plan.length === 0) {
-            preview.innerHTML = '<span class="preview-empty">No pattern</span>';
-            return;
-        }
-
-        const html = plan.map((rep, idx) => {
-            const phrasesHtml = rep.phrases.map(phrase => {
-                // Show note names without octave for compactness
-                const noteNames = phrase.notes.map(n => n.replace(/\d+$/, ''));
-                return `<span class="preview-phrase">${noteNames.join('-')}</span>`;
-            }).join(' ');
-
-            const label = rep.isInfinite ? `${rep.root}...` : rep.root;
-            const repClass = idx === 0 ? 'preview-rep preview-rep-first' : 'preview-rep';
-
-            return `<div class="${repClass}"><span class="preview-root">${label}:</span> ${phrasesHtml}</div>`;
-        }).join('');
-
-        preview.innerHTML = html;
-    }
-
-    async playScale(root, scaleType, modifiers = {}) {
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return;
-
+        // Handle direction (from modifiers or settings)
         const direction = modifiers.direction || this.settings.direction;
-        const movementStyle = modifiers.movementStyle || this.settings.movementStyle;
-        const rising = modifiers.rising ?? this.settings.rising;
-        const octaveSpan = modifiers.octaveSpan ?? this.settings.octaveSpan;
-        const rangeExpansion = modifiers.rangeExpansion ?? this.settings.rangeExpansion;
-
-        // For rising mode, we handle repeats ourselves with transposition
-        // Otherwise, delegate to playSequence
-        if (rising > 0 || movementStyle !== 'normal') {
-            await this.playScaleWithMovement(root, scaleType, {
-                direction,
-                movementStyle,
-                rising,
-                octaveSpan,
-                rangeExpansion,
-                ...modifiers
-            });
-            return;
+        if (direction === 'descending') {
+            notes = notes.reverse();
+            intervals = intervals.reverse();
+        } else if (direction === 'both') {
+            // Up and down: ascending then descending
+            const ascending = [...notes];
+            const descending = [...notes].reverse().slice(1);
+            notes = [...ascending, ...descending];
+            const ascIntervals = [...intervals];
+            const descIntervals = [...intervals].reverse().slice(1);
+            intervals = [...ascIntervals, ...descIntervals];
+        } else if (direction === 'down_and_up') {
+            // Down and up: descending then ascending
+            const descending = [...notes].reverse();
+            const ascending = [...notes].slice(1);
+            notes = [...descending, ...ascending];
+            const descIntervals = [...intervals].reverse();
+            const ascIntervals = [...intervals].slice(1);
+            intervals = [...descIntervals, ...ascIntervals];
         }
-
-        // Original simple path for normal movement without rising
-        const { notes, intervals } = this.generateBaseScaleNotes(
-            root, scaleType, this.settings.octave,
-            { octaveSpan, rangeExpansion }
-        );
-
-        const directed = this.applyDirection(notes, intervals, direction);
 
         const context = {
             type: 'scale',
             root,
             scaleType,
-            pattern: SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major,
-            intervals: directed.intervals
+            pattern,
+            intervals
         };
 
-        await this.playSequence(directed.notes, modifiers, context);
-    }
-
-    // Play scale with movement style and/or rising
-    async playScaleWithMovement(root, scaleType, options = {}) {
-        const {
-            direction = 'ascending',
-            movementStyle = 'normal',
-            rising = 0,
-            octaveSpan = 1,
-            rangeExpansion = 0
-        } = options;
-
-        this.clearScalePreview();
-
-        // Get repeat settings
-        let repeatCount = options.repeat ?? this.settings.repeatCount;
-        const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
-        const isInfinite = playTimes === Infinity;
-
-        const playId = this.audio.requestSequencePlayback();
-        let r = 0;
-
-        try {
-            while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                // Calculate transposition for this repetition
-                const transposeSemitones = rising * r;
-                const currentRoot = this.transposeRoot(root, transposeSemitones);
-                const baseOctave = this.settings.octave;
-                const octaveShift = Math.floor((NOTE_NAMES.indexOf(root) + transposeSemitones) / 12);
-                const currentOctave = baseOctave + octaveShift;
-
-                // Generate notes for this transposition
-                const { notes, intervals } = this.generateBaseScaleNotes(
-                    currentRoot, scaleType, currentOctave,
-                    { octaveSpan, rangeExpansion }
-                );
-
-                // Apply direction
-                const directed = this.applyDirection(notes, intervals, direction);
-
-                // Apply movement style
-                const phrases = this.applyMovementStyle(directed.notes, directed.intervals, movementStyle);
-
-                // Update status
-                const risingLabel = rising > 0 ? ` (+${transposeSemitones})` : '';
-                this.voiceCore.updateStatus(`${currentRoot} ${scaleType}${risingLabel}`);
-
-                // Play each phrase
-                for (const phrase of phrases) {
-                    if (!this.audio.isPlaybackValid(playId)) break;
-
-                    // Play notes in this phrase
-                    for (let i = 0; i < phrase.notes.length; i++) {
-                        if (!this.audio.isPlaybackValid(playId)) break;
-
-                        const note = phrase.notes[i];
-                        const duration = this.getNoteDuration(options);
-
-                        this.highlightPianoKey(note);
-                        const noteName = note.replace(/\d+$/, '');
-                        this.voiceCore.updateStatus(`${currentRoot} ${scaleType} | ${note}`);
-
-                        this.audio.synth.triggerAttackRelease(note, duration.tone);
-                        await this.audio.sleep(duration.ms + duration.gap);
-                    }
-
-                    // Small gap between phrases for movement styles
-                    if (movementStyle !== 'normal' && phrases.length > 1) {
-                        await this.audio.sleep(100);
-                    }
-                }
-
-                r++;
-
-                // Gap between repetitions (only if not using seamless repeat)
-                const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-                const hasMore = isInfinite || r < playTimes;
-                if (hasMore && this.audio.isPlaybackValid(playId) && !isRoundTrip) {
-                    await this.audio.sleep(1500);
-                }
-            }
-        } finally {
-            if (this.audio.playbackId === playId) {
-                this.audio.isPlaying = false;
-            }
-        }
-
-        this.clearPianoHighlights();
-        this.voiceCore.updateStatus('Ready');
-        this.updateScalePreview();
+        await this.playSequence(notes, modifiers, context);
     }
 
     async playArpeggio(root, quality, modifiers = {}) {
@@ -2043,10 +1666,7 @@ class ScalesController {
         });
 
         this.clearPianoHighlights();
-        // Restore listening status if active, otherwise clear
-        if (this.voiceCore.isListening) {
-            this.voiceCore.updateStatus('Listening...');
-        }
+        this.voiceCore.updateStatus('Ready');
         this.updateScalePreview();
     }
 
@@ -2114,10 +1734,7 @@ class ScalesController {
                 rangeExpansion: this.settings.rangeExpansion,
                 octaveSpan: this.settings.octaveSpan,
                 tempo: this.tempoIndexToName[this.settings.noteLength],
-                gap: this.gapIndexToName[this.settings.gap],
-                rising: this.settings.rising,
-                movementStyle: this.settings.movementStyle,
-                repeat: this.settings.repeatCount
+                gap: this.gapIndexToName[this.settings.gap]
             }
         };
 
