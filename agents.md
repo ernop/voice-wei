@@ -35,7 +35,7 @@ It's **FINE** to load Bootstrap and other common libraries from CDN. No need for
 
 - **Current version string lives in HTML**: the `<span class="version-label">v00.0000xx</span>` header label.
 - **Files currently using it**: `player.html`, `pitch-meter.html`
-- **Bump rule**: increment the final 3 digits by 1 (example: `v00.000011` → `v00.000012`).
+- **Bump rule**: increment the final 3 digits by 1 (example: `v00.000015` → `v00.000016`).
 
 ### Phrase mapping (what yui means)
 

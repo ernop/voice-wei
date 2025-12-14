@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Pitch</h1>
-                <span class="version-label">v00.000012</span>
+                <span class="version-label">v00.000016b</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab active">Pitch</a>
@@ -26,12 +26,34 @@
         </header>
 
         <main>
-            <div class="status" id="status">Select a scale and click Record to begin</div>
+            <div class="status" id="status">Loading piano...</div>
+
+            <!-- Practice Mode Selection -->
+            <div class="mode-settings">
+                <div class="setting-group">
+                    <label for="modeSelect">Mode:</label>
+                    <select id="modeSelect">
+                        <option value="free">Free Practice</option>
+                        <option value="call-response" selected>Call & Response</option>
+                        <option value="play-along">Play Along</option>
+                    </select>
+                </div>
+                <div class="setting-group" id="responseTimeGroup">
+                    <label for="responseTimeSelect">Time to match:</label>
+                    <select id="responseTimeSelect">
+                        <option value="1">1 sec</option>
+                        <option value="2" selected>2 sec</option>
+                        <option value="3">3 sec</option>
+                        <option value="4">4 sec</option>
+                        <option value="5">5 sec</option>
+                    </select>
+                </div>
+            </div>
 
             <!-- Scale Selection -->
             <div class="pitch-settings">
                 <div class="setting-group">
-                    <label for="instrumentSelect">Instrument:</label>
+                    <label for="instrumentSelect">Range:</label>
                     <select id="instrumentSelect">
                         <option value="voice" selected>Voice</option>
                         <option value="violin">Violin</option>
@@ -78,17 +100,17 @@
 
             <!-- Control Buttons -->
             <div class="pitch-controls">
-                <button id="recordBtn" class="record-button">
-                    <span class="button-icon">&#9679;</span>
-                    <span class="button-text">Record</span>
+                <button id="listenBtn" class="listen-button" disabled>
+                    <span class="button-icon">&#127911;</span>
+                    <span class="button-text">Start</span>
                 </button>
                 <button id="stopBtn" class="stop-button-pitch" disabled>
                     <span class="button-icon">&#9632;</span>
                     <span class="button-text">Stop</span>
                 </button>
-                <button id="playRefBtn" class="play-ref-button">
+                <button id="playRefBtn" class="play-ref-button" disabled>
                     <span class="button-icon">&#9835;</span>
-                    <span class="button-text">Play Scale</span>
+                    <span class="button-text">Preview Scale</span>
                 </button>
             </div>
 

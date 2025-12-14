@@ -772,6 +772,17 @@
     flex-wrap: wrap;
 }
 
+.vf-row.vf-row-reset {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.vf-row.vf-row-reset .vf-options {
+    width: 100%;
+    justify-content: flex-end;
+}
+
 .vf-row .vf-label {
     min-width: 70px;
     font-size: 0.75rem;

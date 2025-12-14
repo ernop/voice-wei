@@ -264,7 +264,10 @@ class VoiceMusicController {
                 id: Date.now() + Math.random()
             };
 
-            this.playlist.push(playlistItem);
+            this.playlist.unshift(playlistItem);
+            if (this.currentPlaylistIndex >= 0) {
+                this.currentPlaylistIndex++;
+            }
             this.addPlaylistItemToDOM(playlistItem);
             addedCount++;
         }
@@ -1460,9 +1463,9 @@ class VoiceMusicController {
         playerDivs.forEach(div => div.remove());
 
         // Re-add items
-        this.playlist.forEach(item => {
-            this.addPlaylistItemToDOM(item);
-        });
+        for (let i = this.playlist.length - 1; i >= 0; i--) {
+            this.addPlaylistItemToDOM(this.playlist[i]);
+        }
 
         // Reset current index
         if (this.currentPlaylistIndex >= 0) {
@@ -1614,7 +1617,10 @@ If the request is not about music, return an empty array [].`;
                     ...videoData,
                     id: Date.now() + Math.random()
                 };
-                this.playlist.push(playlistItem);
+                this.playlist.unshift(playlistItem);
+                if (this.currentPlaylistIndex >= 0) {
+                    this.currentPlaylistIndex++;
+                }
                 this.addPlaylistItemToDOM(playlistItem);
                 addedCount++;
                 this.updatePlaylistLabel();
@@ -1737,8 +1743,8 @@ If the request is not about music, return an empty array [].`;
             this.playVideo(item);
         });
 
-        // Append row to table body
-        playlistBody.appendChild(row);
+        // Insert newest items at the top
+        playlistBody.insertBefore(row, playlistBody.firstChild);
 
         // Create hidden player container outside the table
         const playlistContainer = document.getElementById('playlistContainer');

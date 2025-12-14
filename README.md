@@ -2,9 +2,11 @@
 
 Voice-first tools for singers and musicians.
 
-**Main Release:** http://fuseki.net/music/scales.html
+**Main Release:** https://fuseki.net/music8899b/scales.html
 
 ## Scales (Primary Feature)
+
+![Scales trainer interface](screenshot-scales.png)
 
 A voice-controlled scale trainer with realistic piano sounds. Speak naturally to practice scales, intervals, and ear training.
 
@@ -29,9 +31,15 @@ See [SCALES.md](SCALES.md) for full command reference.
 ## Other Tools
 
 ### Pitch Meter
+
+![Pitch meter interface](screenshot-pitch.png)
+
 Real-time pitch detection for checking vocal accuracy. Select a scale, record yourself singing, see how close you hit each note.
 
 ### Music Player
+
+![Music player interface](screenshot-player.png)
+
 Voice-controlled YouTube music player for hands-free operation. Speak your request ("play some jazz"), Claude AI interprets it, and songs appear in a playlist with comments explaining each match.
 
 ## Quick Start

@@ -452,6 +452,9 @@ class ScalesController {
             stopBtn.addEventListener('click', () => this.stopPlayback());
         }
 
+        // Piano notification area (above the keys)
+        this.setupPianoNotificationArea();
+
         // Again button (play again or current settings)
         const againBtn = document.getElementById('againBtn');
         if (againBtn) {
@@ -478,6 +481,129 @@ class ScalesController {
 
         // Voice-first clickable UI
         this.setupVoiceFirstUI();
+    }
+
+    setupPianoNotificationArea() {
+        this.pianoNotificationRow = document.getElementById('pianoNotificationRow');
+        this.renderPianoNotification({ command: null, activeNotes: [] });
+    }
+
+    renderPianoNotification({ command = null, activeNotes = [] } = {}) {
+        if (!this.pianoNotificationRow) return;
+
+        this.pianoNotificationRow.innerHTML = '';
+
+        const commandTd = document.createElement('td');
+        commandTd.className = 'piano-notification-command-cell';
+
+        const commandWrap = document.createElement('div');
+        commandWrap.className = 'piano-notification-command';
+
+        const badges = this.buildPianoNotificationBadges(command);
+        for (const b of badges) {
+            const badge = document.createElement('span');
+            badge.className = 'piano-notification-badge';
+            badge.textContent = b;
+            commandWrap.appendChild(badge);
+        }
+
+        if (badges.length === 0) {
+            const badge = document.createElement('span');
+            badge.className = 'piano-notification-badge';
+            badge.textContent = 'ready';
+            commandWrap.appendChild(badge);
+        }
+
+        commandTd.appendChild(commandWrap);
+        this.pianoNotificationRow.appendChild(commandTd);
+
+        for (let i = 0; i < PIANO_NOTIFICATION_MAX_NOTE_CELLS; i++) {
+            const td = document.createElement('td');
+            td.className = 'piano-notification-note-cell';
+            const note = activeNotes[i] || '';
+            td.textContent = note;
+            if (!note) td.classList.add('empty');
+            this.pianoNotificationRow.appendChild(td);
+        }
+    }
+
+    setPianoNotificationActiveNotes(notes) {
+        if (!this.pianoNotificationRow) return;
+
+        const tds = Array.from(this.pianoNotificationRow.querySelectorAll('td.piano-notification-note-cell'));
+        for (let i = 0; i < tds.length; i++) {
+            const note = notes?.[i] || '';
+            tds[i].textContent = note;
+            tds[i].classList.toggle('empty', !note);
+        }
+    }
+
+    buildPianoNotificationBadges(command) {
+        const s = this.settings;
+        const d = this.defaultSettings;
+
+        const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
+
+        const badges = [];
+
+        // Base "thing" being played
+        if (command?.type === 'scale') {
+            badges.push(`${command.scaleType.replace(/_/g, ' ')} ${command.root} scale`);
+        } else if (command?.type === 'arpeggio') {
+            badges.push(`${command.root} ${command.quality} arpeggio`);
+        } else if (command?.type === 'chord') {
+            badges.push(`${command.root} ${command.quality} chord`);
+        } else if (command?.type === 'interval') {
+            badges.push(`${command.quality}${command.interval} from ${command.root}`.trim());
+        } else if (command?.type === 'note') {
+            badges.push(`${command.note}${command.octave ?? ''}`.trim());
+        } else if (command?.type === 'tuning') {
+            badges.push('A440');
+        } else {
+            badges.push(`${s.scaleType.replace(/_/g, ' ')} ${s.root} scale`);
+        }
+
+        const mods = command?.modifiers || {};
+
+        // Unified modifiers
+        const direction = mods.direction ?? s.direction;
+        if (direction && direction !== d.direction) badges.push(dirLabels[direction] || direction);
+
+        const rising = (mods.risingSemitones ?? s.risingSemitones) || 0;
+        if (rising) badges.push(`rising ${this.getRisingLabel(rising)}`);
+
+        const movement = mods.movementStyle ?? s.movementStyle;
+        if (movement && movement !== d.movementStyle && movement !== 'normal') badges.push(this.getMovementLabel(movement));
+
+        const octaveSpan = mods.octaveSpan ?? s.octaveSpan;
+        if (octaveSpan && octaveSpan !== d.octaveSpan) badges.push(`${octaveSpan} oct`);
+
+        const rangeExpansion = mods.rangeExpansion ?? s.rangeExpansion;
+        if (rangeExpansion && rangeExpansion !== d.rangeExpansion) badges.push(`wide +${rangeExpansion}`);
+
+        // Tempo and per-note gap (note-level controls)
+        if (mods.tempo) {
+            const idx = this.tempoNameToIndex[mods.tempo];
+            if (idx !== undefined) badges.push(`len ${this.noteLengthLabels[idx]}`);
+        } else if (s.noteLength !== d.noteLength) {
+            badges.push(`len ${this.noteLengthLabels[s.noteLength]}`);
+        }
+
+        if (mods.gap) {
+            const gapIndex = this.gapNameToIndex[mods.gap];
+            if (gapIndex !== undefined) badges.push(`gap ${this.gapLabels[gapIndex]}`);
+        } else if (s.gap !== d.gap) {
+            badges.push(`gap ${this.gapLabels[s.gap]}`);
+        }
+
+        // Repeat (loop mode)
+        const repeatCount = mods.repeat ?? s.repeatCount;
+        const repeatGapMs = mods.repeatGapMs ?? s.repeatGapMs;
+        if (repeatCount === Infinity) badges.push(repeatGapMs === 0 ? 'forever no gap' : 'foreverer');
+        else if (repeatCount === 0) badges.push('repeat off');
+        else if (repeatCount > 1) badges.push(`x${repeatCount}`);
+
+        return badges.filter(Boolean);
     }
 
     setupVoiceControls() {
@@ -619,6 +745,11 @@ class ScalesController {
         // Update piano scale preview
         this.updateScalePreview();
         this.updatePatternPreview();
+
+        // Keep the piano notification area showing what we'd play (when idle).
+        if (!this.audio.isPlaying) {
+            this.renderPianoNotification({ command: null, activeNotes: [] });
+        }
     }
 
     // Reset all settings to defaults
@@ -1359,14 +1490,11 @@ class ScalesController {
             await Tone.start();
         }
 
-        // Persist what we understood in the "above keyboard" status area.
-        // This should remain visible even as runtime status changes during playback.
-        if (transcript) {
-            this.setInterpretationStatus(transcript, command);
-        }
-
         // Stop any currently playing sequence immediately
         this.stopPlayback();
+
+        // Update the piano notification area to show what we're doing.
+        this.renderPianoNotification({ command, activeNotes: [] });
 
         // Store transcript for replay (but not for 'play' itself)
         if (transcript && command.type !== 'play') {
@@ -1402,6 +1530,7 @@ class ScalesController {
 
             case 'note':
                 this.voiceCore.updateStatus(`Playing ${command.note}${command.octave}`);
+                this.renderPianoNotification({ command, activeNotes: [`${command.note}${command.octave}`] });
                 this.playNote(`${command.note}${command.octave}`);
                 this.lastCommand = command;
                 break;
@@ -1461,6 +1590,7 @@ class ScalesController {
 
             case 'tuning':
                 this.voiceCore.updateStatus('Playing A440 tuning note');
+                this.renderPianoNotification({ command, activeNotes: ['A4'] });
                 this.playNote('A4', '2n');
                 this.lastCommand = command;
                 break;
@@ -1954,6 +2084,7 @@ class ScalesController {
 
                         this.highlightPianoKey(note);
                         this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${note}`);
+                        this.setPianoNotificationActiveNotes([note]);
 
                         this.audio.synth.triggerAttackRelease(note, duration.tone);
                         await this.audio.sleep(duration.ms);
@@ -1985,6 +2116,7 @@ class ScalesController {
 
         this.clearPianoHighlights();
         this.voiceCore.updateStatus('Ready');
+        this.setPianoNotificationActiveNotes([]);
         this.updateScalePreview();
     }
 
@@ -2049,11 +2181,13 @@ class ScalesController {
         });
 
         const repeatCount = modifiers.repeat || 1;
+        this.setPianoNotificationActiveNotes(notes);
         await this.audio.playChordRepeated(notes, {
             repeatCount,
             onStatus: (message) => this.voiceCore.updateStatus(message),
             gapMs: 2000
         });
+        this.setPianoNotificationActiveNotes([]);
     }
 
     async playInterval(root, interval, quality, modifiers = {}) {
@@ -2124,6 +2258,7 @@ class ScalesController {
                 this.highlightPianoKey(note);
                 const noteDisplay = this.formatNoteStatus(note, index, { ...mergedContext, repeatIndex });
                 this.voiceCore.updateStatus(noteDisplay);
+                this.setPianoNotificationActiveNotes([note]);
             },
             onStatus: (message) => {
                 this.clearPianoHighlights();
@@ -2137,6 +2272,7 @@ class ScalesController {
 
         this.clearPianoHighlights();
         this.voiceCore.updateStatus('Ready');
+        this.setPianoNotificationActiveNotes([]);
         this.updateScalePreview();
     }
 
@@ -2184,6 +2320,7 @@ class ScalesController {
         this.audio.stop();
         this.clearPianoHighlights();
         this.updateScalePreview();
+        this.setPianoNotificationActiveNotes([]);
         // Also cancel any in-progress voice recognition
         if (this.voiceCore) {
             this.voiceCore.stopListening();
@@ -2214,6 +2351,7 @@ class ScalesController {
 
         const transcript = `${this.settings.root} ${this.settings.scaleType} scale`;
         this.voiceCore.updateStatus(this.buildStatusMessage(command));
+        this.renderPianoNotification({ command, activeNotes: [] });
         await this.playScale(command.root, command.scaleType, command.modifiers);
         this.lastCommand = command;
         this.lastTranscript = transcript;
