@@ -25,6 +25,23 @@
 
         <div class="settings-panel" id="settingsPanel" style="display: none;">
             <h2>Settings</h2>
+
+            <div class="setting-item api-key-section">
+                <label for="claudeApiKeyInput">Claude API Key:</label>
+                <div class="api-key-status" id="apiKeyStatus"></div>
+                <div class="api-key-input-row" id="apiKeyInputRow" style="display: none;">
+                    <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." class="api-key-input" />
+                    <button id="saveApiKeyBtn" class="save-api-key-btn">Save</button>
+                </div>
+                <div class="api-key-actions" id="apiKeyActions" style="display: none;">
+                    <button id="showApiKeyBtn" class="api-key-action-btn">Show</button>
+                    <button id="changeApiKeyBtn" class="api-key-action-btn">Change</button>
+                    <button id="removeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                </div>
+                <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
+                    leaves your device except to call Claude's API directly.</p>
+            </div>
+
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="readClaudeResponse" />
@@ -47,6 +64,23 @@
                 </select>
             </div>
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
+        </div>
+
+        <!-- API Key Setup Overlay (shown when no key is configured) -->
+        <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
+            <div class="api-key-overlay-content">
+                <h2>Claude API Key Required</h2>
+                <p>This app uses Claude AI to understand your music requests. You'll need your own API key from <a
+                        href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
+                </p>
+                <div class="api-key-input-row">
+                    <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
+                        class="api-key-input" />
+                    <button id="saveApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                </div>
+                <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
+                    leaves your device except to call Claude's API directly.</p>
+            </div>
         </div>
 
         <main>

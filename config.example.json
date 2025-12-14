@@ -1,9 +1,9 @@
 {
-  "claudeApiKey": "YOUR_CLAUDE_API_KEY_HERE",
+  "_note": "Claude API key is now managed via the UI and stored in localStorage. No config file needed for the API key.",
   "deploy": {
-    "user": "youruser",
-    "host": "yourserver.com",
-    "remotePath": "/path/to/public/music",
-    "publicUrl": "https://yourserver.com/music/player.html"
+    "user": "ernop",
+    "host": "fuseki.net",
+    "remotePath": "/home/ernop/fuseki.net/public/music8899b",
+    "publicUrl": "https://fuseki.net/music8899b/player.html"
   }
 }

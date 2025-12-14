@@ -99,7 +99,8 @@ class AudioCoordinator {
             onNote,           // Callback(note, index) called when each note plays
             onStatus,         // Callback(message) for status updates
             repeatCount = 1,  // Number of times to repeat (Infinity for forever)
-            repeatGapMs = 1500 // Gap between repeats
+            repeatGapMs = 1500, // Gap between repeats
+            seamlessRepeat = false // If true, no gap and skip first note on repeats (for up+down/down+up)
         } = options;
 
         const playId = this.requestSequencePlayback();
@@ -109,8 +110,12 @@ class AudioCoordinator {
 
         try {
             while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
+                // For seamless repeat, skip first note on iterations after the first
+                // (it would duplicate the last note of previous iteration)
+                const startIndex = (seamlessRepeat && r > 0) ? 1 : 0;
+
                 // Play the sequence
-                for (let i = 0; i < notes.length; i++) {
+                for (let i = startIndex; i < notes.length; i++) {
                     if (!this.isPlaybackValid(playId)) break;
 
                     const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
@@ -123,9 +128,9 @@ class AudioCoordinator {
 
                 r++;
 
-                // Pause between repeats
+                // Pause between repeats (skip for seamless repeat)
                 const hasMore = isInfinite || r < playTimes;
-                if (hasMore && this.isPlaybackValid(playId)) {
+                if (hasMore && this.isPlaybackValid(playId) && !seamlessRepeat) {
                     if (onStatus) {
                         if (isInfinite) {
                             onStatus(`Loop ${r + 1}... (say "stop" to end)`);
@@ -287,8 +292,8 @@ class ScalesController {
         this.voiceCore = null;
         this.audio = new AudioCoordinator();  // Single authority for all audio
         this.settings = {
-            noteLength: 4,    // 0=veryFast, 1=fast, 2=normal, 3=slow, 4=verySlow, 5=superSlow
-            gap: 0,           // 0=none, 1=small, 2=medium, 3=large, 4=veryLarge
+            noteLength: 5,    // index into noteLengthMap (1.5s default)
+            gap: 3,           // index into gapMap (0s default)
             direction: 'ascending', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
@@ -301,8 +306,8 @@ class ScalesController {
 
         // Default settings for reset (and for voice commands which reset first)
         this.defaultSettings = {
-            noteLength: 4,    // V.Long (very slow) by default
-            gap: 0,           // None (very short) gap by default
+            noteLength: 5,    // 1.5s by default
+            gap: 3,           // 0s (no gap) by default
             direction: 'ascending',
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // Once by default
@@ -325,12 +330,18 @@ class ScalesController {
 
         // Maps gap names to gap indices
         this.gapNameToIndex = {
-            'none': 0,
-            'small': 1,
-            'medium': 2,
-            'large': 3
+            '-1s': 0,
+            '-0.5s': 1,
+            '-0.25s': 2,
+            '0s': 3,
+            '0.05s': 4,
+            '0.1s': 5,
+            '0.15s': 6,
+            '0.3s': 7,
+            '0.5s': 8,
+            '1s': 9
         };
-        this.gapIndexToName = ['none', 'small', 'medium', 'large'];
+        this.gapIndexToName = ['-1s', '-0.5s', '-0.25s', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
 
         // Track last command for "repeat" / "again" functionality
         this.lastCommand = null;
@@ -341,11 +352,10 @@ class ScalesController {
         this.maxHistoryLength = 50;
 
         // Maps note length index to durations (ms)
-        // 0=v.short(150ms), 1=short(300ms), 2=normal(500ms), 3=long(800ms), 4=v.long(1500ms), 5=super(3000ms)
-        this.noteLengthMap = [150, 300, 500, 800, 1500, 3000];
-        this.gapMap = [0, 50, 150, 300];  // none, small, medium, large
-        this.noteLengthLabels = ['v.short', 'short', 'normal', 'long', 'v.long', 'super'];
-        this.gapLabels = ['none', 'small', 'medium', 'large'];
+        this.noteLengthMap = [150, 300, 500, 800, 1000, 1500, 2000, 3000, 5000];
+        this.gapMap = [-1000, -500, -250, 0, 50, 100, 150, 300, 500, 1000];
+        this.noteLengthLabels = ['0.15s', '0.3s', '0.5s', '0.8s', '1s', '1.5s', '2s', '3s', '5s'];
+        this.gapLabels = ['-1s', '-0.5s', '-0.25s', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
         this.init();
     }
 
@@ -1634,6 +1644,11 @@ class ScalesController {
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : repeatCount;
 
+        // For up+down or down+up with repeat, use seamless repeat (no gap, skip duplicate root)
+        const direction = modifiers.direction || this.settings.direction;
+        const isRoundTrip = direction === 'both' || direction === 'down_and_up';
+        const seamlessRepeat = isRoundTrip && playTimes > 1;
+
         await this.audio.playSequence(notes, {
             getDuration: () => this.getNoteDuration(modifiers),
             onNote: (note, index) => {
@@ -1646,7 +1661,8 @@ class ScalesController {
                 this.voiceCore.updateStatus(message);
             },
             repeatCount: playTimes,
-            repeatGapMs: 1500
+            repeatGapMs: 1500,
+            seamlessRepeat
         });
 
         this.clearPianoHighlights();

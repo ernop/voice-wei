@@ -400,40 +400,166 @@ class VoiceMusicController {
     }
 
     async loadConfig() {
-        try {
-            const response = await fetch('config.json');
-            if (!response.ok) {
-                throw new Error('Config file not found');
-            }
-            this.config = await response.json();
+        // Initialize config object
+        this.config = {};
 
-            // Log each API key status individually
-            const hasClaude = this.config.claudeApiKey && this.config.claudeApiKey.length > 10;
+        // Load API key from localStorage
+        const storedApiKey = localStorage.getItem('claudeApiKey');
+        if (storedApiKey && storedApiKey.length > 10) {
+            this.config.claudeApiKey = storedApiKey;
+            const keyPreview = storedApiKey.substring(0, 10) + '...';
+            this.addMessage('claude', 'Claude API Key', `Loaded from localStorage (${keyPreview})`);
+            this.updateStatus('Ready');
+            this.updateApiKeyUI(true);
+        } else {
+            this.addMessage('claude', 'Claude API Key', 'Not configured - please enter your API key');
+            this.updateStatus('API key required');
+            this.showApiKeyOverlay();
+            this.updateApiKeyUI(false);
+        }
 
-            // Claude API key status (required)
-            if (hasClaude) {
-                const keyPreview = this.config.claudeApiKey.substring(0, 10) + '...';
-                this.addMessage('claude', 'Claude API Key', `Loaded (${keyPreview})`);
-            } else {
-                this.addMessage('error', 'Claude API Key', 'MISSING or invalid');
-            }
+        // YouTube search via server-side proxy (no API key needed, no quota limits)
+        this.addMessage('claude', 'YouTube Search', `Using server-side proxy (proxy.php) - no API key needed`);
 
-            // YouTube search via server-side proxy (no API key needed, no quota limits)
-            this.addMessage('claude', 'YouTube Search', `Using server-side proxy (proxy.php) - no API key needed`);
+        // Test proxy availability
+        this.testProxy();
+    }
 
-            // Test proxy availability
-            this.testProxy();
+    showApiKeyOverlay() {
+        const overlay = document.getElementById('apiKeyOverlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+        }
+    }
 
-            if (!hasClaude) {
-                this.updateStatus('Missing Claude API key - check log');
-            } else {
-                this.updateStatus('Ready');
-            }
-        } catch (error) {
-            console.error('Error loading config:', error);
-            this.updateStatus('Config file not found');
-            this.addMessage('error', 'Config', 'config.json not found. Copy config.example.json and add your API keys.');
-            throw new Error('Configuration required: config.json not found');
+    hideApiKeyOverlay() {
+        const overlay = document.getElementById('apiKeyOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    updateApiKeyUI(hasKey) {
+        const statusEl = document.getElementById('apiKeyStatus');
+        const inputRow = document.getElementById('apiKeyInputRow');
+        const actionsRow = document.getElementById('apiKeyActions');
+
+        if (!statusEl || !inputRow || !actionsRow) return;
+
+        if (hasKey) {
+            const storedKey = localStorage.getItem('claudeApiKey') || '';
+            const preview = storedKey.substring(0, 10) + '...' + storedKey.substring(storedKey.length - 4);
+            statusEl.textContent = `Configured: ${preview}`;
+            statusEl.className = 'api-key-status configured';
+            inputRow.style.display = 'none';
+            actionsRow.style.display = 'flex';
+        } else {
+            statusEl.textContent = 'Not configured';
+            statusEl.className = 'api-key-status not-configured';
+            inputRow.style.display = 'flex';
+            actionsRow.style.display = 'none';
+        }
+    }
+
+    saveApiKey(apiKey) {
+        if (!apiKey || apiKey.length < 10) {
+            this.updateStatus('Invalid API key');
+            return false;
+        }
+
+        localStorage.setItem('claudeApiKey', apiKey);
+        this.config.claudeApiKey = apiKey;
+
+        const keyPreview = apiKey.substring(0, 10) + '...';
+        this.addMessage('claude', 'Claude API Key', `Saved to localStorage (${keyPreview})`);
+        this.updateStatus('Ready');
+        this.hideApiKeyOverlay();
+        this.updateApiKeyUI(true);
+
+        // Clear the input fields
+        const settingsInput = document.getElementById('claudeApiKeyInput');
+        const overlayInput = document.getElementById('claudeApiKeyOverlayInput');
+        if (settingsInput) settingsInput.value = '';
+        if (overlayInput) overlayInput.value = '';
+
+        return true;
+    }
+
+    removeApiKey() {
+        localStorage.removeItem('claudeApiKey');
+        delete this.config.claudeApiKey;
+        this.addMessage('claude', 'Claude API Key', 'Removed from localStorage');
+        this.updateStatus('API key required');
+        this.updateApiKeyUI(false);
+        this.showApiKeyOverlay();
+    }
+
+    setupApiKeyUI() {
+        // Settings panel API key handlers
+        const saveBtn = document.getElementById('saveApiKeyBtn');
+        const showBtn = document.getElementById('showApiKeyBtn');
+        const changeBtn = document.getElementById('changeApiKeyBtn');
+        const removeBtn = document.getElementById('removeApiKeyBtn');
+        const inputEl = document.getElementById('claudeApiKeyInput');
+
+        if (saveBtn && inputEl) {
+            saveBtn.addEventListener('click', () => {
+                this.saveApiKey(inputEl.value.trim());
+            });
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveApiKey(inputEl.value.trim());
+                }
+            });
+        }
+
+        if (showBtn) {
+            showBtn.addEventListener('click', () => {
+                const storedKey = localStorage.getItem('claudeApiKey') || '';
+                // Toggle between show/hide
+                if (showBtn.textContent === 'Show') {
+                    const statusEl = document.getElementById('apiKeyStatus');
+                    if (statusEl) {
+                        statusEl.textContent = storedKey;
+                    }
+                    showBtn.textContent = 'Hide';
+                } else {
+                    this.updateApiKeyUI(true);
+                    showBtn.textContent = 'Show';
+                }
+            });
+        }
+
+        if (changeBtn) {
+            changeBtn.addEventListener('click', () => {
+                const inputRow = document.getElementById('apiKeyInputRow');
+                const actionsRow = document.getElementById('apiKeyActions');
+                if (inputRow) inputRow.style.display = 'flex';
+                if (actionsRow) actionsRow.style.display = 'none';
+            });
+        }
+
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                if (confirm('Remove your API key from localStorage?')) {
+                    this.removeApiKey();
+                }
+            });
+        }
+
+        // Overlay API key handlers
+        const overlayInput = document.getElementById('claudeApiKeyOverlayInput');
+        const overlaySaveBtn = document.getElementById('saveApiKeyOverlayBtn');
+
+        if (overlaySaveBtn && overlayInput) {
+            overlaySaveBtn.addEventListener('click', () => {
+                this.saveApiKey(overlayInput.value.trim());
+            });
+            overlayInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveApiKey(overlayInput.value.trim());
+                }
+            });
         }
     }
 
@@ -631,6 +757,9 @@ class VoiceMusicController {
     setupUI() {
         // Initialize transcript manager
         this.transcript.init();
+
+        // Setup API key management UI
+        this.setupApiKeyUI();
 
         // Settings panel
         const settingsBtn = document.getElementById('settingsBtn');
