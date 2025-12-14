@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Voice-controlled scale and pitch training for singers">
+    <meta name="description" content="Voice-Wei: Voice-controlled scale practice for singers and musicians">
     <meta name="robots" content="noindex, nofollow">
-    <title>Scales - Voice Music Control</title>
+    <title>Scales - Voice-Wei</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="scales.css">
 </head>
@@ -50,9 +50,11 @@
 
             <!-- Piano Keyboard -->
             <div class="piano-container">
-                <div class="piano-status" id="status">
-                    <div class="piano-status-interpretation" id="statusInterpretation"></div>
-                    <div class="piano-status-runtime" id="statusRuntime">Loading piano...</div>
+                <div class="piano-notification-area" id="pianoNotificationArea">
+                    <table class="piano-notification-table" aria-label="Piano notification">
+                        <tr id="pianoNotificationRow"></tr>
+                    </table>
+                    <div class="piano-notification-runtime" id="statusRuntime">Loading piano...</div>
                 </div>
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>

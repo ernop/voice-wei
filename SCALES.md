@@ -1,4 +1,4 @@
-# Scales - Voice-Controlled Musical Training
+# Scales - Voice-Wei
 
 A voice-first tool for singers and musicians to practice scales, intervals, arpeggios, and ear training with realistic piano sounds.
 
@@ -130,7 +130,8 @@ Modifiers can be combined with any scale, arpeggio, or interval command.
 | `once` | Play one time |
 | `twice` | Play 2 times |
 | `repeat` / `loop` / `forever` / `foreverer` | Loop until "stop" |
-| `forever no gap` | Loop until "stop", with no pause between repeats |
+| `foreverer` | Loop until "stop" with a ~0.2s gap between sections (not the between-notes gap) |
+| `forever no gap` | Loop until "stop", with no gap between sections (not the between-notes gap) |
 
 ### Direction
 | Modifier | Effect |

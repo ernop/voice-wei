@@ -282,7 +282,7 @@
     overflow: hidden;
 }
 
-.piano-status {
+.piano-notification-area {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -293,16 +293,61 @@
     margin-bottom: 8px;
 }
 
-.piano-status:empty {
+.piano-notification-area:empty {
     display: none;
 }
 
-.piano-status-interpretation {
-    color: rgba(255, 255, 255, 0.85);
+.piano-notification-runtime {
+    color: rgba(255, 255, 255, 0.6);
 }
 
-.piano-status-runtime {
-    color: rgba(255, 255, 255, 0.6);
+.piano-notification-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.piano-notification-table td {
+    padding: 0;
+    vertical-align: middle;
+}
+
+.piano-notification-command-cell {
+    text-align: right;
+    padding-right: 10px;
+}
+
+.piano-notification-command {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.piano-notification-badge {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.78rem;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+}
+
+.piano-notification-note-cell {
+    width: 6ch;
+    text-align: right;
+    padding-left: 8px;
+    font-family: ui-monospace, 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.piano-notification-note-cell.empty {
+    color: rgba(255, 255, 255, 0.25);
 }
 
 .piano-keys {

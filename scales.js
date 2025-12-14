@@ -289,18 +289,26 @@ const DEFAULT_OCTAVE = 4;
 const NOTE_DURATION_MS = 400;
 const NOTE_GAP_MS = 50;
 
+// Loop timing (NOT the per-note gap control)
+const FOREVER_SECTION_GAP_MS = 200; // default gap between sections when looping
+
+const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
+
 //-------SCALES CONTROLLER-------
 class ScalesController {
     constructor() {
         this.voiceCore = null;
         this.audio = new AudioCoordinator();  // Single authority for all audio
+        this.pianoNotificationRow = null;
         this.settings = {
             noteLength: 2,    // index into noteLengthMap (0.5s default)
             gap: 3,           // index into gapMap (0s default)
             direction: 'ascending', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
-            repeatGapMs: 1500, // gap between repeats (not between notes)
+            // Section gap: used for "forever" modes only (between phrase sections and between loop cycles)
+            // This is NOT the UI "Gap" control which is between NOTES.
+            repeatGapMs: FOREVER_SECTION_GAP_MS,
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
             movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
             // Voice-first settings (also controllable via UI)
@@ -317,7 +325,7 @@ class ScalesController {
             direction: 'ascending',
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // Once by default
-            repeatGapMs: 1500,
+            repeatGapMs: FOREVER_SECTION_GAP_MS,
             risingSemitones: 0,
             movementStyle: 'normal',
             scaleType: 'major',
@@ -422,55 +430,13 @@ class ScalesController {
     }
 
     setInterpretationStatus(transcript, command) {
-        const el = document.getElementById('statusInterpretation');
-        if (!el) return;
-        if (!transcript || !command) return;
-        el.textContent = this.buildInterpretationMessage(transcript, command);
+        // Deprecated: old "statusInterpretation" element removed in favor of the piano notification table.
+        // Kept as a no-op so existing call sites don't break.
     }
 
     buildInterpretationMessage(transcript, command) {
-        const raw = String(transcript || '').trim();
-        const mods = command.modifiers || {};
-
-        const modParts = [];
-        if (mods.tempo) modParts.push(`tempo=${mods.tempo}`);
-        if (mods.gap) modParts.push(`gap=${mods.gap}`);
-        if (mods.direction) modParts.push(`direction=${mods.direction}`);
-        if (mods.repeat === Infinity) modParts.push('repeat=forever');
-        else if (typeof mods.repeat === 'number' && mods.repeat > 1) modParts.push(`repeat=${mods.repeat}`);
-        if (mods.risingSemitones !== null && mods.risingSemitones !== undefined) {
-            if (mods.risingSemitones === 0) modParts.push('rising=off');
-            else if (mods.risingSemitones > 0) modParts.push(`rising=${mods.risingSemitones}st`);
-        }
-        if (mods.movementStyle) modParts.push(`move=${mods.movementStyle}`);
-        if (mods.rangeExpansion !== null && mods.rangeExpansion !== undefined) modParts.push(`wide=${mods.rangeExpansion}`);
-        if (mods.octaveSpan) modParts.push(`octaves=${mods.octaveSpan}`);
-
-        let understood = command.type;
-        if (command.type === 'scale') {
-            understood = `scale root=${command.root} type=${command.scaleType}`;
-        } else if (command.type === 'note') {
-            understood = `note ${command.note}${command.octave}`;
-        } else if (command.type === 'setting') {
-            understood = `set ${command.setting}=${command.value}`;
-        } else if (command.type === 'arpeggio') {
-            understood = `arpeggio root=${command.root} quality=${command.quality}`;
-        } else if (command.type === 'chord') {
-            understood = `chord root=${command.root} quality=${command.quality}`;
-        } else if (command.type === 'interval') {
-            understood = `interval ${command.quality}${command.interval} from ${command.root}`;
-        } else if (command.type === 'tuning') {
-            understood = 'tuning A440';
-        } else if (command.type === 'play') {
-            understood = 'play current settings';
-        } else if (command.type === 'stop') {
-            understood = 'stop';
-        } else if (command.type === 'help') {
-            understood = 'help';
-        }
-
-        const modsText = modParts.length ? ` (${modParts.join(', ')})` : '';
-        return `Heard "${raw}" → ${understood}${modsText}`;
+        // Deprecated: no longer used (old debug/interpretation string).
+        return '';
     }
 
     // Reset to defaults without updating status (used before voice commands)
@@ -714,7 +680,7 @@ class ScalesController {
 
     parseRepeatButtonValue(raw) {
         const trimmed = String(raw || '').trim();
-        if (trimmed === 'Infinity') return { repeatCount: Infinity, repeatGapMs: 1500 };
+        if (trimmed === 'Infinity') return { repeatCount: Infinity, repeatGapMs: FOREVER_SECTION_GAP_MS };
         if (trimmed === 'Infinity-nogap') return { repeatCount: Infinity, repeatGapMs: 0 };
 
         const n = parseInt(trimmed);
@@ -1078,7 +1044,7 @@ class ScalesController {
             text = text.replace(/\bforever\s+no\s+gap\b/, '');
         } else if (text.match(/\bforeverer\b/)) {
             modifiers.repeat = Infinity;
-            modifiers.repeatGapMs = 1500;
+            modifiers.repeatGapMs = FOREVER_SECTION_GAP_MS;
             text = text.replace(/\bforeverer\b/, '');
         } else if (text.match(/\b(and\s+)?repeat\b/) || text.match(/\bloop\b/) || text.match(/\bforever\b/)) {
             // "repeat" alone = forever, "loop" = forever, "forever" = forever
@@ -1961,6 +1927,10 @@ class ScalesController {
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
 
+        // "Gap between SECTIONS" applies to phrase boundaries when looping forever.
+        // For finite repeats we keep the movement-style phrase gaps.
+        const sectionGapMs = isInfinite ? repeatGapMs : phraseGap;
+
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
 
@@ -1990,8 +1960,8 @@ class ScalesController {
                     }
 
                     // Phrase gap between groups (not after the last one)
-                    if (phraseGap > 0 && g < groups.length - 1) {
-                        await this.audio.sleep(phraseGap);
+                    if (sectionGapMs > 0 && g < groups.length - 1) {
+                        await this.audio.sleep(sectionGapMs);
                     }
                 }
 
@@ -2002,7 +1972,7 @@ class ScalesController {
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
                     if (risingSemitones === 0) {
                         // No rising: gap between identical repeats
-                        await this.audio.sleep(repeatGapMs);
+                        await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
                     }
                     // With rising: no gap, flows to next transposition
                 }
@@ -2129,6 +2099,7 @@ class ScalesController {
         // Repeat count from settings (voice command can override via modifiers)
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : repeatCount;
+        const isInfinite = repeatCount === Infinity;
 
         // Rising (transpose each repeat upward by N semitones)
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
@@ -2159,7 +2130,7 @@ class ScalesController {
                 this.voiceCore.updateStatus(message);
             },
             repeatCount: playTimes,
-            repeatGapMs: risingSemitones > 0 ? 0 : repeatGapMs,
+            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500),
             seamlessRepeat,
             getNotesForRepeat
         });
