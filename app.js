@@ -1,10 +1,10 @@
+// @ts-check
 //-------DEBUG FLAGS-------
 // Skip Claude API calls and return hardcoded test data (for debugging YouTube search)
 const SKIP_CLAUDE = false;
 
 //-------TIMING CONSTANTS-------
-// Voice recognition restart delay after speech ends (must be short for responsive manual mode)
-const RECOGNITION_RESTART_DELAY_MS = 100;
+// Note: RECOGNITION_RESTART_DELAY_MS and TRANSCRIPT_AUTO_HIDE_MS come from voice-command-core.js
 
 // How often to update the progress bar during playback
 const PROGRESS_UPDATE_INTERVAL_MS = 100;
@@ -24,157 +24,84 @@ const YOUTUBE_API_TIMEOUT_MS = 10000;
 // Polling interval for YouTube API readiness check
 const YOUTUBE_API_POLL_INTERVAL_MS = 100;
 
-// Auto-hide delay for control command transcripts (e.g., "play", "pause")
-const TRANSCRIPT_AUTO_HIDE_MS = 3000;
-
-
 //-------TRANSCRIPT MANAGER-------
-// Manages the "You said" transcript display box
-class TranscriptManager {
-    constructor() {
-        this.container = null;
-        this.textElement = null;
-        this.segments = [];      // Finalized speech segments
-        this.interimText = '';   // Current interim (unfinalized) text
-        this.hideTimeout = null;
-    }
+// TranscriptManager class is provided by voice-command-core.js
 
-    init() {
-        this.container = document.getElementById('transcriptContainer');
-        this.textElement = document.getElementById('transcript');
-    }
+/**
+ * @typedef {Object} PlaylistItem
+ * @property {number} id
+ * @property {string} videoId
+ * @property {string} name
+ * @property {string} artist
+ * @property {string} year
+ * @property {string} album
+ * @property {string} title
+ * @property {string} channelTitle
+ * @property {string} duration
+ * @property {string} comment
+ * @property {string} searchTerm
+ */
 
-    // Show simple text (for final transcripts or commands)
-    show(text, options = {}) {
-        if (!this.container || !this.textElement) return;
+/**
+ * @typedef {Object} FavoriteData
+ * @property {string} videoId
+ * @property {string} name
+ * @property {string} artist
+ * @property {string} year
+ * @property {string} album
+ * @property {string} title
+ * @property {string} channelTitle
+ * @property {string} duration
+ * @property {string} comment
+ * @property {string} searchTerm
+ * @property {number} favoritedAt
+ */
 
-        const { interim = false, autoHideAfter = null } = options;
-
-        this.clearHideTimeout();
-        this.textElement.textContent = text;
-        this.textElement.style.opacity = interim ? '0.7' : '1';
-        this.container.style.display = 'block';
-
-        if (autoHideAfter) {
-            this.hideTimeout = setTimeout(() => this.hide(), autoHideAfter);
-        }
-    }
-
-    // Show accumulated speech segments with visual separators.
-    // Manual mode accumulates text across multiple recognition sessions, so user sees
-    // their full request building up even as recognition restarts in background.
-    showSegments(segments, interimText = '') {
-        if (!this.container || !this.textElement) return;
-
-        this.clearHideTimeout();
-        this.segments = segments;
-        this.interimText = interimText;
-
-        let html = '';
-        segments.forEach((seg, i) => {
-            if (i > 0) {
-                html += '<span class="segment-divider"> | </span>';
-            }
-            html += `<span class="segment">${this.escapeHtml(seg)}</span>`;
-        });
-
-        if (interimText) {
-            if (segments.length > 0) {
-                html += '<span class="segment-divider"> | </span>';
-            }
-            html += `<span class="segment interim">${this.escapeHtml(interimText)}</span>`;
-        }
-
-        this.textElement.innerHTML = html || '<span class="interim">...</span>';
-        this.container.style.display = 'block';
-    }
-
-    // Add a finalized segment
-    addSegment(text) {
-        const trimmed = text.trim();
-        if (trimmed) {
-            this.segments.push(trimmed);
-        }
-        this.interimText = '';
-    }
-
-    // Update interim text (text still being spoken)
-    setInterim(text) {
-        this.interimText = text;
-    }
-
-    // Get full transcript text (all segments + interim)
-    getFullText() {
-        const segmentsText = this.segments.join(' ');
-        return (segmentsText + (this.interimText ? ' ' + this.interimText : '')).trim();
-    }
-
-    // Get only finalized text (no interim)
-    getFinalizedText() {
-        return this.segments.join(' ').trim();
-    }
-
-    // Clear all transcript state
-    clear() {
-        this.segments = [];
-        this.interimText = '';
-        if (this.textElement) {
-            this.textElement.textContent = '';
-            this.textElement.innerHTML = '';
-        }
-    }
-
-    // Hide the transcript container
-    hide() {
-        this.clearHideTimeout();
-        if (this.container) {
-            this.container.style.display = 'none';
-        }
-    }
-
-    // Reset everything (clear content and hide)
-    reset() {
-        this.clear();
-        this.hide();
-    }
-
-    clearHideTimeout() {
-        if (this.hideTimeout) {
-            clearTimeout(this.hideTimeout);
-            this.hideTimeout = null;
-        }
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-}
+/**
+ * @typedef {Object} AppConfig
+ * @property {string} [claudeApiKey]
+ */
 
 class VoiceMusicController {
     constructor() {
+        /** @type {InstanceType<typeof window.SpeechRecognition> | null} */
         this.recognition = null;
+        /** @type {Map<number, YT.Player>} */
         this.players = new Map();
+        /** @type {boolean} */
         this.isListening = false;
+        /** @type {number | null} */
         this.currentPlayingId = null;
+        /** @type {AppConfig | null} */
         this.config = null;
+        /** @type {PlaylistItem[]} */
         this.playlist = [];
+        /** @type {number} */
         this.currentPlaylistIndex = -1;
+        /** @type {boolean} */
         this.isPlaying = false;
+        /** @type {boolean} */
         this.isPaused = false;
+        /** @type {boolean} */
         this.wasPlayingBeforeListening = false;
+        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string }} */
         this.settings = {
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-5-20251101'
         };
         // TTS handled by VoiceOutput library
+        /** @type {boolean} */
         this.manualModeStopRequested = false;
+        /** @type {ReturnType<typeof setInterval> | null} */
         this.progressUpdateInterval = null;
+        /** @type {boolean} */
         this.isDraggingProgress = false;
+        /** @type {Record<string, FavoriteData>} */
         this.favorites = this.loadFavorites();
+        /** @type {boolean} */
         this.isProcessingCommand = false;
+        /** @type {TranscriptManager} */
         this.transcript = new TranscriptManager();
         this.init();
     }
@@ -199,6 +126,11 @@ class VoiceMusicController {
         localStorage.setItem('voiceMusicFavorites', JSON.stringify(this.favorites));
     }
 
+    /**
+     * @param {string} videoId
+     * @param {Partial<PlaylistItem> | null} [songData]
+     * @returns {boolean}
+     */
     toggleFavorite(videoId, songData = null) {
         if (this.favorites[videoId]) {
             // Already favorited - remove it
@@ -226,6 +158,7 @@ class VoiceMusicController {
         return false;
     }
 
+    /** @param {string} videoId */
     isFavorite(videoId) {
         return !!this.favorites[videoId];
     }
@@ -309,6 +242,11 @@ class VoiceMusicController {
         });
     }
 
+    /**
+     * @param {string} type
+     * @param {string} label
+     * @param {string} text
+     */
     addMessage(type, label, text) {
         const logContent = document.getElementById('logContent');
         if (!logContent) return;
@@ -327,14 +265,20 @@ class VoiceMusicController {
         logContent.scrollTop = logContent.scrollHeight;
     }
 
+    /** @param {string} text */
     logUserMessage(text) {
         this.addMessage('user', 'You:', text);
     }
 
+    /** @param {string} text */
     logClaudeMessage(text) {
         this.addMessage('claude', 'Claude:', text);
     }
 
+    /**
+     * @param {string} label
+     * @param {unknown} error
+     */
     logError(label, error) {
         let errorText = '';
         if (error instanceof Error) {
@@ -442,6 +386,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {boolean} hasKey */
     updateApiKeyUI(hasKey) {
         const statusEl = document.getElementById('apiKeyStatus');
         const inputRow = document.getElementById('apiKeyInputRow');
@@ -464,6 +409,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {string} apiKey */
     saveApiKey(apiKey) {
         if (!apiKey || apiKey.length < 10) {
             this.updateStatus('Invalid API key');
@@ -480,8 +426,8 @@ class VoiceMusicController {
         this.updateApiKeyUI(true);
 
         // Clear the input fields
-        const settingsInput = document.getElementById('claudeApiKeyInput');
-        const overlayInput = document.getElementById('claudeApiKeyOverlayInput');
+        const settingsInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyInput'));
+        const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
         if (settingsInput) settingsInput.value = '';
         if (overlayInput) overlayInput.value = '';
 
@@ -503,7 +449,7 @@ class VoiceMusicController {
         const showBtn = document.getElementById('showApiKeyBtn');
         const changeBtn = document.getElementById('changeApiKeyBtn');
         const removeBtn = document.getElementById('removeApiKeyBtn');
-        const inputEl = document.getElementById('claudeApiKeyInput');
+        const inputEl = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyInput'));
 
         if (saveBtn && inputEl) {
             saveBtn.addEventListener('click', () => {
@@ -551,7 +497,7 @@ class VoiceMusicController {
         }
 
         // Overlay API key handlers
-        const overlayInput = document.getElementById('claudeApiKeyOverlayInput');
+        const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
         const overlaySaveBtn = document.getElementById('saveApiKeyOverlayBtn');
 
         if (overlaySaveBtn && overlayInput) {
@@ -596,7 +542,7 @@ class VoiceMusicController {
             }
         };
 
-        this.recognition.onresult = (event) => {
+        this.recognition.onresult = (/** @type {SpeechRecognitionEvent} */ event) => {
             let transcriptText = '';
             let isFinal = false;
 
@@ -669,7 +615,7 @@ class VoiceMusicController {
             }
         };
 
-        this.recognition.onerror = (event) => {
+        this.recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
             console.error('Speech recognition error:', event.error);
 
             // Different errors need different handling - some are expected, some need user action
@@ -784,19 +730,25 @@ class VoiceMusicController {
         }
 
         // Update UI with saved settings
-        document.getElementById('readClaudeResponse').checked = this.settings.readClaudeResponse;
-        document.getElementById('autoSubmitMode').checked = this.settings.autoSubmitMode;
-        document.getElementById('claudeModel').value = this.settings.claudeModel;
+        const readClaudeEl = /** @type {HTMLInputElement | null} */ (document.getElementById('readClaudeResponse'));
+        const autoSubmitEl = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
+        const claudeModelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('claudeModel'));
+
+        if (readClaudeEl) readClaudeEl.checked = this.settings.readClaudeResponse;
+        if (autoSubmitEl) autoSubmitEl.checked = this.settings.autoSubmitMode;
+        if (claudeModelEl) claudeModelEl.value = this.settings.claudeModel;
         this.updateModeToggle();
 
         // Settings change handlers
-        document.getElementById('readClaudeResponse').addEventListener('change', (e) => {
-            this.settings.readClaudeResponse = e.target.checked;
+        if (readClaudeEl) readClaudeEl.addEventListener('change', (e) => {
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            this.settings.readClaudeResponse = target.checked;
             this.saveSettings();
         });
 
-        document.getElementById('autoSubmitMode').addEventListener('change', (e) => {
-            this.settings.autoSubmitMode = e.target.checked;
+        if (autoSubmitEl) autoSubmitEl.addEventListener('change', (e) => {
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            this.settings.autoSubmitMode = target.checked;
             this.saveSettings();
             this.updateRecognitionMode();
             this.updateSubmitButton(false);
@@ -808,8 +760,9 @@ class VoiceMusicController {
             }
         });
 
-        document.getElementById('claudeModel').addEventListener('change', (e) => {
-            this.settings.claudeModel = e.target.value;
+        if (claudeModelEl) claudeModelEl.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.settings.claudeModel = target.value;
             this.saveSettings();
         });
 
@@ -835,7 +788,7 @@ class VoiceMusicController {
                 // Clear accumulated state when switching modes
                 this.transcript.reset();
                 // Also update the settings checkbox
-                const autoSubmitCheckbox = document.getElementById('autoSubmitMode');
+                const autoSubmitCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
                 if (autoSubmitCheckbox) {
                     autoSubmitCheckbox.checked = this.settings.autoSubmitMode;
                 }
@@ -949,10 +902,11 @@ class VoiceMusicController {
         const progressTrack = document.getElementById('progressBarTrack');
         if (!progressTrack) return;
 
+        /** @param {MouseEvent | TouchEvent} e */
         const handleSeek = (e) => {
             const rect = progressTrack.getBoundingClientRect();
-            const x = e.clientX || (e.touches && e.touches[0].clientX);
-            const percentage = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+            const clientX = 'clientX' in e ? e.clientX : (e.touches && e.touches[0]?.clientX) || 0;
+            const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
             this.seekToPercentage(percentage);
         };
 
@@ -1000,6 +954,7 @@ class VoiceMusicController {
         progressTrack.addEventListener('click', handleSeek);
     }
 
+    /** @param {number} percentage */
     seekToPercentage(percentage) {
         if (!this.currentPlayingId) return;
 
@@ -1041,6 +996,10 @@ class VoiceMusicController {
         }
     }
 
+    /**
+     * @param {number} currentTime
+     * @param {number} duration
+     */
     updateProgressBar(currentTime, duration) {
         const fill = document.getElementById('progressBarFill');
         const handle = document.getElementById('progressBarHandle');
@@ -1056,6 +1015,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {number} seconds */
     formatTime(seconds) {
         if (!seconds || isNaN(seconds)) return '0:00';
         const mins = Math.floor(seconds / 60);
@@ -1125,6 +1085,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {boolean} listening */
     updateListenButton(listening) {
         const btn = document.getElementById('listenBtn');
         if (listening) {
@@ -1140,6 +1101,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {boolean} show */
     updateSubmitButton(show) {
         const submitBtn = document.getElementById('submitBtn');
         const listenBtn = document.getElementById('listenBtn');
@@ -1174,6 +1136,7 @@ class VoiceMusicController {
         localStorage.setItem('voiceMusicSettings', JSON.stringify(this.settings));
     }
 
+    /** @param {string} message */
     updateStatus(message) {
         const statusEl = document.getElementById('status');
         if (statusEl) {
@@ -1181,6 +1144,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {string} transcript */
     async handleVoiceCommand(transcript) {
         try {
             this.hideClaudeResponse();
@@ -1263,10 +1227,12 @@ class VoiceMusicController {
     }
 
     // Text-to-speech via centralized VoiceOutput library
+    /** @param {string} text */
     speakText(text) {
         return this.speakTextAsync(text);
     }
 
+    /** @param {string} text */
     speakTextAsync(text) {
         if (typeof VoiceOutput !== 'undefined') {
             return VoiceOutput.speak(text);
@@ -1275,6 +1241,7 @@ class VoiceMusicController {
         return Promise.resolve();
     }
 
+    /** @param {string} transcript */
     parseControlCommand(transcript) {
         const lower = transcript.toLowerCase().trim();
 
@@ -1336,6 +1303,7 @@ class VoiceMusicController {
         return null;
     }
 
+    /** @param {string} command */
     executeControlCommand(command) {
         switch (command) {
             case 'help':
@@ -1476,6 +1444,7 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {string} transcript */
     async processCommandWithLLM(transcript) {
         // Debug mode: skip Claude API and return hardcoded test data
         if (SKIP_CLAUDE) {
@@ -1573,6 +1542,7 @@ If the request is not about music, return an empty array [].`;
         }
     }
 
+    /** @param {Array<{ searchTerm?: string, name?: string, artist?: string, year?: string, album?: string, comment?: string }>} songList */
     async searchAndAddToPlaylist(songList) {
         const playlistContainer = document.getElementById('playlistContainer');
         const playlistEl = document.getElementById('playlist');
@@ -1652,6 +1622,7 @@ If the request is not about music, return an empty array [].`;
         }
     }
 
+    /** @param {string} query */
     async searchYouTube(query) {
         // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
         // Server-side avoids CORS issues and doesn't need third-party CORS proxies
@@ -1694,6 +1665,7 @@ If the request is not about music, return an empty array [].`;
         return null;
     }
 
+    /** @param {number} totalSeconds */
     formatSeconds(totalSeconds) {
         if (!totalSeconds || isNaN(totalSeconds)) return '--:--';
         const hours = Math.floor(totalSeconds / 3600);
@@ -1706,10 +1678,11 @@ If the request is not about music, return an empty array [].`;
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
+    /** @param {PlaylistItem} item */
     addPlaylistItemToDOM(item) {
         const playlistBody = document.getElementById('playlistBody');
         const row = document.createElement('tr');
-        row.dataset.itemId = item.id;
+        row.dataset.itemId = String(item.id);
         row.dataset.videoId = item.videoId;
 
         const isFav = this.isFavorite(item.videoId);
@@ -1728,18 +1701,21 @@ If the request is not about music, return an empty array [].`;
         `;
 
         // Favorite button click - pass full song data
-        const favBtn = row.querySelector('.favorite-btn');
-        favBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const videoId = favBtn.dataset.videoId;
-            const isNowFavorited = this.toggleFavorite(videoId, item);
-            favBtn.classList.toggle('favorited', isNowFavorited);
-            favBtn.textContent = isNowFavorited ? '\u2605' : '\u2606';
-        });
+        const favBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.favorite-btn'));
+        if (favBtn) {
+            favBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const videoId = favBtn.dataset.videoId || '';
+                const isNowFavorited = this.toggleFavorite(videoId, item);
+                favBtn.classList.toggle('favorited', isNowFavorited);
+                favBtn.textContent = isNowFavorited ? '\u2605' : '\u2606';
+            });
+        }
 
         // Tap/click to play (on the row, not the favorite button)
         row.addEventListener('click', (e) => {
-            if (e.target.closest('.favorite-btn')) return;
+            const target = /** @type {HTMLElement} */ (e.target);
+            if (target.closest('.favorite-btn')) return;
             this.playVideo(item);
         });
 
@@ -1836,6 +1812,7 @@ If the request is not about music, return an empty array [].`;
         }, DOM_SETTLE_DELAY_MS);
     }
 
+    /** @param {PlaylistItem} item */
     playVideo(item) {
         // Stop currently playing video
         if (this.currentPlayingId && this.currentPlayingId !== item.id) {
@@ -1901,6 +1878,7 @@ If the request is not about music, return an empty array [].`;
         }
     }
 
+    /** @param {PlaylistItem | null} item */
     updateCentralPlayer(item) {
         const titleEl = document.getElementById('playerSongTitle');
         const artistEl = document.getElementById('playerSongArtist');
@@ -2091,12 +2069,14 @@ If the request is not about music, return an empty array [].`;
         }
     }
 
+    /** @param {string} text */
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
+    /** @param {string} text */
     decodeHtml(text) {
         // YouTube API returns HTML-encoded titles (e.g., &amp; instead of &)
         // Decode them before storing to avoid double-encoding when displayed
@@ -2105,6 +2085,7 @@ If the request is not about music, return an empty array [].`;
         return div.textContent;
     }
 
+    /** @param {string} text */
     showClaudeResponse(text) {
         // Log to messages panel instead of showing in main UI
         this.addMessage('claude', 'Claude Response:', text);
@@ -2114,6 +2095,7 @@ If the request is not about music, return an empty array [].`;
         // No-op, responses go to messages panel
     }
 
+    /** @param {string} promptText */
     showPrompt(promptText) {
         // Log to messages panel instead of showing in main UI
         this.addMessage('claude', 'Prompt:', promptText);

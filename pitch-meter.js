@@ -1,76 +1,28 @@
+// @ts-check
 //-----------------------------------------------------------------------
 // PITCH METER - Real-time pitch detection with practice modes
 // Uses Web Audio API for microphone capture
 // Uses autocorrelation for pitch detection
 // Uses Tone.js Sampler with Salamander piano samples
+//
+// Requires: music-constants.js (NOTE_NAMES, SCALE_PATTERNS, utility functions)
 //-----------------------------------------------------------------------
 
-//-------MUSICAL CONSTANTS-------
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-const SCALE_PATTERNS = {
-    major: [0, 2, 4, 5, 7, 9, 11, 12],
-    minor: [0, 2, 3, 5, 7, 8, 10, 12],
-    chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-    pentatonic: [0, 2, 4, 7, 9, 12],
-    blues: [0, 3, 5, 6, 7, 10, 12]
-};
-
-const A4_FREQ = 440;
-const A4_MIDI = 69;
-
-const INSTRUMENT_PRESETS = {
+//-------INSTRUMENT PRESETS-------
+/** @type {Readonly<Record<string, { octave: number, label: string }>>} */
+const INSTRUMENT_PRESETS = Object.freeze({
     voice: { octave: 4, label: 'Voice' },
     violin: { octave: 4, label: 'Violin' },
     bass: { octave: 2, label: 'Bass' }
-};
-
-//-------UTILITY FUNCTIONS-------
-
-function midiToFreq(midi) {
-    return A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12);
-}
-
-function freqToMidi(freq) {
-    return A4_MIDI + 12 * Math.log2(freq / A4_FREQ);
-}
-
-function midiToNoteName(midi) {
-    const noteIndex = Math.round(midi) % 12;
-    const octave = Math.floor(Math.round(midi) / 12) - 1;
-    return { name: NOTE_NAMES[noteIndex], octave, full: NOTE_NAMES[noteIndex] + octave };
-}
-
-function noteNameToMidi(noteName, octave) {
-    const noteIndex = NOTE_NAMES.indexOf(noteName);
-    if (noteIndex === -1) return null;
-    return (octave + 1) * 12 + noteIndex;
-}
-
-function getCentsDeviation(freq) {
-    const midi = freqToMidi(freq);
-    const nearestMidi = Math.round(midi);
-    return (midi - nearestMidi) * 100;
-}
-
-function buildScaleFrequencies(rootNote, octave, scaleType) {
-    const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-    const rootMidi = noteNameToMidi(rootNote, octave);
-    return pattern.map(interval => {
-        const midi = rootMidi + interval;
-        const noteInfo = midiToNoteName(midi);
-        return {
-            midi,
-            freq: midiToFreq(midi),
-            name: noteInfo.full,
-            noteName: noteInfo.name,
-            octave: noteInfo.octave
-        };
-    });
-}
+});
 
 //-------PITCH DETECTION (Autocorrelation)-------
 
+/**
+ * @param {Float32Array} buffer - Audio buffer samples
+ * @param {number} sampleRate - Audio sample rate
+ * @returns {number} Detected frequency in Hz, or -1 if no pitch detected
+ */
 function autoCorrelate(buffer, sampleRate) {
     const SIZE = buffer.length;
     const MAX_SAMPLES = Math.floor(SIZE / 2);
@@ -117,50 +69,85 @@ function autoCorrelate(buffer, sampleRate) {
 
 //-------PITCH METER CONTROLLER-------
 
+/**
+ * @typedef {{ midi: number, freq: number, name: string, noteName: string, octave: number }} TargetNote
+ * @typedef {{ time: number, freq: number, midi: number, note: string, cents: number, targetNote?: string }} PitchSample
+ * @typedef {{ matched: boolean, accuracy: number, avgCents?: number, reason?: string, targetNote?: string, samples?: number }} NoteResult
+ */
+
 class PitchMeterController {
     constructor() {
+        /** @type {AudioContext | null} */
         this.audioContext = null;
+        /** @type {AnalyserNode | null} */
         this.analyser = null;
+        /** @type {MediaStreamAudioSourceNode | null} */
         this.microphone = null;
+        /** @type {boolean} */
         this.isListening = false;
+        /** @type {number | null} */
         this.animationId = null;
 
         // Piano sampler (same as scales page)
+        /** @type {import('tone').Sampler | null} */
         this.sampler = null;
+        /** @type {import('tone').Gain | null} */
         this.gainNode = null;
+        /** @type {boolean} */
         this.samplerLoaded = false;
+        /** @type {boolean} */
         this.isPlayingScale = false;
 
         // Practice mode
-        this.mode = 'call-response';  // 'free', 'call-response', 'play-along'
-        this.responseTime = 2;  // seconds to match each note in call-response mode
+        /** @type {'free' | 'call-response' | 'play-along'} */
+        this.mode = 'call-response';
+        /** @type {number} */
+        this.responseTime = 2;
 
         // Current scale config
+        /** @type {string} */
         this.instrument = 'voice';
+        /** @type {string} */
         this.rootNote = 'C';
+        /** @type {string} */
         this.scaleType = 'major';
+        /** @type {number} */
         this.octave = 4;
+        /** @type {TargetNote[]} */
         this.targetNotes = [];
 
         // Recording/listening data
+        /** @type {PitchSample[]} */
         this.pitchHistory = [];
+        /** @type {number} */
         this.sessionStartTime = 0;
 
         // Call & Response tracking
+        /** @type {number} */
         this.currentNoteIndex = 0;
+        /** @type {number} */
         this.noteStartTime = 0;
-        this.noteResults = [];  // Per-note results for call-response mode
+        /** @type {NoteResult[]} */
+        this.noteResults = [];
+        /** @type {boolean} */
         this.sessionAborted = false;
 
         // Canvas
+        /** @type {HTMLCanvasElement | null} */
         this.canvas = null;
+        /** @type {CanvasRenderingContext2D | null} */
         this.ctx = null;
 
         // DOM elements
+        /** @type {HTMLElement | null} */
         this.statusEl = null;
+        /** @type {HTMLElement | null} */
         this.currentNoteEl = null;
+        /** @type {HTMLElement | null} */
         this.currentCentsEl = null;
+        /** @type {HTMLElement | null} */
         this.currentFreqEl = null;
+        /** @type {HTMLElement | null} */
         this.centsMarkerEl = null;
 
         this.init();
@@ -173,40 +160,57 @@ class PitchMeterController {
         this.currentCentsEl = document.getElementById('currentCents');
         this.currentFreqEl = document.getElementById('currentFreq');
         this.centsMarkerEl = document.getElementById('centsMarker');
-        this.canvas = document.getElementById('pitchChart');
-        this.ctx = this.canvas.getContext('2d');
+        this.canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('pitchChart'));
+        this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
 
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
         // Set up controls
-        document.getElementById('listenBtn').addEventListener('click', () => this.toggleListening());
-        document.getElementById('stopBtn').addEventListener('click', () => this.stopSession());
-        document.getElementById('playRefBtn').addEventListener('click', () => this.playReferenceScale());
+        const listenBtn = document.getElementById('listenBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playRefBtn = document.getElementById('playRefBtn');
+        const modeSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('modeSelect'));
+        const responseTimeSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('responseTimeSelect'));
 
-        document.getElementById('modeSelect').addEventListener('change', (e) => {
-            this.mode = e.target.value;
+        if (listenBtn) listenBtn.addEventListener('click', () => this.toggleListening());
+        if (stopBtn) stopBtn.addEventListener('click', () => this.stopSession());
+        if (playRefBtn) playRefBtn.addEventListener('click', () => this.playReferenceScale());
+
+        if (modeSelect) modeSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.mode = /** @type {'free' | 'call-response' | 'play-along'} */ (target.value);
             this.updateModeUI();
         });
 
-        document.getElementById('responseTimeSelect').addEventListener('change', (e) => {
-            this.responseTime = parseInt(e.target.value);
+        if (responseTimeSelect) responseTimeSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.responseTime = parseInt(target.value);
         });
 
-        document.getElementById('instrumentSelect').addEventListener('change', (e) => {
-            this.instrument = e.target.value;
+        const instrumentSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('instrumentSelect'));
+        const rootSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('rootSelect'));
+        const scaleSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('scaleSelect'));
+        const octaveSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('octaveSelect'));
+
+        if (instrumentSelect) instrumentSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.instrument = target.value;
             this.applyInstrumentPreset();
         });
-        document.getElementById('rootSelect').addEventListener('change', (e) => {
-            this.rootNote = e.target.value;
+        if (rootSelect) rootSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.rootNote = target.value;
             this.updateTargetNotes();
         });
-        document.getElementById('scaleSelect').addEventListener('change', (e) => {
-            this.scaleType = e.target.value;
+        if (scaleSelect) scaleSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.scaleType = target.value;
             this.updateTargetNotes();
         });
-        document.getElementById('octaveSelect').addEventListener('change', (e) => {
-            this.octave = parseInt(e.target.value);
+        if (octaveSelect) octaveSelect.addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            this.octave = parseInt(target.value);
             this.updateTargetNotes();
         });
 
@@ -256,8 +260,10 @@ class PitchMeterController {
     }
 
     enableButtons() {
-        document.getElementById('listenBtn').disabled = false;
-        document.getElementById('playRefBtn').disabled = false;
+        const listenBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('listenBtn'));
+        const playRefBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('playRefBtn'));
+        if (listenBtn) listenBtn.disabled = false;
+        if (playRefBtn) playRefBtn.disabled = false;
     }
 
     updateModeUI() {
@@ -299,7 +305,8 @@ class PitchMeterController {
         const preset = INSTRUMENT_PRESETS[this.instrument];
         if (preset) {
             this.octave = preset.octave;
-            document.getElementById('octaveSelect').value = String(preset.octave);
+            const octaveSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('octaveSelect'));
+            if (octaveSelect) octaveSelect.value = String(preset.octave);
             this.updateTargetNotes();
         }
     }
@@ -309,6 +316,7 @@ class PitchMeterController {
         this.drawChart();
     }
 
+    /** @param {string} message */
     updateStatus(message) {
         if (this.statusEl) {
             this.statusEl.textContent = message;
@@ -347,10 +355,15 @@ class PitchMeterController {
 
             // Update UI
             const listenBtn = document.getElementById('listenBtn');
-            listenBtn.classList.add('listening');
-            listenBtn.querySelector('.button-text').textContent = 'Listening...';
-            document.getElementById('stopBtn').disabled = false;
-            document.getElementById('resultsPanel').style.display = 'none';
+            const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
+            const resultsPanel = document.getElementById('resultsPanel');
+            if (listenBtn) {
+                listenBtn.classList.add('listening');
+                const btnText = listenBtn.querySelector('.button-text');
+                if (btnText) btnText.textContent = 'Listening...';
+            }
+            if (stopBtn) stopBtn.disabled = false;
+            if (resultsPanel) resultsPanel.style.display = 'none';
 
             await Tone.start();
 
@@ -392,9 +405,10 @@ class PitchMeterController {
 
         // Update UI
         const listenBtn = document.getElementById('listenBtn');
-        listenBtn.classList.remove('listening');
+        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
+        if (listenBtn) listenBtn.classList.remove('listening');
         this.updateModeUI();  // Reset button text
-        document.getElementById('stopBtn').disabled = true;
+        if (stopBtn) stopBtn.disabled = true;
 
         this.updateStatus('Stopped');
 
@@ -490,7 +504,13 @@ class PitchMeterController {
 
                 this.updatePitchDisplay(noteInfo.full, cents, freq);
 
-                pitchSamples.push({ freq, midi, note: noteInfo.full });
+                pitchSamples.push({
+                    time: Date.now() - this.sessionStartTime,
+                    freq,
+                    midi,
+                    note: noteInfo.full,
+                    cents
+                });
 
                 // Also add to overall history for chart
                 const elapsed = Date.now() - this.sessionStartTime;
@@ -531,6 +551,11 @@ class PitchMeterController {
         await this.playNextCallResponseNote();
     }
 
+    /**
+     * @param {TargetNote} targetNote
+     * @param {PitchSample[]} pitchSamples
+     * @returns {NoteResult}
+     */
     evaluateNoteMatch(targetNote, pitchSamples) {
         if (pitchSamples.length < 5) {
             return { matched: false, reason: 'no sound detected', accuracy: 0 };
@@ -568,9 +593,10 @@ class PitchMeterController {
         this.isPlayingScale = false;
 
         const listenBtn = document.getElementById('listenBtn');
-        listenBtn.classList.remove('listening');
+        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
+        if (listenBtn) listenBtn.classList.remove('listening');
         this.updateModeUI();
-        document.getElementById('stopBtn').disabled = true;
+        if (stopBtn) stopBtn.disabled = true;
 
         this.analyzeCallResponseResults();
     }
@@ -701,6 +727,11 @@ class PitchMeterController {
 
     //-------DISPLAY HELPERS-------
 
+    /**
+     * @param {string} noteName
+     * @param {number} cents
+     * @param {number} freq
+     */
     updatePitchDisplay(noteName, cents, freq) {
         this.currentNoteEl.textContent = noteName;
         this.currentCentsEl.textContent = (cents >= 0 ? '+' : '') + cents.toFixed(0) + ' cents';
@@ -780,6 +811,7 @@ class PitchMeterController {
         const maxMidi = this.targetNotes[this.targetNotes.length - 1].midi + 2;
         const midiRange = maxMidi - minMidi;
 
+        /** @param {number} midi */
         const midiToY = (midi) => {
             return height - ((midi - minMidi) / midiRange) * (height - 40) - 20;
         };
@@ -867,9 +899,10 @@ class PitchMeterController {
 
     analyzeResults() {
         const resultsPanel = document.getElementById('resultsPanel');
-        resultsPanel.style.display = 'block';
+        if (resultsPanel) resultsPanel.style.display = 'block';
 
         const targetMidis = this.targetNotes.map(n => n.midi);
+        /** @type {Record<number, { hits: number, totalCents: number, count: number }>} */
         const noteHits = {};
         targetMidis.forEach(midi => {
             noteHits[midi] = { hits: 0, totalCents: 0, count: 0 };
@@ -892,10 +925,14 @@ class PitchMeterController {
             });
 
             if (nearestTarget !== null && nearestDist < 1.5) {
-                const cents = (sample.midi - nearestTarget) * 100;
-                noteHits[nearestTarget].hits++;
-                noteHits[nearestTarget].totalCents += Math.abs(cents);
-                noteHits[nearestTarget].count++;
+                /** @type {number} */
+                const targetKey = nearestTarget;  // Type narrowing
+                const entry = noteHits[targetKey];
+                if (!entry) return;
+                const cents = (sample.midi - targetKey) * 100;
+                entry.hits++;
+                entry.totalCents += Math.abs(cents);
+                entry.count++;
 
                 totalCentsDeviation += Math.abs(cents);
                 validSamples++;
@@ -962,6 +999,10 @@ class PitchMeterController {
 
     //-------UTILITIES-------
 
+    /**
+     * @param {number} ms
+     * @returns {Promise<void>}
+     */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }

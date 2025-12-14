@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    // TYPE SAFETY - catches type mismatches and compatibility issues
+    // Explicit types we've added are still checked; untyped params allowed for now
+    "strict": false,
+    "noImplicitAny": false,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    // NULL SAFETY - Enable for full strictness (requires null checks everywhere)
+    // "strictNullChecks": true,
+    // FULL STRICTNESS - Enable when scales.js is fully typed
+    // "noImplicitAny": true,
+    // CODE QUALITY
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": true,
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "moduleResolution": "node",
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
+    ],
+    "skipLibCheck": true
+  },
+  "include": [
+    "*.js",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

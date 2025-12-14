@@ -1,7 +1,4 @@
+node_modules/
 config.json
-.htpasswd-credentials.txt
-.htpasswd
-deploy/
-
-# Editor/IDE
-.cursor/mcp.json
+tsc-errors.txt
+package-lock.json

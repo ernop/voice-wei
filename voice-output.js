@@ -1,3 +1,4 @@
+// @ts-check
 //-----------------------------------------------------------------------
 // VOICE OUTPUT
 // Centralized text-to-speech library.
@@ -12,10 +13,11 @@
 //   VoiceOutput.stop();
 //-----------------------------------------------------------------------
 
-const VoiceOutput = (function() {
+const VoiceOutput = (function () {
     'use strict';
 
     //-------CONFIGURATION-------
+    /** @type {{ rate: number, pitch: number, volume: number }} */
     const CONFIG = {
         // Default speech rate (1.0 = normal)
         rate: 1.0,
@@ -26,6 +28,7 @@ const VoiceOutput = (function() {
     };
 
     //-------STATE-------
+    /** @type {SpeechSynthesis | null} */
     let synthesis = null;
 
     //-------INITIALIZATION-------
@@ -99,7 +102,7 @@ const VoiceOutput = (function() {
 
     /**
      * Configure voice output settings.
-     * @param {Object} settings
+     * @param {Partial<{ rate: number, pitch: number, volume: number }>} settings
      */
     function configure(settings) {
         Object.assign(CONFIG, settings);
@@ -107,7 +110,7 @@ const VoiceOutput = (function() {
 
     /**
      * Get current configuration.
-     * @returns {Object}
+     * @returns {{ rate: number, pitch: number, volume: number }}
      */
     function getConfig() {
         return { ...CONFIG };

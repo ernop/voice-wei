@@ -1,3 +1,4 @@
+// @ts-check
 //-----------------------------------------------------------------------
 // SCALES - Voice-controlled scale and pitch training
 // Uses VoiceCommandCore for voice recognition
@@ -6,14 +7,40 @@
 
 //-------AUDIO COORDINATOR-------
 // Single authority for all audio playback - prevents overlapping sounds
+
+/**
+ * @typedef {Object} PlaySequenceOptions
+ * @property {(() => { ms: number, tone: number | string, gap: number })} [getDuration]
+ * @property {((note: string, index: number, repeatIndex: number) => void)} [onNote]
+ * @property {((message: string) => void)} [onStatus]
+ * @property {number} [repeatCount]
+ * @property {number} [repeatGapMs]
+ * @property {boolean} [seamlessRepeat]
+ * @property {((repeatIndex: number) => string[])} [getNotesForRepeat]
+ */
+
+/**
+ * @typedef {Object} PlayChordSequenceOptions
+ * @property {number} [repeatCount]
+ * @property {((message: string) => void)} [onStatus]
+ * @property {number} [gapMs]
+ */
+
 class AudioCoordinator {
     constructor() {
+        /** @type {InstanceType<typeof Tone.Sampler> | null} */
         this.synth = null;
+        /** @type {InstanceType<typeof Tone.Gain> | null} */
         this.gainNode = null;
+        /** @type {boolean} */
         this.isPlaying = false;
+        /** @type {number} */
         this.playbackId = 0;  // Monotonic ID to detect stale/superseded playback
+        /** @type {((note: string, index: number) => void) | null} */
         this.onNoteCallback = null;
+        /** @type {((message: string) => void) | null} */
         this.onStatusCallback = null;
+        /** @type {(() => void) | null} */
         this.onCompleteCallback = null;
     }
 
@@ -65,13 +92,21 @@ class AudioCoordinator {
         }
     }
 
-    // Play a single note (does not affect sequence playback state)
+    /**
+     * Play a single note (does not affect sequence playback state)
+     * @param {string} note
+     * @param {string} [duration]
+     */
     playNote(note, duration = '8n') {
         this.enableAudio();
         this.synth.triggerAttackRelease(note, duration);
     }
 
-    // Play a chord (multiple notes simultaneously)
+    /**
+     * Play a chord (multiple notes simultaneously)
+     * @param {string[]} notes
+     * @param {string} [duration]
+     */
     playChord(notes, duration = '2n') {
         this.enableAudio();
         this.synth.triggerAttackRelease(notes, duration);
@@ -87,12 +122,19 @@ class AudioCoordinator {
         return this.playbackId;
     }
 
-    // Check if a playback session is still the current one
+    /**
+     * Check if a playback session is still the current one
+     * @param {number} id
+     */
     isPlaybackValid(id) {
         return this.isPlaying && id === this.playbackId;
     }
 
-    // Play a sequence of notes with full control
+    /**
+     * Play a sequence of notes with full control
+     * @param {string[]} notes
+     * @param {PlaySequenceOptions} [options]
+     */
     async playSequence(notes, options = {}) {
         const {
             getDuration,      // Function returning { ms, tone, gap } for current note
@@ -152,7 +194,11 @@ class AudioCoordinator {
         }
     }
 
-    // Play a chord with repeat support
+    /**
+     * Play a chord with repeat support
+     * @param {string[]} notes
+     * @param {PlayChordSequenceOptions} [options]
+     */
     async playChordRepeated(notes, options = {}) {
         const {
             repeatCount = 1,
@@ -199,16 +245,17 @@ class AudioCoordinator {
         }
     }
 
+    /** @param {number} ms */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 
 //-------MUSICAL CONSTANTS-------
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const NOTE_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+// NOTE_NAMES, NOTE_NAMES_FLAT, SCALE_PATTERNS, and utility functions
+// are provided by music-constants.js
 
-// Phonetic aliases for note names (speech recognition often mishears these)
+/** @type {Record<string, string>} */
 const NOTE_PHONETIC_MAP = {
     // C variants
     'see': 'C', 'sea': 'C', 'si': 'C', 'cee': 'C',
@@ -228,59 +275,34 @@ const NOTE_PHONETIC_MAP = {
     'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F', 'g': 'G', 'a': 'A', 'b': 'B'
 };
 
-// Phonetic aliases for sharp/flat
+/** @type {Record<string, string>} */
 const MODIFIER_PHONETIC_MAP = {
     'sharp': 'sharp', 'shop': 'sharp', 'sharpe': 'sharp', 'shark': 'sharp',
     'flat': 'flat', 'flap': 'flat', 'flight': 'flat',
     '#': 'sharp', 'b': 'flat'
 };
 
-// Normalize a spoken note name to standard form
+/**
+ * Normalize a spoken note name to standard form
+ * @param {string | null | undefined} spoken
+ * @returns {string | null}
+ */
 function normalizeNoteName(spoken) {
     if (!spoken) return null;
     const lower = spoken.toLowerCase().trim();
     return NOTE_PHONETIC_MAP[lower] || (lower.length === 1 && lower.match(/[a-g]/i) ? lower.toUpperCase() : null);
 }
 
-// Normalize sharp/flat modifier
+/**
+ * Normalize sharp/flat modifier
+ * @param {string | null | undefined} spoken
+ * @returns {string | null}
+ */
 function normalizeModifier(spoken) {
     if (!spoken) return null;
     const lower = spoken.toLowerCase().trim();
     return MODIFIER_PHONETIC_MAP[lower] || null;
 }
-
-// Scale intervals (semitones from root)
-const SCALE_PATTERNS = {
-    // Basic scales
-    major: [0, 2, 4, 5, 7, 9, 11, 12],
-    minor: [0, 2, 3, 5, 7, 8, 10, 12],           // Natural minor
-    chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-
-    // Pentatonic & Blues
-    pentatonic: [0, 2, 4, 7, 9, 12],             // Major pentatonic
-    minor_pentatonic: [0, 3, 5, 7, 10, 12],      // Minor pentatonic
-    blues: [0, 3, 5, 6, 7, 10, 12],
-
-    // Modes
-    dorian: [0, 2, 3, 5, 7, 9, 10, 12],
-    phrygian: [0, 1, 3, 5, 7, 8, 10, 12],
-    lydian: [0, 2, 4, 6, 7, 9, 11, 12],
-    mixolydian: [0, 2, 4, 5, 7, 9, 10, 12],
-    locrian: [0, 1, 3, 5, 6, 8, 10, 12],
-
-    // Harmonic scales
-    harmonic_minor: [0, 2, 3, 5, 7, 8, 11, 12],
-    harmonic_major: [0, 2, 4, 5, 7, 8, 11, 12],
-    double_harmonic: [0, 1, 4, 5, 7, 8, 11, 12], // aka Byzantine, Arabic, Hungarian gypsy
-
-    // Melodic minor
-    melodic_minor: [0, 2, 3, 5, 7, 9, 11, 12],   // Jazz melodic minor (same up & down)
-
-    // Exotic scales
-    whole_tone: [0, 2, 4, 6, 8, 10, 12],
-    diminished: [0, 2, 3, 5, 6, 8, 9, 11, 12],   // Half-whole diminished
-    augmented: [0, 3, 4, 7, 8, 11, 12]
-};
 
 // Default octave for scales
 const DEFAULT_OCTAVE = 4;
@@ -297,12 +319,94 @@ const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
 
 //-------SCALES CONTROLLER-------
+
+/**
+ * @typedef {Object} ScalesSettings
+ * @property {number} noteLength
+ * @property {number} gap
+ * @property {string} direction
+ * @property {number} octave
+ * @property {number} repeatCount
+ * @property {number} repeatGapMs
+ * @property {number} risingSemitones
+ * @property {string} movementStyle
+ * @property {string} scaleType
+ * @property {string} root
+ * @property {number} rangeExpansion
+ * @property {number} octaveSpan
+ */
+
+/**
+ * @typedef {Object} ScaleModifiers
+ * @property {string | null} [tempo]
+ * @property {string | null} [gap]
+ * @property {number} [repeat]
+ * @property {string | null} [direction]
+ * @property {number | null} [risingSemitones]
+ * @property {string | null} [movementStyle]
+ * @property {number | null} [rangeExpansion]
+ * @property {number | null} [octaveSpan]
+ * @property {number | null} [repeatGapMs]
+ */
+
+/**
+ * @typedef {Object} ScaleCommand
+ * @property {string} [type]
+ * @property {string} [root]
+ * @property {string} [scale]
+ * @property {string} [scaleType]
+ * @property {number} [octave]
+ * @property {string} [direction]
+ * @property {string} [repeatRaw]
+ * @property {number} [repeatCount]
+ * @property {string} [tempoName]
+ * @property {number} [tempoIndex]
+ * @property {string} [gapName]
+ * @property {number} [gapIndex]
+ * @property {string} [movementStyle]
+ * @property {number} [rangeExpansion]
+ * @property {number} [octaveSpan]
+ * @property {number} [risingSemitones]
+ * @property {string} [chord]
+ * @property {string} [note]
+ * @property {string} [rawTranscript]
+ * @property {string} [quality]
+ * @property {string} [interval]
+ * @property {ScaleModifiers} [modifiers]
+ * @property {string} [setting]
+ * @property {string | number} [value]
+ */
+
+/**
+ * @typedef {Object} Preset
+ * @property {string} id
+ * @property {string} name
+ * @property {ScalesSettings} config
+ * @property {number} [createdAt]
+ */
+
+/**
+ * @typedef {Object} HistoryEntry
+ * @property {string} [transcript]
+ * @property {ScaleCommand} [command]
+ * @property {string} [type]
+ * @property {string} [message]
+ * @property {string} [description]
+ * @property {Object} [details]
+ * @property {Date} [timestamp]
+ */
+
 class ScalesController {
     constructor() {
+        /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
+        /** @type {AudioCoordinator} */
         this.audio = new AudioCoordinator();  // Single authority for all audio
+        /** @type {HTMLTableRowElement | null} */
         this.pianoNotificationRow = null;
+        /** @type {Preset[]} */
         this.presets = [];
+        /** @type {string | null} */
         this.selectedPresetId = null;
         this.settings = {
             noteLength: 2,    // index into noteLengthMap (0.5s default)
@@ -339,6 +443,7 @@ class ScalesController {
         };
 
         // Maps tempo/speed voice commands to noteLength indices (voice commands still work)
+        /** @type {Record<string, number>} */
         this.tempoNameToIndex = {
             'very fast': 0,
             'fast': 1,
@@ -347,9 +452,11 @@ class ScalesController {
             'very slow': 4,
             'super slow': 5
         };
+        /** @type {string[]} */
         this.tempoIndexToName = ['very fast', 'fast', 'normal', 'slow', 'very slow', 'super slow'];
 
         // Maps gap names to gap indices
+        /** @type {Record<string, number>} */
         this.gapNameToIndex = {
             '-1s': 0,
             '-0.5s': 1,
@@ -365,11 +472,15 @@ class ScalesController {
         this.gapIndexToName = ['-1s', '-0.5s', '-0.25s', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
 
         // Track last command for "repeat" / "again" functionality
+        /** @type {ScaleCommand | null} */
         this.lastCommand = null;
+        /** @type {string | null} */
         this.lastTranscript = null;
 
         // Command history for replay
+        /** @type {HistoryEntry[]} */
         this.commandHistory = [];
+        /** @type {number} */
         this.maxHistoryLength = 50;
 
         // Maps note length index to durations (ms)
@@ -395,6 +506,10 @@ class ScalesController {
         this.setupErrorHandling();
     }
 
+    /**
+     * @param {boolean} loaded
+     * @param {string | null} [message]
+     */
     updateLoadingStatus(loaded, message = null) {
         const statusRuntime = document.getElementById('statusRuntime');
         if (statusRuntime) {
@@ -414,15 +529,15 @@ class ScalesController {
             uiIds: {
                 statusEl: 'statusRuntime'
             },
-            onStatusChange: (msg) => console.log('Status:', msg),
-            onError: (msg) => this.showError(msg)
+            onStatusChange: (/** @type {string} */ msg) => console.log('Status:', msg),
+            onError: (/** @type {string} */ msg) => this.showError(msg)
         });
 
         // Register scale commands
         // Voice commands reset to defaults first, then apply modifiers from speech
         this.voiceCore.registerHandler({
-            parse: (transcript) => this.parseScaleCommand(transcript),
-            execute: async (command, transcript) => {
+            parse: (/** @type {string} */ transcript) => this.parseScaleCommand(transcript),
+            execute: async (/** @type {ScaleCommand} */ command, /** @type {string} */ transcript) => {
                 // Reset to defaults before applying voice command (unless it's a control command)
                 const controlCommands = ['stop', 'help', 'play', 'setting'];
                 if (!controlCommands.includes(command.type)) {
@@ -435,11 +550,19 @@ class ScalesController {
         this.voiceCore.init();
     }
 
+    /**
+     * @param {string} transcript
+     * @param {ScaleCommand} command
+     */
     setInterpretationStatus(transcript, command) {
         // Deprecated: old "statusInterpretation" element removed in favor of the piano notification table.
         // Kept as a no-op so existing call sites don't break.
     }
 
+    /**
+     * @param {string} transcript
+     * @param {ScaleCommand} command
+     */
     buildInterpretationMessage(transcript, command) {
         // Deprecated: no longer used (old debug/interpretation string).
         return '';
@@ -496,7 +619,7 @@ class ScalesController {
         const saveBtn = document.getElementById('savePresetBtn');
         const applyBtn = document.getElementById('applyPresetBtn');
         const deleteBtn = document.getElementById('deletePresetBtn');
-        const nameInput = document.getElementById('presetNameInput');
+        const nameInput = /** @type {HTMLInputElement | null} */ (document.getElementById('presetNameInput'));
 
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
@@ -565,6 +688,7 @@ class ScalesController {
         };
     }
 
+    /** @param {string} name */
     saveCurrentAsPreset(name) {
         const now = Date.now();
         const config = this.getCurrentConfigSnapshot();
@@ -585,7 +709,9 @@ class ScalesController {
         this.voiceCore.updateStatus('Saved config');
     }
 
+    /** @param {ScalesSettings} c */
     buildPresetTitleFromConfig(c) {
+        /** @type {Record<string, string>} */
         const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
         const parts = [];
 
@@ -605,6 +731,7 @@ class ScalesController {
         return parts.join(' ');
     }
 
+    /** @param {string} id */
     applyPresetById(id) {
         const preset = this.presets.find(p => p.id === id);
         if (!preset) return;
@@ -615,6 +742,7 @@ class ScalesController {
         this.voiceCore.updateStatus('Applied config (press Play)');
     }
 
+    /** @param {ScalesSettings} c */
     applyConfig(c) {
         this.settings.noteLength = c.noteLength;
         this.settings.gap = c.gap;
@@ -634,6 +762,7 @@ class ScalesController {
         this.renderPianoNotification({ command: null, activeNotes: [] });
     }
 
+    /** @param {string} id */
     deletePresetById(id) {
         const idx = this.presets.findIndex(p => p.id === id);
         if (idx === -1) return;
@@ -671,20 +800,21 @@ class ScalesController {
         }).join('');
 
         list.querySelectorAll('.preset-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const id = el.dataset.presetId;
-                this.selectedPresetId = id;
+            const element = /** @type {HTMLElement} */ (el);
+            element.addEventListener('click', () => {
+                const id = element.dataset.presetId;
+                this.selectedPresetId = id || null;
                 this.renderPresets();
             });
-            el.addEventListener('dblclick', () => {
-                const id = el.dataset.presetId;
-                this.applyPresetById(id);
+            element.addEventListener('dblclick', () => {
+                const id = element.dataset.presetId;
+                if (id) this.applyPresetById(id);
             });
         });
     }
 
     setupPianoNotificationArea() {
-        this.pianoNotificationRow = document.getElementById('pianoNotificationRow');
+        this.pianoNotificationRow = /** @type {HTMLTableRowElement | null} */ (document.getElementById('pianoNotificationRow'));
         this.renderPianoNotification({ command: null, activeNotes: [] });
     }
 
@@ -727,6 +857,7 @@ class ScalesController {
         }
     }
 
+    /** @param {string[]} notes */
     setPianoNotificationActiveNotes(notes) {
         if (!this.pianoNotificationRow) return;
 
@@ -738,10 +869,12 @@ class ScalesController {
         }
     }
 
+    /** @param {ScaleCommand | null} command */
     buildPianoNotificationBadges(command) {
         const s = this.settings;
         const d = this.defaultSettings;
 
+        /** @type {Record<string, string>} */
         const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
 
         const badges = [];
@@ -812,28 +945,31 @@ class ScalesController {
         // Also try again after a longer delay (Chrome loads voices async)
         setTimeout(() => this.populateVoiceDropdown(), 500);
 
-        const voiceSelect = document.getElementById('voiceSelect');
+        const voiceSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('voiceSelect'));
         if (voiceSelect) {
             voiceSelect.addEventListener('change', (e) => {
-                this.voiceCore.setVoice(e.target.value || null);
+                const target = /** @type {HTMLSelectElement} */ (e.target);
+                this.voiceCore.setVoice(target.value || null);
             });
         }
 
-        const voiceRate = document.getElementById('voiceRate');
+        const voiceRate = /** @type {HTMLInputElement | null} */ (document.getElementById('voiceRate'));
         const voiceRateValue = document.getElementById('voiceRateValue');
         if (voiceRate) {
             voiceRate.addEventListener('input', (e) => {
-                const rate = parseFloat(e.target.value);
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                const rate = parseFloat(target.value);
                 this.voiceCore.setVoiceRate(rate);
                 if (voiceRateValue) voiceRateValue.textContent = rate + 'x';
             });
         }
 
-        const voicePitch = document.getElementById('voicePitch');
+        const voicePitch = /** @type {HTMLInputElement | null} */ (document.getElementById('voicePitch'));
         const voicePitchValue = document.getElementById('voicePitchValue');
         if (voicePitch) {
             voicePitch.addEventListener('input', (e) => {
-                const pitch = parseFloat(e.target.value);
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                const pitch = parseFloat(target.value);
                 this.voiceCore.setVoicePitch(pitch);
                 if (voicePitchValue) voicePitchValue.textContent = pitch.toFixed(1);
             });
@@ -881,7 +1017,8 @@ class ScalesController {
     // Sync UI elements to match current settings (bidirectional binding)
     syncUIToSettings() {
         // Repeat buttons (at the top)
-        document.querySelectorAll('[data-repeat]').forEach(btn => {
+        document.querySelectorAll('[data-repeat]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             const { repeatCount, repeatGapMs } = this.parseRepeatButtonValue(btn.dataset.repeat);
             const matchesCount = repeatCount === this.settings.repeatCount;
             const matchesGap = (repeatCount === Infinity) ? (repeatGapMs === this.settings.repeatGapMs) : true;
@@ -889,56 +1026,66 @@ class ScalesController {
         });
 
         // Root note buttons
-        document.querySelectorAll('[data-root]').forEach(btn => {
+        document.querySelectorAll('[data-root]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.root === this.settings.root);
         });
 
         // Scale type buttons
-        document.querySelectorAll('[data-scale-type]').forEach(btn => {
+        document.querySelectorAll('[data-scale-type]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.scaleType === this.settings.scaleType);
         });
 
         // Direction buttons
-        document.querySelectorAll('[data-direction]').forEach(btn => {
+        document.querySelectorAll('[data-direction]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.direction === this.settings.direction);
         });
 
         // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(btn => {
-            const semitones = parseInt(btn.dataset.rising);
+        document.querySelectorAll('[data-rising]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const semitones = parseInt(btn.dataset.rising || '0');
             btn.classList.toggle('selected', semitones === this.settings.risingSemitones);
         });
 
         // Movement buttons
-        document.querySelectorAll('[data-movement]').forEach(btn => {
+        document.querySelectorAll('[data-movement]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
         });
 
         // Note length buttons
-        document.querySelectorAll('[data-length]').forEach(btn => {
-            btn.classList.toggle('selected', parseInt(btn.dataset.length) === this.settings.noteLength);
+        document.querySelectorAll('[data-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', parseInt(btn.dataset.length || '0') === this.settings.noteLength);
         });
 
         // Gap buttons
         const gapName = this.gapIndexToName[this.settings.gap] || 'small';
-        document.querySelectorAll('[data-gap]').forEach(btn => {
+        document.querySelectorAll('[data-gap]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.gap === gapName);
         });
 
         // Octave buttons
-        document.querySelectorAll('[data-octave]').forEach(btn => {
-            btn.classList.toggle('selected', parseInt(btn.dataset.octave) === this.settings.octave);
+        document.querySelectorAll('[data-octave]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', parseInt(btn.dataset.octave || '0') === this.settings.octave);
         });
 
         // Octave span buttons
-        document.querySelectorAll('[data-octave-span]').forEach(btn => {
-            const span = parseInt(btn.dataset.octaveSpan);
+        document.querySelectorAll('[data-octave-span]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const span = parseInt(btn.dataset.octaveSpan || '1');
             btn.classList.toggle('selected', span === this.settings.octaveSpan);
         });
 
         // Range expansion buttons
-        document.querySelectorAll('[data-range]').forEach(btn => {
-            const range = parseInt(btn.dataset.range);
+        document.querySelectorAll('[data-range]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const range = parseInt(btn.dataset.range || '0');
             btn.classList.toggle('selected', range === this.settings.rangeExpansion);
         });
 
@@ -1009,6 +1156,7 @@ class ScalesController {
         return parts.join(' | ');
     }
 
+    /** @param {string | null | undefined} raw */
     parseRepeatButtonValue(raw) {
         const trimmed = String(raw || '').trim();
         if (trimmed === 'Infinity') return { repeatCount: Infinity, repeatGapMs: FOREVER_SECTION_GAP_MS };
@@ -1021,7 +1169,8 @@ class ScalesController {
     // Setup voice-first clickable UI elements (all bidirectional controls)
     setupVoiceFirstUI() {
         // Repeat buttons (at the top)
-        document.querySelectorAll('[data-repeat]').forEach(btn => {
+        document.querySelectorAll('[data-repeat]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
                 const { repeatCount, repeatGapMs } = this.parseRepeatButtonValue(btn.dataset.repeat);
                 this.settings.repeatCount = repeatCount;
@@ -1033,57 +1182,64 @@ class ScalesController {
         });
 
         // Root note buttons
-        document.querySelectorAll('[data-root]').forEach(btn => {
+        document.querySelectorAll('[data-root]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.root = btn.dataset.root;
+                this.settings.root = btn.dataset.root || 'C';
                 this.syncUIToSettings();
             });
         });
 
         // Scale type buttons
-        document.querySelectorAll('[data-scale-type]').forEach(btn => {
+        document.querySelectorAll('[data-scale-type]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.scaleType = btn.dataset.scaleType;
+                this.settings.scaleType = btn.dataset.scaleType || 'major';
                 this.syncUIToSettings();
             });
         });
 
         // Direction buttons
-        document.querySelectorAll('[data-direction]').forEach(btn => {
+        document.querySelectorAll('[data-direction]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.direction = btn.dataset.direction;
+                this.settings.direction = btn.dataset.direction || 'ascending';
                 this.syncUIToSettings();
             });
         });
 
         // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(btn => {
+        document.querySelectorAll('[data-rising]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.risingSemitones = parseInt(btn.dataset.rising);
+                this.settings.risingSemitones = parseInt(btn.dataset.rising || '0');
                 this.syncUIToSettings();
             });
         });
 
         // Movement buttons
-        document.querySelectorAll('[data-movement]').forEach(btn => {
+        document.querySelectorAll('[data-movement]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.movementStyle = btn.dataset.movement;
+                this.settings.movementStyle = btn.dataset.movement || 'normal';
                 this.syncUIToSettings();
             });
         });
 
         // Note length buttons
-        document.querySelectorAll('[data-length]').forEach(btn => {
+        document.querySelectorAll('[data-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.noteLength = parseInt(btn.dataset.length);
+                this.settings.noteLength = parseInt(btn.dataset.length || '2');
                 this.syncUIToSettings();
             });
         });
 
         // Gap buttons
-        document.querySelectorAll('[data-gap]').forEach(btn => {
+        document.querySelectorAll('[data-gap]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                const gapName = btn.dataset.gap;
+                const gapName = btn.dataset.gap || '0s';
                 const index = this.gapNameToIndex[gapName];
                 if (index !== undefined) {
                     this.settings.gap = index;
@@ -1093,26 +1249,29 @@ class ScalesController {
         });
 
         // Octave buttons
-        document.querySelectorAll('[data-octave]').forEach(btn => {
+        document.querySelectorAll('[data-octave]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.octave = parseInt(btn.dataset.octave);
+                this.settings.octave = parseInt(btn.dataset.octave || '4');
                 this.syncUIToSettings();
                 this.updatePianoKeyOctaves();
             });
         });
 
         // Octave span buttons
-        document.querySelectorAll('[data-octave-span]').forEach(btn => {
+        document.querySelectorAll('[data-octave-span]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.octaveSpan = parseInt(btn.dataset.octaveSpan);
+                this.settings.octaveSpan = parseInt(btn.dataset.octaveSpan || '1');
                 this.syncUIToSettings();
             });
         });
 
         // Range expansion buttons
-        document.querySelectorAll('[data-range]').forEach(btn => {
+        document.querySelectorAll('[data-range]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
-                this.settings.rangeExpansion = parseInt(btn.dataset.range);
+                this.settings.rangeExpansion = parseInt(btn.dataset.range || '0');
                 this.syncUIToSettings();
             });
         });
@@ -1165,7 +1324,7 @@ class ScalesController {
             key.className = 'piano-key white-key';
             key.dataset.note = `${note}${octave}`;
             key.dataset.baseNote = note;
-            key.dataset.octaveOffset = octaveOffset;
+            key.dataset.octaveOffset = String(octaveOffset);
 
             // Show note name (and octave marker for C notes)
             const label = note === 'C' ? `C${octave}` : note;
@@ -1184,7 +1343,7 @@ class ScalesController {
                 const sharpNote = `${note}#${octave}`;
                 blackKey.dataset.note = sharpNote;
                 blackKey.dataset.baseNote = `${note}#`;
-                blackKey.dataset.octaveOffset = octaveOffset;
+                blackKey.dataset.octaveOffset = String(octaveOffset);
                 blackKey.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     await this.ensureAudioStarted();
@@ -1201,9 +1360,10 @@ class ScalesController {
 
     updatePianoKeyOctaves() {
         // Update all piano key data-note attributes to use current base octave
-        document.querySelectorAll('.piano-key').forEach(key => {
+        document.querySelectorAll('.piano-key').forEach(el => {
+            const key = /** @type {HTMLElement} */ (el);
             const baseNote = key.dataset.baseNote;
-            const octaveOffset = parseInt(key.dataset.octaveOffset) || 0;
+            const octaveOffset = parseInt(key.dataset.octaveOffset || '0');
             const newOctave = this.settings.octave + octaveOffset;
 
             // Update the data-note attribute
@@ -1222,9 +1382,13 @@ class ScalesController {
         this.updateScalePreview();
     }
 
-    // Extract modifiers from transcript and return cleaned transcript + modifiers
+    /**
+     * Extract modifiers from transcript and return cleaned transcript + modifiers
+     * @param {string} transcript
+     */
     extractModifiers(transcript) {
         let text = transcript.toLowerCase().trim();
+        /** @type {ScaleModifiers} */
         const modifiers = {
             tempo: null,        // 'very slow', 'slow', 'normal', 'fast', 'very fast'
             gap: null,          // 'none', 'small', 'normal', 'large', 'very large'
@@ -1406,6 +1570,10 @@ class ScalesController {
         return { cleanedText: text, modifiers };
     }
 
+    /**
+     * @param {string} transcript
+     * @returns {ScaleCommand | null}
+     */
     parseScaleCommand(transcript) {
         // First extract modifiers
         const { cleanedText, modifiers } = this.extractModifiers(transcript);
@@ -1684,6 +1852,11 @@ class ScalesController {
         return null;
     }
 
+    /**
+     * @param {ScaleCommand} command
+     * @param {string | null} [transcript]
+     * @param {boolean} [skipHistory]
+     */
     async executeScaleCommand(command, transcript = null, skipHistory = false) {
         // Ensure Tone.js audio context is started (required after user interaction)
         if (Tone.context.state !== 'running') {
@@ -1801,7 +1974,10 @@ class ScalesController {
         }
     }
 
-    // Build a descriptive status message including modifiers
+    /**
+     * Build a descriptive status message including modifiers
+     * @param {ScaleCommand} command
+     */
     buildStatusMessage(command) {
         const mods = command.modifiers || {};
         let parts = [];
@@ -1851,7 +2027,10 @@ class ScalesController {
         return `Playing ${parts.join(' ')}`;
     }
 
-    // Get a speakable description of a command (for echo mode)
+    /**
+     * Get a speakable description of a command (for echo mode)
+     * @param {ScaleCommand} command
+     */
     getCommandDescription(command) {
         const mods = command.modifiers || {};
         let parts = [];
@@ -1935,7 +2114,10 @@ class ScalesController {
         return parts.filter(p => p).join(' ');
     }
 
-    // Convert note name to speakable form (C# -> C sharp)
+    /**
+     * Convert note name to speakable form (C# -> C sharp)
+     * @param {string | undefined} note
+     */
     speakableNote(note) {
         if (!note) return '';
         return note
@@ -1943,7 +2125,10 @@ class ScalesController {
             .replace('b', ' flat');
     }
 
-    // Convert "C#4" -> MIDI number (C4=60). Returns null if unparseable.
+    /**
+     * Convert "C#4" -> MIDI number (C4=60). Returns null if unparseable.
+     * @param {string | undefined} note
+     */
     noteStringToMidi(note) {
         if (!note) return null;
         const match = note.match(/^([A-G]#?)(-?\d+)$/);
@@ -1956,23 +2141,33 @@ class ScalesController {
         return (octave + 1) * 12 + noteIndex;
     }
 
+    /** @param {number} midi */
     midiToNoteString(midi) {
         const noteIndex = ((midi % 12) + 12) % 12;
         const octave = Math.floor(midi / 12) - 1;
         return `${NOTE_NAMES[noteIndex]}${octave}`;
     }
 
+    /**
+     * @param {string} note
+     * @param {number} semitones
+     */
     transposeNote(note, semitones) {
         const midi = this.noteStringToMidi(note);
         if (midi === null) return note;
         return this.midiToNoteString(midi + semitones);
     }
 
+    /**
+     * @param {string[]} notes
+     * @param {number} semitones
+     */
     transposeNotes(notes, semitones) {
         if (!semitones) return notes;
-        return notes.map(n => this.transposeNote(n, semitones));
+        return notes.map((/** @type {string} */ n) => this.transposeNote(n, semitones));
     }
 
+    /** @param {number} semitones */
     getRisingLabel(semitones) {
         const map = {
             0: 'off',
@@ -1986,7 +2181,9 @@ class ScalesController {
         return map[semitones] || `+${semitones}`;
     }
 
+    /** @param {string} style */
     getMovementLabel(style) {
+        /** @type {Record<string, string>} */
         const map = {
             normal: 'normal',
             stop_and_go: 'stop-and-go',
@@ -1996,6 +2193,10 @@ class ScalesController {
         return map[style] || style;
     }
 
+    /**
+     * @param {string[]} a
+     * @param {string[]} b
+     */
     concatWithoutDuplicate(a, b) {
         if (!Array.isArray(a) || a.length === 0) return Array.isArray(b) ? b : [];
         if (!Array.isArray(b) || b.length === 0) return a;
@@ -2045,7 +2246,11 @@ class ScalesController {
         return { groups, notes };
     }
 
-    // Get interval name for scale degree
+    /**
+     * Get interval name for scale degree
+     * @param {number} semitones
+     * @param {string} scaleType
+     */
     getIntervalName(semitones, scaleType) {
         if (semitones < 0) return `${semitones}`;
         // For chromatic, just show semitone number
@@ -2083,8 +2288,13 @@ class ScalesController {
         return names[index] || `${index + 1}`;
     }
 
-    // Format the status display for current note
-    // Shows: "command set | current note [interval]"
+    /**
+     * Format the status display for current note
+     * Shows: "command set | current note [interval]"
+     * @param {string} note
+     * @param {number} index
+     * @param {Object} context
+     */
     formatNoteStatus(note, index, context) {
         // Extract note name without octave for display
         const noteName = note.replace(/\d+$/, '');
@@ -2133,10 +2343,19 @@ class ScalesController {
         return `${commandSet} | ${noteName}${octave}`;
     }
 
+    /**
+     * @param {string} note
+     * @param {string} [duration]
+     */
     playNote(note, duration = '8n') {
         this.audio.playNote(note, duration);
     }
 
+    /**
+     * @param {string} root
+     * @param {string} scaleType
+     * @param {ScaleModifiers} [modifiers]
+     */
     async playScale(root, scaleType, modifiers = {}) {
         const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const rootIndex = NOTE_NAMES.indexOf(root);
@@ -2636,7 +2855,8 @@ class ScalesController {
         // Add click handlers to play buttons (only for command entries)
         historyList.querySelectorAll('.history-play-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.currentTarget.dataset.index);
+                const target = /** @type {HTMLElement} */ (e.currentTarget);
+                const index = parseInt(target.dataset.index || '0');
                 this.playFromHistory(index);
             });
         });
@@ -2714,10 +2934,13 @@ class ScalesController {
         }
     }
 
-    // Format timestamp for display
+    /**
+     * Format timestamp for display
+     * @param {Date} date
+     */
     formatTime(date) {
         const now = new Date();
-        const diffMs = now - date;
+        const diffMs = now.getTime() - date.getTime();
         const diffMins = Math.floor(diffMs / 60000);
 
         if (diffMins < 1) return 'now';
@@ -2782,7 +3005,8 @@ class ScalesController {
         const exactRoot = `${root}${baseOctave}`;
 
         // Highlight each piano key based on whether it's part of the scale
-        document.querySelectorAll('.piano-key').forEach(key => {
+        document.querySelectorAll('.piano-key').forEach(el => {
+            const key = /** @type {HTMLElement} */ (el);
             const noteAttr = key.dataset.note;
             if (!noteAttr) return;
 

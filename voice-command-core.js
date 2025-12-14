@@ -1,3 +1,4 @@
+// @ts-check
 //-----------------------------------------------------------------------
 // VOICE COMMAND CORE
 // Abstract voice recognition and command dispatch system.
@@ -13,21 +14,34 @@ const RECOGNITION_RESTART_DELAY_MS = 100;
 const TRANSCRIPT_AUTO_HIDE_MS = 3000;
 
 //-------TRANSCRIPT MANAGER-------
-// Manages the "You said" transcript display box
+
 class TranscriptManager {
     constructor() {
+        /** @type {HTMLElement | null} */
         this.container = null;
+        /** @type {HTMLElement | null} */
         this.textElement = null;
+        /** @type {string[]} */
         this.segments = [];
+        /** @type {string} */
         this.interimText = '';
+        /** @type {ReturnType<typeof setTimeout> | null} */
         this.hideTimeout = null;
     }
 
+    /**
+     * @param {string} [containerId]
+     * @param {string} [textId]
+     */
     init(containerId = 'transcriptContainer', textId = 'transcript') {
         this.container = document.getElementById(containerId);
         this.textElement = document.getElementById(textId);
     }
 
+    /**
+     * @param {string} text
+     * @param {{ interim?: boolean, autoHideAfter?: number | null }} [options]
+     */
     show(text, options = {}) {
         if (!this.container || !this.textElement) return;
 
@@ -44,7 +58,10 @@ class TranscriptManager {
         }
     }
 
-    // Show live interim results while listening (distinct styling)
+    /**
+     * Show live interim results while listening (distinct styling)
+     * @param {string} text
+     */
     showLive(text) {
         if (!this.container || !this.textElement) return;
 
@@ -54,6 +71,10 @@ class TranscriptManager {
         this.container.style.display = 'block';
     }
 
+    /**
+     * @param {string[]} segments
+     * @param {string} [interimText]
+     */
     showSegments(segments, interimText = '') {
         if (!this.container || !this.textElement) return;
 
@@ -80,6 +101,7 @@ class TranscriptManager {
         this.container.style.display = 'block';
     }
 
+    /** @param {string} text */
     addSegment(text) {
         const trimmed = text.trim();
         if (trimmed) {
@@ -88,15 +110,18 @@ class TranscriptManager {
         this.interimText = '';
     }
 
+    /** @param {string} text */
     setInterim(text) {
         this.interimText = text;
     }
 
+    /** @returns {string} */
     getFullText() {
         const segmentsText = this.segments.join(' ');
         return (segmentsText + (this.interimText ? ' ' + this.interimText : '')).trim();
     }
 
+    /** @returns {string} */
     getFinalizedText() {
         return this.segments.join(' ').trim();
     }
@@ -129,6 +154,10 @@ class TranscriptManager {
         }
     }
 
+    /**
+     * @param {string} text
+     * @returns {string}
+     */
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -137,45 +166,53 @@ class TranscriptManager {
 }
 
 //-------VOICE COMMAND CORE-------
+
 class VoiceCommandCore {
+    /** @param {any} [options] */
     constructor(options = {}) {
+        /** @type {InstanceType<typeof window.SpeechRecognition> | null} */
         this.recognition = null;
+        /** @type {boolean} */
         this.isListening = false;
+        /** @type {TranscriptManager} */
         this.transcript = new TranscriptManager();
+        /** @type {boolean} */
         this.manualModeStopRequested = false;
+        /** @type {boolean} */
         this.isProcessingCommand = false;
 
-        // Settings with defaults
+        /** @type {{ autoSubmitMode: boolean, echoCommands: boolean, voiceRate: number, voicePitch: number, voiceName: string | null }} */
         this.settings = {
             autoSubmitMode: true,
-            echoCommands: false, // Verbally announce recognized commands before executing
-            // Voice output settings
-            voiceRate: 1.0,      // 0.1 to 10 (1 = normal speed)
-            voicePitch: 1.0,     // 0 to 2 (1 = normal pitch)
-            voiceName: null,     // null = browser default, or specific voice name
+            echoCommands: false,
+            voiceRate: 1.0,
+            voicePitch: 1.0,
+            voiceName: null,
             ...options.settings
         };
 
-        // Callback for echo - consumer provides speakable description
+        /** @type {((command: unknown) => string) | null} */
         this.getCommandDescription = options.getCommandDescription || null;
 
-        // Cache available voices
+        /** @type {SpeechSynthesisVoice[]} */
         this.availableVoices = [];
 
-        // Callbacks for consumers
+        /** @type {(msg: string) => void} */
         this.onStatusChange = options.onStatusChange || (() => { });
+        /** @type {(listening: boolean) => void} */
         this.onListeningChange = options.onListeningChange || (() => { });
+        /** @type {(text: string) => void} */
         this.onTranscriptChange = options.onTranscriptChange || (() => { });
+        /** @type {(msg: string) => void} */
         this.onError = options.onError || ((msg) => console.error(msg));
 
-        // Command handlers registered by consumers
-        // Each handler: { parse: (transcript) => command|null, execute: (command, transcript) => Promise<void> }
+        /** @type {Array<{ parse: (transcript: string) => unknown | null, execute: (command: unknown, transcript: string) => Promise<void> }>} */
         this.commandHandlers = [];
 
-        // Fallback handler for when no command matches (e.g., send to LLM)
+        /** @type {((transcript: string) => Promise<void>) | null} */
         this.fallbackHandler = options.fallbackHandler || null;
 
-        // UI element IDs (can be customized)
+        /** @type {{ listenBtn: string, submitBtn: string, statusEl: string, echoToggle: string, transcriptContainer: string, transcriptText: string }} */
         this.uiIds = {
             listenBtn: 'listenBtn',
             submitBtn: 'submitBtn',
@@ -187,15 +224,15 @@ class VoiceCommandCore {
         };
     }
 
-    // Get/set echo commands setting
+    /** @returns {boolean} */
     get echoCommands() {
         return this.settings.echoCommands;
     }
 
+    /** @param {boolean} value */
     set echoCommands(value) {
         this.settings.echoCommands = value;
-        // Sync UI toggle if present
-        const toggle = document.getElementById(this.uiIds.echoToggle);
+        const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById(this.uiIds.echoToggle));
         if (toggle && toggle.checked !== value) {
             toggle.checked = value;
         }
@@ -209,13 +246,11 @@ class VoiceCommandCore {
         this.updateStatus('Ready');
     }
 
-    // Load available TTS voices (async - voices may load after page load)
     loadAvailableVoices() {
         if (!('speechSynthesis' in window)) return;
 
         const loadVoices = () => {
             this.availableVoices = window.speechSynthesis.getVoices();
-            // Sort: English voices first, then by name
             this.availableVoices.sort((a, b) => {
                 const aEng = a.lang.startsWith('en');
                 const bEng = b.lang.startsWith('en');
@@ -226,13 +261,12 @@ class VoiceCommandCore {
         };
 
         loadVoices();
-        // Chrome loads voices asynchronously
         if (window.speechSynthesis.onvoiceschanged !== undefined) {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
     }
 
-    // Get list of available voices for UI
+    /** @returns {Array<{ name: string, lang: string, local: boolean, default: boolean }>} */
     getAvailableVoices() {
         return this.availableVoices.map(v => ({
             name: v.name,
@@ -242,29 +276,29 @@ class VoiceCommandCore {
         }));
     }
 
-    // Set voice by name
+    /** @param {string | null} voiceName */
     setVoice(voiceName) {
         this.settings.voiceName = voiceName;
     }
 
-    // Set voice rate (speed)
+    /** @param {number} rate */
     setVoiceRate(rate) {
         this.settings.voiceRate = Math.max(0.1, Math.min(10, rate));
     }
 
-    // Set voice pitch
+    /** @param {number} pitch */
     setVoicePitch(pitch) {
         this.settings.voicePitch = Math.max(0, Math.min(2, pitch));
     }
 
     setupSpeechRecognition() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionCtor) {
             this.updateStatus('Speech recognition not supported in this browser');
             return;
         }
 
-        this.recognition = new SpeechRecognition();
+        this.recognition = new SpeechRecognitionCtor();
         this.recognition.continuous = !this.settings.autoSubmitMode;
         this.recognition.interimResults = !this.settings.autoSubmitMode;
         this.recognition.lang = 'en-US';
@@ -276,7 +310,7 @@ class VoiceCommandCore {
             this.onListeningChange(true);
         };
 
-        this.recognition.onresult = (event) => {
+        this.recognition.onresult = (/** @type {SpeechRecognitionEvent} */ event) => {
             let finalTranscript = '';
             let interimTranscript = '';
 
@@ -290,9 +324,7 @@ class VoiceCommandCore {
             }
 
             if (this.settings.autoSubmitMode) {
-                // Auto mode: show live what we're hearing, process on final
                 if (interimTranscript) {
-                    // Show interim results live (grayed out)
                     this.transcript.showLive(interimTranscript);
                 }
                 if (finalTranscript) {
@@ -300,7 +332,6 @@ class VoiceCommandCore {
                     this.handleVoiceCommand(finalTranscript);
                 }
             } else {
-                // Manual mode: accumulate segments
                 if (finalTranscript) {
                     this.transcript.addSegment(finalTranscript);
                 }
@@ -312,7 +343,7 @@ class VoiceCommandCore {
             }
         };
 
-        this.recognition.onerror = (event) => {
+        this.recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
             console.error('Speech recognition error:', event.error);
             if (event.error !== 'no-speech' && event.error !== 'aborted') {
                 this.onError(`Recognition error: ${event.error}`);
@@ -324,12 +355,11 @@ class VoiceCommandCore {
             this.updateListenButton(false);
 
             if (!this.settings.autoSubmitMode && !this.manualModeStopRequested) {
-                // Manual mode: restart recognition to keep listening
                 setTimeout(() => {
-                    if (!this.manualModeStopRequested && !this.isProcessingCommand) {
+                    if (!this.manualModeStopRequested && !this.isProcessingCommand && this.recognition) {
                         try {
                             this.recognition.start();
-                        } catch (e) {
+                        } catch (_e) {
                             // Ignore if already started
                         }
                     }
@@ -345,7 +375,7 @@ class VoiceCommandCore {
     setupUI() {
         const listenBtn = document.getElementById(this.uiIds.listenBtn);
         const submitBtn = document.getElementById(this.uiIds.submitBtn);
-        const echoToggle = document.getElementById(this.uiIds.echoToggle);
+        const echoToggle = /** @type {HTMLInputElement | null} */ (document.getElementById(this.uiIds.echoToggle));
 
         if (listenBtn) {
             listenBtn.addEventListener('click', () => {
@@ -353,7 +383,6 @@ class VoiceCommandCore {
                     if (this.settings.autoSubmitMode) {
                         this.stopListening();
                     } else {
-                        // Manual mode: submit accumulated transcript
                         this.submitManualTranscript();
                     }
                 } else {
@@ -368,11 +397,11 @@ class VoiceCommandCore {
             });
         }
 
-        // Echo commands toggle
         if (echoToggle) {
             echoToggle.checked = this.settings.echoCommands;
             echoToggle.addEventListener('change', (e) => {
-                this.settings.echoCommands = e.target.checked;
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                this.settings.echoCommands = target.checked;
             });
         }
 
@@ -386,6 +415,7 @@ class VoiceCommandCore {
         }
     }
 
+    /** @param {boolean} enabled */
     setAutoSubmitMode(enabled) {
         this.settings.autoSubmitMode = enabled;
         this.updateRecognitionMode();
@@ -407,8 +437,8 @@ class VoiceCommandCore {
 
         try {
             this.recognition.start();
-        } catch (error) {
-            console.error('Error starting recognition:', error);
+        } catch (_error) {
+            console.error('Error starting recognition:', _error);
             this.updateStatus('Click Listen again');
         }
     }
@@ -425,7 +455,7 @@ class VoiceCommandCore {
 
     submitManualTranscript() {
         const text = this.transcript.getFinalizedText();
-        if (text) {
+        if (text && this.recognition) {
             this.manualModeStopRequested = true;
             if (this.isListening) {
                 this.recognition.stop();
@@ -434,11 +464,11 @@ class VoiceCommandCore {
         }
     }
 
+    /** @param {string} transcript */
     async handleVoiceCommand(transcript) {
         try {
             this.isProcessingCommand = true;
 
-            // Try each registered command handler
             for (const handler of this.commandHandlers) {
                 const command = handler.parse(transcript);
                 if (command) {
@@ -450,7 +480,6 @@ class VoiceCommandCore {
                 }
             }
 
-            // No command matched - use fallback if available
             if (this.fallbackHandler) {
                 this.transcript.show(transcript);
                 this.updateSubmitButton(true);
@@ -464,23 +493,24 @@ class VoiceCommandCore {
             this.updateSubmitButton(false);
         } catch (error) {
             console.error('Error handling command:', error);
-            this.onError(`Error: ${error.message}`);
+            const msg = error instanceof Error ? error.message : String(error);
+            this.onError(`Error: ${msg}`);
             this.isProcessingCommand = false;
             this.updateSubmitButton(false);
         }
     }
 
-    // Register a command handler
-    // handler: { parse: (transcript) => command|null, execute: async (command, transcript) => void }
+    /** @param {{ parse: (transcript: string) => unknown | null, execute: (command: unknown, transcript: string) => Promise<void> }} handler */
     registerHandler(handler) {
         this.commandHandlers.push(handler);
     }
 
-    // Set the fallback handler for unrecognized commands
+    /** @param {(transcript: string) => Promise<void>} handler */
     setFallbackHandler(handler) {
         this.fallbackHandler = handler;
     }
 
+    /** @param {boolean} listening */
     updateListenButton(listening) {
         const btn = document.getElementById(this.uiIds.listenBtn);
         if (!btn) return;
@@ -499,6 +529,7 @@ class VoiceCommandCore {
         }
     }
 
+    /** @param {boolean} show */
     updateSubmitButton(show) {
         const submitBtn = document.getElementById(this.uiIds.submitBtn);
         const listenBtn = document.getElementById(this.uiIds.listenBtn);
@@ -517,6 +548,7 @@ class VoiceCommandCore {
         // Override in consumer if needed
     }
 
+    /** @param {string} message */
     updateStatus(message) {
         const statusEl = document.getElementById(this.uiIds.statusEl);
         if (statusEl) {
@@ -525,8 +557,11 @@ class VoiceCommandCore {
         this.onStatusChange(message);
     }
 
-    // Utility: speak text aloud
-    // Uses VoiceOutput library if available, otherwise falls back to native speechSynthesis
+    /**
+     * Speak text aloud using VoiceOutput library or native speechSynthesis
+     * @param {string} text
+     * @param {(() => void) | null} [onEnd]
+     */
     speakText(text, onEnd = null) {
         if (typeof VoiceOutput !== 'undefined') {
             VoiceOutput.speak(text).then(() => {
@@ -535,15 +570,12 @@ class VoiceCommandCore {
                 if (onEnd) onEnd();
             });
         } else if ('speechSynthesis' in window) {
-            // Native Web Speech API with configurable voice settings
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
 
-            // Apply voice settings
             utterance.rate = this.settings.voiceRate;
             utterance.pitch = this.settings.voicePitch;
 
-            // Set specific voice if configured
             if (this.settings.voiceName && this.availableVoices.length > 0) {
                 const voice = this.availableVoices.find(v => v.name === this.settings.voiceName);
                 if (voice) {
@@ -561,6 +593,10 @@ class VoiceCommandCore {
         }
     }
 
+    /**
+     * @param {string} text
+     * @returns {Promise<void>}
+     */
     speakTextAsync(text) {
         return new Promise((resolve) => {
             this.speakText(text, resolve);
@@ -571,4 +607,3 @@ class VoiceCommandCore {
 // Export for use by consumers
 window.VoiceCommandCore = VoiceCommandCore;
 window.TranscriptManager = TranscriptManager;
-
