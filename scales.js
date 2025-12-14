@@ -374,13 +374,10 @@ class ScalesController {
 
     updateLoadingStatus(loaded, message = null) {
         const status = document.getElementById('status');
-        if (status) {
-            if (loaded) {
-                status.textContent = 'Ready - say a command or tap the piano';
-            } else if (message) {
-                status.textContent = message;
-            }
+        if (status && !loaded && message) {
+            status.textContent = message;
         }
+        // When loaded, don't set status - voice core's "Listening..." already indicates readiness
     }
 
     setupVoiceCore() {
@@ -1666,7 +1663,10 @@ class ScalesController {
         });
 
         this.clearPianoHighlights();
-        this.voiceCore.updateStatus('Ready');
+        // Restore listening status if active, otherwise clear
+        if (this.voiceCore.isListening) {
+            this.voiceCore.updateStatus('Listening...');
+        }
         this.updateScalePreview();
     }
 
