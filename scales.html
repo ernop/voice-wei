@@ -54,6 +54,11 @@
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>
 
+            <!-- Pattern Preview -->
+            <div class="pattern-preview-container">
+                <div class="pattern-preview" id="patternPreview"></div>
+            </div>
+
             <!-- Voice-First Scale Builder - All Bidirectional Controls -->
             <div class="voice-first-ui">
                 <p class="vf-instruction" id="vfInstruction">Say any option below to set it, or click directly. <button
@@ -67,6 +72,16 @@
                         <button class="vf-btn" data-repeat="2">twice</button>
                         <button class="vf-btn" data-repeat="Infinity">forever</button>
                     </div>
+                    <span class="vf-label vf-label-inline">Rising</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-rising="0">off</button>
+                        <button class="vf-btn" data-rising="1">half</button>
+                        <button class="vf-btn" data-rising="2">whole</button>
+                        <button class="vf-btn" data-rising="3">m3</button>
+                        <button class="vf-btn" data-rising="4">M3</button>
+                        <button class="vf-btn" data-rising="5">4th</button>
+                        <button class="vf-btn" data-rising="7">5th</button>
+                    </div>
                 </div>
 
                 <div class="vf-row">
@@ -76,6 +91,13 @@
                         <button class="vf-btn" data-direction="descending">down</button>
                         <button class="vf-btn" data-direction="both">up+down</button>
                         <button class="vf-btn" data-direction="down_and_up">down+up</button>
+                    </div>
+                    <span class="vf-label vf-label-inline">Movement</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-movement="normal">normal</button>
+                        <button class="vf-btn" data-movement="step_back">step-back</button>
+                        <button class="vf-btn" data-movement="triadic">triadic</button>
+                        <button class="vf-btn" data-movement="intervals">intervals</button>
                     </div>
                 </div>
 
