@@ -96,11 +96,12 @@ class AudioCoordinator {
     async playSequence(notes, options = {}) {
         const {
             getDuration,      // Function returning { ms, tone, gap } for current note
-            onNote,           // Callback(note, index) called when each note plays
+            onNote,           // Callback(note, index, repeatIndex) called when each note plays
             onStatus,         // Callback(message) for status updates
             repeatCount = 1,  // Number of times to repeat (Infinity for forever)
             repeatGapMs = 1500, // Gap between repeats
-            seamlessRepeat = false // If true, no gap and skip first note on repeats (for up+down/down+up)
+            seamlessRepeat = false, // If true, no gap and skip first note on repeats (for up+down/down+up)
+            getNotesForRepeat = null // Optional (repeatIndex) => notes[] for this repeat
         } = options;
 
         const playId = this.requestSequencePlayback();
@@ -110,18 +111,20 @@ class AudioCoordinator {
 
         try {
             while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
+                const notesForRepeat = getNotesForRepeat ? getNotesForRepeat(r) : notes;
+
                 // For seamless repeat, skip first note on iterations after the first
                 // (it would duplicate the last note of previous iteration)
                 const startIndex = (seamlessRepeat && r > 0) ? 1 : 0;
 
                 // Play the sequence
-                for (let i = startIndex; i < notes.length; i++) {
+                for (let i = startIndex; i < notesForRepeat.length; i++) {
                     if (!this.isPlaybackValid(playId)) break;
 
                     const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
 
-                    if (onNote) onNote(notes[i], i);
-                    this.synth.triggerAttackRelease(notes[i], duration.tone);
+                    if (onNote) onNote(notesForRepeat[i], i, r);
+                    this.synth.triggerAttackRelease(notesForRepeat[i], duration.tone);
 
                     await this.sleep(duration.ms + duration.gap);
                 }
@@ -297,6 +300,8 @@ class ScalesController {
             direction: 'ascending', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
+            risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
+            movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
             // Voice-first settings (also controllable via UI)
             scaleType: 'major',
             root: 'C',
@@ -311,6 +316,8 @@ class ScalesController {
             direction: 'ascending',
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // Once by default
+            risingSemitones: 0,
+            movementStyle: 'normal',
             scaleType: 'major',
             root: 'C',
             rangeExpansion: 0,
@@ -398,7 +405,7 @@ class ScalesController {
             parse: (transcript) => this.parseScaleCommand(transcript),
             execute: async (command, transcript) => {
                 // Reset to defaults before applying voice command (unless it's a control command)
-                const controlCommands = ['stop', 'help', 'play'];
+                const controlCommands = ['stop', 'help', 'play', 'setting'];
                 if (!controlCommands.includes(command.type)) {
                     this.resetToDefaults();
                 }
@@ -546,6 +553,17 @@ class ScalesController {
             btn.classList.toggle('selected', btn.dataset.direction === this.settings.direction);
         });
 
+        // Rising buttons
+        document.querySelectorAll('[data-rising]').forEach(btn => {
+            const semitones = parseInt(btn.dataset.rising);
+            btn.classList.toggle('selected', semitones === this.settings.risingSemitones);
+        });
+
+        // Movement buttons
+        document.querySelectorAll('[data-movement]').forEach(btn => {
+            btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
+        });
+
         // Note length buttons
         document.querySelectorAll('[data-length]').forEach(btn => {
             btn.classList.toggle('selected', parseInt(btn.dataset.length) === this.settings.noteLength);
@@ -576,6 +594,7 @@ class ScalesController {
 
         // Update piano scale preview
         this.updateScalePreview();
+        this.updatePatternPreview();
     }
 
     // Reset all settings to defaults
@@ -600,6 +619,12 @@ class ScalesController {
         if (s.direction !== d.direction) {
             const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
             parts.push(dirLabels[s.direction] || s.direction);
+        }
+        if (s.movementStyle !== d.movementStyle) {
+            parts.push(`move: ${this.getMovementLabel(s.movementStyle)}`);
+        }
+        if (s.risingSemitones !== d.risingSemitones) {
+            parts.push(`rise: ${this.getRisingLabel(s.risingSemitones)}`);
         }
         if (s.octave !== d.octave) {
             parts.push(`oct ${s.octave}`);
@@ -656,6 +681,22 @@ class ScalesController {
         document.querySelectorAll('[data-direction]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.settings.direction = btn.dataset.direction;
+                this.syncUIToSettings();
+            });
+        });
+
+        // Rising buttons
+        document.querySelectorAll('[data-rising]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.settings.risingSemitones = parseInt(btn.dataset.rising);
+                this.syncUIToSettings();
+            });
+        });
+
+        // Movement buttons
+        document.querySelectorAll('[data-movement]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.settings.movementStyle = btn.dataset.movement;
                 this.syncUIToSettings();
             });
         });
@@ -818,6 +859,8 @@ class ScalesController {
             gap: null,          // 'none', 'small', 'normal', 'large', 'very large'
             repeat: 1,          // number of times to repeat
             direction: null,    // 'ascending', 'descending', 'both'
+            risingSemitones: null, // null (use settings) or integer semitones (0=off)
+            movementStyle: null, // null (use settings) or one of movement styles
             rangeExpansion: null, // null (use settings) or number of extra notes
             octaveSpan: null    // null (use settings) or 1/2
         };
@@ -841,6 +884,56 @@ class ScalesController {
         } else if (text.match(/\bsingle\s*octave\b/) || text.match(/\bone\s*octave\b/)) {
             modifiers.octaveSpan = 1;
             text = text.replace(/\b(single|one)\s*octave\b/, '');
+        }
+
+        // Movement style modifiers (within a scale)
+        if (text.match(/\bstop\s*-\s*and\s*-\s*go\b/) || text.match(/\bstop\s+and\s+go\b/)) {
+            modifiers.movementStyle = 'stop_and_go';
+            text = text.replace(/\bstop\s*-\s*and\s*-\s*go\b/, '').replace(/\bstop\s+and\s+go\b/, '');
+        } else if (text.match(/\btwo\s+(steps?\s+)?forward\s+(one\s+step\s+)?back\b/)) {
+            modifiers.movementStyle = 'stop_and_go';
+            text = text.replace(/\btwo\s+(steps?\s+)?forward\s+(one\s+step\s+)?back\b/, '');
+        } else if (text.match(/\b(1\s*[- ]?\s*3\s*[- ]?\s*5|one\s+three\s+five)\b/)) {
+            modifiers.movementStyle = 'one_three_five';
+            text = text.replace(/\b(1\s*[- ]?\s*3\s*[- ]?\s*5|one\s+three\s+five)\b/, '');
+        } else if (text.match(/\btriads?\b/)) {
+            modifiers.movementStyle = 'one_three_five';
+            text = text.replace(/\btriads?\b/, '');
+        } else if (text.match(/\bfrom\s+(1|one)\b/) || text.match(/\bfrom\s+the\s+root\b/) || text.match(/\broot\s+always\b/)) {
+            modifiers.movementStyle = 'from_one';
+            text = text.replace(/\bfrom\s+(1|one)\b/, '').replace(/\bfrom\s+the\s+root\b/, '').replace(/\broot\s+always\b/, '');
+        } else if (text.match(/\bnormal\s+movement\b/) || text.match(/\bnormal\b/)) {
+            modifiers.movementStyle = 'normal';
+            text = text.replace(/\bnormal\s+movement\b/, '').replace(/\bnormal\b/, '');
+        }
+
+        // Rising / modulation modifiers (transpose each repeat upward)
+        // Common in vocal warmups: repeat the same figure and move up by half-steps or whole-steps.
+        if (text.match(/\b(no|without)\s+rising\b/) || text.match(/\brising\s+off\b/) || text.match(/\brising\s+disabled\b/)) {
+            modifiers.risingSemitones = 0;
+            text = text.replace(/\b(no|without)\s+rising\b/, '').replace(/\brising\s+off\b/, '').replace(/\brising\s+disabled\b/, '');
+        } else if (text.match(/\brising\b/) || text.match(/\bmodulat(e|ing)\b/) || text.match(/\btranspose\b/)) {
+            // Specific intervals if provided, else default to half-step (chromatic rise)
+            if (text.match(/\bhalf\s*step\b/) || text.match(/\bhalf\s*tone\b/) || text.match(/\bsemitone\b/) || text.match(/\bchromatic\b/)) {
+                modifiers.risingSemitones = 1;
+                text = text.replace(/\bhalf\s*step\b/, '').replace(/\bhalf\s*tone\b/, '').replace(/\bsemitone\b/, '').replace(/\bchromatic\b/, '');
+            } else if (text.match(/\bwhole\s*step\b/) || text.match(/\bwhole\s*tone\b/)) {
+                modifiers.risingSemitones = 2;
+                text = text.replace(/\bwhole\s*step\b/, '').replace(/\bwhole\s*tone\b/, '');
+            } else if (text.match(/\bminor\s+third\b/)) {
+                modifiers.risingSemitones = 3;
+                text = text.replace(/\bminor\s+third\b/, '');
+            } else if (text.match(/\bmajor\s+third\b/)) {
+                modifiers.risingSemitones = 4;
+                text = text.replace(/\bmajor\s+third\b/, '');
+            } else if (text.match(/\bperfect\s+fourth\b/) || text.match(/\bfourth\b/)) {
+                modifiers.risingSemitones = 5;
+                text = text.replace(/\bperfect\s+fourth\b/, '').replace(/\bfourth\b/, '');
+            } else {
+                modifiers.risingSemitones = 1;
+            }
+
+            text = text.replace(/\brising\b/, '').replace(/\bmodulat(e|ing)\b/, '').replace(/\btranspose\b/, '');
         }
 
         // Tempo modifiers (check longer phrases first)
@@ -950,6 +1043,48 @@ class ScalesController {
         // Play command (or again/repeat)
         if (originalLower.match(/^(play|again|repeat that|play (it |that )?again|one more time|do (it |that )?again)$/)) {
             return { type: 'play' };
+        }
+
+        // Standalone movement style commands
+        if (originalLower.match(/^(stop\s*-\s*and\s*-\s*go|stop\s+and\s+go|two\s+(steps?\s+)?forward\s+(one\s+step\s+)?back)$/)) {
+            this.settings.movementStyle = 'stop_and_go';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'stop_and_go' };
+        }
+        if (originalLower.match(/^(1\s*[- ]?\s*3\s*[- ]?\s*5|one\s+three\s+five|triads?)$/)) {
+            this.settings.movementStyle = 'one_three_five';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'one_three_five' };
+        }
+        if (originalLower.match(/^(from\s+(1|one)|from\s+the\s+root|root\s+always)$/)) {
+            this.settings.movementStyle = 'from_one';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'from_one' };
+        }
+        if (originalLower.match(/^(normal\s+movement|normal)$/)) {
+            this.settings.movementStyle = 'normal';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'normal' };
+        }
+
+        // Standalone rising/modulation commands
+        if (originalLower.match(/^(no\s+rising|without\s+rising|rising\s+off|rising\s+disabled)$/)) {
+            this.settings.risingSemitones = 0;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'risingSemitones', value: 0 };
+        }
+        if (originalLower.match(/^rising(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth))?$/) ||
+            originalLower.match(/^modulat(e|ing)(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth))?$/)) {
+            let semitones = 1;
+            if (originalLower.match(/whole\s*step/)) semitones = 2;
+            else if (originalLower.match(/minor\s+third/)) semitones = 3;
+            else if (originalLower.match(/major\s+third/)) semitones = 4;
+            else if (originalLower.match(/perfect\s+fourth/) || originalLower.match(/\bfourth\b/)) semitones = 5;
+            else if (originalLower.match(/half\s*step/)) semitones = 1;
+
+            this.settings.risingSemitones = semitones;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'risingSemitones', value: semitones };
         }
 
         // Single note: "play C", "note D", "C sharp", "B flat"
@@ -1201,6 +1336,10 @@ class ScalesController {
                 this.settings.root = command.root;
                 this.settings.scaleType = command.scaleType;
                 if (command.modifiers.direction) this.settings.direction = command.modifiers.direction;
+                if (command.modifiers.movementStyle) this.settings.movementStyle = command.modifiers.movementStyle;
+                if (command.modifiers.risingSemitones !== null && command.modifiers.risingSemitones !== undefined) {
+                    this.settings.risingSemitones = command.modifiers.risingSemitones;
+                }
                 if (command.modifiers.rangeExpansion !== null) this.settings.rangeExpansion = command.modifiers.rangeExpansion;
                 if (command.modifiers.octaveSpan !== null) this.settings.octaveSpan = command.modifiers.octaveSpan;
                 // Apply tempo modifier to noteLength
@@ -1268,6 +1407,14 @@ class ScalesController {
         // Wide scale
         const rangeExpansion = mods.rangeExpansion ?? this.settings.rangeExpansion;
         if (rangeExpansion > 0) parts.push('wide');
+
+        // Movement style (only if not default)
+        const movementStyle = mods.movementStyle ?? this.settings.movementStyle;
+        if (movementStyle && movementStyle !== 'normal') parts.push(this.getMovementLabel(movementStyle));
+
+        // Rising / transposition
+        const risingSemitones = mods.risingSemitones ?? this.settings.risingSemitones;
+        if (risingSemitones) parts.push(`rising ${this.getRisingLabel(risingSemitones)}`);
 
         switch (command.type) {
             case 'scale':
@@ -1346,6 +1493,19 @@ class ScalesController {
             }
         }
 
+        // Movement style (scale-only)
+        if (mods.movementStyle) {
+            if (mods.movementStyle === 'stop_and_go') parts.push('stop and go');
+            else if (mods.movementStyle === 'one_three_five') parts.push('one three five');
+            else if (mods.movementStyle === 'from_one') parts.push('from one');
+        }
+
+        // Rising / modulation
+        if (mods.risingSemitones) {
+            parts.push('rising');
+            parts.push(this.getRisingLabel(mods.risingSemitones));
+        }
+
         // Gap
         if (mods.gap) {
             parts.push('with');
@@ -1373,8 +1533,110 @@ class ScalesController {
             .replace('b', ' flat');
     }
 
+    // Convert "C#4" -> MIDI number (C4=60). Returns null if unparseable.
+    noteStringToMidi(note) {
+        if (!note) return null;
+        const match = note.match(/^([A-G]#?)(-?\d+)$/);
+        if (!match) return null;
+        const name = match[1];
+        const octave = parseInt(match[2]);
+        const noteIndex = NOTE_NAMES.indexOf(name);
+        if (noteIndex === -1) return null;
+        // MIDI: C-1 = 0, so C4 = 60
+        return (octave + 1) * 12 + noteIndex;
+    }
+
+    midiToNoteString(midi) {
+        const noteIndex = ((midi % 12) + 12) % 12;
+        const octave = Math.floor(midi / 12) - 1;
+        return `${NOTE_NAMES[noteIndex]}${octave}`;
+    }
+
+    transposeNote(note, semitones) {
+        const midi = this.noteStringToMidi(note);
+        if (midi === null) return note;
+        return this.midiToNoteString(midi + semitones);
+    }
+
+    transposeNotes(notes, semitones) {
+        if (!semitones) return notes;
+        return notes.map(n => this.transposeNote(n, semitones));
+    }
+
+    getRisingLabel(semitones) {
+        const map = {
+            0: 'off',
+            1: 'half step',
+            2: 'whole step',
+            3: 'minor 3rd',
+            4: 'major 3rd',
+            5: 'perfect 4th'
+        };
+        return map[semitones] || `+${semitones}`;
+    }
+
+    getMovementLabel(style) {
+        const map = {
+            normal: 'normal',
+            stop_and_go: 'stop-and-go',
+            one_three_five: '1-3-5',
+            from_one: 'from 1'
+        };
+        return map[style] || style;
+    }
+
+    concatWithoutDuplicate(a, b) {
+        if (!Array.isArray(a) || a.length === 0) return Array.isArray(b) ? b : [];
+        if (!Array.isArray(b) || b.length === 0) return a;
+        if (a[a.length - 1] === b[0]) return [...a, ...b.slice(1)];
+        return [...a, ...b];
+    }
+
+    buildMovementSequence({ movementStyle, degreesAscAll, degreesFromRoot, rootNote }) {
+        const style = movementStyle || 'normal';
+        const baseDegrees = (style === 'normal' || style === 'stop_and_go') ? degreesAscAll : degreesFromRoot;
+
+        let groups = [];
+
+        if (style === 'stop_and_go') {
+            // Sliding 3-note windows: C D E, D E F, E F G, ...
+            if (baseDegrees.length < 3) {
+                groups = [baseDegrees];
+            } else {
+                for (let i = 0; i <= baseDegrees.length - 3; i++) {
+                    groups.push([baseDegrees[i], baseDegrees[i + 1], baseDegrees[i + 2]]);
+                }
+            }
+        } else if (style === 'one_three_five') {
+            // Diatonic triads by scale degree: (1-3-5), (2-4-6), ...
+            // Extend one octave so higher-degree triads can still resolve.
+            let extended = baseDegrees;
+            if (baseDegrees.length >= 2) {
+                const extraOctave = baseDegrees.slice(1).map(n => this.transposeNote(n, 12));
+                extended = [...baseDegrees, ...extraOctave];
+            }
+
+            for (let i = 0; i < baseDegrees.length; i++) {
+                if (i + 4 >= extended.length) break;
+                groups.push([extended[i], extended[i + 2], extended[i + 4]]);
+            }
+        } else if (style === 'from_one') {
+            // Root with each degree: C C, C D, C E, C F, ...
+            for (const target of baseDegrees) {
+                groups.push([rootNote, target]);
+            }
+        } else {
+            // Normal: stepwise through the degrees
+            groups = [baseDegrees];
+        }
+
+        const notes = groups.flat().filter(Boolean);
+        return { groups, notes };
+    }
+
     // Get interval name for scale degree
     getIntervalName(semitones, scaleType) {
+        if (semitones < 0) return `${semitones}`;
         // For chromatic, just show semitone number
         if (scaleType === 'chromatic') {
             if (semitones === 0) return 'root';
@@ -1428,12 +1690,22 @@ class ScalesController {
         let intervalInfo = '';
 
         if (context.type === 'scale') {
-            const pattern = context.pattern || [];
-            // Handle direction changes - find the interval for this position
-            if (context.intervals && context.intervals[index] !== undefined) {
-                intervalInfo = this.getIntervalName(context.intervals[index], context.scaleType);
-            } else if (pattern[index] !== undefined) {
-                intervalInfo = this.getIntervalName(pattern[index], context.scaleType);
+            if (context.rootMidi !== undefined && context.rootMidi !== null) {
+                const repeatIndex = context.repeatIndex || 0;
+                const risingSemitones = context.risingSemitones || 0;
+                const noteMidi = this.noteStringToMidi(note);
+                const repeatRootMidi = context.rootMidi + (repeatIndex * risingSemitones);
+                if (noteMidi !== null) {
+                    intervalInfo = this.getIntervalName(noteMidi - repeatRootMidi, context.scaleType);
+                }
+            } else {
+                const pattern = context.pattern || [];
+                // Handle direction changes - find the interval for this position
+                if (context.intervals && context.intervals[index] !== undefined) {
+                    intervalInfo = this.getIntervalName(context.intervals[index], context.scaleType);
+                } else if (pattern[index] !== undefined) {
+                    intervalInfo = this.getIntervalName(pattern[index], context.scaleType);
+                }
             }
         } else if (context.type === 'arpeggio') {
             if (context.intervals && context.intervals[index] !== undefined) {
@@ -1489,36 +1761,48 @@ class ScalesController {
             fullPattern = [...belowNotes, ...fullPattern, ...aboveNotes];
         }
 
-        let notes = fullPattern.map(interval => {
+        const degreesAscAll = fullPattern.map(interval => {
             const noteIndex = ((rootIndex + interval) % 12 + 12) % 12; // Handle negative intervals
             const octaveOffset = Math.floor((rootIndex + interval) / 12);
             return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
         });
 
-        // Track intervals for each note position
-        let intervals = [...fullPattern];
+        const movementStyle = modifiers.movementStyle ?? this.settings.movementStyle;
+
+        // Root note (at selected octave) for "from 1" style and for interval naming
+        const rootNote = `${root}${this.settings.octave}`;
+        const rootMidi = this.noteStringToMidi(rootNote);
+
+        const buildSegment = (ascendingDegrees) => {
+            const rootIndexInSegment = ascendingDegrees.indexOf(rootNote);
+            return this.buildMovementSequence({
+                movementStyle,
+                degreesAscAll: ascendingDegrees,
+                degreesFromRoot: rootIndexInSegment >= 0 ? ascendingDegrees.slice(rootIndexInSegment) : ascendingDegrees,
+                rootNote
+            });
+        };
+
+        const ascendingSegment = buildSegment(degreesAscAll);
+        const descendingSegment = buildSegment([...degreesAscAll].reverse());
 
         // Handle direction (from modifiers or settings)
         const direction = modifiers.direction || this.settings.direction;
+        let notes;
+        let allGroups = [];  // Collect groups for phrase-based playback
+
         if (direction === 'descending') {
-            notes = notes.reverse();
-            intervals = intervals.reverse();
+            notes = descendingSegment.notes;
+            allGroups = descendingSegment.groups;
         } else if (direction === 'both') {
-            // Up and down: ascending then descending
-            const ascending = [...notes];
-            const descending = [...notes].reverse().slice(1);
-            notes = [...ascending, ...descending];
-            const ascIntervals = [...intervals];
-            const descIntervals = [...intervals].reverse().slice(1);
-            intervals = [...ascIntervals, ...descIntervals];
+            notes = this.concatWithoutDuplicate(ascendingSegment.notes, descendingSegment.notes);
+            allGroups = [...ascendingSegment.groups, ...descendingSegment.groups];
         } else if (direction === 'down_and_up') {
-            // Down and up: descending then ascending
-            const descending = [...notes].reverse();
-            const ascending = [...notes].slice(1);
-            notes = [...descending, ...ascending];
-            const descIntervals = [...intervals].reverse();
-            const ascIntervals = [...intervals].slice(1);
-            intervals = [...descIntervals, ...ascIntervals];
+            notes = this.concatWithoutDuplicate(descendingSegment.notes, ascendingSegment.notes);
+            allGroups = [...descendingSegment.groups, ...ascendingSegment.groups];
+        } else {
+            notes = ascendingSegment.notes;
+            allGroups = ascendingSegment.groups;
         }
 
         const context = {
@@ -1526,10 +1810,96 @@ class ScalesController {
             root,
             scaleType,
             pattern,
-            intervals
+            rootMidi,
+            movementStyle
         };
 
-        await this.playSequence(notes, modifiers, context);
+        // For movement styles with phrase structure, use group-based playback
+        if (movementStyle !== 'normal' && allGroups.length > 1) {
+            await this.playGroupSequence(allGroups, modifiers, context);
+        } else {
+            await this.playSequence(notes, modifiers, context);
+        }
+    }
+
+    // Play a sequence organized into groups (phrases) with gaps between them
+    async playGroupSequence(groups, modifiers = {}, context = {}) {
+        this.clearScalePreview();
+
+        const movementStyle = context.movementStyle || 'normal';
+
+        // Phrase gaps depend on movement style:
+        // - stop_and_go: no gap (overlapping/flowing pattern)
+        // - one_three_five: small gap (distinct harmonies)
+        // - from_one: larger gap (discrete interval questions)
+        const phraseGaps = {
+            stop_and_go: 0,
+            one_three_five: 150,
+            from_one: 400
+        };
+        const phraseGap = phraseGaps[movementStyle] ?? 100;
+
+        // Repeat and rising settings
+        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
+        const isInfinite = playTimes === Infinity;
+        const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
+
+        const playId = this.audio.requestSequencePlayback();
+        let r = 0;
+
+        try {
+            while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
+                const transpose = risingSemitones * r;
+
+                // Play each group (phrase)
+                for (let g = 0; g < groups.length; g++) {
+                    if (!this.audio.isPlaybackValid(playId)) break;
+
+                    const group = groups[g];
+
+                    // Play notes in this group
+                    for (let i = 0; i < group.length; i++) {
+                        if (!this.audio.isPlaybackValid(playId)) break;
+
+                        const baseNote = group[i];
+                        const note = transpose > 0 ? this.transposeNote(baseNote, transpose) : baseNote;
+                        const duration = this.getNoteDuration(modifiers);
+
+                        this.highlightPianoKey(note);
+                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${note}`);
+
+                        this.audio.synth.triggerAttackRelease(note, duration.tone);
+                        await this.audio.sleep(duration.ms);
+                    }
+
+                    // Phrase gap between groups (not after the last one)
+                    if (phraseGap > 0 && g < groups.length - 1) {
+                        await this.audio.sleep(phraseGap);
+                    }
+                }
+
+                r++;
+
+                // Gap between repetitions
+                const hasMore = isInfinite || r < playTimes;
+                if (hasMore && this.audio.isPlaybackValid(playId)) {
+                    if (risingSemitones === 0) {
+                        // No rising: gap between identical repeats
+                        await this.audio.sleep(1500);
+                    }
+                    // With rising: no gap, flows to next transposition
+                }
+            }
+        } finally {
+            if (this.audio.playbackId === playId) {
+                this.audio.isPlaying = false;
+            }
+        }
+
+        this.clearPianoHighlights();
+        this.voiceCore.updateStatus('Ready');
+        this.updateScalePreview();
     }
 
     async playArpeggio(root, quality, modifiers = {}) {
@@ -1644,16 +2014,27 @@ class ScalesController {
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : repeatCount;
 
+        // Rising (transpose each repeat upward by N semitones)
+        const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
+        const getNotesForRepeat = risingSemitones > 0
+            ? (repeatIndex) => this.transposeNotes(notes, repeatIndex * risingSemitones)
+            : null;
+
         // For up+down or down+up with repeat, use seamless repeat (no gap, skip duplicate root)
         const direction = modifiers.direction || this.settings.direction;
         const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-        const seamlessRepeat = isRoundTrip && playTimes > 1;
+        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0;
+
+        const mergedContext = {
+            ...context,
+            risingSemitones
+        };
 
         await this.audio.playSequence(notes, {
             getDuration: () => this.getNoteDuration(modifiers),
-            onNote: (note, index) => {
+            onNote: (note, index, repeatIndex) => {
                 this.highlightPianoKey(note);
-                const noteDisplay = this.formatNoteStatus(note, index, context);
+                const noteDisplay = this.formatNoteStatus(note, index, { ...mergedContext, repeatIndex });
                 this.voiceCore.updateStatus(noteDisplay);
             },
             onStatus: (message) => {
@@ -1661,8 +2042,9 @@ class ScalesController {
                 this.voiceCore.updateStatus(message);
             },
             repeatCount: playTimes,
-            repeatGapMs: 1500,
-            seamlessRepeat
+            repeatGapMs: risingSemitones > 0 ? 0 : 1500,
+            seamlessRepeat,
+            getNotesForRepeat
         });
 
         this.clearPianoHighlights();
@@ -1731,6 +2113,8 @@ class ScalesController {
             scaleType: this.settings.scaleType,
             modifiers: {
                 direction: this.settings.direction,
+                movementStyle: this.settings.movementStyle,
+                risingSemitones: this.settings.risingSemitones,
                 rangeExpansion: this.settings.rangeExpansion,
                 octaveSpan: this.settings.octaveSpan,
                 tempo: this.tempoIndexToName[this.settings.noteLength],
@@ -1998,6 +2382,180 @@ class ScalesController {
                 }
             }
         });
+    }
+
+    stripOctave(note) {
+        return (note || '').replace(/\d+$/, '');
+    }
+
+    truncateText(text, maxLen) {
+        if (!text) return '';
+        if (text.length <= maxLen) return text;
+        return text.slice(0, Math.max(0, maxLen - 1)) + '…';
+    }
+
+    buildScaleDegreesAscAll({ root, scaleType, octaveSpan, rangeExpansion }) {
+        const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        const rootIndex = NOTE_NAMES.indexOf(root);
+        if (rootIndex === -1) return null;
+
+        // Build base pattern (potentially spanning 2 octaves)
+        let fullPattern = [...pattern];
+        if (octaveSpan === 2) {
+            const secondOctave = pattern.slice(1).map(i => i + 12);
+            fullPattern = [...pattern, ...secondOctave];
+        }
+
+        // Expand range if requested (add notes below and above)
+        if (rangeExpansion > 0) {
+            const belowNotes = [];
+            for (let i = rangeExpansion; i >= 1; i--) belowNotes.push(-i);
+
+            const topInterval = fullPattern[fullPattern.length - 1];
+            const aboveNotes = [];
+            for (let i = 1; i <= rangeExpansion; i++) aboveNotes.push(topInterval + i);
+
+            fullPattern = [...belowNotes, ...fullPattern, ...aboveNotes];
+        }
+
+        const degreesAscAll = fullPattern.map(interval => {
+            const noteIndex = ((rootIndex + interval) % 12 + 12) % 12;
+            const octaveOffset = Math.floor((rootIndex + interval) / 12);
+            return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
+        });
+
+        const rootNote = `${root}${this.settings.octave}`;
+        const rootMidi = this.noteStringToMidi(rootNote);
+
+        return { degreesAscAll, rootNote, rootMidi, pattern };
+    }
+
+    buildScalePlaybackPlan({ root, scaleType, direction, movementStyle, octaveSpan, rangeExpansion }) {
+        const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, octaveSpan, rangeExpansion });
+        if (!degreesModel) return null;
+
+        const { degreesAscAll, rootNote, rootMidi, pattern } = degreesModel;
+
+        const buildSegment = (segmentDegrees) => {
+            const rootIndexInSegment = segmentDegrees.indexOf(rootNote);
+            return this.buildMovementSequence({
+                movementStyle,
+                degreesAscAll: segmentDegrees,
+                degreesFromRoot: rootIndexInSegment >= 0 ? segmentDegrees.slice(rootIndexInSegment) : segmentDegrees,
+                rootNote
+            });
+        };
+
+        const ascendingSegment = buildSegment(degreesAscAll);
+        const descendingSegment = buildSegment([...degreesAscAll].reverse());
+
+        const segments = [];
+        let notes;
+        if (direction === 'descending') {
+            segments.push({ label: 'down', groups: descendingSegment.groups });
+            notes = descendingSegment.notes;
+        } else if (direction === 'both') {
+            segments.push({ label: 'up', groups: ascendingSegment.groups });
+            segments.push({ label: 'down', groups: descendingSegment.groups });
+            notes = this.concatWithoutDuplicate(ascendingSegment.notes, descendingSegment.notes);
+        } else if (direction === 'down_and_up') {
+            segments.push({ label: 'down', groups: descendingSegment.groups });
+            segments.push({ label: 'up', groups: ascendingSegment.groups });
+            notes = this.concatWithoutDuplicate(descendingSegment.notes, ascendingSegment.notes);
+        } else {
+            segments.push({ label: 'up', groups: ascendingSegment.groups });
+            notes = ascendingSegment.notes;
+        }
+
+        return { segments, notes, rootNote, rootMidi, pattern };
+    }
+
+    formatGroupsForPreview(groups, transposeSemitones = 0) {
+        const groupStrings = groups.map(group => {
+            const notes = group.map(n => {
+                const t = transposeSemitones ? this.transposeNote(n, transposeSemitones) : n;
+                return this.stripOctave(t);
+            });
+            return notes.join(' ');
+        });
+        return groupStrings.join(' | ');
+    }
+
+    updatePatternPreview() {
+        const container = document.getElementById('patternPreview');
+        if (!container) return;
+
+        const body = container.querySelector('.pattern-preview-body');
+        if (!body) return;
+
+        const root = this.settings.root;
+        const scaleType = this.settings.scaleType;
+        const direction = this.settings.direction;
+        const movementStyle = this.settings.movementStyle;
+        const octaveSpan = this.settings.octaveSpan;
+        const rangeExpansion = this.settings.rangeExpansion;
+
+        const repeatCountRaw = this.settings.repeatCount;
+        const repeatCount = repeatCountRaw === 0 ? 1 : repeatCountRaw;
+        const isInfinite = repeatCount === Infinity;
+        const risingSemitones = this.settings.risingSemitones || 0;
+
+        const plan = this.buildScalePlaybackPlan({
+            root,
+            scaleType,
+            direction,
+            movementStyle,
+            octaveSpan,
+            rangeExpansion
+        });
+
+        if (!plan) {
+            body.textContent = 'Pattern unavailable (invalid root/scale).';
+            return;
+        }
+
+        const maxRepeatsToShow = isInfinite ? 4 : Math.min(repeatCount, 6);
+        const scaleLabel = scaleType.replace(/_/g, ' ');
+
+        const parts = [];
+        const headerBits = [
+            `${root} ${scaleLabel}`,
+            direction === 'ascending' ? 'up' : direction === 'descending' ? 'down' : direction === 'both' ? 'up+down' : 'down+up'
+        ];
+        if (movementStyle && movementStyle !== 'normal') headerBits.push(`move: ${this.getMovementLabel(movementStyle)}`);
+        if (risingSemitones) headerBits.push(`rising: ${this.getRisingLabel(risingSemitones)}`);
+        if (repeatCountRaw === Infinity) headerBits.push('repeat: forever');
+        else if (repeatCountRaw === 0) headerBits.push('repeat: off');
+        else headerBits.push(`repeat: x${repeatCount}`);
+        parts.push(headerBits.join(' | '));
+
+        for (let r = 0; r < maxRepeatsToShow; r++) {
+            const transpose = r * risingSemitones;
+            const repeatRoot = transpose ? this.transposeNote(plan.rootNote, transpose) : plan.rootNote;
+            const repeatRootName = this.stripOctave(repeatRoot);
+
+            const repeatTitle = isInfinite
+                ? `Loop ${r + 1}: ${repeatRootName}`
+                : `Repeat ${r + 1} of ${repeatCount}: ${repeatRootName}`;
+
+            parts.push('');
+            parts.push(repeatTitle);
+
+            for (const seg of plan.segments) {
+                const line = this.formatGroupsForPreview(seg.groups, transpose);
+                parts.push(`  ${seg.label}: ${this.truncateText(line, 260)}`);
+            }
+        }
+
+        if (!isInfinite && repeatCount > maxRepeatsToShow) {
+            parts.push('');
+            parts.push(`… plus ${repeatCount - maxRepeatsToShow} more repeats`);
+        } else if (isInfinite) {
+            parts.push('');
+            parts.push('… continues forever');
+        }
+
+        body.textContent = parts.join('\n');
     }
 
     sleep(ms) {
