@@ -294,12 +294,16 @@ const FOREVER_SECTION_GAP_MS = 200; // default gap between sections when looping
 
 const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 
+const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
+
 //-------SCALES CONTROLLER-------
 class ScalesController {
     constructor() {
         this.voiceCore = null;
         this.audio = new AudioCoordinator();  // Single authority for all audio
         this.pianoNotificationRow = null;
+        this.presets = [];
+        this.selectedPresetId = null;
         this.settings = {
             noteLength: 2,    // index into noteLengthMap (0.5s default)
             gap: 3,           // index into gapMap (0s default)
@@ -386,6 +390,8 @@ class ScalesController {
         }
         this.setupVoiceCore();
         this.setupUI();
+        this.loadPresetsFromStorage();
+        this.renderPresets();
         this.setupErrorHandling();
     }
 
@@ -481,6 +487,200 @@ class ScalesController {
 
         // Voice-first clickable UI
         this.setupVoiceFirstUI();
+
+        // Presets ("playlist" of configs)
+        this.setupPresetUI();
+    }
+
+    setupPresetUI() {
+        const saveBtn = document.getElementById('savePresetBtn');
+        const applyBtn = document.getElementById('applyPresetBtn');
+        const deleteBtn = document.getElementById('deletePresetBtn');
+        const nameInput = document.getElementById('presetNameInput');
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const name = (nameInput?.value || '').trim();
+                this.saveCurrentAsPreset(name);
+                if (nameInput) nameInput.value = '';
+            });
+        }
+
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                if (!this.selectedPresetId) return;
+                this.applyPresetById(this.selectedPresetId);
+            });
+        }
+
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                if (!this.selectedPresetId) return;
+                this.deletePresetById(this.selectedPresetId);
+            });
+        }
+    }
+
+    loadPresetsFromStorage() {
+        const raw = localStorage.getItem(SCALES_PRESETS_STORAGE_KEY);
+        if (!raw) {
+            this.presets = [];
+            this.selectedPresetId = null;
+            return;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            this.presets = [];
+            this.selectedPresetId = null;
+            return;
+        }
+
+        this.presets = parsed;
+        // Keep selection if possible
+        if (this.selectedPresetId && !this.presets.some(p => p.id === this.selectedPresetId)) {
+            this.selectedPresetId = null;
+        }
+    }
+
+    savePresetsToStorage() {
+        localStorage.setItem(SCALES_PRESETS_STORAGE_KEY, JSON.stringify(this.presets));
+    }
+
+    getCurrentConfigSnapshot() {
+        const s = this.settings;
+        return {
+            noteLength: s.noteLength,
+            gap: s.gap,
+            direction: s.direction,
+            octave: s.octave,
+            repeatCount: s.repeatCount,
+            repeatGapMs: s.repeatGapMs,
+            risingSemitones: s.risingSemitones,
+            movementStyle: s.movementStyle,
+            scaleType: s.scaleType,
+            root: s.root,
+            rangeExpansion: s.rangeExpansion,
+            octaveSpan: s.octaveSpan
+        };
+    }
+
+    saveCurrentAsPreset(name) {
+        const now = Date.now();
+        const config = this.getCurrentConfigSnapshot();
+
+        const title = name || this.buildPresetTitleFromConfig(config);
+        const preset = {
+            id: `${now}-${Math.random().toString(16).slice(2)}`,
+            name: title,
+            createdAt: now,
+            config
+        };
+
+        // Newest at top
+        this.presets.unshift(preset);
+        this.selectedPresetId = preset.id;
+        this.savePresetsToStorage();
+        this.renderPresets();
+        this.voiceCore.updateStatus('Saved config');
+    }
+
+    buildPresetTitleFromConfig(c) {
+        const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
+        const parts = [];
+
+        parts.push(`${c.scaleType.replace(/_/g, ' ')} ${c.root} scale`);
+
+        if (c.direction) parts.push(dirLabels[c.direction] || c.direction);
+        if (c.risingSemitones) parts.push(`rising ${this.getRisingLabel(c.risingSemitones)}`);
+        if (c.movementStyle && c.movementStyle !== 'normal') parts.push(this.getMovementLabel(c.movementStyle));
+        if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
+        if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
+        if (c.noteLength !== this.defaultSettings.noteLength) parts.push(`len ${this.noteLengthLabels[c.noteLength]}`);
+        if (c.gap !== this.defaultSettings.gap) parts.push(`gap ${this.gapLabels[c.gap]}`);
+
+        if (c.repeatCount === Infinity) parts.push(c.repeatGapMs === 0 ? 'forever no gap' : 'foreverer');
+        else if (c.repeatCount > 1) parts.push(`x${c.repeatCount}`);
+
+        return parts.join(' ');
+    }
+
+    applyPresetById(id) {
+        const preset = this.presets.find(p => p.id === id);
+        if (!preset) return;
+
+        this.applyConfig(preset.config);
+        this.selectedPresetId = id;
+        this.renderPresets();
+        this.voiceCore.updateStatus('Applied config (press Play)');
+    }
+
+    applyConfig(c) {
+        this.settings.noteLength = c.noteLength;
+        this.settings.gap = c.gap;
+        this.settings.direction = c.direction;
+        this.settings.octave = c.octave;
+        this.settings.repeatCount = c.repeatCount;
+        this.settings.repeatGapMs = c.repeatGapMs;
+        this.settings.risingSemitones = c.risingSemitones;
+        this.settings.movementStyle = c.movementStyle;
+        this.settings.scaleType = c.scaleType;
+        this.settings.root = c.root;
+        this.settings.rangeExpansion = c.rangeExpansion;
+        this.settings.octaveSpan = c.octaveSpan;
+
+        this.syncUIToSettings();
+        this.updatePianoKeyOctaves?.();
+        this.renderPianoNotification({ command: null, activeNotes: [] });
+    }
+
+    deletePresetById(id) {
+        const idx = this.presets.findIndex(p => p.id === id);
+        if (idx === -1) return;
+        this.presets.splice(idx, 1);
+        if (this.selectedPresetId === id) {
+            this.selectedPresetId = this.presets[0]?.id || null;
+        }
+        this.savePresetsToStorage();
+        this.renderPresets();
+        this.voiceCore.updateStatus('Deleted config');
+    }
+
+    renderPresets() {
+        const list = document.getElementById('presetList');
+        if (!list) return;
+
+        if (!this.presets.length) {
+            list.innerHTML = '<p class="history-empty">No saved configs yet</p>';
+            return;
+        }
+
+        list.innerHTML = this.presets.map((p) => {
+            const when = this.formatTime(new Date(p.createdAt));
+            const selectedClass = (p.id === this.selectedPresetId) ? ' selected' : '';
+            const subtitle = this.buildPresetTitleFromConfig(p.config);
+            return `
+                <div class="preset-item${selectedClass}" data-preset-id="${this.escapeHtml(String(p.id))}">
+                    <div class="preset-item-title">
+                        ${this.escapeHtml(p.name || subtitle)}
+                        <div class="preset-item-subtitle">${this.escapeHtml(subtitle)}</div>
+                    </div>
+                    <div class="preset-item-time">${this.escapeHtml(when)}</div>
+                </div>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.preset-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const id = el.dataset.presetId;
+                this.selectedPresetId = id;
+                this.renderPresets();
+            });
+            el.addEventListener('dblclick', () => {
+                const id = el.dataset.presetId;
+                this.applyPresetById(id);
+            });
+        });
     }
 
     setupPianoNotificationArea() {

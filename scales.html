@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v00.000012</span>
+                <span class="version-label">v00.00015</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -190,6 +190,26 @@
                     <input type="checkbox" id="echoCommandsToggle">
                     <span>Echo</span>
                 </label>
+            </div>
+
+            <!-- Saved Configurations (Presets) -->
+            <div class="command-history" id="presetHistory">
+                <div class="history-header">
+                    <h3>Saved Configs</h3>
+                    <div class="history-actions">
+                        <input id="presetNameInput" class="preset-name-input" type="text"
+                            placeholder="Name this config (optional)" />
+                        <button id="savePresetBtn" class="copy-all-history-btn"
+                            title="Save current settings">Save</button>
+                        <button id="applyPresetBtn" class="copy-all-history-btn"
+                            title="Apply selected config">Apply</button>
+                        <button id="deletePresetBtn" class="clear-history-btn"
+                            title="Delete selected config">Delete</button>
+                    </div>
+                </div>
+                <div class="history-list" id="presetList">
+                    <p class="history-empty">No saved configs yet</p>
+                </div>
             </div>
 
             <!-- Command History -->
