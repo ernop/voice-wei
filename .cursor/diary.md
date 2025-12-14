@@ -59,7 +59,7 @@ The voice-first, click-second pattern means every speakable option is visible in
 **Session context**: Technical work on voice-music-control TTS system. Explored options for better audio output quality.
 
 **Learned about the work**:
-- The hosting setup is flat HTML + JS served via rsync to fuseki.net, with PHP available (proxy.php works)
+- The hosting setup is flat HTML + JS served via rsync to shared hosting, with PHP available (proxy.php works)
 - Shell `exec()` is not reliably available on shared hosting, so server-side TTS via edge-tts isn't viable
 - User is always on Android when using web apps they build
 
