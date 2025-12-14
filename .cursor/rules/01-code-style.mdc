@@ -1,0 +1,54 @@
+---
+description: Code style and conventions for JavaScript, CSS, and PHP
+globs: ["**/*.js", "**/*.css", "**/*.php", "**/*.html"]
+alwaysApply: false
+---
+
+# CODE STYLE & CONVENTIONS
+
+## Comments Policy
+
+**DO NOT add redundant comments:**
+- If a function is named `showError()`, DO NOT add a comment like "Shows an error"
+- If a function is named `updatePlaylist()`, DO NOT add a comment like "Updates the playlist"
+- Avoid JSDoc-style comments that just repeat what the function name already says
+
+**DO add useful comments:**
+- Explain WHY something is done, not WHAT it does (if the what is obvious)
+- Document non-obvious behavior, edge cases, or gotchas
+- Explain terminology, architecture decisions, or complex algorithms
+- Add context about browser quirks, API limitations, or workarounds
+- Comment on magic numbers before extracting them to constants
+- Clarify business logic that isn't self-evident from code
+
+**Example - BAD:**
+```javascript
+/**
+ * Plays the next song in the playlist
+ */
+function playNext() {
+```
+
+**Example - GOOD:**
+```javascript
+// Wraps to beginning when reaching end of playlist
+function playNext() {
+```
+
+## JavaScript Conventions
+- Separate HTML and JS into different files.
+- Avoid inline styles; use rationally-named CSS classes.
+- Inline styles (`element.style.property`) override CSS with highest specificity; check JS when CSS changes don't apply.
+- Use compact section headers: `//-------SECTION NAME-------`
+- Constants for magic values (timing, thresholds) even if used 2-3 times.
+- Organize code by purpose (TIMING CONSTANTS, STATE, UI, etc.).
+
+## Formatting
+- Use `const` by default, `let` only when reassignment needed.
+- Early returns to reduce nesting.
+- Meaningful variable names (`currentPlaylistIndex` over `idx`).
+
+## Terminology
+- One term per concept; never use synonyms for the same thing.
+- Unify immediately when dual terminology appears.
+- Example: "playlist" not "queue" or "songList" - pick one and stick with it.

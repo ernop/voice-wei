@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Voice-controlled scale and pitch training for singers">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Scales - Voice Music Control</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="scales.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <h1>Scales</h1>
+                <span class="version-label">v0.00010</span>
+                <a href="pitch-meter.html" class="nav-link">Pitch Meter</a>
+                <a href="player.html" class="nav-link">Music</a>
+            </div>
+        </header>
+
+        <main>
+            <div class="status-row">
+                <div class="status" id="status">Loading piano...</div>
+                <label class="echo-toggle">
+                    <input type="checkbox" id="echoCommandsToggle">
+                    <span>Echo</span>
+                </label>
+            </div>
+
+            <div class="voice-controls-row">
+                <button id="listenBtn" class="listen-button" aria-label="Start listening">
+                    <span class="button-text">Listen</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
+                <button id="stopBtn" class="stop-button" aria-label="Stop playback">
+                    <span class="button-text">Stop</span>
+                    <span class="button-icon">&#9632;</span>
+                </button>
+                <button id="againBtn" class="play-button" aria-label="Play">
+                    <span class="button-text">Play</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="submitBtn" class="submit-button-large" style="display: none;"
+                    aria-label="Submit">Submit</button>
+            </div>
+
+            <div class="transcript-container" id="transcriptContainer" style="display: none;">
+                <p class="transcript-label">You said:</p>
+                <p class="transcript" id="transcript"></p>
+            </div>
+
+            <!-- Piano Keyboard (moved above settings) -->
+            <div class="piano-container">
+                <div class="piano-keys" id="pianoKeys"></div>
+            </div>
+
+            <!-- Voice-First Scale Builder - All Bidirectional Controls -->
+            <div class="voice-first-ui">
+                <p class="vf-instruction" id="vfInstruction">Say any option below to set it, or click directly. <button
+                        class="vf-dismiss" id="dismissInstruction">x</button></p>
+
+                <div class="vf-row">
+                    <span class="vf-label">Repeat</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-repeat="0">off</button>
+                        <button class="vf-btn" data-repeat="1">once</button>
+                        <button class="vf-btn" data-repeat="2">twice</button>
+                        <button class="vf-btn" data-repeat="Infinity">forever</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Direction</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-direction="ascending">up</button>
+                        <button class="vf-btn" data-direction="descending">down</button>
+                        <button class="vf-btn" data-direction="both">up+down</button>
+                        <button class="vf-btn" data-direction="down_and_up">down+up</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Root</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-root="C">C</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
+                        <button class="vf-btn" data-root="D">D</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
+                        <button class="vf-btn" data-root="E">E</button>
+                        <button class="vf-btn" data-root="F">F</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
+                        <button class="vf-btn" data-root="G">G</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
+                        <button class="vf-btn" data-root="A">A</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
+                        <button class="vf-btn" data-root="B">B</button>
+                    </div>
+                    <span class="vf-label vf-label-inline">Octave</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-octave="3">3</button>
+                        <button class="vf-btn" data-octave="4">4</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Scale</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-scale-type="major">major</button>
+                        <button class="vf-btn" data-scale-type="minor">minor</button>
+                        <button class="vf-btn" data-scale-type="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale-type="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale-type="harmonic_minor">harmonic minor</button>
+                        <button class="vf-btn" data-scale-type="melodic_minor">melodic minor</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Length</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-length="0">v.short</button>
+                        <button class="vf-btn" data-length="1">short</button>
+                        <button class="vf-btn" data-length="2">normal</button>
+                        <button class="vf-btn" data-length="3">long</button>
+                        <button class="vf-btn" data-length="4">v.long</button>
+                        <button class="vf-btn" data-length="5">super</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Gap</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-gap="none">none</button>
+                        <button class="vf-btn" data-gap="small">small</button>
+                        <button class="vf-btn" data-gap="medium">medium</button>
+                        <button class="vf-btn" data-gap="large">large</button>
+                    </div>
+                    <button id="resetBtn" class="vf-reset-btn">Reset</button>
+                </div>
+            </div>
+
+            <!-- Voice Control Commands -->
+            <div class="voice-control-commands">
+                <span class="vcc-label">Voice controls:</span>
+                <code>stop</code>
+                <code>play</code>
+            </div>
+
+            <!-- Command History -->
+            <div class="command-history" id="commandHistory">
+                <div class="history-header">
+                    <h3>Command History</h3>
+                    <div class="history-actions">
+                        <button id="copyAllHistoryBtn" class="copy-all-history-btn" title="Copy all history">Copy
+                            All</button>
+                        <button id="clearHistoryBtn" class="clear-history-btn">Clear</button>
+                    </div>
+                </div>
+                <div class="history-list" id="historyList">
+                    <p class="history-empty">No commands yet</p>
+                </div>
+            </div>
+
+            <!-- Voice Settings (moved to bottom) -->
+            <details class="voice-settings-section">
+                <summary>Voice Settings</summary>
+                <div class="settings-row voice-settings">
+                    <div class="setting-group">
+                        <label for="voiceSelect">Voice:</label>
+                        <select id="voiceSelect">
+                            <option value="">Default</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label for="voiceRate">Speed:</label>
+                        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1">
+                        <span id="voiceRateValue">1x</span>
+                    </div>
+                    <div class="setting-group">
+                        <label for="voicePitch">Pitch:</label>
+                        <input type="range" id="voicePitch" min="0.5" max="1.5" step="0.1" value="1">
+                        <span id="voicePitchValue">1</span>
+                    </div>
+                    <button id="testVoiceBtn" class="test-voice-btn">Test</button>
+                </div>
+            </details>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="voice-command-core.js"></script>
+    <script src="scales.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,64 @@
+---
+description: Performance patterns for event handlers and DOM operations
+globs: ["**/*.js"]
+alwaysApply: false
+---
+
+# PERFORMANCE PATTERNS
+
+## Core Principle
+Before implementing ANY feature, ask:
+1. Am I doing expensive work unnecessarily?
+2. Am I duplicating computation?
+3. Can I consolidate operations?
+4. Should I precompute common operations?
+
+**Don't implement first, ask later.**
+
+## Event Handlers (fire 60+ times per second)
+Every millisecond counts in mousemove, scroll, resize handlers.
+
+**Skip Unnecessary Work:**
+```javascript
+// WRONG
+function onMouseMove(e) {
+    const target = findTarget(e);  // Always runs
+    if (isActive) updateUI(target);  // Might be false
+}
+
+// CORRECT
+function onMouseMove(e) {
+    if (!isActive) return;  // Early exit
+    const target = findTarget(e);
+    updateUI(target);
+}
+```
+
+**Consolidate Operations:**
+```javascript
+// WRONG - Multiple handlers doing similar work
+element.addEventListener('click', e => checkAction1(e));
+element.addEventListener('click', e => checkAction2(e));
+
+// CORRECT - Single handler
+element.addEventListener('click', e => {
+    checkAction1(e);
+    checkAction2(e);
+});
+```
+
+## DOM Operations
+- Batch DOM reads before DOM writes (avoid layout thrashing).
+- Use `requestAnimationFrame` for visual updates.
+- Cache DOM queries when elements don't change.
+
+## Question Inefficiency Upfront
+- "This updates every 100ms - do we need it that often?"
+- "This creates new elements on every call - can we reuse?"
+- "This queries the DOM repeatedly - can we cache?"
+
+## Code Quality
+- Question defensive patterns if dependencies are guaranteed.
+- Consolidate before optimizing.
+- Use data-driven patterns instead of hardcoding cases.
+- Complexity must solve a real problem.

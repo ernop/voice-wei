@@ -1,0 +1,67 @@
+---
+description: Voice Music Control project-specific rules and architecture
+alwaysApply: true
+---
+
+# VOICE MUSIC CONTROL - PROJECT RULES
+
+## Project Overview
+Voice-controlled music player for hands-free operation while driving. Uses Claude AI for natural language music requests, Web Speech API for voice recognition, and YouTube for playback via Piped/Invidious proxy.
+
+## Key Files
+- `player.html` - Main app page
+- `app.js` - Main application logic (VoiceMusicController class)
+- `voice-output.js` - Text-to-speech library
+- `proxy.php` - Server-side YouTube search via Piped/Invidious
+- `config.json` - API keys (gitignored)
+
+## Architecture
+```
+Voice Input (Web Speech API)
+    ↓
+Command Parser (control commands vs music search)
+    ↓
+Control Command → Execute locally (play/pause/next/etc)
+Music Search → Claude API → YouTube Search (proxy.php) → Playlist
+```
+
+## API Dependencies
+- **Claude API** (required) - Music request interpretation
+- **YouTube IFrame API** - Video playback
+- **Piped/Invidious** - YouTube search (no API key needed)
+- **Web Speech API** - Voice recognition (browser native)
+
+## Coding Patterns
+
+### State Management
+The app uses a single `VoiceMusicController` class with clear state:
+- `playlist[]` - Current songs
+- `currentPlaylistIndex` - Which song is playing
+- `isPlaying`, `isPaused` - Playback state
+- `isListening` - Voice recognition active
+- `settings{}` - User preferences (localStorage)
+- `favorites{}` - Saved songs (localStorage)
+
+### Voice Commands
+Control commands are parsed in `parseControlCommand()` using regex patterns.
+Music searches go to `processCommandWithLLM()` for Claude interpretation.
+
+### YouTube Player Management
+- Players stored in `Map` by item ID
+- Created lazily when items added to playlist
+- Must wait for `onReady` before calling play methods
+
+## Testing
+- Use `proxy.php?test=1` to verify proxy is working
+- Use `proxy.php?q=test` to verify search returns results
+- Check browser console and in-app Log panel for errors
+
+## Deployment
+- Sync to server via rsync (excludes .md, .sh, server files)
+- `proxy.php` must be included (it's the search backend)
+- `config.json` must exist on server with Claude API key
+
+## Browser Support
+- Chrome/Edge/Safari only (Web Speech API)
+- HTTPS required (microphone access)
+- Firefox not supported

@@ -1,0 +1,51 @@
+---
+description: Core rules that always apply - communication style, anti-fallback principle, config patterns
+alwaysApply: true
+---
+
+# ABSOLUTE RULES
+
+## Communication Style
+- Never use emojis in any files, responses, or communications.
+- Never use phrases like "code smell", "bloat", or similar ugly jargon.
+- Never reference engineering concepts named after celebrities or divisive public figures.
+- Never include API keys, passwords, tokens, or credentials in any files to be checked in.
+- Never compliment the user or their ideas ("Great idea!", "Brilliant question!").
+- Never respond with reflexive agreement; confirm claims through analysis first.
+- Skip self-praise: never describe work as "stunning", "beautiful", or "incredible".
+- Use placeholders like `YOUR_API_KEY_HERE` for credentials in documentation.
+- Honor every directive; request missing context when needed.
+- Keep inline comments focused on "why" not "what".
+- When working together, if given an unclear directive, ask for clarification or offer options.
+- Feel free to add your own suggestions, questions, or ideas, even if not very certain, just in the interest of keeping our communication channels clear.
+
+## The Anti-Fallback Principle
+**Never implement library fallbacks. Never write defensive code for dependencies you control. Repair the primary path.**
+
+If an import/load fails:
+1. Check dependencies are installed/loaded correctly.
+2. Fix the import/script path.
+3. Never add try/catch as a workaround.
+
+This extends to all code:
+- Don't try/catch to import backup libraries if primary import fails.
+- Don't cascade through multiple config detection methods.
+- Don't try multiple external tools if first fails.
+- Don't use tryAscertainValue patterns that check field_a, then field_b, then field_c.
+- Don't retry loops that wait and retry 10 times.
+- **Fix is always to improve the single upstream source, never to add downstream alternatives.**
+
+## Configuration Pattern
+- Never use environment variables for configuration; use gitignored config files with checked-in examples.
+- `config.json` (gitignored) - API keys and secrets
+- `config.example.json` (checked in) - Template with placeholders
+- Code reads from config file, not environment variables
+
+## Cost-Efficiency Principle
+When fixing any problem, immediately ask: "How could this have been prevented at a deeper level, in a simpler way, or by a more efficient actor?"
+
+1. **Don't use expensive resources for cheap tasks** - if grep, a linter, a formatter, a simple script, or a local LLM can do something, don't waste advanced AI time on it.
+2. **Systemic prevention beats repeated fixing** - instead of manually fixing the same class of problem across files, add a linter rule, pre-commit hook, or editor config that prevents it automatically.
+3. **Push enforcement to the earliest/cheapest point** - a linter error at write-time is cheaper than a code review comment, which is cheaper than a bug report.
+
+Goal: Build a codebase where wrong code looks wrong immediately and automatically.

@@ -1,0 +1,36 @@
+# Full rsync command for deploying Voice Music Control
+
+# Basic sync (excludes config.json, server files, docs)
+rsync -avz \
+  --exclude='.git' \
+  --exclude='.gitignore' \
+  --exclude='.cursor' \
+  --exclude='config.json' \
+  --exclude='server.py' \
+  --exclude='voice-music-control.service' \
+  --exclude='setup-service.sh' \
+  --exclude='requirements.txt' \
+  --exclude='*.md' \
+  --exclude='*.txt' \
+  --exclude='*.conf' \
+  --exclude='*.ps1' \
+  --exclude='*.sh' \
+  --exclude='.htpasswd' \
+  ./ \
+  ernop@fuseki.net:/home/ernop/fuseki.net/public/music/ --dry-run
+
+# Remove --dry-run when ready to actually sync
+
+# IMPORTANT: proxy.php is REQUIRED - it handles YouTube search via Piped/Invidious (no API key needed)
+
+# --- Key Files Deployed ---
+# - player.html           - Main app page
+# - style.css             - Styling
+# - app.js                - Main application
+# - voice-output.js       - Text-to-speech library
+# - voice-command-core.js - Voice recognition utilities
+# - proxy.php             - YouTube search proxy (REQUIRED)
+# - config.json           - API keys (must exist on server, not synced)
+#
+# - scales.html/js/css    - Scales practice tool
+# - pitch-meter.html/js/css - Pitch detection tool

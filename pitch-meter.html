@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Pitch meter for checking your singing accuracy">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Pitch Meter - Voice Music Control</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="pitch-meter.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <h1>Pitch Meter</h1>
+                <span class="version-label">v0.1</span>
+                <a href="scales.html" class="nav-link">Scales</a>
+                <a href="player.html" class="nav-link">Music</a>
+            </div>
+        </header>
+
+        <main>
+            <div class="status" id="status">Select a scale and click Record to begin</div>
+
+            <!-- Scale Selection -->
+            <div class="pitch-settings">
+                <div class="setting-group">
+                    <label for="rootSelect">Root:</label>
+                    <select id="rootSelect">
+                        <option value="C" selected>C</option>
+                        <option value="C#">C#</option>
+                        <option value="D">D</option>
+                        <option value="D#">D#</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                        <option value="F#">F#</option>
+                        <option value="G">G</option>
+                        <option value="G#">G#</option>
+                        <option value="A">A</option>
+                        <option value="A#">A#</option>
+                        <option value="B">B</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label for="scaleSelect">Scale:</label>
+                    <select id="scaleSelect">
+                        <option value="major" selected>Major</option>
+                        <option value="minor">Minor</option>
+                        <option value="chromatic">Chromatic</option>
+                        <option value="pentatonic">Pentatonic</option>
+                        <option value="blues">Blues</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label for="octaveSelect">Octave:</label>
+                    <select id="octaveSelect">
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4" selected>4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="pitch-controls">
+                <button id="recordBtn" class="record-button">
+                    <span class="button-icon">&#9679;</span>
+                    <span class="button-text">Record</span>
+                </button>
+                <button id="stopBtn" class="stop-button-pitch" disabled>
+                    <span class="button-icon">&#9632;</span>
+                    <span class="button-text">Stop</span>
+                </button>
+                <button id="playRefBtn" class="play-ref-button">
+                    <span class="button-icon">&#9835;</span>
+                    <span class="button-text">Play Scale</span>
+                </button>
+            </div>
+
+            <!-- Real-time display -->
+            <div class="pitch-display">
+                <div class="current-pitch">
+                    <div class="pitch-note" id="currentNote">--</div>
+                    <div class="pitch-cents" id="currentCents">-- cents</div>
+                    <div class="pitch-freq" id="currentFreq">-- Hz</div>
+                </div>
+                <div class="pitch-indicator">
+                    <div class="indicator-bar">
+                        <div class="indicator-marker" id="centsMarker"></div>
+                        <div class="indicator-center"></div>
+                    </div>
+                    <div class="indicator-labels">
+                        <span>-50</span>
+                        <span>0</span>
+                        <span>+50</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pitch Chart Canvas -->
+            <div class="chart-container">
+                <canvas id="pitchChart"></canvas>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="results-panel" id="resultsPanel" style="display: none;">
+                <h3>Results</h3>
+                <div class="results-summary">
+                    <div class="result-item">
+                        <span class="result-label">Overall Accuracy</span>
+                        <span class="result-value" id="overallAccuracy">--%</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Average Deviation</span>
+                        <span class="result-value" id="avgDeviation">-- cents</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Notes Hit</span>
+                        <span class="result-value" id="notesHit">0/0</span>
+                    </div>
+                </div>
+                <div class="note-breakdown" id="noteBreakdown"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="pitch-meter.js"></script>
+</body>
+
+</html>
+

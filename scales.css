@@ -1,0 +1,1000 @@
+/* Scales Page Specific Styles */
+
+/* Status Row - contains status text and echo toggle */
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.status-row .status {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* Echo Toggle - compact, right-aligned */
+.echo-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.echo-toggle:hover {
+    background: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.echo-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: #4ade80;
+    margin: 0;
+}
+
+.echo-toggle:has(input:checked) {
+    background: rgba(74, 222, 128, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.echo-toggle span {
+    font-weight: 500;
+}
+
+/* Settings Row */
+.settings-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.setting-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.setting-group label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+.setting-group select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.setting-group select option {
+    background: #1a3a2e;
+    color: #e8f5e9;
+}
+
+.stop-scale-btn {
+    padding: 8px 20px;
+    background: rgba(239, 68, 68, 0.8);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.stop-scale-btn:hover {
+    background: rgba(239, 68, 68, 0.95);
+}
+
+.stop-scale-btn:active {
+    transform: scale(0.98);
+}
+
+/* Main Stop Button (next to Listen) */
+.voice-controls-row .stop-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 20px;
+    min-width: 80px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    margin: 0;
+}
+
+.voice-controls-row .stop-button:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+.voice-controls-row .stop-button:active {
+    transform: scale(0.98);
+}
+
+.voice-controls-row .stop-button .button-icon {
+    font-size: 1.2rem;
+}
+
+/* Play Button (next to Stop) */
+.voice-controls-row .play-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 20px;
+    min-width: 80px;
+    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+    margin: 0;
+}
+
+.voice-controls-row .play-button:hover {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4);
+}
+
+.voice-controls-row .play-button:active {
+    transform: scale(0.98);
+}
+
+.voice-controls-row .play-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.voice-controls-row .play-button .button-icon {
+    font-size: 1.2rem;
+}
+
+/* Playback Settings */
+.playback-settings {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.slider-group {
+    min-width: 140px;
+}
+
+.slider-group input[type="range"] {
+    width: 70px;
+    height: 6px;
+    cursor: pointer;
+    accent-color: #4ade80;
+}
+
+.slider-label {
+    min-width: 50px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: left;
+}
+
+.toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+
+.toggle-group:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.toggle-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4ade80;
+}
+
+.toggle-group:has(input:checked) {
+    background: rgba(74, 222, 128, 0.25);
+}
+
+.toggle-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+/* Voice Settings */
+.voice-settings {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.voice-settings input[type="range"] {
+    width: 80px;
+    height: 6px;
+    cursor: pointer;
+    accent-color: #14b8a6;
+}
+
+.voice-settings span {
+    min-width: 30px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.test-voice-btn {
+    padding: 6px 14px;
+    background: rgba(20, 184, 166, 0.7);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.test-voice-btn:hover {
+    background: rgba(20, 184, 166, 0.9);
+}
+
+.test-voice-btn:active {
+    transform: scale(0.98);
+}
+
+/* Piano Container */
+.piano-container {
+    margin: 8px 0;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.piano-keys {
+    display: flex;
+    justify-content: center;
+    position: relative;
+    height: 130px;
+    min-width: fit-content;
+    overflow-x: auto;
+    padding: 0 10px;
+}
+
+/* Piano Keys */
+.piano-key {
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.white-key {
+    width: 38px;
+    height: 130px;
+    background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 100%);
+    border: 1px solid #999;
+    border-radius: 0 0 6px 6px;
+    margin: 0 1px;
+    z-index: 1;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.white-key span {
+    padding-bottom: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #555;
+}
+
+.white-key:hover {
+    background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
+}
+
+.white-key:active,
+.white-key.active {
+    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+}
+
+.white-key:active span,
+.white-key.active span {
+    color: white;
+}
+
+.black-key {
+    width: 26px;
+    height: 80px;
+    background: linear-gradient(180deg, #333 0%, #111 100%);
+    border-radius: 0 0 4px 4px;
+    margin-left: -14px;
+    margin-right: -14px;
+    flex-shrink: 0;
+    z-index: 2;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.black-key:hover {
+    background: linear-gradient(180deg, #444 0%, #222 100%);
+}
+
+.black-key:active,
+.black-key.active {
+    background: linear-gradient(180deg, #22c55e 0%, #166534 100%);
+}
+
+/* Scale preview highlighting (when not playing) */
+.white-key.scale-root {
+    background: linear-gradient(180deg, #a7f3d0 0%, #6ee7b7 100%);
+    border-color: #10b981;
+}
+
+.white-key.scale-root span {
+    color: #064e3b;
+    font-weight: 700;
+}
+
+.white-key.scale-note {
+    background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.white-key.scale-note span {
+    color: #166534;
+}
+
+.black-key.scale-root {
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+}
+
+.black-key.scale-note {
+    background: linear-gradient(180deg, #4b5563 0%, #374151 100%);
+}
+
+/* Command Reference */
+.command-reference {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+    text-align: left;
+}
+
+.command-reference h3 {
+    text-align: center;
+    margin-bottom: 16px;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+}
+
+.command-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.command-category h4 {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.command-category ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.command-category li {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 3px 0;
+    line-height: 1.4;
+}
+
+.command-category code {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 0.75rem;
+    color: #fff;
+}
+
+/* Command History */
+.command-history {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.history-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.history-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.copy-all-history-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.copy-all-history-btn:hover {
+    background: rgba(20, 184, 166, 0.3);
+    border-color: rgba(20, 184, 166, 0.5);
+    color: #fff;
+}
+
+.clear-history-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.clear-history-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fff;
+}
+
+.history-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.history-empty {
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    font-size: 0.85rem;
+    margin: 0;
+    padding: 8px 0;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.history-play-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.history-play-btn:hover {
+    box-shadow: 0 2px 8px rgba(74, 222, 128, 0.4);
+}
+
+.history-text {
+    flex: 1;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.history-transcript {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+}
+
+.history-time {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+/* Error entries in history */
+.history-error {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 3px solid rgba(239, 68, 68, 0.6);
+}
+
+.history-error:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.history-error-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.3);
+    border-radius: 50%;
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: #ef4444;
+}
+
+.history-error-message {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+.history-error-details {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .piano-keys {
+        justify-content: flex-start;
+    }
+
+    .white-key {
+        width: 42px;
+        height: 120px;
+    }
+
+    .black-key {
+        width: 28px;
+        height: 75px;
+        margin-left: -15px;
+        margin-right: -15px;
+    }
+
+    .command-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .settings-row {
+        gap: 8px;
+    }
+
+    .setting-group {
+        flex: 1 1 auto;
+        min-width: 80px;
+    }
+}
+
+@media (max-width: 400px) {
+    .command-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .white-key {
+        width: 36px;
+        height: 100px;
+    }
+
+    .black-key {
+        width: 24px;
+        height: 65px;
+        margin-left: -13px;
+        margin-right: -13px;
+    }
+}
+
+
+/* ============================================
+   Voice-First UI - Clickable Command Interface
+   ============================================ */
+
+.voice-first-ui {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+}
+
+/* Instruction text at top of controls */
+.vf-instruction {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 8px 0;
+    padding: 4px 10px;
+    background: rgba(74, 222, 128, 0.08);
+    border-left: 2px solid rgba(74, 222, 128, 0.4);
+    border-radius: 0 4px 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.vf-instruction.hidden {
+    display: none;
+}
+
+.vf-dismiss {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.vf-dismiss:hover {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Inline row layout: label left, options right */
+.vf-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.vf-row .vf-label {
+    min-width: 70px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0;
+    text-align: right;
+}
+
+.vf-row .vf-label-inline {
+    min-width: auto;
+    margin-left: 12px;
+}
+
+.vf-row .vf-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Legacy section layout (if still used) */
+.vf-section {
+    margin-bottom: 16px;
+}
+
+.vf-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.vf-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vf-hint {
+    font-weight: 400;
+    text-transform: none;
+    opacity: 0.7;
+}
+
+.vf-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Voice-First Button - looks like a code snippet, acts like a button */
+.vf-btn {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.vf-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.vf-btn:active {
+    transform: scale(0.97);
+}
+
+/* Selected state - green highlight */
+.vf-btn.selected {
+    background: rgba(74, 222, 128, 0.35);
+    border-color: rgba(74, 222, 128, 0.6);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
+}
+
+/* Sharp notes - slightly different color */
+.vf-btn-sharp {
+    background: rgba(100, 100, 100, 0.25);
+    font-size: 0.75rem;
+    padding: 8px 8px;
+}
+
+.vf-btn-sharp.selected {
+    background: rgba(74, 222, 128, 0.35);
+}
+
+/* Root notes layout - tighter grid */
+.vf-roots {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 4px;
+}
+
+.vf-roots .vf-btn {
+    padding: 10px 4px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+/* Scale types - wrap nicely */
+.vf-scales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Range slider row */
+.vf-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vf-slider-row input[type="range"] {
+    flex: 1;
+    max-width: 200px;
+    height: 6px;
+    cursor: pointer;
+    accent-color: #4ade80;
+}
+
+/* Action buttons */
+.vf-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.vf-play-btn {
+    flex: 1;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.vf-play-btn:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+}
+
+.vf-play-btn:active {
+    transform: translateY(0);
+}
+
+.vf-reset-btn {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.vf-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+
+.vf-reset-btn:active {
+    transform: scale(0.98);
+}
+
+/* Command Help (collapsed reference) */
+.command-help {
+    margin-top: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.command-help summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+    user-select: none;
+}
+
+.command-help summary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.command-help[open] summary {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.command-help .command-grid {
+    padding: 16px;
+}
+
+/* Voice Control Commands - inline list of voice-only commands */
+.voice-control-commands {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.voice-control-commands .vcc-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+}
+
+.voice-control-commands code {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Voice Settings Section (collapsed at bottom) */
+.voice-settings-section {
+    margin-top: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.voice-settings-section summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+    user-select: none;
+}
+
+.voice-settings-section summary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.voice-settings-section[open] summary {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.voice-settings-section .voice-settings {
+    margin: 0;
+    border-radius: 0;
+}
+
+/* Mobile: make root notes 6 columns */
+@media (max-width: 600px) {
+    .vf-roots {
+        grid-template-columns: repeat(6, 1fr);
+    }
+
+    .vf-actions {
+        flex-direction: column;
+    }
+
+    .vf-play-btn,
+    .vf-reset-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 400px) {
+    .vf-roots {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .vf-btn {
+        font-size: 0.75rem;
+        padding: 6px 8px;
+    }
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Voice Music Control Backend API Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/projects/voice-music-control
+Environment="PORT=5000"
+ExecStart=/usr/bin/python3 /path/to/projects/voice-music-control/server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+venv/
+
+# Config with secrets
+config.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
