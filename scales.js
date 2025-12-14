@@ -295,11 +295,12 @@ class ScalesController {
         this.voiceCore = null;
         this.audio = new AudioCoordinator();  // Single authority for all audio
         this.settings = {
-            noteLength: 5,    // index into noteLengthMap (1.5s default)
+            noteLength: 2,    // index into noteLengthMap (0.5s default)
             gap: 3,           // index into gapMap (0s default)
             direction: 'ascending', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
+            repeatGapMs: 1500, // gap between repeats (not between notes)
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
             movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
             // Voice-first settings (also controllable via UI)
@@ -311,11 +312,12 @@ class ScalesController {
 
         // Default settings for reset (and for voice commands which reset first)
         this.defaultSettings = {
-            noteLength: 5,    // 1.5s by default
+            noteLength: 2,    // 0.5s by default
             gap: 3,           // 0s (no gap) by default
             direction: 'ascending',
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // Once by default
+            repeatGapMs: 1500,
             risingSemitones: 0,
             movementStyle: 'normal',
             scaleType: 'major',
@@ -533,9 +535,10 @@ class ScalesController {
     syncUIToSettings() {
         // Repeat buttons (at the top)
         document.querySelectorAll('[data-repeat]').forEach(btn => {
-            const val = btn.dataset.repeat;
-            const btnVal = val === 'Infinity' ? Infinity : parseInt(val);
-            btn.classList.toggle('selected', btnVal === this.settings.repeatCount);
+            const { repeatCount, repeatGapMs } = this.parseRepeatButtonValue(btn.dataset.repeat);
+            const matchesCount = repeatCount === this.settings.repeatCount;
+            const matchesGap = (repeatCount === Infinity) ? (repeatGapMs === this.settings.repeatGapMs) : true;
+            btn.classList.toggle('selected', matchesCount && matchesGap);
         });
 
         // Root note buttons
@@ -641,13 +644,26 @@ class ScalesController {
         if (s.rangeExpansion !== d.rangeExpansion) {
             parts.push(`wide +${s.rangeExpansion}`);
         }
-        if (s.repeatCount !== d.repeatCount) {
-            const repeatLabels = { 1: '', 2: 'x2', [Infinity]: 'loop' };
-            const label = repeatLabels[s.repeatCount] || `x${s.repeatCount}`;
-            if (label) parts.push(label);
+        if (s.repeatCount !== d.repeatCount || (s.repeatCount === Infinity && s.repeatGapMs !== d.repeatGapMs)) {
+            if (s.repeatCount === Infinity) {
+                parts.push(s.repeatGapMs === 0 ? 'forever no gap' : 'foreverer');
+            } else if (s.repeatCount > 1) {
+                parts.push(`x${s.repeatCount}`);
+            } else if (s.repeatCount === 0) {
+                parts.push('repeat off');
+            }
         }
 
         return parts.join(' | ');
+    }
+
+    parseRepeatButtonValue(raw) {
+        const trimmed = String(raw || '').trim();
+        if (trimmed === 'Infinity') return { repeatCount: Infinity, repeatGapMs: 1500 };
+        if (trimmed === 'Infinity-nogap') return { repeatCount: Infinity, repeatGapMs: 0 };
+
+        const n = parseInt(trimmed);
+        return { repeatCount: Number.isFinite(n) ? n : 1, repeatGapMs: null };
     }
 
     // Setup voice-first clickable UI elements (all bidirectional controls)
@@ -655,8 +671,11 @@ class ScalesController {
         // Repeat buttons (at the top)
         document.querySelectorAll('[data-repeat]').forEach(btn => {
             btn.addEventListener('click', () => {
-                const val = btn.dataset.repeat;
-                this.settings.repeatCount = val === 'Infinity' ? Infinity : parseInt(val);
+                const { repeatCount, repeatGapMs } = this.parseRepeatButtonValue(btn.dataset.repeat);
+                this.settings.repeatCount = repeatCount;
+                if (repeatGapMs !== null) {
+                    this.settings.repeatGapMs = repeatGapMs;
+                }
                 this.syncUIToSettings();
             });
         });
@@ -926,6 +945,9 @@ class ScalesController {
             } else if (text.match(/\bmajor\s+third\b/)) {
                 modifiers.risingSemitones = 4;
                 text = text.replace(/\bmajor\s+third\b/, '');
+            } else if (text.match(/\bperfect\s+fifth\b/) || text.match(/\bfifth\b/)) {
+                modifiers.risingSemitones = 7;
+                text = text.replace(/\bperfect\s+fifth\b/, '').replace(/\bfifth\b/, '');
             } else if (text.match(/\bperfect\s+fourth\b/) || text.match(/\bfourth\b/)) {
                 modifiers.risingSemitones = 5;
                 text = text.replace(/\bperfect\s+fourth\b/, '').replace(/\bfourth\b/, '');
@@ -995,6 +1017,14 @@ class ScalesController {
             // "twice" (without repeat)
             modifiers.repeat = 2;
             text = text.replace(/\b(twice|two\s+times|2\s+times)\b/, '');
+        } else if (text.match(/\bforever\s+no\s+gap\b/)) {
+            modifiers.repeat = Infinity;
+            modifiers.repeatGapMs = 0;
+            text = text.replace(/\bforever\s+no\s+gap\b/, '');
+        } else if (text.match(/\bforeverer\b/)) {
+            modifiers.repeat = Infinity;
+            modifiers.repeatGapMs = 1500;
+            text = text.replace(/\bforeverer\b/, '');
         } else if (text.match(/\b(and\s+)?repeat\b/) || text.match(/\bloop\b/) || text.match(/\bforever\b/)) {
             // "repeat" alone = forever, "loop" = forever, "forever" = forever
             modifiers.repeat = Infinity;
@@ -1073,13 +1103,14 @@ class ScalesController {
             this.syncUIToSettings();
             return { type: 'setting', setting: 'risingSemitones', value: 0 };
         }
-        if (originalLower.match(/^rising(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth))?$/) ||
-            originalLower.match(/^modulat(e|ing)(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth))?$/)) {
+        if (originalLower.match(/^rising(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth|perfect\s+fifth|fifth))?$/) ||
+            originalLower.match(/^modulat(e|ing)(\s+(half\s*step|whole\s*step|minor\s+third|major\s+third|perfect\s+fourth|fourth|perfect\s+fifth|fifth))?$/)) {
             let semitones = 1;
             if (originalLower.match(/whole\s*step/)) semitones = 2;
             else if (originalLower.match(/minor\s+third/)) semitones = 3;
             else if (originalLower.match(/major\s+third/)) semitones = 4;
             else if (originalLower.match(/perfect\s+fourth/) || originalLower.match(/\bfourth\b/)) semitones = 5;
+            else if (originalLower.match(/perfect\s+fifth/) || originalLower.match(/\bfifth\b/)) semitones = 7;
             else if (originalLower.match(/half\s*step/)) semitones = 1;
 
             this.settings.risingSemitones = semitones;
@@ -1356,6 +1387,9 @@ class ScalesController {
                 if (command.modifiers.repeat !== undefined && command.modifiers.repeat !== null) {
                     this.settings.repeatCount = command.modifiers.repeat;
                 }
+                if (command.modifiers.repeatGapMs !== undefined && command.modifiers.repeatGapMs !== null) {
+                    this.settings.repeatGapMs = command.modifiers.repeatGapMs;
+                }
                 this.syncUIToSettings();
 
                 this.voiceCore.updateStatus(this.buildStatusMessage(command));
@@ -1434,7 +1468,8 @@ class ScalesController {
         if (mods.direction) parts.push(mods.direction);
         if (mods.gap === 'large' || mods.gap === 'very large') parts.push('with gaps');
         if (mods.repeat === Infinity) {
-            parts.push('(loop)');
+            const repeatGapMs = mods.repeatGapMs ?? this.settings.repeatGapMs;
+            parts.push(repeatGapMs === 0 ? '(forever no gap)' : '(foreverer)');
         } else if (mods.repeat > 1) {
             parts.push(`x${mods.repeat}`);
         }
@@ -1517,7 +1552,8 @@ class ScalesController {
 
         // Repeat
         if (mods.repeat === Infinity) {
-            parts.push('on repeat');
+            const repeatGapMs = mods.repeatGapMs ?? this.settings.repeatGapMs;
+            parts.push(repeatGapMs === 0 ? 'forever no gap' : 'foreverer');
         } else if (mods.repeat > 1) {
             parts.push(mods.repeat === 2 ? 'twice' : `${mods.repeat} times`);
         }
@@ -1568,9 +1604,10 @@ class ScalesController {
             0: 'off',
             1: 'half step',
             2: 'whole step',
-            3: 'minor 3rd',
-            4: 'major 3rd',
-            5: 'perfect 4th'
+            3: 'minor third',
+            4: 'major third',
+            5: 'perfect fourth',
+            7: 'perfect fifth'
         };
         return map[semitones] || `+${semitones}`;
     }
@@ -1647,17 +1684,17 @@ class ScalesController {
         // Scale degree names
         const degreeNames = {
             0: 'root',
-            1: 'b2',
-            2: '2nd',
-            3: 'b3',
-            4: '3rd',
-            5: '4th',
-            6: 'b5',
-            7: '5th',
-            8: 'b6',
-            9: '6th',
-            10: 'b7',
-            11: '7th',
+            1: 'flat second',
+            2: 'second',
+            3: 'flat third',
+            4: 'third',
+            5: 'fourth',
+            6: 'flat fifth',
+            7: 'fifth',
+            8: 'flat sixth',
+            9: 'sixth',
+            10: 'flat seventh',
+            11: 'seventh',
             12: 'octave'
         };
 
@@ -1667,8 +1704,8 @@ class ScalesController {
     // Get arpeggio interval name
     getArpeggioIntervalName(index, quality) {
         const names = quality === 'minor'
-            ? ['root', 'b3', '5th', 'octave']
-            : ['root', '3rd', '5th', 'octave'];
+            ? ['root', 'flat third', 'fifth', 'octave']
+            : ['root', 'third', 'fifth', 'octave'];
         return names[index] || `${index + 1}`;
     }
 
@@ -1844,6 +1881,7 @@ class ScalesController {
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
         const isInfinite = playTimes === Infinity;
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
+        const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
 
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
@@ -1886,7 +1924,7 @@ class ScalesController {
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
                     if (risingSemitones === 0) {
                         // No rising: gap between identical repeats
-                        await this.audio.sleep(1500);
+                        await this.audio.sleep(repeatGapMs);
                     }
                     // With rising: no gap, flows to next transposition
                 }
@@ -2016,6 +2054,7 @@ class ScalesController {
 
         // Rising (transpose each repeat upward by N semitones)
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
+        const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
         const getNotesForRepeat = risingSemitones > 0
             ? (repeatIndex) => this.transposeNotes(notes, repeatIndex * risingSemitones)
             : null;
@@ -2042,7 +2081,7 @@ class ScalesController {
                 this.voiceCore.updateStatus(message);
             },
             repeatCount: playTimes,
-            repeatGapMs: risingSemitones > 0 ? 0 : 1500,
+            repeatGapMs: risingSemitones > 0 ? 0 : repeatGapMs,
             seamlessRepeat,
             getNotesForRepeat
         });
@@ -2524,7 +2563,7 @@ class ScalesController {
         ];
         if (movementStyle && movementStyle !== 'normal') headerBits.push(`move: ${this.getMovementLabel(movementStyle)}`);
         if (risingSemitones) headerBits.push(`rising: ${this.getRisingLabel(risingSemitones)}`);
-        if (repeatCountRaw === Infinity) headerBits.push('repeat: forever');
+        if (repeatCountRaw === Infinity) headerBits.push(this.settings.repeatGapMs === 0 ? 'repeat: forever no gap' : 'repeat: foreverer');
         else if (repeatCountRaw === 0) headerBits.push('repeat: off');
         else headerBits.push(`repeat: x${repeatCount}`);
         parts.push(headerBits.join(' | '));
