@@ -382,12 +382,12 @@ class ScalesController {
     }
 
     updateLoadingStatus(loaded, message = null) {
-        const status = document.getElementById('status');
-        if (status) {
+        const statusRuntime = document.getElementById('statusRuntime');
+        if (statusRuntime) {
             if (loaded) {
-                status.textContent = 'Ready - say a command or tap the piano';
+                statusRuntime.textContent = 'Ready - say a command or tap the piano';
             } else if (message) {
-                status.textContent = message;
+                statusRuntime.textContent = message;
             }
         }
     }
@@ -396,6 +396,9 @@ class ScalesController {
         this.voiceCore = new VoiceCommandCore({
             settings: {
                 autoSubmitMode: true
+            },
+            uiIds: {
+                statusEl: 'statusRuntime'
             },
             onStatusChange: (msg) => console.log('Status:', msg),
             onError: (msg) => this.showError(msg)
@@ -416,6 +419,58 @@ class ScalesController {
         });
 
         this.voiceCore.init();
+    }
+
+    setInterpretationStatus(transcript, command) {
+        const el = document.getElementById('statusInterpretation');
+        if (!el) return;
+        if (!transcript || !command) return;
+        el.textContent = this.buildInterpretationMessage(transcript, command);
+    }
+
+    buildInterpretationMessage(transcript, command) {
+        const raw = String(transcript || '').trim();
+        const mods = command.modifiers || {};
+
+        const modParts = [];
+        if (mods.tempo) modParts.push(`tempo=${mods.tempo}`);
+        if (mods.gap) modParts.push(`gap=${mods.gap}`);
+        if (mods.direction) modParts.push(`direction=${mods.direction}`);
+        if (mods.repeat === Infinity) modParts.push('repeat=forever');
+        else if (typeof mods.repeat === 'number' && mods.repeat > 1) modParts.push(`repeat=${mods.repeat}`);
+        if (mods.risingSemitones !== null && mods.risingSemitones !== undefined) {
+            if (mods.risingSemitones === 0) modParts.push('rising=off');
+            else if (mods.risingSemitones > 0) modParts.push(`rising=${mods.risingSemitones}st`);
+        }
+        if (mods.movementStyle) modParts.push(`move=${mods.movementStyle}`);
+        if (mods.rangeExpansion !== null && mods.rangeExpansion !== undefined) modParts.push(`wide=${mods.rangeExpansion}`);
+        if (mods.octaveSpan) modParts.push(`octaves=${mods.octaveSpan}`);
+
+        let understood = command.type;
+        if (command.type === 'scale') {
+            understood = `scale root=${command.root} type=${command.scaleType}`;
+        } else if (command.type === 'note') {
+            understood = `note ${command.note}${command.octave}`;
+        } else if (command.type === 'setting') {
+            understood = `set ${command.setting}=${command.value}`;
+        } else if (command.type === 'arpeggio') {
+            understood = `arpeggio root=${command.root} quality=${command.quality}`;
+        } else if (command.type === 'chord') {
+            understood = `chord root=${command.root} quality=${command.quality}`;
+        } else if (command.type === 'interval') {
+            understood = `interval ${command.quality}${command.interval} from ${command.root}`;
+        } else if (command.type === 'tuning') {
+            understood = 'tuning A440';
+        } else if (command.type === 'play') {
+            understood = 'play current settings';
+        } else if (command.type === 'stop') {
+            understood = 'stop';
+        } else if (command.type === 'help') {
+            understood = 'help';
+        }
+
+        const modsText = modParts.length ? ` (${modParts.join(', ')})` : '';
+        return `Heard "${raw}" → ${understood}${modsText}`;
     }
 
     // Reset to defaults without updating status (used before voice commands)
@@ -1057,8 +1112,25 @@ class ScalesController {
     parseScaleCommand(transcript) {
         // First extract modifiers
         const { cleanedText, modifiers } = this.extractModifiers(transcript);
-        const lower = cleanedText.toLowerCase().trim();
+        let lower = cleanedText.toLowerCase().trim();
         const originalLower = transcript.toLowerCase().trim();
+
+        // Speech stutters happen: "c c chromatic scale" should behave like "c chromatic scale".
+        // Collapse immediate duplicate note tokens while preserving intent (e.g., "c c sharp" -> "c sharp").
+        const tokens = lower.split(/\s+/).filter(Boolean);
+        if (tokens.length > 1) {
+            const deduped = [];
+            let prevNote = null;
+            for (const tok of tokens) {
+                const note = normalizeNoteName(tok);
+                if (note && prevNote && note === prevNote) {
+                    continue;
+                }
+                deduped.push(tok);
+                prevNote = note || null;
+            }
+            lower = deduped.join(' ');
+        }
 
         // Stop command
         if (originalLower.match(/^(stop|quiet|silence|enough)$/)) {
@@ -1319,6 +1391,12 @@ class ScalesController {
         // Ensure Tone.js audio context is started (required after user interaction)
         if (Tone.context.state !== 'running') {
             await Tone.start();
+        }
+
+        // Persist what we understood in the "above keyboard" status area.
+        // This should remain visible even as runtime status changes during playback.
+        if (transcript) {
+            this.setInterpretationStatus(transcript, command);
         }
 
         // Stop any currently playing sequence immediately
@@ -2157,7 +2235,9 @@ class ScalesController {
                 rangeExpansion: this.settings.rangeExpansion,
                 octaveSpan: this.settings.octaveSpan,
                 tempo: this.tempoIndexToName[this.settings.noteLength],
-                gap: this.gapIndexToName[this.settings.gap]
+                gap: this.gapIndexToName[this.settings.gap],
+                repeat: this.settings.repeatCount,
+                repeatGapMs: this.settings.repeatGapMs
             }
         };
 

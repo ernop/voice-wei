@@ -283,6 +283,9 @@
 }
 
 .piano-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     text-align: center;
     font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.6);
@@ -292,6 +295,14 @@
 
 .piano-status:empty {
     display: none;
+}
+
+.piano-status-interpretation {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.piano-status-runtime {
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .piano-keys {

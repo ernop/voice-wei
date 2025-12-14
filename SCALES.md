@@ -129,7 +129,8 @@ Modifiers can be combined with any scale, arpeggio, or interval command.
 | *(default)* | Play once, stop (off) |
 | `once` | Play one time |
 | `twice` | Play 2 times |
-| `repeat` / `loop` / `forever` | Loop until "stop" |
+| `repeat` / `loop` / `forever` / `foreverer` | Loop until "stop" |
+| `forever no gap` | Loop until "stop", with no pause between repeats |
 
 ### Direction
 | Modifier | Effect |
@@ -296,7 +297,7 @@ Example: If Note Length is "short" but you say "slowly chromatic scale", it play
 
 1. **For ear training**: Use "twice" or "forever" repeat
 2. **For slow practice**: Say "very slowly" or "super slowly"
-3. **For interval recognition**: Use "minor 3rd", "perfect 5th", etc.
+3. **For interval recognition**: Use "minor third", "perfect fifth", etc.
 4. **Debug recognition issues**: Enable "Echo commands" checkbox to hear what was understood
 5. **Quick repetition**: Just say "play" or click the Play button
 
