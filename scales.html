@@ -16,21 +16,15 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v0.00010</span>
-                <a href="pitch-meter.html" class="nav-link">Pitch Meter</a>
-                <a href="player.html" class="nav-link">Music</a>
+                <nav class="nav-tabs">
+                    <a href="scales.html" class="nav-tab active">Scales</a>
+                    <a href="pitch-meter.html" class="nav-tab">Pitch</a>
+                    <a href="player.html" class="nav-tab">Music</a>
+                </nav>
             </div>
         </header>
 
         <main>
-            <div class="status-row">
-                <div class="status" id="status">Loading piano...</div>
-                <label class="echo-toggle">
-                    <input type="checkbox" id="echoCommandsToggle">
-                    <span>Echo</span>
-                </label>
-            </div>
-
             <div class="voice-controls-row">
                 <button id="listenBtn" class="listen-button" aria-label="Start listening">
                     <span class="button-text">Listen</span>
@@ -53,8 +47,9 @@
                 <p class="transcript" id="transcript"></p>
             </div>
 
-            <!-- Piano Keyboard (moved above settings) -->
+            <!-- Piano Keyboard -->
             <div class="piano-container">
+                <div class="piano-status" id="status">Loading piano...</div>
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>
 
@@ -147,6 +142,10 @@
                 <span class="vcc-label">Voice controls:</span>
                 <code>stop</code>
                 <code>play</code>
+                <label class="echo-toggle">
+                    <input type="checkbox" id="echoCommandsToggle">
+                    <span>Echo</span>
+                </label>
             </div>
 
             <!-- Command History -->

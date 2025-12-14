@@ -1,0 +1,64 @@
+---
+description: Windows, PowerShell, Python venv, and tooling safety notes
+globs: ["**/*.py", "**/*.ps1", "**/*.bat", "**/*.sh"]
+alwaysApply: false
+---
+
+# Windows + PowerShell + Python Tooling
+
+## Virtual Environment Best Practices
+Prefer full venv paths to avoid module resolution issues:
+
+```powershell
+# Install packages
+.\venv\Scripts\python.exe -m pip install <pkg> --disable-pip-version-check --no-cache-dir --timeout 120
+
+# Run tools via python -m
+.\venv\Scripts\python.exe -m ruff --version
+.\venv\Scripts\python.exe -m ruff check .
+
+# Activate venv
+.\venv\Scripts\Activate.ps1
+```
+
+## PowerShell Safety
+- Avoid piping long installs through filters (`| Select-Object ...`); it can swallow prompts and make interrupts look like failures.
+- Run install commands directly without pipes.
+- If installs were interrupted, rerun the full command to ensure wheels are written.
+
+## Common Project Commands
+
+```powershell
+# Setup (if setup.ps1 exists)
+.\setup.ps1
+
+# Python lint (from repo root)
+.\venv\Scripts\python.exe -m ruff check .
+
+# JS lint (from static/js or appropriate dir)
+npm run lint
+
+# HTML lint (from static/js or appropriate dir)
+npm install  # installs htmlhint
+npm run lint:html
+```
+
+## Git Management - Always Ignore
+- `data/` - Raw data files (can grow to GB+)
+- `venv/`, `__pycache__/`, `.pytest_cache/`
+- `*.tif`, `*.hgt`, `*.pkl`, `*.zip`, `*.gz` (large binaries)
+- `generated/`, `output/`, `rasters/` (intermediate files)
+- Any data directories that grow quickly
+
+Only code, small manifests, and docs belong in version control.
+
+## Environment
+- Python 3.13 virtual environment (`venv`) typical
+- Activate: `.\venv\Scripts\Activate.ps1` in PowerShell
+- IDE config: `.vscode/settings.json` points to venv interpreter
+
+## Configuration Pattern
+Use gitignored config files with checked-in examples:
+- `settings.json` (gitignored) - API keys and secrets
+- `settings.example.json` (checked in) - Template
+- Code reads from config file, not `os.environ`

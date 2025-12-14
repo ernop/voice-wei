@@ -7,7 +7,7 @@ const SKIP_CLAUDE = false;
 const RECOGNITION_RESTART_DELAY_MS = 100;
 
 // How often to update the progress bar during playback
-const PROGRESS_UPDATE_INTERVAL_MS = 500;
+const PROGRESS_UPDATE_INTERVAL_MS = 100;
 
 // Seek jump amount for rewind/fast-forward commands
 const SEEK_JUMP_SECONDS = 10;
@@ -16,7 +16,7 @@ const SEEK_JUMP_SECONDS = 10;
 const DOM_SETTLE_DELAY_MS = 50;
 
 // Retry delay when player isn't ready yet
-const PLAYER_RETRY_DELAY_MS = 1000;
+const PLAYER_RETRY_DELAY_MS = 500;
 
 // How long to poll for YouTube API before giving up
 const YOUTUBE_API_TIMEOUT_MS = 10000;
@@ -182,15 +182,15 @@ class VoiceMusicController {
     loadFavorites() {
         const saved = localStorage.getItem('voiceMusicFavorites');
         if (!saved) return {};
-        
+
         const parsed = JSON.parse(saved);
-        
+
         // Handle old format (array of videoIds) - minimal migration
         if (Array.isArray(parsed)) {
             // Old format: just an array of video IDs - abandon it, return empty
             return {};
         }
-        
+
         // New format: object with full song data keyed by videoId
         return parsed || {};
     }
@@ -246,7 +246,7 @@ class VoiceMusicController {
             // Minimal fallback: try to get at least artist and name
             const artistName = favData.artist || favData.channelTitle || 'Unknown';
             const songName = favData.name || favData.title || 'Unknown';
-            
+
             // Skip if we don't have a videoId
             if (!favData.videoId) continue;
 
@@ -263,7 +263,7 @@ class VoiceMusicController {
                 searchTerm: favData.searchTerm || '',
                 id: Date.now() + Math.random()
             };
-            
+
             this.playlist.push(playlistItem);
             this.addPlaylistItemToDOM(playlistItem);
             addedCount++;

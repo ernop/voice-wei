@@ -1,0 +1,62 @@
+---
+description: Data handling, error reporting, and single source of truth patterns
+globs: ["**/*.py", "**/*.js"]
+alwaysApply: false
+---
+
+# Data Handling
+
+## Single Source of Truth
+- No scripts store local copies of data lists; all info comes from imports.
+- Having something configured does NOT mean data exists; check manifests separately.
+- Never re-compute or re-extract data already normalized upstream.
+
+## Error Reporting
+Every failure must print:
+- Reason
+- URL (if applicable)
+- Full details
+
+Return `(success: bool, error_message: str)` from functions that can fail.
+
+Format:
+```
+ALL SOURCES FAILED FOR OPERATION
+Operation: [description]
+Errors by source:
+  - Source A: [specific reason]
+  - Source B: [specific reason]
+```
+
+## Critical Failures
+If all sources fail for an operation:
+- Abort immediately
+- Don't continue (downstream will fail anyway)
+- Print clear error message
+
+## JSON Export Performance (Python)
+```python
+# CORRECT - Vectorized (28x faster)
+mask = np.isnan(arr)
+arr_obj = arr.astype(object)
+arr_obj[mask] = None
+result = arr_obj.tolist()
+
+# WRONG - Nested loops (slow)
+```
+
+## File & Naming Conventions
+
+### Configuration Files
+- `settings.json` (gitignored) - Per-machine settings: folder paths, UI preferences, API keys
+- `settings.example.json` (checked in) - Template with placeholders
+- Separate machine config from library/content data
+
+### Versioning
+- Filename-based versioning: `{item}_{source}_{size}_v2.json`
+- Strict version-only selection; fail-fast on version mismatch
+- No redundant version fields inside JSON
+
+## File Operations Safety
+- "Name cleaning" should never rename or delete files on disk
+- Only filter them from display/database or change how they are displayed to users

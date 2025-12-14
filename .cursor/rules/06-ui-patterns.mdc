@@ -1,0 +1,45 @@
+---
+description: UI/UX patterns and styling conventions
+globs: ["**/*.js", "**/*.css", "**/*.html"]
+alwaysApply: false
+---
+
+# UI Patterns
+
+## Text & Buttons
+- Primary HUD/meta/status: White text on dark backgrounds
+- All buttons: White text (#ffffff) in normal and hover states
+- On hover: Change background only, never text color
+- Smooth transitions (0.2s)
+
+## HUD Overlay
+- Data overlays: Hidden by default; toggle via checkbox
+- Draggable; position persists in localStorage
+- Minimize button (-) in top-right collapses and unchecks checkbox
+- Tabular layout prevents value jitter
+
+## Controls Pattern
+- Conceptual labels ("Resolution" not "Bucket Size")
+- MAX/DEFAULT quick access buttons where appropriate
+- Bidirectional controls: Two columns (HIGHER DETAIL vs LOWER DETAIL)
+- Vertical stacking within columns
+
+## Keyboard Shortcuts
+- **Only use lowercase letters** for keyboard shortcuts (e.g., `"s"` not `["s", "S"]`)
+- The browser automatically handles case-insensitive matching for letter keys
+- Special keys like arrow keys, Escape, etc. should use their proper key names
+- Disabled when typing in input fields
+
+## Window Management
+- When in "replace instance" mode, new windows should open on the same monitor and at the same upper-left corner position as the previous instance
+- Prevents users from having to rearrange window positions
+
+## Browser Extension Patterns
+When building browser extensions:
+- Follow manifest rules strictly (avoid inline css styles, onclick actions in HTML)
+- Don't add security overrides; code the extension properly
+- Keep dependencies minimal
+- Focus on performance for quick loading
+- Store user data locally when needed
+- Follow browser extension security policies
+- Use semantic HTML and accessible design

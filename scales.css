@@ -282,6 +282,18 @@
     overflow: hidden;
 }
 
+.piano-status {
+    text-align: center;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+.piano-status:empty {
+    display: none;
+}
+
 .piano-keys {
     display: flex;
     justify-content: center;
@@ -940,6 +952,10 @@
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 5px;
     color: rgba(255, 255, 255, 0.8);
+}
+
+.voice-control-commands .echo-toggle {
+    margin-left: auto;
 }
 
 /* Voice Settings Section (collapsed at bottom) */

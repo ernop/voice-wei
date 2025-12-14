@@ -75,9 +75,36 @@ python -m http.server 8000
 
 ## Deployment
 
-### Step 1: Create config.json
+### Step 1: Configure
 
-Create `config.json` on the server:
+Copy `config.example.json` to `config.json` and fill in your settings:
+
+```json
+{
+  "claudeApiKey": "sk-ant-api03-YOUR_KEY_HERE",
+
+  "deploy": {
+    "user": "youruser",
+    "host": "yourserver.com",
+    "remotePath": "/path/to/public/music",
+    "publicUrl": "https://yourserver.com/music/player.html"
+  }
+}
+```
+
+### Step 2: Deploy
+
+```bash
+./deploy.sh           # Deploy to server
+./deploy.sh --dry-run # Preview what would be transferred
+```
+
+The script reads your settings from `config.json` and syncs files via rsync.
+`proxy.php` is included automatically (it handles YouTube search).
+
+### Step 3: Server Config
+
+Create `config.json` on the server with just the Claude API key:
 
 ```json
 {
@@ -85,37 +112,14 @@ Create `config.json` on the server:
 }
 ```
 
-### Step 2: Sync Files to Server
-
-```bash
-rsync -avz \
-  --exclude='.git' \
-  --exclude='.gitignore' \
-  --exclude='.cursor' \
-  --exclude='config.json' \
-  --exclude='server.py' \
-  --exclude='*.md' \
-  --exclude='*.txt' \
-  --exclude='*.conf' \
-  --exclude='*.service' \
-  --exclude='*.sh' \
-  --exclude='*.ps1' \
-  ./ \
-  ernop@fuseki.net:/home/ernop/fuseki.net/public/music/
-```
-
-`proxy.php` must be included - it handles YouTube search.
-
-### Step 3: Done!
-
-Visit `https://fuseki.net/music/player.html`
+Then visit your `publicUrl`.
 
 **Security:** Obscure URL only. API keys visible in browser dev tools to anyone who finds the page.
 
 
 ## Usage
 
-1. Open the page on your phone: `https://fuseki.net/music/player.html`
+1. Open the page on your phone (or desktop browser)
 2. Tap "Listen" button
 3. Allow microphone access
 4. Speak: "play some jazz", "Hotel California", "something upbeat"
@@ -128,11 +132,10 @@ Visit `https://fuseki.net/music/player.html`
 
 - **Frontend:** HTML, CSS, JavaScript
 - **Voice Recognition:** Web Speech API (browser native)
-- **AI:** Claude Opus 4.5 or Haiku 4.5 (Anthropic) - interprets requests and generates comments
-- **Music Search:** Server-side proxy (proxy.php) querying Piped/Invidious
+- **AI:** Claude Opus 4.5 or Haiku 4.5 (Anthropic)
+- **Music Search:** Server-side proxy (proxy.php) via Piped/Invidious
 - **Music Playback:** YouTube IFrame API
 - **Text-to-Speech:** Browser native speechSynthesis API
-- **Authentication:** HTTP Basic Auth (.htaccess) on server
 
 ## Browser Support
 
@@ -146,59 +149,45 @@ Visit `https://fuseki.net/music/player.html`
 
 ```
 voice-music-control/
-├── .cursor/rules/           # Cursor AI rules
-│
-├── player.html              # Main app page
-├── index.html               # Blank (prevents direct indexing)
+├── player.html              # Main music player app
+├── app.js                   # Main application logic
 ├── style.css                # Styling
-├── app.js                   # Main frontend application
+├── proxy.php                # YouTube search proxy (Piped/Invidious)
 ├── voice-output.js          # Text-to-speech library
 ├── voice-command-core.js    # Voice recognition utilities
-├── proxy.php                # Server-side YouTube search proxy
-├── config.json              # API keys (gitignored)
-├── config.example.json      # Example config
+├── config.example.json      # Config template
 │
-├── scales.html/css/js       # Music scales practice tool
-├── pitch-meter.html/css/js  # Pitch detection tool
+├── scales.html/js/css       # Music scales practice tool
+├── pitch-meter.html/js/css  # Pitch detection tool
 │
-├── server.py                # Backend proxy server (optional, for Claude API)
+├── index.html               # Blank (prevents indexing)
 ├── deploy.sh                # Deployment script
-│
-├── PRODUCT.md               # Product vision and goals
+├── PRODUCT.md               # Product vision
+├── SCALES.md                # Scales feature documentation
 └── README.md                # This file
 ```
 
 
 ## Security
 
-- **Password protection** - HTTP Basic Auth via .htaccess
-- **API keys** - Keep secure, never commit to git
+- **API keys** - Keep `config.json` secure, never commit to git
 - **HTTPS required** - For microphone access
-- **Monitor usage** - Check API dashboards for unexpected usage
+- **Monitor usage** - Check Anthropic dashboard for unexpected API usage
 
 ## Troubleshooting
 
 ### "Speech recognition not supported"
-- Use Chrome, Edge, or Safari
-- Firefox doesn't support Web Speech API
+- Use Chrome, Edge, or Safari (Firefox doesn't support Web Speech API)
 
 ### Microphone access denied
-- HTTPS is required
-- Check browser permissions
-- Clear cache and try again
+- HTTPS is required for microphone access
+- Check browser permissions and clear cache
 
 ### No songs in playlist
 - Check Claude API key in `config.json`
-- Test the search proxy: visit `proxy.php?test=1` - should show "Proxy is working"
-- Test a search: visit `proxy.php?q=test` - should return JSON with video results
-- Check browser console (F12) for errors
-- Check the Log panel in the app for detailed error messages
-
-### Can't access the page
-- Check Apache error logs: `sudo tail -f /var/log/apache2/error.log`
-- Verify .htaccess path to .htpasswd is correct
-- Make sure .htpasswd file exists and has correct permissions
-- Check that .htaccess file was uploaded correctly
+- Test proxy: `proxy.php?test=1` should show "Proxy is working"
+- Test search: `proxy.php?q=test` should return JSON results
+- Check browser console (F12) and Log panel for errors
 
 
 ## Development

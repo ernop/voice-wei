@@ -20,6 +20,13 @@ const SCALE_PATTERNS = {
 const A4_FREQ = 440;
 const A4_MIDI = 69;
 
+// Instrument presets (default octave for each)
+const INSTRUMENT_PRESETS = {
+    voice: { octave: 4, label: 'Voice' },
+    violin: { octave: 4, label: 'Violin' },
+    bass: { octave: 2, label: 'Bass' }
+};
+
 //-------UTILITY FUNCTIONS-------
 
 // Convert MIDI note number to frequency
@@ -136,6 +143,7 @@ class PitchMeterController {
         this.isPlayingScale = false;
 
         // Current scale config
+        this.instrument = 'voice';
         this.rootNote = 'C';
         this.scaleType = 'major';
         this.octave = 4;
@@ -178,6 +186,10 @@ class PitchMeterController {
         document.getElementById('stopBtn').addEventListener('click', () => this.stopRecording());
         document.getElementById('playRefBtn').addEventListener('click', () => this.playReferenceScale());
 
+        document.getElementById('instrumentSelect').addEventListener('change', (e) => {
+            this.instrument = e.target.value;
+            this.applyInstrumentPreset();
+        });
         document.getElementById('rootSelect').addEventListener('change', (e) => {
             this.rootNote = e.target.value;
             this.updateTargetNotes();
@@ -210,6 +222,15 @@ class PitchMeterController {
 
         this.ctx.scale(dpr, dpr);
         this.drawChart();
+    }
+
+    applyInstrumentPreset() {
+        const preset = INSTRUMENT_PRESETS[this.instrument];
+        if (preset) {
+            this.octave = preset.octave;
+            document.getElementById('octaveSelect').value = String(preset.octave);
+            this.updateTargetNotes();
+        }
     }
 
     updateTargetNotes() {

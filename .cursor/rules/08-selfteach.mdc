@@ -1,0 +1,5 @@
+# Selfteach
+
+- "selfteach" means when an agent learns something useful mid-chat, it must persist that knowledge so mei start already knowing it.
+- Capture new concepts in `.cursor/rules/` (or the relevant shared doc) immediately; use `learnings/` for brief durable insights and promote promptly.
+- Do not rely on ephemeral memory; ensure the persisted note makes the concept fluent and natural for mei.

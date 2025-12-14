@@ -178,9 +178,12 @@ header {
 
 .header-top {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
+}
+
+.header-top h1 {
+    margin-right: auto;
 }
 
 .version-label {
@@ -191,6 +194,51 @@ header {
     margin-right: 10px;
 }
 
+/* Page Navigation Tabs - shared across all pages */
+.nav-tabs {
+    display: flex;
+    gap: 0;
+}
+
+.nav-tab {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.nav-tab:first-child {
+    border-radius: 6px 0 0 6px;
+}
+
+.nav-tab:last-child {
+    border-radius: 0 6px 6px 0;
+}
+
+.nav-tab:not(:last-child) {
+    border-right: none;
+}
+
+.nav-tab:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.nav-tab.active {
+    background: rgba(74, 222, 128, 0.3);
+    border-color: rgba(74, 222, 128, 0.5);
+    color: #a7f3d0;
+}
+
+.nav-tab.active:hover {
+    background: rgba(74, 222, 128, 0.35);
+}
+
+/* Legacy nav-link (kept for compatibility) */
 .nav-link {
     color: #86efac;
     text-decoration: none;

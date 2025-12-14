@@ -1,3 +1,9 @@
 {
-  "claudeApiKey": "YOUR_CLAUDE_API_KEY_HERE"
+  "claudeApiKey": "YOUR_CLAUDE_API_KEY_HERE",
+  "deploy": {
+    "user": "youruser",
+    "host": "yourserver.com",
+    "remotePath": "/path/to/public/music",
+    "publicUrl": "https://yourserver.com/music/player.html"
+  }
 }

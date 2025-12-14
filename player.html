@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,13 +8,17 @@
     <title>Voice Music Control</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="container">
         <header>
             <div class="header-top">
-                <h1>Voice Music</h1>
-                <span class="version-label">v0.017</span>
-                <a href="scales.html" class="nav-link">Scales</a>
+                <h1>Music</h1>
+                <nav class="nav-tabs">
+                    <a href="scales.html" class="nav-tab">Scales</a>
+                    <a href="pitch-meter.html" class="nav-tab">Pitch</a>
+                    <a href="player.html" class="nav-tab active">Music</a>
+                </nav>
                 <button id="settingsBtn" class="settings-btn" aria-label="Settings">⚙</button>
             </div>
         </header>
@@ -31,7 +36,8 @@
                     <input type="checkbox" id="autoSubmitMode" checked />
                     <span>Auto-submit when done talking</span>
                 </label>
-                <p class="setting-description">Auto: Submits after you pause. Manual: Keeps listening until you say "submit" or click Submit button.</p>
+                <p class="setting-description">Auto: Submits after you pause. Manual: Keeps listening until you say
+                    "submit" or click Submit button.</p>
             </div>
             <div class="setting-item">
                 <label for="claudeModel">Claude Model:</label>
@@ -72,13 +78,14 @@
             </div>
 
             <div class="status" id="status">Ready</div>
-            
+
             <div class="voice-controls-row">
                 <button id="listenBtn" class="listen-button" aria-label="Start listening">
                     <span class="button-text">Listen</span>
                     <span class="button-icon">&#9834;</span>
                 </button>
-                <button id="submitBtn" class="submit-button-large" style="display: none;" aria-label="Submit">Submit</button>
+                <button id="submitBtn" class="submit-button-large" style="display: none;"
+                    aria-label="Submit">Submit</button>
             </div>
 
             <div class="transcript-container" id="transcriptContainer" style="display: none;">
@@ -127,4 +134,5 @@
     <script src="voice-output.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
