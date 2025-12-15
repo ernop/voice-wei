@@ -402,15 +402,17 @@ class ScalesController {
         this.voiceCore = null;
         /** @type {AudioCoordinator} */
         this.audio = new AudioCoordinator();  // Single authority for all audio
-        /** @type {HTMLTableRowElement | null} */
-        this.pianoNotificationRow = null;
+        /** @type {HTMLElement | null} */
+        this.pianoNotificationCommandEl = null;
+        /** @type {HTMLElement[]} */
+        this.pianoNotificationNoteCells = [];
         /** @type {Preset[]} */
         this.presets = [];
         /** @type {string | null} */
         this.selectedPresetId = null;
         this.settings = {
             noteLength: 2,    // index into noteLengthMap (0.5s default)
-            gap: 3,           // index into gapMap (0s default)
+            gap: 4,           // index into gapMap (0s default)
             direction: 'ascending', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
@@ -429,7 +431,7 @@ class ScalesController {
         // Default settings for reset (and for voice commands which reset first)
         this.defaultSettings = {
             noteLength: 2,    // 0.5s by default
-            gap: 3,           // 0s (no gap) by default
+            gap: 4,           // 0s (no gap) by default
             direction: 'ascending',
             octave: DEFAULT_OCTAVE,
             repeatCount: 1,   // Once by default
@@ -458,18 +460,19 @@ class ScalesController {
         // Maps gap names to gap indices
         /** @type {Record<string, number>} */
         this.gapNameToIndex = {
-            '-1s': 0,
-            '-0.5s': 1,
-            '-0.25s': 2,
-            '0s': 3,
-            '0.05s': 4,
-            '0.1s': 5,
-            '0.15s': 6,
-            '0.3s': 7,
-            '0.5s': 8,
-            '1s': 9
+            '-50%': 0,
+            '-25%': 1,
+            '-10%': 2,
+            '-5%': 3,
+            '0s': 4,
+            '0.05s': 5,
+            '0.1s': 6,
+            '0.15s': 7,
+            '0.3s': 8,
+            '0.5s': 9,
+            '1s': 10
         };
-        this.gapIndexToName = ['-1s', '-0.5s', '-0.25s', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
+        this.gapIndexToName = ['-50%', '-25%', '-10%', '-5%', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
 
         // Track last command for "repeat" / "again" functionality
         /** @type {ScaleCommand | null} */
@@ -485,9 +488,12 @@ class ScalesController {
 
         // Maps note length index to durations (ms)
         this.noteLengthMap = [150, 300, 500, 800, 1000, 1500, 2000, 3000, 5000];
-        this.gapMap = [-1000, -500, -250, 0, 50, 100, 150, 300, 500, 1000];
+        // gapMap values:
+        // - negative values between -1 and 0 are overlap ratios of note length (e.g. -0.5 means 50% overlap)
+        // - non-negative values are milliseconds of silence between note triggers
+        this.gapMap = [-0.5, -0.25, -0.1, -0.05, 0, 50, 100, 150, 300, 500, 1000];
         this.noteLengthLabels = ['0.15s', '0.3s', '0.5s', '0.8s', '1s', '1.5s', '2s', '3s', '5s'];
-        this.gapLabels = ['-1s', '-0.5s', '-0.25s', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
+        this.gapLabels = ['-50%', '-25%', '-10%', '-5%', '0s', '0.05s', '0.1s', '0.15s', '0.3s', '0.5s', '1s'];
         this.init();
     }
 
@@ -759,7 +765,8 @@ class ScalesController {
 
         this.syncUIToSettings();
         this.updatePianoKeyOctaves?.();
-        this.renderPianoNotification({ command: null, activeNotes: [] });
+        this.updatePianoNotificationCommand(null);
+        this.setPianoNotificationActiveNotes([]);
     }
 
     /** @param {string} id */
@@ -814,58 +821,52 @@ class ScalesController {
     }
 
     setupPianoNotificationArea() {
-        this.pianoNotificationRow = /** @type {HTMLTableRowElement | null} */ (document.getElementById('pianoNotificationRow'));
-        this.renderPianoNotification({ command: null, activeNotes: [] });
+        this.pianoNotificationCommandEl = document.getElementById('pianoNotificationCommand');
+        this.pianoNotificationNoteCells = [
+            document.getElementById('pianoNotificationNote1'),
+            document.getElementById('pianoNotificationNote2'),
+            document.getElementById('pianoNotificationNote3'),
+            document.getElementById('pianoNotificationNote4'),
+            document.getElementById('pianoNotificationNote5'),
+            document.getElementById('pianoNotificationNote6')
+        ].filter(Boolean);
+
+        this.updatePianoNotificationCommand(null);
+        this.setPianoNotificationActiveNotes([]);
     }
 
-    renderPianoNotification({ command = null, activeNotes = [] } = {}) {
-        if (!this.pianoNotificationRow) return;
+    /** @param {string[]} notes */
+    setPianoNotificationActiveNotes(notes) {
+        if (!this.pianoNotificationNoteCells.length) return;
+        for (let i = 0; i < this.pianoNotificationNoteCells.length; i++) {
+            const note = notes?.[i] || '';
+            const cell = this.pianoNotificationNoteCells[i];
+            cell.textContent = note;
+            cell.classList.toggle('empty', !note);
+        }
+    }
 
-        this.pianoNotificationRow.innerHTML = '';
+    /** @param {ScaleCommand | null} command */
+    updatePianoNotificationCommand(command) {
+        if (!this.pianoNotificationCommandEl) return;
 
-        const commandTd = document.createElement('td');
-        commandTd.className = 'piano-notification-command-cell';
-
-        const commandWrap = document.createElement('div');
-        commandWrap.className = 'piano-notification-command';
+        const runtime = document.getElementById('statusRuntime');
+        // Remove existing non-runtime badges
+        Array.from(this.pianoNotificationCommandEl.querySelectorAll('.piano-notification-badge')).forEach(el => {
+            if (runtime && el === runtime) return;
+            el.remove();
+        });
 
         const badges = this.buildPianoNotificationBadges(command);
         for (const b of badges) {
             const badge = document.createElement('span');
             badge.className = 'piano-notification-badge';
             badge.textContent = b;
-            commandWrap.appendChild(badge);
-        }
-
-        if (badges.length === 0) {
-            const badge = document.createElement('span');
-            badge.className = 'piano-notification-badge';
-            badge.textContent = 'ready';
-            commandWrap.appendChild(badge);
-        }
-
-        commandTd.appendChild(commandWrap);
-        this.pianoNotificationRow.appendChild(commandTd);
-
-        for (let i = 0; i < PIANO_NOTIFICATION_MAX_NOTE_CELLS; i++) {
-            const td = document.createElement('td');
-            td.className = 'piano-notification-note-cell';
-            const note = activeNotes[i] || '';
-            td.textContent = note;
-            if (!note) td.classList.add('empty');
-            this.pianoNotificationRow.appendChild(td);
-        }
-    }
-
-    /** @param {string[]} notes */
-    setPianoNotificationActiveNotes(notes) {
-        if (!this.pianoNotificationRow) return;
-
-        const tds = Array.from(this.pianoNotificationRow.querySelectorAll('td.piano-notification-note-cell'));
-        for (let i = 0; i < tds.length; i++) {
-            const note = notes?.[i] || '';
-            tds[i].textContent = note;
-            tds[i].classList.toggle('empty', !note);
+            if (runtime && runtime.parentElement === this.pianoNotificationCommandEl) {
+                this.pianoNotificationCommandEl.insertBefore(badge, runtime);
+            } else {
+                this.pianoNotificationCommandEl.appendChild(badge);
+            }
         }
     }
 
@@ -1063,7 +1064,7 @@ class ScalesController {
         });
 
         // Gap buttons
-        const gapName = this.gapIndexToName[this.settings.gap] || 'small';
+        const gapName = this.gapIndexToName[this.settings.gap] || '0s';
         document.querySelectorAll('[data-gap]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.gap === gapName);
@@ -1095,7 +1096,8 @@ class ScalesController {
 
         // Keep the piano notification area showing what we'd play (when idle).
         if (!this.audio.isPlaying) {
-            this.renderPianoNotification({ command: null, activeNotes: [] });
+            this.updatePianoNotificationCommand(null);
+            this.setPianoNotificationActiveNotes([]);
         }
     }
 
@@ -1178,6 +1180,7 @@ class ScalesController {
                     this.settings.repeatGapMs = repeatGapMs;
                 }
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1187,6 +1190,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.root = btn.dataset.root || 'C';
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1196,6 +1200,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.scaleType = btn.dataset.scaleType || 'major';
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1205,6 +1210,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.direction = btn.dataset.direction || 'ascending';
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1214,6 +1220,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.risingSemitones = parseInt(btn.dataset.rising || '0');
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1223,6 +1230,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.movementStyle = btn.dataset.movement || 'normal';
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1232,6 +1240,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.noteLength = parseInt(btn.dataset.length || '2');
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1244,6 +1253,7 @@ class ScalesController {
                 if (index !== undefined) {
                     this.settings.gap = index;
                     this.syncUIToSettings();
+                    this.updatePianoNotificationCommand(null);
                 }
             });
         });
@@ -1255,6 +1265,7 @@ class ScalesController {
                 this.settings.octave = parseInt(btn.dataset.octave || '4');
                 this.syncUIToSettings();
                 this.updatePianoKeyOctaves();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1264,6 +1275,7 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.octaveSpan = parseInt(btn.dataset.octaveSpan || '1');
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
@@ -1273,13 +1285,26 @@ class ScalesController {
             btn.addEventListener('click', () => {
                 this.settings.rangeExpansion = parseInt(btn.dataset.range || '0');
                 this.syncUIToSettings();
+                this.updatePianoNotificationCommand(null);
             });
         });
 
         // Reset button
         const resetBtn = document.getElementById('resetBtn');
         if (resetBtn) {
-            resetBtn.addEventListener('click', () => this.resetSettings());
+            resetBtn.addEventListener('click', () => {
+                this.resetSettings();
+                this.updatePianoNotificationCommand(null);
+            });
+        }
+
+        // Random button (randomizes only: direction+root+move+rising+scale+length)
+        const randomBtn = document.getElementById('randomBtn');
+        if (randomBtn) {
+            randomBtn.addEventListener('click', () => {
+                this.randomizeCoreFilters();
+                this.updatePianoNotificationCommand(null);
+            });
         }
 
         // Dismissable instruction (persists in localStorage)
@@ -1298,6 +1323,39 @@ class ScalesController {
 
         // Initial sync
         this.syncUIToSettings();
+    }
+
+    randomizeCoreFilters() {
+        const roots = Array.from(document.querySelectorAll('[data-root]'))
+            .map(el => (/** @type {HTMLElement} */ (el)).dataset.root)
+            .filter(Boolean);
+        const directions = Array.from(document.querySelectorAll('[data-direction]'))
+            .map(el => (/** @type {HTMLElement} */ (el)).dataset.direction)
+            .filter(Boolean);
+        const movements = Array.from(document.querySelectorAll('[data-movement]'))
+            .map(el => (/** @type {HTMLElement} */ (el)).dataset.movement)
+            .filter(Boolean);
+        const rising = Array.from(document.querySelectorAll('[data-rising]'))
+            .map(el => parseInt((/** @type {HTMLElement} */ (el)).dataset.rising || '0'))
+            .filter(n => Number.isFinite(n));
+        const scaleTypes = Array.from(document.querySelectorAll('[data-scale-type]'))
+            .map(el => (/** @type {HTMLElement} */ (el)).dataset.scaleType)
+            .filter(Boolean);
+        const lengths = Array.from(document.querySelectorAll('[data-length]'))
+            .map(el => parseInt((/** @type {HTMLElement} */ (el)).dataset.length || '0'))
+            .filter(n => Number.isFinite(n));
+
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+        if (roots.length) this.settings.root = pick(roots);
+        if (directions.length) this.settings.direction = pick(directions);
+        if (movements.length) this.settings.movementStyle = pick(movements);
+        if (rising.length) this.settings.risingSemitones = pick(rising);
+        if (scaleTypes.length) this.settings.scaleType = pick(scaleTypes);
+        if (lengths.length) this.settings.noteLength = pick(lengths);
+
+        this.syncUIToSettings();
+        this.updatePianoNotificationCommand(null);
     }
 
     setupPianoKeys() {
@@ -1867,7 +1925,8 @@ class ScalesController {
         this.stopPlayback();
 
         // Update the piano notification area to show what we're doing.
-        this.renderPianoNotification({ command, activeNotes: [] });
+        this.updatePianoNotificationCommand(command);
+        this.setPianoNotificationActiveNotes([]);
 
         // Store transcript for replay (but not for 'play' itself)
         if (transcript && command.type !== 'play') {
@@ -1903,7 +1962,8 @@ class ScalesController {
 
             case 'note':
                 this.voiceCore.updateStatus(`Playing ${command.note}${command.octave}`);
-                this.renderPianoNotification({ command, activeNotes: [`${command.note}${command.octave}`] });
+                this.updatePianoNotificationCommand(command);
+                this.setPianoNotificationActiveNotes([`${command.note}${command.octave}`]);
                 this.playNote(`${command.note}${command.octave}`);
                 this.lastCommand = command;
                 break;
@@ -1963,7 +2023,8 @@ class ScalesController {
 
             case 'tuning':
                 this.voiceCore.updateStatus('Playing A440 tuning note');
-                this.renderPianoNotification({ command, activeNotes: ['A4'] });
+                this.updatePianoNotificationCommand(command);
+                this.setPianoNotificationActiveNotes(['A4']);
                 this.playNote('A4', '2n');
                 this.lastCommand = command;
                 break;
@@ -2725,11 +2786,24 @@ class ScalesController {
                 case 'normal': gap = 150; break;
                 case 'large': gap = 300; break;
                 case 'very large': gap = 500; break;
-                default: gap = this.gapMap[this.settings.gap]; break;
+                default: {
+                    const gapVal = this.gapMap[this.settings.gap];
+                    if (typeof gapVal === 'number' && gapVal < 0 && gapVal > -1) {
+                        gap = Math.round(ms * gapVal);
+                    } else {
+                        gap = gapVal;
+                    }
+                    break;
+                }
             }
         } else {
             // Use slider value
-            gap = this.gapMap[this.settings.gap];
+            const gapVal = this.gapMap[this.settings.gap];
+            if (typeof gapVal === 'number' && gapVal < 0 && gapVal > -1) {
+                gap = Math.round(ms * gapVal);
+            } else {
+                gap = gapVal;
+            }
         }
 
         return { ms, tone, gap };
@@ -2770,7 +2844,8 @@ class ScalesController {
 
         const transcript = `${this.settings.root} ${this.settings.scaleType} scale`;
         this.voiceCore.updateStatus(this.buildStatusMessage(command));
-        this.renderPianoNotification({ command, activeNotes: [] });
+        this.updatePianoNotificationCommand(command);
+        this.setPianoNotificationActiveNotes([]);
         await this.playScale(command.root, command.scaleType, command.modifiers);
         this.lastCommand = command;
         this.lastTranscript = transcript;

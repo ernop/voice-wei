@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v00.00017</span>
+                <span class="version-label">v00.00018</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -52,9 +52,21 @@
             <div class="piano-container">
                 <div class="piano-notification-area" id="pianoNotificationArea">
                     <table class="piano-notification-table" aria-label="Piano notification">
-                        <tr id="pianoNotificationRow"></tr>
+                        <tr>
+                            <td class="piano-notification-command-cell">
+                                <div class="piano-notification-command" id="pianoNotificationCommand">
+                                    <span class="piano-notification-badge piano-notification-runtime-badge"
+                                        id="statusRuntime">Loading piano...</span>
+                                </div>
+                            </td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote1"></td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote2"></td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote3"></td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote4"></td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote5"></td>
+                            <td class="piano-notification-note-cell empty" id="pianoNotificationNote6"></td>
+                        </tr>
                     </table>
-                    <div class="piano-notification-runtime" id="statusRuntime">Loading piano...</div>
                 </div>
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>
@@ -160,9 +172,10 @@
                 <div class="vf-row">
                     <span class="vf-label">Gap</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-gap="-1s">-1s</button>
-                        <button class="vf-btn" data-gap="-0.5s">-0.5s</button>
-                        <button class="vf-btn" data-gap="-0.25s">-0.25s</button>
+                        <button class="vf-btn" data-gap="-50%">-50%</button>
+                        <button class="vf-btn" data-gap="-25%">-25%</button>
+                        <button class="vf-btn" data-gap="-10%">-10%</button>
+                        <button class="vf-btn" data-gap="-5%">-5%</button>
                         <button class="vf-btn" data-gap="0s">0s</button>
                         <button class="vf-btn" data-gap="0.05s">0.05s</button>
                         <button class="vf-btn" data-gap="0.1s">0.1s</button>
@@ -177,6 +190,7 @@
                     <span class="vf-label"></span>
                     <div class="vf-options">
                         <button id="resetBtn" class="vf-reset-btn">Reset</button>
+                        <button id="randomBtn" class="vf-reset-btn">Random</button>
                     </div>
                 </div>
             </div>

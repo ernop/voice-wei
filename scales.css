@@ -297,10 +297,6 @@
     display: none;
 }
 
-.piano-notification-runtime {
-    color: rgba(255, 255, 255, 0.6);
-}
-
 .piano-notification-table {
     width: 100%;
     border-collapse: collapse;
@@ -308,11 +304,13 @@
 }
 
 .piano-notification-table td {
-    padding: 0;
+    padding: 4px 8px;
     vertical-align: middle;
+    overflow: hidden;
 }
 
 .piano-notification-command-cell {
+    width: 0;
     text-align: right;
     padding-right: 10px;
 }
@@ -320,9 +318,11 @@
 .piano-notification-command {
     display: flex;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
     align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .piano-notification-badge {
@@ -334,16 +334,27 @@
     border: 1px solid rgba(255, 255, 255, 0.18);
     color: rgba(255, 255, 255, 0.9);
     white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.piano-notification-runtime-badge {
+    opacity: 0.55;
 }
 
 .piano-notification-note-cell {
-    width: 6ch;
+    width: 7ch;
+    min-width: 7ch;
+    max-width: 7ch;
     text-align: right;
-    padding-left: 8px;
+    padding-right: 8px;
+    padding-left: 4px;
     font-family: ui-monospace, 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .piano-notification-note-cell.empty {
