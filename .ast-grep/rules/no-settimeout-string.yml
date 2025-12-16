@@ -1,0 +1,11 @@
+id: no-settimeout-string
+message: Don't pass strings to setTimeout/setInterval - they use eval() internally
+severity: error
+language: javascript
+note: "Pass a function reference instead: setTimeout(() => doSomething(), 100)"
+rule:
+  any:
+    - pattern: setTimeout("$$$", $$$)
+    - pattern: setTimeout('$$$', $$$)
+    - pattern: setInterval("$$$", $$$)
+    - pattern: setInterval('$$$', $$$)

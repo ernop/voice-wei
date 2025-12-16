@@ -1,0 +1,15 @@
+# ast-grep configuration
+# Structural code linting for JavaScript
+#
+# Usage:
+#   npm run lint        - Full lint with rich output
+#   npm run lint:quiet  - Short one-line-per-issue output
+#   npm run lint:ci     - GitHub Actions annotation format
+#
+# Rules are in .ast-grep/rules/ - see each YAML file for details
+# Exit codes: 0 = clean, 1 = errors found (warnings/hints don't fail)
+#
+# See: https://ast-grep.github.io/
+
+ruleDirs:
+  - .ast-grep/rules

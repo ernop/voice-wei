@@ -1,0 +1,7 @@
+id: no-alert
+message: Avoid alert() - use proper UI feedback instead
+severity: warning
+language: javascript
+rule:
+  pattern: alert($$$ARGS)
+note: "alert() blocks the thread and provides poor UX. Use a toast, modal, or status element."
