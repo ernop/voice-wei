@@ -2118,75 +2118,22 @@ class ScalesController {
         }
 
         // Rising commands (standalone) - includes abbreviations
-        if (originalLower.match(/^(rising\s*off|off|no\s*rising|m\s*0|0\s*semitones?)$/)) {
-            this.setRisingSemitones(0);
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'risingSemitones', value: 0 };
-        }
-        if (originalLower.match(/^(m\s*2|minor\s*2(nd)?|half\s*(step)?|semitone|1\s*semitone)$/)) {
-            this.setRisingSemitones(1);
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'risingSemitones', value: 1 };
-        }
-        if (originalLower.match(/^(M\s*2|major\s*2(nd)?|whole\s*(step)?|tone|2\s*semitones?)$/i)) {
+        // Check major 2nd / whole step FIRST (case-sensitive M2)
+        if (originalLower.match(/^(major\s*2(nd)?|whole\s*(step)?|tone|2\s*semitones?)$/) || 
+            transcript.match(/^M\s*2$/)) {
             this.setRisingSemitones(2);
             this.syncUIToSettings();
             return { type: 'setting', setting: 'risingSemitones', value: 2 };
         }
-
-        // Section width commands (standalone) - "1 octave", "1o", "octave+3rd", etc.
-        if (originalLower.match(/^(1\s*o(ctave)?|one\s*octave|single\s*octave)$/)) {
-            this.settings.sectionLength = '1o';
+        if (originalLower.match(/^(rising\s*off|off|no\s*rising|0\s*semitones?)$/)) {
+            this.setRisingSemitones(0);
             this.syncUIToSettings();
-            return { type: 'setting', setting: 'sectionLength', value: '1o' };
+            return { type: 'setting', setting: 'risingSemitones', value: 0 };
         }
-        if (originalLower.match(/^(1\s*o\s*\+\s*3|octave\s*\+\s*3(rd)?|octave\s+plus\s+(a\s+)?third)$/)) {
-            this.settings.sectionLength = '1o+3';
+        if (originalLower.match(/^(m\s*2|minor\s*2(nd)?|half\s*step|semitone|1\s*semitone)$/)) {
+            this.setRisingSemitones(1);
             this.syncUIToSettings();
-            return { type: 'setting', setting: 'sectionLength', value: '1o+3' };
-        }
-        if (originalLower.match(/^(1\s*o\s*\+\s*5|octave\s*\+\s*5(th)?|octave\s+plus\s+(a\s+)?fifth)$/)) {
-            this.settings.sectionLength = '1o+5';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'sectionLength', value: '1o+5' };
-        }
-        if (originalLower.match(/^(2\s*o(ctaves?)?|two\s*octaves?|double\s*octave)$/)) {
-            this.settings.sectionLength = '2o';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'sectionLength', value: '2o' };
-        }
-
-        // Note length commands (standalone) - "0.5 seconds", "half second", "1s", etc.
-        const noteLengthMatch = originalLower.match(/^(0?\.?\d+)\s*(s(ec(ond)?s?)?|ms|milliseconds?)$/);
-        if (noteLengthMatch) {
-            let value = parseFloat(noteLengthMatch[1]);
-            const unit = noteLengthMatch[2];
-            if (unit.startsWith('ms') || unit.startsWith('milli')) {
-                // already in ms
-            } else {
-                value = value * 1000; // convert seconds to ms
-            }
-            if (value >= 50 && value <= 10000) {
-                this.setNoteLengthMs(value, `voice:${value}ms`);
-                this.syncUIToSettings();
-                return { type: 'setting', setting: 'noteLengthMs', value };
-            }
-        }
-        // Named durations
-        if (originalLower.match(/^(half\s*second|point\s*five|0\.5)$/)) {
-            this.setNoteLengthMs(500, 'voice:500ms');
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'noteLengthMs', value: 500 };
-        }
-        if (originalLower.match(/^(one\s*second|1\s*second)$/)) {
-            this.setNoteLengthMs(1000, 'voice:1000ms');
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'noteLengthMs', value: 1000 };
-        }
-        if (originalLower.match(/^(two\s*seconds?|2\s*seconds?)$/)) {
-            this.setNoteLengthMs(2000, 'voice:2000ms');
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'noteLengthMs', value: 2000 };
+            return { type: 'setting', setting: 'risingSemitones', value: 1 };
         }
 
         // Gap commands (standalone) - "no gap", "0 gap", "legato", "staccato", "-50%", etc.
@@ -2219,11 +2166,11 @@ class ScalesController {
 
         // Reset and Random commands
         if (originalLower.match(/^reset$/)) {
-            this.resetSettings();
+            this.resetToDefaults();
             return { type: 'reset' };
         }
         if (originalLower.match(/^random(ize)?$/)) {
-            this.randomizeSettings();
+            this.randomizeCoreFilters();
             return { type: 'random' };
         }
 
