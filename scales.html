@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v00.00022</span>
+                <span class="version-label">v00.00023</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -70,11 +70,9 @@
             </div>
 
             <!-- Note Sequence Preview (hidden by default, toggle via Show Sequence) -->
-            <div class="note-sequence-container" id="noteSequenceContainer" style="display: none">
+            <div class="sequence-grid" id="sequenceGridContainer" style="display: none">
                 <span class="note-sequence-label">Sequence:</span>
                 <code class="note-sequence" id="noteSequence">--</code>
-            </div>
-            <div class="note-sequence-container" id="actuallyPlayedContainer" style="display: none">
                 <span class="note-sequence-label">Played:</span>
                 <code class="note-sequence" id="actuallyPlayed">--</code>
             </div>
@@ -83,49 +81,6 @@
             <div class="voice-first-ui">
                 <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
                     click directly. <button class="vf-dismiss" id="dismissInstruction">x</button></p>
-
-                <div class="vf-row">
-                    <span class="vf-label">Repeat</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
-                        <button class="vf-btn" data-repeat="2" data-full="twice" data-abbr="2x">twice</button>
-                        <button class="vf-btn" data-repeat="Infinity" data-full="forever"
-                            data-abbr="inf">forever</button>
-                        <button class="vf-btn" data-repeat="Infinity-nogap" data-full="forever no gap"
-                            data-abbr="inf 0g">forever no gap</button>
-                    </div>
-                    <span class="vf-label vf-label-inline">Rising</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
-                        <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
-                        <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
-                    </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Direction</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
-                        <button class="vf-btn" data-direction="descending" data-full="down" data-abbr="d">down</button>
-                        <button class="vf-btn" data-direction="both" data-full="up+down"
-                            data-abbr="u+d">up+down</button>
-                        <button class="vf-btn" data-direction="down_and_up" data-full="down+up"
-                            data-abbr="d+u">down+up</button>
-                    </div>
-                    <span class="vf-label vf-label-inline">Move</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-movement="normal" data-full="normal" data-abbr="-">normal</button>
-                        <button class="vf-btn" data-movement="stop_and_go" data-full="stop-and-go"
-                            data-abbr="+1+2">stop-and-go</button>
-                        <button class="vf-btn" data-movement="one_three_five" data-full="1-3-5"
-                            data-abbr="1-3-5">1-3-5</button>
-                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors"
-                            data-abbr="Nbr">neighbors</button>
-                        <button class="vf-btn" data-movement="chords" data-full="chords" data-abbr="Chd">chords</button>
-                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="-1">from
-                            1</button>
-                    </div>
-                </div>
 
                 <div class="vf-row">
                     <span class="vf-label">Root</span>
@@ -167,18 +122,18 @@
                 </div>
 
                 <div class="vf-row">
-                    <span class="vf-label">Section Length</span>
+                    <span class="vf-label">Move</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
-                            octave</button>
-                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
-                            data-abbr="1o+3">octave+3rd</button>
-                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th"
-                            data-abbr="1o+5">octave+5th</button>
-                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
-                            octaves</button>
-                        <button class="vf-btn" data-section-length="centered" data-full="-3rd to oct+3rd"
-                            data-abbr="Ctr">-3rd to oct+3rd</button>
+                        <button class="vf-btn" data-movement="normal" data-full="normal" data-abbr="-">normal</button>
+                        <button class="vf-btn" data-movement="stop_and_go" data-full="stop-and-go"
+                            data-abbr="+1+2">stop-and-go</button>
+                        <button class="vf-btn" data-movement="one_three_five" data-full="1-3-5"
+                            data-abbr="1-3-5">1-3-5</button>
+                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors"
+                            data-abbr="Nbr">neighbors</button>
+                        <button class="vf-btn" data-movement="chords" data-full="chords" data-abbr="Chd">chords</button>
+                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="-1">from
+                            1</button>
                     </div>
                 </div>
 
@@ -199,10 +154,53 @@
                 </div>
 
                 <div class="vf-row">
-                    <span class="vf-label">Gap</span>
+                    <span class="vf-label">Direction</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
+                        <button class="vf-btn" data-direction="descending" data-full="down" data-abbr="d">down</button>
+                        <button class="vf-btn" data-direction="both" data-full="up+down"
+                            data-abbr="u+d">up+down</button>
+                        <button class="vf-btn" data-direction="down_and_up" data-full="down+up"
+                            data-abbr="d+u">down+up</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Repeat</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
+                        <button class="vf-btn" data-repeat="2" data-full="twice" data-abbr="2x">twice</button>
+                        <button class="vf-btn" data-repeat="Infinity" data-full="forever"
+                            data-abbr="inf">forever</button>
+                        <button class="vf-btn" data-repeat="Infinity-nogap" data-full="forever no gap"
+                            data-abbr="inf 0g">forever no gap</button>
+                    </div>
+                    <span class="vf-label vf-label-inline">Rising</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
+                        <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
+                        <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Section Width</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
+                            octave</button>
+                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
+                            data-abbr="1o+3">octave+3rd</button>
+                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th"
+                            data-abbr="1o+5">octave+5th</button>
+                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
+                            octaves</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Note Gap</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-gap-value="-0.5">-50%</button>
-                        <button class="vf-btn" data-gap-value="-0.25">-25%</button>
                         <button class="vf-btn" data-gap-value="-0.1">-10%</button>
                         <button class="vf-btn" data-gap-value="-0.05">-5%</button>
                         <button class="vf-btn" data-gap-value="0">0s</button>

@@ -1141,10 +1141,9 @@ class ScalesController {
         this.syncUIToSettings();
         this.updatePianoNotificationCommand(null);
 
-        // Show status and restart if we were playing
-        if (wasPlaying && this.lastCommand) {
+        // Restart if we were playing - use current settings directly
+        if (wasPlaying) {
             this.voiceCore.updateStatus(this.formatCurrentCommand());
-            // Build modifiers from current settings
             const modifiers = this.buildModifiersFromSettings();
             await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
         }
@@ -1373,21 +1372,18 @@ class ScalesController {
 
         // Show sequence toggle (off by default)
         const showSeqToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('showSequenceToggle'));
-        const seqContainer = document.getElementById('noteSequenceContainer');
-        const playedContainer = document.getElementById('actuallyPlayedContainer');
+        const seqGridContainer = document.getElementById('sequenceGridContainer');
         if (showSeqToggle) {
             // Restore from localStorage, default to hidden
             const savedShowSeq = localStorage.getItem('scales-show-sequence');
             const show = savedShowSeq === 'true';
             showSeqToggle.checked = show;
-            if (seqContainer) seqContainer.style.display = show ? '' : 'none';
-            if (playedContainer) playedContainer.style.display = show ? '' : 'none';
+            if (seqGridContainer) seqGridContainer.style.display = show ? 'grid' : 'none';
 
             showSeqToggle.addEventListener('change', () => {
                 const showNow = showSeqToggle.checked;
                 localStorage.setItem('scales-show-sequence', String(showNow));
-                if (seqContainer) seqContainer.style.display = showNow ? '' : 'none';
-                if (playedContainer) playedContainer.style.display = showNow ? '' : 'none';
+                if (seqGridContainer) seqGridContainer.style.display = showNow ? 'grid' : 'none';
             });
         }
 
@@ -1785,12 +1781,12 @@ class ScalesController {
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'one_three_five' };
         }
-        if (originalLower.match(/^neighbou?rs?$/)) {
+        if (originalLower.match(/^(nbr|neighbou?rs?)$/)) {
             this.settings.movementStyle = 'neighbors';
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'neighbors' };
         }
-        if (originalLower.match(/^chords?\s*(mode)?$/)) {
+        if (originalLower.match(/^(chd|chords?\s*(mode)?)$/)) {
             this.settings.movementStyle = 'chords';
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'chords' };
@@ -1991,26 +1987,58 @@ class ScalesController {
             return { type: 'tuning', modifiers };
         }
 
-        // Direction commands (standalone)
-        if (originalLower.match(/^(ascending|up|upward)$/)) {
+        // Direction commands (standalone) - includes abbreviations
+        if (originalLower.match(/^(ascending|up|upward|u)$/)) {
             this.settings.direction = 'ascending';
+            this.syncUIToSettings();
             return { type: 'setting', setting: 'direction', value: 'ascending' };
         }
-        if (originalLower.match(/^(descending|down|downward)$/)) {
+        if (originalLower.match(/^(descending|down|downward|d)$/)) {
             this.settings.direction = 'descending';
+            this.syncUIToSettings();
             return { type: 'setting', setting: 'direction', value: 'descending' };
+        }
+        if (originalLower.match(/^(up\s*(and|&|\+)\s*down|u\s*\+\s*d|both\s*ways)$/)) {
+            this.settings.direction = 'both';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'direction', value: 'both' };
+        }
+        if (originalLower.match(/^(down\s*(and|&|\+)\s*up|d\s*\+\s*u)$/)) {
+            this.settings.direction = 'down_and_up';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'direction', value: 'down_and_up' };
         }
 
         // Tempo commands (standalone)
+        if (originalLower.match(/^(super\s+slow|really\s+slow|very\s+very\s+slow)$/)) {
+            this.setNoteLengthMs(this.tempoNameToMs['super slow'], 'voice:super slow');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'tempo', value: 'super slow' };
+        }
+        if (originalLower.match(/^(very\s+slow|real\s+slow)$/)) {
+            this.setNoteLengthMs(this.tempoNameToMs['very slow'], 'voice:very slow');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'tempo', value: 'very slow' };
+        }
         if (originalLower.match(/^(slow|slower)$/)) {
             this.setNoteLengthMs(this.tempoNameToMs['slow'], 'voice:slow');
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'slow' };
         }
+        if (originalLower.match(/^(normal\s+speed|normal\s+tempo|medium|default\s+speed)$/)) {
+            this.setNoteLengthMs(this.tempoNameToMs['normal'], 'voice:normal');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'tempo', value: 'normal' };
+        }
         if (originalLower.match(/^(fast|faster|quick)$/)) {
             this.setNoteLengthMs(this.tempoNameToMs['fast'], 'voice:fast');
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'fast' };
+        }
+        if (originalLower.match(/^(very\s+fast|really\s+fast|super\s+fast)$/)) {
+            this.setNoteLengthMs(this.tempoNameToMs['very fast'], 'voice:very fast');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'tempo', value: 'very fast' };
         }
 
         // Octave commands (standalone) - "3", "4", "5", "octave 3", etc.
@@ -2021,6 +2049,182 @@ class ScalesController {
             this.updatePianoKeyOctaves();
             this.syncUIToSettings();
             return { type: 'setting', setting: 'octave', value: octave };
+        }
+
+        // Scale type commands (standalone) - abbreviations
+        if (originalLower.match(/^(maj(or)?|major\s+scale)$/)) {
+            this.settings.scaleType = 'major';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'major' };
+        }
+        if (originalLower.match(/^(min(or)?|minor\s+scale)$/)) {
+            this.settings.scaleType = 'minor';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'minor' };
+        }
+        if (originalLower.match(/^(chr(omatic)?|chromatic\s+scale)$/)) {
+            this.settings.scaleType = 'chromatic';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'chromatic' };
+        }
+        if (originalLower.match(/^(pent(atonic)?|pentatonic\s+scale)$/)) {
+            this.settings.scaleType = 'pentatonic';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'pentatonic' };
+        }
+        if (originalLower.match(/^(h\s*min|hmin|harmonic\s*min(or)?|harmonic\s+minor\s+scale)$/)) {
+            this.settings.scaleType = 'harmonic_minor';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'harmonic_minor' };
+        }
+        if (originalLower.match(/^(m\s*min|mmin|melodic\s*min(or)?|melodic\s+minor\s+scale)$/)) {
+            this.settings.scaleType = 'melodic_minor';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'scaleType', value: 'melodic_minor' };
+        }
+
+        // Repeat commands (standalone) - includes abbreviations
+        if (originalLower.match(/^(once|one\s*time|1\s*x|1\s*time)$/)) {
+            this.settings.repeatCount = 1;
+            this.settings.repeatForever = false;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'repeat', value: 1 };
+        }
+        if (originalLower.match(/^(twice|two\s*times|2\s*x|2\s*times)$/)) {
+            this.settings.repeatCount = 2;
+            this.settings.repeatForever = false;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'repeat', value: 2 };
+        }
+        if (originalLower.match(/^(thrice|three\s*times|3\s*x|3\s*times)$/)) {
+            this.settings.repeatCount = 3;
+            this.settings.repeatForever = false;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'repeat', value: 3 };
+        }
+        if (originalLower.match(/^(inf(inity)?|forever|loop|repeat\s*forever)$/)) {
+            this.settings.repeatCount = Infinity;
+            this.settings.repeatForever = true;
+            this.settings.repeatGapMs = FOREVER_SECTION_GAP_MS;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'repeat', value: Infinity };
+        }
+        if (originalLower.match(/^(inf(inity)?\s*(0\s*g(ap)?|no\s*gap)|forever\s*no\s*gap)$/)) {
+            this.settings.repeatCount = Infinity;
+            this.settings.repeatForever = true;
+            this.settings.repeatGapMs = 0;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'repeat', value: 'infinity-nogap' };
+        }
+
+        // Rising commands (standalone) - includes abbreviations
+        if (originalLower.match(/^(rising\s*off|off|no\s*rising|m\s*0|0\s*semitones?)$/)) {
+            this.setRisingSemitones(0);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'risingSemitones', value: 0 };
+        }
+        if (originalLower.match(/^(m\s*2|minor\s*2(nd)?|half\s*(step)?|semitone|1\s*semitone)$/)) {
+            this.setRisingSemitones(1);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'risingSemitones', value: 1 };
+        }
+        if (originalLower.match(/^(M\s*2|major\s*2(nd)?|whole\s*(step)?|tone|2\s*semitones?)$/i)) {
+            this.setRisingSemitones(2);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'risingSemitones', value: 2 };
+        }
+
+        // Section width commands (standalone) - "1 octave", "1o", "octave+3rd", etc.
+        if (originalLower.match(/^(1\s*o(ctave)?|one\s*octave|single\s*octave)$/)) {
+            this.settings.sectionLength = '1o';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o' };
+        }
+        if (originalLower.match(/^(1\s*o\s*\+\s*3|octave\s*\+\s*3(rd)?|octave\s+plus\s+(a\s+)?third)$/)) {
+            this.settings.sectionLength = '1o+3';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o+3' };
+        }
+        if (originalLower.match(/^(1\s*o\s*\+\s*5|octave\s*\+\s*5(th)?|octave\s+plus\s+(a\s+)?fifth)$/)) {
+            this.settings.sectionLength = '1o+5';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o+5' };
+        }
+        if (originalLower.match(/^(2\s*o(ctaves?)?|two\s*octaves?|double\s*octave)$/)) {
+            this.settings.sectionLength = '2o';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '2o' };
+        }
+
+        // Note length commands (standalone) - "0.5 seconds", "half second", "1s", etc.
+        const noteLengthMatch = originalLower.match(/^(0?\.?\d+)\s*(s(ec(ond)?s?)?|ms|milliseconds?)$/);
+        if (noteLengthMatch) {
+            let value = parseFloat(noteLengthMatch[1]);
+            const unit = noteLengthMatch[2];
+            if (unit.startsWith('ms') || unit.startsWith('milli')) {
+                // already in ms
+            } else {
+                value = value * 1000; // convert seconds to ms
+            }
+            if (value >= 50 && value <= 10000) {
+                this.setNoteLengthMs(value, `voice:${value}ms`);
+                this.syncUIToSettings();
+                return { type: 'setting', setting: 'noteLengthMs', value };
+            }
+        }
+        // Named durations
+        if (originalLower.match(/^(half\s*second|point\s*five|0\.5)$/)) {
+            this.setNoteLengthMs(500, 'voice:500ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 500 };
+        }
+        if (originalLower.match(/^(one\s*second|1\s*second)$/)) {
+            this.setNoteLengthMs(1000, 'voice:1000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 1000 };
+        }
+        if (originalLower.match(/^(two\s*seconds?|2\s*seconds?)$/)) {
+            this.setNoteLengthMs(2000, 'voice:2000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 2000 };
+        }
+
+        // Gap commands (standalone) - "no gap", "0 gap", "legato", "staccato", "-50%", etc.
+        if (originalLower.match(/^(no\s*gap|zero\s*gap|0\s*(s|gap)|legato)$/)) {
+            this.settings.gapMs = 0;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'gapMs', value: 0 };
+        }
+        if (originalLower.match(/^(staccato|detached|separated)$/)) {
+            this.settings.gapMs = 300;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'gapMs', value: 300 };
+        }
+        // Overlap percentages
+        const overlapMatch = originalLower.match(/^-\s*(\d+)\s*%$/);
+        if (overlapMatch) {
+            const pct = parseInt(overlapMatch[1]);
+            if (pct >= 5 && pct <= 90) {
+                const overlap = -pct / 100;
+                this.settings.gapMs = overlap;
+                this.syncUIToSettings();
+                return { type: 'setting', setting: 'gapMs', value: overlap };
+            }
+        }
+        if (originalLower.match(/^(overlap|overlapping)$/)) {
+            this.settings.gapMs = -0.1;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'gapMs', value: -0.1 };
+        }
+
+        // Reset and Random commands
+        if (originalLower.match(/^reset$/)) {
+            this.resetSettings();
+            return { type: 'reset' };
+        }
+        if (originalLower.match(/^random(ize)?$/)) {
+            this.randomizeSettings();
+            return { type: 'random' };
         }
 
         return null;
@@ -2156,6 +2360,14 @@ class ScalesController {
                     const modifiers = this.buildModifiersFromSettings();
                     await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
                 }
+                break;
+
+            case 'reset':
+                this.voiceCore.updateStatus('Settings reset to defaults');
+                break;
+
+            case 'random':
+                this.voiceCore.updateStatus('Randomized settings: ' + this.formatCurrentCommand());
                 break;
         }
     }
@@ -3138,7 +3350,7 @@ class ScalesController {
             ms = this.settings.noteLengthMs;
         }
 
-        // Use explicit seconds for Tone.js
+        // Tone duration in seconds
         const tone = ms / 1000;
 
         // Gap: voice modifier overrides setting
