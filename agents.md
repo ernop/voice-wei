@@ -32,16 +32,16 @@ Update TWO things in each file:
 
 1. **Version label** in header:
    ```html
-   <span class="version-label">v0.26</span>
+   <span class="version-label">v0.27</span>
    ```
 
 2. **Cache buster query strings** on all local CSS/JS imports:
    ```html
-   <link rel="stylesheet" href="style.css?v=26">
-   <script src="scales.js?v=26"></script>
+   <link rel="stylesheet" href="style.css?v=27">
+   <script src="scales.js?v=27"></script>
    ```
 
-Bump all files together. The `?v=XX` number matches the version minor (v0.26 -> ?v=26).
+Bump all files together. The `?v=XX` number matches the version minor (v0.26 -> ?v=27).
 
 ---
 
