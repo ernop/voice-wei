@@ -21,9 +21,22 @@ NEVER use "code smell" or similar phrases. Never use "HORRIFIC". Never use emoji
 
 ## Version Bump
 
-- Version label: `<span class="version-label">v00.0000xx</span>`
-- Files: `player.html`, `pitch-meter.html`, `scales.html`
-- Bump rule: increment final 3 digits by 1
+Version is **global** across all files: `scales.html`, `player.html`, `pitch-meter.html`
+
+Update TWO things in each file:
+
+1. **Version label** in header:
+   ```html
+   <span class="version-label">v0.26</span>
+   ```
+
+2. **Cache buster query strings** on all local CSS/JS imports:
+   ```html
+   <link rel="stylesheet" href="style.css?v=26">
+   <script src="scales.js?v=26"></script>
+   ```
+
+Bump all files together. The `?v=XX` number matches the version minor (v0.26 -> ?v=26).
 
 ---
 

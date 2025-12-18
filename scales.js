@@ -1462,12 +1462,8 @@ class ScalesController {
         const whiteNotes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
         const blackKeyPositions = { 'C': true, 'D': true, 'F': true, 'G': true, 'A': true };
 
-        // Build keys: start with A, B below base octave, then 2 full octaves + final C
+        // Build keys: 2 full octaves starting from C + final C
         const keysToCreate = [];
-        // Add A and B from octave below (offset -1)
-        ['A', 'B'].forEach(note => {
-            keysToCreate.push({ note, octaveOffset: -1 });
-        });
         // Add full octaves 0 and 1
         for (let oct = 0; oct <= 1; oct++) {
             whiteNotes.forEach(note => {
