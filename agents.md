@@ -1,5 +1,10 @@
 # Agent Rules and Guidelines
 
+## Project Links
+
+- **GitHub**: https://github.com/ernop/voice-wei
+- **Live**: https://fuseki.net/music8899b/scales.html
+
 ## ABSOLUTE RULE: No Fallbacks/Hacks for Things We Control
 
 **NEVER add fallbacks or hacks when we control the import/dependency.** Fix the upstream issue, fail loudly, never catch and continue silently.

@@ -606,6 +606,14 @@
     align-items: center;
 }
 
+.preset-actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
 .preset-name-input {
     padding: 6px 10px;
     border-radius: 6px;

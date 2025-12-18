@@ -249,16 +249,16 @@
             <div class="command-history" id="presetHistory">
                 <div class="history-header">
                     <h3>Saved Configs</h3>
-                    <div class="history-actions">
-                        <input id="presetNameInput" class="preset-name-input" type="text"
-                            placeholder="Name this config (optional)" />
-                        <button id="savePresetBtn" class="copy-all-history-btn"
-                            title="Save current settings">Save</button>
-                        <button id="applyPresetBtn" class="copy-all-history-btn"
-                            title="Apply selected config">Apply</button>
-                        <button id="deletePresetBtn" class="clear-history-btn"
-                            title="Delete selected config">Delete</button>
-                    </div>
+                </div>
+                <div class="preset-actions-row">
+                    <input id="presetNameInput" class="preset-name-input" type="text"
+                        placeholder="Name this config (optional)" />
+                    <button id="savePresetBtn" class="copy-all-history-btn"
+                        title="Save current settings">Save</button>
+                    <button id="applyPresetBtn" class="copy-all-history-btn"
+                        title="Apply selected config">Apply</button>
+                    <button id="deletePresetBtn" class="clear-history-btn"
+                        title="Delete selected config">Delete</button>
                 </div>
                 <div class="history-list" id="presetList">
                     <p class="history-empty">No saved configs yet</p>
@@ -303,6 +303,11 @@
                     <button id="testVoiceBtn" class="test-voice-btn">Test</button>
                 </div>
             </details>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
         </main>
     </div>
 
