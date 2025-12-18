@@ -1407,11 +1407,18 @@ class ScalesController {
         this.syncUIToSettings();
     }
 
-    // Toggle button text between full and abbreviated versions
+    // Toggle button and label text between full and abbreviated versions
+    /** @param {boolean} useAbbr */
     applyAbbreviations(useAbbr) {
+        // Toggle buttons
         document.querySelectorAll('.vf-btn[data-abbr][data-full]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.textContent = useAbbr ? btn.dataset.abbr : btn.dataset.full;
+        });
+        // Toggle section labels
+        document.querySelectorAll('.vf-label[data-abbr][data-full]').forEach(el => {
+            const label = /** @type {HTMLElement} */ (el);
+            label.textContent = useAbbr ? label.dataset.abbr : label.dataset.full;
         });
     }
 
@@ -1957,6 +1964,73 @@ class ScalesController {
             }
 
             return { type: 'chord', root, quality, modifiers };
+        }
+
+        // Section width commands (standalone) - "1 octave", "1o", "octave+3rd", etc.
+        // These MUST be checked BEFORE the interval parser catches them
+        if (originalLower.match(/^(1\s*o\s*\+\s*3(rd)?|octave\s*\+\s*3(rd)?|octave\s+plus\s+(a\s+)?third|section\s+octave\s*\+\s*3)$/)) {
+            this.settings.sectionLength = '1o+3';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o+3' };
+        }
+        if (originalLower.match(/^(1\s*o\s*\+\s*5(th)?|octave\s*\+\s*5(th)?|octave\s+plus\s+(a\s+)?fifth|section\s+octave\s*\+\s*5)$/)) {
+            this.settings.sectionLength = '1o+5';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o+5' };
+        }
+        if (originalLower.match(/^(1\s*o(ctave)?|one\s*octave|single\s*octave)$/)) {
+            this.settings.sectionLength = '1o';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '1o' };
+        }
+        if (originalLower.match(/^(2\s*o(ctaves?)?|two\s*octaves?|double\s*octave)$/)) {
+            this.settings.sectionLength = '2o';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'sectionLength', value: '2o' };
+        }
+
+        // Note length commands (standalone) - "0.5 seconds", "half second", "1s", etc.
+        // These MUST be checked BEFORE the interval parser catches them
+        if (originalLower.match(/^(half\s*a?\s*second|point\s*five\s*(seconds?)?)$/)) {
+            this.setNoteLengthMs(500, 'voice:500ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 500 };
+        }
+        if (originalLower.match(/^(one\s*second|a\s*second)$/)) {
+            this.setNoteLengthMs(1000, 'voice:1000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 1000 };
+        }
+        if (originalLower.match(/^(two\s*seconds?|a\s*couple\s*seconds?)$/)) {
+            this.setNoteLengthMs(2000, 'voice:2000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 2000 };
+        }
+        if (originalLower.match(/^(three\s*seconds?)$/)) {
+            this.setNoteLengthMs(3000, 'voice:3000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 3000 };
+        }
+        if (originalLower.match(/^(five\s*seconds?)$/)) {
+            this.setNoteLengthMs(5000, 'voice:5000ms');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'noteLengthMs', value: 5000 };
+        }
+        // Numeric durations: "0.5s", "1s", "500ms", etc.
+        const noteLengthMatch = originalLower.match(/^(0?\.?\d+)\s*(s(ec(ond)?s?)?|ms|milliseconds?)$/);
+        if (noteLengthMatch) {
+            let value = parseFloat(noteLengthMatch[1]);
+            const unit = noteLengthMatch[2];
+            if (unit.startsWith('ms') || unit.startsWith('milli')) {
+                // already in ms
+            } else {
+                value = value * 1000; // convert seconds to ms
+            }
+            if (value >= 50 && value <= 10000) {
+                this.setNoteLengthMs(value, `voice:${value}ms`);
+                this.syncUIToSettings();
+                return { type: 'setting', setting: 'noteLengthMs', value };
+            }
         }
 
         // Interval: "fifth", "third from C", "perfect fifth", "minor 3rd", "major 2nd"

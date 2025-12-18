@@ -919,14 +919,13 @@
 }
 
 .vf-row .vf-label {
-    min-width: 58px;
     font-size: 0.65rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
     letter-spacing: 0.3px;
     margin-bottom: 0;
-    text-align: right;
+    text-align: left;
 }
 
 .vf-row .vf-label-inline {
@@ -1200,9 +1199,16 @@
         flex-direction: column;
     }
 
-    .vf-play-btn,
-    .vf-reset-btn {
+    .vf-play-btn {
         width: 100%;
+    }
+}
+
+/* Mobile: tighter horizontal padding on all buttons */
+@media (max-width: 600px) {
+    .vf-btn {
+        padding-left: 4px;
+        padding-right: 4px;
     }
 }
 
@@ -1213,21 +1219,6 @@
 
     .vf-btn {
         font-size: 0.7rem;
-        padding: 4px 5px;
-    }
-}
-
-/* Mobile: tighter padding on Note Length and Gap rows */
-@media (max-width: 600px) {
-    .vf-btn[data-length-ms],
-    .vf-btn[data-gap-value] {
-        padding: 5px 4px;
-    }
-}
-
-@media (max-width: 400px) {
-    .vf-btn[data-length-ms],
-    .vf-btn[data-gap-value] {
         padding: 4px 2px;
     }
 }
