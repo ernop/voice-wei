@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v00.00021</span>
+                <span class="version-label">v00.00022</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -55,8 +55,6 @@
                         <tr>
                             <td class="piano-notification-command-cell">
                                 <div class="piano-notification-command" id="pianoNotificationCommand">
-                                    <span class="piano-notification-badge piano-notification-runtime-badge"
-                                        id="statusRuntime">Loading piano...</span>
                                 </div>
                             </td>
                             <td class="piano-notification-note-cell empty" id="pianoNotificationNote1"></td>
@@ -71,56 +69,61 @@
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>
 
-            <!-- Note Sequence Preview (always visible, for testing/validation) -->
-            <div class="note-sequence-container" id="noteSequenceContainer">
+            <!-- Note Sequence Preview (hidden by default, toggle via Show Sequence) -->
+            <div class="note-sequence-container" id="noteSequenceContainer" style="display: none">
                 <span class="note-sequence-label">Sequence:</span>
                 <code class="note-sequence" id="noteSequence">--</code>
             </div>
-            <div class="note-sequence-container" id="actuallyPlayedContainer">
+            <div class="note-sequence-container" id="actuallyPlayedContainer" style="display: none">
                 <span class="note-sequence-label">Played:</span>
                 <code class="note-sequence" id="actuallyPlayed">--</code>
             </div>
 
             <!-- Voice-First Scale Builder - All Bidirectional Controls -->
             <div class="voice-first-ui">
-                <p class="vf-instruction" id="vfInstruction">Say any option below to set it, or click directly. <button
-                        class="vf-dismiss" id="dismissInstruction">x</button></p>
+                <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
+                    click directly. <button class="vf-dismiss" id="dismissInstruction">x</button></p>
 
                 <div class="vf-row">
                     <span class="vf-label">Repeat</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-repeat="0">off</button>
-                        <button class="vf-btn" data-repeat="1">once</button>
-                        <button class="vf-btn" data-repeat="2">twice</button>
-                        <button class="vf-btn" data-repeat="Infinity">forever</button>
-                        <button class="vf-btn" data-repeat="Infinity-nogap">forever no gap</button>
+                        <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
+                        <button class="vf-btn" data-repeat="2" data-full="twice" data-abbr="2x">twice</button>
+                        <button class="vf-btn" data-repeat="Infinity" data-full="forever"
+                            data-abbr="inf">forever</button>
+                        <button class="vf-btn" data-repeat="Infinity-nogap" data-full="forever no gap"
+                            data-abbr="inf 0g">forever no gap</button>
                     </div>
                     <span class="vf-label vf-label-inline">Rising</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-rising="0">off</button>
-                        <button class="vf-btn" data-rising="1">half</button>
-                        <button class="vf-btn" data-rising="2">whole</button>
-                        <button class="vf-btn" data-rising="3">minor third</button>
-                        <button class="vf-btn" data-rising="4">major third</button>
-                        <button class="vf-btn" data-rising="5">perfect fourth</button>
-                        <button class="vf-btn" data-rising="7">perfect fifth</button>
+                        <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
+                        <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
+                        <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label">Direction</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-direction="ascending">up</button>
-                        <button class="vf-btn" data-direction="descending">down</button>
-                        <button class="vf-btn" data-direction="both">up+down</button>
-                        <button class="vf-btn" data-direction="down_and_up">down+up</button>
+                        <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
+                        <button class="vf-btn" data-direction="descending" data-full="down" data-abbr="d">down</button>
+                        <button class="vf-btn" data-direction="both" data-full="up+down"
+                            data-abbr="u+d">up+down</button>
+                        <button class="vf-btn" data-direction="down_and_up" data-full="down+up"
+                            data-abbr="d+u">down+up</button>
                     </div>
                     <span class="vf-label vf-label-inline">Move</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-movement="normal">normal</button>
-                        <button class="vf-btn" data-movement="stop_and_go">stop-and-go</button>
-                        <button class="vf-btn" data-movement="one_three_five">1-3-5</button>
-                        <button class="vf-btn" data-movement="from_one">from 1</button>
+                        <button class="vf-btn" data-movement="normal" data-full="normal" data-abbr="-">normal</button>
+                        <button class="vf-btn" data-movement="stop_and_go" data-full="stop-and-go"
+                            data-abbr="+1+2">stop-and-go</button>
+                        <button class="vf-btn" data-movement="one_three_five" data-full="1-3-5"
+                            data-abbr="1-3-5">1-3-5</button>
+                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors"
+                            data-abbr="Nbr">neighbors</button>
+                        <button class="vf-btn" data-movement="chords" data-full="chords" data-abbr="Chd">chords</button>
+                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="-1">from
+                            1</button>
                     </div>
                 </div>
 
@@ -150,56 +153,65 @@
                 <div class="vf-row">
                     <span class="vf-label">Scale</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-scale-type="major">major</button>
-                        <button class="vf-btn" data-scale-type="minor">minor</button>
-                        <button class="vf-btn" data-scale-type="chromatic">chromatic</button>
-                        <button class="vf-btn" data-scale-type="pentatonic">pentatonic</button>
-                        <button class="vf-btn" data-scale-type="harmonic_minor">harmonic minor</button>
-                        <button class="vf-btn" data-scale-type="melodic_minor">melodic minor</button>
-                        <button class="vf-btn" data-scale-type="continuous">continuous</button>
+                        <button class="vf-btn" data-scale-type="major" data-full="major" data-abbr="Maj">major</button>
+                        <button class="vf-btn" data-scale-type="minor" data-full="minor" data-abbr="min">minor</button>
+                        <button class="vf-btn" data-scale-type="chromatic" data-full="chromatic"
+                            data-abbr="Chr">chromatic</button>
+                        <button class="vf-btn" data-scale-type="pentatonic" data-full="pentatonic"
+                            data-abbr="Pent">pentatonic</button>
+                        <button class="vf-btn" data-scale-type="harmonic_minor" data-full="harmonic minor"
+                            data-abbr="Hmin">harmonic minor</button>
+                        <button class="vf-btn" data-scale-type="melodic_minor" data-full="melodic minor"
+                            data-abbr="Mmin">melodic minor</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label">Section Length</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-section-length="1o">1 octave</button>
-                        <button class="vf-btn" data-section-length="1o+3">octave+3rd</button>
-                        <button class="vf-btn" data-section-length="1o+5">octave+5th</button>
-                        <button class="vf-btn" data-section-length="2o">2 octaves</button>
-                        <button class="vf-btn" data-section-length="centered">-3rd to oct+3rd</button>
+                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
+                            octave</button>
+                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
+                            data-abbr="1o+3">octave+3rd</button>
+                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th"
+                            data-abbr="1o+5">octave+5th</button>
+                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
+                            octaves</button>
+                        <button class="vf-btn" data-section-length="centered" data-full="-3rd to oct+3rd"
+                            data-abbr="Ctr">-3rd to oct+3rd</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label">Note Length</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-length="0">0.15s</button>
-                        <button class="vf-btn" data-length="1">0.3s</button>
-                        <button class="vf-btn" data-length="2">0.5s</button>
-                        <button class="vf-btn" data-length="3">0.8s</button>
-                        <button class="vf-btn" data-length="4">1s</button>
-                        <button class="vf-btn" data-length="5">1.5s</button>
-                        <button class="vf-btn" data-length="6">2s</button>
-                        <button class="vf-btn" data-length="7">3s</button>
-                        <button class="vf-btn" data-length="8">5s</button>
+                        <button class="vf-btn" data-length-ms="100">0.1s</button>
+                        <button class="vf-btn" data-length-ms="150">0.15s</button>
+                        <button class="vf-btn" data-length-ms="300">0.3s</button>
+                        <button class="vf-btn" data-length-ms="500">0.5s</button>
+                        <button class="vf-btn" data-length-ms="800">0.8s</button>
+                        <button class="vf-btn" data-length-ms="1000">1s</button>
+                        <button class="vf-btn" data-length-ms="1500">1.5s</button>
+                        <button class="vf-btn" data-length-ms="2000">2s</button>
+                        <button class="vf-btn" data-length-ms="3000">3s</button>
+                        <button class="vf-btn" data-length-ms="5000">5s</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label">Gap</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-gap="-50%">-50%</button>
-                        <button class="vf-btn" data-gap="-25%">-25%</button>
-                        <button class="vf-btn" data-gap="-10%">-10%</button>
-                        <button class="vf-btn" data-gap="-5%">-5%</button>
-                        <button class="vf-btn" data-gap="0s">0s</button>
-                        <button class="vf-btn" data-gap="0.05s">0.05s</button>
-                        <button class="vf-btn" data-gap="0.1s">0.1s</button>
-                        <button class="vf-btn" data-gap="0.15s">0.15s</button>
-                        <button class="vf-btn" data-gap="0.3s">0.3s</button>
-                        <button class="vf-btn" data-gap="0.5s">0.5s</button>
-                        <button class="vf-btn" data-gap="1s">1s</button>
+                        <button class="vf-btn" data-gap-value="-0.5">-50%</button>
+                        <button class="vf-btn" data-gap-value="-0.25">-25%</button>
+                        <button class="vf-btn" data-gap-value="-0.1">-10%</button>
+                        <button class="vf-btn" data-gap-value="-0.05">-5%</button>
+                        <button class="vf-btn" data-gap-value="0">0s</button>
+                        <button class="vf-btn" data-gap-value="50">0.05s</button>
+                        <button class="vf-btn" data-gap-value="100">0.1s</button>
+                        <button class="vf-btn" data-gap-value="150">0.15s</button>
+                        <button class="vf-btn" data-gap-value="300">0.3s</button>
+                        <button class="vf-btn" data-gap-value="500">0.5s</button>
+                        <button class="vf-btn" data-gap-value="1000">1s</button>
                     </div>
                 </div>
 
@@ -212,15 +224,27 @@
                 </div>
             </div>
 
+            <!-- Display Toggles -->
+            <div class="display-toggles">
+                <label class="display-toggle">
+                    <input type="checkbox" id="showSequenceToggle">
+                    <span>Show Sequence</span>
+                </label>
+                <label class="display-toggle">
+                    <input type="checkbox" id="useAbbrevToggle">
+                    <span>Use Abbreviations</span>
+                </label>
+                <label class="display-toggle">
+                    <input type="checkbox" id="echoCommandsToggle">
+                    <span>Echo Commands</span>
+                </label>
+            </div>
+
             <!-- Voice Control Commands -->
             <div class="voice-control-commands">
                 <span class="vcc-label">Voice controls:</span>
                 <code>stop</code>
                 <code>play</code>
-                <label class="echo-toggle">
-                    <input type="checkbox" id="echoCommandsToggle">
-                    <span>Echo</span>
-                </label>
             </div>
 
             <!-- Saved Configurations (Presets) -->

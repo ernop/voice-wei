@@ -55,7 +55,6 @@ The scales feature plays musical patterns. Understanding the hierarchy:
 
 - **major, minor, etc.** - Play only scale degrees that fall within the section range
 - **chromatic** - Play ALL semitones in the section range
-- **continuous** - Smooth frequency glide through the entire range (no discrete notes)
 
 ## Examples
 
@@ -84,14 +83,14 @@ The scales feature plays musical patterns. Understanding the hierarchy:
 
 ## Movement Styles
 
-Movement styles add extra notes after each **section note**.
+Movement styles add extra notes around each **section note**.
 
 ### VITAL: Section Notes Are Sacred
 
 1. **Section notes** = the notes determined by scale + section length + direction
 2. **Every section note MUST be played AS a section note** - appearing as an "extra" doesn't count
 3. **Section ends ONLY after all section notes have been played as section notes**
-4. **Movement styles NEVER change which notes are section notes** - they only add extras after each one
+4. **Movement styles NEVER change which notes are section notes** - they only add extras
 
 ### VITAL: Determine Section Notes FIRST, Then Apply Movement
 
@@ -100,13 +99,9 @@ The order is absolute:
 2. **THEN**: Apply movement pattern to those section notes
 
 For up+down, deduplicate at the top:
-- Ascending: C D E F G A B C
-- Descending: C B A G F E D C  
-- Combined: C D E F G A B C B A G F E D C (NOT C D E F G A B C **C** B A G F E D C)
+- Combined: C D E F G A B C B A G F E D C (NOT ...B C **C** B...)
 
 For down+up, deduplicate at the bottom:
-- Descending: C5 B A G F E D C
-- Ascending: C D E F G A B C5
 - Combined: C5 B A G F E D C D E F G A B C5 (NOT ...D C **C** D...)
 
 ### VITAL: Timing Rules
@@ -115,37 +110,75 @@ For down+up, deduplicate at the bottom:
 2. **No movement style can EVER add extra gaps** - this is absolute
 3. **Section divider (1s gap)**: ONLY after the ENTIRE section finishes, ONLY when repeating forever
 
-### VITAL: Direction vs Movement Are Independent
+### VITAL: Round-Trip Final Note
 
-**Direction** (up, down, up+down, down+up) ONLY controls the ORDER of section notes.
+For **up+down** and **down+up** directions: the **final section note has NO move notes**.
+It's the resolution - you land on it cleanly without extras.
 
-**Movement extras** have FIXED rules that NEVER change based on direction:
-- Extras are ALWAYS found relative to the ascending scale
+For single directions (up or down only): move notes still play on final note.
+
+### Direction-Aware vs Direction-Independent Styles
+
+**Direction-INDEPENDENT** (extras always go the same way regardless of direction):
 - `stop_and_go`: ALWAYS adds notes ABOVE (higher pitch)
 - `one_three_five`: ALWAYS adds 3rd and 5th ABOVE
-- `neighbors`: ALWAYS lower neighbor then upper neighbor
-- `plus_semitone`: ALWAYS +1 semitone (chromatic, ignores scale)
-- `from_one`: section note then root
+- `chords`: ALWAYS plays root + 3rd + 5th simultaneously
+- `from_one`: ALWAYS plays root BEFORE section note
 
-Example - C major **down** with stop_and_go:
-- Section notes in descending order: C5, B4, A4, G4, F4, E4, D4, C4
-- Each gets extras ABOVE: C5-D5-E5, B4-C5-D5, A4-B4-C5, G4-A4-B4...
-- The extras go UP even though we're in the "down" part
+**Direction-AWARE** (extras follow the current direction):
+- `neighbors`: In ascending part: section, above, below. In descending part: section, below, above.
 
 ### Styles Reference
 
 | Style | Pattern | Example (C major octave) |
 |-------|---------|--------------------------|
 | normal | section note only | C, D, E, F, G, A, B, C |
-| stop_and_go | section note + 2 above | C-D-E, D-E-F, E-F-G... |
-| one_three_five | section note + 3rd + 5th | C-E-G, D-F-A, E-G-B... |
-| neighbors | section note + below + above | C-B-D, D-C-E, E-D-F... |
-| plus_semitone | section note + chromatic up | C-C#, D-D#, E-F... |
-| from_one | section note + root | C-C, D-C, E-C, F-C... |
+| stop_and_go | section + 2 above | Cde, Def, Efg... |
+| one_three_five | section + diatonic 3rd + 5th | Ceg, Dfa, Egb... |
+| neighbors | section + with-dir + against-dir | Cdb, Dec, Efd... (ascending) |
+| chords | section + 3rd + 5th simultaneous | [CEG], [DFA], [EGB]... |
+| from_one | root THEN section | cC, cD, cE, cF... |
 
-### Implementation
+### 1-3-5 Uses Diatonic Intervals
 
-- `degreesAscendingRef` is always passed to `buildMovementSequence` - the ascending scale used to find notes above/below
-- `getNotesAbove(note, scale, count)` finds N notes higher than the given note
-- `getNotesBelow(note, scale, count)` finds N notes lower than the given note
-- Extended scales (octave up/down) ensure extras are available even for boundary notes
+The 3rd and 5th are **diatonic** based on scale type:
+- **Minor scales** (minor, natural_minor, dorian, phrygian, aeolian): minor 3rd (3 semitones)
+- **Major scales** (major, lydian, mixolydian): major 3rd (4 semitones)
+- **Chromatic/other**: defaults to major intervals
+- **Fifth**: always perfect 5th (7 semitones)
+
+### Explicit Group Structure
+
+Groups are objects with explicit metadata - no guessing required:
+
+```javascript
+{
+    notes: ['C4', 'D4', 'E4'],  // playback order
+    sectionIndex: 0,            // which note is THE section note
+    isChord: false              // play simultaneously?
+}
+```
+
+Examples:
+- stop_and_go: `{ notes: ['C4', 'D4', 'E4'], sectionIndex: 0 }` - section first
+- from_one: `{ notes: ['C4', 'D4'], sectionIndex: 1 }` - section LAST
+- chords: `{ notes: ['C4', 'E4', 'G4'], sectionIndex: 0, isChord: true }`
+
+The playback and display code reads these properties directly. No special-casing by style name.
+
+### Finding Notes Above/Below (Pure Music Theory)
+
+`getNotesAbove` and `getNotesBelow` use pure arithmetic, not array manipulation:
+
+1. Extract scale pattern (note names only): `[C, D, E, F, G, A, B]`
+2. Find note's position in pattern
+3. Calculate next position with modular arithmetic
+4. Bump octave when wrapping around
+
+For B4 in C major, "2 notes above":
+- B is at index 6
+- Next (i=1): (6+1) % 7 = 0 = C, octave bumps to 5 → C5
+- Next (i=2): (6+2) % 7 = 1 = D, same octave 5 → D5
+- Result: [C5, D5]
+
+No "extending the scale array" needed. No duplicate notes possible.

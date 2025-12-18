@@ -14,7 +14,51 @@
     margin-bottom: 0;
 }
 
-/* Echo Toggle - compact, right-aligned */
+/* Display Toggles - row of toggle options, left-aligned */
+.display-toggles {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    justify-content: flex-start;
+}
+
+.display-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.display-toggle:hover {
+    background: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.display-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: #4ade80;
+    margin: 0;
+}
+
+.display-toggle:has(input:checked) {
+    background: rgba(74, 222, 128, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.display-toggle span {
+    font-weight: 500;
+}
+
+/* Echo Toggle - compact, right-aligned (legacy, kept for compatibility) */
 .echo-toggle {
     display: flex;
     align-items: center;
@@ -309,13 +353,15 @@
 }
 
 .piano-notification-command-cell {
-    text-align: right;
+    text-align: left;
     padding-right: 10px;
+    width: 280px;
+    min-width: 280px;
 }
 
 .piano-notification-command {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: nowrap;
     gap: 6px;
     align-items: center;
@@ -335,9 +381,6 @@
     flex: 0 0 auto;
 }
 
-.piano-notification-runtime-badge {
-    opacity: 0.55;
-}
 
 .piano-notification-note-cell {
     width: 7ch;
@@ -869,7 +912,7 @@
 
 .vf-row.vf-row-reset .vf-options {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: flex-start;
 }
 
 .vf-row .vf-label {
