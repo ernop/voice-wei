@@ -739,14 +739,14 @@ class VoiceMusicController {
         if (claudeModelEl) claudeModelEl.value = this.settings.claudeModel;
         this.updateModeToggle();
 
-        // Settings change handlers
-        if (readClaudeEl) readClaudeEl.addEventListener('change', (e) => {
+        // Settings change handlers - use 'input' for immediate response as user adjusts
+        if (readClaudeEl) readClaudeEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
             this.settings.readClaudeResponse = target.checked;
             this.saveSettings();
         });
 
-        if (autoSubmitEl) autoSubmitEl.addEventListener('change', (e) => {
+        if (autoSubmitEl) autoSubmitEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
             this.settings.autoSubmitMode = target.checked;
             this.saveSettings();
@@ -760,7 +760,7 @@ class VoiceMusicController {
             }
         });
 
-        if (claudeModelEl) claudeModelEl.addEventListener('change', (e) => {
+        if (claudeModelEl) claudeModelEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.settings.claudeModel = target.value;
             this.saveSettings();

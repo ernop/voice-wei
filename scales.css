@@ -298,9 +298,8 @@
 }
 
 .piano-notification-table {
-    width: 100%;
+    margin: 0 auto;
     border-collapse: collapse;
-    table-layout: fixed;
 }
 
 .piano-notification-table td {
@@ -310,7 +309,6 @@
 }
 
 .piano-notification-command-cell {
-    width: 0;
     text-align: right;
     padding-right: 10px;
 }
@@ -359,6 +357,31 @@
 
 .piano-notification-note-cell.empty {
     color: rgba(255, 255, 255, 0.25);
+}
+
+/* Note Sequence Preview */
+.note-sequence-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 8px 0;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    overflow-x: auto;
+}
+
+.note-sequence-label {
+    color: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+}
+
+.note-sequence {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
 }
 
 .piano-keys {
@@ -459,7 +482,7 @@
 }
 
 .black-key.scale-note {
-    background: linear-gradient(180deg, #4b5563 0%, #374151 100%);
+    background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
 }
 
 /* Command Reference */

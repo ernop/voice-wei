@@ -399,7 +399,7 @@ class VoiceCommandCore {
 
         if (echoToggle) {
             echoToggle.checked = this.settings.echoCommands;
-            echoToggle.addEventListener('change', (e) => {
+            echoToggle.addEventListener('input', (e) => {
                 const target = /** @type {HTMLInputElement} */ (e.target);
                 this.settings.echoCommands = target.checked;
             });

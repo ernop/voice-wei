@@ -129,8 +129,8 @@ Modifiers can be combined with any scale, arpeggio, or interval command.
 | *(default)* | Play once, stop (off) |
 | `once` | Play one time |
 | `twice` | Play 2 times |
-| `repeat` / `loop` / `forever` / `foreverer` | Loop until "stop" |
-| `foreverer` | Loop until "stop" with a ~0.2s gap between sections (not the between-notes gap) |
+| `repeat` / `loop` / `forever` / `forever` | Loop until "stop" |
+| `forever` | Loop until "stop" with a ~0.2s gap between sections (not the between-notes gap) |
 | `forever no gap` | Loop until "stop", with no gap between sections (not the between-notes gap) |
 
 ### Direction

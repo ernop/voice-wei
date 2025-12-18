@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v00.00018</span>
+                <span class="version-label">v00.00021</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -71,9 +71,14 @@
                 <div class="piano-keys" id="pianoKeys"></div>
             </div>
 
-            <!-- Pattern Preview -->
-            <div class="pattern-preview-container">
-                <div class="pattern-preview" id="patternPreview"></div>
+            <!-- Note Sequence Preview (always visible, for testing/validation) -->
+            <div class="note-sequence-container" id="noteSequenceContainer">
+                <span class="note-sequence-label">Sequence:</span>
+                <code class="note-sequence" id="noteSequence">--</code>
+            </div>
+            <div class="note-sequence-container" id="actuallyPlayedContainer">
+                <span class="note-sequence-label">Played:</span>
+                <code class="note-sequence" id="actuallyPlayed">--</code>
             </div>
 
             <!-- Voice-First Scale Builder - All Bidirectional Controls -->
@@ -87,7 +92,7 @@
                         <button class="vf-btn" data-repeat="0">off</button>
                         <button class="vf-btn" data-repeat="1">once</button>
                         <button class="vf-btn" data-repeat="2">twice</button>
-                        <button class="vf-btn" data-repeat="Infinity">foreverer</button>
+                        <button class="vf-btn" data-repeat="Infinity">forever</button>
                         <button class="vf-btn" data-repeat="Infinity-nogap">forever no gap</button>
                     </div>
                     <span class="vf-label vf-label-inline">Rising</span>
@@ -151,11 +156,23 @@
                         <button class="vf-btn" data-scale-type="pentatonic">pentatonic</button>
                         <button class="vf-btn" data-scale-type="harmonic_minor">harmonic minor</button>
                         <button class="vf-btn" data-scale-type="melodic_minor">melodic minor</button>
+                        <button class="vf-btn" data-scale-type="continuous">continuous</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
-                    <span class="vf-label">Length</span>
+                    <span class="vf-label">Section Length</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-section-length="1o">1 octave</button>
+                        <button class="vf-btn" data-section-length="1o+3">octave+3rd</button>
+                        <button class="vf-btn" data-section-length="1o+5">octave+5th</button>
+                        <button class="vf-btn" data-section-length="2o">2 octaves</button>
+                        <button class="vf-btn" data-section-length="centered">-3rd to oct+3rd</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label">Note Length</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-length="0">0.15s</button>
                         <button class="vf-btn" data-length="1">0.3s</button>
