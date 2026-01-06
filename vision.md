@@ -243,6 +243,85 @@
 - Bluetooth microphone support
 
 ---
+
+# Scales Tab - Detailed Vision (from voice notes)
+
+## Core Purpose
+Voice-controlled practice patterns for singing and ear training. User listens while driving (hands-free) and practices along. Goal: develop high availability of correct musical tones - hear it, match it instantly.
+
+## Extra Note Patterns (The Hard Part)
+
+The transcript describes embellishment patterns that add "extra notes" (also called "grace notes") around each scale note:
+
+### Pattern Types
+
+| Pattern | Description | Example (C major up) |
+|---------|-------------|---------------------|
+| **interleave-1** | Return to root after each note | C-C-D-C-E-C-F-C-G-C-A-C-B-C-C |
+| **+1, +2** | Add next 2 scale degrees after each note | C-D-E, D-E-F, E-F-G, F-G-A, G-A-B, A-B-C |
+| **+1, +3** | Add 2nd and 4th above (skip one) | C-D-F, D-E-G, E-F-A, F-G-B... |
+| **+1, -1** | "Dance around" - above then below | C-D-B, D-E-C, E-F-D... |
+
+### Key Distinction: Scale Notes vs Extra Notes
+
+- **Scale notes**: The backbone (1-8 in an octave) - BOUNDED to section range
+- **Extra notes**: Embellishments that can EXCEED section range (to 9, 10, 11...)
+
+This distinction was a source of bugs. The system confused them, causing issues when implementing complex patterns.
+
+### Connectedness (Turnaround Logic)
+
+Like running up steps and turning around - you don't take two steps on the same spot:
+
+- **WRONG**: 1-2-3-4-5-6-7-8-**8**-7-6-5-4-3-2-1
+- **RIGHT**: 1-2-3-4-5-6-7-8-7-6-5-4-3-2-1
+
+The top note serves dual purpose (end of up, start of down). Same at bottom when looping without gaps: ...3-2-1-2-3... (not 1-**1**-2).
+
+### Clean Endings
+
+Extra notes do NOT extend past the final note. The ear expects resolution:
+
+With +1,+2 pattern ending:
+- ...3-4-5, 2-3-4, **1** (stops clean)
+- NOT: ...2-3-4, 1-2-3 (extras would overshoot)
+
+## Future Feature: Pitch Detection ("Also Listen" Mode)
+
+- Toggle microphone listening during playback
+- Visual pitch accuracy meter
+- Real-time feedback: "go down a little bit"
+- Grade overall accuracy
+- May work even with overlapping audio (speaker + mic simultaneous)
+
+## Future Feature: Professional Vocal Exercises
+
+Research what coaches actually use. Example "rising" pattern:
+
+```
+1-2-3-4-5-4-3-2-1  (start on C)
+2-3-4-5-6-5-4-3-2  (start on D)
+3-4-5-6-7-6-5-4-3  (start on E)
+4-5-6-7-8-7-6-5-4  (start on F)
+...
+```
+
+Each repetition shifts up one scale degree, training the voice across ranges.
+
+## Voice UI Design Details
+
+- Big button at top for voice input
+- Commands like "F3 chromatic scale up and down forever no gap"
+- Modifiers: "plus one plus two", "trills"
+- Settings have sensible defaults
+- Saying "D major" may contextually reset some modifiers (like extra patterns) but not others
+- Option to say "done" or just wait - then playback starts
+- Read back what was understood
+
+## Personal Training Goal
+User tends to jump too high (around scale degrees 6-7-8). Want exercises that train control in lower range.
+
+---
 # Vision & Roadmap
 
 ## Short-term Improvements
