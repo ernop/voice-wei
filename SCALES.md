@@ -308,17 +308,35 @@ Example: If Note Length is "short" but you say "slowly chromatic scale", it play
 
 The goal is to support more sophisticated vocal training patterns beyond basic scales. These patterns add "extra notes" (also called "grace notes") around each scale note.
 
-### Pattern Types
+### Movement Patterns (Extra Notes)
 
 | Pattern | Voice Command | Description | Example (C major up) |
 |---------|---------------|-------------|---------------------|
 | +1+2 | "stop and go" | Add next 2 scale degrees | C-D-E, D-E-F, E-F-G... |
 | 1-3-5 | "one three five", "triads" | Add 3rd and 5th above | C-E-G, D-F-A, E-G-B... |
-| neighbors | "neighbors" | Direction-aware: above then below (or reverse) | C-D-B, D-E-C, E-F-D... |
+| neighbors (dir) | "neighbors" | Direction-aware: above then below (or reverse) | C-D-B (up), C-B-D (down) |
 | from 1 | "from one", "from the root" | Root first, then section note | c-D, c-E, c-F, c-G... |
 | to 1 | "to one", "interleave", "return to root" | Section note, then back to root | D-c, E-c, F-c, G-c... |
-| +1-1 | "plus minus one", "dance around" | Section, above, below | C-D-B, D-E-C, E-F-D... |
+| +1-1 (fixed) | "plus minus one", "dance around" | Always: section, above, below | C-D-B, D-E-C, E-F-D... |
 | chords | "chords" | Play as simultaneous chord | [CEG], [DFA], [EGB]... |
+
+### Exercise Patterns (Presets)
+
+| Exercise | Voice Command | Pattern | Description |
+|----------|---------------|---------|-------------|
+| 5-note | "five note warmup", "warmup" | 1-2-3-4-5-4-3-2-1 | Classic vocal warmup |
+| oct jump | "octave jump" | 1-8-1 | Root to octave and back |
+| arp return | "arpeggio return", "arp return" | 1-3-5-8-5-3-1 | Up the chord and back |
+| thirds | "thirds", "skip pattern" | 1-3-2-4-3-5-4-6... | Alternating steps and skips |
+
+### Shifting vs Rising
+
+| Mode | Voice Command | Behavior |
+|------|---------------|----------|
+| Rising | "rising" | Transposes the entire scale up (C major -> D major -> E major) |
+| Shifting | "shifting", "walking" | Shifts starting note within same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major) |
+
+Exercises default to shifting mode. Rising and shifting are mutually exclusive.
 
 ### Key Concepts
 

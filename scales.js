@@ -351,6 +351,8 @@ const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
  * @property {number | null} [rangeExpansion]
  * @property {number | null} [octaveSpan]
  * @property {number | null} [repeatGapMs]
+ * @property {string | null} [exercise]
+ * @property {number | null} [shiftingSteps]
  */
 
 /**
@@ -428,7 +430,9 @@ class ScalesController {
             root: 'C',
             rangeExpansion: 0,  // 0-6: extra notes on each end for "wide scale"
             octaveSpan: 1,      // 1 or 2: how many octaves to span
-            sectionLength: '1o' // '1o', '1o+3', '1o+5', '2o', 'centered'
+            sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
+            exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
+            shiftingSteps: 0  // 0=off, 1=shift up 1 scale degree each repeat, etc.
         };
 
         // Default settings for reset (and for voice commands which reset first)
@@ -445,7 +449,20 @@ class ScalesController {
             root: 'C',
             rangeExpansion: 0,
             octaveSpan: 1,
-            sectionLength: '1o'
+            sectionLength: '1o',
+            exercise: 'none',
+            shiftingSteps: 0
+        };
+
+        // Exercise patterns: arrays of scale degree offsets from starting note
+        // e.g., [0,1,2,3,4,3,2,1,0] = 1-2-3-4-5-4-3-2-1 (five_note warmup)
+        /** @type {Record<string, number[]>} */
+        this.exercisePatterns = {
+            'none': [], // Use full scale
+            'five_note': [0, 1, 2, 3, 4, 3, 2, 1, 0], // 1-2-3-4-5-4-3-2-1
+            'octave_jump': [0, 7, 0], // 1-8-1
+            'arpeggio_return': [0, 2, 4, 7, 4, 2, 0], // 1-3-5-8-5-3-1
+            'thirds': [0, 2, 1, 3, 2, 4, 3, 5, 4, 6, 5, 7] // 1-3-2-4-3-5-4-6-5-7-6-8
         };
 
         // Maps tempo voice commands to ms values
@@ -596,6 +613,26 @@ class ScalesController {
         this.settings.risingSemitones = semitones;
         if (semitones > 0 && this.settings.repeatCount !== Infinity) {
             this.settings.repeatCount = Infinity;
+            // Rising and shifting are mutually exclusive
+            this.settings.shiftingSteps = 0;
+        }
+    }
+
+    // Shifting implies forever - if shifting is enabled and repeat isn't already forever, set it
+    setShiftingSteps(steps) {
+        this.settings.shiftingSteps = steps;
+        if (steps > 0 && this.settings.repeatCount !== Infinity) {
+            this.settings.repeatCount = Infinity;
+            // Rising and shifting are mutually exclusive
+            this.settings.risingSemitones = 0;
+        }
+    }
+
+    // Set exercise and optionally enable shifting
+    setExercise(exercise, enableShifting = false) {
+        this.settings.exercise = exercise;
+        if (enableShifting && exercise !== 'none') {
+            this.setShiftingSteps(1); // Default to shifting by 1 scale degree
         }
     }
 
@@ -746,6 +783,8 @@ class ScalesController {
         if (c.direction) parts.push(dirLabels[c.direction] || c.direction);
         if (c.risingSemitones) parts.push(`rising ${this.getRisingLabel(c.risingSemitones)}`);
         if (c.movementStyle && c.movementStyle !== 'normal') parts.push(this.getMovementLabel(c.movementStyle));
+        if (c.exercise && c.exercise !== 'none') parts.push(this.getExerciseLabel(c.exercise));
+        if (c.shiftingSteps && c.shiftingSteps > 0) parts.push('shifting');
         if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
         if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
         if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${this.formatMsLabel(c.noteLengthMs)}`);
@@ -1073,6 +1112,19 @@ class ScalesController {
             btn.classList.toggle('selected', semitones === this.settings.risingSemitones);
         });
 
+        // Exercise buttons
+        document.querySelectorAll('[data-exercise]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', btn.dataset.exercise === this.settings.exercise);
+        });
+
+        // Shifting buttons
+        document.querySelectorAll('[data-shifting]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const steps = parseInt(btn.dataset.shifting || '0');
+            btn.classList.toggle('selected', steps === this.settings.shiftingSteps);
+        });
+
         // Movement buttons
         document.querySelectorAll('[data-movement]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1159,7 +1211,9 @@ class ScalesController {
             movementStyle: this.settings.movementStyle,
             rangeExpansion: this.settings.rangeExpansion,
             octaveSpan: this.settings.octaveSpan,
-            repeatGapMs: this.settings.repeatGapMs
+            repeatGapMs: this.settings.repeatGapMs,
+            exercise: this.settings.exercise,
+            shiftingSteps: this.settings.shiftingSteps
         };
     }
 
@@ -1183,6 +1237,12 @@ class ScalesController {
         }
         if (s.risingSemitones !== d.risingSemitones) {
             parts.push(`rise: ${this.getRisingLabel(s.risingSemitones)}`);
+        }
+        if (s.exercise !== d.exercise) {
+            parts.push(`ex: ${this.getExerciseLabel(s.exercise)}`);
+        }
+        if (s.shiftingSteps !== d.shiftingSteps && s.shiftingSteps > 0) {
+            parts.push('shifting');
         }
         if (s.octave !== d.octave) {
             parts.push(`oct ${s.octave}`);
@@ -1269,6 +1329,25 @@ class ScalesController {
             const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
                 this.setRisingSemitones(parseInt(btn.dataset.rising || '0'));
+                this.onSettingChanged();
+            });
+        });
+
+        // Exercise buttons
+        document.querySelectorAll('[data-exercise]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                const exercise = btn.dataset.exercise || 'none';
+                this.setExercise(exercise, exercise !== 'none'); // Enable shifting for exercises
+                this.onSettingChanged();
+            });
+        });
+
+        // Shifting buttons
+        document.querySelectorAll('[data-shifting]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.setShiftingSteps(parseInt(btn.dataset.shifting || '0'));
                 this.onSettingChanged();
             });
         });
@@ -1641,6 +1720,38 @@ class ScalesController {
             text = text.replace(/\brising\b/, '').replace(/\bmodulat(e|ing)\b/, '').replace(/\btranspose\b/, '');
         }
 
+        // Exercise patterns
+        if (text.match(/\b(5|five)\s*note\s*(warmup|warm\s*up|exercise)?\b/) || text.match(/\bwarmup\b/)) {
+            modifiers.exercise = 'five_note';
+            modifiers.shiftingSteps = 1; // Default to shifting for warmups
+            text = text.replace(/\b(5|five)\s*note\s*(warmup|warm\s*up|exercise)?\b/, '').replace(/\bwarmup\b/, '');
+        } else if (text.match(/\boctave\s*jump\b/)) {
+            modifiers.exercise = 'octave_jump';
+            modifiers.shiftingSteps = 1;
+            text = text.replace(/\boctave\s*jump\b/, '');
+        } else if (text.match(/\b(arpeggio|arp)\s*return\b/) || text.match(/\breturn\s*(arpeggio|arp)\b/)) {
+            modifiers.exercise = 'arpeggio_return';
+            modifiers.shiftingSteps = 1;
+            text = text.replace(/\b(arpeggio|arp)\s*return\b/, '').replace(/\breturn\s*(arpeggio|arp)\b/, '');
+        } else if (text.match(/\bthirds\s*(exercise)?\b/) || text.match(/\bskip\s*(pattern|exercise)?\b/)) {
+            modifiers.exercise = 'thirds';
+            modifiers.shiftingSteps = 1;
+            text = text.replace(/\bthirds\s*(exercise)?\b/, '').replace(/\bskip\s*(pattern|exercise)?\b/, '');
+        } else if (text.match(/\bno\s*exercise\b/) || text.match(/\bexercise\s*off\b/) || text.match(/\bfull\s*scale\b/)) {
+            modifiers.exercise = 'none';
+            modifiers.shiftingSteps = 0;
+            text = text.replace(/\bno\s*exercise\b/, '').replace(/\bexercise\s*off\b/, '').replace(/\bfull\s*scale\b/, '');
+        }
+
+        // Shifting modifiers (separate from exercise - can be combined)
+        if (text.match(/\b(no|without)\s+shift(ing)?\b/) || text.match(/\bshift(ing)?\s+off\b/)) {
+            modifiers.shiftingSteps = 0;
+            text = text.replace(/\b(no|without)\s+shift(ing)?\b/, '').replace(/\bshift(ing)?\s+off\b/, '');
+        } else if (text.match(/\bshift(ing)?\b/) || text.match(/\bwalk(ing)?\b/)) {
+            modifiers.shiftingSteps = 1; // Default to shifting by 1 scale degree
+            text = text.replace(/\bshift(ing)?\b/, '').replace(/\bwalk(ing)?\b/, '');
+        }
+
         // Tempo modifiers (check longer phrases first)
         if (text.match(/\bsuper\s+slow(ly)?\b/) || text.match(/\bsuper\s+long\b/)) {
             modifiers.tempo = 'super slow';
@@ -1840,6 +1951,44 @@ class ScalesController {
             this.setRisingSemitones(semitones);
             this.syncUIToSettings();
             return { type: 'setting', setting: 'risingSemitones', value: semitones };
+        }
+
+        // Standalone exercise commands
+        if (originalLower.match(/^(5|five)\s*note\s*(warmup|warm\s*up|exercise)?$/) || originalLower.match(/^warmup$/)) {
+            this.setExercise('five_note', true);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'exercise', value: 'five_note' };
+        }
+        if (originalLower.match(/^octave\s*jump$/)) {
+            this.setExercise('octave_jump', true);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'exercise', value: 'octave_jump' };
+        }
+        if (originalLower.match(/^(arpeggio|arp)\s*return$/) || originalLower.match(/^return\s*(arpeggio|arp)$/)) {
+            this.setExercise('arpeggio_return', true);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'exercise', value: 'arpeggio_return' };
+        }
+        if (originalLower.match(/^thirds(\s*exercise)?$/) || originalLower.match(/^skip(\s*pattern)?$/)) {
+            this.setExercise('thirds', true);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'exercise', value: 'thirds' };
+        }
+        if (originalLower.match(/^(no\s*exercise|exercise\s*off|full\s*scale)$/)) {
+            this.settings.exercise = 'none';
+            this.settings.shiftingSteps = 0;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'exercise', value: 'none' };
+        }
+        if (originalLower.match(/^shift(ing)?(\s+on)?$/) || originalLower.match(/^walk(ing)?$/)) {
+            this.setShiftingSteps(1);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'shiftingSteps', value: 1 };
+        }
+        if (originalLower.match(/^(no\s*shift(ing)?|shift(ing)?\s*off)$/)) {
+            this.settings.shiftingSteps = 0;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'shiftingSteps', value: 0 };
         }
 
         // Single note: "play C", "note D", "C sharp", "B flat"
@@ -2623,13 +2772,25 @@ class ScalesController {
             normal: 'normal',
             stop_and_go: 'stop-and-go',
             one_three_five: '1-3-5',
-            neighbors: 'neighbors',
+            neighbors: 'neighbors (dir)',
             chords: 'chords',
             from_one: 'from 1',
             to_one: 'to 1',
-            plus_minus_one: '+1-1'
+            plus_minus_one: '+1-1 (fixed)'
         };
         return map[style] || style;
+    }
+
+    getExerciseLabel(exercise) {
+        /** @type {Record<string, string>} */
+        const map = {
+            none: 'full scale',
+            five_note: '5-note',
+            octave_jump: 'oct jump',
+            arpeggio_return: 'arp return',
+            thirds: 'thirds'
+        };
+        return map[exercise] || exercise;
     }
 
     /**
@@ -3076,6 +3237,24 @@ class ScalesController {
         const rootNote = `${root}${this.settings.octave}`;
         const rootMidi = this.noteStringToMidi(rootNote);
 
+        // Check for exercise mode
+        const exercise = modifiers.exercise ?? this.settings.exercise;
+        const shiftingSteps = modifiers.shiftingSteps ?? this.settings.shiftingSteps;
+        const exercisePattern = this.exercisePatterns[exercise];
+
+        // If we have an exercise pattern with shifting, use the specialized player
+        if (exercisePattern && exercisePattern.length > 0) {
+            await this.playExercise(root, scaleType, exercisePattern, modifiers, {
+                degreesAscAll,
+                rootNote,
+                rootMidi,
+                rootIndex,
+                fullPattern,
+                shiftingSteps
+            });
+            return;
+        }
+
         // STEP 1: Determine section notes based on direction (with deduplication at turn points)
         const direction = modifiers.direction || this.settings.direction;
         const ascending = degreesAscAll;
@@ -3230,6 +3409,124 @@ class ScalesController {
                         await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
                     }
                     // With rising: no gap, flows to next transposition
+                }
+            }
+        } finally {
+            if (this.audio.playbackId === playId) {
+                this.audio.isPlaying = false;
+            }
+        }
+
+        this.clearPianoHighlights();
+        this.voiceCore.updateStatus('Ready');
+        this.setPianoNotificationActiveNotes([]);
+        this.updateScalePreview();
+    }
+
+    /**
+     * Play an exercise pattern with optional shifting
+     * @param {string} root - Root note name
+     * @param {string} scaleType - Scale type
+     * @param {number[]} exercisePattern - Array of scale degree offsets (0=root, 1=2nd, 2=3rd, etc.)
+     * @param {ScaleModifiers} modifiers
+     * @param {Object} context - Pre-computed scale context
+     */
+    async playExercise(root, scaleType, exercisePattern, modifiers, context) {
+        const { degreesAscAll, rootNote, rootMidi, shiftingSteps } = context;
+
+        this.clearScalePreview();
+        this.clearActuallyPlayed();
+
+        // Build an extended scale (2+ octaves) to support shifting
+        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        const rootIndex = NOTE_NAMES.indexOf(root);
+        const extendedScale = [];
+
+        // Build 3 octaves of scale notes for shifting room
+        for (let octaveShift = 0; octaveShift < 3; octaveShift++) {
+            for (const interval of basePattern.slice(0, -1)) { // Exclude the octave duplicate
+                const noteIndex = (rootIndex + interval) % 12;
+                const octave = this.settings.octave + octaveShift + Math.floor((rootIndex + interval) / 12);
+                extendedScale.push(`${NOTE_NAMES[noteIndex]}${octave}`);
+            }
+        }
+        // Add final note
+        const lastInterval = basePattern[basePattern.length - 1] || 12;
+        const lastOctaveShift = 2;
+        extendedScale.push(`${NOTE_NAMES[(rootIndex + lastInterval) % 12]}${this.settings.octave + lastOctaveShift + Math.floor((rootIndex + lastInterval) / 12)}`);
+
+        // Repeat settings
+        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
+        const isInfinite = playTimes === Infinity;
+        const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
+
+        const playId = this.audio.requestSequencePlayback();
+        let r = 0;
+
+        // Get exercise label for display
+        const exerciseLabels = {
+            'five_note': '5-note',
+            'octave_jump': 'oct jump',
+            'arpeggio_return': 'arp return',
+            'thirds': 'thirds'
+        };
+        const exerciseName = exerciseLabels[this.settings.exercise] || this.settings.exercise;
+
+        try {
+            while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
+                // Calculate starting index in the extended scale based on shift
+                const startingDegree = shiftingSteps * r;
+
+                // Build notes for this iteration by applying pattern from starting degree
+                const notes = [];
+                for (const offset of exercisePattern) {
+                    const scaleIndex = startingDegree + offset;
+                    if (scaleIndex >= 0 && scaleIndex < extendedScale.length) {
+                        notes.push(extendedScale[scaleIndex]);
+                    }
+                }
+
+                if (notes.length === 0) {
+                    // Ran out of scale - stop
+                    break;
+                }
+
+                // Calculate current root for interval display
+                const currentRootNote = extendedScale[startingDegree] || rootNote;
+                const currentRootMidi = this.noteStringToMidi(currentRootNote);
+
+                // Play each note
+                for (let i = 0; i < notes.length; i++) {
+                    if (!this.audio.isPlaybackValid(playId)) break;
+
+                    const note = notes[i];
+                    const duration = this.getNoteDuration(modifiers);
+
+                    this.highlightPianoKey(note);
+                    const shiftLabel = shiftingSteps > 0 ? ` (shift ${r + 1})` : '';
+                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${note}`);
+                    this.setPianoNotificationActiveNotes([note]);
+                    this.appendActuallyPlayed(note, true);
+
+                    this.audio.synth.triggerAttackRelease(note, duration.tone);
+                    await this.audio.sleep(duration.ms + duration.gap);
+                }
+
+                r++;
+
+                // Gap between repetitions
+                const hasMore = isInfinite || r < playTimes;
+                if (hasMore && this.audio.isPlaybackValid(playId)) {
+                    this.clearActuallyPlayed();
+
+                    if (shiftingSteps === 0) {
+                        // No shifting: gap between identical repeats
+                        await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
+                    } else {
+                        // With shifting: brief gap to indicate new starting note
+                        await this.audio.sleep(300);
+                    }
                 }
             }
         } finally {
@@ -3468,7 +3765,9 @@ class ScalesController {
                 tempo: this.msToTempoName(this.settings.noteLengthMs),
                 gap: null, // gap is handled via gapMs directly
                 repeat: this.settings.repeatCount,
-                repeatGapMs: this.settings.repeatGapMs
+                repeatGapMs: this.settings.repeatGapMs,
+                exercise: this.settings.exercise,
+                shiftingSteps: this.settings.shiftingSteps
             }
         };
 
