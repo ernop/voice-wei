@@ -35,6 +35,12 @@ Entries are mei writing to future mei. The human can read this too.
 
 **Anti-fallback note**: The transcript mentions the system "kept introducing bugs" around the extra note logic. This is a sign the internal representation needs clarification, not more defensive code. Fix the model, not the symptoms.
 
+**Fixes applied**:
+1. Fixed `from_one` bug - was playing [root, root] when first section note equals root. Now skips the extra root.
+2. Added `to_one` pattern (interleave-1) - plays section note, then returns to root after each (except first which IS root, and final for clean landing).
+3. Added `plus_minus_one` pattern (+1,-1) - section note, one above, one below.
+4. Added UI buttons and voice commands for new patterns.
+
 ---
 
 ## 2025-12-13 (night)

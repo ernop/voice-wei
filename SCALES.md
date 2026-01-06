@@ -308,14 +308,17 @@ Example: If Note Length is "short" but you say "slowly chromatic scale", it play
 
 The goal is to support more sophisticated vocal training patterns beyond basic scales. These patterns add "extra notes" (also called "grace notes") around each scale note.
 
-### Planned Pattern Types
+### Pattern Types
 
-| Pattern | Description | Example (C major up) |
-|---------|-------------|---------------------|
-| interleave-1 | After each note, return to root | C-C-D-C-E-C-F-C-G-C-A-C-B-C-C |
-| +1, +2 | Add next 2 scale degrees | C-D-E, D-E-F, E-F-G, F-G-A... |
-| +1, +3 | Add 2nd and 4th above | C-D-F, D-E-G, E-F-A... |
-| +1, -1 | Dance around (above, below) | C-D-B, D-E-C, E-F-D... |
+| Pattern | Voice Command | Description | Example (C major up) |
+|---------|---------------|-------------|---------------------|
+| +1+2 | "stop and go" | Add next 2 scale degrees | C-D-E, D-E-F, E-F-G... |
+| 1-3-5 | "one three five", "triads" | Add 3rd and 5th above | C-E-G, D-F-A, E-G-B... |
+| neighbors | "neighbors" | Direction-aware: above then below (or reverse) | C-D-B, D-E-C, E-F-D... |
+| from 1 | "from one", "from the root" | Root first, then section note | c-D, c-E, c-F, c-G... |
+| to 1 | "to one", "interleave", "return to root" | Section note, then back to root | D-c, E-c, F-c, G-c... |
+| +1-1 | "plus minus one", "dance around" | Section, above, below | C-D-B, D-E-C, E-F-D... |
+| chords | "chords" | Play as simultaneous chord | [CEG], [DFA], [EGB]... |
 
 ### Key Concepts
 

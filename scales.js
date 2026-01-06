@@ -1598,6 +1598,12 @@ class ScalesController {
         } else if (text.match(/\bfrom\s+(1|one)\b/) || text.match(/\bfrom\s+the\s+root\b/) || text.match(/\broot\s+always\b/)) {
             modifiers.movementStyle = 'from_one';
             text = text.replace(/\bfrom\s+(1|one)\b/, '').replace(/\bfrom\s+the\s+root\b/, '').replace(/\broot\s+always\b/, '');
+        } else if (text.match(/\bto\s+(1|one)\b/) || text.match(/\bto\s+the\s+root\b/) || text.match(/\binterleave\s*(1|one)?\b/) || text.match(/\breturn\s+to\s+root\b/)) {
+            modifiers.movementStyle = 'to_one';
+            text = text.replace(/\bto\s+(1|one)\b/, '').replace(/\bto\s+the\s+root\b/, '').replace(/\binterleave\s*(1|one)?\b/, '').replace(/\breturn\s+to\s+root\b/, '');
+        } else if (text.match(/\bplus\s*minus\s*(1|one)\b/) || text.match(/\b\+1\s*-1\b/) || text.match(/\bdance\s+around\b/)) {
+            modifiers.movementStyle = 'plus_minus_one';
+            text = text.replace(/\bplus\s*minus\s*(1|one)\b/, '').replace(/\b\+1\s*-1\b/, '').replace(/\bdance\s+around\b/, '');
         } else if (text.match(/\bnormal\s+movement\b/) || text.match(/\bnormal\b/)) {
             modifiers.movementStyle = 'normal';
             text = text.replace(/\bnormal\s+movement\b/, '').replace(/\bnormal\b/, '');
@@ -1798,6 +1804,16 @@ class ScalesController {
             this.settings.movementStyle = 'from_one';
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'from_one' };
+        }
+        if (originalLower.match(/^(to\s+(1|one)|to\s+the\s+root|interleave\s*(1|one)?|return\s+to\s+root)$/)) {
+            this.settings.movementStyle = 'to_one';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'to_one' };
+        }
+        if (originalLower.match(/^(plus\s*minus\s*(1|one)|\+1\s*-1|dance\s+around)$/)) {
+            this.settings.movementStyle = 'plus_minus_one';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_one' };
         }
         if (originalLower.match(/^(normal\s+movement|normal)$/)) {
             this.settings.movementStyle = 'normal';
@@ -2503,6 +2519,8 @@ class ScalesController {
             else if (mods.movementStyle === 'neighbors') parts.push('neighbors');
             else if (mods.movementStyle === 'chords') parts.push('chords');
             else if (mods.movementStyle === 'from_one') parts.push('from one');
+            else if (mods.movementStyle === 'to_one') parts.push('to one');
+            else if (mods.movementStyle === 'plus_minus_one') parts.push('plus minus one');
         }
 
         // Rising / modulation
@@ -2607,7 +2625,9 @@ class ScalesController {
             one_three_five: '1-3-5',
             neighbors: 'neighbors',
             chords: 'chords',
-            from_one: 'from 1'
+            from_one: 'from 1',
+            to_one: 'to 1',
+            plus_minus_one: '+1-1'
         };
         return map[style] || style;
     }
@@ -2701,13 +2721,44 @@ class ScalesController {
         } else if (style === 'from_one') {
             // Root first, then section note - section note is LAST
             // Skip extras on final note (land cleanly)
+            // Skip extras when section note IS the root (don't play root twice)
+            for (let i = 0; i < sectionNotes.length; i++) {
+                const note = sectionNotes[i];
+                if (i === lastIndex || note === rootNote) {
+                    // Final note or note is already the root - just the section note
+                    groups.push(makeGroup([note], 0));
+                } else {
+                    // [rootNote, sectionNote] - sectionIndex is 1 (last)
+                    groups.push(makeGroup([rootNote, note], 1));
+                }
+            }
+        } else if (style === 'to_one') {
+            // Section note, then return to root - section note is FIRST (interleave-1)
+            // Skip root return on first note (it IS the root) and final note (clean landing)
+            for (let i = 0; i < sectionNotes.length; i++) {
+                const note = sectionNotes[i];
+                if (i === 0 || i === lastIndex || note === rootNote) {
+                    // First note, final note, or note is already root - just the section note
+                    groups.push(makeGroup([note], 0));
+                } else {
+                    // [sectionNote, rootNote] - sectionIndex is 0 (first)
+                    groups.push(makeGroup([note, rootNote], 0));
+                }
+            }
+        } else if (style === 'plus_minus_one') {
+            // Dance around each note: section note, +1 above, -1 below
+            // Skip extras on final note (land cleanly)
             for (let i = 0; i < sectionNotes.length; i++) {
                 const note = sectionNotes[i];
                 if (i === lastIndex) {
                     groups.push(makeGroup([note], 0));
                 } else {
-                    // [rootNote, sectionNote] - sectionIndex is 1 (last)
-                    groups.push(makeGroup([rootNote, note], 1));
+                    const aboveNotes = this.getNotesAbove(note, ascendingScale, 1);
+                    const belowNotes = this.getNotesBelow(note, ascendingScale, 1);
+                    const moveNotes = [note];
+                    if (aboveNotes.length > 0) moveNotes.push(aboveNotes[0]);
+                    if (belowNotes.length > 0) moveNotes.push(belowNotes[0]);
+                    groups.push(makeGroup(moveNotes, 0));
                 }
             }
         } else if (style === 'chords') {

@@ -232,13 +232,14 @@ Example with +1, +2 pattern, ascending to 8:
 - ...B: B-C-D (where C=9, D=10, that's OK)
 - ...C(8): just C (CLEAN - no extras on final note)
 
-### Planned Extra Patterns
+### Implemented Extra Patterns
 
-| Pattern Name | Code | Example on C | Description |
-|--------------|------|--------------|-------------|
-| interleave-1 | `from_root` | C,C,D,C,E,C,F,C... | Return to root after each note |
-| +1,+2 | `step_up_2` | CDE,DEF,EFG... | Add next 2 scale degrees |
-| +1,+3 | `step_up_skip` | CDF,DEG,EFA... | Add 2nd and 4th above |
-| +1,-1 | `neighbor` | CDB,DEC,EFD... | Above then below |
-
-(Implementation status varies - some map to existing movement styles, some are new)
+| Pattern Name | Code | Voice Command | Example on C | Description |
+|--------------|------|---------------|--------------|-------------|
+| +1+2 | `stop_and_go` | "stop and go" | CDE,DEF,EFG... | Add next 2 scale degrees |
+| 1-3-5 | `one_three_five` | "triads" | CEG,DFA,EGB... | Add diatonic 3rd and 5th |
+| neighbors | `neighbors` | "neighbors" | CDB,DEC,EFD... | Direction-aware above/below |
+| from 1 | `from_one` | "from one" | cD,cE,cF... | Root before each section note |
+| to 1 | `to_one` | "to one", "interleave" | Dc,Ec,Fc... | Section note then return to root |
+| +1-1 | `plus_minus_one` | "dance around" | CDB,DEC,EFD... | Section, above, below |
+| chords | `chords` | "chords" | [CEG],[DFA]... | Simultaneous chord |
