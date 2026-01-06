@@ -1,0 +1,7 @@
+id: console-log-hint
+message: Consider removing console.log before production
+severity: hint
+language: javascript
+rule:
+  pattern: console.log($$$ARGS)
+note: "console.log is useful for debugging but should typically be removed or replaced with proper logging."

@@ -1,0 +1,7 @@
+id: no-innerhtml-concat
+message: Avoid innerHTML with string concatenation - potential XSS risk
+severity: warning
+language: javascript
+rule:
+  pattern: $EL.innerHTML = $A + $B
+note: "String concatenation in innerHTML can lead to XSS. Use template literals with escaping, or DOM methods."
