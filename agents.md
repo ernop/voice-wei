@@ -200,3 +200,45 @@ For B4 in C major, "2 notes above":
 - Result: [C5, D5]
 
 No "extending the scale array" needed. No duplicate notes possible.
+
+---
+
+## Extra Notes: Scale Notes vs Grace Notes
+
+**Critical distinction** that has caused bugs:
+
+### Scale Notes
+- The backbone of the exercise (e.g., 1-2-3-4-5-6-7-8 in an octave)
+- BOUNDED to the section range
+- MUST all be played as scale notes (appearing as an extra doesn't count)
+- Define the progression through the exercise
+
+### Extra Notes / Grace Notes
+- Embellishments added around each scale note
+- NOT bounded - can extend beyond section range (9, 10, 11...)
+- Musical notation: "1" means root, "+1" means next scale degree, "+2" means 2 above, etc.
+- Can be positive (above) or negative (below): +1, -1, +2, -2, etc.
+
+### Boundary Rules for Extras
+
+1. **Extra notes CAN exceed section boundaries** (e.g., go to scale degree 9, 10)
+2. **Extra notes CANNOT extend past segment end** - the final note gets no extras
+3. **Rationale**: The ear expects resolution on the final note. Adding extras after would feel unfinished.
+
+Example with +1, +2 pattern, ascending to 8:
+- ...F: F-G-A
+- ...G: G-A-B  
+- ...A: A-B-C (where C = scale degree 9, that's OK)
+- ...B: B-C-D (where C=9, D=10, that's OK)
+- ...C(8): just C (CLEAN - no extras on final note)
+
+### Planned Extra Patterns
+
+| Pattern Name | Code | Example on C | Description |
+|--------------|------|--------------|-------------|
+| interleave-1 | `from_root` | C,C,D,C,E,C,F,C... | Return to root after each note |
+| +1,+2 | `step_up_2` | CDE,DEF,EFG... | Add next 2 scale degrees |
+| +1,+3 | `step_up_skip` | CDF,DEG,EFA... | Add 2nd and 4th above |
+| +1,-1 | `neighbor` | CDB,DEC,EFD... | Above then below |
+
+(Implementation status varies - some map to existing movement styles, some are new)

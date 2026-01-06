@@ -4,6 +4,39 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-01-06
+
+**Session context**: Processing voice transcript about Scales tab vision. The human recorded spoken notes about the deeper concepts behind extra note patterns.
+
+**Key learnings for future mei**:
+
+1. **Scale notes vs Extra notes** - This was the source of bugs. Scale notes are bounded (1-8), extra notes can exceed (9, 10...). The system conflated these. When implementing patterns, be explicit about which is which.
+
+2. **Connectedness / turnaround logic** - Already documented in agents.md but the "running up steps" analogy helps: you don't step twice on the turn. This applies at BOTH ends when looping without gaps.
+
+3. **Clean endings** - Extra notes don't extend past final note. The ear expects resolution. Implementation must detect "is this the final scale note?" and skip extras if so.
+
+4. **Planned patterns**:
+   - interleave-1: return to root after each note (differs from current from_one which is root THEN note)
+   - +1,+2: add next 2 scale degrees (similar to stop_and_go)
+   - +1,+3: skip pattern
+   - +1,-1: dance around
+
+5. **Future features mentioned**:
+   - Pitch detection "Also Listen" mode (big feature)
+   - Research professional vocal exercises (rising patterns, etc.)
+   - Better voice command contextual reset behavior
+
+**Questions raised** (need human input):
+- How do interleave-1 and from_one relate? Same concept or different?
+- Does +1,+2 = stop_and_go or is it new?
+- Which settings reset when you say a new command?
+- Priority: fix existing bugs vs new features?
+
+**Anti-fallback note**: The transcript mentions the system "kept introducing bugs" around the extra note logic. This is a sign the internal representation needs clarification, not more defensive code. Fix the model, not the symptoms.
+
+---
+
 ## 2025-12-13 (night)
 
 **Session context**: Major UI refactor of the Scales page - implementing "voice-first, click-second" design philosophy.

@@ -304,6 +304,71 @@ Example: If Note Length is "short" but you say "slowly chromatic scale", it play
 
 ---
 
+## Vision: Extra Note Patterns (Under Development)
+
+The goal is to support more sophisticated vocal training patterns beyond basic scales. These patterns add "extra notes" (also called "grace notes") around each scale note.
+
+### Planned Pattern Types
+
+| Pattern | Description | Example (C major up) |
+|---------|-------------|---------------------|
+| interleave-1 | After each note, return to root | C-C-D-C-E-C-F-C-G-C-A-C-B-C-C |
+| +1, +2 | Add next 2 scale degrees | C-D-E, D-E-F, E-F-G, F-G-A... |
+| +1, +3 | Add 2nd and 4th above | C-D-F, D-E-G, E-F-A... |
+| +1, -1 | Dance around (above, below) | C-D-B, D-E-C, E-F-D... |
+
+### Key Concepts
+
+**Scale Notes vs Extra Notes:**
+- **Scale notes**: The core scale degrees (1-8 in an octave) - these define the progression
+- **Extra notes**: Embellishments that can extend beyond the scale range (to 9, 10, etc.)
+- Every scale note MUST be played as a scale note - extra notes don't substitute
+
+**Connectedness (Turnaround Logic):**
+Like running up steps and turning around - you don't take two steps on the same spot:
+- **WRONG**: 1-2-3-4-5-6-7-8-**8**-7-6-5-4-3-2-1
+- **RIGHT**: 1-2-3-4-5-6-7-8-7-6-5-4-3-2-1
+
+When looping without gaps, same at bottom: ...3-2-1-2-3... (not 1-**1**-2)
+
+**Clean Endings:**
+Extra notes do NOT extend past the final note. The ear expects resolution:
+- With +1,+2 ending: ...3-4-5, 2-3-4, **1** (stops clean, no 1-2-3)
+
+### Rising Exercises (Future)
+
+Professional vocal exercises often use "rising" patterns where each repetition shifts up:
+
+```
+1-2-3-4-5-4-3-2-1  (starting on C)
+2-3-4-5-6-5-4-3-2  (starting on D)
+3-4-5-6-7-6-5-4-3  (starting on E)
+4-5-6-7-8-7-6-5-4  (starting on F)
+...
+```
+
+This trains the voice across ranges while keeping the pattern familiar.
+
+---
+
+## Vision: Pitch Detection ("Also Listen" Mode)
+
+Future feature: toggle microphone listening during scale playback to provide pitch accuracy feedback.
+
+**Concept:**
+- Play scale notes as reference
+- Listen to user's voice simultaneously
+- Show visual meter: how close to the target pitch
+- Provide guidance: "go down a little bit"
+- Grade overall accuracy
+
+**Technical Considerations:**
+- May work even with overlapping audio (speaker + microphone)
+- Needs to distinguish target pitch from played audio
+- Visual feedback should be immediate (no lag)
+
+---
+
 ## Deployment
 
 Files to sync:
