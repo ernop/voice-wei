@@ -1,0 +1,7 @@
+id: no-debugger
+message: Remove debugger statement before committing
+severity: error
+language: javascript
+rule:
+  pattern: debugger
+note: "debugger statements should not be committed to version control."

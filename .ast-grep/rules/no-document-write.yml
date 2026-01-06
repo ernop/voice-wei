@@ -1,0 +1,7 @@
+id: no-document-write
+message: Avoid document.write() - it blocks parsing and can overwrite the page
+severity: error
+language: javascript
+rule:
+  pattern: document.write($$$ARGS)
+note: "Use DOM methods like appendChild(), insertAdjacentHTML(), or innerHTML instead."

@@ -1,0 +1,7 @@
+id: no-confirm
+message: Avoid confirm() - use proper UI confirmation instead
+severity: warning
+language: javascript
+rule:
+  pattern: confirm($$$ARGS)
+note: "confirm() blocks the thread and provides poor UX. Use a proper confirmation modal."

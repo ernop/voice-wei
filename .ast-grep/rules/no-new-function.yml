@@ -1,0 +1,7 @@
+id: no-new-function
+message: Avoid new Function() - it's similar to eval()
+severity: warning
+language: javascript
+rule:
+  pattern: new Function($$$ARGS)
+note: "new Function() compiles code from strings, similar to eval(). Consider alternatives."

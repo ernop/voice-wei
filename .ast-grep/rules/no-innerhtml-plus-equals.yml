@@ -1,0 +1,7 @@
+id: no-innerhtml-plus-equals
+message: Avoid innerHTML += pattern - causes reparse and potential XSS
+severity: warning
+language: javascript
+rule:
+  pattern: $EL.innerHTML += $VALUE
+note: "innerHTML += causes full reparse. Use insertAdjacentHTML() or appendChild() instead."
