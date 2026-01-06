@@ -7,8 +7,8 @@
     <meta name="description" content="Voice-Wei: Voice-controlled scale practice for singers and musicians">
     <meta name="robots" content="noindex, nofollow">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=28">
-    <link rel="stylesheet" href="scales.css?v=28">
+    <link rel="stylesheet" href="style.css?v=29">
+    <link rel="stylesheet" href="scales.css?v=29">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v0.28</span>
+                <span class="version-label">v0.29</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -129,11 +129,15 @@
                             data-abbr="+1+2">+1+2</button>
                         <button class="vf-btn" data-movement="one_three_five" data-full="1-3-5"
                             data-abbr="1-3-5">1-3-5</button>
-                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors"
+                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors (dir)"
                             data-abbr="Nbr">neighbors</button>
                         <button class="vf-btn" data-movement="chords" data-full="chords" data-abbr="Chd">chords</button>
-                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="-1">from
+                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="fr1">from
                             1</button>
+                        <button class="vf-btn" data-movement="to_one" data-full="to 1" data-abbr="to1">to
+                            1</button>
+                        <button class="vf-btn" data-movement="plus_minus_one" data-full="+1-1"
+                            data-abbr="+1-1">+1-1</button>
                     </div>
                 </div>
 
@@ -180,6 +184,22 @@
                         <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
                         <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
+                    </div>
+                </div>
+
+                <div class="vf-row">
+                    <span class="vf-label" data-full="Exercise" data-abbr="Ex">Exercise</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-exercise="none" data-full="full scale" data-abbr="-">full scale</button>
+                        <button class="vf-btn" data-exercise="five_note" data-full="5-note warmup" data-abbr="5nt">5-note</button>
+                        <button class="vf-btn" data-exercise="octave_jump" data-full="octave jump" data-abbr="8va">oct jump</button>
+                        <button class="vf-btn" data-exercise="arpeggio_return" data-full="arp return" data-abbr="arp">arp return</button>
+                        <button class="vf-btn" data-exercise="thirds" data-full="thirds" data-abbr="3rds">thirds</button>
+                    </div>
+                    <span class="vf-label vf-label-inline" data-full="Shifting" data-abbr="Shf">Shifting</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-shifting="0" data-full="off" data-abbr="off">off</button>
+                        <button class="vf-btn" data-shifting="1" data-full="on" data-abbr="on">on</button>
                     </div>
                 </div>
 
@@ -312,9 +332,9 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="music-constants.js?v=28"></script>
-    <script src="voice-command-core.js?v=28"></script>
-    <script src="scales.js?v=28"></script>
+    <script src="music-constants.js?v=29"></script>
+    <script src="voice-command-core.js?v=29"></script>
+    <script src="scales.js?v=29"></script>
 </body>
 
 </html>

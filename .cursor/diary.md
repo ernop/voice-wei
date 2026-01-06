@@ -35,6 +35,27 @@ Entries are mei writing to future mei. The human can read this too.
 
 **Anti-fallback note**: The transcript mentions the system "kept introducing bugs" around the extra note logic. This is a sign the internal representation needs clarification, not more defensive code. Fix the model, not the symptoms.
 
+**Fixes applied**:
+1. Fixed `from_one` bug - was playing [root, root] when first section note equals root. Now skips the extra root.
+2. Added `to_one` pattern (interleave-1) - plays section note, then returns to root after each (except first which IS root, and final for clean landing).
+3. Added `plus_minus_one` pattern (+1,-1) - section note, one above, one below.
+4. Added UI buttons and voice commands for new patterns.
+
+**Major new features added**:
+1. **Exercise presets** - predefined patterns for vocal warmups:
+   - `five_note`: 1-2-3-4-5-4-3-2-1 (classic 5-note warmup)
+   - `octave_jump`: 1-8-1 (root to octave and back)
+   - `arpeggio_return`: 1-3-5-8-5-3-1 (up the chord and back)
+   - `thirds`: 1-3-2-4-3-5-4-6-5-7-6-8 (alternating steps and skips)
+
+2. **Shifting mode** - unlike "rising" which transposes the whole scale (C major -> D major), "shifting" moves the starting note within the same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major). This is the classic vocal warmup behavior.
+
+3. Clarified `neighbors` vs `plus_minus_one`:
+   - `neighbors (dir)`: Direction-aware - adapts pattern based on ascending/descending
+   - `+1-1 (fixed)`: Always plays section, above, below regardless of direction
+
+**Version**: v0.29
+
 ---
 
 ## 2025-12-13 (night)
