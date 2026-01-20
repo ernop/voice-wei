@@ -202,9 +202,10 @@ Convert ebooks and web pages to audiobooks using OpenAI's text-to-speech API. Fe
 - **Model Selection**: TTS-1 (fast) or TTS-1-HD (high quality)
 - **Speed Control**: 0.25x to 4.0x playback speed
 
-### Persistent Storage
-- **User Namespace**: API key hash creates unique user space
-- **Book Library**: All converted books saved server-side
+### Persistent Storage (IndexedDB)
+- **Browser Storage**: All data stored locally in IndexedDB
+- **No Server Required**: Works entirely client-side
+- **Large Capacity**: Can store hundreds of MB of audio
 - **Audio Preservation**: MP3 files stored permanently (never regenerated)
 - **Cross-Session**: Books persist across browser sessions
 
@@ -223,21 +224,26 @@ Convert ebooks and web pages to audiobooks using OpenAI's text-to-speech API. Fe
 
 ## Data Architecture
 
-### User Isolation
+### IndexedDB Storage
 ```
-/ebook-data/
-  {userHash}/                    <- SHA-256(apiKey)[0:16]
-    index.json                   <- List of user's books
-    {bookHash}.json              <- Book metadata
-    {bookHash}.mp3               <- Converted audio
+EbookAudiobookDB (IndexedDB)
+  books/                         <- Object store
+    [userHash, bookHash]         <- Compound key
+      title, author, text, chapters, format
+      hasAudio, audioDuration, conversionCost
+      createdAt, updatedAt
+
+  audio/                         <- Object store
+    [userHash, bookHash]         <- Compound key
+      blob                       <- MP3 audio blob
+      size, createdAt
 ```
 
 ### Security Model
-- **API Key as Identity**: Hash of API key creates user namespace
-- **No Cross-Discovery**: Users cannot access each other's files
-- **Hash-Based Paths**: All paths use 16-character hex hashes
-- **No Directory Listing**: Server blocks directory enumeration
-- **Client-Side Hashing**: Server never sees raw API key
+- **Browser Isolation**: IndexedDB is origin-locked (same-origin policy)
+- **User Namespace**: API key hash partitions data within the DB
+- **No Server**: Data never leaves the browser
+- **Private by Default**: Other users/sites cannot access your data
 
 ### Metadata Schema
 ```json
@@ -256,20 +262,6 @@ Convert ebooks and web pages to audiobooks using OpenAI's text-to-speech API. Fe
   "updatedAt": 1705700000
 }
 ```
-
-## API Endpoints
-
-### ebook-storage.php
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `?action=list&userHash=xxx` | GET | List user's books |
-| `?action=get&userHash=xxx&bookHash=xxx` | GET | Get book metadata |
-| `?action=audio&userHash=xxx&bookHash=xxx` | GET | Stream audio file |
-| `?action=save` | POST | Save book metadata |
-| `?action=saveAudio` | POST | Save audio file |
-| `?action=delete` | POST | Delete book |
-| `?action=stats&userHash=xxx` | GET | Get storage stats |
 
 ## Cost Reference
 

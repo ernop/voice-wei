@@ -3,4 +3,3 @@ config.json
 tsc-errors.txt
 package-lock.json
 deploy/deploy_github_actions
-ebook-data/

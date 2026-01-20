@@ -1,6 +1,6 @@
 // @ts-check
 // Ebook to Audiobook Converter using OpenAI TTS
-// v3 - Persistent storage, cost tracking, URL input, library management
+// v3 - Persistent storage via IndexedDB, cost tracking, URL input, library management
 
 // Configure PDF.js worker
 if (typeof pdfjsLib !== 'undefined') {
@@ -11,7 +11,8 @@ if (typeof pdfjsLib !== 'undefined') {
 const TTS_CHUNK_SIZE = 4000;
 const PROGRESS_UPDATE_INTERVAL_MS = 250;
 const POSITION_SAVE_INTERVAL_MS = 5000;
-const STORAGE_API = 'ebook-storage.php';
+const DB_NAME = 'EbookAudiobookDB';
+const DB_VERSION = 1;
 
 // OpenAI TTS Pricing (per 1000 characters)
 const TTS_PRICING = {
@@ -98,13 +99,16 @@ class EbookController {
         this.sessionCost = 0;
         /** @type {number} */
         this.totalCost = 0;
-        /** @type {Array<{bookHash: string, title: string, createdAt: number, updatedAt: number}>} */
+        /** @type {Array<{bookHash: string, title: string, createdAt: number, updatedAt: number, hasAudio?: boolean}>} */
         this.library = [];
+        /** @type {IDBDatabase | null} */
+        this.db = null;
 
         this.init();
     }
 
     async init() {
+        await this.initDatabase();
         this.loadApiKey();
         this.loadSettings();
         this.loadCostTracking();
@@ -116,6 +120,43 @@ class EbookController {
         if (this.apiKey) {
             await this.loadLibrary();
         }
+    }
+
+    // ========== IndexedDB Setup ==========
+
+    async initDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = () => {
+                this.log('error', 'Failed to open IndexedDB');
+                reject(request.error);
+            };
+
+            request.onsuccess = () => {
+                this.db = request.result;
+                this.log('info', 'IndexedDB initialized');
+                resolve(this.db);
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
+
+                // Books store: metadata indexed by userHash + bookHash
+                if (!db.objectStoreNames.contains('books')) {
+                    const booksStore = db.createObjectStore('books', { keyPath: ['userHash', 'bookHash'] });
+                    booksStore.createIndex('userHash', 'userHash', { unique: false });
+                    booksStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+                }
+
+                // Audio store: MP3 blobs indexed by userHash + bookHash
+                if (!db.objectStoreNames.contains('audio')) {
+                    db.createObjectStore('audio', { keyPath: ['userHash', 'bookHash'] });
+                }
+
+                this.log('info', 'IndexedDB schema created');
+            };
+        });
     }
 
     // ========== API Key & User Hash Management ==========
@@ -304,38 +345,50 @@ class EbookController {
         localStorage.setItem('ebookSettings', JSON.stringify(this.settings));
     }
 
-    // ========== Library Management ==========
+    // ========== Library Management (IndexedDB) ==========
 
     async loadLibrary() {
-        if (!this.userHash) return;
+        if (!this.userHash || !this.db) return;
 
         try {
-            const response = await fetch(`${STORAGE_API}?action=list&userHash=${this.userHash}`);
-            const data = await response.json();
+            const transaction = this.db.transaction(['books'], 'readonly');
+            const store = transaction.objectStore('books');
+            const index = store.index('userHash');
+            const request = index.getAll(this.userHash);
 
-            if (data.success) {
-                this.library = data.books || [];
+            request.onsuccess = () => {
+                const books = request.result || [];
+                this.library = books.map(book => ({
+                    bookHash: book.bookHash,
+                    title: book.title,
+                    createdAt: book.createdAt,
+                    updatedAt: book.updatedAt,
+                    hasAudio: book.hasAudio
+                }));
                 this.renderLibrary();
                 this.log('info', `Loaded ${this.library.length} books from library`);
-            }
-        } catch (error) {
-            this.log('warn', 'Could not load library (server may not support storage)');
-        }
+                this.loadStorageStats();
+            };
 
-        await this.loadStorageStats();
+            request.onerror = () => {
+                this.log('warn', 'Could not load library from IndexedDB');
+            };
+        } catch (error) {
+            this.log('warn', 'IndexedDB not available');
+        }
     }
 
     async loadStorageStats() {
-        if (!this.userHash) return;
+        if (!this.userHash || !this.db) return;
 
         try {
-            const response = await fetch(`${STORAGE_API}?action=stats&userHash=${this.userHash}`);
-            const data = await response.json();
-
-            if (data.success) {
+            // Estimate storage usage
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimate = await navigator.storage.estimate();
+                const usedMB = ((estimate.usage || 0) / (1024 * 1024)).toFixed(1);
                 const sizeEl = document.getElementById('storageSize');
                 const booksEl = document.getElementById('storageBooks');
-                if (sizeEl) sizeEl.textContent = `${data.totalSizeMB} MB`;
+                if (sizeEl) sizeEl.textContent = `${usedMB} MB`;
                 if (booksEl) booksEl.textContent = `${this.library.length} books`;
             }
         } catch (error) {
@@ -387,34 +440,47 @@ class EbookController {
 
     /** @param {string} bookHash */
     async loadBookFromLibrary(bookHash) {
-        if (!this.userHash) return;
+        if (!this.userHash || !this.db) return;
 
         this.updateStatus('Loading book...');
         this.log('info', `Loading book: ${bookHash}`);
 
         try {
-            const response = await fetch(`${STORAGE_API}?action=get&userHash=${this.userHash}&bookHash=${bookHash}`);
-            const data = await response.json();
-
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load book');
+            // Load book metadata
+            const bookData = await this.dbGet('books', [this.userHash, bookHash]);
+            if (!bookData) {
+                throw new Error('Book not found');
             }
 
-            this.bookData = data.book;
-            this.bookData.bookHash = bookHash;
+            this.bookData = {
+                title: bookData.title,
+                author: bookData.author,
+                text: bookData.text,
+                chapters: bookData.chapters || [],
+                format: bookData.format,
+                bookHash: bookHash,
+                sourceUrl: bookData.sourceUrl,
+                hasAudio: bookData.hasAudio,
+                audioDuration: bookData.audioDuration,
+                conversionCost: bookData.conversionCost
+            };
 
             // Load audio if available
-            if (data.book.hasAudio) {
-                const audioUrl = `${STORAGE_API}?action=audio&userHash=${this.userHash}&bookHash=${bookHash}`;
-                const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-                if (audioPlayer) {
-                    audioPlayer.src = audioUrl;
+            if (bookData.hasAudio) {
+                const audioData = await this.dbGet('audio', [this.userHash, bookHash]);
+                if (audioData && audioData.blob) {
+                    this.fullAudioBlob = audioData.blob;
+                    const audioUrl = URL.createObjectURL(audioData.blob);
+                    const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+                    if (audioPlayer) {
+                        audioPlayer.src = audioUrl;
+                    }
+
+                    const audioSection = document.getElementById('audioSection');
+                    if (audioSection) audioSection.style.display = 'block';
+
+                    this.log('info', `Audio loaded (${this.formatFileSize(audioData.blob.size)})`);
                 }
-
-                const audioSection = document.getElementById('audioSection');
-                if (audioSection) audioSection.style.display = 'block';
-
-                this.log('info', 'Audio loaded from library');
             }
 
             this.displayBook();
@@ -440,34 +506,33 @@ class EbookController {
 
     /** @param {string} bookHash */
     async deleteBookFromLibrary(bookHash) {
-        if (!this.userHash) return;
+        if (!this.userHash || !this.db) return;
 
         try {
-            const response = await fetch(`${STORAGE_API}?action=delete`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userHash: this.userHash, bookHash })
-            });
+            // Delete from both stores
+            await this.dbDelete('books', [this.userHash, bookHash]);
+            await this.dbDelete('audio', [this.userHash, bookHash]);
 
-            const data = await response.json();
-            if (data.success) {
-                this.library = this.library.filter(b => b.bookHash !== bookHash);
-                this.renderLibrary();
-                this.log('info', 'Book deleted from library');
-            }
+            this.library = this.library.filter(b => b.bookHash !== bookHash);
+            this.renderLibrary();
+            this.log('info', 'Book deleted from library');
         } catch (error) {
             this.log('error', 'Failed to delete book');
         }
     }
 
     async saveBookToLibrary() {
-        if (!this.userHash || !this.bookData) return;
+        if (!this.userHash || !this.bookData || !this.db) return;
 
         this.log('info', 'Saving book to library...');
 
         try {
+            const now = Date.now();
+
             // Save metadata
-            const metadata = {
+            const bookRecord = {
+                userHash: this.userHash,
+                bookHash: this.bookData.bookHash,
                 title: this.bookData.title,
                 author: this.bookData.author,
                 text: this.bookData.text,
@@ -478,36 +543,24 @@ class EbookController {
                 wordCount: this.bookData.text.split(/\s+/).filter(w => w.length > 0).length,
                 hasAudio: !!this.fullAudioBlob,
                 audioDuration: this.totalDuration,
-                conversionCost: this.bookData.conversionCost || 0
+                conversionCost: this.bookData.conversionCost || 0,
+                createdAt: now,
+                updatedAt: now
             };
 
-            const response = await fetch(`${STORAGE_API}?action=save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userHash: this.userHash,
-                    bookHash: this.bookData.bookHash,
-                    metadata
-                })
-            });
-
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to save');
-            }
+            await this.dbPut('books', bookRecord);
 
             // Save audio if we have it
             if (this.fullAudioBlob) {
-                const formData = new FormData();
-                formData.append('userHash', this.userHash);
-                formData.append('bookHash', this.bookData.bookHash);
-                formData.append('audio', this.fullAudioBlob, 'audio.mp3');
+                const audioRecord = {
+                    userHash: this.userHash,
+                    bookHash: this.bookData.bookHash,
+                    blob: this.fullAudioBlob,
+                    size: this.fullAudioBlob.size,
+                    createdAt: now
+                };
 
-                await fetch(`${STORAGE_API}?action=saveAudio`, {
-                    method: 'POST',
-                    body: formData
-                });
-
+                await this.dbPut('audio', audioRecord);
                 this.log('info', `Audio saved (${this.formatFileSize(this.fullAudioBlob.size)})`);
             }
 
@@ -526,6 +579,53 @@ class EbookController {
             this.log('error', `Failed to save book: ${message}`);
             this.updateStatus('Error saving book');
         }
+    }
+
+    // ========== IndexedDB Helpers ==========
+
+    /**
+     * @param {string} storeName
+     * @param {IDBValidKey} key
+     */
+    async dbGet(storeName, key) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) { reject(new Error('DB not initialized')); return; }
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * @param {string} storeName
+     * @param {any} data
+     */
+    async dbPut(storeName, data) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) { reject(new Error('DB not initialized')); return; }
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.put(data);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * @param {string} storeName
+     * @param {IDBValidKey} key
+     */
+    async dbDelete(storeName, key) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) { reject(new Error('DB not initialized')); return; }
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.delete(key);
+            request.onsuccess = () => resolve(undefined);
+            request.onerror = () => reject(request.error);
+        });
     }
 
     // ========== UI Setup ==========
