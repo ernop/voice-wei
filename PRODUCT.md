@@ -181,9 +181,164 @@ The AI becomes your co-pilot DJ who actually understands what you want.
 6. **Song memory**: "Play that song I liked last week"
 7. **Mood detection**: Voice tone analysis for automatic mood-matching
 
+---
+
+# Ebook to Audiobook Converter (v3)
+
+## Overview
+
+Convert ebooks and web pages to audiobooks using OpenAI's text-to-speech API. Features persistent storage, cost tracking, progressive playback, and precise navigation.
+
+## Core Features
+
+### Input Sources
+- **File Upload**: TXT, EPUB, PDF, HTML, MOBI formats
+- **URL Fetch**: Extract text from any web page
+- **Drag & Drop**: Drop files directly onto upload area
+
+### Text-to-Speech
+- **OpenAI TTS API**: High-quality neural voices
+- **Voice Options**: Alloy, Echo, Fable, Onyx, Nova, Shimmer
+- **Model Selection**: TTS-1 (fast) or TTS-1-HD (high quality)
+- **Speed Control**: 0.25x to 4.0x playback speed
+
+### Persistent Storage
+- **User Namespace**: API key hash creates unique user space
+- **Book Library**: All converted books saved server-side
+- **Audio Preservation**: MP3 files stored permanently (never regenerated)
+- **Cross-Session**: Books persist across browser sessions
+
+### Cost Tracking
+- **Real-Time Estimates**: See cost before conversion
+- **Per-Chunk Tracking**: Monitor cost as conversion progresses
+- **Session & Total**: Track both current session and lifetime costs
+- **Pricing Display**: TTS-1 ($0.015/1K chars), TTS-1-HD ($0.030/1K chars)
+
+### Playback Features
+- **Progressive Playback**: Audio plays as chunks complete (no waiting for full conversion)
+- **Precise Timeline**: Zoom 1x-20x for accurate seeking in long books
+- **Quick Jump Buttons**: -1m, -30s, -10s, +10s, +30s, +1m, +4m, +12m
+- **Position Memory**: Automatically saves and restores position per book
+- **Playback History**: Every seek/play action logged with clickable jump-back
+
+## Data Architecture
+
+### User Isolation
+```
+/ebook-data/
+  {userHash}/                    <- SHA-256(apiKey)[0:16]
+    index.json                   <- List of user's books
+    {bookHash}.json              <- Book metadata
+    {bookHash}.mp3               <- Converted audio
+```
+
+### Security Model
+- **API Key as Identity**: Hash of API key creates user namespace
+- **No Cross-Discovery**: Users cannot access each other's files
+- **Hash-Based Paths**: All paths use 16-character hex hashes
+- **No Directory Listing**: Server blocks directory enumeration
+- **Client-Side Hashing**: Server never sees raw API key
+
+### Metadata Schema
+```json
+{
+  "title": "Book Title",
+  "author": "Author Name",
+  "text": "Full book text...",
+  "chapters": ["Chapter 1", "Chapter 2"],
+  "format": "epub",
+  "sourceUrl": "https://...",
+  "charCount": 50000,
+  "wordCount": 8500,
+  "hasAudio": true,
+  "audioDuration": 3600,
+  "conversionCost": 0.75,
+  "updatedAt": 1705700000
+}
+```
+
+## API Endpoints
+
+### ebook-storage.php
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `?action=list&userHash=xxx` | GET | List user's books |
+| `?action=get&userHash=xxx&bookHash=xxx` | GET | Get book metadata |
+| `?action=audio&userHash=xxx&bookHash=xxx` | GET | Stream audio file |
+| `?action=save` | POST | Save book metadata |
+| `?action=saveAudio` | POST | Save audio file |
+| `?action=delete` | POST | Delete book |
+| `?action=stats&userHash=xxx` | GET | Get storage stats |
+
+## Cost Reference
+
+| Model | Cost per 1K chars | 10K word book (~60K chars) |
+|-------|-------------------|----------------------------|
+| TTS-1 | $0.015 | ~$0.90 |
+| TTS-1-HD | $0.030 | ~$1.80 |
+
+## Voice Characteristics
+
+| Voice | Description |
+|-------|-------------|
+| Alloy | Neutral, balanced |
+| Echo | Male, clear |
+| Fable | British accent |
+| Onyx | Deep male |
+| Nova | Female, warm |
+| Shimmer | Soft female |
+
+## UI Components
+
+### Library Panel
+- Shows all saved books sorted by last update
+- Click to load book and audio
+- Delete button per book
+- Storage usage display
+
+### Cost Tracker
+- Session cost (current session)
+- Total cost (lifetime)
+- Estimated cost before conversion
+
+### Timeline Controls
+- Zoomable timeline (1x-20x)
+- Current time / Total / Remaining display
+- Quick jump buttons
+- Click anywhere to seek
+
+### Playback History
+- Timestamped log of all playback actions
+- Click any entry to jump to that position
+- Persists per book
+
+## Technical Notes
+
+### Progressive Playback
+- Conversion creates chunks of ~4000 characters
+- Each chunk converted separately
+- Audio player updates after each chunk
+- User can start listening immediately
+
+### Position Persistence
+- Position saved every 5 seconds during playback
+- Stored in localStorage keyed by bookHash
+- Restored when book loaded from library
+
+### URL Fetching
+- Uses proxy.php to avoid CORS
+- Extracts main content (article, main, .content)
+- Removes nav, header, footer, ads
+- Falls back to body text
+
+---
+
 ## Summary
 
 Voice Music Control solves the fundamental problem with music apps while driving: they're designed for people sitting at desks, not behind wheels. This app puts voice first, AI second, and touch third. Speak naturally, get smart results, control hands-free.
+
+The Ebook Converter extends this to audiobooks - convert any text to speech with cost tracking, persistent storage, and precise playback control. Your API key is your identity, and your books are always available.
 
 The goal isn't to replace Spotify or YouTube Music. It's to be the safest, smartest way to control music when your eyes and hands need to be elsewhere.
 

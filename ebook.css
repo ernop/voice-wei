@@ -1,8 +1,285 @@
 /* Ebook Page Specific Styles */
 
+/* Cost Tracker */
+.cost-tracker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+}
+
+.cost-label {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.cost-value {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    color: #4ade80;
+    font-weight: 600;
+}
+
+.cost-separator {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+/* Input Section */
+.input-section {
+    margin: 20px 0;
+}
+
+.input-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.input-tab {
+    flex: 1;
+    padding: 12px 20px;
+    background: rgba(74, 222, 128, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.input-tab:first-child {
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+}
+
+.input-tab:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.input-tab:hover {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.input-tab.active {
+    background: rgba(74, 222, 128, 0.3);
+    color: #a7f3d0;
+    border-color: rgba(74, 222, 128, 0.5);
+}
+
+/* URL Section */
+.url-section {
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.url-input-row {
+    display: flex;
+    gap: 12px;
+}
+
+.url-input {
+    flex: 1;
+    padding: 14px 16px;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: 2px solid rgba(74, 222, 128, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+}
+
+.url-input:focus {
+    outline: none;
+    border-color: rgba(74, 222, 128, 0.6);
+}
+
+.url-input::placeholder {
+    color: rgba(232, 245, 233, 0.4);
+}
+
+.fetch-url-btn {
+    padding: 14px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: #0d2818;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fetch-url-btn:hover {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.url-hint {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Library Section */
+.library-section {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    margin: 20px 0;
+    overflow: hidden;
+    border: 1px solid rgba(74, 222, 128, 0.15);
+}
+
+.library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.15);
+}
+
+.library-header h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #a7f3d0;
+}
+
+.refresh-btn {
+    padding: 6px 10px;
+    font-size: 1rem;
+    background: rgba(74, 222, 128, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.refresh-btn:hover {
+    background: rgba(74, 222, 128, 0.25);
+}
+
+.library-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.library-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.library-item:hover {
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.library-item:last-child {
+    border-bottom: none;
+}
+
+.library-title {
+    flex: 1;
+    font-weight: 500;
+    color: #e8f5e9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.library-date {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-right: 12px;
+}
+
+.library-delete-btn {
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.library-delete-btn:hover {
+    color: #fca5a5;
+}
+
+.library-empty {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 24px;
+    font-style: italic;
+}
+
+/* Storage Stats */
+.storage-stats {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 8px;
+}
+
+.storage-stats span {
+    margin-right: 8px;
+}
+
+/* Book Cost Estimate */
+.book-cost-estimate {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.estimate-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.estimate-value {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    color: #facc15;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+/* Save Book Button */
+.save-book-btn {
+    padding: 16px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: rgba(74, 222, 128, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.save-book-btn:hover {
+    background: rgba(74, 222, 128, 0.25);
+    border-color: rgba(74, 222, 128, 0.5);
+}
+
+.save-book-btn .btn-icon {
+    font-size: 1.2rem;
+}
+
 /* Upload Section */
 .upload-section {
-    margin: 20px 0;
+    margin: 0;
 }
 
 .upload-area {
