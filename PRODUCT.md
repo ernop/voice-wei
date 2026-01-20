@@ -241,6 +241,190 @@ Convert ebooks to audiobooks using OpenAI's text-to-speech API. Upload common eb
 
 ---
 
+# Multimedia Ebook System (Planned)
+
+## Vision
+
+Don't just produce raw MP3 - create a synchronized multimedia experience where users can listen AND see visual content from the book (charts, images, tables, diagrams).
+
+## Core Concept
+
+```
+[Ebook File]
+     |
+     v
+[Content Extraction]
+     |
+     +---> [Text Chunks] ---> [TTS API] ---> [Audio Segments]
+     |
+     +---> [Images/Charts] ---> [Visual Assets]
+     |
+     +---> [Content Manifest] ---> [Synchronized Playback]
+```
+
+## Content Manifest Structure
+
+Each ebook becomes a manifest linking text, audio, and visuals:
+
+```javascript
+{
+  "title": "Book Title",
+  "sections": [
+    {
+      "id": "section-1",
+      "type": "text",
+      "content": "Chapter 1 begins...",
+      "audioChunkIndex": 0,
+      "startTime": 0,
+      "endTime": 45.2
+    },
+    {
+      "id": "figure-1",
+      "type": "image",
+      "src": "blob:...",
+      "caption": "Figure 1: Market Growth",
+      "afterSection": "section-1",
+      "displayDuration": 10
+    },
+    {
+      "id": "section-2",
+      "type": "text",
+      "content": "As shown in Figure 1...",
+      "audioChunkIndex": 1,
+      "startTime": 45.2,
+      "endTime": 92.8,
+      "references": ["figure-1"]
+    },
+    {
+      "id": "table-1",
+      "type": "table",
+      "data": [["Year", "Revenue"], ["2020", "$1M"]],
+      "caption": "Table 1: Annual Revenue",
+      "afterSection": "section-2"
+    }
+  ]
+}
+```
+
+## Playback Modes
+
+### Audio-Only Mode
+- Standard MP3 playback
+- No visual display
+- Best for driving, walking, eyes-busy situations
+
+### Synchronized Mode
+- Audio plays with visual timeline
+- Images/charts appear when audio reaches their reference point
+- User can see what's being discussed
+- Visual content remains on screen for configured duration
+
+### Browse Mode
+- Pause audio, browse all visual content
+- Jump to any section
+- Resume audio from visual context
+
+## State Management
+
+Track position across multiple dimensions:
+
+```javascript
+{
+  "audioPosition": 125.4,        // seconds into combined audio
+  "currentSection": "section-5",
+  "visibleAssets": ["figure-2", "table-1"],
+  "mode": "synchronized",        // audio-only | synchronized | browse
+  "history": [
+    { "time": "10:32", "action": "play", "position": 0 },
+    { "time": "10:45", "action": "pause", "position": 125.4 },
+    { "time": "10:46", "action": "view", "asset": "figure-2" }
+  ]
+}
+```
+
+## Visual Asset Extraction
+
+### From EPUB
+- Images embedded in content
+- SVG diagrams
+- Tables (converted from HTML)
+- Figure references in text (e.g., "see Figure 1")
+
+### From PDF
+- Embedded images via PDF.js
+- Tables (harder - may need heuristics)
+- Charts (extract as images)
+
+### From HTML
+- img tags
+- SVG elements
+- Tables
+- Canvas elements (screenshot)
+
+## UI Components
+
+### Visual Timeline
+```
+[====|====|====|====|====|====]
+      ^
+  [Figure 1]  [Table 1]  [Figure 2]
+```
+
+Thumbnails of visual assets positioned on audio timeline.
+
+### Asset Viewer
+- Full-screen image view
+- Zoomable charts
+- Scrollable tables
+- Caption display
+
+### Section Navigator
+- List of all sections
+- Visual indicator for assets
+- Current position highlight
+- Click to jump
+
+## Implementation Phases
+
+### Phase 1: Image Extraction
+- Extract images from EPUB
+- Store in memory alongside text
+- Display in simple gallery
+
+### Phase 2: Content Manifest
+- Link text chunks to images
+- Detect figure references
+- Calculate audio timing
+
+### Phase 3: Synchronized Display
+- Show images at correct time
+- Allow manual browsing
+- Position persistence
+
+### Phase 4: Tables and Charts
+- HTML table extraction
+- Chart image extraction
+- Styled display
+
+## Technical Considerations
+
+### Memory Management
+- Large images: create thumbnails for timeline
+- Lazy load full images when viewed
+- Release blobs when book closed
+
+### Timing Accuracy
+- Audio chunks have variable duration
+- Need to track actual duration after TTS
+- Build timing map incrementally during conversion
+
+### Reference Detection
+- Regex for "Figure X", "Table Y", "see chart"
+- Associate with nearest visual asset
+- Handle missing references gracefully
+
+---
+
 # Version System
 
 All four pages share a unified version number stored in the `VERSION` file.

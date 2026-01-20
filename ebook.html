@@ -7,8 +7,8 @@
     <meta name="description" content="Voice-Wei: Ebook to Audiobook converter using OpenAI TTS">
     <meta name="robots" content="noindex, nofollow">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=30">
-    <link rel="stylesheet" href="ebook.css?v=30">
+    <link rel="stylesheet" href="style.css?v=31">
+    <link rel="stylesheet" href="ebook.css?v=31">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Books</h1>
-                <span class="version-label">v30</span>
+                <span class="version-label">v31</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -48,22 +48,27 @@
 
             <div class="setting-item">
                 <label for="ttsVoice">TTS Voice:</label>
-                <select id="ttsVoice" class="model-selector">
-                    <option value="alloy">Alloy</option>
-                    <option value="echo">Echo</option>
-                    <option value="fable">Fable</option>
-                    <option value="onyx">Onyx</option>
-                    <option value="nova">Nova</option>
-                    <option value="shimmer">Shimmer</option>
-                </select>
+                <div class="voice-selector-row">
+                    <select id="ttsVoice" class="model-selector">
+                        <option value="alloy">Alloy - Neutral, balanced</option>
+                        <option value="echo">Echo - Male, clear</option>
+                        <option value="fable">Fable - British accent</option>
+                        <option value="onyx">Onyx - Deep male</option>
+                        <option value="nova">Nova - Female, warm</option>
+                        <option value="shimmer">Shimmer - Soft female</option>
+                    </select>
+                    <button id="previewVoiceBtn" class="preview-voice-btn" title="Preview voice">&#9654;</button>
+                </div>
+                <p class="setting-description" id="voiceDescription">Neutral and balanced, good for most content.</p>
             </div>
 
             <div class="setting-item">
                 <label for="ttsModel">TTS Model:</label>
                 <select id="ttsModel" class="model-selector">
-                    <option value="tts-1">TTS-1 (Fast)</option>
-                    <option value="tts-1-hd">TTS-1-HD (High Quality)</option>
+                    <option value="tts-1">TTS-1 - Fast ($0.015/1K chars)</option>
+                    <option value="tts-1-hd">TTS-1-HD - High Quality ($0.030/1K chars)</option>
                 </select>
+                <p class="setting-description">HD model has clearer pronunciation and better intonation.</p>
             </div>
 
             <div class="setting-item">
@@ -72,6 +77,7 @@
                     <input type="range" id="ttsSpeed" min="0.25" max="4.0" step="0.25" value="1.0" class="speed-slider">
                     <span id="ttsSpeedValue">1.0x</span>
                 </div>
+                <p class="setting-description">0.25x (very slow) to 4.0x (very fast). Default 1.0x.</p>
             </div>
 
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
@@ -160,6 +166,26 @@
                 <div class="chapter-list" id="chapterList"></div>
             </div>
 
+            <!-- Image Gallery Section -->
+            <div class="image-section" id="imageSection" style="display: none;">
+                <div class="image-section-header">
+                    <h3>Images &amp; Figures</h3>
+                    <span class="image-count" id="imageCount">0 images</span>
+                </div>
+                <div class="image-gallery" id="imageGallery"></div>
+            </div>
+
+            <!-- Image Fullscreen Overlay -->
+            <div class="image-overlay" id="imageOverlay" style="display: none;">
+                <button class="overlay-close" id="closeImageOverlay">&times;</button>
+                <button class="overlay-nav overlay-prev" id="prevImage">&#10094;</button>
+                <div class="overlay-content">
+                    <img id="fullscreenImage" src="" alt="" />
+                    <div class="overlay-caption" id="fullscreenCaption"></div>
+                </div>
+                <button class="overlay-nav overlay-next" id="nextImage">&#10095;</button>
+            </div>
+
             <!-- Text Preview Section -->
             <div class="text-preview-section" id="textPreviewSection" style="display: none;">
                 <div class="preview-header">
@@ -192,7 +218,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- JSZip for EPUB parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="ebook.js?v=30"></script>
+    <script src="ebook.js?v=31"></script>
 </body>
 
 </html>
