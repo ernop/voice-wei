@@ -12,6 +12,29 @@ const TTS_CHUNK_SIZE = 4000;
 // Timing constants
 const PROGRESS_UPDATE_INTERVAL_MS = 100;
 
+// Voice descriptions for UI
+const VOICE_DESCRIPTIONS = {
+    alloy: 'Neutral and balanced, good for most content.',
+    echo: 'Male voice, clear and articulate. Good for non-fiction.',
+    fable: 'British accent, warm and expressive. Great for fiction.',
+    onyx: 'Deep male voice, authoritative. Good for dramatic content.',
+    nova: 'Female voice, warm and conversational. Good for stories.',
+    shimmer: 'Soft female voice, gentle and calm. Good for relaxing content.'
+};
+
+// Sample text for voice preview
+const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how the narration will sound.';
+
+/**
+ * @typedef {Object} ImageAsset
+ * @property {string} id - Unique identifier
+ * @property {string} src - Object URL for the image blob
+ * @property {string} alt - Alt text or caption
+ * @property {string} filename - Original filename
+ * @property {string} mimeType - Image MIME type
+ * @property {number} afterChunk - Text chunk index this image appears after (-1 if unknown)
+ */
+
 /**
  * @typedef {Object} BookData
  * @property {string} title
@@ -19,6 +42,7 @@ const PROGRESS_UPDATE_INTERVAL_MS = 100;
  * @property {string} text
  * @property {string[]} chapters
  * @property {string} format
+ * @property {ImageAsset[]} images - Extracted images from the book
  */
 
 /**
@@ -166,6 +190,83 @@ class EbookController {
         localStorage.setItem('ebookSettings', JSON.stringify(this.settings));
     }
 
+    updateVoiceDescription() {
+        const descEl = document.getElementById('voiceDescription');
+        if (descEl) {
+            descEl.textContent = VOICE_DESCRIPTIONS[this.settings.voice] || '';
+        }
+    }
+
+    /** @type {HTMLAudioElement | null} */
+    previewAudio = null;
+
+    async previewVoice() {
+        if (!this.apiKey) {
+            this.updateStatus('API key required for voice preview');
+            return;
+        }
+
+        const previewBtn = document.getElementById('previewVoiceBtn');
+        if (!previewBtn) return;
+
+        // If already playing, stop
+        if (this.previewAudio && !this.previewAudio.paused) {
+            this.previewAudio.pause();
+            this.previewAudio = null;
+            previewBtn.classList.remove('playing');
+            previewBtn.innerHTML = '&#9654;';
+            return;
+        }
+
+        previewBtn.disabled = true;
+        previewBtn.innerHTML = '...';
+        this.log('info', `Previewing voice: ${this.settings.voice}`);
+
+        try {
+            const response = await fetch('https://api.openai.com/v1/audio/speech', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: this.settings.model,
+                    input: VOICE_PREVIEW_TEXT,
+                    voice: this.settings.voice,
+                    speed: this.settings.speed,
+                    response_format: 'mp3'
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API error: ${response.status}`);
+            }
+
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+
+            this.previewAudio = new Audio(audioUrl);
+            this.previewAudio.addEventListener('ended', () => {
+                previewBtn.classList.remove('playing');
+                previewBtn.innerHTML = '&#9654;';
+                URL.revokeObjectURL(audioUrl);
+            });
+
+            previewBtn.classList.add('playing');
+            previewBtn.innerHTML = '&#9632;';
+            previewBtn.disabled = false;
+            await this.previewAudio.play();
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('error', `Voice preview failed: ${message}`);
+            this.updateStatus('Preview failed');
+            previewBtn.innerHTML = '&#9654;';
+            previewBtn.disabled = false;
+        }
+    }
+
     setupUI() {
         // Settings panel
         const settingsBtn = document.getElementById('settingsBtn');
@@ -197,7 +298,16 @@ class EbookController {
             voiceEl.addEventListener('change', () => {
                 this.settings.voice = voiceEl.value;
                 this.saveSettings();
+                this.updateVoiceDescription();
             });
+            // Set initial description
+            this.updateVoiceDescription();
+        }
+
+        // Voice preview button
+        const previewBtn = document.getElementById('previewVoiceBtn');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => this.previewVoice());
         }
 
         if (modelEl) {
@@ -269,6 +379,36 @@ class EbookController {
         const clearLogBtn = document.getElementById('clearLogBtn');
         if (clearLogBtn) {
             clearLogBtn.addEventListener('click', () => this.clearLog());
+        }
+
+        // Image overlay handlers
+        const closeOverlay = document.getElementById('closeImageOverlay');
+        const prevImage = document.getElementById('prevImage');
+        const nextImage = document.getElementById('nextImage');
+        const imageOverlay = document.getElementById('imageOverlay');
+
+        if (closeOverlay) {
+            closeOverlay.addEventListener('click', () => this.closeImageFullscreen());
+        }
+        if (prevImage) {
+            prevImage.addEventListener('click', () => this.navigateImage(-1));
+        }
+        if (nextImage) {
+            nextImage.addEventListener('click', () => this.navigateImage(1));
+        }
+        if (imageOverlay) {
+            imageOverlay.addEventListener('click', (e) => {
+                if (e.target === imageOverlay) {
+                    this.closeImageFullscreen();
+                }
+            });
+            // Keyboard navigation
+            document.addEventListener('keydown', (e) => {
+                if (imageOverlay.style.display === 'none') return;
+                if (e.key === 'Escape') this.closeImageFullscreen();
+                if (e.key === 'ArrowLeft') this.navigateImage(-1);
+                if (e.key === 'ArrowRight') this.navigateImage(1);
+            });
         }
     }
 
@@ -372,6 +512,8 @@ class EbookController {
             let author = '';
             /** @type {string[]} */
             let chapters = [];
+            /** @type {ImageAsset[]} */
+            let images = [];
 
             switch (extension) {
                 case 'txt':
@@ -383,9 +525,12 @@ class EbookController {
                     title = epubData.title || title;
                     author = epubData.author || '';
                     chapters = epubData.chapters || [];
+                    images = epubData.images || [];
                     break;
                 case 'pdf':
-                    text = await this.parsePdf(file);
+                    const pdfData = await this.parsePdf(file);
+                    text = pdfData.text;
+                    images = pdfData.images || [];
                     break;
                 case 'html':
                 case 'htm':
@@ -407,12 +552,15 @@ class EbookController {
                 author,
                 text,
                 chapters,
-                format: extension || 'unknown'
+                format: extension || 'unknown',
+                images
             };
 
             this.displayBook();
             this.updateStatus('Book loaded successfully');
-            this.log('info', `Loaded "${title}" - ${this.formatCharCount(text.length)}`);
+            
+            const imageInfo = images.length > 0 ? `, ${images.length} images` : '';
+            this.log('info', `Loaded "${title}" - ${this.formatCharCount(text.length)}${imageInfo}`);
 
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -473,21 +621,32 @@ class EbookController {
         const spineItems = opfDoc.querySelectorAll('spine itemref');
         const manifest = opfDoc.querySelectorAll('manifest item');
 
-        // Build href map from manifest
+        // Build href map and media-type map from manifest
         /** @type {Map<string, string>} */
         const hrefMap = new Map();
+        /** @type {Map<string, string>} */
+        const mediaTypeMap = new Map();
         manifest.forEach(item => {
             const id = item.getAttribute('id');
             const href = item.getAttribute('href');
+            const mediaType = item.getAttribute('media-type');
             if (id && href) {
                 hrefMap.set(id, href);
+                if (mediaType) {
+                    mediaTypeMap.set(href, mediaType);
+                }
             }
         });
 
-        // Extract text from each spine item
+        // Extract text and track image references from each spine item
         let fullText = '';
         /** @type {string[]} */
         const chapters = [];
+        /** @type {ImageAsset[]} */
+        const images = [];
+        /** @type {Set<string>} */
+        const processedImages = new Set();
+        let textChunkIndex = 0;
 
         for (const itemref of spineItems) {
             const idref = itemref.getAttribute('idref');
@@ -497,6 +656,7 @@ class EbookController {
             if (!href) continue;
 
             const filePath = basePath + href;
+            const fileDir = filePath.substring(0, filePath.lastIndexOf('/') + 1);
             const content = await zip.file(filePath)?.async('text');
 
             if (content) {
@@ -509,11 +669,84 @@ class EbookController {
                     chapters.push(h1.textContent.trim());
                 }
 
+                // Extract images from this content
+                const imgElements = doc.querySelectorAll('img, image');
+                for (const img of imgElements) {
+                    const imgSrc = img.getAttribute('src') || img.getAttribute('xlink:href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                    if (!imgSrc) continue;
+
+                    // Resolve relative path
+                    const imgPath = imgSrc.startsWith('/') ? imgSrc.substring(1) : fileDir + imgSrc;
+                    const normalizedPath = this.normalizePath(imgPath);
+                    
+                    if (processedImages.has(normalizedPath)) continue;
+                    processedImages.add(normalizedPath);
+
+                    try {
+                        const imgFile = zip.file(normalizedPath);
+                        if (imgFile) {
+                            const imgData = await imgFile.async('blob');
+                            const mimeType = mediaTypeMap.get(imgSrc) || this.getMimeTypeFromFilename(normalizedPath);
+                            const imgBlob = new Blob([imgData], { type: mimeType });
+                            const imgUrl = URL.createObjectURL(imgBlob);
+
+                            images.push({
+                                id: `img-${images.length}`,
+                                src: imgUrl,
+                                alt: img.getAttribute('alt') || '',
+                                filename: normalizedPath.split('/').pop() || 'image',
+                                mimeType,
+                                afterChunk: textChunkIndex
+                            });
+                        }
+                    } catch (e) {
+                        // Skip images that can't be loaded
+                        this.log('warn', `Could not load image: ${normalizedPath}`);
+                    }
+                }
+
                 fullText += bodyText + '\n\n';
+                textChunkIndex++;
             }
         }
 
-        return { text: fullText, title, author, chapters };
+        return { text: fullText, title, author, chapters, images };
+    }
+
+    /**
+     * Normalize a file path (resolve ../ and ./)
+     * @param {string} path
+     * @returns {string}
+     */
+    normalizePath(path) {
+        const parts = path.split('/').filter(p => p && p !== '.');
+        const result = [];
+        for (const part of parts) {
+            if (part === '..') {
+                result.pop();
+            } else {
+                result.push(part);
+            }
+        }
+        return result.join('/');
+    }
+
+    /**
+     * Get MIME type from filename
+     * @param {string} filename
+     * @returns {string}
+     */
+    getMimeTypeFromFilename(filename) {
+        const ext = filename.split('.').pop()?.toLowerCase();
+        const mimeTypes = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml',
+            'webp': 'image/webp'
+        };
+        return mimeTypes[ext || ''] || 'image/jpeg';
     }
 
     /** @param {File} file */
@@ -527,6 +760,8 @@ class EbookController {
 
         let fullText = '';
         const numPages = pdf.numPages;
+        /** @type {ImageAsset[]} */
+        const images = [];
 
         this.log('info', `PDF has ${numPages} pages`);
 
@@ -538,13 +773,46 @@ class EbookController {
                 .join(' ');
             fullText += pageText + '\n\n';
 
+            // Extract images from this page (render page to canvas for now)
+            // Note: Full PDF image extraction requires more complex operator parsing
+            // For now, we'll extract page renders for pages with little text
+            if (pageText.trim().length < 100) {
+                try {
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    if (context) {
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        await page.render({ canvasContext: context, viewport }).promise;
+                        
+                        const blob = await new Promise((resolve) => {
+                            canvas.toBlob(resolve, 'image/png');
+                        });
+                        
+                        if (blob) {
+                            images.push({
+                                id: `pdf-page-${i}`,
+                                src: URL.createObjectURL(blob),
+                                alt: `Page ${i}`,
+                                filename: `page-${i}.png`,
+                                mimeType: 'image/png',
+                                afterChunk: i - 1
+                            });
+                        }
+                    }
+                } catch (e) {
+                    // Skip pages that can't be rendered
+                }
+            }
+
             // Update progress for large PDFs
             if (numPages > 10 && i % 10 === 0) {
                 this.updateStatus(`Reading PDF... ${Math.round(i / numPages * 100)}%`);
             }
         }
 
-        return fullText;
+        return { text: fullText, images };
     }
 
     /** @param {File} file */
@@ -618,8 +886,82 @@ class EbookController {
             }
         }
 
+        // Show images if available
+        this.displayImages();
+
         // Enable convert button
         this.updateConvertButton();
+    }
+
+    displayImages() {
+        const imageGallery = document.getElementById('imageGallery');
+        const imageSection = document.getElementById('imageSection');
+        
+        if (!imageGallery || !imageSection) return;
+        
+        if (!this.bookData || !this.bookData.images || this.bookData.images.length === 0) {
+            imageSection.style.display = 'none';
+            return;
+        }
+
+        imageSection.style.display = 'block';
+        const imageCountEl = document.getElementById('imageCount');
+        if (imageCountEl) {
+            imageCountEl.textContent = `${this.bookData.images.length} image${this.bookData.images.length !== 1 ? 's' : ''}`;
+        }
+
+        imageGallery.innerHTML = this.bookData.images.map((img, i) => `
+            <div class="gallery-item" data-index="${i}">
+                <img src="${img.src}" alt="${this.escapeHtml(img.alt || img.filename)}" loading="lazy" />
+                <div class="gallery-caption">${this.escapeHtml(img.alt || img.filename)}</div>
+            </div>
+        `).join('');
+
+        // Add click handlers for fullscreen view
+        imageGallery.querySelectorAll('.gallery-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.getAttribute('data-index') || '0');
+                this.showImageFullscreen(index);
+            });
+        });
+    }
+
+    /** @param {number} index */
+    showImageFullscreen(index) {
+        if (!this.bookData?.images?.[index]) return;
+        
+        const img = this.bookData.images[index];
+        const overlay = document.getElementById('imageOverlay');
+        const fullImg = document.getElementById('fullscreenImage');
+        const caption = document.getElementById('fullscreenCaption');
+        
+        if (overlay && fullImg && caption) {
+            fullImg.setAttribute('src', img.src);
+            caption.textContent = img.alt || img.filename;
+            overlay.style.display = 'flex';
+            
+            // Store current index for navigation
+            overlay.setAttribute('data-current', String(index));
+        }
+    }
+
+    closeImageFullscreen() {
+        const overlay = document.getElementById('imageOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    navigateImage(direction) {
+        const overlay = document.getElementById('imageOverlay');
+        if (!overlay || !this.bookData?.images) return;
+        
+        const current = parseInt(overlay.getAttribute('data-current') || '0');
+        const newIndex = current + direction;
+        
+        if (newIndex >= 0 && newIndex < this.bookData.images.length) {
+            this.showImageFullscreen(newIndex);
+        }
     }
 
     updateConvertButton() {
@@ -630,6 +972,13 @@ class EbookController {
     }
 
     clearBook() {
+        // Revoke image URLs to free memory
+        if (this.bookData?.images) {
+            for (const img of this.bookData.images) {
+                URL.revokeObjectURL(img.src);
+            }
+        }
+        
         this.bookData = null;
         this.audioBlob = null;
 
@@ -639,11 +988,13 @@ class EbookController {
         const chapterNav = document.getElementById('chapterNav');
         const audioSection = document.getElementById('audioSection');
         const conversionProgress = document.getElementById('conversionProgress');
+        const imageSection = document.getElementById('imageSection');
 
         if (bookInfo) bookInfo.style.display = 'none';
         if (textPreviewSection) textPreviewSection.style.display = 'none';
         if (chapterNav) chapterNav.style.display = 'none';
         if (audioSection) audioSection.style.display = 'none';
+        if (imageSection) imageSection.style.display = 'none';
         if (conversionProgress) conversionProgress.style.display = 'none';
 
         // Clear text preview
