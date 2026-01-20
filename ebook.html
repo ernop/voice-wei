@@ -8,7 +8,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Books - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=30">
-    <link rel="stylesheet" href="ebook.css?v=3">
+    <link rel="stylesheet" href="ebook.css?v=30">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Books</h1>
-                <span class="version-label">v3</span>
+                <span class="version-label">v30</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -42,30 +42,27 @@
                     <button id="changeApiKeyBtn" class="api-key-action-btn">Change</button>
                     <button id="removeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
                 </div>
-                <p class="setting-description">Your API key is stored only in this browser's localStorage.</p>
+                <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
+                    leaves your device except to call OpenAI's API directly.</p>
             </div>
 
-            <!-- Voice Selection -->
             <div class="setting-item">
-                <label for="ttsVoice">Voice:</label>
+                <label for="ttsVoice">TTS Voice:</label>
                 <select id="ttsVoice" class="model-selector">
-                    <optgroup label="Standard Voices">
-                        <option value="alloy">Alloy (neutral)</option>
-                        <option value="echo">Echo (male)</option>
-                        <option value="fable">Fable (British)</option>
-                        <option value="onyx">Onyx (deep male)</option>
-                        <option value="nova">Nova (female)</option>
-                        <option value="shimmer">Shimmer (soft female)</option>
-                    </optgroup>
+                    <option value="alloy">Alloy</option>
+                    <option value="echo">Echo</option>
+                    <option value="fable">Fable</option>
+                    <option value="onyx">Onyx</option>
+                    <option value="nova">Nova</option>
+                    <option value="shimmer">Shimmer</option>
                 </select>
-                <p class="setting-description">Each voice has a distinct character and accent.</p>
             </div>
 
             <div class="setting-item">
                 <label for="ttsModel">TTS Model:</label>
                 <select id="ttsModel" class="model-selector">
-                    <option value="tts-1">TTS-1 (Fast, $0.015/1K chars)</option>
-                    <option value="tts-1-hd">TTS-1-HD (High Quality, $0.030/1K chars)</option>
+                    <option value="tts-1">TTS-1 (Fast)</option>
+                    <option value="tts-1-hd">TTS-1-HD (High Quality)</option>
                 </select>
             </div>
 
@@ -77,19 +74,10 @@
                 </div>
             </div>
 
-            <!-- Storage Stats -->
-            <div class="setting-item">
-                <label>Storage:</label>
-                <div class="storage-stats" id="storageStats">
-                    <span id="storageSize">-- MB</span> used
-                    <span id="storageBooks">-- books</span>
-                </div>
-            </div>
-
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
-        <!-- API Key Setup Overlay -->
+        <!-- API Key Setup Overlay (shown when no key is configured) -->
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
                 <h2>OpenAI API Key Required</h2>
@@ -107,52 +95,15 @@
         </div>
 
         <main>
-            <!-- Cost Tracker -->
-            <div class="cost-tracker" id="costTracker">
-                <span class="cost-label">Session Cost:</span>
-                <span class="cost-value" id="sessionCost">$0.00</span>
-                <span class="cost-separator">|</span>
-                <span class="cost-label">Total:</span>
-                <span class="cost-value" id="totalCost">$0.00</span>
-            </div>
+            <div class="status" id="status">Upload an ebook to get started</div>
 
-            <div class="status" id="status">Upload an ebook or enter a URL to get started</div>
-
-            <!-- Input Section: File Upload OR URL -->
-            <div class="input-section">
-                <div class="input-tabs">
-                    <button class="input-tab active" data-input="file">Upload File</button>
-                    <button class="input-tab" data-input="url">From URL</button>
-                </div>
-
-                <!-- File Upload -->
-                <div class="upload-section" id="fileInputSection">
-                    <div class="upload-area" id="uploadArea">
-                        <input type="file" id="fileInput" accept="text/plain,.txt,application/epub+zip,.epub,application/pdf,.pdf,text/html,.html,.htm,application/x-mobipocket-ebook,.mobi" hidden />
-                        <div class="upload-icon">&#128214;</div>
-                        <p class="upload-text">Drop ebook here or click to upload</p>
-                        <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML, MOBI</p>
-                    </div>
-                </div>
-
-                <!-- URL Input -->
-                <div class="url-section" id="urlInputSection" style="display: none;">
-                    <div class="url-input-row">
-                        <input type="url" id="urlInput" placeholder="https://example.com/article" class="url-input" />
-                        <button id="fetchUrlBtn" class="fetch-url-btn">Fetch</button>
-                    </div>
-                    <p class="url-hint">Enter a URL to extract and convert text content from a web page.</p>
-                </div>
-            </div>
-
-            <!-- My Library Section -->
-            <div class="library-section" id="librarySection" style="display: none;">
-                <div class="library-header">
-                    <h3>My Library</h3>
-                    <button id="refreshLibraryBtn" class="refresh-btn" title="Refresh">&#8635;</button>
-                </div>
-                <div class="library-list" id="libraryList">
-                    <p class="library-empty">No saved books yet</p>
+            <!-- File Upload Section -->
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept=".txt,.epub,.pdf,.html,.htm" hidden />
+                    <div class="upload-icon">&#128214;</div>
+                    <p class="upload-text">Drop ebook here or click to upload</p>
+                    <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML</p>
                 </div>
             </div>
 
@@ -164,19 +115,11 @@
                         <span id="bookAuthor"></span>
                         <span id="bookStats"></span>
                     </div>
-                    <div class="book-cost-estimate">
-                        <span class="estimate-label">Estimated cost:</span>
-                        <span class="estimate-value" id="estimatedCost">$0.00</span>
-                    </div>
                 </div>
                 <div class="book-actions">
                     <button id="convertBtn" class="convert-btn" disabled>
                         <span class="btn-icon">&#127925;</span>
                         <span class="btn-text">Convert to MP3</span>
-                    </button>
-                    <button id="saveBookBtn" class="save-book-btn" style="display: none;">
-                        <span class="btn-icon">&#128190;</span>
-                        <span class="btn-text">Save to Library</span>
                     </button>
                     <button id="clearBookBtn" class="clear-book-btn">Clear</button>
                 </div>
@@ -195,7 +138,6 @@
                 </div>
                 <div class="progress-stats">
                     <span id="progressChunks">0 / 0 chunks</span>
-                    <span id="progressCost">Cost: $0.00</span>
                     <span id="progressTime">Estimated: --</span>
                 </div>
             </div>
@@ -203,65 +145,13 @@
             <!-- Audio Player (shown after conversion) -->
             <div class="audio-section" id="audioSection" style="display: none;">
                 <div class="audio-header">
-                    <h3>Audiobook</h3>
+                    <h3>Audiobook Ready</h3>
                     <button id="downloadAudioBtn" class="download-btn">
                         <span class="btn-icon">&#11015;</span>
                         <span class="btn-text">Download MP3</span>
                     </button>
                 </div>
-
-                <!-- Time Display -->
-                <div class="time-display">
-                    <span class="time-current" id="currentTimeDisplay">0:00</span>
-                    <span class="time-separator">/</span>
-                    <span class="time-total" id="totalTimeDisplay">0:00</span>
-                    <span class="time-remaining" id="remainingTimeDisplay">-0:00</span>
-                </div>
-
-                <!-- Enhanced Timeline -->
-                <div class="timeline-section">
-                    <div class="timeline-controls">
-                        <button id="zoomOutBtn" class="zoom-btn" title="Zoom Out">-</button>
-                        <span id="zoomLabel" class="zoom-label">1.0x</span>
-                        <button id="zoomInBtn" class="zoom-btn" title="Zoom In">+</button>
-                        <button id="zoomResetBtn" class="zoom-btn" title="Reset Zoom">Reset</button>
-                    </div>
-                    <div class="timeline-container" id="timelineContainer">
-                        <div class="timeline-inner" id="timelineInner">
-                            <div class="timeline-track" id="timelineTrack">
-                                <div class="timeline-fill" id="timelineFill"></div>
-                                <div class="timeline-handle" id="timelineHandle"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Jump Buttons -->
-                <div class="quick-jump-section">
-                    <span class="quick-jump-label">Jump:</span>
-                    <button class="jump-btn" data-seconds="-60">-1m</button>
-                    <button class="jump-btn" data-seconds="-30">-30s</button>
-                    <button class="jump-btn" data-seconds="-10">-10s</button>
-                    <button class="jump-btn" data-seconds="10">+10s</button>
-                    <button class="jump-btn" data-seconds="30">+30s</button>
-                    <button class="jump-btn" data-seconds="60">+1m</button>
-                    <button class="jump-btn" data-seconds="240">+4m</button>
-                    <button class="jump-btn" data-seconds="720">+12m</button>
-                </div>
-
-                <!-- Standard Audio Controls -->
                 <audio id="audioPlayer" controls class="audio-player"></audio>
-            </div>
-
-            <!-- Playback History Section -->
-            <div class="playback-history-section" id="playbackHistorySection" style="display: none;">
-                <div class="history-header">
-                    <h3>Playback History</h3>
-                    <span class="history-hint">Click any entry to jump back</span>
-                </div>
-                <div class="playback-history-list" id="playbackHistoryList">
-                    <p class="history-empty">No playback history yet</p>
-                </div>
             </div>
 
             <!-- Chapter Navigation (for epub) -->
@@ -302,7 +192,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- JSZip for EPUB parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="ebook.js?v=3"></script>
+    <script src="ebook.js?v=30"></script>
 </body>
 
 </html>

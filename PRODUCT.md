@@ -183,85 +183,37 @@ The AI becomes your co-pilot DJ who actually understands what you want.
 
 ---
 
-# Ebook to Audiobook Converter (v3)
+# Ebook to Audiobook Converter
 
 ## Overview
 
-Convert ebooks and web pages to audiobooks using OpenAI's text-to-speech API. Features persistent storage, cost tracking, progressive playback, and precise navigation.
+Convert ebooks to audiobooks using OpenAI's text-to-speech API. Upload common ebook formats (TXT, EPUB, PDF, HTML), preview the extracted text, and convert to high-quality MP3 audio.
 
 ## Core Features
 
-### Input Sources
-- **File Upload**: TXT, EPUB, PDF, HTML, MOBI formats
-- **URL Fetch**: Extract text from any web page
-- **Drag & Drop**: Drop files directly onto upload area
+### Input Formats
+- **TXT**: Plain text files
+- **EPUB**: Standard ebook format (extracts chapters, metadata)
+- **PDF**: Portable document format (extracts text from all pages)
+- **HTML**: Web pages saved locally
 
 ### Text-to-Speech
 - **OpenAI TTS API**: High-quality neural voices
-- **Voice Options**: Alloy, Echo, Fable, Onyx, Nova, Shimmer
-- **Model Selection**: TTS-1 (fast) or TTS-1-HD (high quality)
+- **Voice Options**: Alloy (neutral), Echo (male), Fable (British), Onyx (deep), Nova (female), Shimmer (soft)
+- **Model Selection**: TTS-1 (fast, $0.015/1K chars) or TTS-1-HD (high quality, $0.030/1K chars)
 - **Speed Control**: 0.25x to 4.0x playback speed
 
-### Persistent Storage (IndexedDB)
-- **Browser Storage**: All data stored locally in IndexedDB
-- **No Server Required**: Works entirely client-side
-- **Large Capacity**: Can store hundreds of MB of audio
-- **Audio Preservation**: MP3 files stored permanently (never regenerated)
-- **Cross-Session**: Books persist across browser sessions
+### Conversion Process
+- Text split into ~4000 character chunks (OpenAI limit is 4096)
+- Each chunk converted separately via API
+- Progress displayed with chunk count and time estimate
+- Cancellable at any point
+- Final audio combined into single MP3
 
-### Cost Tracking
-- **Real-Time Estimates**: See cost before conversion
-- **Per-Chunk Tracking**: Monitor cost as conversion progresses
-- **Session & Total**: Track both current session and lifetime costs
-- **Pricing Display**: TTS-1 ($0.015/1K chars), TTS-1-HD ($0.030/1K chars)
-
-### Playback Features
-- **Progressive Playback**: Audio plays as chunks complete (no waiting for full conversion)
-- **Precise Timeline**: Zoom 1x-20x for accurate seeking in long books
-- **Quick Jump Buttons**: -1m, -30s, -10s, +10s, +30s, +1m, +4m, +12m
-- **Position Memory**: Automatically saves and restores position per book
-- **Playback History**: Every seek/play action logged with clickable jump-back
-
-## Data Architecture
-
-### IndexedDB Storage
-```
-EbookAudiobookDB (IndexedDB)
-  books/                         <- Object store
-    [userHash, bookHash]         <- Compound key
-      title, author, text, chapters, format
-      hasAudio, audioDuration, conversionCost
-      createdAt, updatedAt
-
-  audio/                         <- Object store
-    [userHash, bookHash]         <- Compound key
-      blob                       <- MP3 audio blob
-      size, createdAt
-```
-
-### Security Model
-- **Browser Isolation**: IndexedDB is origin-locked (same-origin policy)
-- **User Namespace**: API key hash partitions data within the DB
-- **No Server**: Data never leaves the browser
-- **Private by Default**: Other users/sites cannot access your data
-
-### Metadata Schema
-```json
-{
-  "title": "Book Title",
-  "author": "Author Name",
-  "text": "Full book text...",
-  "chapters": ["Chapter 1", "Chapter 2"],
-  "format": "epub",
-  "sourceUrl": "https://...",
-  "charCount": 50000,
-  "wordCount": 8500,
-  "hasAudio": true,
-  "audioDuration": 3600,
-  "conversionCost": 0.75,
-  "updatedAt": 1705700000
-}
-```
+### Audio Playback
+- Built-in HTML5 audio player
+- Download MP3 button for offline use
+- Text preview with copy/select functionality
 
 ## Cost Reference
 
@@ -281,56 +233,53 @@ EbookAudiobookDB (IndexedDB)
 | Nova | Female, warm |
 | Shimmer | Soft female |
 
-## UI Components
+## Security Model
 
-### Library Panel
-- Shows all saved books sorted by last update
-- Click to load book and audio
-- Delete button per book
-- Storage usage display
-
-### Cost Tracker
-- Session cost (current session)
-- Total cost (lifetime)
-- Estimated cost before conversion
-
-### Timeline Controls
-- Zoomable timeline (1x-20x)
-- Current time / Total / Remaining display
-- Quick jump buttons
-- Click anywhere to seek
-
-### Playback History
-- Timestamped log of all playback actions
-- Click any entry to jump to that position
-- Persists per book
-
-## Technical Notes
-
-### Progressive Playback
-- Conversion creates chunks of ~4000 characters
-- Each chunk converted separately
-- Audio player updates after each chunk
-- User can start listening immediately
-
-### Position Persistence
-- Position saved every 5 seconds during playback
-- Stored in localStorage keyed by bookHash
-- Restored when book loaded from library
-
-### URL Fetching
-- Uses proxy.php to avoid CORS
-- Extracts main content (article, main, .content)
-- Removes nav, header, footer, ads
-- Falls back to body text
+- **API keys in localStorage**: Never sent anywhere except OpenAI
+- **No server storage**: All processing happens client-side
+- **HTTPS required**: For clipboard and file access
 
 ---
 
-## Summary
+# Version System
 
-Voice Music Control solves the fundamental problem with music apps while driving: they're designed for people sitting at desks, not behind wheels. This app puts voice first, AI second, and touch third. Speak naturally, get smart results, control hands-free.
+All four pages share a unified version number stored in the `VERSION` file.
 
-The Ebook Converter extends this to audiobooks - convert any text to speech with cost tracking, persistent storage, and precise playback control. Your API key is your identity, and your books are always available.
+## Current Version
 
-The goal isn't to replace Spotify or YouTube Music. It's to be the safest, smartest way to control music when your eyes and hands need to be elsewhere.
+See `VERSION` file for the single source of truth.
+
+## Bumping Version
+
+Run the bump script before deploying changes:
+
+```bash
+./bump-version.sh        # Increment by 1
+./bump-version.sh 31     # Set to specific version
+```
+
+This updates:
+- `VERSION` file
+- All HTML version labels (v30 in header)
+- All cache-busting parameters (?v=30)
+
+## Deploy Workflow
+
+1. Make changes
+2. Run `./bump-version.sh`
+3. `git add -A && git commit -m "..." && git push`
+4. Push to master triggers GitHub Actions deploy
+
+---
+
+# Summary
+
+Voice-Wei is a collection of voice-first tools for musicians and readers:
+
+1. **Scales**: Voice-controlled scale practice with realistic piano
+2. **Pitch Meter**: Real-time pitch detection for vocal accuracy
+3. **Music Player**: AI-powered voice-controlled YouTube player
+4. **Books**: Ebook to audiobook converter using OpenAI TTS
+
+The common thread is hands-free, voice-first operation. Whether practicing scales, checking pitch, playing music while driving, or listening to books, these tools minimize visual attention and maximize voice control.
 
