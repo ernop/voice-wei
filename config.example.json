@@ -1,5 +1,9 @@
 {
-  "_note": "Claude API key is now managed via the UI and stored in localStorage. No config file needed for the API key.",
+  "_note": "API keys are managed via the UI and stored in localStorage. No config file needed for API keys.",
+  "_api_keys": {
+    "claude": "Managed in player.html Settings - stored in localStorage as 'claudeApiKey'",
+    "openai": "Managed in ebook.html Settings - stored in localStorage as 'openaiApiKey'"
+  },
   "deploy": {
     "user": "ernop",
     "host": "fuseki.net",
