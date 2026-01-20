@@ -1199,6 +1199,60 @@ h1 {
     margin-bottom: 0;
 }
 
+/* Overlay Provider Tabs */
+.overlay-provider-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.provider-tab {
+    flex: 1;
+    padding: 12px 20px;
+    background: rgba(74, 222, 128, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.provider-tab:first-child {
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+}
+
+.provider-tab:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.provider-tab:hover {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.provider-tab.active {
+    background: rgba(74, 222, 128, 0.3);
+    color: #a7f3d0;
+    border-color: rgba(74, 222, 128, 0.5);
+}
+
+.overlay-provider-section {
+    margin-bottom: 16px;
+}
+
+.provider-hint {
+    font-size: 0.9rem;
+    color: rgba(232, 245, 233, 0.8);
+    margin-bottom: 12px;
+}
+
+.provider-hint a {
+    color: #4ade80;
+}
+
 /* Page Footer */
 .page-footer {
     display: flex;

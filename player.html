@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Voice-Wei: Voice-controlled music player">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=29">
+    <link rel="stylesheet" href="style.css?v=30">
 </head>
 
 <body>
@@ -14,7 +14,7 @@
         <header>
             <div class="header-top">
                 <h1>Music</h1>
-                <span class="version-label">v0.29</span>
+                <span class="version-label">v0.30</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -28,26 +28,52 @@
         <div class="settings-panel" id="settingsPanel" style="display: none;">
             <h2>Settings</h2>
 
-            <div class="setting-item api-key-section">
+            <!-- AI Provider Selection -->
+            <div class="setting-item">
+                <label for="aiProvider">AI Provider:</label>
+                <select id="aiProvider" class="model-selector">
+                    <option value="claude">Claude (Anthropic)</option>
+                    <option value="openai">OpenAI (GPT)</option>
+                </select>
+                <p class="setting-description">Choose which AI to use for interpreting music requests.</p>
+            </div>
+
+            <!-- Claude API Key Section -->
+            <div class="setting-item api-key-section" id="claudeApiSection">
                 <label for="claudeApiKeyInput">Claude API Key:</label>
-                <div class="api-key-status" id="apiKeyStatus"></div>
-                <div class="api-key-input-row" id="apiKeyInputRow" style="display: none;">
+                <div class="api-key-status" id="claudeApiKeyStatus"></div>
+                <div class="api-key-input-row" id="claudeApiKeyInputRow" style="display: none;">
                     <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." class="api-key-input" />
-                    <button id="saveApiKeyBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveClaudeApiKeyBtn" class="save-api-key-btn">Save</button>
                 </div>
-                <div class="api-key-actions" id="apiKeyActions" style="display: none;">
-                    <button id="showApiKeyBtn" class="api-key-action-btn">Show</button>
-                    <button id="changeApiKeyBtn" class="api-key-action-btn">Change</button>
-                    <button id="removeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                <div class="api-key-actions" id="claudeApiKeyActions" style="display: none;">
+                    <button id="showClaudeApiKeyBtn" class="api-key-action-btn">Show</button>
+                    <button id="changeClaudeApiKeyBtn" class="api-key-action-btn">Change</button>
+                    <button id="removeClaudeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
                 </div>
-                <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
-                    leaves your device except to call Claude's API directly.</p>
+                <p class="setting-description">Get your key from <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></p>
+            </div>
+
+            <!-- OpenAI API Key Section -->
+            <div class="setting-item api-key-section" id="openaiApiSection" style="display: none;">
+                <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                <div class="api-key-status" id="openaiApiKeyStatus"></div>
+                <div class="api-key-input-row" id="openaiApiKeyInputRow" style="display: none;">
+                    <input type="password" id="openaiApiKeyInput" placeholder="sk-..." class="api-key-input" />
+                    <button id="saveOpenaiApiKeyBtn" class="save-api-key-btn">Save</button>
+                </div>
+                <div class="api-key-actions" id="openaiApiKeyActions" style="display: none;">
+                    <button id="showOpenaiApiKeyBtn" class="api-key-action-btn">Show</button>
+                    <button id="changeOpenaiApiKeyBtn" class="api-key-action-btn">Change</button>
+                    <button id="removeOpenaiApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                </div>
+                <p class="setting-description">Get your key from <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></p>
             </div>
 
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="readClaudeResponse" />
-                    <span>Read Claude responses aloud</span>
+                    <span>Read AI responses aloud</span>
                 </label>
             </div>
             <div class="setting-item">
@@ -58,30 +84,58 @@
                 <p class="setting-description">Auto: Submits after you pause. Manual: Keeps listening until you say
                     "submit" or click Submit button.</p>
             </div>
-            <div class="setting-item">
+
+            <!-- Claude Model Selection -->
+            <div class="setting-item" id="claudeModelSection">
                 <label for="claudeModel">Claude Model:</label>
                 <select id="claudeModel" class="model-selector">
                     <option value="claude-opus-4-5-20251101">Opus 4.5</option>
                     <option value="claude-haiku-4-5-20250514">Haiku 4.5 (unverified)</option>
                 </select>
             </div>
+
+            <!-- OpenAI Model Selection -->
+            <div class="setting-item" id="openaiModelSection" style="display: none;">
+                <label for="openaiModel">OpenAI Model:</label>
+                <select id="openaiModel" class="model-selector">
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini (faster)</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                </select>
+            </div>
+
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
         <!-- API Key Setup Overlay (shown when no key is configured) -->
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
-                <h2>Claude API Key Required</h2>
-                <p>This app uses Claude AI to understand your music requests. You'll need your own API key from <a
-                        href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
-                </p>
-                <div class="api-key-input-row">
-                    <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
-                        class="api-key-input" />
-                    <button id="saveApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                <h2>API Key Required</h2>
+                <p>This app uses AI to understand your music requests. Enter your API key from either provider:</p>
+
+                <div class="overlay-provider-tabs">
+                    <button class="provider-tab active" data-provider="claude">Claude</button>
+                    <button class="provider-tab" data-provider="openai">OpenAI</button>
                 </div>
+
+                <div class="overlay-provider-section" id="overlayClaudeSection">
+                    <p class="provider-hint">Get your key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a></p>
+                    <div class="api-key-input-row">
+                        <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..." class="api-key-input" />
+                        <button id="saveClaudeApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                    </div>
+                </div>
+
+                <div class="overlay-provider-section" id="overlayOpenaiSection" style="display: none;">
+                    <p class="provider-hint">Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a></p>
+                    <div class="api-key-input-row">
+                        <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..." class="api-key-input" />
+                        <button id="saveOpenaiApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                    </div>
+                </div>
+
                 <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
-                    leaves your device except to call Claude's API directly.</p>
+                    leaves your device except to call the AI API directly.</p>
             </div>
         </div>
 
@@ -172,9 +226,9 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="voice-output.js?v=29"></script>
-    <script src="voice-command-core.js?v=29"></script>
-    <script src="app.js?v=29"></script>
+    <script src="voice-output.js?v=30"></script>
+    <script src="voice-command-core.js?v=30"></script>
+    <script src="app.js?v=30"></script>
 </body>
 
 </html>

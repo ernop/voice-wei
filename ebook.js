@@ -1,5 +1,6 @@
 // @ts-check
 // Ebook to Audiobook Converter using OpenAI TTS
+// v2 - Progressive playback, history tracking, enhanced timeline
 
 // Configure PDF.js worker
 if (typeof pdfjsLib !== 'undefined') {
@@ -10,7 +11,8 @@ if (typeof pdfjsLib !== 'undefined') {
 const TTS_CHUNK_SIZE = 4000;
 
 // Timing constants
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
+const PROGRESS_UPDATE_INTERVAL_MS = 250;
+const POSITION_SAVE_INTERVAL_MS = 5000;
 
 /**
  * @typedef {Object} BookData
@@ -19,6 +21,23 @@ const PROGRESS_UPDATE_INTERVAL_MS = 100;
  * @property {string} text
  * @property {string[]} chapters
  * @property {string} format
+ * @property {string} fileHash
+ */
+
+/**
+ * @typedef {Object} AudioChunk
+ * @property {number} index
+ * @property {Blob} blob
+ * @property {number} duration
+ * @property {number} startTime
+ */
+
+/**
+ * @typedef {Object} HistoryEntry
+ * @property {number} timestamp
+ * @property {string} action
+ * @property {number} position
+ * @property {string} description
  */
 
 /**
@@ -40,12 +59,30 @@ class EbookController {
             model: 'tts-1',
             speed: 1.0
         };
+        /** @type {AudioChunk[]} */
+        this.audioChunks = [];
         /** @type {Blob | null} */
-        this.audioBlob = null;
+        this.fullAudioBlob = null;
         /** @type {boolean} */
         this.isConverting = false;
         /** @type {AbortController | null} */
         this.abortController = null;
+        /** @type {number} */
+        this.currentChunkIndex = 0;
+        /** @type {number} */
+        this.totalDuration = 0;
+        /** @type {HistoryEntry[]} */
+        this.playbackHistory = [];
+        /** @type {number} */
+        this.savedPosition = 0;
+        /** @type {ReturnType<typeof setInterval> | null} */
+        this.progressInterval = null;
+        /** @type {ReturnType<typeof setInterval> | null} */
+        this.positionSaveInterval = null;
+        /** @type {number} */
+        this.zoomLevel = 1; // 1 = full view, higher = zoomed in
+        /** @type {number} */
+        this.zoomCenter = 0.5; // Center of zoom (0-1)
 
         this.init();
     }
@@ -55,6 +92,7 @@ class EbookController {
         this.loadSettings();
         this.setupUI();
         this.setupDragAndDrop();
+        this.setupAudioPlayer();
     }
 
     // API Key Management
@@ -88,15 +126,12 @@ class EbookController {
         this.hideApiKeyOverlay();
         this.updateApiKeyUI(true);
 
-        // Clear inputs
         const settingsInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyInput'));
         const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyOverlayInput'));
         if (settingsInput) settingsInput.value = '';
         if (overlayInput) overlayInput.value = '';
 
-        // Enable convert button if book is loaded
         this.updateConvertButton();
-
         return true;
     }
 
@@ -150,7 +185,6 @@ class EbookController {
             this.settings = { ...this.settings, ...JSON.parse(saved) };
         }
 
-        // Update UI
         const voiceEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsVoice'));
         const modelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsModel'));
         const speedEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ttsSpeed'));
@@ -184,7 +218,6 @@ class EbookController {
             });
         }
 
-        // API key management
         this.setupApiKeyUI();
 
         // Settings controls
@@ -270,10 +303,15 @@ class EbookController {
         if (clearLogBtn) {
             clearLogBtn.addEventListener('click', () => this.clearLog());
         }
+
+        // Quick jump buttons
+        this.setupQuickJumpButtons();
+
+        // Zoom controls
+        this.setupZoomControls();
     }
 
     setupApiKeyUI() {
-        // Settings panel API key handlers
         const saveBtn = document.getElementById('saveApiKeyBtn');
         const showBtn = document.getElementById('showApiKeyBtn');
         const changeBtn = document.getElementById('changeApiKeyBtn');
@@ -322,7 +360,6 @@ class EbookController {
             });
         }
 
-        // Overlay API key handlers
         const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyOverlayInput'));
         const overlaySaveBtn = document.getElementById('saveApiKeyOverlayBtn');
 
@@ -335,6 +372,295 @@ class EbookController {
                     this.saveApiKey(overlayInput.value.trim());
                 }
             });
+        }
+    }
+
+    setupQuickJumpButtons() {
+        const jumpBtns = document.querySelectorAll('.jump-btn');
+        jumpBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const seconds = parseInt(btn.getAttribute('data-seconds') || '0', 10);
+                this.jumpBySeconds(seconds);
+            });
+        });
+    }
+
+    setupZoomControls() {
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomResetBtn = document.getElementById('zoomResetBtn');
+
+        if (zoomInBtn) {
+            zoomInBtn.addEventListener('click', () => this.adjustZoom(2));
+        }
+        if (zoomOutBtn) {
+            zoomOutBtn.addEventListener('click', () => this.adjustZoom(0.5));
+        }
+        if (zoomResetBtn) {
+            zoomResetBtn.addEventListener('click', () => this.resetZoom());
+        }
+    }
+
+    /** @param {number} factor */
+    adjustZoom(factor) {
+        const oldZoom = this.zoomLevel;
+        this.zoomLevel = Math.max(1, Math.min(20, this.zoomLevel * factor));
+
+        // Adjust zoom center to keep current position visible
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audioPlayer && audioPlayer.duration) {
+            this.zoomCenter = audioPlayer.currentTime / audioPlayer.duration;
+        }
+
+        this.updateZoomDisplay();
+        this.log('info', `Zoom: ${this.zoomLevel.toFixed(1)}x`);
+    }
+
+    resetZoom() {
+        this.zoomLevel = 1;
+        this.zoomCenter = 0.5;
+        this.updateZoomDisplay();
+    }
+
+    updateZoomDisplay() {
+        const zoomLabel = document.getElementById('zoomLabel');
+        if (zoomLabel) {
+            zoomLabel.textContent = `${this.zoomLevel.toFixed(1)}x`;
+        }
+
+        // Update timeline width based on zoom
+        const timelineInner = document.getElementById('timelineInner');
+        if (timelineInner) {
+            timelineInner.style.width = `${this.zoomLevel * 100}%`;
+
+            // Scroll to keep current position centered
+            const timelineContainer = document.getElementById('timelineContainer');
+            if (timelineContainer && this.zoomLevel > 1) {
+                const scrollPos = (this.zoomCenter * timelineInner.offsetWidth) - (timelineContainer.offsetWidth / 2);
+                timelineContainer.scrollLeft = Math.max(0, scrollPos);
+            }
+        }
+    }
+
+    setupAudioPlayer() {
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audioPlayer) return;
+
+        audioPlayer.addEventListener('play', () => {
+            this.addHistoryEntry('play', audioPlayer.currentTime, 'Started playback');
+            this.startProgressUpdates();
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            this.addHistoryEntry('pause', audioPlayer.currentTime, 'Paused playback');
+            this.stopProgressUpdates();
+        });
+
+        audioPlayer.addEventListener('seeked', () => {
+            this.addHistoryEntry('seek', audioPlayer.currentTime, `Jumped to ${this.formatTime(audioPlayer.currentTime)}`);
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            this.addHistoryEntry('ended', audioPlayer.currentTime, 'Finished playback');
+            this.stopProgressUpdates();
+        });
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            this.updateTimelinePosition();
+        });
+
+        // Custom timeline click handling
+        const timelineTrack = document.getElementById('timelineTrack');
+        if (timelineTrack) {
+            timelineTrack.addEventListener('click', (e) => {
+                this.handleTimelineClick(e);
+            });
+        }
+
+        // Start position save interval
+        this.positionSaveInterval = setInterval(() => {
+            if (audioPlayer && !audioPlayer.paused && this.bookData) {
+                this.savePlaybackPosition(audioPlayer.currentTime);
+            }
+        }, POSITION_SAVE_INTERVAL_MS);
+    }
+
+    /** @param {MouseEvent} e */
+    handleTimelineClick(e) {
+        const timelineTrack = document.getElementById('timelineTrack');
+        const timelineInner = document.getElementById('timelineInner');
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+
+        if (!timelineTrack || !timelineInner || !audioPlayer || !audioPlayer.duration) return;
+
+        const rect = timelineInner.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const percentage = clickX / rect.width;
+        const newTime = percentage * audioPlayer.duration;
+
+        const oldTime = audioPlayer.currentTime;
+        audioPlayer.currentTime = newTime;
+
+        this.addHistoryEntry('jump', newTime, `Jumped from ${this.formatTime(oldTime)} to ${this.formatTime(newTime)}`);
+    }
+
+    /** @param {number} seconds */
+    jumpBySeconds(seconds) {
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audioPlayer) return;
+
+        const oldTime = audioPlayer.currentTime;
+        const newTime = Math.max(0, Math.min(audioPlayer.duration || 0, oldTime + seconds));
+        audioPlayer.currentTime = newTime;
+
+        const direction = seconds > 0 ? '+' : '';
+        this.addHistoryEntry('jump', newTime, `${direction}${seconds}s: ${this.formatTime(oldTime)} -> ${this.formatTime(newTime)}`);
+    }
+
+    /**
+     * @param {string} action
+     * @param {number} position
+     * @param {string} description
+     */
+    addHistoryEntry(action, position, description) {
+        const entry = {
+            timestamp: Date.now(),
+            action,
+            position,
+            description
+        };
+
+        this.playbackHistory.unshift(entry);
+
+        // Keep only last 100 entries
+        if (this.playbackHistory.length > 100) {
+            this.playbackHistory.pop();
+        }
+
+        this.renderPlaybackHistory();
+        this.savePlaybackHistory();
+    }
+
+    renderPlaybackHistory() {
+        const historyList = document.getElementById('playbackHistoryList');
+        if (!historyList) return;
+
+        if (this.playbackHistory.length === 0) {
+            historyList.innerHTML = '<p class="history-empty">No playback history yet</p>';
+            return;
+        }
+
+        historyList.innerHTML = this.playbackHistory.map((entry, index) => {
+            const time = new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            const positionStr = this.formatTime(entry.position);
+            const icon = this.getActionIcon(entry.action);
+
+            return `<div class="history-item" data-index="${index}" data-position="${entry.position}">
+                <span class="history-icon">${icon}</span>
+                <span class="history-time">${time}</span>
+                <span class="history-position">[${positionStr}]</span>
+                <span class="history-desc">${this.escapeHtml(entry.description)}</span>
+            </div>`;
+        }).join('');
+
+        // Add click handlers
+        historyList.querySelectorAll('.history-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const position = parseFloat(item.getAttribute('data-position') || '0');
+                this.jumpToPosition(position);
+            });
+        });
+    }
+
+    /** @param {string} action */
+    getActionIcon(action) {
+        const icons = {
+            'play': '&#9654;',
+            'pause': '&#10074;&#10074;',
+            'seek': '&#8644;',
+            'jump': '&#8618;',
+            'ended': '&#9632;'
+        };
+        return icons[action] || '&#8226;';
+    }
+
+    /** @param {number} position */
+    jumpToPosition(position) {
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audioPlayer) return;
+
+        const oldTime = audioPlayer.currentTime;
+        audioPlayer.currentTime = position;
+        this.addHistoryEntry('jump', position, `History jump: ${this.formatTime(oldTime)} -> ${this.formatTime(position)}`);
+    }
+
+    savePlaybackHistory() {
+        if (!this.bookData) return;
+        const key = `ebookHistory_${this.bookData.fileHash}`;
+        localStorage.setItem(key, JSON.stringify(this.playbackHistory.slice(0, 50)));
+    }
+
+    loadPlaybackHistory() {
+        if (!this.bookData) return;
+        const key = `ebookHistory_${this.bookData.fileHash}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            this.playbackHistory = JSON.parse(saved);
+            this.renderPlaybackHistory();
+        }
+    }
+
+    /** @param {number} position */
+    savePlaybackPosition(position) {
+        if (!this.bookData) return;
+        const key = `ebookPosition_${this.bookData.fileHash}`;
+        localStorage.setItem(key, String(position));
+    }
+
+    loadPlaybackPosition() {
+        if (!this.bookData) return 0;
+        const key = `ebookPosition_${this.bookData.fileHash}`;
+        const saved = localStorage.getItem(key);
+        return saved ? parseFloat(saved) : 0;
+    }
+
+    startProgressUpdates() {
+        this.stopProgressUpdates();
+        this.progressInterval = setInterval(() => {
+            this.updateTimelinePosition();
+        }, PROGRESS_UPDATE_INTERVAL_MS);
+    }
+
+    stopProgressUpdates() {
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+    }
+
+    updateTimelinePosition() {
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const timelineFill = document.getElementById('timelineFill');
+        const timelineHandle = document.getElementById('timelineHandle');
+        const currentTimeEl = document.getElementById('currentTimeDisplay');
+        const totalTimeEl = document.getElementById('totalTimeDisplay');
+        const remainingTimeEl = document.getElementById('remainingTimeDisplay');
+
+        if (!audioPlayer || !audioPlayer.duration) return;
+
+        const percentage = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+
+        if (timelineFill) timelineFill.style.width = `${percentage}%`;
+        if (timelineHandle) timelineHandle.style.left = `${percentage}%`;
+        if (currentTimeEl) currentTimeEl.textContent = this.formatTime(audioPlayer.currentTime);
+        if (totalTimeEl) totalTimeEl.textContent = this.formatTime(audioPlayer.duration);
+        if (remainingTimeEl) {
+            const remaining = audioPlayer.duration - audioPlayer.currentTime;
+            remainingTimeEl.textContent = `-${this.formatTime(remaining)}`;
         }
     }
 
@@ -391,6 +717,10 @@ class EbookController {
                 case 'htm':
                     text = await this.parseHtml(file);
                     break;
+                case 'mobi':
+                    this.log('warn', 'MOBI format has limited support - text extraction may be incomplete');
+                    text = await this.parseMobi(file);
+                    break;
                 default:
                     throw new Error(`Unsupported file format: ${extension}`);
             }
@@ -399,26 +729,46 @@ class EbookController {
                 throw new Error('No text content found in file');
             }
 
-            // Clean up text
             text = this.cleanText(text);
+
+            // Generate a hash for the file to track position
+            const fileHash = await this.hashString(file.name + file.size + text.substring(0, 1000));
 
             this.bookData = {
                 title,
                 author,
                 text,
                 chapters,
-                format: extension || 'unknown'
+                format: extension || 'unknown',
+                fileHash
             };
+
+            // Load saved history and position
+            this.loadPlaybackHistory();
+            this.savedPosition = this.loadPlaybackPosition();
 
             this.displayBook();
             this.updateStatus('Book loaded successfully');
             this.log('info', `Loaded "${title}" - ${this.formatCharCount(text.length)}`);
+
+            if (this.savedPosition > 0) {
+                this.log('info', `Saved position found: ${this.formatTime(this.savedPosition)}`);
+            }
 
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.log('error', `Failed to process file: ${message}`);
             this.updateStatus('Error processing file');
         }
+    }
+
+    /** @param {string} str */
+    async hashString(str) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
     }
 
     /** @param {File} file */
@@ -438,14 +788,11 @@ class EbookController {
         }
 
         const zip = await JSZip.loadAsync(file);
-
-        // Find container.xml to locate the content
         const containerXml = await zip.file('META-INF/container.xml')?.async('text');
         if (!containerXml) {
             throw new Error('Invalid EPUB: missing container.xml');
         }
 
-        // Parse container to find content.opf path
         const parser = new DOMParser();
         const containerDoc = parser.parseFromString(containerXml, 'text/xml');
         const rootfilePath = containerDoc.querySelector('rootfile')?.getAttribute('full-path');
@@ -454,26 +801,18 @@ class EbookController {
             throw new Error('Invalid EPUB: cannot find content.opf');
         }
 
-        // Parse content.opf for metadata and spine
         const opfContent = await zip.file(rootfilePath)?.async('text');
         if (!opfContent) {
             throw new Error('Invalid EPUB: cannot read content.opf');
         }
 
         const opfDoc = parser.parseFromString(opfContent, 'text/xml');
-
-        // Extract metadata
         const title = opfDoc.querySelector('metadata title, dc\\:title')?.textContent || '';
         const author = opfDoc.querySelector('metadata creator, dc\\:creator')?.textContent || '';
-
-        // Get base path for relative references
         const basePath = rootfilePath.substring(0, rootfilePath.lastIndexOf('/') + 1);
-
-        // Get spine items (reading order)
         const spineItems = opfDoc.querySelectorAll('spine itemref');
         const manifest = opfDoc.querySelectorAll('manifest item');
 
-        // Build href map from manifest
         /** @type {Map<string, string>} */
         const hrefMap = new Map();
         manifest.forEach(item => {
@@ -484,7 +823,6 @@ class EbookController {
             }
         });
 
-        // Extract text from each spine item
         let fullText = '';
         /** @type {string[]} */
         const chapters = [];
@@ -502,13 +840,10 @@ class EbookController {
             if (content) {
                 const doc = parser.parseFromString(content, 'text/html');
                 const bodyText = doc.body?.textContent || '';
-
-                // Try to extract chapter title
                 const h1 = doc.querySelector('h1, h2');
                 if (h1?.textContent) {
                     chapters.push(h1.textContent.trim());
                 }
-
                 fullText += bodyText + '\n\n';
             }
         }
@@ -538,7 +873,6 @@ class EbookController {
                 .join(' ');
             fullText += pageText + '\n\n';
 
-            // Update progress for large PDFs
             if (numPages > 10 && i % 10 === 0) {
                 this.updateStatus(`Reading PDF... ${Math.round(i / numPages * 100)}%`);
             }
@@ -552,23 +886,55 @@ class EbookController {
         const html = await this.readTextFile(file);
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-
-        // Remove script and style elements
         doc.querySelectorAll('script, style, nav, header, footer').forEach(el => el.remove());
-
         return doc.body?.textContent || '';
+    }
+
+    /** @param {File} file */
+    async parseMobi(file) {
+        // MOBI is a complex format - try basic text extraction
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+
+        // Try to find and extract readable text portions
+        let text = '';
+        let inText = false;
+        let textBuffer = '';
+
+        for (let i = 0; i < bytes.length; i++) {
+            const byte = bytes[i];
+            // Look for printable ASCII characters
+            if (byte >= 32 && byte <= 126) {
+                textBuffer += String.fromCharCode(byte);
+                inText = true;
+            } else if (byte === 10 || byte === 13) {
+                textBuffer += '\n';
+            } else {
+                if (inText && textBuffer.length > 50) {
+                    text += textBuffer + '\n';
+                }
+                textBuffer = '';
+                inText = false;
+            }
+        }
+
+        if (textBuffer.length > 50) {
+            text += textBuffer;
+        }
+
+        if (text.length < 100) {
+            throw new Error('Could not extract text from MOBI file. Try converting to EPUB first.');
+        }
+
+        return text;
     }
 
     /** @param {string} text */
     cleanText(text) {
         return text
-            // Normalize whitespace
             .replace(/[\t\f\v]+/g, ' ')
-            // Replace multiple newlines with double newline
             .replace(/\n{3,}/g, '\n\n')
-            // Remove excessive spaces
             .replace(/ {2,}/g, ' ')
-            // Trim lines
             .split('\n')
             .map(line => line.trim())
             .join('\n')
@@ -578,13 +944,14 @@ class EbookController {
     displayBook() {
         if (!this.bookData) return;
 
-        // Show book info section
         const bookInfo = document.getElementById('bookInfo');
         const textPreviewSection = document.getElementById('textPreviewSection');
+        const playbackHistorySection = document.getElementById('playbackHistorySection');
+
         if (bookInfo) bookInfo.style.display = 'block';
         if (textPreviewSection) textPreviewSection.style.display = 'block';
+        if (playbackHistorySection) playbackHistorySection.style.display = 'block';
 
-        // Update book details
         const titleEl = document.getElementById('bookTitle');
         const authorEl = document.getElementById('bookAuthor');
         const statsEl = document.getElementById('bookStats');
@@ -601,12 +968,10 @@ class EbookController {
             statsEl.textContent = `${this.formatNumber(wordCount)} words | ${this.formatCharCount(charCount)} | ${chunkCount} chunks`;
         }
 
-        // Display text preview
         if (textPreview) {
             textPreview.textContent = this.bookData.text;
         }
 
-        // Show chapters if available
         if (this.bookData.chapters.length > 0) {
             const chapterNav = document.getElementById('chapterNav');
             const chapterList = document.getElementById('chapterList');
@@ -618,7 +983,6 @@ class EbookController {
             }
         }
 
-        // Enable convert button
         this.updateConvertButton();
     }
 
@@ -631,26 +995,28 @@ class EbookController {
 
     clearBook() {
         this.bookData = null;
-        this.audioBlob = null;
+        this.audioChunks = [];
+        this.fullAudioBlob = null;
+        this.playbackHistory = [];
+        this.savedPosition = 0;
 
-        // Hide sections
         const bookInfo = document.getElementById('bookInfo');
         const textPreviewSection = document.getElementById('textPreviewSection');
         const chapterNav = document.getElementById('chapterNav');
         const audioSection = document.getElementById('audioSection');
         const conversionProgress = document.getElementById('conversionProgress');
+        const playbackHistorySection = document.getElementById('playbackHistorySection');
 
         if (bookInfo) bookInfo.style.display = 'none';
         if (textPreviewSection) textPreviewSection.style.display = 'none';
         if (chapterNav) chapterNav.style.display = 'none';
         if (audioSection) audioSection.style.display = 'none';
         if (conversionProgress) conversionProgress.style.display = 'none';
+        if (playbackHistorySection) playbackHistorySection.style.display = 'none';
 
-        // Clear text preview
         const textPreview = document.getElementById('textPreview');
         if (textPreview) textPreview.textContent = '';
 
-        // Reset audio player
         const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audioPlayer) audioPlayer.src = '';
 
@@ -670,20 +1036,16 @@ class EbookController {
 
         this.isConverting = true;
         this.abortController = new AbortController();
+        this.audioChunks = [];
+        this.totalDuration = 0;
 
-        // Show progress section
         const conversionProgress = document.getElementById('conversionProgress');
         const audioSection = document.getElementById('audioSection');
         if (conversionProgress) conversionProgress.style.display = 'block';
-        if (audioSection) audioSection.style.display = 'none';
+        if (audioSection) audioSection.style.display = 'block';
 
-        // Split text into chunks
         const chunks = this.splitTextIntoChunks(this.bookData.text);
         this.log('info', `Starting conversion: ${chunks.length} chunks`);
-
-        /** @type {ArrayBuffer[]} */
-        const audioChunks = [];
-        let completedChunks = 0;
 
         try {
             for (let i = 0; i < chunks.length; i++) {
@@ -694,27 +1056,44 @@ class EbookController {
                 this.updateConversionProgress(i + 1, chunks.length, 'Converting...');
 
                 const audioData = await this.textToSpeech(chunks[i]);
-                audioChunks.push(audioData);
-                completedChunks++;
 
-                this.log('info', `Chunk ${i + 1}/${chunks.length} completed`);
+                // Create blob and get duration
+                const blob = new Blob([audioData], { type: 'audio/mpeg' });
+                const duration = await this.getAudioDuration(blob);
+
+                const audioChunk = {
+                    index: i,
+                    blob,
+                    duration,
+                    startTime: this.totalDuration
+                };
+
+                this.audioChunks.push(audioChunk);
+                this.totalDuration += duration;
+
+                this.log('info', `Chunk ${i + 1}/${chunks.length} completed (${this.formatTime(duration)})`);
+
+                // Update playable audio progressively
+                await this.updateProgressiveAudio();
             }
 
-            // Combine audio chunks
-            this.updateConversionProgress(chunks.length, chunks.length, 'Combining audio...');
-            this.audioBlob = await this.combineAudioChunks(audioChunks);
-
-            // Show audio player
-            if (audioSection) audioSection.style.display = 'block';
-            if (conversionProgress) conversionProgress.style.display = 'none';
-
-            const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-            if (audioPlayer && this.audioBlob) {
-                audioPlayer.src = URL.createObjectURL(this.audioBlob);
-            }
+            // Combine all chunks for download
+            this.updateConversionProgress(chunks.length, chunks.length, 'Finalizing...');
+            this.fullAudioBlob = await this.combineAudioChunks(this.audioChunks.map(c => c.blob));
 
             this.updateStatus('Conversion complete!');
-            this.log('info', `Conversion complete - ${this.formatFileSize(this.audioBlob.size)}`);
+            this.log('info', `Conversion complete - ${this.formatFileSize(this.fullAudioBlob.size)} - ${this.formatTime(this.totalDuration)}`);
+
+            // Restore saved position if available
+            if (this.savedPosition > 0) {
+                const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+                if (audioPlayer) {
+                    audioPlayer.currentTime = Math.min(this.savedPosition, audioPlayer.duration || 0);
+                    this.log('info', `Restored position: ${this.formatTime(this.savedPosition)}`);
+                }
+            }
+
+            if (conversionProgress) conversionProgress.style.display = 'none';
 
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -726,6 +1105,42 @@ class EbookController {
             this.isConverting = false;
             this.abortController = null;
         }
+    }
+
+    async updateProgressiveAudio() {
+        if (this.audioChunks.length === 0) return;
+
+        // Combine completed chunks
+        const combinedBlob = await this.combineAudioChunks(this.audioChunks.map(c => c.blob));
+
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audioPlayer) {
+            const currentTime = audioPlayer.currentTime;
+            const wasPlaying = !audioPlayer.paused;
+
+            const newUrl = URL.createObjectURL(combinedBlob);
+            audioPlayer.src = newUrl;
+
+            // Restore position and playing state
+            audioPlayer.currentTime = currentTime;
+            if (wasPlaying) {
+                audioPlayer.play().catch(() => {});
+            }
+        }
+    }
+
+    /** @param {Blob} blob */
+    async getAudioDuration(blob) {
+        return new Promise((resolve) => {
+            const audio = new Audio();
+            audio.addEventListener('loadedmetadata', () => {
+                resolve(audio.duration || 0);
+            });
+            audio.addEventListener('error', () => {
+                resolve(0);
+            });
+            audio.src = URL.createObjectURL(blob);
+        });
     }
 
     cancelConversion() {
@@ -749,7 +1164,6 @@ class EbookController {
                 if (currentChunk) {
                     chunks.push(currentChunk.trim());
                 }
-                // Handle sentences longer than chunk size
                 if (sentence.length > TTS_CHUNK_SIZE) {
                     const words = sentence.split(/\s+/);
                     let wordChunk = '';
@@ -807,16 +1221,16 @@ class EbookController {
         return response.arrayBuffer();
     }
 
-    /** @param {ArrayBuffer[]} chunks */
-    async combineAudioChunks(chunks) {
-        // Simple concatenation for MP3 chunks
-        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+    /** @param {Blob[]} blobs */
+    async combineAudioChunks(blobs) {
+        const arrays = await Promise.all(blobs.map(b => b.arrayBuffer()));
+        const totalLength = arrays.reduce((acc, arr) => acc + arr.byteLength, 0);
         const combined = new Uint8Array(totalLength);
 
         let offset = 0;
-        for (const chunk of chunks) {
-            combined.set(new Uint8Array(chunk), offset);
-            offset += chunk.byteLength;
+        for (const arr of arrays) {
+            combined.set(new Uint8Array(arr), offset);
+            offset += arr.byteLength;
         }
 
         return new Blob([combined], { type: 'audio/mpeg' });
@@ -837,7 +1251,6 @@ class EbookController {
         if (progressFill) progressFill.style.width = `${(current / total) * 100}%`;
         if (chunksEl) chunksEl.textContent = `${current} / ${total} chunks`;
 
-        // Estimate remaining time (rough estimate: ~3 seconds per chunk)
         const remaining = (total - current) * 3;
         if (timeEl) {
             if (remaining > 0) {
@@ -849,12 +1262,12 @@ class EbookController {
     }
 
     downloadAudio() {
-        if (!this.audioBlob || !this.bookData) {
+        if (!this.fullAudioBlob || !this.bookData) {
             return;
         }
 
         const filename = `${this.bookData.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
-        const url = URL.createObjectURL(this.audioBlob);
+        const url = URL.createObjectURL(this.fullAudioBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
@@ -892,7 +1305,6 @@ class EbookController {
         }
     }
 
-    // Logging
     /**
      * @param {'info' | 'warn' | 'error'} type
      * @param {string} message
@@ -926,7 +1338,6 @@ class EbookController {
         if (statusEl) statusEl.textContent = message;
     }
 
-    // Utility methods
     /** @param {number} bytes */
     formatFileSize(bytes) {
         if (bytes < 1024) return `${bytes} B`;
@@ -943,6 +1354,19 @@ class EbookController {
     /** @param {number} num */
     formatNumber(num) {
         return num.toLocaleString();
+    }
+
+    /** @param {number} seconds */
+    formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     /** @param {number} seconds */

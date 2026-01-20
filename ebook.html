@@ -8,7 +8,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Books - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=29">
-    <link rel="stylesheet" href="ebook.css?v=1">
+    <link rel="stylesheet" href="ebook.css?v=2">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
         <header>
             <div class="header-top">
                 <h1>Books</h1>
-                <span class="version-label">v1</span>
+                <span class="version-label">v2</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab">Scales</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
@@ -100,10 +100,10 @@
             <!-- File Upload Section -->
             <div class="upload-section">
                 <div class="upload-area" id="uploadArea">
-                    <input type="file" id="fileInput" accept=".txt,.epub,.pdf,.html,.htm" hidden />
+                    <input type="file" id="fileInput" accept="text/plain,.txt,application/epub+zip,.epub,application/pdf,.pdf,text/html,.html,.htm,application/x-mobipocket-ebook,.mobi" hidden />
                     <div class="upload-icon">&#128214;</div>
                     <p class="upload-text">Drop ebook here or click to upload</p>
-                    <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML</p>
+                    <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML, MOBI</p>
                 </div>
             </div>
 
@@ -145,13 +145,65 @@
             <!-- Audio Player (shown after conversion) -->
             <div class="audio-section" id="audioSection" style="display: none;">
                 <div class="audio-header">
-                    <h3>Audiobook Ready</h3>
+                    <h3>Audiobook</h3>
                     <button id="downloadAudioBtn" class="download-btn">
                         <span class="btn-icon">&#11015;</span>
                         <span class="btn-text">Download MP3</span>
                     </button>
                 </div>
+
+                <!-- Time Display -->
+                <div class="time-display">
+                    <span class="time-current" id="currentTimeDisplay">0:00</span>
+                    <span class="time-separator">/</span>
+                    <span class="time-total" id="totalTimeDisplay">0:00</span>
+                    <span class="time-remaining" id="remainingTimeDisplay">-0:00</span>
+                </div>
+
+                <!-- Enhanced Timeline -->
+                <div class="timeline-section">
+                    <div class="timeline-controls">
+                        <button id="zoomOutBtn" class="zoom-btn" title="Zoom Out">-</button>
+                        <span id="zoomLabel" class="zoom-label">1.0x</span>
+                        <button id="zoomInBtn" class="zoom-btn" title="Zoom In">+</button>
+                        <button id="zoomResetBtn" class="zoom-btn" title="Reset Zoom">Reset</button>
+                    </div>
+                    <div class="timeline-container" id="timelineContainer">
+                        <div class="timeline-inner" id="timelineInner">
+                            <div class="timeline-track" id="timelineTrack">
+                                <div class="timeline-fill" id="timelineFill"></div>
+                                <div class="timeline-handle" id="timelineHandle"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Jump Buttons -->
+                <div class="quick-jump-section">
+                    <span class="quick-jump-label">Jump:</span>
+                    <button class="jump-btn" data-seconds="-60">-1m</button>
+                    <button class="jump-btn" data-seconds="-30">-30s</button>
+                    <button class="jump-btn" data-seconds="-10">-10s</button>
+                    <button class="jump-btn" data-seconds="10">+10s</button>
+                    <button class="jump-btn" data-seconds="30">+30s</button>
+                    <button class="jump-btn" data-seconds="60">+1m</button>
+                    <button class="jump-btn" data-seconds="240">+4m</button>
+                    <button class="jump-btn" data-seconds="720">+12m</button>
+                </div>
+
+                <!-- Standard Audio Controls -->
                 <audio id="audioPlayer" controls class="audio-player"></audio>
+            </div>
+
+            <!-- Playback History Section -->
+            <div class="playback-history-section" id="playbackHistorySection" style="display: none;">
+                <div class="history-header">
+                    <h3>Playback History</h3>
+                    <span class="history-hint">Click any entry to jump back</span>
+                </div>
+                <div class="playback-history-list" id="playbackHistoryList">
+                    <p class="history-empty">No playback history yet</p>
+                </div>
             </div>
 
             <!-- Chapter Navigation (for epub) -->
@@ -192,7 +244,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- JSZip for EPUB parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="ebook.js?v=1"></script>
+    <script src="ebook.js?v=2"></script>
 </body>
 
 </html>

@@ -60,6 +60,7 @@ const YOUTUBE_API_POLL_INTERVAL_MS = 100;
 /**
  * @typedef {Object} AppConfig
  * @property {string} [claudeApiKey]
+ * @property {string} [openaiApiKey]
  */
 
 class VoiceMusicController {
@@ -84,11 +85,13 @@ class VoiceMusicController {
         this.isPaused = false;
         /** @type {boolean} */
         this.wasPlayingBeforeListening = false;
-        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string }} */
+        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string }} */
         this.settings = {
             readClaudeResponse: false,
             autoSubmitMode: true,
-            claudeModel: 'claude-opus-4-5-20251101'
+            claudeModel: 'claude-opus-4-5-20251101',
+            openaiModel: 'gpt-4o',
+            aiProvider: 'claude'
         };
         // TTS handled by VoiceOutput library
         /** @type {boolean} */
@@ -350,20 +353,40 @@ class VoiceMusicController {
         // Initialize config object
         this.config = {};
 
-        // Load API key from localStorage
-        const storedApiKey = localStorage.getItem('claudeApiKey');
-        if (storedApiKey && storedApiKey.length > 10) {
-            this.config.claudeApiKey = storedApiKey;
-            const keyPreview = storedApiKey.substring(0, 10) + '...';
-            this.addMessage('claude', 'Claude API Key', `Loaded from localStorage (${keyPreview})`);
+        // Load Claude API key from localStorage
+        const storedClaudeKey = localStorage.getItem('claudeApiKey');
+        if (storedClaudeKey && storedClaudeKey.length > 10) {
+            this.config.claudeApiKey = storedClaudeKey;
+            const keyPreview = storedClaudeKey.substring(0, 10) + '...';
+            this.addMessage('claude', 'Claude API Key', `Loaded (${keyPreview})`);
+        }
+
+        // Load OpenAI API key from localStorage
+        const storedOpenaiKey = localStorage.getItem('openaiApiKey');
+        if (storedOpenaiKey && storedOpenaiKey.length > 10) {
+            this.config.openaiApiKey = storedOpenaiKey;
+            const keyPreview = storedOpenaiKey.substring(0, 10) + '...';
+            this.addMessage('claude', 'OpenAI API Key', `Loaded (${keyPreview})`);
+        }
+
+        // Check if we have at least one API key
+        const hasAnyKey = this.config.claudeApiKey || this.config.openaiApiKey;
+
+        if (hasAnyKey) {
             this.updateStatus('Ready');
-            this.updateApiKeyUI(true);
+            this.hideApiKeyOverlay();
+
+            // Auto-select provider based on available keys
+            if (!this.config.claudeApiKey && this.config.openaiApiKey) {
+                this.settings.aiProvider = 'openai';
+            }
         } else {
-            this.addMessage('claude', 'Claude API Key', 'Not configured - please enter your API key');
+            this.addMessage('claude', 'API Keys', 'Not configured - please enter an API key');
             this.updateStatus('API key required');
             this.showApiKeyOverlay();
-            this.updateApiKeyUI(false);
         }
+
+        this.updateAllApiKeyUI();
 
         // YouTube search via server-side proxy (no API key needed, no quota limits)
         this.addMessage('claude', 'YouTube Search', `Using server-side proxy (proxy.php) - no API key needed`);
@@ -386,16 +409,29 @@ class VoiceMusicController {
         }
     }
 
-    /** @param {boolean} hasKey */
-    updateApiKeyUI(hasKey) {
-        const statusEl = document.getElementById('apiKeyStatus');
-        const inputRow = document.getElementById('apiKeyInputRow');
-        const actionsRow = document.getElementById('apiKeyActions');
+    updateAllApiKeyUI() {
+        // Update Claude API key UI
+        this.updateApiKeyUIForProvider('claude', !!this.config?.claudeApiKey);
+        // Update OpenAI API key UI
+        this.updateApiKeyUIForProvider('openai', !!this.config?.openaiApiKey);
+        // Update provider visibility
+        this.updateProviderVisibility();
+    }
+
+    /**
+     * @param {string} provider
+     * @param {boolean} hasKey
+     */
+    updateApiKeyUIForProvider(provider, hasKey) {
+        const statusEl = document.getElementById(`${provider}ApiKeyStatus`);
+        const inputRow = document.getElementById(`${provider}ApiKeyInputRow`);
+        const actionsRow = document.getElementById(`${provider}ApiKeyActions`);
 
         if (!statusEl || !inputRow || !actionsRow) return;
 
         if (hasKey) {
-            const storedKey = localStorage.getItem('claudeApiKey') || '';
+            const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
+            const storedKey = localStorage.getItem(storageKey) || '';
             const preview = storedKey.substring(0, 10) + '...' + storedKey.substring(storedKey.length - 4);
             statusEl.textContent = `Configured: ${preview}`;
             statusEl.className = 'api-key-status configured';
@@ -409,71 +445,209 @@ class VoiceMusicController {
         }
     }
 
-    /** @param {string} apiKey */
-    saveApiKey(apiKey) {
+    updateProviderVisibility() {
+        const provider = this.settings.aiProvider;
+
+        // Settings panel sections
+        const claudeSection = document.getElementById('claudeApiSection');
+        const openaiSection = document.getElementById('openaiApiSection');
+        const claudeModelSection = document.getElementById('claudeModelSection');
+        const openaiModelSection = document.getElementById('openaiModelSection');
+
+        if (claudeSection) claudeSection.style.display = provider === 'claude' ? 'block' : 'none';
+        if (openaiSection) openaiSection.style.display = provider === 'openai' ? 'block' : 'none';
+        if (claudeModelSection) claudeModelSection.style.display = provider === 'claude' ? 'block' : 'none';
+        if (openaiModelSection) openaiModelSection.style.display = provider === 'openai' ? 'block' : 'none';
+    }
+
+    /**
+     * @param {string} provider
+     * @param {string} apiKey
+     */
+    saveApiKeyForProvider(provider, apiKey) {
         if (!apiKey || apiKey.length < 10) {
             this.updateStatus('Invalid API key');
             return false;
         }
 
-        localStorage.setItem('claudeApiKey', apiKey);
-        this.config.claudeApiKey = apiKey;
+        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
+        localStorage.setItem(storageKey, apiKey);
+
+        if (provider === 'claude') {
+            this.config.claudeApiKey = apiKey;
+        } else {
+            this.config.openaiApiKey = apiKey;
+        }
 
         const keyPreview = apiKey.substring(0, 10) + '...';
-        this.addMessage('claude', 'Claude API Key', `Saved to localStorage (${keyPreview})`);
+        this.addMessage('claude', `${provider === 'claude' ? 'Claude' : 'OpenAI'} API Key`, `Saved (${keyPreview})`);
         this.updateStatus('Ready');
         this.hideApiKeyOverlay();
-        this.updateApiKeyUI(true);
+        this.updateApiKeyUIForProvider(provider, true);
 
-        // Clear the input fields
-        const settingsInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyInput'));
-        const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
-        if (settingsInput) settingsInput.value = '';
-        if (overlayInput) overlayInput.value = '';
+        // Set this provider as active if it wasn't already
+        this.settings.aiProvider = provider;
+        this.saveSettings();
+        this.updateProviderVisibility();
+
+        // Update provider selector
+        const providerSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('aiProvider'));
+        if (providerSelect) providerSelect.value = provider;
 
         return true;
     }
 
+    /** @param {string} provider */
+    removeApiKeyForProvider(provider) {
+        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
+        localStorage.removeItem(storageKey);
+
+        if (provider === 'claude') {
+            delete this.config.claudeApiKey;
+        } else {
+            delete this.config.openaiApiKey;
+        }
+
+        this.addMessage('claude', `${provider === 'claude' ? 'Claude' : 'OpenAI'} API Key`, 'Removed');
+        this.updateApiKeyUIForProvider(provider, false);
+
+        // Check if we still have at least one key
+        const hasAnyKey = this.config?.claudeApiKey || this.config?.openaiApiKey;
+        if (!hasAnyKey) {
+            this.updateStatus('API key required');
+            this.showApiKeyOverlay();
+        } else {
+            // Switch to the other provider
+            this.settings.aiProvider = provider === 'claude' ? 'openai' : 'claude';
+            this.saveSettings();
+            this.updateProviderVisibility();
+        }
+    }
+
+    // Legacy compatibility methods
+    /** @param {boolean} hasKey */
+    updateApiKeyUI(hasKey) {
+        this.updateApiKeyUIForProvider('claude', hasKey);
+    }
+
+    /** @param {string} apiKey */
+    saveApiKey(apiKey) {
+        return this.saveApiKeyForProvider('claude', apiKey);
+    }
+
     removeApiKey() {
-        localStorage.removeItem('claudeApiKey');
-        delete this.config.claudeApiKey;
-        this.addMessage('claude', 'Claude API Key', 'Removed from localStorage');
-        this.updateStatus('API key required');
-        this.updateApiKeyUI(false);
-        this.showApiKeyOverlay();
+        this.removeApiKeyForProvider('claude');
     }
 
     setupApiKeyUI() {
-        // Settings panel API key handlers
-        const saveBtn = document.getElementById('saveApiKeyBtn');
-        const showBtn = document.getElementById('showApiKeyBtn');
-        const changeBtn = document.getElementById('changeApiKeyBtn');
-        const removeBtn = document.getElementById('removeApiKeyBtn');
-        const inputEl = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyInput'));
+        // Setup for both Claude and OpenAI providers
+        this.setupProviderApiKeyUI('claude');
+        this.setupProviderApiKeyUI('openai');
+
+        // AI Provider selector
+        const providerSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('aiProvider'));
+        if (providerSelect) {
+            providerSelect.value = this.settings.aiProvider;
+            providerSelect.addEventListener('change', () => {
+                this.settings.aiProvider = providerSelect.value;
+                this.saveSettings();
+                this.updateProviderVisibility();
+            });
+        }
+
+        // OpenAI Model selector
+        const openaiModelSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('openaiModel'));
+        if (openaiModelSelect) {
+            openaiModelSelect.value = this.settings.openaiModel;
+            openaiModelSelect.addEventListener('change', () => {
+                this.settings.openaiModel = openaiModelSelect.value;
+                this.saveSettings();
+            });
+        }
+
+        // Overlay provider tabs
+        const providerTabs = document.querySelectorAll('.provider-tab');
+        providerTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const provider = tab.getAttribute('data-provider');
+                providerTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                const claudeSection = document.getElementById('overlayClaudeSection');
+                const openaiSection = document.getElementById('overlayOpenaiSection');
+                if (claudeSection) claudeSection.style.display = provider === 'claude' ? 'block' : 'none';
+                if (openaiSection) openaiSection.style.display = provider === 'openai' ? 'block' : 'none';
+            });
+        });
+
+        // Overlay save buttons
+        const claudeOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
+        const claudeOverlaySaveBtn = document.getElementById('saveClaudeApiKeyOverlayBtn');
+        if (claudeOverlaySaveBtn && claudeOverlayInput) {
+            claudeOverlaySaveBtn.addEventListener('click', () => {
+                this.saveApiKeyForProvider('claude', claudeOverlayInput.value.trim());
+                claudeOverlayInput.value = '';
+            });
+            claudeOverlayInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveApiKeyForProvider('claude', claudeOverlayInput.value.trim());
+                    claudeOverlayInput.value = '';
+                }
+            });
+        }
+
+        const openaiOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyOverlayInput'));
+        const openaiOverlaySaveBtn = document.getElementById('saveOpenaiApiKeyOverlayBtn');
+        if (openaiOverlaySaveBtn && openaiOverlayInput) {
+            openaiOverlaySaveBtn.addEventListener('click', () => {
+                this.saveApiKeyForProvider('openai', openaiOverlayInput.value.trim());
+                openaiOverlayInput.value = '';
+            });
+            openaiOverlayInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveApiKeyForProvider('openai', openaiOverlayInput.value.trim());
+                    openaiOverlayInput.value = '';
+                }
+            });
+        }
+
+        // Initialize visibility
+        this.updateProviderVisibility();
+    }
+
+    /** @param {string} provider */
+    setupProviderApiKeyUI(provider) {
+        const prefix = provider === 'claude' ? 'Claude' : 'Openai';
+        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
+
+        const saveBtn = document.getElementById(`save${prefix}ApiKeyBtn`);
+        const showBtn = document.getElementById(`show${prefix}ApiKeyBtn`);
+        const changeBtn = document.getElementById(`change${prefix}ApiKeyBtn`);
+        const removeBtn = document.getElementById(`remove${prefix}ApiKeyBtn`);
+        const inputEl = /** @type {HTMLInputElement | null} */ (document.getElementById(`${provider}ApiKeyInput`));
 
         if (saveBtn && inputEl) {
             saveBtn.addEventListener('click', () => {
-                this.saveApiKey(inputEl.value.trim());
+                this.saveApiKeyForProvider(provider, inputEl.value.trim());
+                inputEl.value = '';
             });
             inputEl.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    this.saveApiKey(inputEl.value.trim());
+                    this.saveApiKeyForProvider(provider, inputEl.value.trim());
+                    inputEl.value = '';
                 }
             });
         }
 
         if (showBtn) {
             showBtn.addEventListener('click', () => {
-                const storedKey = localStorage.getItem('claudeApiKey') || '';
-                // Toggle between show/hide
+                const storedKey = localStorage.getItem(storageKey) || '';
                 if (showBtn.textContent === 'Show') {
-                    const statusEl = document.getElementById('apiKeyStatus');
-                    if (statusEl) {
-                        statusEl.textContent = storedKey;
-                    }
+                    const statusEl = document.getElementById(`${provider}ApiKeyStatus`);
+                    if (statusEl) statusEl.textContent = storedKey;
                     showBtn.textContent = 'Hide';
                 } else {
-                    this.updateApiKeyUI(true);
+                    this.updateApiKeyUIForProvider(provider, true);
                     showBtn.textContent = 'Show';
                 }
             });
@@ -481,8 +655,8 @@ class VoiceMusicController {
 
         if (changeBtn) {
             changeBtn.addEventListener('click', () => {
-                const inputRow = document.getElementById('apiKeyInputRow');
-                const actionsRow = document.getElementById('apiKeyActions');
+                const inputRow = document.getElementById(`${provider}ApiKeyInputRow`);
+                const actionsRow = document.getElementById(`${provider}ApiKeyActions`);
                 if (inputRow) inputRow.style.display = 'flex';
                 if (actionsRow) actionsRow.style.display = 'none';
             });
@@ -490,23 +664,8 @@ class VoiceMusicController {
 
         if (removeBtn) {
             removeBtn.addEventListener('click', () => {
-                if (confirm('Remove your API key from localStorage?')) {
-                    this.removeApiKey();
-                }
-            });
-        }
-
-        // Overlay API key handlers
-        const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
-        const overlaySaveBtn = document.getElementById('saveApiKeyOverlayBtn');
-
-        if (overlaySaveBtn && overlayInput) {
-            overlaySaveBtn.addEventListener('click', () => {
-                this.saveApiKey(overlayInput.value.trim());
-            });
-            overlayInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    this.saveApiKey(overlayInput.value.trim());
+                if (confirm(`Remove your ${provider === 'claude' ? 'Claude' : 'OpenAI'} API key from localStorage?`)) {
+                    this.removeApiKeyForProvider(provider);
                 }
             });
         }
@@ -1446,9 +1605,9 @@ class VoiceMusicController {
 
     /** @param {string} transcript */
     async processCommandWithLLM(transcript) {
-        // Debug mode: skip Claude API and return hardcoded test data
+        // Debug mode: skip API and return hardcoded test data
         if (SKIP_CLAUDE) {
-            this.addMessage('claude', 'DEBUG', 'Skipping Claude API - using hardcoded Cecilia');
+            this.addMessage('claude', 'DEBUG', 'Skipping API - using hardcoded Cecilia');
             const testSongList = [{
                 name: "Cecilia",
                 artist: "Simon & Garfunkel",
@@ -1457,15 +1616,114 @@ class VoiceMusicController {
                 comment: "DEBUG: Hardcoded test song",
                 searchTerm: "Simon & Garfunkel Cecilia"
             }];
-            return { songList: testSongList, prompt: '[DEBUG MODE - Claude skipped]' };
+            return { songList: testSongList, prompt: '[DEBUG MODE - API skipped]' };
         }
 
+        // Use configured provider
+        const provider = this.settings.aiProvider;
+
+        if (provider === 'openai') {
+            return this.processCommandWithOpenAI(transcript);
+        } else {
+            return this.processCommandWithClaude(transcript);
+        }
+    }
+
+    /** @param {string} transcript */
+    async processCommandWithClaude(transcript) {
         if (!this.config || !this.config.claudeApiKey) {
             throw new Error('Claude API key not configured');
         }
 
+        const prompt = this.getMusicSearchPrompt(transcript);
+
         try {
-            const prompt = `A user is requesting music. They might also ask for comments on each song.
+            const requestBody = {
+                model: this.settings.claudeModel,
+                max_tokens: 4000,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            };
+
+            this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel})`);
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': this.config.claudeApiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'Claude API request failed');
+            }
+
+            const data = await response.json();
+            const responseText = data.content[0].text.trim();
+
+            return this.parseAIResponse(responseText, prompt);
+        } catch (error) {
+            console.error('Claude API error:', error);
+            this.logError('Claude API Error', error);
+            throw error;
+        }
+    }
+
+    /** @param {string} transcript */
+    async processCommandWithOpenAI(transcript) {
+        if (!this.config || !this.config.openaiApiKey) {
+            throw new Error('OpenAI API key not configured');
+        }
+
+        const prompt = this.getMusicSearchPrompt(transcript);
+
+        try {
+            const requestBody = {
+                model: this.settings.openaiModel,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }],
+                max_tokens: 4000
+            };
+
+            this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel})`);
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.config.openaiApiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'OpenAI API request failed');
+            }
+
+            const data = await response.json();
+            const responseText = data.choices[0].message.content.trim();
+
+            return this.parseAIResponse(responseText, prompt);
+        } catch (error) {
+            console.error('OpenAI API error:', error);
+            this.logError('OpenAI API Error', error);
+            throw error;
+        }
+    }
+
+    /** @param {string} transcript */
+    getMusicSearchPrompt(transcript) {
+        return `A user is requesting music. They might also ask for comments on each song.
 
 User's request: "${transcript}"
 
@@ -1482,64 +1740,34 @@ Return ONLY a JSON array (no markdown, no code blocks, no explanation), using th
 }]
 
 If the request is not about music, return an empty array [].`;
+    }
 
-            const requestBody = {
-                model: this.settings.claudeModel,
-                max_tokens: 4000,
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }]
-            };
+    /**
+     * @param {string} responseText
+     * @param {string} prompt
+     */
+    parseAIResponse(responseText, prompt) {
+        this.logClaudeMessage(`Response:\n${responseText}`);
 
-            this.logClaudeMessage(`Music search request to ${this.settings.claudeModel}:\n${prompt}`);
+        // Extract JSON array from response
+        let jsonText = responseText;
+        const firstBracket = responseText.indexOf('[');
+        const lastBracket = responseText.lastIndexOf(']');
 
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': this.config.claudeApiKey,
-                    'anthropic-version': '2023-06-01',
-                    'anthropic-dangerous-direct-browser-access': 'true'
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error?.message || 'API request failed');
-            }
-
-            const data = await response.json();
-            const responseText = data.content[0].text.trim();
-
-            this.logClaudeMessage(`Response:\n${responseText}`);
-
-            // Extract JSON array from response
-            // Find the first [ and last ] to get the complete array
-            let jsonText = responseText;
-            const firstBracket = responseText.indexOf('[');
-            const lastBracket = responseText.lastIndexOf(']');
-
-            if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-                jsonText = responseText.substring(firstBracket, lastBracket + 1);
-            }
-
-            this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
-
-            const songList = JSON.parse(jsonText);
-            this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
-
-            if (!Array.isArray(songList) || songList.length === 0) {
-                throw new Error('No songs found or invalid response');
-            }
-
-            return { songList, prompt };
-        } catch (error) {
-            console.error('Claude API error:', error);
-            this.logError('Music Search API Error', error);
-            throw error;
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            jsonText = responseText.substring(firstBracket, lastBracket + 1);
         }
+
+        this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
+
+        const songList = JSON.parse(jsonText);
+        this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
+
+        if (!Array.isArray(songList) || songList.length === 0) {
+            throw new Error('No songs found or invalid response');
+        }
+
+        return { songList, prompt };
     }
 
     /** @param {Array<{ searchTerm?: string, name?: string, artist?: string, year?: string, album?: string, comment?: string }>} songList */
