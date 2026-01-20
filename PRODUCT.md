@@ -181,9 +181,105 @@ The AI becomes your co-pilot DJ who actually understands what you want.
 6. **Song memory**: "Play that song I liked last week"
 7. **Mood detection**: Voice tone analysis for automatic mood-matching
 
-## Summary
+---
 
-Voice Music Control solves the fundamental problem with music apps while driving: they're designed for people sitting at desks, not behind wheels. This app puts voice first, AI second, and touch third. Speak naturally, get smart results, control hands-free.
+# Ebook to Audiobook Converter
 
-The goal isn't to replace Spotify or YouTube Music. It's to be the safest, smartest way to control music when your eyes and hands need to be elsewhere.
+## Overview
+
+Convert ebooks to audiobooks using OpenAI's text-to-speech API. Upload common ebook formats (TXT, EPUB, PDF, HTML), preview the extracted text, and convert to high-quality MP3 audio.
+
+## Core Features
+
+### Input Formats
+- **TXT**: Plain text files
+- **EPUB**: Standard ebook format (extracts chapters, metadata)
+- **PDF**: Portable document format (extracts text from all pages)
+- **HTML**: Web pages saved locally
+
+### Text-to-Speech
+- **OpenAI TTS API**: High-quality neural voices
+- **Voice Options**: Alloy (neutral), Echo (male), Fable (British), Onyx (deep), Nova (female), Shimmer (soft)
+- **Model Selection**: TTS-1 (fast, $0.015/1K chars) or TTS-1-HD (high quality, $0.030/1K chars)
+- **Speed Control**: 0.25x to 4.0x playback speed
+
+### Conversion Process
+- Text split into ~4000 character chunks (OpenAI limit is 4096)
+- Each chunk converted separately via API
+- Progress displayed with chunk count and time estimate
+- Cancellable at any point
+- Final audio combined into single MP3
+
+### Audio Playback
+- Built-in HTML5 audio player
+- Download MP3 button for offline use
+- Text preview with copy/select functionality
+
+## Cost Reference
+
+| Model | Cost per 1K chars | 10K word book (~60K chars) |
+|-------|-------------------|----------------------------|
+| TTS-1 | $0.015 | ~$0.90 |
+| TTS-1-HD | $0.030 | ~$1.80 |
+
+## Voice Characteristics
+
+| Voice | Description |
+|-------|-------------|
+| Alloy | Neutral, balanced |
+| Echo | Male, clear |
+| Fable | British accent |
+| Onyx | Deep male |
+| Nova | Female, warm |
+| Shimmer | Soft female |
+
+## Security Model
+
+- **API keys in localStorage**: Never sent anywhere except OpenAI
+- **No server storage**: All processing happens client-side
+- **HTTPS required**: For clipboard and file access
+
+---
+
+# Version System
+
+All four pages share a unified version number stored in the `VERSION` file.
+
+## Current Version
+
+See `VERSION` file for the single source of truth.
+
+## Bumping Version
+
+Run the bump script before deploying changes:
+
+```bash
+./bump-version.sh        # Increment by 1
+./bump-version.sh 31     # Set to specific version
+```
+
+This updates:
+- `VERSION` file
+- All HTML version labels (v30 in header)
+- All cache-busting parameters (?v=30)
+
+## Deploy Workflow
+
+1. Make changes
+2. Run `./bump-version.sh`
+3. `git add -A && git commit -m "..." && git push`
+4. Push to master triggers GitHub Actions deploy
+
+---
+
+# Summary
+
+Voice-Wei is a collection of voice-first tools for musicians and readers:
+
+1. **Scales**: Voice-controlled scale practice with realistic piano
+2. **Pitch Meter**: Real-time pitch detection for vocal accuracy
+3. **Music Player**: AI-powered voice-controlled YouTube player
+4. **Books**: Ebook to audiobook converter using OpenAI TTS
+
+The common thread is hands-free, voice-first operation. Whether practicing scales, checking pitch, playing music while driving, or listening to books, these tools minimize visual attention and maximize voice control.
 
