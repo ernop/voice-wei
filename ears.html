@@ -191,6 +191,44 @@
                 </div>
             </div>
 
+            <!-- Drone Test Panel -->
+            <div class="drone-panel" id="dronePanel">
+                <div class="drone-header">
+                    <h3>Drone Test</h3>
+                    <span class="drone-hint">(Use headphones for best results)</span>
+                </div>
+                <div class="drone-controls">
+                    <div class="drone-note-select">
+                        <label>Note:</label>
+                        <select id="droneNoteSelect">
+                            <option value="C3">C3</option>
+                            <option value="D3">D3</option>
+                            <option value="E3">E3</option>
+                            <option value="F3">F3</option>
+                            <option value="G3">G3</option>
+                            <option value="A3">A3</option>
+                            <option value="B3">B3</option>
+                            <option value="C4" selected>C4</option>
+                            <option value="D4">D4</option>
+                            <option value="E4">E4</option>
+                            <option value="F4">F4</option>
+                            <option value="G4">G4</option>
+                            <option value="A4">A4</option>
+                            <option value="B4">B4</option>
+                            <option value="C5">C5</option>
+                        </select>
+                    </div>
+                    <button id="droneStartBtn" class="drone-btn">Start Drone</button>
+                    <button id="droneStopBtn" class="drone-btn drone-stop-btn" style="display:none;">Stop</button>
+                </div>
+                <div class="drone-display" id="droneDisplay" style="display:none;">
+                    <div class="drone-target">Target: <span id="droneTargetNote">C4</span></div>
+                    <div class="drone-current">You: <span id="dronePitchCurrent">--</span></div>
+                    <div class="drone-cents" id="droneCents"></div>
+                    <canvas id="droneMeter" width="300" height="30"></canvas>
+                </div>
+            </div>
+
             <!-- Stats Display -->
             <div class="stats-panel">
                 <div class="stats-header">

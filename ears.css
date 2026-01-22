@@ -263,6 +263,125 @@
     border-color: rgba(239, 68, 68, 0.5);
 }
 
+/* Drone Test Panel */
+.drone-panel {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px dashed rgba(139, 92, 246, 0.3);
+}
+
+.drone-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.drone-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.drone-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+}
+
+.drone-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.drone-note-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.drone-note-select label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.drone-note-select select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.drone-note-select select option {
+    background: #1a1a2e;
+    color: white;
+}
+
+.drone-btn {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.drone-btn:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+}
+
+.drone-stop-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.drone-stop-btn:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.drone-display {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.drone-target, .drone-current {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 8px;
+}
+
+.drone-target span, .drone-current span {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-weight: 700;
+    color: #4ade80;
+}
+
+.drone-cents {
+    font-size: 0.9rem;
+    min-height: 1.5em;
+    margin-bottom: 8px;
+}
+
+.drone-cents.good { color: #4ade80; }
+.drone-cents.close { color: #fbbf24; }
+.drone-cents.off { color: #f87171; }
+
+#droneMeter {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
 /* Settings Panel */
 .ears-settings {
     background: rgba(0, 0, 0, 0.25);

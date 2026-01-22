@@ -257,6 +257,16 @@ class EarsController {
         /** @type {number} */
         this.singMaxTime = 15000; // 15 seconds max to sing
 
+        // Drone test mode
+        /** @type {boolean} */
+        this.droneActive = false;
+        /** @type {InstanceType<typeof Tone.Synth> | null} */
+        this.droneSynth = null;
+        /** @type {string} */
+        this.droneNote = 'C4';
+        /** @type {number | null} */
+        this.droneTargetMidi = null;
+
         // Stats
         /** @type {Record<string, { correct: number, total: number }>} */
         this.stats = {};
@@ -610,6 +620,15 @@ class EarsController {
 
         document.getElementById('singSkipBtn')?.addEventListener('click', () => {
             this.skipInterval();
+        });
+
+        // Drone test controls
+        document.getElementById('droneStartBtn')?.addEventListener('click', () => {
+            this.startDroneTest();
+        });
+
+        document.getElementById('droneStopBtn')?.addEventListener('click', () => {
+            this.stopDroneTest();
         });
     }
 
@@ -1170,7 +1189,14 @@ class EarsController {
         if (this.isPitchDetecting) return;
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Enable echo cancellation to help filter out speaker output
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
             this.audioContext = new AudioContext();
             this.analyser = this.audioContext.createAnalyser();
             this.analyser.fftSize = 2048;
@@ -1340,6 +1366,186 @@ class EarsController {
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, height / 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    //-------DRONE TEST MODE-------
+
+    async startDroneTest() {
+        if (this.droneActive) return;
+
+        // Get selected note
+        const noteSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('droneNoteSelect'));
+        this.droneNote = noteSelect?.value || 'C4';
+
+        // Parse note to MIDI
+        const noteName = this.droneNote.slice(0, -1);
+        const octave = parseInt(this.droneNote.slice(-1));
+        this.droneTargetMidi = noteNameToMidi(noteName, octave);
+
+        // Show UI
+        const startBtn = document.getElementById('droneStartBtn');
+        const stopBtn = document.getElementById('droneStopBtn');
+        const display = document.getElementById('droneDisplay');
+        const targetEl = document.getElementById('droneTargetNote');
+
+        if (startBtn) startBtn.style.display = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-block';
+        if (display) display.style.display = 'block';
+        if (targetEl) targetEl.textContent = this.droneNote;
+
+        // Create drone synth (simple sine wave)
+        await Tone.start();
+        this.droneSynth = new Tone.Synth({
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
+        }).toDestination();
+        this.droneSynth.volume.value = -12; // Quieter so voice is easier to detect
+
+        // Start drone
+        this.droneActive = true;
+        this.droneSynth.triggerAttack(this.droneNote);
+
+        // Start pitch detection with echo cancellation
+        await this.startDronePitchDetection();
+    }
+
+    stopDroneTest() {
+        if (!this.droneActive) return;
+
+        this.droneActive = false;
+
+        // Stop drone
+        if (this.droneSynth) {
+            this.droneSynth.triggerRelease();
+            this.droneSynth.dispose();
+            this.droneSynth = null;
+        }
+
+        // Stop pitch detection
+        this.stopPitchDetection();
+
+        // Update UI
+        const startBtn = document.getElementById('droneStartBtn');
+        const stopBtn = document.getElementById('droneStopBtn');
+        const display = document.getElementById('droneDisplay');
+
+        if (startBtn) startBtn.style.display = 'inline-block';
+        if (stopBtn) stopBtn.style.display = 'none';
+        if (display) display.style.display = 'none';
+    }
+
+    async startDronePitchDetection() {
+        if (this.isPitchDetecting) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            this.audioContext = new AudioContext();
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 2048;
+            this.microphone = this.audioContext.createMediaStreamSource(stream);
+            this.microphone.connect(this.analyser);
+
+            this.isPitchDetecting = true;
+            this.dronePitchLoop();
+        } catch (err) {
+            console.error('Microphone access denied:', err);
+            this.stopDroneTest();
+        }
+    }
+
+    dronePitchLoop() {
+        if (!this.isPitchDetecting || !this.droneActive || !this.analyser || !this.audioContext) return;
+
+        const buffer = new Float32Array(this.analyser.fftSize);
+        this.analyser.getFloatTimeDomainData(buffer);
+
+        const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
+
+        const currentEl = document.getElementById('dronePitchCurrent');
+        const centsEl = document.getElementById('droneCents');
+
+        if (freq > 0 && this.droneTargetMidi !== null) {
+            const midi = freqToMidi(freq);
+            const note = midiToNoteName(Math.round(midi));
+            const cents = Math.round((midi - this.droneTargetMidi) * 100);
+
+            if (currentEl) currentEl.textContent = note.full;
+
+            if (centsEl) {
+                if (Math.abs(cents) <= 15) {
+                    centsEl.textContent = 'Perfect!';
+                    centsEl.className = 'drone-cents good';
+                } else if (Math.abs(cents) <= 30) {
+                    centsEl.textContent = cents > 0 ? `+${cents} cents (slightly sharp)` : `${cents} cents (slightly flat)`;
+                    centsEl.className = 'drone-cents close';
+                } else if (Math.abs(cents) <= 100) {
+                    centsEl.textContent = cents > 0 ? `+${cents} cents (sharp)` : `${cents} cents (flat)`;
+                    centsEl.className = 'drone-cents off';
+                } else {
+                    centsEl.textContent = cents > 0 ? 'Way too high' : 'Way too low';
+                    centsEl.className = 'drone-cents off';
+                }
+            }
+
+            this.drawDroneMeter(cents);
+        } else {
+            if (currentEl) currentEl.textContent = '--';
+            if (centsEl) {
+                centsEl.textContent = 'Sing!';
+                centsEl.className = 'drone-cents';
+            }
+        }
+
+        this.pitchAnimationId = requestAnimationFrame(() => this.dronePitchLoop());
+    }
+
+    /**
+     * @param {number} cents
+     */
+    drawDroneMeter(cents) {
+        const canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('droneMeter'));
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(0, 0, width, height);
+
+        // Center line (target)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2, 0);
+        ctx.lineTo(width / 2, height);
+        ctx.stroke();
+
+        // Good zone
+        const goodZone = (15 / 100) * (width / 2);
+        ctx.fillStyle = 'rgba(74, 222, 128, 0.2)';
+        ctx.fillRect(width / 2 - goodZone, 0, goodZone * 2, height);
+
+        // Current pitch indicator
+        const clampedCents = Math.max(-100, Math.min(100, cents));
+        const x = width / 2 + (clampedCents / 100) * (width / 2);
+
+        const color = Math.abs(cents) <= 15 ? '#4ade80' :
+                     Math.abs(cents) <= 30 ? '#fbbf24' : '#f87171';
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, height / 2, 6, 0, Math.PI * 2);
         ctx.fill();
     }
 }
