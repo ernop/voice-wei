@@ -237,11 +237,25 @@ class EarsController {
         /** @type {boolean} */
         this.answered = false;
 
+        // Phase tracking for "both" mode
+        /** @type {'idle' | 'identifying' | 'singing'} */
+        this.phase = 'idle';
+
         // Sing mode
         /** @type {number | null} */
         this.targetMidi = null;
         /** @type {number} */
         this.singTolerance = 50; // cents
+        /** @type {number} */
+        this.singGoodSamples = 0; // consecutive good pitch samples
+        /** @type {number} */
+        this.singRequiredSamples = 25; // ~1.5 seconds at 60fps
+        /** @type {boolean} */
+        this.singCompleted = false;
+        /** @type {number | null} */
+        this.singTimeoutId = null;
+        /** @type {number} */
+        this.singMaxTime = 15000; // 15 seconds max to sing
 
         // Stats
         /** @type {Record<string, { correct: number, total: number }>} */
@@ -588,6 +602,15 @@ class EarsController {
             this.updateRangeDisplay();
             this.saveSettings();
         });
+
+        // Sing mode controls
+        document.getElementById('singRepeatBtn')?.addEventListener('click', () => {
+            this.repeatCurrentInterval();
+        });
+
+        document.getElementById('singSkipBtn')?.addEventListener('click', () => {
+            this.skipInterval();
+        });
     }
 
     /**
@@ -599,14 +622,37 @@ class EarsController {
             btn.classList.toggle('selected', /** @type {HTMLElement} */ (btn).dataset.mode === mode);
         });
 
-        // Show/hide appropriate UI
+        // Show/hide appropriate UI based on mode
+        // In 'both' mode, we start with identify UI visible, sing hidden
+        // The phase controls which is active during gameplay
+        this.updateUIForPhase();
+
+        this.saveSettings();
+    }
+
+    /**
+     * Update UI visibility based on current mode and phase
+     */
+    updateUIForPhase() {
         const answerGrid = document.getElementById('answerGrid');
         const singTarget = document.getElementById('singTarget');
 
-        if (answerGrid) answerGrid.style.display = (mode === 'sing') ? 'none' : 'grid';
-        if (singTarget) singTarget.style.display = (mode === 'identify') ? 'none' : 'block';
-
-        this.saveSettings();
+        if (this.mode === 'identify') {
+            if (answerGrid) answerGrid.style.display = 'grid';
+            if (singTarget) singTarget.style.display = 'none';
+        } else if (this.mode === 'sing') {
+            if (answerGrid) answerGrid.style.display = 'none';
+            if (singTarget) singTarget.style.display = 'block';
+        } else if (this.mode === 'both') {
+            // In both mode, show based on current phase
+            if (this.phase === 'identifying' || this.phase === 'idle') {
+                if (answerGrid) answerGrid.style.display = 'grid';
+                if (singTarget) singTarget.style.display = 'none';
+            } else if (this.phase === 'singing') {
+                if (answerGrid) answerGrid.style.display = 'none';
+                if (singTarget) singTarget.style.display = 'block';
+            }
+        }
     }
 
     /**
@@ -733,8 +779,12 @@ class EarsController {
         // Reset state
         this.awaitingAnswer = false;
         this.answered = false;
+        this.phase = 'idle';
+        this.singCompleted = false;
+        this.singGoodSamples = 0;
         this.clearAnswerHighlights();
         this.stopPitchDetection();
+        this.clearSingTimeout();
 
         // Select interval
         this.currentInterval = this.selectInterval();
@@ -776,12 +826,22 @@ class EarsController {
             }
         }
 
-        // Now awaiting answer
-        if (this.mode === 'identify' || this.mode === 'both') {
+        // Start appropriate mode
+        if (this.mode === 'identify') {
+            this.phase = 'identifying';
             this.setStatus('What interval?');
             this.awaitingAnswer = true;
+            this.updateUIForPhase();
         } else if (this.mode === 'sing') {
+            this.phase = 'singing';
+            this.updateUIForPhase();
             this.startSingMode();
+        } else if (this.mode === 'both') {
+            // In both mode, start with identification
+            this.phase = 'identifying';
+            this.setStatus('What interval?');
+            this.awaitingAnswer = true;
+            this.updateUIForPhase();
         }
     }
 
@@ -793,6 +853,13 @@ class EarsController {
 
         const semitones = INTERVALS[this.currentInterval].semitones;
 
+        // In sing phase, just replay the reference note
+        if (this.phase === 'singing') {
+            await this.audio.playNote(this.currentRootMidi);
+            return;
+        }
+
+        // In identify phase, replay the full interval
         if (this.currentDirection === 'harmonic') {
             await this.audio.playHarmonicInterval(this.currentRootMidi, semitones);
         } else {
@@ -805,10 +872,15 @@ class EarsController {
     }
 
     skipInterval() {
-        if (this.awaitingAnswer && this.currentInterval) {
-            // Record as skipped (counts as incorrect)
+        // Handle skip during identify phase
+        if (this.phase === 'identifying' && this.currentInterval) {
             this.recordResult(this.currentInterval, false, 'skipped');
             this.revealAnswer();
+        }
+        // Handle skip during sing phase
+        if (this.phase === 'singing') {
+            this.completeSingMode(false, 'skipped');
+            return; // completeSingMode handles the advance
         }
         // Auto-advance after short delay
         setTimeout(() => this.playNextInterval(), 1500);
@@ -821,10 +893,8 @@ class EarsController {
         if (!this.awaitingAnswer || this.answered || !this.currentInterval) return;
 
         this.answered = true;
+        this.awaitingAnswer = false;
         const correct = answer === this.currentInterval;
-
-        // Update stats
-        this.recordResult(this.currentInterval, correct, answer);
 
         // Visual feedback
         this.highlightAnswer(answer, correct);
@@ -832,16 +902,49 @@ class EarsController {
         if (correct) {
             this.showFeedback('Correct!', 'correct');
             if (this.drivingMode) this.speak('Correct!');
+
+            // In "both" mode, transition to sing phase after correct identification
+            if (this.mode === 'both') {
+                // Don't record result yet - wait for sing phase
+                setTimeout(() => {
+                    this.phase = 'singing';
+                    this.updateUIForPhase();
+                    this.showFeedback('Now sing it!', 'info');
+                    if (this.drivingMode) this.speak('Now sing it!');
+                    this.startSingMode();
+                }, 1200);
+                return;
+            }
+
+            // For identify-only mode, record result and maybe advance
+            this.recordResult(this.currentInterval, correct, answer);
+            if (this.autoAdvance) {
+                setTimeout(() => this.playNextInterval(), 1000);
+            }
         } else {
             const correctName = INTERVALS[this.currentInterval].name;
             this.showFeedback(`That was ${correctName}`, 'incorrect');
             if (this.drivingMode) this.speak(`That was ${correctName}`);
             this.revealAnswer();
-        }
 
-        // Auto-advance
-        if (this.autoAdvance) {
-            setTimeout(() => this.playNextInterval(), correct ? 1000 : 2500);
+            // Record incorrect result
+            this.recordResult(this.currentInterval, correct, answer);
+
+            // In "both" mode with wrong answer, still go to sing phase but it won't count as fully correct
+            if (this.mode === 'both') {
+                setTimeout(() => {
+                    this.phase = 'singing';
+                    this.updateUIForPhase();
+                    this.showFeedback('Try singing it anyway', 'info');
+                    if (this.drivingMode) this.speak('Try singing it anyway');
+                    this.startSingMode();
+                }, 2000);
+                return;
+            }
+
+            if (this.autoAdvance) {
+                setTimeout(() => this.playNextInterval(), 2500);
+            }
         }
     }
 
@@ -1007,8 +1110,20 @@ class EarsController {
 
     //-------SING MODE-------
 
+    clearSingTimeout() {
+        if (this.singTimeoutId) {
+            clearTimeout(this.singTimeoutId);
+            this.singTimeoutId = null;
+        }
+    }
+
     async startSingMode() {
         if (!this.currentInterval || !this.currentRootMidi) return;
+
+        // Reset sing state
+        this.singCompleted = false;
+        this.singGoodSamples = 0;
+        this.clearSingTimeout();
 
         const semitones = INTERVALS[this.currentInterval].semitones;
         const direction = this.currentDirection === 'descending' ? 'below' : 'above';
@@ -1029,11 +1144,26 @@ class EarsController {
             pitchTarget.textContent = `Target: ${midiToNoteName(this.targetMidi).full}`;
         }
 
+        const pitchAccuracy = document.getElementById('pitchAccuracy');
+        if (pitchAccuracy) {
+            pitchAccuracy.textContent = '';
+            pitchAccuracy.className = 'pitch-accuracy';
+        }
+
+        this.setStatus('Sing the interval...');
+
         // Play reference note
         await this.audio.playNote(this.currentRootMidi);
 
         // Start pitch detection
         this.startPitchDetection();
+
+        // Set timeout for sing mode
+        this.singTimeoutId = setTimeout(() => {
+            if (!this.singCompleted && this.phase === 'singing') {
+                this.completeSingMode(false, 'timeout');
+            }
+        }, this.singMaxTime);
     }
 
     async startPitchDetection() {
@@ -1067,8 +1197,48 @@ class EarsController {
         }
     }
 
+    /**
+     * Complete sing mode with success or failure
+     * @param {boolean} success
+     * @param {string} [reason]
+     */
+    completeSingMode(success, reason) {
+        if (this.singCompleted) return;
+        this.singCompleted = true;
+
+        this.clearSingTimeout();
+        this.stopPitchDetection();
+
+        if (success) {
+            this.showFeedback('Great singing!', 'correct');
+            if (this.drivingMode) this.speak('Great singing!');
+
+            // In sing-only mode, record as correct
+            if (this.mode === 'sing' && this.currentInterval) {
+                this.recordResult(this.currentInterval, true, 'sung');
+            }
+            // In both mode, the identify result was already handled
+            // We could track sing accuracy separately in the future
+        } else {
+            const msg = reason === 'timeout' ? 'Time\'s up!' : 'Keep practicing!';
+            this.showFeedback(msg, 'incorrect');
+            if (this.drivingMode) this.speak(msg);
+
+            // In sing-only mode, record as incorrect
+            if (this.mode === 'sing' && this.currentInterval) {
+                this.recordResult(this.currentInterval, false, reason || 'failed');
+            }
+        }
+
+        // Auto-advance after sing mode completes
+        if (this.autoAdvance) {
+            setTimeout(() => this.playNextInterval(), success ? 1500 : 2500);
+        }
+    }
+
     detectPitchLoop() {
         if (!this.isPitchDetecting || !this.analyser || !this.audioContext) return;
+        if (this.singCompleted) return;
 
         const buffer = new Float32Array(this.analyser.fftSize);
         this.analyser.getFloatTimeDomainData(buffer);
@@ -1088,10 +1258,13 @@ class EarsController {
             if (this.targetMidi !== null) {
                 const cents = Math.round((midi - this.targetMidi) * 100);
                 const pitchAccuracy = document.getElementById('pitchAccuracy');
+                const isGood = Math.abs(cents) <= this.singTolerance;
 
                 if (pitchAccuracy) {
-                    if (Math.abs(cents) <= this.singTolerance) {
-                        pitchAccuracy.textContent = 'Good!';
+                    if (isGood) {
+                        // Show progress toward success
+                        const progress = Math.min(100, Math.round(100 * this.singGoodSamples / this.singRequiredSamples));
+                        pitchAccuracy.textContent = progress < 100 ? `Good! Hold it... ${progress}%` : 'Perfect!';
                         pitchAccuracy.className = 'pitch-accuracy good';
                     } else if (Math.abs(cents) <= this.singTolerance * 2) {
                         pitchAccuracy.textContent = cents > 0 ? 'A bit sharp' : 'A bit flat';
@@ -1102,12 +1275,27 @@ class EarsController {
                     }
                 }
 
+                // Track consecutive good samples for success detection
+                if (isGood) {
+                    this.singGoodSamples++;
+                    if (this.singGoodSamples >= this.singRequiredSamples) {
+                        this.completeSingMode(true);
+                        return;
+                    }
+                } else {
+                    // Reset if pitch goes off - require sustained correct pitch
+                    // Use a decay instead of hard reset for better UX
+                    this.singGoodSamples = Math.max(0, this.singGoodSamples - 2);
+                }
+
                 // Draw pitch meter
                 this.drawPitchMeter(cents);
             }
         } else {
             const pitchCurrent = document.getElementById('pitchCurrent');
             if (pitchCurrent) pitchCurrent.textContent = '--';
+            // Slowly decay good samples when no pitch detected
+            this.singGoodSamples = Math.max(0, this.singGoodSamples - 1);
         }
 
         this.pitchAnimationId = requestAnimationFrame(() => this.detectPitchLoop());
