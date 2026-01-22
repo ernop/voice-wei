@@ -20,7 +20,7 @@ echo "Bumping version: v$CURRENT -> v$NEW"
 echo "$NEW" > "$VERSION_FILE"
 
 # Update all HTML files - version label and cache busting
-for file in scales.html pitch-meter.html player.html ebook.html; do
+for file in scales.html pitch-meter.html player.html ebook.html ears.html; do
     if [ -f "$file" ]; then
         # Update version-label span
         sed -i "s/version-label\">v[0-9.]*</version-label\">v$NEW</g" "$file"

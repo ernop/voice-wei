@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Voice-Wei: Ear training for interval recognition and singing">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Ears - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=33">
+    <link rel="stylesheet" href="ears.css?v=33">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <h1>Ears</h1>
+                <span class="version-label">v33</span>
+                <nav class="nav-tabs">
+                    <a href="scales.html" class="nav-tab">Scales</a>
+                    <a href="pitch-meter.html" class="nav-tab">Pitch</a>
+                    <a href="player.html" class="nav-tab">Music</a>
+                    <a href="ebook.html" class="nav-tab">Books</a>
+                    <a href="ears.html" class="nav-tab active">Ears</a>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <!-- Voice Controls -->
+            <div class="voice-controls-row">
+                <button id="listenBtn" class="listen-button" aria-label="Start listening">
+                    <span class="button-text">Listen</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
+                <button id="nextBtn" class="next-button" aria-label="Next interval">
+                    <span class="button-text">Next</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="repeatBtn" class="repeat-button" aria-label="Repeat interval">
+                    <span class="button-text">Repeat</span>
+                    <span class="button-icon">&#8634;</span>
+                </button>
+            </div>
+
+            <!-- Transcript -->
+            <div class="transcript-container" id="transcriptContainer" style="display: none;">
+                <p class="transcript-label">You said:</p>
+                <p class="transcript" id="transcript"></p>
+            </div>
+
+            <!-- Current Interval Display -->
+            <div class="interval-display" id="intervalDisplay">
+                <div class="interval-prompt" id="intervalPrompt">
+                    Press <strong>Next</strong> to start
+                </div>
+                <div class="interval-notes" id="intervalNotes"></div>
+                <div class="interval-feedback" id="intervalFeedback"></div>
+            </div>
+
+            <!-- Answer Buttons (Identify Mode) -->
+            <div class="answer-grid" id="answerGrid">
+                <button class="answer-btn" data-interval="m2">m2<span class="answer-label">minor 2nd</span></button>
+                <button class="answer-btn" data-interval="M2">M2<span class="answer-label">Major 2nd</span></button>
+                <button class="answer-btn" data-interval="m3">m3<span class="answer-label">minor 3rd</span></button>
+                <button class="answer-btn" data-interval="M3">M3<span class="answer-label">Major 3rd</span></button>
+                <button class="answer-btn" data-interval="P4">P4<span class="answer-label">Perfect 4th</span></button>
+                <button class="answer-btn" data-interval="TT">TT<span class="answer-label">Tritone</span></button>
+                <button class="answer-btn" data-interval="P5">P5<span class="answer-label">Perfect 5th</span></button>
+                <button class="answer-btn" data-interval="m6">m6<span class="answer-label">minor 6th</span></button>
+                <button class="answer-btn" data-interval="M6">M6<span class="answer-label">Major 6th</span></button>
+                <button class="answer-btn" data-interval="m7">m7<span class="answer-label">minor 7th</span></button>
+                <button class="answer-btn" data-interval="M7">M7<span class="answer-label">Major 7th</span></button>
+                <button class="answer-btn" data-interval="P8">P8<span class="answer-label">Octave</span></button>
+            </div>
+
+            <!-- Sing Mode Target -->
+            <div class="sing-target" id="singTarget" style="display: none;">
+                <div class="sing-prompt" id="singPrompt">Sing a <strong>perfect fifth</strong> above</div>
+                <div class="pitch-display">
+                    <div class="pitch-current" id="pitchCurrent">--</div>
+                    <div class="pitch-target" id="pitchTarget">Target: G4</div>
+                    <div class="pitch-accuracy" id="pitchAccuracy"></div>
+                </div>
+                <canvas id="pitchMeter" width="300" height="40"></canvas>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="ears-settings">
+                <!-- Mode Selection -->
+                <div class="setting-row">
+                    <span class="setting-label">Mode</span>
+                    <div class="setting-options">
+                        <button class="setting-btn selected" data-mode="identify">Identify</button>
+                        <button class="setting-btn" data-mode="sing">Sing</button>
+                        <button class="setting-btn" data-mode="both">Both</button>
+                    </div>
+                </div>
+
+                <!-- Direction -->
+                <div class="setting-row">
+                    <span class="setting-label">Direction</span>
+                    <div class="setting-options">
+                        <button class="setting-btn selected" data-direction="ascending">Ascending</button>
+                        <button class="setting-btn" data-direction="descending">Descending</button>
+                        <button class="setting-btn" data-direction="harmonic">Harmonic</button>
+                        <button class="setting-btn" data-direction="random">Random</button>
+                    </div>
+                </div>
+
+                <!-- Interval Selection -->
+                <div class="setting-row">
+                    <span class="setting-label">Intervals</span>
+                    <div class="setting-options interval-toggles">
+                        <button class="interval-toggle selected" data-interval="m2">m2</button>
+                        <button class="interval-toggle selected" data-interval="M2">M2</button>
+                        <button class="interval-toggle selected" data-interval="m3">m3</button>
+                        <button class="interval-toggle selected" data-interval="M3">M3</button>
+                        <button class="interval-toggle selected" data-interval="P4">P4</button>
+                        <button class="interval-toggle selected" data-interval="TT">TT</button>
+                        <button class="interval-toggle selected" data-interval="P5">P5</button>
+                        <button class="interval-toggle selected" data-interval="m6">m6</button>
+                        <button class="interval-toggle selected" data-interval="M6">M6</button>
+                        <button class="interval-toggle selected" data-interval="m7">m7</button>
+                        <button class="interval-toggle selected" data-interval="M7">M7</button>
+                        <button class="interval-toggle selected" data-interval="P8">P8</button>
+                    </div>
+                </div>
+
+                <!-- Presets -->
+                <div class="setting-row">
+                    <span class="setting-label">Presets</span>
+                    <div class="setting-options">
+                        <button class="preset-btn" data-preset="all">All</button>
+                        <button class="preset-btn" data-preset="perfect">Perfect</button>
+                        <button class="preset-btn" data-preset="thirds">3rds/6ths</button>
+                        <button class="preset-btn" data-preset="seconds">2nds/7ths</button>
+                        <button class="preset-btn" data-preset="weak">Weakest</button>
+                    </div>
+                </div>
+
+                <!-- Root Range -->
+                <div class="setting-row">
+                    <span class="setting-label">Root Range</span>
+                    <div class="setting-options range-options">
+                        <span class="range-value" id="rangeMin">C3</span>
+                        <input type="range" id="rangeSlider" min="36" max="72" value="48" class="range-slider">
+                        <span class="range-value" id="rangeMax">C5</span>
+                    </div>
+                </div>
+
+                <!-- Adaptive Mode -->
+                <div class="setting-row">
+                    <span class="setting-label">Adaptive</span>
+                    <div class="setting-options">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="adaptiveToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Weight toward weak intervals</span>
+                    </div>
+                </div>
+
+                <!-- Driving Mode -->
+                <div class="setting-row">
+                    <span class="setting-label">Driving</span>
+                    <div class="setting-options">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="drivingToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Audio-only feedback (TTS)</span>
+                    </div>
+                </div>
+
+                <!-- Auto-advance -->
+                <div class="setting-row">
+                    <span class="setting-label">Auto</span>
+                    <div class="setting-options">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoAdvanceToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Auto-advance after correct answer</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Display -->
+            <div class="stats-panel">
+                <div class="stats-header">
+                    <h3>Session Stats</h3>
+                    <button id="resetStatsBtn" class="reset-stats-btn">Reset</button>
+                </div>
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <span class="stat-value" id="statCorrect">0</span>
+                        <span class="stat-label">Correct</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statTotal">0</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statPercent">--%</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statStreak">0</span>
+                        <span class="stat-label">Streak</span>
+                    </div>
+                </div>
+                <div class="stats-breakdown" id="statsBreakdown">
+                    <!-- Per-interval stats populated by JS -->
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="history-panel" id="historyPanel">
+                <div class="history-header">
+                    <h3>Recent</h3>
+                    <button id="clearHistoryBtn" class="clear-history-btn">Clear</button>
+                </div>
+                <div class="history-list" id="historyList">
+                    <p class="history-empty">No attempts yet</p>
+                </div>
+            </div>
+
+            <!-- Voice Commands Reference -->
+            <div class="voice-control-commands">
+                <span class="vcc-label">Voice:</span>
+                <code>next</code>
+                <code>repeat</code>
+                <code>skip</code>
+                <code>stats</code>
+                <code>[interval name]</code>
+            </div>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="music-constants.js?v=33"></script>
+    <script src="voice-command-core.js?v=33"></script>
+    <script src="ears.js?v=33"></script>
+</body>
+
+</html>

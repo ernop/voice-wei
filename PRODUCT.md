@@ -425,9 +425,244 @@ Thumbnails of visual assets positioned on audio timeline.
 
 ---
 
+# Ear Training - Interval Recognition & Production
+
+## Vision
+
+A voice-first ear training tool for developing musicianship. Two core skills:
+1. **Identification**: Hear an interval, name it
+2. **Production**: See/hear a target interval, sing it accurately
+
+Designed for hands-free practice while driving, walking, or doing chores.
+
+## The Problem
+
+Learning intervals is fundamental to musicianship but:
+1. Most ear training apps require looking at screens and tapping buttons
+2. No feedback loop for *singing* intervals - just passive listening
+3. Hard to practice while doing other activities
+4. Boring drill formats don't adapt to your weaknesses
+5. No connection between "knowing" an interval and being able to produce it
+
+## Core Design Principles
+
+### 1. Voice-First, Eyes-Free
+- Large "Listen" button to start (same as Scales page)
+- All interaction via voice when in driving mode
+- Audio prompts and feedback - no need to look
+- Visual UI available when stationary for richer feedback
+
+### 2. Two Complementary Modes
+
+**Identify Mode** (Ear → Brain)
+- Hear two notes (melodic or harmonic)
+- Say the interval name: "major third", "perfect fifth", "tritone"
+- Immediate audio feedback: "Correct!" or "That was a minor sixth"
+- Track accuracy per interval type
+
+**Sing Mode** (Brain → Voice)
+- Hear a reference note
+- Prompt: "Sing a perfect fourth above"
+- User sings the target note
+- Pitch detection verifies accuracy (within tolerance)
+- Feedback: "Good!" / "A bit flat" / "That was a major third"
+
+### 3. Configurable Interval Sets
+
+Allow users to focus practice:
+- **All intervals**: m2, M2, m3, M3, P4, TT, P5, m6, M6, m7, M7, P8
+- **Easy set**: P4, P5, P8 (perfect intervals)
+- **Thirds/Sixths**: m3, M3, m6, M6
+- **Trouble intervals**: User's weakest based on history
+- **Diatonic only**: Intervals within a major/minor scale
+- **Custom selection**: Pick any subset
+
+### 4. Direction Options
+- **Ascending**: Lower note first, then higher
+- **Descending**: Higher note first, then lower
+- **Harmonic**: Both notes simultaneously
+- **Random**: Mix of all three
+
+### 5. Adaptive Difficulty
+- Track accuracy per interval × direction
+- Automatically weight practice toward weak areas
+- Show progress over time
+- Optional "mastery mode": must get 5 correct in a row to mark as learned
+
+### 6. Voice Commands
+
+| Command | Action |
+|---------|--------|
+| "start" / "go" / "next" | Play next interval |
+| "repeat" / "again" | Replay current interval |
+| "skip" | Skip without answering |
+| "[interval name]" | Submit answer (identify mode) |
+| "stop" / "pause" | Pause session |
+| "stats" / "score" | Read current accuracy |
+| "easier" / "harder" | Adjust difficulty |
+| "driving mode" | Audio-only, no visuals needed |
+
+### 7. Interval Naming (with aliases)
+
+Support multiple ways to say each interval:
+
+| Interval | Semitones | Aliases |
+|----------|-----------|---------|
+| minor 2nd | 1 | "minor second", "half step", "semitone", "m2" |
+| Major 2nd | 2 | "major second", "whole step", "whole tone", "M2" |
+| minor 3rd | 3 | "minor third", "m3" |
+| Major 3rd | 4 | "major third", "M3" |
+| Perfect 4th | 5 | "perfect fourth", "fourth", "P4" |
+| Tritone | 6 | "tritone", "augmented fourth", "diminished fifth", "TT" |
+| Perfect 5th | 7 | "perfect fifth", "fifth", "P5" |
+| minor 6th | 8 | "minor sixth", "m6" |
+| Major 6th | 9 | "major sixth", "M6" |
+| minor 7th | 10 | "minor seventh", "m7" |
+| Major 7th | 11 | "major seventh", "M7" |
+| Octave | 12 | "octave", "perfect octave", "P8", "eighth" |
+
+### 8. Session Structure
+
+**Quick Practice** (default)
+- Endless random intervals from selected set
+- Stop anytime with voice command
+- Shows running accuracy
+
+**Timed Session**
+- 5/10/15 minute sessions
+- Summary at end with weakest intervals highlighted
+- Saves to history
+
+**Challenge Mode**
+- Fixed number of intervals (10/20/50)
+- Score at end
+- Leaderboard against yourself
+
+## UI Layout
+
+### Desktop/Tablet (Visual Mode)
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Ear Training                           v33   [...] │
+│  [Scales] [Pitch] [Music] [Books] [Ears]           │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│              [ 🎧 Listen ]  [ ▶ Next ]              │
+│                                                     │
+│         ┌─────────────────────────────┐             │
+│         │   🎵  ?  →  🎵               │             │
+│         │      What interval?          │             │
+│         └─────────────────────────────┘             │
+│                                                     │
+│  Mode: [Identify] [Sing]                           │
+│                                                     │
+│  Intervals:  ☑m2 ☑M2 ☑m3 ☑M3 ☑P4 ☑TT ☑P5...       │
+│  Direction:  [Asc] [Desc] [Harm] [Random]          │
+│  Root range: C3 ──●────── C5                       │
+│                                                     │
+│  ─────────────────────────────────────             │
+│  Session: 15 correct / 18 total (83%)              │
+│  Weakest: tritone (40%), minor 6th (50%)           │
+│                                                     │
+│  History:                                          │
+│  ✓ P5 asc   ✓ M3 desc   ✗ m6 harm   ✓ P4 asc     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Driving Mode (Audio-Only)
+
+No visual feedback needed. All via audio:
+
+1. "Next interval" → plays two notes
+2. User says: "minor sixth"
+3. System: "Correct! That was a minor sixth ascending. Next..."
+4. Continues until "stop" or "pause"
+
+Stats read aloud on request: "You've done 20 intervals, 85% correct. Weakest is the tritone."
+
+## Technical Architecture
+
+```
+[Voice Input] ──→ [Speech Recognition]
+                        │
+         ┌──────────────┴──────────────┐
+         │                             │
+         ▼                             ▼
+   [Control Command]           [Interval Answer]
+         │                             │
+         ▼                             ▼
+   [Update State]              [Check Answer]
+                                       │
+                                       ▼
+                               [Update Stats]
+                                       │
+                                       ▼
+                               [Audio Feedback]
+                                       │
+                               [TTS or Tone.js]
+
+
+[Sing Mode Addition]
+
+[Pitch Detection] ◄── [Microphone]
+        │
+        ▼
+[Frequency → Note]
+        │
+        ▼
+[Compare to Target]
+        │
+        ▼
+[Accuracy Feedback]
+```
+
+## Integration with Existing Code
+
+- **Tone.js**: Already loaded for Scales - reuse for playing intervals
+- **Salamander Piano**: Same samples for consistent sound
+- **voice-command-core.js**: Shared voice recognition infrastructure
+- **Pitch detection**: Port from pitch-meter.js for sing mode
+- **style.css**: Shared styling
+
+## Implementation Phases
+
+### Phase 1: Core Identify Mode
+- Basic interval playback (ascending melodic)
+- Voice recognition for interval names
+- Simple accuracy tracking
+- Visual UI with interval buttons
+
+### Phase 2: Full Identify Mode
+- Descending and harmonic intervals
+- Configurable interval sets
+- Session history and stats
+- Driving mode (audio feedback)
+
+### Phase 3: Sing Mode
+- Integrate pitch detection
+- "Sing X above this note" prompts
+- Accuracy tolerance settings
+- Combined practice (identify then sing)
+
+### Phase 4: Adaptive Learning
+- Track weakness per interval × direction
+- Weighted random selection
+- Progress visualization
+- Mastery tracking
+
+## Success Metrics
+
+- User can practice for 10+ minutes hands-free while driving
+- Measurable improvement in interval recognition accuracy over sessions
+- Both identification and production skills improve together
+- Users report increased confidence in real musical situations
+
+---
+
 # Version System
 
-All four pages share a unified version number stored in the `VERSION` file.
+All five pages share a unified version number stored in the `VERSION` file.
 
 ## Current Version
 
@@ -464,6 +699,7 @@ Voice-Wei is a collection of voice-first tools for musicians and readers:
 2. **Pitch Meter**: Real-time pitch detection for vocal accuracy
 3. **Music Player**: AI-powered voice-controlled YouTube player
 4. **Books**: Ebook to audiobook converter using OpenAI TTS
+5. **Ears**: Interval ear training - identification and singing production
 
-The common thread is hands-free, voice-first operation. Whether practicing scales, checking pitch, playing music while driving, or listening to books, these tools minimize visual attention and maximize voice control.
+The common thread is hands-free, voice-first operation. Whether practicing scales, checking pitch, training your ear, playing music while driving, or listening to books, these tools minimize visual attention and maximize voice control.
 
