@@ -303,6 +303,61 @@ class EarsController {
         }
     }
 
+    loadSettings() {
+        try {
+            const saved = localStorage.getItem('ears-settings');
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.mode) this.setMode(settings.mode);
+                if (settings.direction) this.setDirection(settings.direction);
+                if (settings.enabledIntervals) {
+                    this.enabledIntervals = new Set(settings.enabledIntervals);
+                    this.updateIntervalToggles();
+                }
+                if (typeof settings.adaptiveMode === 'boolean') {
+                    this.adaptiveMode = settings.adaptiveMode;
+                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('adaptiveToggle'));
+                    if (toggle) toggle.checked = this.adaptiveMode;
+                }
+                if (typeof settings.drivingMode === 'boolean') {
+                    this.drivingMode = settings.drivingMode;
+                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('drivingToggle'));
+                    if (toggle) toggle.checked = this.drivingMode;
+                }
+                if (typeof settings.autoAdvance === 'boolean') {
+                    this.autoAdvance = settings.autoAdvance;
+                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoAdvanceToggle'));
+                    if (toggle) toggle.checked = this.autoAdvance;
+                }
+                if (settings.rootRangeMid) {
+                    this.rootRangeMid = settings.rootRangeMid;
+                    const slider = /** @type {HTMLInputElement | null} */ (document.getElementById('rangeSlider'));
+                    if (slider) slider.value = String(this.rootRangeMid);
+                    this.updateRangeDisplay();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    }
+
+    saveSettings() {
+        try {
+            const settings = {
+                mode: this.mode,
+                direction: this.direction,
+                enabledIntervals: [...this.enabledIntervals],
+                adaptiveMode: this.adaptiveMode,
+                drivingMode: this.drivingMode,
+                autoAdvance: this.autoAdvance,
+                rootRangeMid: this.rootRangeMid,
+            };
+            localStorage.setItem('ears-settings', JSON.stringify(settings));
+        } catch (e) {
+            console.error('Failed to save settings:', e);
+        }
+    }
+
     async init() {
         // Cache DOM elements
         this.intervalPrompt = document.getElementById('intervalPrompt');
@@ -323,6 +378,10 @@ class EarsController {
         // Update UI
         this.updateStatsDisplay();
         this.updateBreakdownDisplay();
+        this.updateRangeDisplay();
+
+        // Load saved settings
+        this.loadSettings();
     }
 
     setStatus(message) {
@@ -340,9 +399,9 @@ class EarsController {
 
         // @ts-ignore
         this.voiceCore = new VoiceCommandCore({
-            onCommand: (transcript) => this.handleVoiceCommand(transcript),
-            onInterim: (transcript) => this.handleInterimTranscript(transcript),
             onListeningChange: (isListening) => this.handleListeningChange(isListening),
+            onStatusChange: (msg) => {}, // We handle our own status
+            fallbackHandler: async (transcript) => this.handleVoiceCommand(transcript),
         });
 
         this.voiceCore.init();
@@ -385,13 +444,6 @@ class EarsController {
                 this.showFeedback(`Didn't recognize: "${transcript}"`, 'info');
             }
         }
-    }
-
-    /**
-     * @param {string} transcript
-     */
-    handleInterimTranscript(transcript) {
-        // Could show live feedback here
     }
 
     /**
@@ -507,14 +559,17 @@ class EarsController {
         // Toggles
         document.getElementById('adaptiveToggle')?.addEventListener('change', (e) => {
             this.adaptiveMode = /** @type {HTMLInputElement} */ (e.target).checked;
+            this.saveSettings();
         });
 
         document.getElementById('drivingToggle')?.addEventListener('change', (e) => {
             this.drivingMode = /** @type {HTMLInputElement} */ (e.target).checked;
+            this.saveSettings();
         });
 
         document.getElementById('autoAdvanceToggle')?.addEventListener('change', (e) => {
             this.autoAdvance = /** @type {HTMLInputElement} */ (e.target).checked;
+            this.saveSettings();
         });
 
         // Reset stats
@@ -531,6 +586,7 @@ class EarsController {
         document.getElementById('rangeSlider')?.addEventListener('input', (e) => {
             this.rootRangeMid = parseInt(/** @type {HTMLInputElement} */ (e.target).value);
             this.updateRangeDisplay();
+            this.saveSettings();
         });
     }
 
@@ -549,6 +605,8 @@ class EarsController {
 
         if (answerGrid) answerGrid.style.display = (mode === 'sing') ? 'none' : 'grid';
         if (singTarget) singTarget.style.display = (mode === 'identify') ? 'none' : 'block';
+
+        this.saveSettings();
     }
 
     /**
@@ -559,6 +617,7 @@ class EarsController {
         document.querySelectorAll('[data-direction]').forEach(btn => {
             btn.classList.toggle('selected', /** @type {HTMLElement} */ (btn).dataset.direction === direction);
         });
+        this.saveSettings();
     }
 
     /**
@@ -574,6 +633,7 @@ class EarsController {
             this.enabledIntervals.add(interval);
         }
         this.updateIntervalToggles();
+        this.saveSettings();
     }
 
     updateIntervalToggles() {
@@ -606,6 +666,7 @@ class EarsController {
             this.enabledIntervals = new Set(INTERVAL_PRESETS[preset]);
         }
         this.updateIntervalToggles();
+        this.saveSettings();
     }
 
     updateRangeDisplay() {
@@ -673,6 +734,7 @@ class EarsController {
         this.awaitingAnswer = false;
         this.answered = false;
         this.clearAnswerHighlights();
+        this.stopPitchDetection();
 
         // Select interval
         this.currentInterval = this.selectInterval();
