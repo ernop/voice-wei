@@ -19,6 +19,7 @@
                 <span class="version-label">v33</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
+                    <a href="scales2.html" class="nav-tab">Intervals</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
                     <a href="player.html" class="nav-tab">Music</a>
                     <a href="ebook.html" class="nav-tab">Books</a>
@@ -40,6 +41,10 @@
                 <button id="againBtn" class="play-button" aria-label="Play">
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="nextBtn" class="next-button" style="display: none;" aria-label="Next pattern">
+                    <span class="button-text">Next</span>
+                    <span class="button-icon">&#8594;</span>
                 </button>
                 <button id="submitBtn" class="submit-button-large" style="display: none;"
                     aria-label="Submit">Submit</button>
@@ -212,6 +217,11 @@
                         <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
                         <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
+                    </div>
+                    <span class="vf-label vf-label-inline" data-full="Advance" data-abbr="Adv">Advance</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-advance="auto" data-full="auto" data-abbr="auto">auto</button>
+                        <button class="vf-btn" data-advance="hold" data-full="hold" data-abbr="hold">hold</button>
                     </div>
                 </div>
 
