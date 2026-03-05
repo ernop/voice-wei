@@ -94,10 +94,12 @@
         showNoteNames: true,
         expandRange: false,
         reverse: false,
+        repeat: false,
         exerciseType: 'A',
         selectedLevel: 'a1',
         running: false,
         stopRequested: false,
+        nextRequested: false,
     };
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
@@ -270,26 +272,33 @@
         const display = document.getElementById('currentDisplay');
 
         let firstRound = true;
+        let currentInstance = null;
+
         while (!state.stopRequested) {
-            const instance = generateRandomInstance();
-            if (!instance) {
-                display.textContent = 'Could not generate pattern -- check settings';
-                break;
+            // Generate new pattern unless repeating the same one
+            if (!currentInstance || !state.repeat || state.nextRequested) {
+                state.nextRequested = false;
+                currentInstance = generateRandomInstance();
+                if (!currentInstance) {
+                    display.textContent = 'Could not generate pattern -- check settings';
+                    break;
+                }
             }
 
-            const degreeStr = instance.displayDegrees.join('-');
-            const noteStr = instance.noteNames.join(' ');
+            const degreeStr = currentInstance.displayDegrees.join('-');
+            const noteStr = currentInstance.noteNames.join(' ');
 
             const namesPart = state.showNoteNames
                 ? `<span style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-left:8px">${noteStr}</span>` : '';
 
-            // Show display early so you can read it before the notes play
             display.innerHTML =
-                `<span style="color:rgba(255,255,255,0.45);font-size:0.85rem">${instance.description}</span>` +
+                `<span style="color:rgba(255,255,255,0.45);font-size:0.85rem">${currentInstance.description}</span>` +
                 `<span style="color:#86efac;font-weight:700;font-size:1.6rem">${degreeStr}</span>` +
                 namesPart;
 
-            addHistory(degreeStr, instance.description, noteStr);
+            if (!firstRound || !state.repeat) {
+                addHistory(degreeStr, currentInstance.description, noteStr);
+            }
 
             // Brief pause to read the display before audio starts
             if (!firstRound && !state.stopRequested) {
@@ -298,11 +307,11 @@
             firstRound = false;
 
             if (state.speakNumbers && !state.stopRequested) {
-                await VoiceOutput.speak(instance.spokenDegrees.join(', '));
+                await VoiceOutput.speak(currentInstance.spokenDegrees.join(', '));
             }
 
             if (state.playNotes && !state.stopRequested) {
-                for (const note of instance.noteNames) {
+                for (const note of currentInstance.noteNames) {
                     if (state.stopRequested) break;
                     playNote(note);
                     await sleep(state.lengthMs);
@@ -413,6 +422,7 @@
             { id: 'toggleShowNames', key: 'showNoteNames' },
             { id: 'toggleExpandRange', key: 'expandRange' },
             { id: 'toggleReverse', key: 'reverse' },
+            { id: 'toggleRepeat', key: 'repeat' },
         ];
         for (const { id, key } of toggles) {
             const el = document.getElementById(id);
@@ -422,6 +432,9 @@
 
         document.getElementById('playBtn').addEventListener('click', runLoop);
         document.getElementById('stopBtn').addEventListener('click', stopLoop);
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            state.nextRequested = true;
+        });
         document.getElementById('clearHistoryBtn').addEventListener('click', () => {
             document.getElementById('historyList').innerHTML =
                 '<p class="history-empty">No patterns yet</p>';
