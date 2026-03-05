@@ -163,6 +163,23 @@
         return pattern.filter(s => s < 12).length;
     }
 
+    // ---- DEGREE DISPLAY ----
+    // Converts an offset to a display degree string.
+    // Positive: off+1 (1,2,...8,9...). Negative: wraps to prior octave with down arrow.
+    // off=-1 in 7-note scale = degree 7 of the lower octave = "7\u2193"
+    function offsetToDegree(off, dpOct) {
+        if (off >= 0) return String(off + 1);
+        const wrapped = ((off % dpOct) + dpOct) % dpOct;
+        return (wrapped + 1) + '\u2193';
+    }
+
+    // For speech: same logic but says "down" instead of arrow
+    function offsetToSpoken(off, dpOct) {
+        if (off >= 0) return String(off + 1);
+        const wrapped = ((off % dpOct) + dpOct) % dpOct;
+        return (wrapped + 1) + ' down';
+    }
+
     // ---- INSTANCE GENERATION ----
     function generateRandomInstance() {
         const scale = buildExtendedScale();
@@ -188,16 +205,18 @@
 
         const noteNames = [];
         const displayDegrees = [];
+        const spokenDegrees = [];
         for (const off of gen.offsets) {
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
-            displayDegrees.push(off + 1);
+            displayDegrees.push(offsetToDegree(off, dpOct));
+            spokenDegrees.push(offsetToSpoken(off, dpOct));
         }
 
-        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); }
+        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, noteNames };
+        return { description: desc, displayDegrees, spokenDegrees, noteNames };
     }
 
     function generateClusterInstance(scale, dpOct) {
@@ -224,16 +243,18 @@
 
         const noteNames = [];
         const displayDegrees = [];
+        const spokenDegrees = [];
         for (const off of offsets) {
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
-            displayDegrees.push(off + 1);
+            displayDegrees.push(offsetToDegree(off, dpOct));
+            spokenDegrees.push(offsetToSpoken(off, dpOct));
         }
 
-        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); }
+        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, noteNames };
+        return { description: desc, displayDegrees, spokenDegrees, noteNames };
     }
 
     // ---- MAIN LOOP ----
@@ -277,7 +298,7 @@
             firstRound = false;
 
             if (state.speakNumbers && !state.stopRequested) {
-                await VoiceOutput.speak(instance.displayDegrees.join(', '));
+                await VoiceOutput.speak(instance.spokenDegrees.join(', '));
             }
 
             if (state.playNotes && !state.stopRequested) {
