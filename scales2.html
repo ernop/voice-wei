@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Intervals - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=35">
+    <link rel="stylesheet" href="scales.css?v=35">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <h1>Intervals</h1>
+                <span class="version-label">v35</span>
+                <nav class="nav-tabs">
+                    <a href="scales.html" class="nav-tab">Scales</a>
+                    <a href="scales2.html" class="nav-tab active">Intervals</a>
+                    <a href="pitch-meter.html" class="nav-tab">Pitch</a>
+                    <a href="player.html" class="nav-tab">Music</a>
+                    <a href="ebook.html" class="nav-tab">Books</a>
+                    <a href="ears.html" class="nav-tab">Ears</a>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <!-- Transport controls -->
+            <div class="voice-controls-row">
+                <button id="stopBtn" class="stop-button" aria-label="Stop">
+                    <span class="button-text">Stop</span>
+                    <span class="button-icon">&#9632;</span>
+                </button>
+                <button id="playBtn" class="play-button" aria-label="Play">
+                    <span class="button-text">Go</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+            </div>
+
+            <!-- Current pattern display -->
+            <div class="piano-container">
+                <div id="currentDisplay" style="font-size:1.4rem; padding:16px; min-height:60px; display:flex; align-items:center; justify-content:center; gap:12px;">
+                    Press Go to start
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="voice-first-ui">
+
+                <!-- Root / Octave -->
+                <div class="vf-row">
+                    <span class="vf-label">Root</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-root="C">C</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
+                        <button class="vf-btn" data-root="D">D</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
+                        <button class="vf-btn" data-root="E">E</button>
+                        <button class="vf-btn" data-root="F">F</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
+                        <button class="vf-btn" data-root="G">G</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
+                        <button class="vf-btn" data-root="A">A</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
+                        <button class="vf-btn" data-root="B">B</button>
+                    </div>
+                    <span class="vf-label vf-label-inline">Octave</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-octave="3">3</button>
+                        <button class="vf-btn" data-octave="4">4</button>
+                    </div>
+                </div>
+
+                <!-- Scale type -->
+                <div class="vf-row">
+                    <span class="vf-label">Scale</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-scale="major">major</button>
+                        <button class="vf-btn" data-scale="minor">minor</button>
+                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
+                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
+                    </div>
+                </div>
+
+                <!-- Exercise type -->
+                <div class="vf-row">
+                    <span class="vf-label">Type</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-type="A">Degrees (1-4-5)</button>
+                        <button class="vf-btn" data-type="B">Clusters (+2 -3)</button>
+                    </div>
+                </div>
+
+                <!-- Level selection -->
+                <div class="vf-row">
+                    <span class="vf-label">Level</span>
+                    <div class="vf-options" id="levelOptions">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Note length -->
+                <div class="vf-row">
+                    <span class="vf-label">Note Len</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-length="200">0.2s</button>
+                        <button class="vf-btn" data-length="400">0.4s</button>
+                        <button class="vf-btn" data-length="600">0.6s</button>
+                        <button class="vf-btn" data-length="800">0.8s</button>
+                        <button class="vf-btn" data-length="1000">1s</button>
+                        <button class="vf-btn" data-length="1500">1.5s</button>
+                    </div>
+                </div>
+
+                <!-- Gap between patterns -->
+                <div class="vf-row">
+                    <span class="vf-label">Gap</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-gap="100">0.1s</button>
+                        <button class="vf-btn" data-gap="500">0.5s</button>
+                        <button class="vf-btn" data-gap="1000">1s</button>
+                        <button class="vf-btn" data-gap="1500">1.5s</button>
+                        <button class="vf-btn" data-gap="2000">2s</button>
+                        <button class="vf-btn" data-gap="3000">3s</button>
+                        <button class="vf-btn" data-gap="5000">5s</button>
+                    </div>
+                </div>
+
+                <!-- Toggles -->
+                <div class="vf-row">
+                    <span class="vf-label">Options</span>
+                    <div class="vf-options">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="toggleSpeak" checked>
+                            <span>Speak numbers</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="togglePlayNotes" checked>
+                            <span>Play notes</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="toggleShowNames" checked>
+                            <span>Show note names</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="toggleExpandRange">
+                            <span>Expand range</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="toggleReverse">
+                            <span>Reverse</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History log -->
+            <div class="command-history">
+                <div class="history-header">
+                    <h3>Pattern History</h3>
+                    <button id="clearHistoryBtn" class="clear-history-btn">Clear</button>
+                </div>
+                <div class="history-list" id="historyList">
+                    <p class="history-empty">No patterns yet</p>
+                </div>
+            </div>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="music-constants.js?v=35"></script>
+    <script src="voice-output.js?v=35"></script>
+    <script src="scales2.js?v=35"></script>
+</body>
+
+</html>
