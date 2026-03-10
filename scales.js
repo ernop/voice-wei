@@ -414,8 +414,6 @@ class ScalesController {
         this.presets = [];
         /** @type {string | null} */
         this.selectedPresetId = null;
-        this.manualAdvanceStep = 0;
-        this._isAdvancing = false;
         this.settings = {
             noteLengthMs: 300,  // note duration in milliseconds
             gapMs: 0,           // gap between notes in ms (or negative for overlap ratio)
@@ -426,7 +424,7 @@ class ScalesController {
             // This is NOT the UI "Gap" control which is between NOTES.
             repeatGapMs: FOREVER_SECTION_GAP_MS,
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
-            movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one, explore_N_up, explore_N_around
+            movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
             // Voice-first settings (also controllable via UI)
             scaleType: 'major',
             root: 'C',
@@ -434,8 +432,7 @@ class ScalesController {
             octaveSpan: 1,      // 1 or 2: how many octaves to span
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
-            shiftingSteps: 0, // 0=off, 1=shift up 1 scale degree each repeat, etc.
-            advanceMode: 'auto' // 'auto' = advance rising/shifting automatically, 'hold' = repeat same until Next
+            shiftingSteps: 0  // 0=off, 1=shift up 1 scale degree each repeat, etc.
         };
 
         // Default settings for reset (and for voice commands which reset first)
@@ -454,8 +451,7 @@ class ScalesController {
             octaveSpan: 1,
             sectionLength: '1o',
             exercise: 'none',
-            shiftingSteps: 0,
-            advanceMode: 'auto'
+            shiftingSteps: 0
         };
 
         // Exercise patterns: arrays of scale degree offsets from starting note
@@ -1002,12 +998,6 @@ class ScalesController {
         else if (repeatCount === 0) badges.push('repeat off');
         else if (repeatCount > 1) badges.push(`x${repeatCount}`);
 
-        // Hold mode
-        if (s.advanceMode === 'hold') {
-            const step = this.manualAdvanceStep;
-            badges.push(step > 0 ? `hold step ${step + 1}` : 'hold');
-        }
-
         return badges.filter(Boolean);
     }
 
@@ -1179,14 +1169,6 @@ class ScalesController {
             btn.classList.toggle('selected', btn.dataset.sectionLength === this.settings.sectionLength);
         });
 
-        // Advance mode buttons
-        document.querySelectorAll('[data-advance]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.advance === this.settings.advanceMode);
-        });
-
-        this.updateNextButtonDisplay();
-
         // Update piano scale preview
         this.updateScalePreview();
         this.updatePatternPreview();
@@ -1195,18 +1177,6 @@ class ScalesController {
         if (!this.audio.isPlaying) {
             this.updatePianoNotificationCommand(null);
             this.setPianoNotificationActiveNotes([]);
-        }
-    }
-
-    updateNextButtonDisplay() {
-        const nextBtn = document.getElementById('nextBtn');
-        if (!nextBtn) return;
-        const isHold = this.settings.advanceMode === 'hold';
-        nextBtn.style.display = isHold ? '' : 'none';
-        if (isHold && this.manualAdvanceStep > 0) {
-            nextBtn.querySelector('.button-text').textContent = `Next (${this.manualAdvanceStep + 1})`;
-        } else {
-            nextBtn.querySelector('.button-text').textContent = 'Next';
         }
     }
 
@@ -1234,7 +1204,7 @@ class ScalesController {
     // Build modifiers object from current settings for replay
     // Note: tempo/gap are omitted so getNoteDuration() reads from this.settings directly
     buildModifiersFromSettings() {
-        const mods = {
+        return {
             repeat: this.settings.repeatCount,
             direction: this.settings.direction,
             risingSemitones: this.settings.risingSemitones,
@@ -1245,17 +1215,6 @@ class ScalesController {
             exercise: this.settings.exercise,
             shiftingSteps: this.settings.shiftingSteps
         };
-
-        if (this.settings.advanceMode === 'hold') {
-            // Pre-apply the manual advance step, then disable auto-advance
-            mods.baseTranspose = this.settings.risingSemitones * this.manualAdvanceStep;
-            mods.risingSemitones = 0;
-            mods.shiftOffset = this.settings.shiftingSteps * this.manualAdvanceStep;
-            mods.shiftingSteps = 0;
-            mods.repeat = Infinity;
-        }
-
-        return mods;
     }
 
     // Format current settings as a compact status string
@@ -1308,11 +1267,6 @@ class ScalesController {
             } else if (s.repeatCount === 0) {
                 parts.push('repeat off');
             }
-        }
-
-        if (s.advanceMode === 'hold') {
-            const step = this.manualAdvanceStep;
-            parts.push(step > 0 ? `hold #${step + 1}` : 'hold');
         }
 
         return parts.join(' | ');
@@ -1378,23 +1332,6 @@ class ScalesController {
                 this.onSettingChanged();
             });
         });
-
-        // Advance mode buttons
-        document.querySelectorAll('[data-advance]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                const mode = btn.dataset.advance || 'auto';
-                if (mode === 'auto') this.manualAdvanceStep = 0;
-                this.settings.advanceMode = mode;
-                this.onSettingChanged();
-            });
-        });
-
-        // Next button (manual advance)
-        const nextBtn = document.getElementById('nextBtn');
-        if (nextBtn) {
-            nextBtn.addEventListener('click', () => this.manualAdvance());
-        }
 
         // Exercise buttons
         document.querySelectorAll('[data-exercise]').forEach(el => {
@@ -1746,20 +1683,6 @@ class ScalesController {
         } else if (text.match(/\bplus\s*minus\s*(1|one)\b/) || text.match(/\b\+1\s*-1\b/) || text.match(/\bdance\s+around\b/)) {
             modifiers.movementStyle = 'plus_minus_one';
             text = text.replace(/\bplus\s*minus\s*(1|one)\b/, '').replace(/\b\+1\s*-1\b/, '').replace(/\bdance\s+around\b/, '');
-        } else if (text.match(/\bexplore\s+(2nd|3rd|4th|5th|6th|seconds?|thirds?|fourths?|fifths?|sixths?)\s+(up|around|ascending|both)\b/i)) {
-            const m = text.match(/\bexplore\s+(2nd|3rd|4th|5th|6th|seconds?|thirds?|fourths?|fifths?|sixths?)\s+(up|around|ascending|both)\b/i);
-            const intervalMap = { '2nd': 2, 'second': 2, 'seconds': 2, '3rd': 3, 'third': 3, 'thirds': 3, '4th': 4, 'fourth': 4, 'fourths': 4, '5th': 5, 'fifth': 5, 'fifths': 5, '6th': 6, 'sixth': 6, 'sixths': 6 };
-            const num = intervalMap[m[1].toLowerCase()] || 3;
-            const dir = (m[2].toLowerCase() === 'around' || m[2].toLowerCase() === 'both') ? 'around' : 'up';
-            modifiers.movementStyle = `explore_${num}_${dir}`;
-            text = text.replace(m[0], '');
-        } else if (text.match(/\b(2nd|3rd|4th|5th|6th)\s*\+\s*(\+|-)\b/)) {
-            const m = text.match(/\b(2nd|3rd|4th|5th|6th)\s*\+\s*(\+|-)\b/);
-            const intervalMap = { '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6 };
-            const num = intervalMap[m[1]];
-            const dir = m[2] === '-' ? 'around' : 'up';
-            modifiers.movementStyle = `explore_${num}_${dir}`;
-            text = text.replace(m[0], '');
         } else if (text.match(/\bnormal\s+movement\b/) || text.match(/\bnormal\b/)) {
             modifiers.movementStyle = 'normal';
             text = text.replace(/\bnormal\s+movement\b/, '').replace(/\bnormal\b/, '');
@@ -2002,19 +1925,6 @@ class ScalesController {
             this.settings.movementStyle = 'plus_minus_one';
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_one' };
-        }
-        // Standalone explore commands: "explore 3rds up", "explore fifths around", "3rd++", "5th+-"
-        const exploreStandalone = originalLower.match(/^explore\s+(2nd|3rd|4th|5th|6th|seconds?|thirds?|fourths?|fifths?|sixths?)\s+(up|around|ascending|both)$/i)
-            || originalLower.match(/^(2nd|3rd|4th|5th|6th)\s*\+\s*(\+|-)$/);
-        if (exploreStandalone) {
-            const intervalMap = { '2nd': 2, 'second': 2, 'seconds': 2, '3rd': 3, 'third': 3, 'thirds': 3, '4th': 4, 'fourth': 4, 'fourths': 4, '5th': 5, 'fifth': 5, 'fifths': 5, '6th': 6, 'sixth': 6, 'sixths': 6 };
-            const num = intervalMap[exploreStandalone[1].toLowerCase()] || 3;
-            const dirRaw = exploreStandalone[2].toLowerCase();
-            const dir = (dirRaw === 'around' || dirRaw === 'both' || dirRaw === '-') ? 'around' : 'up';
-            const value = `explore_${num}_${dir}`;
-            this.settings.movementStyle = value;
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value };
         }
         if (originalLower.match(/^(normal\s+movement|normal)$/)) {
             this.settings.movementStyle = 'normal';
@@ -2564,7 +2474,6 @@ class ScalesController {
                 break;
 
             case 'scale':
-                this.manualAdvanceStep = 0;
                 // Update settings from voice command (voice-first bidirectional sync)
                 this.settings.root = command.root;
                 this.settings.scaleType = command.scaleType;
@@ -2761,12 +2670,6 @@ class ScalesController {
             else if (mods.movementStyle === 'from_one') parts.push('from one');
             else if (mods.movementStyle === 'to_one') parts.push('to one');
             else if (mods.movementStyle === 'plus_minus_one') parts.push('plus minus one');
-            else {
-                const parsed = this.parseExploreStyle(mods.movementStyle);
-                if (parsed) {
-                    parts.push(`explore ${parsed.intervalName}s ${parsed.direction}`);
-                }
-            }
         }
 
         // Rising / modulation
@@ -2875,14 +2778,7 @@ class ScalesController {
             to_one: 'to 1',
             plus_minus_one: '+1-1 (fixed)'
         };
-        if (map[style]) return map[style];
-        const parsed = this.parseExploreStyle(style);
-        if (parsed) {
-            return parsed.direction === 'up'
-                ? `${parsed.intervalName}++`
-                : `${parsed.intervalName}+-`;
-        }
-        return style;
+        return map[style] || style;
     }
 
     getExerciseLabel(exercise) {
@@ -2985,11 +2881,17 @@ class ScalesController {
             }
         } else if (style === 'from_one') {
             // Root first, then section note - section note is LAST
-            // Always play [root, sectionNote] even when sectionNote === root (consistent "from 1" rhythm).
-            // No bare final note: seamless repeat handles dedup at the group level.
+            // Skip extras on final note (land cleanly)
+            // Skip extras when section note IS the root (don't play root twice)
             for (let i = 0; i < sectionNotes.length; i++) {
                 const note = sectionNotes[i];
-                groups.push(makeGroup([rootNote, note], 1));
+                if (i === lastIndex || note === rootNote) {
+                    // Final note or note is already the root - just the section note
+                    groups.push(makeGroup([note], 0));
+                } else {
+                    // [rootNote, sectionNote] - sectionIndex is 1 (last)
+                    groups.push(makeGroup([rootNote, note], 1));
+                }
             }
         } else if (style === 'to_one') {
             // Section note, then return to root - section note is FIRST (interleave-1)
@@ -3031,36 +2933,6 @@ class ScalesController {
                 if (fifth) chordNotes.push(fifth);
                 groups.push(makeGroup(chordNotes, 0, true));
             }
-        } else if (style.startsWith('explore_')) {
-            const parsed = this.parseExploreStyle(style);
-            if (parsed) {
-                const { scaleSteps, direction: dir } = parsed;
-                for (let i = 0; i < sectionNotes.length; i++) {
-                    const note = sectionNotes[i];
-                    if (i === lastIndex) {
-                        groups.push(makeGroup([note], 0));
-                    } else if (dir === 'up') {
-                        // Ascending triplet: note, +X, +2X
-                        const above = this.getNotesAbove(note, ascendingScale, scaleSteps * 2);
-                        const groupNotes = [note];
-                        if (above.length >= scaleSteps) groupNotes.push(above[scaleSteps - 1]);
-                        if (above.length >= scaleSteps * 2) groupNotes.push(above[scaleSteps * 2 - 1]);
-                        groups.push(makeGroup(groupNotes, 0));
-                    } else {
-                        // Around: note, +X, -X
-                        const above = this.getNotesAbove(note, ascendingScale, scaleSteps);
-                        const below = this.getNotesBelow(note, ascendingScale, scaleSteps);
-                        const groupNotes = [note];
-                        if (above.length >= scaleSteps) groupNotes.push(above[scaleSteps - 1]);
-                        if (below.length >= scaleSteps) groupNotes.push(below[scaleSteps - 1]);
-                        groups.push(makeGroup(groupNotes, 0));
-                    }
-                }
-            } else {
-                for (const note of sectionNotes) {
-                    groups.push(makeGroup([note], 0));
-                }
-            }
         } else {
             // Normal: each section note individually
             for (const note of sectionNotes) {
@@ -3070,21 +2942,6 @@ class ScalesController {
 
         const notes = groups.flatMap(g => g.notes).filter(Boolean);
         return { groups, notes };
-    }
-
-    /**
-     * Parse an explore_N_dir style string into its components.
-     * @param {string} style - e.g. 'explore_3_up' or 'explore_5_around'
-     * @returns {{ intervalName: string, scaleSteps: number, direction: 'up'|'around' } | null}
-     */
-    parseExploreStyle(style) {
-        const match = style.match(/^explore_(\d+)_(up|around)$/);
-        if (!match) return null;
-        const intervalNum = parseInt(match[1]);
-        const dir = /** @type {'up'|'around'} */ (match[2]);
-        const scaleSteps = intervalNum - 1; // "3rd" = 2 scale steps, "5th" = 4 scale steps
-        const names = { 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th' };
-        return { intervalName: names[intervalNum] || `${intervalNum}th`, scaleSteps, direction: dir };
     }
 
     // Get N notes above the given note in the scale (using semitone arithmetic)
@@ -3462,7 +3319,7 @@ class ScalesController {
     async playGroupSequence(groups, modifiers = {}, context = {}) {
         this.clearScalePreview();
         this.clearActuallyPlayed();
-        this.updatePatternPreview(modifiers.baseTranspose || 0);
+        this.updatePatternPreview(0); // Show initial sequence
 
         const movementStyle = context.movementStyle || 'normal';
 
@@ -3475,23 +3332,16 @@ class ScalesController {
         const isInfinite = playTimes === Infinity;
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-        const baseTranspose = modifiers.baseTranspose || 0;
-
-        const direction = modifiers.direction || this.settings.direction;
-        const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-        const effectiveGapMs = risingSemitones === 0 ? (isInfinite ? repeatGapMs : 1500) : 0;
-        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0 && effectiveGapMs === 0;
 
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
 
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                const transpose = (risingSemitones * r) + baseTranspose;
+                const transpose = risingSemitones * r;
 
-                // Seamless: skip first group on repeat 2+ (its section note was the bare final note of previous rep)
-                const startGroup = (seamlessRepeat && r > 0) ? 1 : 0;
-                for (let g = startGroup; g < groups.length; g++) {
+                // Play each group (phrase)
+                for (let g = 0; g < groups.length; g++) {
                     if (!this.audio.isPlaybackValid(playId)) break;
 
                     const group = groups[g];
@@ -3549,7 +3399,8 @@ class ScalesController {
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
                     // Clear played display and refresh sequence for next section
-                    const nextTranspose = (risingSemitones * r) + baseTranspose;
+                    // Pass the next transpose amount so sequence preview shows upcoming notes
+                    const nextTranspose = risingSemitones * r;
                     this.clearActuallyPlayed();
                     this.updatePatternPreview(nextTranspose);
 
@@ -3609,7 +3460,6 @@ class ScalesController {
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
         const isInfinite = playTimes === Infinity;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-        const shiftOffset = modifiers.shiftOffset || 0;
 
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
@@ -3626,7 +3476,7 @@ class ScalesController {
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
                 // Calculate starting index in the extended scale based on shift
-                const startingDegree = (shiftingSteps * r) + shiftOffset;
+                const startingDegree = shiftingSteps * r;
 
                 // Build notes for this iteration by applying pattern from starting degree
                 const notes = [];
@@ -3801,7 +3651,7 @@ class ScalesController {
     async playSequence(notes, modifiers = {}, context = {}) {
         this.clearScalePreview();  // Hide scale preview while playing
         this.clearActuallyPlayed();
-        this.updatePatternPreview(modifiers.baseTranspose || 0);
+        this.updatePatternPreview(0); // Show initial sequence
 
         // Repeat count from settings (voice command can override via modifiers)
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
@@ -3810,18 +3660,15 @@ class ScalesController {
 
         // Rising (transpose each repeat upward by N semitones)
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
-        const baseTranspose = modifiers.baseTranspose || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-        const getNotesForRepeat = (risingSemitones > 0 || baseTranspose > 0)
-            ? (repeatIndex) => this.transposeNotes(notes, (repeatIndex * risingSemitones) + baseTranspose)
+        const getNotesForRepeat = risingSemitones > 0
+            ? (repeatIndex) => this.transposeNotes(notes, repeatIndex * risingSemitones)
             : null;
 
+        // For up+down or down+up with repeat, use seamless repeat (no gap, skip duplicate root)
         const direction = modifiers.direction || this.settings.direction;
         const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-        const actualRepeatGapMs = risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500);
-        // Seamless only when no gap: the shared boundary note serves as both end and start.
-        // With a gap, play the full pattern each time (gap provides separation).
-        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0 && actualRepeatGapMs === 0;
+        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0;
 
         const mergedContext = {
             ...context,
@@ -3842,12 +3689,13 @@ class ScalesController {
                 this.voiceCore.updateStatus(message);
             },
             onRepeatEnd: (nextRepeatIndex) => {
-                const nextTranspose = (risingSemitones * nextRepeatIndex) + baseTranspose;
+                // Clear played display and show next transposed sequence
+                const nextTranspose = risingSemitones * nextRepeatIndex;
                 this.clearActuallyPlayed();
                 this.updatePatternPreview(nextTranspose);
             },
             repeatCount: playTimes,
-            repeatGapMs: actualRepeatGapMs,
+            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500),
             seamlessRepeat,
             getNotesForRepeat
         });
@@ -3897,18 +3745,6 @@ class ScalesController {
         if (this.voiceCore) {
             this.voiceCore.stopListening();
         }
-    }
-
-    manualAdvance() {
-        this.manualAdvanceStep++;
-        if (this.audio.isPlaying) {
-            this.stopPlayback();
-            this.syncUIToSettings();
-            this.voiceCore.updateStatus(this.formatCurrentCommand());
-            const modifiers = this.buildModifiersFromSettings();
-            this.playScale(this.settings.root, this.settings.scaleType, modifiers);
-        }
-        this.updateNextButtonDisplay();
     }
 
     // Play current settings (always - "Again" always plays what's in the UI)

@@ -7,8 +7,8 @@
     <meta name="description" content="Voice-Wei: Voice-controlled scale practice for singers and musicians">
     <meta name="robots" content="noindex, nofollow">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=35">
-    <link rel="stylesheet" href="scales.css?v=35">
+    <link rel="stylesheet" href="style.css?v=33">
+    <link rel="stylesheet" href="scales.css?v=33">
 </head>
 
 <body>
@@ -16,10 +16,9 @@
         <header>
             <div class="header-top">
                 <h1>Scales</h1>
-                <span class="version-label">v35</span>
+                <span class="version-label">v33</span>
                 <nav class="nav-tabs">
                     <a href="scales.html" class="nav-tab active">Scales</a>
-                    <a href="scales2.html" class="nav-tab">Intervals</a>
                     <a href="pitch-meter.html" class="nav-tab">Pitch</a>
                     <a href="player.html" class="nav-tab">Music</a>
                     <a href="ebook.html" class="nav-tab">Books</a>
@@ -41,10 +40,6 @@
                 <button id="againBtn" class="play-button" aria-label="Play">
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
-                </button>
-                <button id="nextBtn" class="next-button" style="display: none;" aria-label="Next pattern">
-                    <span class="button-text">Next</span>
-                    <span class="button-icon">&#8594;</span>
                 </button>
                 <button id="submitBtn" class="submit-button-large" style="display: none;"
                     aria-label="Submit">Submit</button>
@@ -149,32 +144,6 @@
                 </div>
 
                 <div class="vf-row">
-                    <span class="vf-label" data-full="Explore" data-abbr="Ex">Explore</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-movement="explore_2_up" data-full="2nd++"
-                            data-abbr="2++">2nd++</button>
-                        <button class="vf-btn" data-movement="explore_2_around" data-full="2nd+-"
-                            data-abbr="2+-">2nd+-</button>
-                        <button class="vf-btn" data-movement="explore_3_up" data-full="3rd++"
-                            data-abbr="3++">3rd++</button>
-                        <button class="vf-btn" data-movement="explore_3_around" data-full="3rd+-"
-                            data-abbr="3+-">3rd+-</button>
-                        <button class="vf-btn" data-movement="explore_4_up" data-full="4th++"
-                            data-abbr="4++">4th++</button>
-                        <button class="vf-btn" data-movement="explore_4_around" data-full="4th+-"
-                            data-abbr="4+-">4th+-</button>
-                        <button class="vf-btn" data-movement="explore_5_up" data-full="5th++"
-                            data-abbr="5++">5th++</button>
-                        <button class="vf-btn" data-movement="explore_5_around" data-full="5th+-"
-                            data-abbr="5+-">5th+-</button>
-                        <button class="vf-btn" data-movement="explore_6_up" data-full="6th++"
-                            data-abbr="6++">6th++</button>
-                        <button class="vf-btn" data-movement="explore_6_around" data-full="6th+-"
-                            data-abbr="6+-">6th+-</button>
-                    </div>
-                </div>
-
-                <div class="vf-row">
                     <span class="vf-label" data-full="Note Length" data-abbr="Len">Note Length</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-length-ms="100">0.1s</button>
@@ -217,11 +186,6 @@
                         <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
                         <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
-                    </div>
-                    <span class="vf-label vf-label-inline" data-full="Advance" data-abbr="Adv">Advance</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-advance="auto" data-full="auto" data-abbr="auto">auto</button>
-                        <button class="vf-btn" data-advance="hold" data-full="hold" data-abbr="hold">hold</button>
                     </div>
                 </div>
 
@@ -370,9 +334,9 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="music-constants.js?v=35"></script>
-    <script src="voice-command-core.js?v=35"></script>
-    <script src="scales.js?v=35"></script>
+    <script src="music-constants.js?v=33"></script>
+    <script src="voice-command-core.js?v=33"></script>
+    <script src="scales.js?v=33"></script>
 </body>
 
 </html>
