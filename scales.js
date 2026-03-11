@@ -2354,7 +2354,7 @@ class ScalesController {
 
         // Rising commands (standalone) - includes abbreviations
         // Check major 2nd / whole step FIRST (case-sensitive M2)
-        if (originalLower.match(/^(major\s*2(nd)?|whole\s*(step)?|tone|2\s*semitones?)$/) || 
+        if (originalLower.match(/^(major\s*2(nd)?|whole\s*(step)?|tone|2\s*semitones?)$/) ||
             transcript.match(/^M\s*2$/)) {
             this.setRisingSemitones(2);
             this.syncUIToSettings();
