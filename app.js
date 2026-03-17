@@ -1195,6 +1195,22 @@ class VoiceMusicController {
             });
         }
 
+        const lyricsOverlaySettingsBtn = document.getElementById('lyricsOverlaySettingsBtn');
+        if (lyricsOverlaySettingsBtn) {
+            lyricsOverlaySettingsBtn.addEventListener('click', () => {
+                this.toggleLyricsConfig();
+            });
+        }
+
+        const lyricsOverlayConfig = document.getElementById('lyricsOverlayConfig');
+        if (lyricsOverlayConfig) {
+            lyricsOverlayConfig.addEventListener('click', (e) => {
+                if (e.target === lyricsOverlayConfig) {
+                    this.closeLyricsConfig();
+                }
+            });
+        }
+
         const lyricsFontDownBtn = document.getElementById('lyricsFontDownBtn');
         if (lyricsFontDownBtn) {
             lyricsFontDownBtn.addEventListener('click', () => {
@@ -2641,6 +2657,7 @@ If the request is not about music, return an empty array [].`;
     openLyricsOverlay() {
         const overlay = document.getElementById('lyricsOverlay');
         if (!overlay) return;
+        this.closeLyricsConfig();
         const currentItem = this.currentLyricsItem() || this.currentPlaylistItem();
         if (currentItem) {
             this.renderLyricsStateForItem(currentItem);
@@ -2648,17 +2665,30 @@ If the request is not about music, return an empty array [].`;
         } else {
             this.renderLyricsStateForItem(null);
         }
-        overlay.style.display = 'flex';
+        overlay.style.display = 'block';
         overlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('lyrics-overlay-open');
     }
 
     closeLyricsOverlay() {
+        this.closeLyricsConfig();
         const overlay = document.getElementById('lyricsOverlay');
         if (!overlay) return;
         overlay.style.display = 'none';
         overlay.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('lyrics-overlay-open');
+    }
+
+    toggleLyricsConfig() {
+        const config = document.getElementById('lyricsOverlayConfig');
+        if (!config) return;
+        const isOpen = config.style.display !== 'none';
+        config.style.display = isOpen ? 'none' : 'flex';
+    }
+
+    closeLyricsConfig() {
+        const config = document.getElementById('lyricsOverlayConfig');
+        if (config) config.style.display = 'none';
     }
 
     updateLyricsButtonLabels() {
