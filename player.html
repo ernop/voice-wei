@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Voice-Wei: Voice-controlled music player">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=38">
+    <link rel="stylesheet" href="style.css?v=39">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -99,6 +99,24 @@
                     <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
                     <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
                 </div>
+                <div class="player-controls-secondary lyrics-control-row">
+                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
+                        aria-label="Show or hide lyrics">Lyrics</button>
+                    <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
+                        aria-label="Open large lyrics overlay">Big Lyrics</button>
+                </div>
+            </div>
+
+            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
+                <div class="lyrics-panel-header">
+                    <div class="lyrics-panel-title-group">
+                        <div class="lyrics-panel-label">Lyrics</div>
+                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
+                    </div>
+                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
+                </div>
+                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
+                <div class="lyrics-content" id="lyricsContent"></div>
             </div>
 
             <div class="status" id="status">Ready</div>
@@ -169,11 +187,31 @@
         </main>
     </div>
 
+    <div class="lyrics-overlay" id="lyricsOverlay" style="display: none;" aria-hidden="true">
+        <div class="lyrics-overlay-toolbar">
+            <div class="lyrics-overlay-title-group">
+                <div class="lyrics-overlay-label">Big Lyrics</div>
+                <div class="lyrics-overlay-title" id="lyricsOverlayTitle">No song selected</div>
+            </div>
+            <button id="lyricsOverlayCloseBtn" class="lyrics-overlay-close-btn" aria-label="Close large lyrics">Close</button>
+        </div>
+        <div class="lyrics-overlay-controls">
+            <button id="lyricsFontDownBtn" class="lyrics-overlay-control-btn" aria-label="Smaller lyrics">A-</button>
+            <button id="lyricsFontUpBtn" class="lyrics-overlay-control-btn" aria-label="Larger lyrics">A+</button>
+            <button id="lyricsWidthToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle lyrics width">Wide</button>
+            <button id="lyricsAlignToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle text alignment">Center</button>
+            <button id="lyricsSpacingToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle line spacing">Roomy</button>
+            <button id="lyricsBackdropToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle backdrop strength">Dim</button>
+        </div>
+        <div class="lyrics-overlay-status" id="lyricsOverlayStatus">Play a song to load lyrics.</div>
+        <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
+    </div>
+
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="shared-header.js?v=38"></script>
-    <script src="voice-output.js?v=38"></script>
-    <script src="voice-command-core.js?v=38"></script>
-    <script src="app.js?v=38"></script>
+    <script src="shared-header.js?v=39"></script>
+    <script src="voice-output.js?v=39"></script>
+    <script src="voice-command-core.js?v=39"></script>
+    <script src="app.js?v=39"></script>
 </body>
 
 </html>

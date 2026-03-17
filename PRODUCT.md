@@ -181,6 +181,64 @@ The AI becomes your co-pilot DJ who actually understands what you want.
 6. **Song memory**: "Play that song I liked last week"
 7. **Mood detection**: Voice tone analysis for automatic mood-matching
 
+## Music Player Expansion: Lyrics And Vocal Assist
+
+### Vision
+
+Turn the music page into a sing-along surface:
+- Show lyrics for the current song beside or over the playlist
+- Support a full-screen large-text overlay for easy singing from a phone
+- Eventually synchronize lyrics to playback
+- Later add musical intelligence: key, pitch center, vocal range, intervals, and possible notation/transcription
+
+### Product Requirements
+
+#### 1. Lyrics Retrieval
+- Use song metadata already returned from YouTube search: artist, title, channel, duration
+- Match lyrics against canonical song data as reliably as possible
+- Prefer APIs that return both plain lyrics and synced lyrics when available
+- Keep room for multiple providers because catalog coverage will vary
+
+#### 2. Mobile Sing-Along UI
+- Phone-first layout with playlist still visible
+- Optional lyrics overlay covering most or all of the page
+- Very large text mode with high contrast
+- Easy dismiss/toggle during playback
+- Current line should remain visually obvious once syncing exists
+
+#### 3. Sync Levels
+- Phase 1: plain unsynced lyrics
+- Phase 2: line-synced lyrics
+- Phase 3: word-synced karaoke-style lyrics if a provider or generated alignment supports it
+
+#### 4. Musical Intelligence
+- Determine likely song key and mode where possible
+- Estimate pitch center or absolute vocal pitch reference when possible
+- Support future interval-aware or key-aware singing help
+- Leave room for generated transcription or notation, understanding that this is much harder and often not available as licensed data
+
+### Delivery Phases
+
+#### Phase 1
+- Add lyrics panel to music player
+- Fetch unsynced lyrics from a provider using artist/title/duration matching
+- Add large-text overlay mode for mobile
+
+#### Phase 2
+- Prefer synced lyrics when available
+- Highlight current line during YouTube playback
+- Cache matched lyric records locally for repeat playback
+
+#### Phase 3
+- Add confidence scoring for track-to-lyrics matches
+- Add key and tempo metadata where available or derivable
+- Add singer-focused aids such as starting note, comfortable transposition hints, or range guidance
+
+#### Phase 4
+- Explore generated lyric alignment from audio
+- Explore vocal extraction, melody transcription, interval analysis, and notation export
+- Treat this as research-grade work, not a guaranteed short feature
+
 ---
 
 # Ebook to Audiobook Converter

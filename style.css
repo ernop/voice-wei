@@ -18,6 +18,10 @@ body {
     overflow: hidden;
 }
 
+body.lyrics-overlay-open {
+    overflow: hidden;
+}
+
 .container {
     width: 100%;
     max-width: 100%;
@@ -878,6 +882,35 @@ h1 {
     text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
 }
 
+.playlist-actions-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.lyrics-row-btn {
+    min-width: 38px;
+    padding: 4px 6px;
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    border-radius: 6px;
+    background: rgba(74, 222, 128, 0.08);
+    color: #a7f3d0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.lyrics-row-btn:hover {
+    background: rgba(74, 222, 128, 0.18);
+}
+
+.lyrics-row-btn.ready {
+    background: rgba(20, 184, 166, 0.18);
+    border-color: rgba(20, 184, 166, 0.35);
+    color: #99f6e4;
+}
+
 .youtube-player {
     width: 100%;
     margin-top: 10px;
@@ -1002,6 +1035,16 @@ h1 {
     overflow: hidden;
 }
 
+.lyrics-control-row {
+    margin-top: 8px;
+}
+
+.lyrics-control-btn {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
 /* Progress Bar */
 .progress-bar-container {
     width: 100%;
@@ -1092,6 +1135,210 @@ h1 {
     background: rgba(74, 222, 128, 0.3);
 }
 
+.lyrics-panel {
+    margin: 10px 0 14px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.34);
+    border: 1px solid rgba(74, 222, 128, 0.18);
+    border-radius: 12px;
+    text-align: left;
+}
+
+.lyrics-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.lyrics-panel-title-group {
+    min-width: 0;
+}
+
+.lyrics-panel-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(74, 222, 128, 0.9);
+    margin-bottom: 2px;
+}
+
+.lyrics-panel-song {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lyrics-panel-hide-btn {
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8f5e9;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.lyrics-panel-hide-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.lyrics-status,
+.lyrics-overlay-status {
+    min-height: 24px;
+    margin-bottom: 10px;
+    font-size: 0.92rem;
+    color: rgba(167, 243, 208, 0.95);
+}
+
+.lyrics-status.is-error,
+.lyrics-overlay-status.is-error {
+    color: #fca5a5;
+}
+
+.lyrics-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 42vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.lyrics-line {
+    padding: 4px 6px;
+    border-radius: 8px;
+    font-size: 1.02rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.92);
+    white-space: pre-wrap;
+}
+
+.lyrics-line.is-blank {
+    min-height: 10px;
+    padding: 0;
+}
+
+.lyrics-line.is-active {
+    background: rgba(74, 222, 128, 0.16);
+    color: #ffffff;
+}
+
+.lyrics-overlay {
+    --lyrics-overlay-font-size: clamp(1.8rem, 6vw, 3.8rem);
+    --lyrics-overlay-line-height: 1.35;
+    --lyrics-overlay-max-width: min(96vw, 1100px);
+    --lyrics-overlay-text-align: center;
+    --lyrics-overlay-bg: rgba(3, 8, 6, 0.96);
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--lyrics-overlay-bg);
+    padding: clamp(12px, 2.8vw, 28px);
+    display: flex;
+    flex-direction: column;
+}
+
+.lyrics-overlay-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.lyrics-overlay-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.lyrics-overlay-control-btn {
+    min-width: 74px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.lyrics-overlay-control-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.lyrics-overlay-title-group {
+    min-width: 0;
+}
+
+.lyrics-overlay-label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(74, 222, 128, 0.88);
+    margin-bottom: 4px;
+}
+
+.lyrics-overlay-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.lyrics-overlay-close-btn {
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lyrics-overlay-close-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.lyrics-overlay-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding-bottom: 30px;
+}
+
+.lyrics-overlay .lyrics-line {
+    width: 100%;
+    max-width: var(--lyrics-overlay-max-width);
+    padding: 8px 10px;
+    font-size: var(--lyrics-overlay-font-size);
+    line-height: var(--lyrics-overlay-line-height);
+    text-align: var(--lyrics-overlay-text-align);
+    font-weight: 700;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+}
+
+.lyrics-overlay .lyrics-line.is-active {
+    background: rgba(74, 222, 128, 0.22);
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.14) inset;
+}
+
 @media (max-width: 480px) {
     header {
         padding: 10px 10px 0;
@@ -1160,6 +1407,38 @@ h1 {
     .typed-command-submit-btn {
         width: 100%;
         min-height: 48px;
+    }
+
+    .lyrics-panel {
+        padding: 12px;
+    }
+
+    .lyrics-panel-header,
+    .lyrics-overlay-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .lyrics-overlay-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lyrics-panel-hide-btn,
+    .lyrics-overlay-close-btn {
+        width: 100%;
+    }
+
+    .lyrics-content {
+        max-height: 36vh;
+    }
+
+    .lyrics-overlay {
+        padding: 12px;
+    }
+
+    .lyrics-overlay .lyrics-line {
+        font-size: var(--lyrics-overlay-font-size);
     }
 }
 
