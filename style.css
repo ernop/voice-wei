@@ -172,32 +172,71 @@ main {
 }
 
 header {
-    margin-bottom: 6px;
-    padding: 8px 10px 0;
+    margin-bottom: 8px;
+    padding: 12px 12px 0;
+}
+
+.site-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .header-top {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
-.header-top h1 {
-    margin-right: auto;
+.header-title-group {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.site-name {
+    color: rgba(167, 243, 208, 0.78);
+    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.site-name:hover {
+    color: #d1fae5;
+}
+
+.header-title-group h1 {
+    margin: 0;
 }
 
 .version-label {
-    font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.35);
-    font-weight: 400;
-    margin-left: 8px;
-    align-self: center;
+    font-size: 0.8rem;
+    color: rgba(232, 245, 233, 0.9);
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 /* Page Navigation Tabs - shared across all pages */
 .nav-tabs {
     display: flex;
-    gap: 0;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .nav-tab {
@@ -206,36 +245,27 @@ header {
     padding: 8px 14px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-}
-
-.nav-tab:first-child {
-    border-radius: 6px 0 0 6px;
-}
-
-.nav-tab:last-child {
-    border-radius: 0 6px 6px 0;
-}
-
-.nav-tab:not(:last-child) {
-    border-right: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .nav-tab:hover {
     background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
     color: #fff;
 }
 
 .nav-tab.active {
-    background: rgba(74, 222, 128, 0.3);
+    background: rgba(74, 222, 128, 0.24);
     border-color: rgba(74, 222, 128, 0.5);
     color: #a7f3d0;
 }
 
 .nav-tab.active:hover {
-    background: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.3);
 }
 
 /* Legacy nav-link (kept for compatibility) */
@@ -996,6 +1026,31 @@ h1 {
 }
 
 @media (max-width: 480px) {
+    header {
+        padding: 10px 10px 0;
+    }
+
+    .header-top {
+        align-items: flex-start;
+    }
+
+    .header-title-group {
+        gap: 8px;
+    }
+
+    .site-name {
+        width: 100%;
+    }
+
+    .nav-tabs {
+        gap: 6px;
+    }
+
+    .nav-tab {
+        padding: 7px 12px;
+        font-size: 0.8rem;
+    }
+
     h1 {
         font-size: 1.5rem;
     }
@@ -1142,7 +1197,7 @@ h1 {
 /* API Key Overlay (first-time setup) */
 .api-key-overlay {
     position: fixed;
-    top: 0;
+    top: var(--site-header-height, 0px);
     left: 0;
     right: 0;
     bottom: 0;

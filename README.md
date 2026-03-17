@@ -89,6 +89,8 @@ cat VERSION              # Current version
 ./bump-version.sh 31     # Set specific version
 ```
 
+The shared header reads the release label from `shared-header.js`, and each page keeps cache-busted local asset URLs in sync with the same version.
+
 ## Deployment
 
 Push to master triggers GitHub Actions deploy. Or manually:

@@ -80,7 +80,7 @@ All pages share a single version number in the `VERSION` file. Before deploying 
 
 This updates:
 - `VERSION` file (single source of truth)
-- Version labels in all HTML headers (v30)
+- `shared-header.js` version label (v30)
 - Cache-busting query strings (?v=30)
 
 The version appears in the top-right of each page and ensures browsers fetch updated CSS/JS files.
