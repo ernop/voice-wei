@@ -84,3 +84,7 @@ This updates:
 - Cache-busting query strings (?v=30)
 
 The version appears in the top-right of each page and ensures browsers fetch updated CSS/JS files.
+
+Release rule:
+- Any significant feature should include a global version bump.
+- Any significant feature should be pushed after commit so GitHub Actions deploys it.

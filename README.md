@@ -91,6 +91,10 @@ cat VERSION              # Current version
 
 The shared header reads the release label from `shared-header.js`, and each page keeps cache-busted local asset URLs in sync with the same version.
 
+When a significant feature ships, always do both in the same change:
+- bump the global version across the app
+- push `master` so production deploy runs
+
 ## Deployment
 
 Push to master triggers GitHub Actions deploy. Or manually:

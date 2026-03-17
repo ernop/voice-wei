@@ -973,6 +973,22 @@ class VoiceMusicController {
             }
         });
 
+        const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
+        const typedCommandSubmitBtn = document.getElementById('typedCommandSubmitBtn');
+        if (typedCommandSubmitBtn) {
+            typedCommandSubmitBtn.addEventListener('click', () => {
+                this.submitTypedCommand();
+            });
+        }
+        if (typedCommandInput) {
+            typedCommandInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    this.submitTypedCommand();
+                }
+            });
+        }
+
         // Log buttons
         const clearLogBtn = document.getElementById('clearLogBtn');
         if (clearLogBtn) {
@@ -1295,6 +1311,27 @@ class VoiceMusicController {
         localStorage.setItem('voiceMusicSettings', JSON.stringify(this.settings));
     }
 
+    async submitTypedCommand() {
+        if (this.isProcessingCommand) {
+            return;
+        }
+
+        const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
+        const textToSubmit = typedCommandInput?.value.trim() || '';
+        if (!textToSubmit) {
+            this.updateStatus('Type a music request first');
+            typedCommandInput?.focus();
+            return;
+        }
+
+        if (this.isListening) {
+            this.stopListening();
+        }
+
+        await this.processMusicSearch(textToSubmit);
+        typedCommandInput.focus();
+    }
+
     /** @param {string} message */
     updateStatus(message) {
         const statusEl = document.getElementById('status');
@@ -1306,12 +1343,11 @@ class VoiceMusicController {
     /** @param {string} transcript */
     async handleVoiceCommand(transcript) {
         try {
-            this.hideClaudeResponse();
-            this.logUserMessage(transcript);
-
             // Check if it's a control command first
             const command = this.parseControlCommand(transcript);
             if (command) {
+                this.hideClaudeResponse();
+                this.logUserMessage(transcript);
                 // Show transcript briefly for commands, then auto-hide
                 this.transcript.show(transcript, { autoHideAfter: TRANSCRIPT_AUTO_HIDE_MS });
                 this.executeControlCommand(command);
@@ -1322,22 +1358,42 @@ class VoiceMusicController {
                 return;
             }
 
-            // Show transcript for music searches (no auto-hide)
-            this.transcript.show(transcript);
+            await this.processMusicSearch(transcript);
+        } catch (error) {
+            console.error('Error handling voice command:', error);
+            this.logError('Voice Command Error', error);
+            this.updateStatus('Error processing command. Try again.');
+            this.hidePrompt();
+            this.wasPlayingBeforeListening = false;
+            this.isProcessingCommand = false;
+            this.updateSubmitButton(false);
+        }
+    }
 
-            // Resume playback while waiting for Claude response
-            if (this.wasPlayingBeforeListening) {
-                this.playPlaylist();
-            }
+    /** @param {string} transcript */
+    async processMusicSearch(transcript) {
+        const requestText = transcript.trim();
+        if (!requestText) {
+            this.updateStatus('Enter a music request first');
+            return;
+        }
 
-            // Otherwise, treat as music search
-            this.isProcessingCommand = true;
-            this.updateSubmitButton(true);
-            this.updateStatus('Processing with Claude...');
+        this.hideClaudeResponse();
+        this.logUserMessage(requestText);
+        this.transcript.show(requestText);
 
-            const result = await this.processCommandWithLLM(transcript);
+        if (this.wasPlayingBeforeListening) {
+            this.playPlaylist();
+        }
 
-            // Pause playback when response arrives
+        this.isProcessingCommand = true;
+        this.updateSubmitButton(true);
+        this.updateTypedCommandUI(true);
+        this.updateStatus('Processing with Claude...');
+
+        try {
+            const result = await this.processCommandWithLLM(requestText);
+
             if (this.wasPlayingBeforeListening && this.isPlaying) {
                 this.pausePlayback();
             }
@@ -1352,7 +1408,6 @@ class VoiceMusicController {
                 return;
             }
 
-            // Show the prompt that was sent
             if (result.prompt) {
                 this.showPrompt(result.prompt);
                 this.logClaudeMessage(`Prompt sent:\n${result.prompt}`);
@@ -1361,27 +1416,32 @@ class VoiceMusicController {
             this.updateStatus(`Found ${result.songList.length} song(s), searching YouTube...`);
             await this.searchAndAddToPlaylist(result.songList);
 
-            // If read mode is ON: announce results, wait for speech to finish, then play
-            // If read mode is OFF: just play immediately
             if (this.settings.readClaudeResponse) {
                 const songNames = result.songList.map(s => s.searchTerm).slice(0, 3).join(', ');
                 const announcement = `Found ${result.songList.length} song${result.songList.length > 1 ? 's' : ''}: ${songNames}`;
                 await this.speakTextAsync(announcement);
             }
 
-            // Auto-play the playlist
             this.playPlaylist();
             this.updateStatus('Playing');
-            this.isProcessingCommand = false;
-            this.updateSubmitButton(false);
-        } catch (error) {
-            console.error('Error handling voice command:', error);
-            this.logError('Voice Command Error', error);
-            this.updateStatus('Error processing command. Try again.');
-            this.hidePrompt();
+        } finally {
             this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;
             this.updateSubmitButton(false);
+            this.updateTypedCommandUI(false);
+        }
+    }
+
+    /** @param {boolean} busy */
+    updateTypedCommandUI(busy) {
+        const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
+        const typedCommandSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandSubmitBtn'));
+        if (typedCommandInput) {
+            typedCommandInput.disabled = busy;
+        }
+        if (typedCommandSubmitBtn) {
+            typedCommandSubmitBtn.disabled = busy;
+            typedCommandSubmitBtn.textContent = busy ? 'Sending...' : 'Send';
         }
     }
 
