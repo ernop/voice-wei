@@ -1278,29 +1278,33 @@ h1 {
     margin-top: 2px;
 }
 
-.lyrics-overlay-settings-btn {
+.lyrics-overlay-top-actions {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
     z-index: 10;
-    width: 40px;
-    height: 40px;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    gap: 6px;
+}
+
+.lyrics-overlay-action-btn {
+    padding: 5px 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.45);
-    color: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.78rem;
+    font-weight: 600;
     cursor: pointer;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1.2;
 }
 
-.lyrics-overlay-settings-btn:hover,
-.lyrics-overlay-settings-btn:active {
-    background: rgba(0, 0, 0, 0.7);
+.lyrics-overlay-action-btn:hover,
+.lyrics-overlay-action-btn:active {
+    background: rgba(0, 0, 0, 0.65);
     color: #ffffff;
 }
 
@@ -1351,23 +1355,6 @@ h1 {
     background: rgba(255, 255, 255, 0.14);
 }
 
-.lyrics-overlay-close-btn {
-    padding: 12px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    white-space: nowrap;
-    text-align: center;
-}
-
-.lyrics-overlay-close-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-}
-
 .lyrics-overlay-content {
     position: absolute;
     inset: 0;
@@ -1375,9 +1362,44 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 14px;
-    padding: 68px 10px 30px;
+    padding: 60px 10px 52px;
+}
+
+.lyrics-overlay-transport {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 8px;
+    background: linear-gradient(to top, var(--lyrics-overlay-bg) 50%, transparent);
+}
+
+.lyrics-overlay-transport-btn {
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1.2;
+    white-space: nowrap;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: background 0.15s, color 0.15s;
+}
+
+.lyrics-overlay-transport-btn:hover,
+.lyrics-overlay-transport-btn:active {
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
 }
 
 .lyrics-overlay .lyrics-line {
@@ -1483,33 +1505,32 @@ h1 {
         max-height: 36vh;
     }
 
-    .lyrics-overlay {
-        padding: 0;
-    }
-
     .lyrics-overlay-content {
-        padding: 60px 8px 24px;
+        padding: 54px 8px 46px;
     }
 
     .lyrics-overlay-song-info {
-        padding: 8px 12px 20px;
-        right: 50px;
+        padding: 6px 10px 18px;
+        right: 110px;
     }
 
-    .lyrics-overlay-settings-btn {
-        top: 8px;
-        right: 8px;
-        width: 36px;
-        height: 36px;
-    }
-
-    .lyrics-overlay-settings-btn svg {
-        width: 18px;
-        height: 18px;
+    .lyrics-overlay-top-actions {
+        top: 6px;
+        right: 6px;
     }
 
     .lyrics-overlay-config {
-        padding: 50px 12px 12px;
+        padding: 44px 10px 10px;
+    }
+
+    .lyrics-overlay-transport {
+        padding: 4px 4px;
+        gap: 1px;
+    }
+
+    .lyrics-overlay-transport-btn {
+        padding: 5px 7px;
+        font-size: 0.72rem;
     }
 
     .lyrics-overlay .lyrics-line {

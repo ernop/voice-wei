@@ -1257,6 +1257,19 @@ class VoiceMusicController {
             });
         }
 
+        const transportBindings = [
+            ['lyricsTransportPrev', () => this.playPrevious()],
+            ['lyricsTransportRestart', () => this.restartCurrentTrack()],
+            ['lyricsTransportRewind', () => this.rewind()],
+            ['lyricsTransportPause', () => this.togglePlayPause()],
+            ['lyricsTransportFwd', () => this.fastForward()],
+            ['lyricsTransportNext', () => this.playNext()],
+        ];
+        for (const [id, handler] of transportBindings) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', handler);
+        }
+
         // Progress bar interactions
         this.setupProgressBar();
         this.updateLyricsButtonLabels();
@@ -2534,14 +2547,31 @@ If the request is not about music, return an empty array [].`;
         }
     }
 
+    updateTransportPauseLabel() {
+        const btn = document.getElementById('lyricsTransportPause');
+        if (btn) btn.textContent = (this.isPlaying && !this.isPaused) ? 'Pause' : 'Play';
+    }
+
+    restartCurrentTrack() {
+        if (this.currentPlayingId) {
+            const player = this.players.get(this.currentPlayingId);
+            if (player && typeof player.seekTo === 'function') {
+                player.seekTo(0, true);
+            }
+        }
+    }
+
     updatePlayPauseButton() {
         const btn = document.getElementById('playPauseBtn');
+        const transportBtn = document.getElementById('lyricsTransportPause');
         if (this.isPlaying && !this.isPaused) {
             btn.textContent = '⏸';
             btn.setAttribute('aria-label', 'Pause');
+            if (transportBtn) transportBtn.textContent = 'Pause';
         } else {
             btn.textContent = '▶';
             btn.setAttribute('aria-label', 'Play');
+            if (transportBtn) transportBtn.textContent = 'Play';
         }
     }
 
@@ -2668,6 +2698,10 @@ If the request is not about music, return an empty array [].`;
         overlay.style.display = 'block';
         overlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('lyrics-overlay-open');
+        this.updateTransportPauseLabel();
+        requestAnimationFrame(() => {
+            this.applyActiveLyricsLine(this.currentLyricsLineIndex, true);
+        });
     }
 
     closeLyricsOverlay() {
@@ -3222,8 +3256,14 @@ If the request is not about music, return an empty array [].`;
                 const shouldScroll = overlayOpen
                     ? selector.includes('lyricsOverlayContent')
                     : selector.includes('lyricsContent');
-                if (isActive && shouldScroll && htmlElement.offsetParent !== null) {
-                    htmlElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                if (isActive && shouldScroll) {
+                    const container = htmlElement.closest('.lyrics-overlay-content, .lyrics-content');
+                    if (container) {
+                        const containerRect = container.getBoundingClientRect();
+                        const elRect = htmlElement.getBoundingClientRect();
+                        const offset = elRect.top - containerRect.top - (containerRect.height / 2) + (elRect.height / 2);
+                        container.scrollBy({ top: offset, behavior: force ? 'auto' : 'smooth' });
+                    }
                 }
             });
         }
