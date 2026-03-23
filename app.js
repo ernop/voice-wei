@@ -2616,10 +2616,11 @@ If the request is not about music, return an empty array [].`;
                     this.openLyricsOverlay();
                 } else if (!this.lyricsPanelDismissed) {
                     this.setLyricsPanelVisible(true);
+                    void this.ensureLyricsForItem(item);
                 } else {
                     this.renderLyricsStateForItem(item);
+                    void this.ensureLyricsForItem(item);
                 }
-                void this.ensureLyricsForItem(item);
 
                 // Update UI to show which is playing in playlist
                 const itemEl = document.querySelector(`[data-item-id="${item.id}"]`);
