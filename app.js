@@ -2520,21 +2520,21 @@ If the request is not about music, return an empty array [].`;
                     events: {
                         onReady: (event) => {
                             console.log('Player ready for:', item.videoId);
-                            // Store the player reference when ready
                             this.players.set(item.id, event.target);
                         },
                         onStateChange: (event) => {
-                            // Auto-advance to next when video ends
                             if (event.data === YT.PlayerState.ENDED) {
-                                if (Date.now() < this.suppressAutoAdvanceUntil) {
-                                    return;
-                                }
+                                if (item.id !== this.currentPlayingId) return;
+                                if (Date.now() < this.suppressAutoAdvanceUntil) return;
                                 this.playNext();
                             }
                         },
                         onError: (event) => {
-                            console.error('Player error:', event.data);
-                            this.updateStatus('Error loading video');
+                            console.error('Player error for', item.videoId, ':', event.data);
+                            if (item.id !== this.currentPlayingId) return;
+                            if (Date.now() < this.suppressAutoAdvanceUntil) return;
+                            this.updateStatus('Video unavailable, skipping...');
+                            this.playNext();
                         }
                     }
                 });
@@ -2644,15 +2644,31 @@ If the request is not about music, return an empty array [].`;
             }
         } else {
             console.error('Player not ready for video:', item.id, player);
-            this.updateStatus('Player loading... try again in a moment.');
-            // Retry after a short delay
-            setTimeout(() => {
-                const retryPlayer = this.players.get(item.id);
-                if (retryPlayer && typeof retryPlayer.playVideo === 'function') {
-                    this.playVideo(item);
-                }
-            }, PLAYER_RETRY_DELAY_MS);
+            this.updateStatus('Player loading...');
+            this.retryPlayVideo(item, 0);
         }
+    }
+
+    /**
+     * @param {PlaylistItem} item
+     * @param {number} attempt
+     */
+    retryPlayVideo(item, attempt) {
+        const MAX_RETRIES = 5;
+        const delay = PLAYER_RETRY_DELAY_MS * Math.pow(1.5, attempt);
+        setTimeout(() => {
+            if (this.currentPlaylistIndex < 0 && this.playlist.length === 0) return;
+            const retryPlayer = this.players.get(item.id);
+            if (retryPlayer && typeof retryPlayer.playVideo === 'function') {
+                this.playVideo(item);
+            } else if (attempt < MAX_RETRIES) {
+                this.retryPlayVideo(item, attempt + 1);
+            } else {
+                console.error('Player never became ready for:', item.videoId);
+                this.updateStatus('Could not load player, skipping...');
+                this.playNext();
+            }
+        }, delay);
     }
 
     /** @param {PlaylistItem | null} item */
