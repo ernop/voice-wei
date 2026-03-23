@@ -30,6 +30,9 @@ const LYRICS_CACHE_STORAGE_KEY = 'voiceMusicLyricsCache';
 // localStorage key for lyrics overlay display preferences
 const LYRICS_VIEW_SETTINGS_STORAGE_KEY = 'voiceMusicLyricsViewSettings';
 
+// localStorage key for saved playlists
+const SAVED_PLAYLISTS_STORAGE_KEY = 'voiceMusicSavedPlaylists';
+
 //-------TRANSCRIPT MANAGER-------
 // TranscriptManager class is provided by voice-command-core.js
 
@@ -91,6 +94,16 @@ const LYRICS_VIEW_SETTINGS_STORAGE_KEY = 'voiceMusicLyricsViewSettings';
  */
 
 /**
+ * @typedef {Object} SavedPlaylist
+ * @property {string} id
+ * @property {string} name
+ * @property {string} userPrompt
+ * @property {string} aiPrompt
+ * @property {Array<{name: string, artist: string, year: string, album: string, comment: string, searchTerm: string, videoId: string, title: string, channelTitle: string, duration: string, durationSeconds?: number}>} songs
+ * @property {number} savedAt
+ */
+
+/**
  * @typedef {Object} AppConfig
  * @property {string} [claudeApiKey]
  * @property {string} [openaiApiKey]
@@ -146,6 +159,8 @@ class VoiceMusicController {
         this.lyricsPanelVisible = false;
         /** @type {boolean} */
         this.lyricsPanelDismissed = false;
+        /** @type {boolean} */
+        this.lyricsOverlayDismissed = false;
         /** @type {number | null} */
         this.currentLyricsItemId = null;
         /** @type {number} */
@@ -154,6 +169,12 @@ class VoiceMusicController {
         this.isProcessingCommand = false;
         /** @type {TranscriptManager} */
         this.transcript = new TranscriptManager();
+        /** @type {string} */
+        this.lastUserPrompt = '';
+        /** @type {string} */
+        this.lastAIPrompt = '';
+        /** @type {SavedPlaylist[]} */
+        this.savedPlaylists = this.loadSavedPlaylists();
         this.init();
     }
 
@@ -219,6 +240,209 @@ class VoiceMusicController {
         localStorage.setItem(LYRICS_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify(this.lyricsViewSettings));
     }
 
+    /** @returns {SavedPlaylist[]} */
+    loadSavedPlaylists() {
+        const saved = localStorage.getItem(SAVED_PLAYLISTS_STORAGE_KEY);
+        if (!saved) return [];
+        try {
+            const parsed = JSON.parse(saved);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            console.warn('Could not parse saved playlists:', error);
+            return [];
+        }
+    }
+
+    persistSavedPlaylists() {
+        localStorage.setItem(SAVED_PLAYLISTS_STORAGE_KEY, JSON.stringify(this.savedPlaylists));
+    }
+
+    saveCurrentPlaylist() {
+        if (this.playlist.length === 0) {
+            this.updateStatus('Nothing to save - playlist is empty');
+            return;
+        }
+
+        const name = this.lastUserPrompt || `Playlist ${new Date().toLocaleDateString()}`;
+
+        /** @type {SavedPlaylist} */
+        const savedPlaylist = {
+            id: `pl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+            name: name,
+            userPrompt: this.lastUserPrompt,
+            aiPrompt: this.lastAIPrompt,
+            songs: this.playlist.map(item => ({
+                name: item.name || '',
+                artist: item.artist || '',
+                year: item.year || '',
+                album: item.album || '',
+                comment: item.comment || '',
+                searchTerm: item.searchTerm || '',
+                videoId: item.videoId,
+                title: item.title || '',
+                channelTitle: item.channelTitle || '',
+                duration: item.duration || '',
+                durationSeconds: item.durationSeconds || 0
+            })),
+            savedAt: Date.now()
+        };
+
+        this.savedPlaylists.unshift(savedPlaylist);
+        this.persistSavedPlaylists();
+        this.updateStatus(`Saved playlist: "${name}"`);
+        this.addMessage('user', 'Playlist Saved', `"${name}" (${savedPlaylist.songs.length} songs)`);
+    }
+
+    /** @param {string} playlistId */
+    deleteSavedPlaylist(playlistId) {
+        this.savedPlaylists = this.savedPlaylists.filter(p => p.id !== playlistId);
+        this.persistSavedPlaylists();
+    }
+
+    /** @param {SavedPlaylist} savedPlaylist */
+    loadSavedPlaylistToPlayer(savedPlaylist) {
+        document.getElementById('playlistContainer').style.display = 'block';
+        document.getElementById('centralPlayer').style.display = 'block';
+
+        let addedCount = 0;
+        const songs = savedPlaylist.songs || [];
+        for (let si = songs.length - 1; si >= 0; si--) {
+            const song = songs[si];
+            if (this.playlist.some(item => item.videoId === song.videoId)) continue;
+
+            /** @type {PlaylistItem} */
+            const playlistItem = {
+                videoId: song.videoId,
+                name: song.name || song.title || '',
+                artist: song.artist || song.channelTitle || '',
+                year: song.year || '',
+                album: song.album || '',
+                title: song.title || song.name || '',
+                channelTitle: song.channelTitle || song.artist || '',
+                duration: song.duration || '--:--',
+                durationSeconds: song.durationSeconds || this.parseDurationToSeconds(song.duration || ''),
+                comment: song.comment || '',
+                searchTerm: song.searchTerm || '',
+                id: Date.now() + Math.random(),
+                lyricsStatus: 'idle',
+                lyricsData: null
+            };
+            this.hydrateItemLyricsFromCache(playlistItem);
+
+            this.playlist.unshift(playlistItem);
+            if (this.currentPlaylistIndex >= 0) {
+                this.currentPlaylistIndex++;
+            }
+            this.addPlaylistItemToDOM(playlistItem);
+            addedCount++;
+        }
+
+        this.updatePlaylistLabel();
+        this.lastUserPrompt = savedPlaylist.userPrompt || '';
+        this.lastAIPrompt = savedPlaylist.aiPrompt || '';
+
+        this.closeSavedPlaylistsBrowser();
+        this.updateStatus(`Loaded "${savedPlaylist.name}" (${addedCount} songs)`);
+        this.addMessage('user', 'Playlist Loaded', `"${savedPlaylist.name}" - ${addedCount} songs`);
+    }
+
+    openSavedPlaylistsBrowser() {
+        let overlay = document.getElementById('savedPlaylistsOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'savedPlaylistsOverlay';
+            overlay.className = 'saved-playlists-overlay';
+            document.body.appendChild(overlay);
+        }
+        this.renderSavedPlaylistsBrowser(overlay);
+        overlay.style.display = 'flex';
+    }
+
+    closeSavedPlaylistsBrowser() {
+        const overlay = document.getElementById('savedPlaylistsOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    /** @param {HTMLElement} overlay */
+    renderSavedPlaylistsBrowser(overlay) {
+        const playlists = this.savedPlaylists;
+
+        if (playlists.length === 0) {
+            overlay.innerHTML = `
+                <div class="saved-playlists-content">
+                    <div class="saved-playlists-header">
+                        <h2>Saved Playlists</h2>
+                        <button class="saved-playlists-close-btn" id="closeSavedPlaylistsBtn">Close</button>
+                    </div>
+                    <p class="saved-playlists-empty">No saved playlists yet. Use "Save Playlist" to save your current playlist.</p>
+                </div>
+            `;
+        } else {
+            const listHtml = playlists.map(pl => {
+                const date = new Date(pl.savedAt);
+                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const songCount = pl.songs ? pl.songs.length : 0;
+                const promptPreview = pl.userPrompt ? this.escapeHtml(pl.userPrompt.substring(0, 80)) + (pl.userPrompt.length > 80 ? '...' : '') : '';
+                const songsPreview = (pl.songs || []).slice(0, 3).map(s =>
+                    this.escapeHtml(`${s.artist} - ${s.name}`)
+                ).join('<br>');
+                const moreCount = songCount > 3 ? songCount - 3 : 0;
+
+                return `
+                    <div class="saved-playlist-card" data-playlist-id="${pl.id}">
+                        <div class="saved-playlist-card-header">
+                            <div class="saved-playlist-card-name">${this.escapeHtml(pl.name)}</div>
+                            <div class="saved-playlist-card-meta">${dateStr} &middot; ${songCount} song${songCount !== 1 ? 's' : ''}</div>
+                        </div>
+                        ${promptPreview ? `<div class="saved-playlist-card-prompt">${promptPreview}</div>` : ''}
+                        <div class="saved-playlist-card-songs">${songsPreview}${moreCount > 0 ? `<br><span class="saved-playlist-more">+${moreCount} more</span>` : ''}</div>
+                        <div class="saved-playlist-card-actions">
+                            <button class="saved-playlist-load-btn" data-playlist-id="${pl.id}">Load</button>
+                            <button class="saved-playlist-delete-btn" data-playlist-id="${pl.id}">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            overlay.innerHTML = `
+                <div class="saved-playlists-content">
+                    <div class="saved-playlists-header">
+                        <h2>Saved Playlists</h2>
+                        <button class="saved-playlists-close-btn" id="closeSavedPlaylistsBtn">Close</button>
+                    </div>
+                    <div class="saved-playlists-list">${listHtml}</div>
+                </div>
+            `;
+        }
+
+        const closeBtn = overlay.querySelector('#closeSavedPlaylistsBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeSavedPlaylistsBrowser());
+        }
+
+        overlay.querySelectorAll('.saved-playlist-load-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = /** @type {HTMLElement} */ (e.target).dataset.playlistId;
+                const pl = this.savedPlaylists.find(p => p.id === id);
+                if (pl) this.loadSavedPlaylistToPlayer(pl);
+            });
+        });
+
+        overlay.querySelectorAll('.saved-playlist-delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = /** @type {HTMLElement} */ (e.target).dataset.playlistId;
+                if (confirm('Delete this saved playlist?')) {
+                    this.deleteSavedPlaylist(id);
+                    this.renderSavedPlaylistsBrowser(overlay);
+                }
+            });
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) this.closeSavedPlaylistsBrowser();
+        });
+    }
+
     /**
      * @param {string} videoId
      * @param {Partial<PlaylistItem> | null} [songData]
@@ -269,12 +493,11 @@ class VoiceMusicController {
         document.getElementById('centralPlayer').style.display = 'block';
 
         let addedCount = 0;
-        for (const favData of favoritesList) {
-            // Minimal fallback: try to get at least artist and name
+        for (let fi = favoritesList.length - 1; fi >= 0; fi--) {
+            const favData = favoritesList[fi];
             const artistName = favData.artist || favData.channelTitle || 'Unknown';
             const songName = favData.name || favData.title || 'Unknown';
 
-            // Skip if we don't have a videoId
             if (!favData.videoId) continue;
             if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
 
@@ -1167,6 +1390,21 @@ class VoiceMusicController {
             });
         }
 
+        // Save / browse saved playlists
+        const savePlaylistBtn = document.getElementById('savePlaylistBtn');
+        if (savePlaylistBtn) {
+            savePlaylistBtn.addEventListener('click', () => {
+                this.saveCurrentPlaylist();
+            });
+        }
+
+        const savedPlaylistsBtnMain = document.getElementById('savedPlaylistsBtnMain');
+        if (savedPlaylistsBtnMain) {
+            savedPlaylistsBtnMain.addEventListener('click', () => {
+                this.openSavedPlaylistsBrowser();
+            });
+        }
+
         const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
         if (lyricsPanelBtn) {
             lyricsPanelBtn.addEventListener('click', () => {
@@ -1191,6 +1429,7 @@ class VoiceMusicController {
         const lyricsOverlayCloseBtn = document.getElementById('lyricsOverlayCloseBtn');
         if (lyricsOverlayCloseBtn) {
             lyricsOverlayCloseBtn.addEventListener('click', () => {
+                this.lyricsOverlayDismissed = true;
                 this.closeLyricsOverlay();
             });
         }
@@ -1382,6 +1621,7 @@ class VoiceMusicController {
         const handle = document.getElementById('progressBarHandle');
         const currentTimeEl = document.getElementById('currentTime');
         const totalTimeEl = document.getElementById('totalTime');
+        const handleTimeEl = document.getElementById('progressHandleTime');
 
         if (fill && handle && currentTimeEl && totalTimeEl) {
             const percentage = (currentTime / duration) * 100;
@@ -1389,6 +1629,9 @@ class VoiceMusicController {
             handle.style.left = `${percentage}%`;
             currentTimeEl.textContent = this.formatTime(currentTime);
             totalTimeEl.textContent = this.formatTime(duration);
+        }
+        if (handleTimeEl) {
+            handleTimeEl.textContent = this.formatTime(currentTime);
         }
 
         this.updateSyncedLyricsPosition(currentTime);
@@ -1594,6 +1837,7 @@ class VoiceMusicController {
         this.updateSubmitButton(true);
         this.updateTypedCommandUI(true);
         this.updateStatus('Processing with Claude...');
+        this.lastUserPrompt = requestText;
 
         try {
             const result = await this.processCommandWithLLM(requestText);
@@ -2015,6 +2259,7 @@ If the request is not about music, return an empty array [].`;
      * @param {string} prompt
      */
     parseAIResponse(responseText, prompt) {
+        this.lastAIPrompt = prompt;
         this.logClaudeMessage(`Response:\n${responseText}`);
 
         // Extract JSON array from response
@@ -2053,7 +2298,8 @@ If the request is not about music, return an empty array [].`;
         let addedCount = 0;
         this.addMessage('claude', 'Processing', `Adding ${songList.length} songs to playlist...`);
 
-        for (let i = 0; i < songList.length; i++) {
+        // Iterate in reverse so that unshift + insertBefore keeps AI's original order
+        for (let i = songList.length - 1; i >= 0; i--) {
             const song = songList[i];
             try {
                 // Require searchTerm - Claude must provide this field
@@ -2366,7 +2612,9 @@ If the request is not about music, return an empty array [].`;
 
                 this.currentLyricsItemId = item.id;
                 this.currentLyricsLineIndex = -1;
-                if (!this.lyricsPanelDismissed) {
+                if (!this.lyricsOverlayDismissed) {
+                    this.openLyricsOverlay();
+                } else if (!this.lyricsPanelDismissed) {
                     this.setLyricsPanelVisible(true);
                 } else {
                     this.renderLyricsStateForItem(item);
@@ -2619,6 +2867,7 @@ If the request is not about music, return an empty array [].`;
         this.currentLyricsLineIndex = -1;
         this.setLyricsPanelVisible(false);
         this.lyricsPanelDismissed = false;
+        this.lyricsOverlayDismissed = false;
         this.closeLyricsOverlay();
         this.renderLyricsStateForItem(null);
 

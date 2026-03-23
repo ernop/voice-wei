@@ -82,7 +82,9 @@
                 <div class="progress-bar-container" id="progressBarContainer">
                     <div class="progress-bar-track" id="progressBarTrack">
                         <div class="progress-bar-fill" id="progressBarFill"></div>
-                        <div class="progress-bar-handle" id="progressBarHandle"></div>
+                        <div class="progress-bar-handle" id="progressBarHandle">
+                            <span class="progress-handle-time" id="progressHandleTime">0:00</span>
+                        </div>
                     </div>
                     <div class="progress-time">
                         <span id="currentTime">0:00</span>
@@ -147,11 +149,13 @@
 
             <div class="quick-actions" id="quickActions">
                 <button id="loadFavoritesBtnMain" class="quick-action-btn">Load Favorites</button>
+                <button id="savedPlaylistsBtnMain" class="quick-action-btn">Saved Playlists</button>
             </div>
 
             <div class="playlist-container" id="playlistContainer" style="display: none;">
                 <div class="playlist-header">
                     <span class="playlist-label" id="playlistLabel">Playlist:</span>
+                    <button id="savePlaylistBtn" class="save-playlist-btn">Save</button>
                     <button id="loadFavoritesBtn" class="load-favorites-btn">Load Favorites</button>
                     <button id="clearPlaylistBtn" class="clear-playlist-btn">Clear</button>
                 </div>
