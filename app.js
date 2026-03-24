@@ -135,7 +135,7 @@ class VoiceMusicController {
         this.settings = {
             readClaudeResponse: false,
             autoSubmitMode: true,
-            claudeModel: 'claude-opus-4-5-20251101',
+            claudeModel: 'claude-opus-4-6',
             openaiModel: 'gpt-4o',
             aiProvider: 'claude'
         };
@@ -2150,9 +2150,11 @@ class VoiceMusicController {
         const prompt = this.getMusicSearchPrompt(transcript);
 
         try {
+            const useAdaptiveThinking = this.settings.claudeModel.includes('opus-4-6');
             const requestBody = {
                 model: this.settings.claudeModel,
-                max_tokens: 4000,
+                max_tokens: useAdaptiveThinking ? 16000 : 4000,
+                ...(useAdaptiveThinking && { thinking: { type: 'adaptive' } }),
                 messages: [{
                     role: 'user',
                     content: prompt
@@ -2178,7 +2180,8 @@ class VoiceMusicController {
             }
 
             const data = await response.json();
-            const responseText = data.content[0].text.trim();
+            const textBlock = data.content.find(block => block.type === 'text');
+            const responseText = (textBlock ? textBlock.text : data.content[0].text).trim();
 
             return this.parseAIResponse(responseText, prompt);
         } catch (error) {
