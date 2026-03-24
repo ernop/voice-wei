@@ -99,14 +99,31 @@
                 </div>
                 <div class="player-controls-secondary">
                     <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
+                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn" aria-label="Show or hide lyrics">Lyrics</button>
                     <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
                 </div>
-                <div class="player-controls-secondary lyrics-control-row">
-                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Show or hide lyrics">Lyrics</button>
-                    <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Open large lyrics overlay">Big Lyrics</button>
+            </div>
+
+            <div class="playlist-container" id="playlistContainer" style="display: none;">
+                <div class="playlist-header">
+                    <span class="playlist-label" id="playlistLabel">Playlist:</span>
+                    <button id="savePlaylistBtn" class="save-playlist-btn">Save</button>
+                    <button id="loadFavoritesBtn" class="load-favorites-btn">Load Favorites</button>
+                    <button id="clearPlaylistBtn" class="clear-playlist-btn">Clear</button>
                 </div>
+                <table class="playlist-table" id="playlist">
+                    <thead>
+                        <tr>
+                            <th class="fav-col"></th>
+                            <th>Artist</th>
+                            <th>Song</th>
+                            <th>Year</th>
+                            <th>Album</th>
+                            <th>Length</th>
+                        </tr>
+                    </thead>
+                    <tbody id="playlistBody"></tbody>
+                </table>
             </div>
 
             <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
@@ -115,7 +132,11 @@
                         <div class="lyrics-panel-label">Lyrics</div>
                         <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
                     </div>
-                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
+                    <div class="lyrics-panel-actions">
+                        <button id="lyricsOverlayBtn" class="lyrics-panel-action-btn"
+                            aria-label="Open large lyrics overlay">Big Lyrics</button>
+                        <button id="lyricsHideBtn" class="lyrics-panel-action-btn" aria-label="Hide lyrics panel">Hide</button>
+                    </div>
                 </div>
                 <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
                 <div class="lyrics-content" id="lyricsContent"></div>
@@ -152,28 +173,6 @@
                 <button id="savedPlaylistsBtnMain" class="quick-action-btn">Saved Playlists</button>
             </div>
 
-            <div class="playlist-container" id="playlistContainer" style="display: none;">
-                <div class="playlist-header">
-                    <span class="playlist-label" id="playlistLabel">Playlist:</span>
-                    <button id="savePlaylistBtn" class="save-playlist-btn">Save</button>
-                    <button id="loadFavoritesBtn" class="load-favorites-btn">Load Favorites</button>
-                    <button id="clearPlaylistBtn" class="clear-playlist-btn">Clear</button>
-                </div>
-                <table class="playlist-table" id="playlist">
-                    <thead>
-                        <tr>
-                            <th class="fav-col"></th>
-                            <th>Artist</th>
-                            <th>Song</th>
-                            <th>Year</th>
-                            <th>Album</th>
-                            <th>Length</th>
-                        </tr>
-                    </thead>
-                    <tbody id="playlistBody"></tbody>
-                </table>
-            </div>
-
             <div class="log-container" id="logContainer">
                 <div class="log-header">
                     <span class="log-label">Log</span>
@@ -192,15 +191,7 @@
     </div>
 
     <div class="lyrics-overlay" id="lyricsOverlay" style="display: none;" aria-hidden="true">
-        <div class="lyrics-overlay-song-info">
-            <div class="lyrics-overlay-label">Big Lyrics</div>
-            <div class="lyrics-overlay-title" id="lyricsOverlayTitle">No song selected</div>
-            <div class="lyrics-overlay-status" id="lyricsOverlayStatus">Play a song to load lyrics.</div>
-        </div>
-        <div class="lyrics-overlay-top-actions">
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlaySettingsBtn" aria-label="Lyrics settings">Config</button>
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlayCloseBtn" aria-label="Close large lyrics">Close</button>
-        </div>
+        <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
         <div class="lyrics-overlay-config" id="lyricsOverlayConfig" style="display: none;">
             <div class="lyrics-overlay-config-card">
                 <div class="lyrics-overlay-controls">
@@ -213,14 +204,25 @@
                 </div>
             </div>
         </div>
-        <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
-        <div class="lyrics-overlay-transport">
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">Prev</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">Restart</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">Back</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">Pause</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">Fwd</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">Next</button>
+        <div class="lyrics-overlay-bottom">
+            <div class="lyrics-overlay-transport">
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">Prev</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">Restart</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">Back</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">Pause</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">Fwd</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">Next</button>
+            </div>
+            <div class="lyrics-overlay-bottom-info">
+                <div class="lyrics-overlay-song-info">
+                    <div class="lyrics-overlay-title" id="lyricsOverlayTitle">No song selected</div>
+                    <div class="lyrics-overlay-status" id="lyricsOverlayStatus"></div>
+                </div>
+                <div class="lyrics-overlay-bottom-actions">
+                    <button class="lyrics-overlay-action-btn" id="lyricsOverlaySettingsBtn" aria-label="Lyrics settings">Config</button>
+                    <button class="lyrics-overlay-action-btn" id="lyricsOverlayCloseBtn" aria-label="Close large lyrics">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 

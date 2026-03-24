@@ -3095,11 +3095,9 @@ If the request is not about music, return an empty array [].`;
         if (item.lyricsStatus === 'ready' && item.lyricsData) {
             const lyricsData = item.lyricsData;
             if (lyricsData.instrumental) {
-                this.updateLyricsStatus(item, 'Track appears to be instrumental.');
-            } else if (lyricsData.syncedLines.length > 0) {
-                this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName} (synced)`);
+                this.updateLyricsStatus(item, 'Instrumental track.');
             } else {
-                this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName}`);
+                this.updateLyricsStatus(item, '');
             }
             this.renderLyricsLines(this.getRenderableLyricsLines(lyricsData));
             return;
