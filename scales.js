@@ -312,7 +312,7 @@ function normalizeModifier(spoken) {
 }
 
 // Default octave for scales
-const DEFAULT_OCTAVE = 4;
+const DEFAULT_OCTAVE = 3;
 
 // Loop timing (NOT the per-note gap control)
 const FOREVER_SECTION_GAP_MS = 1000; // 1s gap between sections when looping ("forever" mode)
@@ -417,17 +417,17 @@ class ScalesController {
         this.settings = {
             noteLengthMs: 300,  // note duration in milliseconds
             gapMs: 0,           // gap between notes in ms (or negative for overlap ratio)
-            direction: 'ascending', // ascending, descending, both, down_and_up
+            direction: 'both', // ascending, descending, both, down_and_up
             octave: DEFAULT_OCTAVE,
-            repeatCount: 1,   // 1=once, 2=twice, Infinity=forever
+            repeatCount: Infinity,   // 1=once, 2=twice, Infinity=forever
             // Section gap: used for "forever" modes only (between phrase sections and between loop cycles)
             // This is NOT the UI "Gap" control which is between NOTES.
-            repeatGapMs: FOREVER_SECTION_GAP_MS,
+            repeatGapMs: 0,
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
             movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
             // Voice-first settings (also controllable via UI)
             scaleType: 'major',
-            root: 'C',
+            root: 'D#',
             rangeExpansion: 0,  // 0-6: extra notes on each end for "wide scale"
             octaveSpan: 1,      // 1 or 2: how many octaves to span
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
@@ -439,14 +439,14 @@ class ScalesController {
         this.defaultSettings = {
             noteLengthMs: 300,  // 0.3s by default
             gapMs: 0,           // no gap by default
-            direction: 'ascending',
+            direction: 'both',
             octave: DEFAULT_OCTAVE,
-            repeatCount: 1,   // Once by default
-            repeatGapMs: FOREVER_SECTION_GAP_MS,
+            repeatCount: Infinity,
+            repeatGapMs: 0,
             risingSemitones: 0,
             movementStyle: 'normal',
             scaleType: 'major',
-            root: 'C',
+            root: 'D#',
             rangeExpansion: 0,
             octaveSpan: 1,
             sectionLength: '1o',
@@ -3665,10 +3665,13 @@ class ScalesController {
             ? (repeatIndex) => this.transposeNotes(notes, repeatIndex * risingSemitones)
             : null;
 
-        // For up+down or down+up with repeat, use seamless repeat (no gap, skip duplicate root)
+        // For up+down or down+up with repeat, use seamless repeat (skip duplicate
+        // turnaround note) ONLY when there is truly no gap between iterations.
+        // With a gap the context resets, so the full sequence replays from its first note.
         const direction = modifiers.direction || this.settings.direction;
         const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0;
+        const effectiveRepeatGapMs = risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500);
+        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0 && effectiveRepeatGapMs === 0;
 
         const mergedContext = {
             ...context,
@@ -3695,7 +3698,7 @@ class ScalesController {
                 this.updatePatternPreview(nextTranspose);
             },
             repeatCount: playTimes,
-            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500),
+            repeatGapMs: effectiveRepeatGapMs,
             seamlessRepeat,
             getNotesForRepeat
         });
