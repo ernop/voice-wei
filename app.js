@@ -2549,7 +2549,7 @@ If the request is not about music, return an empty array [].`;
 
     updateTransportPauseLabel() {
         const btn = document.getElementById('lyricsTransportPause');
-        if (btn) btn.textContent = (this.isPlaying && !this.isPaused) ? 'Pause' : 'Play';
+        if (btn) btn.innerHTML = (this.isPlaying && !this.isPaused) ? '&#9208;' : '&#9654;';
     }
 
     restartCurrentTrack() {
@@ -2567,11 +2567,11 @@ If the request is not about music, return an empty array [].`;
         if (this.isPlaying && !this.isPaused) {
             btn.textContent = '⏸';
             btn.setAttribute('aria-label', 'Pause');
-            if (transportBtn) transportBtn.textContent = 'Pause';
+            if (transportBtn) transportBtn.innerHTML = '&#9208;';
         } else {
             btn.textContent = '▶';
             btn.setAttribute('aria-label', 'Play');
-            if (transportBtn) transportBtn.textContent = 'Play';
+            if (transportBtn) transportBtn.innerHTML = '&#9654;';
         }
     }
 
@@ -2745,7 +2745,7 @@ If the request is not about music, return an empty array [].`;
             const maxVw = this.lyricsViewSettings.widthMode === 'wide' ? '96vw' : '74vw';
             const maxPx = this.lyricsViewSettings.widthMode === 'wide' ? '1200px' : '760px';
             const textAlign = this.lyricsViewSettings.align === 'left' ? 'left' : 'center';
-            const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.18' : '1.35';
+            const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.05' : '1.15';
             const backdrop = this.lyricsViewSettings.backdrop === 'blackout'
                 ? 'rgba(0, 0, 0, 0.985)'
                 : 'rgba(3, 8, 6, 0.96)';

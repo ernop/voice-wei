@@ -1233,7 +1233,7 @@ h1 {
 
 .lyrics-overlay {
     --lyrics-overlay-font-size: clamp(1.8rem, 6vw, 3.8rem);
-    --lyrics-overlay-line-height: 1.35;
+    --lyrics-overlay-line-height: 1.15;
     --lyrics-overlay-max-width: min(96vw, 1100px);
     --lyrics-overlay-text-align: center;
     --lyrics-overlay-bg: rgba(3, 8, 6, 0.96);
@@ -1244,38 +1244,7 @@ h1 {
 }
 
 .lyrics-overlay-song-info {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 56px;
-    z-index: 5;
-    padding: 10px 16px 24px;
-    background: linear-gradient(to bottom, var(--lyrics-overlay-bg) 50%, transparent);
-    pointer-events: none;
-}
-
-.lyrics-overlay-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgba(74, 222, 128, 0.7);
-    margin-bottom: 2px;
-}
-
-.lyrics-overlay-title {
-    font-size: 0.92rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.75);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.lyrics-overlay .lyrics-overlay-status {
-    font-size: 0.82rem;
-    color: rgba(167, 243, 208, 0.7);
-    margin-top: 2px;
+    display: none;
 }
 
 .lyrics-overlay-top-actions {
@@ -1288,18 +1257,17 @@ h1 {
 }
 
 .lyrics-overlay-action-btn {
-    padding: 5px 10px;
+    padding: 8px 12px;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.4);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.4rem;
     cursor: pointer;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     transition: background 0.15s, color 0.15s;
-    line-height: 1.2;
+    line-height: 1;
 }
 
 .lyrics-overlay-action-btn:hover,
@@ -1362,8 +1330,8 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 60px 10px 52px;
+    gap: 2px;
+    padding: 6px 10px 52px;
 }
 
 .lyrics-overlay-transport {
@@ -1375,21 +1343,20 @@ h1 {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    padding: 6px 8px;
-    background: linear-gradient(to top, var(--lyrics-overlay-bg) 50%, transparent);
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--lyrics-overlay-bg);
 }
 
 .lyrics-overlay-transport-btn {
-    padding: 6px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.3);
-    color: rgba(255, 255, 255, 0.65);
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 1.5rem;
     cursor: pointer;
-    line-height: 1.2;
+    line-height: 1;
     white-space: nowrap;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
@@ -1405,7 +1372,7 @@ h1 {
 .lyrics-overlay .lyrics-line {
     width: 100%;
     max-width: var(--lyrics-overlay-max-width);
-    padding: 8px 10px;
+    padding: 2px 10px;
     font-size: var(--lyrics-overlay-font-size);
     line-height: var(--lyrics-overlay-line-height);
     text-align: var(--lyrics-overlay-text-align);
