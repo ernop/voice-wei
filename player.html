@@ -134,7 +134,6 @@
             <div class="playlist-container" id="playlistContainer" style="display: none;">
                 <div class="playlist-header">
                     <span class="playlist-label" id="playlistLabel">Playlist:</span>
-                    <button id="loadFavoritesBtn" class="load-favorites-btn">Load Favorites</button>
                     <button id="clearPlaylistBtn" class="clear-playlist-btn">Clear</button>
                 </div>
                 <table class="playlist-table" id="playlist">
@@ -152,10 +151,14 @@
                 </table>
             </div>
 
-            <div class="lyrics-control-row">
-                <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
+            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
+                <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous">&#9198;</button>
+                <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
+                <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next">&#9197;</button>
+                <div class="transport-bar-info" id="transportBarInfo">No song playing</div>
+                <button id="lyricsPanelBtn" class="transport-bar-btn lyrics-control-btn"
                     aria-label="Show or hide lyrics">Lyrics</button>
-                <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
+                <button id="lyricsOverlayBtn" class="transport-bar-btn big-lyrics-btn lyrics-unavailable"
                     aria-label="Open large lyrics overlay">Big Lyrics</button>
             </div>
 
