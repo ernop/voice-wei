@@ -57,6 +57,19 @@ element.addEventListener('click', e => {
 - "This creates new elements on every call - can we reuse?"
 - "This queries the DOM repeatedly - can we cache?"
 
+## No Lazy Fetching
+
+Lazy loading is forbidden unless there is a concrete, measured constraint that requires it (rate limits, bandwidth caps, user-pays-per-call). "Might be expensive" or "might not be needed" are not sufficient justifications.
+
+**Rules:**
+- If an API has no rate limits (e.g., LRCLIB), fetch everything upfront in parallel.
+- If multiple independent network calls exist, use `Promise.all`, not sequential `await` in a loop.
+- If data will be needed soon (lyrics for a song in a playlist), fetch it at creation time, not on first use.
+- Never use `setTimeout` as a retry mechanism for readiness -- use promises resolved by the ready callback.
+- If a fetch fires "on click" or "on play" but has no dependency on the click/play action itself, move it earlier.
+
+**The test:** Can this work start sooner without changing the result? If yes, start it sooner.
+
 ## Code Quality
 - Question defensive patterns if dependencies are guaranteed.
 - Consolidate before optimizing.

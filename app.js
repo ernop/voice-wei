@@ -15,9 +15,6 @@ const SEEK_JUMP_SECONDS = 10;
 // Brief delay for DOM to settle before creating YouTube player
 const DOM_SETTLE_DELAY_MS = 50;
 
-// Retry delay when player isn't ready yet
-const PLAYER_RETRY_DELAY_MS = 500;
-
 // How long to poll for YouTube API before giving up
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 
@@ -102,6 +99,8 @@ class VoiceMusicController {
         this.recognition = null;
         /** @type {Map<number, YT.Player>} */
         this.players = new Map();
+        /** @type {Map<number, { promise: Promise<any>, resolve: Function }>} */
+        this.playerReadyPromises = new Map();
         /** @type {boolean} */
         this.isListening = false;
         /** @type {number | null} */
@@ -2083,7 +2082,6 @@ If the request is not about music, return an empty array [].`;
     /** @param {Array<{ searchTerm?: string, name?: string, artist?: string, year?: string, album?: string, comment?: string }>} songList */
     async searchAndAddToPlaylist(songList) {
         const playlistContainer = document.getElementById('playlistContainer');
-        const playlistEl = document.getElementById('playlist');
 
         playlistContainer.style.display = 'block';
         this.showTransportBar();
@@ -2092,67 +2090,69 @@ If the request is not about music, return an empty array [].`;
             document.getElementById('centralPlayer').style.display = 'block';
         }
 
-        let addedCount = 0;
-        this.addMessage('claude', 'Processing', `Adding ${songList.length} songs to playlist...`);
+        this.addMessage('claude', 'Processing', `Searching ${songList.length} songs in parallel...`);
 
-        for (let i = 0; i < songList.length; i++) {
-            const song = songList[i];
-            try {
-                // Require searchTerm - Claude must provide this field
+        const validSongs = songList
+            .map((song, i) => ({ song, index: i }))
+            .filter(({ song, index }) => {
                 if (!song.searchTerm) {
-                    this.addMessage('error', 'Missing searchTerm', `Song ${i + 1}: ${JSON.stringify(song).substring(0, 100)}`);
-                    continue;
+                    this.addMessage('error', 'Missing searchTerm', `Song ${index + 1}: ${JSON.stringify(song).substring(0, 100)}`);
+                    return false;
                 }
+                return true;
+            });
 
-                this.addMessage('claude', `Song ${i + 1}`, `Searching: ${song.searchTerm}`);
-                const videoData = await this.searchYouTube(song.searchTerm);
+        // Fire all YouTube searches in parallel
+        const searchPromises = validSongs.map(({ song, index }) => {
+            this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
+            return this.searchYouTube(song.searchTerm)
+                .then(videoData => ({ song, index, videoData, error: null }))
+                .catch(error => ({ song, index, videoData: null, error }));
+        });
 
-                if (!videoData) {
-                    this.addMessage('error', `Song ${i + 1}`, `No YouTube results for: ${song.searchTerm}`);
-                    continue;
-                }
+        const results = await Promise.all(searchPromises);
 
-                this.addMessage('claude', `Song ${i + 1}`, `Found: ${videoData.title}`);
-
-                // Decode any HTML entities in Claude's response (e.g., &amp; -> &)
-                const playlistItem = {
-                    name: song.name ? this.decodeHtml(song.name) : '',
-                    artist: song.artist ? this.decodeHtml(song.artist) : '',
-                    year: song.year || '',
-                    album: song.album ? this.decodeHtml(song.album) : '',
-                    comment: song.comment ? this.decodeHtml(song.comment) : '',
-                    searchTerm: song.searchTerm,
-                    ...videoData,
-                    id: Date.now() + Math.random(),
-                    lyricsStatus: 'idle',
-                    lyricsData: null
-                };
-                this.hydrateItemLyricsFromCache(playlistItem);
-                this.playlist.unshift(playlistItem);
-                if (this.currentPlaylistIndex >= 0) {
-                    this.currentPlaylistIndex++;
-                }
-                this.addPlaylistItemToDOM(playlistItem);
-                addedCount++;
-                this.updatePlaylistLabel();
-                this.addMessage('claude', `Song ${i + 1}`, `Added to playlist`);
-
-                // Eagerly fetch lyrics -- no reason to wait for play
-                if (playlistItem.lyricsStatus === 'idle') {
-                    void this.ensureLyricsForItem(playlistItem);
-                }
-            } catch (error) {
+        // Add to playlist in original order (reversed so unshift preserves order)
+        let addedCount = 0;
+        for (const { song, index, videoData, error } of results) {
+            if (error) {
                 console.error(`Error searching for "${song.searchTerm}":`, error);
-                this.addMessage('error', `Song ${i + 1}`, `Error: ${error.message}`);
+                this.addMessage('error', `Song ${index + 1}`, `Error: ${error.message}`);
+                continue;
+            }
+            if (!videoData) {
+                this.addMessage('error', `Song ${index + 1}`, `No YouTube results for: ${song.searchTerm}`);
+                continue;
+            }
 
-                // Stop batch on persistent errors to avoid wasting time
-                if (error.message.includes('403') || error.message.includes('503')) {
-                    this.addMessage('error', 'Stopping', 'Search service unavailable - skipping remaining songs');
-                    break;
-                }
+            this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
+
+            const playlistItem = {
+                name: song.name ? this.decodeHtml(song.name) : '',
+                artist: song.artist ? this.decodeHtml(song.artist) : '',
+                year: song.year || '',
+                album: song.album ? this.decodeHtml(song.album) : '',
+                comment: song.comment ? this.decodeHtml(song.comment) : '',
+                searchTerm: song.searchTerm,
+                ...videoData,
+                id: Date.now() + Math.random(),
+                lyricsStatus: 'idle',
+                lyricsData: null
+            };
+            this.hydrateItemLyricsFromCache(playlistItem);
+            this.playlist.unshift(playlistItem);
+            if (this.currentPlaylistIndex >= 0) {
+                this.currentPlaylistIndex++;
+            }
+            this.addPlaylistItemToDOM(playlistItem);
+            addedCount++;
+
+            if (playlistItem.lyricsStatus === 'idle') {
+                void this.ensureLyricsForItem(playlistItem);
             }
         }
 
+        this.updatePlaylistLabel();
         this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);
 
         if (addedCount === 0 && songList.length > 0) {
@@ -2293,8 +2293,12 @@ If the request is not about music, return an empty array [].`;
         playerDiv.style.display = 'none';
         playlistContainer.appendChild(playerDiv);
 
-        // Create YouTube player after element is in DOM
+        // Create readiness promise before player construction
         const playerId = `player-${item.id}`;
+        let readyResolve;
+        const readyPromise = new Promise(resolve => { readyResolve = resolve; });
+        this.playerReadyPromises.set(item.id, { promise: readyPromise, resolve: readyResolve });
+
         const createPlayer = () => {
             if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
                 console.error('YouTube API not loaded yet');
@@ -2321,8 +2325,9 @@ If the request is not about music, return an empty array [].`;
                     events: {
                         onReady: (event) => {
                             console.log('Player ready for:', item.videoId);
-                            // Store the player reference when ready
                             this.players.set(item.id, event.target);
+                            const entry = this.playerReadyPromises.get(item.id);
+                            if (entry) entry.resolve(event.target);
                         },
                         onStateChange: (event) => {
                             // Auto-advance to next when video ends
@@ -2379,7 +2384,7 @@ If the request is not about music, return an empty array [].`;
     }
 
     /** @param {PlaylistItem} item */
-    playVideo(item) {
+    async playVideo(item) {
         // Stop currently playing video
         if (this.currentPlayingId && this.currentPlayingId !== item.id) {
             const currentPlayer = this.players.get(this.currentPlayingId);
@@ -2441,15 +2446,12 @@ If the request is not about music, return an empty array [].`;
                 this.updateStatus('Error playing video. Try again.');
             }
         } else {
-            console.error('Player not ready for video:', item.id, player);
-            this.updateStatus('Player loading... try again in a moment.');
-            // Retry after a short delay
-            setTimeout(() => {
-                const retryPlayer = this.players.get(item.id);
-                if (retryPlayer && typeof retryPlayer.playVideo === 'function') {
-                    this.playVideo(item);
-                }
-            }, PLAYER_RETRY_DELAY_MS);
+            this.updateStatus('Player loading...');
+            const entry = this.playerReadyPromises.get(item.id);
+            if (entry) {
+                await entry.promise;
+                this.playVideo(item);
+            }
         }
     }
 
@@ -2668,6 +2670,7 @@ If the request is not about music, return an empty array [].`;
             }
         });
         this.players.clear();
+        this.playerReadyPromises.clear();
         this.currentPlayingId = null;
         this.updatePlayPauseButton();
         this.updateCentralPlayer(null);
@@ -3031,10 +3034,16 @@ If the request is not about music, return an empty array [].`;
         /** @type {{ score: number, record: any } | null} */
         let bestMatch = null;
 
-        for (const candidate of candidates) {
-            const results = await this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '');
-            if (!results || results.length === 0) continue;
+        // Search all candidates in parallel
+        const allResults = await Promise.all(
+            candidates.map(candidate =>
+                this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '')
+                    .then(results => ({ candidate, results: results || [] }))
+                    .catch(() => ({ candidate, results: [] }))
+            )
+        );
 
+        for (const { candidate, results } of allResults) {
             for (const record of results) {
                 const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
                 if (!bestMatch || score > bestMatch.score) {
@@ -3292,6 +3301,7 @@ If the request is not about music, return an empty array [].`;
         this.updatePlaylistLabel();
         this.setLyricsPanelVisible(true);
         this.renderLyricsStateForItem(demoItem);
+        void this.ensureLyricsForItem(demoItem);
         this.updateStatus('Demo lyrics song loaded');
     }
 
