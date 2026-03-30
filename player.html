@@ -99,24 +99,6 @@
                     <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
                     <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
                 </div>
-                <div class="player-controls-secondary lyrics-control-row">
-                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Show or hide lyrics">Lyrics</button>
-                    <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Open large lyrics overlay">Big Lyrics</button>
-                </div>
-            </div>
-
-            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
-                <div class="lyrics-panel-header">
-                    <div class="lyrics-panel-title-group">
-                        <div class="lyrics-panel-label">Lyrics</div>
-                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
-                    </div>
-                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
-                </div>
-                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
-                <div class="lyrics-content" id="lyricsContent"></div>
             </div>
 
             <div class="status" id="status">Ready</div>
@@ -170,14 +152,34 @@
                 </table>
             </div>
 
-            <div class="log-container" id="logContainer">
-                <div class="log-header">
-                    <span class="log-label">Log</span>
-                    <button id="selectAllLogBtn" class="select-all-btn">Select All</button>
-                    <button id="copyAllLogBtn" class="copy-all-btn">Copy All</button>
-                    <button id="clearLogBtn" class="clear-log-btn">Clear</button>
+            <div class="lyrics-control-row">
+                <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
+                    aria-label="Show or hide lyrics">Lyrics</button>
+                <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
+                    aria-label="Open large lyrics overlay">Big Lyrics</button>
+            </div>
+
+            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
+                <div class="lyrics-panel-header">
+                    <div class="lyrics-panel-title-group">
+                        <div class="lyrics-panel-label">Lyrics</div>
+                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
+                    </div>
+                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
                 </div>
-                <div class="log-content" id="logContent"></div>
+                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
+                <div class="lyrics-content" id="lyricsContent"></div>
+            </div>
+
+            <div class="log-container collapsed" id="logContainer">
+                <div class="log-header" id="logHeader">
+                    <span class="log-label">Log</span>
+                    <button id="logToggleBtn" class="log-toggle-btn">Show</button>
+                    <button id="selectAllLogBtn" class="select-all-btn" style="display: none;">Select All</button>
+                    <button id="copyAllLogBtn" class="copy-all-btn" style="display: none;">Copy All</button>
+                    <button id="clearLogBtn" class="clear-log-btn" style="display: none;">Clear</button>
+                </div>
+                <div class="log-content" id="logContent" style="display: none;"></div>
             </div>
 
             <footer class="page-footer">

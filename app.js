@@ -395,6 +395,23 @@ class VoiceMusicController {
         this.addMessage('error', `Error: ${label}`, errorText);
     }
 
+    toggleLogPanel() {
+        const container = document.getElementById('logContainer');
+        const content = document.getElementById('logContent');
+        const toggleBtn = document.getElementById('logToggleBtn');
+        const selectBtn = document.getElementById('selectAllLogBtn');
+        const copyBtn = document.getElementById('copyAllLogBtn');
+        const clearBtn = document.getElementById('clearLogBtn');
+        if (!container || !content) return;
+
+        const isCollapsed = container.classList.toggle('collapsed');
+        content.style.display = isCollapsed ? 'none' : '';
+        if (toggleBtn) toggleBtn.textContent = isCollapsed ? 'Show' : 'Hide';
+        if (selectBtn) selectBtn.style.display = isCollapsed ? 'none' : '';
+        if (copyBtn) copyBtn.style.display = isCollapsed ? 'none' : '';
+        if (clearBtn) clearBtn.style.display = isCollapsed ? 'none' : '';
+    }
+
     clearLog() {
         const logContent = document.getElementById('logContent');
         if (logContent) {
@@ -1087,7 +1104,21 @@ class VoiceMusicController {
             });
         }
 
-        // Log buttons
+        // Log toggle: both button and header label
+        const logToggleBtn = document.getElementById('logToggleBtn');
+        if (logToggleBtn) {
+            logToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleLogPanel();
+            });
+        }
+        const logHeader = document.getElementById('logHeader');
+        if (logHeader) {
+            logHeader.addEventListener('click', () => {
+                this.toggleLogPanel();
+            });
+        }
+
         const clearLogBtn = document.getElementById('clearLogBtn');
         if (clearLogBtn) {
             clearLogBtn.addEventListener('click', () => {

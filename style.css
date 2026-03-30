@@ -54,6 +54,22 @@ main {
     display: flex;
     align-items: center;
     gap: 10px;
+    cursor: pointer;
+}
+
+.log-toggle-btn {
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.log-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .log-label {
@@ -1036,7 +1052,10 @@ h1 {
 }
 
 .lyrics-control-row {
-    margin-top: 8px;
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
 }
 
 .lyrics-control-btn {
