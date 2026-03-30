@@ -264,9 +264,9 @@ class VoiceMusicController {
             return;
         }
 
-        // Show playlist container and central player
         document.getElementById('playlistContainer').style.display = 'block';
         document.getElementById('centralPlayer').style.display = 'block';
+        this.showTransportBar();
 
         let addedCount = 0;
         for (const favData of favoritesList) {
@@ -1183,7 +1183,6 @@ class VoiceMusicController {
             });
         }
 
-        // Load favorites buttons (main and in playlist header)
         const loadFavoritesBtnMain = document.getElementById('loadFavoritesBtnMain');
         if (loadFavoritesBtnMain) {
             loadFavoritesBtnMain.addEventListener('click', () => {
@@ -1191,11 +1190,18 @@ class VoiceMusicController {
             });
         }
 
-        const loadFavoritesBtn = document.getElementById('loadFavoritesBtn');
-        if (loadFavoritesBtn) {
-            loadFavoritesBtn.addEventListener('click', () => {
-                this.loadFavoritesToPlaylist();
-            });
+        // Transport bar buttons (sticky playlist controls)
+        const transportPrevBtn = document.getElementById('transportPrevBtn');
+        if (transportPrevBtn) {
+            transportPrevBtn.addEventListener('click', () => this.playPrevious());
+        }
+        const transportPlayPauseBtn = document.getElementById('transportPlayPauseBtn');
+        if (transportPlayPauseBtn) {
+            transportPlayPauseBtn.addEventListener('click', () => this.togglePlayPause());
+        }
+        const transportNextBtn = document.getElementById('transportNextBtn');
+        if (transportNextBtn) {
+            transportNextBtn.addEventListener('click', () => this.playNext());
         }
 
         const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
@@ -2074,8 +2080,8 @@ If the request is not about music, return an empty array [].`;
         const playlistContainer = document.getElementById('playlistContainer');
         const playlistEl = document.getElementById('playlist');
 
-        // Show playlist container and central player
         playlistContainer.style.display = 'block';
+        this.showTransportBar();
 
         if (songList.length > 0) {
             document.getElementById('centralPlayer').style.display = 'block';
@@ -2441,16 +2447,22 @@ If the request is not about music, return an empty array [].`;
     updateCentralPlayer(item) {
         const titleEl = document.getElementById('playerSongTitle');
         const artistEl = document.getElementById('playerSongArtist');
+        const transportInfo = document.getElementById('transportBarInfo');
 
         if (item) {
             const songTitle = item.name || item.title || '';
             const artistName = item.artist || item.channelTitle || '';
             titleEl.textContent = songTitle;
             artistEl.textContent = artistName;
+            if (transportInfo) {
+                transportInfo.textContent = artistName ? `${artistName} - ${songTitle}` : songTitle;
+            }
         } else {
             titleEl.textContent = '';
             artistEl.textContent = '';
+            if (transportInfo) transportInfo.textContent = 'No song playing';
         }
+        this.updateBigLyricsAvailability();
     }
 
     stopPlayback() {
@@ -2595,14 +2607,17 @@ If the request is not about music, return an empty array [].`;
     updatePlayPauseButton() {
         const btn = document.getElementById('playPauseBtn');
         const transportBtn = document.getElementById('lyricsTransportPause');
+        const barBtn = document.getElementById('transportPlayPauseBtn');
         if (this.isPlaying && !this.isPaused) {
             btn.textContent = '⏸';
             btn.setAttribute('aria-label', 'Pause');
             if (transportBtn) transportBtn.innerHTML = '&#9208;';
+            if (barBtn) { barBtn.innerHTML = '&#9208;'; barBtn.setAttribute('aria-label', 'Pause'); }
         } else {
             btn.textContent = '▶';
             btn.setAttribute('aria-label', 'Play');
             if (transportBtn) transportBtn.innerHTML = '&#9654;';
+            if (barBtn) { barBtn.innerHTML = '&#9654;'; barBtn.setAttribute('aria-label', 'Play'); }
         }
     }
 
@@ -2634,6 +2649,7 @@ If the request is not about music, return an empty array [].`;
 
         document.getElementById('playlistContainer').style.display = 'none';
         document.getElementById('centralPlayer').style.display = 'none';
+        this.hideTransportBar();
         this.players.forEach(player => {
             try {
                 player.destroy();
@@ -2761,6 +2777,37 @@ If the request is not about music, return an empty array [].`;
         if (lyricsPanelBtn) {
             lyricsPanelBtn.textContent = this.lyricsPanelVisible ? 'Hide Lyrics' : 'Lyrics';
         }
+    }
+
+    updateBigLyricsAvailability() {
+        const btn = document.getElementById('lyricsOverlayBtn');
+        if (!btn) return;
+        const currentItem = this.currentLyricsItem() || this.currentPlaylistItem();
+        btn.classList.remove('lyrics-available', 'lyrics-unavailable', 'lyrics-loading');
+        if (!currentItem) {
+            btn.classList.add('lyrics-unavailable');
+            btn.textContent = 'Big Lyrics';
+        } else if (currentItem.lyricsStatus === 'loading') {
+            btn.classList.add('lyrics-loading');
+            btn.textContent = 'Big Lyrics ...';
+        } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
+            btn.classList.add('lyrics-available');
+            const synced = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
+            btn.textContent = synced ? 'Big Lyrics (synced)' : 'Big Lyrics (plain)';
+        } else {
+            btn.classList.add('lyrics-unavailable');
+            btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No Lyrics' : 'Big Lyrics';
+        }
+    }
+
+    showTransportBar() {
+        const bar = document.getElementById('playlistTransportBar');
+        if (bar) bar.style.display = 'flex';
+    }
+
+    hideTransportBar() {
+        const bar = document.getElementById('playlistTransportBar');
+        if (bar) bar.style.display = 'none';
     }
 
     adjustLyricsFontScale(delta) {
@@ -3228,6 +3275,7 @@ If the request is not about music, return an empty array [].`;
         this.currentPlaylistIndex = 0;
         document.getElementById('playlistContainer').style.display = 'block';
         document.getElementById('centralPlayer').style.display = 'block';
+        this.showTransportBar();
         this.addPlaylistItemToDOM(demoItem);
         this.currentLyricsItemId = demoItem.id;
         this.updateCentralPlayer(demoItem);
@@ -3369,9 +3417,25 @@ If the request is not about music, return an empty array [].`;
         if (!button) return;
         const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
         const lyricsLoading = item.lyricsStatus === 'loading';
+        const lyricsNotFound = item.lyricsStatus === 'not_found';
+        const lyricsError = item.lyricsStatus === 'error';
         button.classList.toggle('ready', lyricsReady);
-        button.textContent = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
-        button.setAttribute('aria-label', lyricsReady ? 'Show cached lyrics' : 'Get lyrics');
+        button.classList.toggle('not-found', lyricsNotFound || lyricsError);
+        if (lyricsLoading) {
+            button.textContent = '...';
+        } else if (lyricsReady) {
+            button.textContent = 'L';
+        } else if (lyricsNotFound) {
+            button.textContent = '--';
+        } else if (lyricsError) {
+            button.textContent = '!';
+        } else {
+            button.textContent = 'Get';
+        }
+        button.setAttribute('aria-label', lyricsReady ? 'Show cached lyrics' : (lyricsNotFound ? 'Lyrics not found' : 'Get lyrics'));
+        if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
+            this.updateBigLyricsAvailability();
+        }
     }
 
     /** @param {string} text */
