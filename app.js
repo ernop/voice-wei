@@ -302,6 +302,11 @@ class VoiceMusicController {
             }
             this.addPlaylistItemToDOM(playlistItem);
             addedCount++;
+
+            // Eagerly fetch lyrics for favorites too
+            if (playlistItem.lyricsStatus === 'idle') {
+                void this.ensureLyricsForItem(playlistItem);
+            }
         }
 
         this.updatePlaylistLabel();
@@ -2131,6 +2136,11 @@ If the request is not about music, return an empty array [].`;
                 addedCount++;
                 this.updatePlaylistLabel();
                 this.addMessage('claude', `Song ${i + 1}`, `Added to playlist`);
+
+                // Eagerly fetch lyrics -- no reason to wait for play
+                if (playlistItem.lyricsStatus === 'idle') {
+                    void this.ensureLyricsForItem(playlistItem);
+                }
             } catch (error) {
                 console.error(`Error searching for "${song.searchTerm}":`, error);
                 this.addMessage('error', `Song ${i + 1}`, `Error: ${error.message}`);
