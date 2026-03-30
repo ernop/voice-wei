@@ -395,6 +395,23 @@ class VoiceMusicController {
         this.addMessage('error', `Error: ${label}`, errorText);
     }
 
+    toggleLogPanel() {
+        const container = document.getElementById('logContainer');
+        const content = document.getElementById('logContent');
+        const toggleBtn = document.getElementById('logToggleBtn');
+        const selectBtn = document.getElementById('selectAllLogBtn');
+        const copyBtn = document.getElementById('copyAllLogBtn');
+        const clearBtn = document.getElementById('clearLogBtn');
+        if (!container || !content) return;
+
+        const isCollapsed = container.classList.toggle('collapsed');
+        content.style.display = isCollapsed ? 'none' : '';
+        if (toggleBtn) toggleBtn.textContent = isCollapsed ? 'Show' : 'Hide';
+        if (selectBtn) selectBtn.style.display = isCollapsed ? 'none' : '';
+        if (copyBtn) copyBtn.style.display = isCollapsed ? 'none' : '';
+        if (clearBtn) clearBtn.style.display = isCollapsed ? 'none' : '';
+    }
+
     clearLog() {
         const logContent = document.getElementById('logContent');
         if (logContent) {
@@ -1087,7 +1104,21 @@ class VoiceMusicController {
             });
         }
 
-        // Log buttons
+        // Log toggle: both button and header label
+        const logToggleBtn = document.getElementById('logToggleBtn');
+        if (logToggleBtn) {
+            logToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleLogPanel();
+            });
+        }
+        const logHeader = document.getElementById('logHeader');
+        if (logHeader) {
+            logHeader.addEventListener('click', () => {
+                this.toggleLogPanel();
+            });
+        }
+
         const clearLogBtn = document.getElementById('clearLogBtn');
         if (clearLogBtn) {
             clearLogBtn.addEventListener('click', () => {
@@ -2549,7 +2580,7 @@ If the request is not about music, return an empty array [].`;
 
     updateTransportPauseLabel() {
         const btn = document.getElementById('lyricsTransportPause');
-        if (btn) btn.textContent = (this.isPlaying && !this.isPaused) ? 'Pause' : 'Play';
+        if (btn) btn.innerHTML = (this.isPlaying && !this.isPaused) ? '&#9208;' : '&#9654;';
     }
 
     restartCurrentTrack() {
@@ -2567,11 +2598,11 @@ If the request is not about music, return an empty array [].`;
         if (this.isPlaying && !this.isPaused) {
             btn.textContent = '⏸';
             btn.setAttribute('aria-label', 'Pause');
-            if (transportBtn) transportBtn.textContent = 'Pause';
+            if (transportBtn) transportBtn.innerHTML = '&#9208;';
         } else {
             btn.textContent = '▶';
             btn.setAttribute('aria-label', 'Play');
-            if (transportBtn) transportBtn.textContent = 'Play';
+            if (transportBtn) transportBtn.innerHTML = '&#9654;';
         }
     }
 
@@ -2745,7 +2776,7 @@ If the request is not about music, return an empty array [].`;
             const maxVw = this.lyricsViewSettings.widthMode === 'wide' ? '96vw' : '74vw';
             const maxPx = this.lyricsViewSettings.widthMode === 'wide' ? '1200px' : '760px';
             const textAlign = this.lyricsViewSettings.align === 'left' ? 'left' : 'center';
-            const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.18' : '1.35';
+            const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.05' : '1.15';
             const backdrop = this.lyricsViewSettings.backdrop === 'blackout'
                 ? 'rgba(0, 0, 0, 0.985)'
                 : 'rgba(3, 8, 6, 0.96)';

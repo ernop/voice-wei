@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Voice-Wei: Voice-controlled music player">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=43">
+    <link rel="stylesheet" href="style.css?v=44">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -99,24 +99,6 @@
                     <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
                     <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
                 </div>
-                <div class="player-controls-secondary lyrics-control-row">
-                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Show or hide lyrics">Lyrics</button>
-                    <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Open large lyrics overlay">Big Lyrics</button>
-                </div>
-            </div>
-
-            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
-                <div class="lyrics-panel-header">
-                    <div class="lyrics-panel-title-group">
-                        <div class="lyrics-panel-label">Lyrics</div>
-                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
-                    </div>
-                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
-                </div>
-                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
-                <div class="lyrics-content" id="lyricsContent"></div>
             </div>
 
             <div class="status" id="status">Ready</div>
@@ -170,14 +152,34 @@
                 </table>
             </div>
 
-            <div class="log-container" id="logContainer">
-                <div class="log-header">
-                    <span class="log-label">Log</span>
-                    <button id="selectAllLogBtn" class="select-all-btn">Select All</button>
-                    <button id="copyAllLogBtn" class="copy-all-btn">Copy All</button>
-                    <button id="clearLogBtn" class="clear-log-btn">Clear</button>
+            <div class="lyrics-control-row">
+                <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
+                    aria-label="Show or hide lyrics">Lyrics</button>
+                <button id="lyricsOverlayBtn" class="control-btn-small lyrics-control-btn"
+                    aria-label="Open large lyrics overlay">Big Lyrics</button>
+            </div>
+
+            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
+                <div class="lyrics-panel-header">
+                    <div class="lyrics-panel-title-group">
+                        <div class="lyrics-panel-label">Lyrics</div>
+                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
+                    </div>
+                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
                 </div>
-                <div class="log-content" id="logContent"></div>
+                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
+                <div class="lyrics-content" id="lyricsContent"></div>
+            </div>
+
+            <div class="log-container collapsed" id="logContainer">
+                <div class="log-header" id="logHeader">
+                    <span class="log-label">Log</span>
+                    <button id="logToggleBtn" class="log-toggle-btn">Show</button>
+                    <button id="selectAllLogBtn" class="select-all-btn" style="display: none;">Select All</button>
+                    <button id="copyAllLogBtn" class="copy-all-btn" style="display: none;">Copy All</button>
+                    <button id="clearLogBtn" class="clear-log-btn" style="display: none;">Clear</button>
+                </div>
+                <div class="log-content" id="logContent" style="display: none;"></div>
             </div>
 
             <footer class="page-footer">
@@ -188,14 +190,13 @@
     </div>
 
     <div class="lyrics-overlay" id="lyricsOverlay" style="display: none;" aria-hidden="true">
-        <div class="lyrics-overlay-song-info">
-            <div class="lyrics-overlay-label">Big Lyrics</div>
+        <div class="lyrics-overlay-song-info" style="display: none;">
             <div class="lyrics-overlay-title" id="lyricsOverlayTitle">No song selected</div>
             <div class="lyrics-overlay-status" id="lyricsOverlayStatus">Play a song to load lyrics.</div>
         </div>
         <div class="lyrics-overlay-top-actions">
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlaySettingsBtn" aria-label="Lyrics settings">Config</button>
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlayCloseBtn" aria-label="Close large lyrics">Close</button>
+            <button class="lyrics-overlay-action-btn" id="lyricsOverlaySettingsBtn" aria-label="Lyrics settings">&#9881;</button>
+            <button class="lyrics-overlay-action-btn" id="lyricsOverlayCloseBtn" aria-label="Close large lyrics">&#10005;</button>
         </div>
         <div class="lyrics-overlay-config" id="lyricsOverlayConfig" style="display: none;">
             <div class="lyrics-overlay-config-card">
@@ -211,20 +212,20 @@
         </div>
         <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
         <div class="lyrics-overlay-transport">
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">Prev</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">Restart</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">Back</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">Pause</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">Fwd</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">Next</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">&#9198;</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">&#8635;</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">&#9194;</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">&#9208;</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">&#9193;</button>
+            <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">&#9197;</button>
         </div>
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="shared-header.js?v=43"></script>
-    <script src="voice-output.js?v=43"></script>
-    <script src="voice-command-core.js?v=43"></script>
-    <script src="app.js?v=43"></script>
+    <script src="shared-header.js?v=44"></script>
+    <script src="voice-output.js?v=44"></script>
+    <script src="voice-command-core.js?v=44"></script>
+    <script src="app.js?v=44"></script>
 </body>
 
 </html>
