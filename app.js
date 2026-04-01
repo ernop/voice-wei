@@ -2916,14 +2916,17 @@ If the request is not about music, return an empty array [].`;
 
         if (item.lyricsStatus === 'ready' && item.lyricsData) {
             const lyricsData = item.lyricsData;
+            const isSynced = lyricsData.syncedLines.length > 0;
             if (lyricsData.instrumental) {
                 this.updateLyricsStatus(item, 'Track appears to be instrumental.');
-            } else if (lyricsData.syncedLines.length > 0) {
+            } else if (isSynced) {
                 this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName} (synced)`);
             } else {
                 this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName}`);
             }
             this.renderLyricsLines(this.getRenderableLyricsLines(lyricsData));
+            const overlay = document.getElementById('lyricsOverlay');
+            if (overlay) overlay.classList.toggle('has-synced-lyrics', isSynced);
             return;
         }
 
@@ -2943,6 +2946,10 @@ If the request is not about music, return an empty array [].`;
      * @param {string[]} lines
      */
     renderLyricsLines(lines) {
+        if (lines.length === 0) {
+            const overlay = document.getElementById('lyricsOverlay');
+            if (overlay) overlay.classList.remove('has-synced-lyrics');
+        }
         const containerIds = ['lyricsContent', 'lyricsOverlayContent'];
         for (const containerId of containerIds) {
             const container = document.getElementById(containerId);
@@ -3348,13 +3355,17 @@ If the request is not about music, return an empty array [].`;
         const overlayOpen = document.body.classList.contains('lyrics-overlay-open');
         const selectors = ['#lyricsContent .lyrics-line', '#lyricsOverlayContent .lyrics-line'];
         for (const selector of selectors) {
+            const isOverlay = selector.includes('lyricsOverlayContent');
             document.querySelectorAll(selector).forEach((element, index) => {
                 const htmlElement = /** @type {HTMLElement} */ (element);
                 const isActive = index === activeIndex && activeIndex >= 0;
                 htmlElement.classList.toggle('is-active', isActive);
+                if (isOverlay) {
+                    htmlElement.classList.toggle('is-next', activeIndex >= 0 && index === activeIndex + 1);
+                }
                 const shouldScroll = overlayOpen
-                    ? selector.includes('lyricsOverlayContent')
-                    : selector.includes('lyricsContent');
+                    ? isOverlay
+                    : !isOverlay;
                 if (isActive && shouldScroll) {
                     const container = htmlElement.closest('.lyrics-overlay-content, .lyrics-content');
                     if (container) {

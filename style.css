@@ -1468,11 +1468,33 @@ h1 {
     text-align: var(--lyrics-overlay-text-align);
     font-weight: 700;
     text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+    transform: scale(1);
+    transform-origin: var(--lyrics-overlay-text-align, center) center;
 }
 
 .lyrics-overlay .lyrics-line.is-active {
     background: rgba(74, 222, 128, 0.22);
     box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.14) inset;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line {
+    opacity: 0.35;
+    transition: opacity 0.45s ease, background 0.4s ease, color 0.4s ease,
+                transform 0.45s ease, box-shadow 0.4s ease, text-shadow 0.4s ease;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-blank {
+    opacity: 0;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-next {
+    opacity: 0.55;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-active {
+    opacity: 1;
+    transform: scale(1.02);
+    text-shadow: 0 2px 20px rgba(74, 222, 128, 0.2), 0 2px 14px rgba(0, 0, 0, 0.5);
 }
 
 /* Desktop: compact voice controls - the big button is designed for driving (mobile) */
