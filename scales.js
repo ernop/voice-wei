@@ -1566,7 +1566,7 @@ class ScalesController {
 
             key.addEventListener('click', async () => {
                 await this.ensureAudioStarted();
-                this.playNote(`${note}${octave}`);
+                this.playNote(key.dataset.note);
             });
             pianoContainer.appendChild(key);
 
@@ -1581,7 +1581,7 @@ class ScalesController {
                 blackKey.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     await this.ensureAudioStarted();
-                    this.playNote(sharpNote);
+                    this.playNote(blackKey.dataset.note);
                 });
                 pianoContainer.appendChild(blackKey);
             }
@@ -3975,10 +3975,26 @@ class ScalesController {
     }
 
     addPianoHighlight(note) {
-        const key = document.querySelector(`.piano-key[data-note="${note}"]`);
+        let key = document.querySelector(`.piano-key[data-note="${note}"]`);
+        if (!key) {
+            key = this.findNearestPianoKey(note);
+        }
         if (key) {
             key.classList.add('active');
         }
+    }
+
+    findNearestPianoKey(note) {
+        const parsed = this.parseNoteString(note);
+        if (!parsed) return null;
+        const [noteName, octave] = parsed;
+        for (let offset = 1; offset <= 4; offset++) {
+            const above = document.querySelector(`.piano-key[data-note="${noteName}${octave + offset}"]`);
+            if (above) return above;
+            const below = document.querySelector(`.piano-key[data-note="${noteName}${octave - offset}"]`);
+            if (below) return below;
+        }
+        return null;
     }
 
     clearPianoHighlights() {
@@ -4048,13 +4064,33 @@ class ScalesController {
         const { degreesAscAll, rootNote } = degreesModel;
         const notesToHighlight = new Set(degreesAscAll);
 
-        // Highlight only the piano keys that will actually be played
+        // Collect piano key note values to detect out-of-range scale notes
+        const pianoNoteSet = new Set();
+        document.querySelectorAll('.piano-key').forEach(el => {
+            const n = /** @type {HTMLElement} */ (el).dataset.note;
+            if (n) pianoNoteSet.add(n);
+        });
+
+        // For scale notes that fall outside the piano range, collect their
+        // pitch class so we can highlight the nearest octave equivalent
+        const outOfRangePitchClasses = new Set();
+        for (const n of degreesAscAll) {
+            if (!pianoNoteSet.has(n)) {
+                outOfRangePitchClasses.add(this.stripOctave(n));
+            }
+        }
+        const rootPitchClass = this.stripOctave(rootNote);
+
         document.querySelectorAll('.piano-key').forEach(el => {
             const key = /** @type {HTMLElement} */ (el);
             const noteAttr = key.dataset.note;
-            if (!noteAttr || !notesToHighlight.has(noteAttr)) return;
+            if (!noteAttr) return;
 
-            if (noteAttr === rootNote) {
+            const exactMatch = notesToHighlight.has(noteAttr);
+            const fallbackMatch = !exactMatch && outOfRangePitchClasses.has(this.stripOctave(noteAttr));
+            if (!exactMatch && !fallbackMatch) return;
+
+            if (noteAttr === rootNote || this.stripOctave(noteAttr) === rootPitchClass) {
                 key.classList.add('scale-root');
             } else {
                 key.classList.add('scale-note');
