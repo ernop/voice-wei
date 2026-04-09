@@ -96,7 +96,7 @@ class AudioCoordinator {
     /**
      * Play a single note (does not affect sequence playback state)
      * @param {number} midi - MIDI note number
-     * @param {string} [duration]
+     * @param {string | number} [duration] - Tone.js time value (e.g. '8n', 0.3)
      */
     playNote(midi, duration = '8n') {
         this.enableAudio();
@@ -106,7 +106,7 @@ class AudioCoordinator {
     /**
      * Play a chord (multiple notes simultaneously)
      * @param {number[]} midiNotes - Array of MIDI note numbers
-     * @param {string} [duration]
+     * @param {string | number} [duration] - Tone.js time value (e.g. '2n', 0.5)
      */
     playChord(midiNotes, duration = '2n') {
         this.enableAudio();
@@ -2704,17 +2704,6 @@ class ScalesController {
     }
 
     /**
-     * Convert root note name + octave to MIDI.
-     * Used at input boundaries (voice commands, UI settings).
-     * @param {string} root - Note name like 'C', 'C#'
-     * @param {number} octave
-     * @returns {number} MIDI note number
-     */
-    rootToMidi(root, octave) {
-        return noteNameToMidi(root, octave);
-    }
-
-    /**
      * Transpose an array of MIDI notes by semitones.
      * @param {number[]} midiNotes
      * @param {number} semitones
@@ -2765,17 +2754,6 @@ class ScalesController {
             thirds: 'thirds'
         };
         return map[exercise] || exercise;
-    }
-
-    /**
-     * @param {string[]} a
-     * @param {string[]} b
-     */
-    concatWithoutDuplicate(a, b) {
-        if (!Array.isArray(a) || a.length === 0) return Array.isArray(b) ? b : [];
-        if (!Array.isArray(b) || b.length === 0) return a;
-        if (a[a.length - 1] === b[0]) return [...a, ...b.slice(1)];
-        return [...a, ...b];
     }
 
     /**
@@ -2919,8 +2897,12 @@ class ScalesController {
         if (intervals.length === 0) return [];
 
         const pc = midiPitchClass(midi);
-        const pitchClasses = intervals.map((_v, i) => midiPitchClass(ascendingScaleMidi[i < ascendingScaleMidi.length ? i : 0]));
-        const uniquePCs = [...new Set(pitchClasses)];
+        const uniquePCs = [];
+        const seen = new Set();
+        for (const m of ascendingScaleMidi) {
+            const p = midiPitchClass(m);
+            if (!seen.has(p)) { seen.add(p); uniquePCs.push(p); }
+        }
         const idx = uniquePCs.indexOf(pc);
         if (idx === -1) return [];
 
@@ -3105,7 +3087,7 @@ class ScalesController {
 
     /**
      * @param {number} midi - MIDI note number
-     * @param {string} [duration]
+     * @param {string | number} [duration]
      */
     playNote(midi, duration = '8n') {
         this.audio.playNote(midi, duration);
@@ -3279,7 +3261,7 @@ class ScalesController {
                         this.setPianoNotificationActiveNotes(chordMidi);
                         this.appendActuallyPlayedChord(chordMidi);
 
-                        this.audio.playChord(chordMidi, duration.tone + 's');
+                        this.audio.playChord(chordMidi, duration.tone);
                         await this.audio.sleep(duration.ms + duration.gap);
                     } else {
                         for (let i = 0; i < groupMidi.length; i++) {
@@ -3293,7 +3275,7 @@ class ScalesController {
                             this.setPianoNotificationActiveNotes([midi]);
                             this.appendActuallyPlayed(midi, isSection);
 
-                            this.audio.playNote(midi, duration.tone + 's');
+                            this.audio.playNote(midi, duration.tone);
                             await this.audio.sleep(duration.ms + duration.gap);
                         }
                     }
@@ -3396,7 +3378,7 @@ class ScalesController {
                     this.setPianoNotificationActiveNotes([midi]);
                     this.appendActuallyPlayed(midi, true);
 
-                    this.audio.playNote(midi, duration.tone + 's');
+                    this.audio.playNote(midi, duration.tone);
                     await this.audio.sleep(duration.ms + duration.gap);
                 }
 
