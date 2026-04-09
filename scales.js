@@ -11,13 +11,13 @@
 /**
  * @typedef {Object} PlaySequenceOptions
  * @property {(() => { ms: number, tone: number | string, gap: number })} [getDuration]
- * @property {((note: string, index: number, repeatIndex: number) => void)} [onNote]
+ * @property {((midi: number, index: number, repeatIndex: number) => void)} [onNote]
  * @property {((message: string) => void)} [onStatus]
  * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
  * @property {number} [repeatCount]
  * @property {number} [repeatGapMs]
  * @property {boolean} [seamlessRepeat]
- * @property {((repeatIndex: number) => string[])} [getNotesForRepeat]
+ * @property {((repeatIndex: number) => number[])} [getNotesForRepeat]
  */
 
 /**
@@ -95,22 +95,22 @@ class AudioCoordinator {
 
     /**
      * Play a single note (does not affect sequence playback state)
-     * @param {string} note
+     * @param {number} midi - MIDI note number
      * @param {string} [duration]
      */
-    playNote(note, duration = '8n') {
+    playNote(midi, duration = '8n') {
         this.enableAudio();
-        this.synth.triggerAttackRelease(note, duration);
+        this.synth.triggerAttackRelease(midiToPitchString(midi), duration);
     }
 
     /**
      * Play a chord (multiple notes simultaneously)
-     * @param {string[]} notes
+     * @param {number[]} midiNotes - Array of MIDI note numbers
      * @param {string} [duration]
      */
-    playChord(notes, duration = '2n') {
+    playChord(midiNotes, duration = '2n') {
         this.enableAudio();
-        this.synth.triggerAttackRelease(notes, duration);
+        this.synth.triggerAttackRelease(midiNotes.map(midiToPitchString), duration);
     }
 
     // Request to start a sequence - stops any existing playback first
@@ -132,20 +132,20 @@ class AudioCoordinator {
     }
 
     /**
-     * Play a sequence of notes with full control
-     * @param {string[]} notes
+     * Play a sequence of MIDI notes with full control
+     * @param {number[]} notes - Array of MIDI note numbers
      * @param {PlaySequenceOptions} [options]
      */
     async playSequence(notes, options = {}) {
         const {
-            getDuration,      // Function returning { ms, tone, gap } for current note
-            onNote,           // Callback(note, index, repeatIndex) called when each note plays
-            onStatus,         // Callback(message) for status updates
-            onRepeatEnd,      // Callback(nextRepeatIndex) called at end of each repeat
-            repeatCount = 1,  // Number of times to repeat (Infinity for forever)
-            repeatGapMs = 1500, // Gap between repeats
-            seamlessRepeat = false, // If true, no gap and skip first note on repeats (for up+down/down+up)
-            getNotesForRepeat = null // Optional (repeatIndex) => notes[] for this repeat
+            getDuration,
+            onNote,
+            onStatus,
+            onRepeatEnd,
+            repeatCount = 1,
+            repeatGapMs = 1500,
+            seamlessRepeat = false,
+            getNotesForRepeat = null
         } = options;
 
         const playId = this.requestSequencePlayback();
@@ -157,28 +157,23 @@ class AudioCoordinator {
             while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
                 const notesForRepeat = getNotesForRepeat ? getNotesForRepeat(r) : notes;
 
-                // For seamless repeat, skip first note on iterations after the first
-                // (it would duplicate the last note of previous iteration)
                 const startIndex = (seamlessRepeat && r > 0) ? 1 : 0;
 
-                // Play the sequence
                 for (let i = startIndex; i < notesForRepeat.length; i++) {
                     if (!this.isPlaybackValid(playId)) break;
 
                     const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
 
                     if (onNote) onNote(notesForRepeat[i], i, r);
-                    this.synth.triggerAttackRelease(notesForRepeat[i], duration.tone);
+                    this.synth.triggerAttackRelease(midiToPitchString(notesForRepeat[i]), duration.tone);
 
                     await this.sleep(duration.ms + duration.gap);
                 }
 
                 r++;
 
-                // Pause between repeats (honor gap setting even for seamless/round-trip modes)
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.isPlaybackValid(playId)) {
-                    // Notify that repeat ended (for display updates)
                     if (onRepeatEnd) onRepeatEnd(r);
 
                     if (repeatGapMs > 0) {
@@ -194,7 +189,6 @@ class AudioCoordinator {
                 }
             }
         } finally {
-            // Only clear isPlaying if we're still the current playback
             if (this.playbackId === playId) {
                 this.isPlaying = false;
             }
@@ -203,10 +197,10 @@ class AudioCoordinator {
 
     /**
      * Play a chord with repeat support
-     * @param {string[]} notes
+     * @param {number[]} midiNotes - Array of MIDI note numbers
      * @param {PlayChordSequenceOptions} [options]
      */
-    async playChordRepeated(notes, options = {}) {
+    async playChordRepeated(midiNotes, options = {}) {
         const {
             repeatCount = 1,
             onStatus,
@@ -219,7 +213,7 @@ class AudioCoordinator {
 
         try {
             while (this.isPlaybackValid(playId) && (isInfinite || r < repeatCount)) {
-                this.synth.triggerAttackRelease(notes, '2n');
+                this.synth.triggerAttackRelease(midiNotes.map(midiToPitchString), '2n');
                 r++;
 
                 const hasMore = isInfinite || r < repeatCount;
@@ -896,14 +890,14 @@ class ScalesController {
         this.setPianoNotificationActiveNotes([]);
     }
 
-    /** @param {string[]} notes */
-    setPianoNotificationActiveNotes(notes) {
+    /** @param {number[]} midiNotes */
+    setPianoNotificationActiveNotes(midiNotes) {
         if (!this.pianoNotificationNoteCells.length) return;
         for (let i = 0; i < this.pianoNotificationNoteCells.length; i++) {
-            const note = notes?.[i] || '';
+            const midi = midiNotes?.[i];
             const cell = this.pianoNotificationNoteCells[i];
-            cell.textContent = note;
-            cell.classList.toggle('empty', !note);
+            cell.textContent = midi !== undefined ? midiToPitchString(midi) : '';
+            cell.classList.toggle('empty', midi === undefined);
         }
     }
 
@@ -1554,34 +1548,33 @@ class ScalesController {
 
         keysToCreate.forEach(({ note, octaveOffset }) => {
             const octave = this.settings.octave + octaveOffset;
+            const midi = noteNameToMidi(note, octave);
             const key = document.createElement('div');
             key.className = 'piano-key white-key';
-            key.dataset.note = `${note}${octave}`;
+            key.dataset.midi = String(midi);
             key.dataset.baseNote = note;
             key.dataset.octaveOffset = String(octaveOffset);
 
-            // Show note name (and octave marker for C notes)
             const label = note === 'C' ? `C${octave}` : note;
             key.innerHTML = `<span>${label}</span>`;
 
             key.addEventListener('click', async () => {
                 await this.ensureAudioStarted();
-                this.playNote(key.dataset.note);
+                this.playNote(parseInt(key.dataset.midi));
             });
             pianoContainer.appendChild(key);
 
-            // Add black key after certain white keys (but not after B or the final C)
             if (blackKeyPositions[note] && !(note === 'C' && octaveOffset === 2)) {
                 const blackKey = document.createElement('div');
                 blackKey.className = 'piano-key black-key';
-                const sharpNote = `${note}#${octave}`;
-                blackKey.dataset.note = sharpNote;
+                const sharpMidi = midi + 1;
+                blackKey.dataset.midi = String(sharpMidi);
                 blackKey.dataset.baseNote = `${note}#`;
                 blackKey.dataset.octaveOffset = String(octaveOffset);
                 blackKey.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     await this.ensureAudioStarted();
-                    this.playNote(blackKey.dataset.note);
+                    this.playNote(parseInt(blackKey.dataset.midi));
                 });
                 pianoContainer.appendChild(blackKey);
             }
@@ -1593,17 +1586,15 @@ class ScalesController {
     }
 
     updatePianoKeyOctaves() {
-        // Update all piano key data-note attributes to use current base octave
         document.querySelectorAll('.piano-key').forEach(el => {
             const key = /** @type {HTMLElement} */ (el);
             const baseNote = key.dataset.baseNote;
             const octaveOffset = parseInt(key.dataset.octaveOffset || '0');
             const newOctave = this.settings.octave + octaveOffset;
+            const newMidi = noteNameToMidi(baseNote, newOctave);
 
-            // Update the data-note attribute
-            key.dataset.note = `${baseNote}${newOctave}`;
+            key.dataset.midi = String(newMidi);
 
-            // Update label for white keys (show octave number on C notes)
             if (key.classList.contains('white-key')) {
                 const noteName = baseNote.replace('#', '');
                 const label = noteName === 'C' ? `C${newOctave}` : noteName;
@@ -1612,7 +1603,6 @@ class ScalesController {
             }
         });
 
-        // Update scale preview to reflect new octave
         this.updateScalePreview();
     }
 
@@ -2465,13 +2455,15 @@ class ScalesController {
                 await this.playCurrentSettings();
                 return; // Don't store 'play' as last command
 
-            case 'note':
-                this.voiceCore.updateStatus(`Playing ${command.note}${command.octave}`);
+            case 'note': {
+                const noteMidi = noteNameToMidi(command.note, command.octave);
+                this.voiceCore.updateStatus(`Playing ${midiToPitchString(noteMidi)}`);
                 this.updatePianoNotificationCommand(command);
-                this.setPianoNotificationActiveNotes([`${command.note}${command.octave}`]);
-                this.playNote(`${command.note}${command.octave}`);
+                this.setPianoNotificationActiveNotes([noteMidi]);
+                this.playNote(noteMidi);
                 this.lastCommand = command;
                 break;
+            }
 
             case 'scale':
                 // Update settings from voice command (voice-first bidirectional sync)
@@ -2526,13 +2518,15 @@ class ScalesController {
                 this.lastCommand = command;
                 break;
 
-            case 'tuning':
+            case 'tuning': {
+                const tuningMidi = noteNameToMidi('A', 4);
                 this.voiceCore.updateStatus('Playing A440 tuning note');
                 this.updatePianoNotificationCommand(command);
-                this.setPianoNotificationActiveNotes(['A4']);
-                this.playNote('A4', '2n');
+                this.setPianoNotificationActiveNotes([tuningMidi]);
+                this.playNote(tuningMidi, '2n');
                 this.lastCommand = command;
                 break;
+            }
 
             case 'setting':
                 // Setting was already applied in parseCommand, now restart if we were playing
@@ -2710,45 +2704,25 @@ class ScalesController {
     }
 
     /**
-     * Convert "C#4" -> MIDI number (C4=60). Returns null if unparseable.
-     * @param {string | undefined} note
+     * Convert root note name + octave to MIDI.
+     * Used at input boundaries (voice commands, UI settings).
+     * @param {string} root - Note name like 'C', 'C#'
+     * @param {number} octave
+     * @returns {number} MIDI note number
      */
-    noteStringToMidi(note) {
-        if (!note) return null;
-        const match = note.match(/^([A-G]#?)(-?\d+)$/);
-        if (!match) return null;
-        const name = match[1];
-        const octave = parseInt(match[2]);
-        const noteIndex = NOTE_NAMES.indexOf(name);
-        if (noteIndex === -1) return null;
-        // MIDI: C-1 = 0, so C4 = 60
-        return (octave + 1) * 12 + noteIndex;
-    }
-
-    /** @param {number} midi */
-    midiToNoteString(midi) {
-        const noteIndex = ((midi % 12) + 12) % 12;
-        const octave = Math.floor(midi / 12) - 1;
-        return `${NOTE_NAMES[noteIndex]}${octave}`;
+    rootToMidi(root, octave) {
+        return noteNameToMidi(root, octave);
     }
 
     /**
-     * @param {string} note
+     * Transpose an array of MIDI notes by semitones.
+     * @param {number[]} midiNotes
      * @param {number} semitones
+     * @returns {number[]}
      */
-    transposeNote(note, semitones) {
-        const midi = this.noteStringToMidi(note);
-        if (midi === null) return note;
-        return this.midiToNoteString(midi + semitones);
-    }
-
-    /**
-     * @param {string[]} notes
-     * @param {number} semitones
-     */
-    transposeNotes(notes, semitones) {
-        if (!semitones) return notes;
-        return notes.map((/** @type {string} */ n) => this.transposeNote(n, semitones));
+    transposeMidi(midiNotes, semitones) {
+        if (!semitones) return midiNotes;
+        return midiNotes.map(m => m + semitones);
     }
 
     /** @param {number} semitones */
@@ -2804,18 +2778,28 @@ class ScalesController {
         return [...a, ...b];
     }
 
-    buildMovementSequence({ movementStyle, degreesAscAll, degreesFromRoot, rootNote, degreesAscendingRef, scaleType, turnIndex = -1, startsAscending = true }) {
+    /**
+     * Build movement groups from MIDI note arrays.
+     * All inputs and outputs are MIDI integers.
+     * @param {Object} params
+     * @param {string} params.movementStyle
+     * @param {number[]} params.degreesAscAll - Section notes in play order (MIDI)
+     * @param {number[]} params.degreesFromRoot
+     * @param {number} params.rootMidi
+     * @param {number[]} params.degreesAscendingRef - Ascending scale reference (MIDI)
+     * @param {string} params.scaleType
+     * @param {number} [params.turnIndex]
+     * @param {boolean} [params.startsAscending]
+     * @returns {{ groups: Array<{notes: number[], sectionIndex: number, isChord: boolean}>, notes: number[] }}
+     */
+    buildMovementSequence({ movementStyle, degreesAscAll, degreesFromRoot, rootMidi, degreesAscendingRef, scaleType, turnIndex = -1, startsAscending = true }) {
         const style = movementStyle || 'normal';
-        // Section notes: the order we play them (may be ascending or descending)
         const sectionNotes = degreesAscAll;
-        // Reference scale in ascending order (for finding notes above/below)
         const ascendingScale = degreesAscendingRef || degreesAscAll;
-        // Skip move notes on final section note (land cleanly on home)
         const lastIndex = sectionNotes.length - 1;
 
         let groups = [];
 
-        // Helper to create a group object with explicit metadata
         const makeGroup = (notes, sectionIndex, isChord = false) => ({
             notes,
             sectionIndex,
@@ -2823,44 +2807,37 @@ class ScalesController {
         });
 
         if (style === 'stop_and_go') {
-            // Each section note + 2 notes ABOVE it (always higher, regardless of direction)
-            // Skip extras on final note (land cleanly)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
+                const midi = sectionNotes[i];
                 if (i === lastIndex) {
-                    groups.push(makeGroup([note], 0));
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(note, ascendingScale, 2);
-                    groups.push(makeGroup([note, ...aboveNotes], 0));
+                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 2);
+                    groups.push(makeGroup([midi, ...aboveNotes], 0));
                 }
             }
         } else if (style === 'one_three_five') {
-            // Each section note + 3rd + 5th ABOVE (always higher)
-            // Skip extras on final note (land cleanly)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
+                const midi = sectionNotes[i];
                 if (i === lastIndex) {
-                    groups.push(makeGroup([note], 0));
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(note, ascendingScale, 4);
+                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 4);
                     const moveNotes = [];
-                    if (aboveNotes.length >= 2) moveNotes.push(aboveNotes[1]); // 3rd
-                    if (aboveNotes.length >= 4) moveNotes.push(aboveNotes[3]); // 5th
-                    groups.push(makeGroup([note, ...moveNotes], 0));
+                    if (aboveNotes.length >= 2) moveNotes.push(aboveNotes[1]);
+                    if (aboveNotes.length >= 4) moveNotes.push(aboveNotes[3]);
+                    groups.push(makeGroup([midi, ...moveNotes], 0));
                 }
             }
         } else if (style === 'neighbors') {
-            // Direction-aware: section note, with-direction, against-direction
-            // Skip extras on final note (land cleanly)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
+                const midi = sectionNotes[i];
                 if (i === lastIndex) {
-                    groups.push(makeGroup([note], 0));
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    const belowNotes = this.getNotesBelow(note, ascendingScale, 1);
-                    const aboveNotes = this.getNotesAbove(note, ascendingScale, 1);
+                    const belowNotes = this.getNotesBelow(midi, ascendingScale, 1);
+                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 1);
 
-                    // Determine if this note is in ascending or descending part
                     let isAscending;
                     if (turnIndex === -1) {
                         isAscending = startsAscending;
@@ -2876,188 +2853,166 @@ class ScalesController {
                         if (belowNotes.length > 0) moveNotes.push(belowNotes[0]);
                         if (aboveNotes.length > 0) moveNotes.push(aboveNotes[0]);
                     }
-                    groups.push(makeGroup([note, ...moveNotes], 0));
+                    groups.push(makeGroup([midi, ...moveNotes], 0));
                 }
             }
         } else if (style === 'from_one') {
-            // Root first, then section note - section note is LAST
-            // Skip extras on final note (land cleanly)
-            // Skip extras when section note IS the root (don't play root twice)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
-                if (i === lastIndex || note === rootNote) {
-                    // Final note or note is already the root - just the section note
-                    groups.push(makeGroup([note], 0));
+                const midi = sectionNotes[i];
+                if (i === lastIndex || midi === rootMidi) {
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    // [rootNote, sectionNote] - sectionIndex is 1 (last)
-                    groups.push(makeGroup([rootNote, note], 1));
+                    groups.push(makeGroup([rootMidi, midi], 1));
                 }
             }
         } else if (style === 'to_one') {
-            // Section note, then return to root - section note is FIRST (interleave-1)
-            // Skip root return on first note (it IS the root) and final note (clean landing)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
-                if (i === 0 || i === lastIndex || note === rootNote) {
-                    // First note, final note, or note is already root - just the section note
-                    groups.push(makeGroup([note], 0));
+                const midi = sectionNotes[i];
+                if (i === 0 || i === lastIndex || midi === rootMidi) {
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    // [sectionNote, rootNote] - sectionIndex is 0 (first)
-                    groups.push(makeGroup([note, rootNote], 0));
+                    groups.push(makeGroup([midi, rootMidi], 0));
                 }
             }
         } else if (style === 'plus_minus_one') {
-            // Dance around each note: section note, +1 above, -1 below
-            // Skip extras on final note (land cleanly)
             for (let i = 0; i < sectionNotes.length; i++) {
-                const note = sectionNotes[i];
+                const midi = sectionNotes[i];
                 if (i === lastIndex) {
-                    groups.push(makeGroup([note], 0));
+                    groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(note, ascendingScale, 1);
-                    const belowNotes = this.getNotesBelow(note, ascendingScale, 1);
-                    const moveNotes = [note];
+                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 1);
+                    const belowNotes = this.getNotesBelow(midi, ascendingScale, 1);
+                    const moveNotes = [midi];
                     if (aboveNotes.length > 0) moveNotes.push(aboveNotes[0]);
                     if (belowNotes.length > 0) moveNotes.push(belowNotes[0]);
                     groups.push(makeGroup(moveNotes, 0));
                 }
             }
         } else if (style === 'chords') {
-            // Each section note played as a chord (root + 3rd + 5th simultaneously)
-            // Chords always play full - the chord IS the note, not an "extra"
-            for (const note of sectionNotes) {
-                const third = this.getDiatonicInterval(note, 'third', scaleType);
-                const fifth = this.getDiatonicInterval(note, 'fifth', scaleType);
-                const chordNotes = [note];
-                if (third) chordNotes.push(third);
-                if (fifth) chordNotes.push(fifth);
+            for (const midi of sectionNotes) {
+                const third = this.getDiatonicInterval(midi, 'third', scaleType);
+                const fifth = this.getDiatonicInterval(midi, 'fifth', scaleType);
+                const chordNotes = [midi];
+                if (third !== null) chordNotes.push(third);
+                if (fifth !== null) chordNotes.push(fifth);
                 groups.push(makeGroup(chordNotes, 0, true));
             }
         } else {
-            // Normal: each section note individually
-            for (const note of sectionNotes) {
-                groups.push(makeGroup([note], 0));
+            for (const midi of sectionNotes) {
+                groups.push(makeGroup([midi], 0));
             }
         }
 
-        const notes = groups.flatMap(g => g.notes).filter(Boolean);
+        const notes = groups.flatMap(g => g.notes);
         return { groups, notes };
     }
 
-    // Get N notes above the given note in the scale (using semitone arithmetic)
-    getNotesAbove(note, ascendingScale, count) {
-        const scalePattern = this.getScalePattern(ascendingScale);
-        if (scalePattern.length === 0) return [];
+    /**
+     * Get N notes above a MIDI note in the given scale.
+     * @param {number} midi - Starting MIDI note
+     * @param {number[]} ascendingScaleMidi - Ascending scale as MIDI array
+     * @param {number} count
+     * @returns {number[]} MIDI notes above
+     */
+    getNotesAbove(midi, ascendingScaleMidi, count) {
+        const intervals = this.getScaleIntervalsFromMidi(ascendingScaleMidi);
+        if (intervals.length === 0) return [];
 
-        const parsed = this.parseNoteString(note);
-        if (!parsed) return [];
-        const [noteName, octave] = parsed;
-
-        const idx = scalePattern.indexOf(noteName);
+        const pc = midiPitchClass(midi);
+        const pitchClasses = intervals.map((_v, i) => midiPitchClass(ascendingScaleMidi[i < ascendingScaleMidi.length ? i : 0]));
+        const uniquePCs = [...new Set(pitchClasses)];
+        const idx = uniquePCs.indexOf(pc);
         if (idx === -1) return [];
 
-        // Build semitone intervals for the scale pattern
-        const intervals = this.getScaleIntervals(scalePattern);
-
         const result = [];
-        let midi = this.noteStringToMidi(note);
+        let current = midi;
         for (let i = 0; i < count; i++) {
-            const patternIdx = (idx + i) % scalePattern.length;
-            midi += intervals[patternIdx];
-            result.push(this.midiToNoteString(midi));
+            const patternIdx = (idx + i) % intervals.length;
+            current += intervals[patternIdx];
+            result.push(current);
         }
         return result;
     }
 
-    // Get N notes below the given note in the scale (using semitone arithmetic)
-    getNotesBelow(note, ascendingScale, count) {
-        const scalePattern = this.getScalePattern(ascendingScale);
-        if (scalePattern.length === 0) return [];
+    /**
+     * Get N notes below a MIDI note in the given scale.
+     * @param {number} midi - Starting MIDI note
+     * @param {number[]} ascendingScaleMidi - Ascending scale as MIDI array
+     * @param {number} count
+     * @returns {number[]} MIDI notes below
+     */
+    getNotesBelow(midi, ascendingScaleMidi, count) {
+        const intervals = this.getScaleIntervalsFromMidi(ascendingScaleMidi);
+        if (intervals.length === 0) return [];
 
-        const parsed = this.parseNoteString(note);
-        if (!parsed) return [];
-        const [noteName, octave] = parsed;
-
-        const idx = scalePattern.indexOf(noteName);
+        const pc = midiPitchClass(midi);
+        const uniquePCs = [];
+        const seen = new Set();
+        for (const m of ascendingScaleMidi) {
+            const p = midiPitchClass(m);
+            if (!seen.has(p)) { seen.add(p); uniquePCs.push(p); }
+        }
+        const idx = uniquePCs.indexOf(pc);
         if (idx === -1) return [];
 
-        // Build semitone intervals for the scale pattern
-        const intervals = this.getScaleIntervals(scalePattern);
-
         const result = [];
-        let midi = this.noteStringToMidi(note);
+        let current = midi;
         for (let i = 0; i < count; i++) {
-            // Going backwards: use interval of previous note
-            const patternIdx = (idx - i - 1 + scalePattern.length) % scalePattern.length;
-            midi -= intervals[patternIdx];
-            result.push(this.midiToNoteString(midi));
+            const patternIdx = (idx - i - 1 + intervals.length) % intervals.length;
+            current -= intervals[patternIdx];
+            result.push(current);
         }
         return result;
     }
 
-    // Calculate semitone intervals between consecutive notes in pattern
-    getScaleIntervals(scalePattern) {
+    /**
+     * Calculate semitone intervals between consecutive unique pitch classes in a MIDI scale.
+     * @param {number[]} ascendingScaleMidi
+     * @returns {number[]}
+     */
+    getScaleIntervalsFromMidi(ascendingScaleMidi) {
+        const uniquePCs = [];
+        const seen = new Set();
+        for (const m of ascendingScaleMidi) {
+            const pc = midiPitchClass(m);
+            if (!seen.has(pc)) { seen.add(pc); uniquePCs.push(pc); }
+        }
+        if (uniquePCs.length === 0) return [];
         const intervals = [];
-        for (let i = 0; i < scalePattern.length; i++) {
-            const current = NOTE_NAMES.indexOf(scalePattern[i]);
-            const next = NOTE_NAMES.indexOf(scalePattern[(i + 1) % scalePattern.length]);
+        for (let i = 0; i < uniquePCs.length; i++) {
+            const current = uniquePCs[i];
+            const next = uniquePCs[(i + 1) % uniquePCs.length];
             let interval = next - current;
-            if (interval <= 0) interval += 12; // wrap around octave
+            if (interval <= 0) interval += 12;
             intervals.push(interval);
         }
         return intervals;
     }
 
-    // Extract unique note names from a scale (preserving order of first occurrence)
-    getScalePattern(ascendingScale) {
-        const seen = new Set();
-        const pattern = [];
-        for (const note of ascendingScale) {
-            const parsed = this.parseNoteString(note);
-            if (parsed && !seen.has(parsed[0])) {
-                seen.add(parsed[0]);
-                pattern.push(parsed[0]);
-            }
-        }
-        return pattern;
-    }
-
-    // Parse "B4" into ["B", 4] or "C#5" into ["C#", 5]
-    parseNoteString(note) {
-        const match = note.match(/^([A-Ga-g][#b]?)(\d+)$/);
-        if (!match) return null;
-        return [match[1].toUpperCase(), parseInt(match[2], 10)];
-    }
-
     /**
-     * Get a diatonic interval (3rd or 5th) above a note.
-     * For diatonic scales: uses scale's natural intervals
-     * For chromatic/other: uses major scale intervals (4 semitones = 3rd, 7 = 5th)
+     * Get a diatonic interval (3rd or 5th) above a MIDI note.
+     * @param {number} midi
+     * @param {string} intervalName - 'third' or 'fifth'
+     * @param {string} scaleType
+     * @returns {number | null} MIDI note, or null if invalid interval name
      */
-    getDiatonicInterval(note, intervalName, scaleType) {
-        const noteMidi = this.noteStringToMidi(note);
-        if (noteMidi === null) return null;
-
-        // Determine semitone offset based on scale type and interval
+    getDiatonicInterval(midi, intervalName, scaleType) {
         let semitones;
         if (intervalName === 'third') {
-            // Minor scales use minor 3rd (3 semitones), major uses major 3rd (4)
             if (scaleType === 'minor' || scaleType === 'natural_minor' ||
                 scaleType === 'harmonic_minor' || scaleType === 'melodic_minor' ||
                 scaleType === 'dorian' || scaleType === 'phrygian' || scaleType === 'aeolian') {
-                semitones = 3; // minor 3rd
+                semitones = 3;
             } else {
-                semitones = 4; // major 3rd (default for major, chromatic, etc.)
+                semitones = 4;
             }
         } else if (intervalName === 'fifth') {
-            // Most scales use perfect 5th (7 semitones)
-            // Locrian has diminished 5th, but we'll use perfect 5th for simplicity
             semitones = 7;
         } else {
             return null;
         }
 
-        return this.transposeNote(note, semitones);
+        return midi + semitones;
     }
 
     /**
@@ -3103,23 +3058,19 @@ class ScalesController {
     }
 
     /**
-     * Format the status display for current note
+     * Format the status display for current note (MIDI).
      * Shows: "command set | current note [interval]"
-     * @param {string} note
+     * @param {number} midi
      * @param {number} index
      * @param {Object} context
      */
-    formatNoteStatus(note, index, context) {
-        // Extract note name without octave for display
-        const noteName = note.replace(/\d+$/, '');
-        const octave = note.match(/\d+$/)?.[0] || '';
+    formatNoteStatus(midi, index, context) {
+        const pitchStr = midiToPitchString(midi);
 
-        // Get the command set prefix
         const commandSet = this.formatCurrentCommand();
 
         if (!context.type) {
-            // No context, just show command set and note
-            return `${commandSet} | ${noteName}${octave}`;
+            return `${commandSet} | ${pitchStr}`;
         }
 
         let intervalInfo = '';
@@ -3128,14 +3079,10 @@ class ScalesController {
             if (context.rootMidi !== undefined && context.rootMidi !== null) {
                 const repeatIndex = context.repeatIndex || 0;
                 const risingSemitones = context.risingSemitones || 0;
-                const noteMidi = this.noteStringToMidi(note);
                 const repeatRootMidi = context.rootMidi + (repeatIndex * risingSemitones);
-                if (noteMidi !== null) {
-                    intervalInfo = this.getIntervalName(noteMidi - repeatRootMidi, context.scaleType);
-                }
+                intervalInfo = this.getIntervalName(midi - repeatRootMidi, context.scaleType);
             } else {
                 const pattern = context.pattern || [];
-                // Handle direction changes - find the interval for this position
                 if (context.intervals && context.intervals[index] !== undefined) {
                     intervalInfo = this.getIntervalName(context.intervals[index], context.scaleType);
                 } else if (pattern[index] !== undefined) {
@@ -3150,19 +3097,18 @@ class ScalesController {
             intervalInfo = index === 0 ? 'root' : context.intervalName || '';
         }
 
-        // Format: "C major | F#4 [5th]"
         if (intervalInfo) {
-            return `${commandSet} | ${noteName}${octave} [${intervalInfo}]`;
+            return `${commandSet} | ${pitchStr} [${intervalInfo}]`;
         }
-        return `${commandSet} | ${noteName}${octave}`;
+        return `${commandSet} | ${pitchStr}`;
     }
 
     /**
-     * @param {string} note
+     * @param {number} midi - MIDI note number
      * @param {string} [duration]
      */
-    playNote(note, duration = '8n') {
-        this.audio.playNote(note, duration);
+    playNote(midi, duration = '8n') {
+        this.audio.playNote(midi, duration);
     }
 
     /**
@@ -3214,82 +3160,62 @@ class ScalesController {
      * @param {ScaleModifiers} [modifiers]
      */
     async playScale(root, scaleType, modifiers = {}) {
-        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return;
+        const rootMidi = noteNameToMidi(root, this.settings.octave);
+        if (rootMidi === null) return;
 
-        // Calculate semitone range based on section length
+        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const sectionLength = this.settings.sectionLength || '1o';
         const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength);
-
-        // Get all scale degrees within the section range
         const fullPattern = this.getScaleDegreesInRange(basePattern, minSemitone, maxSemitone);
-
-        const degreesAscAll = fullPattern.map(interval => {
-            const noteIndex = ((rootIndex + interval) % 12 + 12) % 12; // Handle negative intervals
-            const octaveOffset = Math.floor((rootIndex + interval) / 12);
-            return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
-        });
+        const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
 
         const movementStyle = modifiers.movementStyle ?? this.settings.movementStyle;
 
-        // Root note (at selected octave) for "from 1" style and for interval naming
-        const rootNote = `${root}${this.settings.octave}`;
-        const rootMidi = this.noteStringToMidi(rootNote);
-
-        // Check for exercise mode
         const exercise = modifiers.exercise ?? this.settings.exercise;
         const shiftingSteps = modifiers.shiftingSteps ?? this.settings.shiftingSteps;
         const exercisePattern = this.exercisePatterns[exercise];
 
-        // If we have an exercise pattern with shifting, use the specialized player
         if (exercisePattern && exercisePattern.length > 0) {
             await this.playExercise(root, scaleType, exercisePattern, modifiers, {
                 degreesAscAll,
-                rootNote,
                 rootMidi,
-                rootIndex,
                 fullPattern,
                 shiftingSteps
             });
             return;
         }
 
-        // STEP 1: Determine section notes based on direction (with deduplication at turn points)
         const direction = modifiers.direction || this.settings.direction;
         const ascending = degreesAscAll;
         const descending = [...degreesAscAll].reverse();
 
         let sectionNotes;
-        let turnIndex = -1; // Index where direction changes (-1 = no change)
+        let turnIndex = -1;
         let startsAscending = true;
 
         if (direction === 'descending') {
             sectionNotes = descending;
             startsAscending = false;
         } else if (direction === 'both') {
-            // up+down: remove duplicate at top (last of ascending = first of descending)
             sectionNotes = [...ascending, ...descending.slice(1)];
-            turnIndex = ascending.length - 1; // Last ascending note is the turn point
+            turnIndex = ascending.length - 1;
             startsAscending = true;
         } else if (direction === 'down_and_up') {
-            // down+up: remove duplicate at bottom (last of descending = first of ascending)
             sectionNotes = [...descending, ...ascending.slice(1)];
-            turnIndex = descending.length - 1; // Last descending note is the turn point
+            turnIndex = descending.length - 1;
             startsAscending = false;
         } else {
             sectionNotes = ascending;
             startsAscending = true;
         }
 
-        // STEP 2: Apply movement pattern to the unified section notes
-        const rootIndexInSection = sectionNotes.indexOf(rootNote);
+        const rootIndexInSection = sectionNotes.indexOf(rootMidi);
         const movementResult = this.buildMovementSequence({
             movementStyle,
             degreesAscAll: sectionNotes,
             degreesFromRoot: rootIndexInSection >= 0 ? sectionNotes.slice(rootIndexInSection) : sectionNotes,
-            rootNote,
-            degreesAscendingRef: degreesAscAll,  // Always use ascending scale for finding above/below
+            rootMidi,
+            degreesAscendingRef: degreesAscAll,
             scaleType,
             turnIndex,
             startsAscending
@@ -3307,7 +3233,6 @@ class ScalesController {
             movementStyle
         };
 
-        // For movement styles with phrase structure, use group-based playback
         if (movementStyle !== 'normal' && allGroups.length > 1) {
             await this.playGroupSequence(allGroups, modifiers, context);
         } else {
@@ -3315,18 +3240,17 @@ class ScalesController {
         }
     }
 
-    // Play a sequence organized into groups (phrases) with gaps between them
+    /**
+     * Play a sequence organized into groups (phrases) with gaps between them.
+     * All note arrays are MIDI integers.
+     */
     async playGroupSequence(groups, modifiers = {}, context = {}) {
         this.clearScalePreview();
         this.clearActuallyPlayed();
-        this.updatePatternPreview(0); // Show initial sequence
+        this.updatePatternPreview(0);
 
-        const movementStyle = context.movementStyle || 'normal';
-
-        // All movement styles use normal note-to-note timing - no extra gaps
         const phraseGap = 'note';
 
-        // Repeat and rising settings
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
         const isInfinite = playTimes === Infinity;
@@ -3340,53 +3264,44 @@ class ScalesController {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
                 const transpose = risingSemitones * r;
 
-                // Play each group (phrase)
                 for (let g = 0; g < groups.length; g++) {
                     if (!this.audio.isPlaybackValid(playId)) break;
 
                     const group = groups[g];
                     const duration = this.getNoteDuration(modifiers);
-                    const { notes: groupNotes, sectionIndex, isChord } = group;
+                    const { notes: groupMidi, sectionIndex, isChord } = group;
 
                     if (isChord) {
-                        // Play all notes in group simultaneously as a chord
-                        const chordNotes = groupNotes.map(n => transpose > 0 ? this.transposeNote(n, transpose) : n);
+                        const chordMidi = transpose > 0 ? groupMidi.map(m => m + transpose) : groupMidi;
 
-                        this.highlightPianoKeys(chordNotes);
-                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${chordNotes.join('+')}`);
-                        this.setPianoNotificationActiveNotes(chordNotes);
-                        this.appendActuallyPlayedChord(chordNotes);
+                        this.highlightPianoKeys(chordMidi);
+                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${chordMidi.map(midiToPitchString).join('+')}`);
+                        this.setPianoNotificationActiveNotes(chordMidi);
+                        this.appendActuallyPlayedChord(chordMidi);
 
-                        // Play all notes at once
-                        chordNotes.forEach(note => {
-                            this.audio.synth.triggerAttackRelease(note, duration.tone);
-                        });
+                        this.audio.playChord(chordMidi, duration.tone + 's');
                         await this.audio.sleep(duration.ms + duration.gap);
                     } else {
-                        // Play notes in this group sequentially
-                        for (let i = 0; i < groupNotes.length; i++) {
+                        for (let i = 0; i < groupMidi.length; i++) {
                             if (!this.audio.isPlaybackValid(playId)) break;
 
-                            const baseNote = groupNotes[i];
-                            const note = transpose > 0 ? this.transposeNote(baseNote, transpose) : baseNote;
-                            // Use explicit sectionIndex - no guessing by style name
+                            const midi = transpose > 0 ? groupMidi[i] + transpose : groupMidi[i];
                             const isSection = (i === sectionIndex);
 
-                            this.highlightPianoKey(note);
-                            this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${note}`);
-                            this.setPianoNotificationActiveNotes([note]);
-                            this.appendActuallyPlayed(note, isSection);
+                            this.highlightPianoKey(midi);
+                            this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${midiToPitchString(midi)}`);
+                            this.setPianoNotificationActiveNotes([midi]);
+                            this.appendActuallyPlayed(midi, isSection);
 
-                            this.audio.synth.triggerAttackRelease(note, duration.tone);
+                            this.audio.playNote(midi, duration.tone + 's');
                             await this.audio.sleep(duration.ms + duration.gap);
                         }
                     }
 
-                    // Gap between groups (not after the last one)
                     const isLastGroup = g === groups.length - 1;
                     if (!isLastGroup) {
                         if (phraseGap === 'note') {
-                            // stop_and_go: no extra gap, just flows like notes
+                            // no extra gap
                         } else if (phraseGap > 0) {
                             await this.audio.sleep(phraseGap);
                         }
@@ -3395,20 +3310,15 @@ class ScalesController {
 
                 r++;
 
-                // Gap between repetitions (only after entire section finishes)
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
-                    // Clear played display and refresh sequence for next section
-                    // Pass the next transpose amount so sequence preview shows upcoming notes
                     const nextTranspose = risingSemitones * r;
                     this.clearActuallyPlayed();
                     this.updatePatternPreview(nextTranspose);
 
                     if (risingSemitones === 0) {
-                        // No rising: gap between identical repeats
                         await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
                     }
-                    // With rising: no gap, flows to next transposition
                 }
             }
         } finally {
@@ -3424,38 +3334,26 @@ class ScalesController {
     }
 
     /**
-     * Play an exercise pattern with optional shifting
-     * @param {string} root - Root note name
-     * @param {string} scaleType - Scale type
-     * @param {number[]} exercisePattern - Array of scale degree offsets (0=root, 1=2nd, 2=3rd, etc.)
-     * @param {ScaleModifiers} modifiers
-     * @param {Object} context - Pre-computed scale context
+     * Play an exercise pattern with optional shifting. All notes are MIDI.
      */
     async playExercise(root, scaleType, exercisePattern, modifiers, context) {
-        const { degreesAscAll, rootNote, rootMidi, shiftingSteps } = context;
+        const { degreesAscAll, rootMidi, shiftingSteps } = context;
 
         this.clearScalePreview();
         this.clearActuallyPlayed();
 
-        // Build an extended scale (2+ octaves) to support shifting
         const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-        const rootIndex = NOTE_NAMES.indexOf(root);
         const extendedScale = [];
 
-        // Build 3 octaves of scale notes for shifting room
+        // Build 3 octaves of scale MIDI notes for shifting room
         for (let octaveShift = 0; octaveShift < 3; octaveShift++) {
-            for (const interval of basePattern.slice(0, -1)) { // Exclude the octave duplicate
-                const noteIndex = (rootIndex + interval) % 12;
-                const octave = this.settings.octave + octaveShift + Math.floor((rootIndex + interval) / 12);
-                extendedScale.push(`${NOTE_NAMES[noteIndex]}${octave}`);
+            for (const interval of basePattern.slice(0, -1)) {
+                extendedScale.push(rootMidi + interval + octaveShift * 12);
             }
         }
-        // Add final note
         const lastInterval = basePattern[basePattern.length - 1] || 12;
-        const lastOctaveShift = 2;
-        extendedScale.push(`${NOTE_NAMES[(rootIndex + lastInterval) % 12]}${this.settings.octave + lastOctaveShift + Math.floor((rootIndex + lastInterval) / 12)}`);
+        extendedScale.push(rootMidi + lastInterval + 2 * 12);
 
-        // Repeat settings
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
         const isInfinite = playTimes === Infinity;
@@ -3464,7 +3362,6 @@ class ScalesController {
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
 
-        // Get exercise label for display
         const exerciseLabels = {
             'five_note': '5-note',
             'octave_jump': 'oct jump',
@@ -3475,10 +3372,8 @@ class ScalesController {
 
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                // Calculate starting index in the extended scale based on shift
                 const startingDegree = shiftingSteps * r;
 
-                // Build notes for this iteration by applying pattern from starting degree
                 const notes = [];
                 for (const offset of exercisePattern) {
                     const scaleIndex = startingDegree + offset;
@@ -3487,44 +3382,33 @@ class ScalesController {
                     }
                 }
 
-                if (notes.length === 0) {
-                    // Ran out of scale - stop
-                    break;
-                }
+                if (notes.length === 0) break;
 
-                // Calculate current root for interval display
-                const currentRootNote = extendedScale[startingDegree] || rootNote;
-                const currentRootMidi = this.noteStringToMidi(currentRootNote);
-
-                // Play each note
                 for (let i = 0; i < notes.length; i++) {
                     if (!this.audio.isPlaybackValid(playId)) break;
 
-                    const note = notes[i];
+                    const midi = notes[i];
                     const duration = this.getNoteDuration(modifiers);
 
-                    this.highlightPianoKey(note);
+                    this.highlightPianoKey(midi);
                     const shiftLabel = shiftingSteps > 0 ? ` (shift ${r + 1})` : '';
-                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${note}`);
-                    this.setPianoNotificationActiveNotes([note]);
-                    this.appendActuallyPlayed(note, true);
+                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${midiToPitchString(midi)}`);
+                    this.setPianoNotificationActiveNotes([midi]);
+                    this.appendActuallyPlayed(midi, true);
 
-                    this.audio.synth.triggerAttackRelease(note, duration.tone);
+                    this.audio.playNote(midi, duration.tone + 's');
                     await this.audio.sleep(duration.ms + duration.gap);
                 }
 
                 r++;
 
-                // Gap between repetitions
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
                     this.clearActuallyPlayed();
 
                     if (shiftingSteps === 0) {
-                        // No shifting: gap between identical repeats
                         await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
                     } else {
-                        // With shifting: brief gap to indicate new starting note
                         await this.audio.sleep(300);
                     }
                 }
@@ -3542,19 +3426,11 @@ class ScalesController {
     }
 
     async playArpeggio(root, quality, modifiers = {}) {
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return;
+        const rootMidi = noteNameToMidi(root, this.settings.octave);
+        if (rootMidi === null) return;
 
-        // Major: 0, 4, 7, 12 | Minor: 0, 3, 7, 12
         const arpIntervals = quality === 'minor' ? [0, 3, 7, 12] : [0, 4, 7, 12];
-
-        let notes = arpIntervals.map(interval => {
-            const noteIndex = (rootIndex + interval) % 12;
-            const octaveOffset = Math.floor((rootIndex + interval) / 12);
-            return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
-        });
-
-        // Track position indices for interval names (0=root, 1=3rd, 2=5th, 3=octave)
+        let notes = arpIntervals.map(interval => rootMidi + interval);
         let intervals = [0, 1, 2, 3];
 
         const direction = modifiers.direction || this.settings.direction;
@@ -3562,21 +3438,15 @@ class ScalesController {
             notes = notes.reverse();
             intervals = intervals.reverse();
         } else if (direction === 'both') {
-            // Up and down: ascending then descending
             const ascending = [...notes];
             const descending = [...notes].reverse().slice(1);
             notes = [...ascending, ...descending];
-            const ascIntervals = [...intervals];
-            const descIntervals = [...intervals].reverse().slice(1);
-            intervals = [...ascIntervals, ...descIntervals];
+            intervals = [...intervals, ...[...intervals].reverse().slice(1)];
         } else if (direction === 'down_and_up') {
-            // Down and up: descending then ascending
             const descending = [...notes].reverse();
             const ascending = [...notes].slice(1);
             notes = [...descending, ...ascending];
-            const descIntervals = [...intervals].reverse();
-            const ascIntervals = [...intervals].slice(1);
-            intervals = [...descIntervals, ...ascIntervals];
+            intervals = [...[...intervals].reverse(), ...[...intervals].slice(1)];
         }
 
         const context = {
@@ -3590,20 +3460,15 @@ class ScalesController {
     }
 
     async playChord(root, quality, modifiers = {}) {
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return;
+        const rootMidi = noteNameToMidi(root, this.settings.octave);
+        if (rootMidi === null) return;
 
-        // Major: root, major third, perfect fifth | Minor: root, minor third, perfect fifth
         const intervals = quality === 'minor' ? [0, 3, 7] : [0, 4, 7];
-
-        const notes = intervals.map(interval => {
-            const noteIndex = (rootIndex + interval) % 12;
-            return `${NOTE_NAMES[noteIndex]}${this.settings.octave}`;
-        });
+        const midiNotes = intervals.map(interval => rootMidi + interval);
 
         const repeatCount = modifiers.repeat || 1;
-        this.setPianoNotificationActiveNotes(notes);
-        await this.audio.playChordRepeated(notes, {
+        this.setPianoNotificationActiveNotes(midiNotes);
+        await this.audio.playChordRepeated(midiNotes, {
             repeatCount,
             onStatus: (message) => this.voiceCore.updateStatus(message),
             gapMs: 2000
@@ -3612,8 +3477,8 @@ class ScalesController {
     }
 
     async playInterval(root, interval, quality, modifiers = {}) {
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return;
+        const rootMidi = noteNameToMidi(root, this.settings.octave);
+        if (rootMidi === null) return;
 
         const intervalMap = {
             'unison': 0,
@@ -3627,13 +3492,9 @@ class ScalesController {
         };
 
         const semitones = intervalMap[interval] || 0;
-        const secondNoteIndex = (rootIndex + semitones) % 12;
-        const octaveOffset = Math.floor((rootIndex + semitones) / 12);
+        const midi1 = rootMidi;
+        const midi2 = rootMidi + semitones;
 
-        const note1 = `${root}${this.settings.octave}`;
-        const note2 = `${NOTE_NAMES[secondNoteIndex]}${this.settings.octave + octaveOffset}`;
-
-        // Format interval name for display
         const qualityPrefix = quality ? `${quality} ` : '';
         const intervalName = `${qualityPrefix}${interval}`;
 
@@ -3645,27 +3506,28 @@ class ScalesController {
             intervalName
         };
 
-        await this.playSequence([note1, note2], modifiers, context);
+        await this.playSequence([midi1, midi2], modifiers, context);
     }
 
+    /**
+     * Play a sequence of MIDI notes with repeat/rising support.
+     * @param {number[]} notes - MIDI note array
+     */
     async playSequence(notes, modifiers = {}, context = {}) {
-        this.clearScalePreview();  // Hide scale preview while playing
+        this.clearScalePreview();
         this.clearActuallyPlayed();
-        this.updatePatternPreview(0); // Show initial sequence
+        this.updatePatternPreview(0);
 
-        // Repeat count from settings (voice command can override via modifiers)
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : repeatCount;
         const isInfinite = repeatCount === Infinity;
 
-        // Rising (transpose each repeat upward by N semitones)
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
         const getNotesForRepeat = risingSemitones > 0
-            ? (repeatIndex) => this.transposeNotes(notes, repeatIndex * risingSemitones)
+            ? (repeatIndex) => this.transposeMidi(notes, repeatIndex * risingSemitones)
             : null;
 
-        // For up+down or down+up with repeat, use seamless repeat (no gap, skip duplicate root)
         const direction = modifiers.direction || this.settings.direction;
         const isRoundTrip = direction === 'both' || direction === 'down_and_up';
         const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0;
@@ -3677,19 +3539,18 @@ class ScalesController {
 
         await this.audio.playSequence(notes, {
             getDuration: () => this.getNoteDuration(modifiers),
-            onNote: (note, index, repeatIndex) => {
-                this.highlightPianoKey(note);
-                const noteDisplay = this.formatNoteStatus(note, index, { ...mergedContext, repeatIndex });
+            onNote: (midi, index, repeatIndex) => {
+                this.highlightPianoKey(midi);
+                const noteDisplay = this.formatNoteStatus(midi, index, { ...mergedContext, repeatIndex });
                 this.voiceCore.updateStatus(noteDisplay);
-                this.setPianoNotificationActiveNotes([note]);
-                this.appendActuallyPlayed(note, true); // All notes are section notes in normal mode
+                this.setPianoNotificationActiveNotes([midi]);
+                this.appendActuallyPlayed(midi, true);
             },
             onStatus: (message) => {
                 this.clearPianoHighlights();
                 this.voiceCore.updateStatus(message);
             },
             onRepeatEnd: (nextRepeatIndex) => {
-                // Clear played display and show next transposed sequence
                 const nextTranspose = risingSemitones * nextRepeatIndex;
                 this.clearActuallyPlayed();
                 this.updatePatternPreview(nextTranspose);
@@ -3963,38 +3824,49 @@ class ScalesController {
         return div.innerHTML;
     }
 
-    highlightPianoKey(note) {
+    /**
+     * Highlight a single piano key by MIDI number.
+     * @param {number} midi
+     */
+    highlightPianoKey(midi) {
         this.clearPianoHighlights();
-        this.addPianoHighlight(note);
+        this.addPianoHighlight(midi);
     }
 
-    // Highlight multiple notes at once (for chords)
-    highlightPianoKeys(notes) {
+    /**
+     * Highlight multiple piano keys by MIDI numbers (for chords).
+     * @param {number[]} midiNotes
+     */
+    highlightPianoKeys(midiNotes) {
         this.clearPianoHighlights();
-        notes.forEach(note => this.addPianoHighlight(note));
+        midiNotes.forEach(m => this.addPianoHighlight(m));
     }
 
-    addPianoHighlight(note) {
-        let key = document.querySelector(`.piano-key[data-note="${note}"]`);
+    /**
+     * Add highlight to the piano key matching this MIDI note.
+     * If the exact MIDI is off-keyboard, highlights the same pitch class
+     * at the nearest octave that exists on the keyboard.
+     * @param {number} midi
+     */
+    addPianoHighlight(midi) {
+        let key = document.querySelector(`.piano-key[data-midi="${midi}"]`);
         if (!key) {
-            key = this.findNearestPianoKey(note);
+            const pc = midiPitchClass(midi);
+            let bestKey = null;
+            let bestDist = Infinity;
+            document.querySelectorAll('.piano-key').forEach(el => {
+                const k = /** @type {HTMLElement} */ (el);
+                const km = parseInt(k.dataset.midi);
+                if (midiPitchClass(km) === pc) {
+                    const dist = Math.abs(km - midi);
+                    if (dist < bestDist) { bestDist = dist; bestKey = k; }
+                }
+            });
+            key = bestKey;
         }
         if (key) {
             key.classList.add('active');
         }
-    }
-
-    findNearestPianoKey(note) {
-        const parsed = this.parseNoteString(note);
-        if (!parsed) return null;
-        const [noteName, octave] = parsed;
-        for (let offset = 1; offset <= 4; offset++) {
-            const above = document.querySelector(`.piano-key[data-note="${noteName}${octave + offset}"]`);
-            if (above) return above;
-            const below = document.querySelector(`.piano-key[data-note="${noteName}${octave - offset}"]`);
-            if (below) return below;
-        }
-        return null;
     }
 
     clearPianoHighlights() {
@@ -4003,94 +3875,82 @@ class ScalesController {
         });
     }
 
-    // Clear the "actually played" display
     clearActuallyPlayed() {
         const el = document.getElementById('actuallyPlayed');
         if (el) el.textContent = '';
     }
 
-    // Append a note to the "actually played" display
-    appendActuallyPlayed(note, isSection) {
+    /**
+     * Append a MIDI note to the "actually played" display.
+     * @param {number} midi
+     * @param {boolean} isSection
+     */
+    appendActuallyPlayed(midi, isSection) {
         const el = document.getElementById('actuallyPlayed');
         if (!el) return;
 
-        const display = this.formatNoteDisplay(note, isSection, this.settings.octave);
+        const display = this.formatMidiDisplay(midi, isSection, this.settings.octave);
 
-        // Add space before section notes (except first)
         if (isSection && el.textContent.length > 0) {
             el.textContent += ' ';
         }
         el.textContent += display;
     }
 
-    // Append a chord to the "actually played" display (shows all notes in brackets)
-    appendActuallyPlayedChord(chordNotes) {
+    /**
+     * Append a chord (MIDI array) to the "actually played" display.
+     * @param {number[]} chordMidi
+     */
+    appendActuallyPlayedChord(chordMidi) {
         const el = document.getElementById('actuallyPlayed');
         if (!el) return;
 
-        const defaultOctave = this.settings.octave;
-        const formatted = chordNotes.map(n => this.formatNoteDisplay(n, true, defaultOctave)).join('');
+        const formatted = chordMidi.map(m => this.formatMidiDisplay(m, true, this.settings.octave)).join('');
 
-        // Add space before chord (except first)
         if (el.textContent.length > 0) {
             el.textContent += ' ';
         }
         el.textContent += `[${formatted}]`;
     }
 
-    // Clear scale preview highlights (separate from active playing highlight)
     clearScalePreview() {
         document.querySelectorAll('.piano-key.scale-root, .piano-key.scale-note').forEach(key => {
             key.classList.remove('scale-root', 'scale-note');
         });
     }
 
-    // Update piano to show current scale preview (root + scale notes)
-    // Only shows when not playing, highlights exactly the notes that will be played
+    /**
+     * Update piano to show current scale preview using MIDI.
+     * Highlights piano keys matching scale notes; for notes outside the
+     * keyboard range, highlights the same pitch class at the nearest octave.
+     */
     updateScalePreview() {
         this.clearScalePreview();
 
-        // Don't show preview while playing
         if (this.audio.isPlaying) return;
 
         const root = this.settings.root;
         const scaleType = this.settings.scaleType;
         const sectionLength = this.settings.sectionLength;
 
-        // Get the exact notes that will be played
         const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, sectionLength });
         if (!degreesModel) return;
 
-        const { degreesAscAll, rootNote } = degreesModel;
-        const notesToHighlight = new Set(degreesAscAll);
-
-        // Collect piano key note values to detect out-of-range scale notes
-        const pianoNoteSet = new Set();
-        document.querySelectorAll('.piano-key').forEach(el => {
-            const n = /** @type {HTMLElement} */ (el).dataset.note;
-            if (n) pianoNoteSet.add(n);
-        });
-
-        // For scale notes that fall outside the piano range, collect their
-        // pitch class so we can highlight the nearest octave equivalent
-        const outOfRangePitchClasses = new Set();
-        for (const n of degreesAscAll) {
-            if (!pianoNoteSet.has(n)) {
-                outOfRangePitchClasses.add(this.stripOctave(n));
-            }
-        }
-        const rootPitchClass = this.stripOctave(rootNote);
+        const { degreesAscAll, rootMidi } = degreesModel;
+        const scaleMidiSet = new Set(degreesAscAll);
+        const scalePitchClasses = new Set(degreesAscAll.map(m => midiPitchClass(m)));
+        const rootPC = midiPitchClass(rootMidi);
 
         document.querySelectorAll('.piano-key').forEach(el => {
             const key = /** @type {HTMLElement} */ (el);
-            const noteAttr = key.dataset.note;
-            if (!noteAttr) return;
+            const keyMidi = parseInt(key.dataset.midi);
+            if (isNaN(keyMidi)) return;
 
-            const exactMatch = notesToHighlight.has(noteAttr);
-            const fallbackMatch = !exactMatch && outOfRangePitchClasses.has(this.stripOctave(noteAttr));
-            if (!exactMatch && !fallbackMatch) return;
+            const exactMatch = scaleMidiSet.has(keyMidi);
+            const pcMatch = !exactMatch && scalePitchClasses.has(midiPitchClass(keyMidi));
+            if (!exactMatch && !pcMatch) return;
 
-            if (noteAttr === rootNote || this.stripOctave(noteAttr) === rootPitchClass) {
+            if (midiPitchClass(keyMidi) === rootPC) {
                 key.classList.add('scale-root');
             } else {
                 key.classList.add('scale-note');
@@ -4098,17 +3958,19 @@ class ScalesController {
         });
     }
 
-    stripOctave(note) {
-        return (note || '').replace(/\d+$/, '');
-    }
-
-    // Format note, showing octave only when it differs from default (4)
-    formatNoteDisplay(note, isSection, defaultOctave = 4) {
-        const match = (note || '').match(/^([A-Ga-g][#b]?)(\d+)$/);
-        if (!match) return note || '';
-        const [, noteName, octave] = match;
-        const name = isSection ? noteName.toUpperCase() : noteName.toLowerCase();
-        return parseInt(octave, 10) === defaultOctave ? name : name + octave;
+    /**
+     * Format a MIDI note for display, showing octave only when non-default.
+     * Section notes are uppercase, auxiliary notes lowercase.
+     * @param {number} midi
+     * @param {boolean} isSection
+     * @param {number} [defaultOctave=4]
+     * @returns {string}
+     */
+    formatMidiDisplay(midi, isSection, defaultOctave = 4) {
+        const noteName = NOTE_NAMES[midiPitchClass(midi)];
+        const octave = midiOctave(midi);
+        const name = isSection ? noteName : noteName.toLowerCase();
+        return octave === defaultOctave ? name : name + octave;
     }
 
     truncateText(text, maxLen) {
@@ -4117,36 +3979,37 @@ class ScalesController {
         return text.slice(0, Math.max(0, maxLen - 1)) + '…';
     }
 
+    /**
+     * Build ascending scale degrees as MIDI array.
+     * @param {Object} params
+     * @param {string} params.root
+     * @param {string} params.scaleType
+     * @param {string} [params.sectionLength]
+     * @returns {{ degreesAscAll: number[], rootMidi: number, pattern: number[] } | null}
+     */
     buildScaleDegreesAscAll({ root, scaleType, sectionLength }) {
         const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-        const rootIndex = NOTE_NAMES.indexOf(root);
-        if (rootIndex === -1) return null;
+        const rootMidi = noteNameToMidi(root, this.settings.octave);
+        if (rootMidi === null) return null;
 
-        // Get semitone range from section length
         const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength || '1o');
-
-        // Get all scale degrees within the section range
         const fullPattern = this.getScaleDegreesInRange(basePattern, minSemitone, maxSemitone);
 
-        const degreesAscAll = fullPattern.map(interval => {
-            const noteIndex = ((rootIndex + interval) % 12 + 12) % 12;
-            const octaveOffset = Math.floor((rootIndex + interval) / 12);
-            return `${NOTE_NAMES[noteIndex]}${this.settings.octave + octaveOffset}`;
-        });
+        const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
 
-        const rootNote = `${root}${this.settings.octave}`;
-        const rootMidi = this.noteStringToMidi(rootNote);
-
-        return { degreesAscAll, rootNote, rootMidi, pattern: fullPattern };
+        return { degreesAscAll, rootMidi, pattern: fullPattern };
     }
 
+    /**
+     * Build a complete playback plan as MIDI arrays.
+     * @returns {{ segments: Array, notes: number[], rootMidi: number, pattern: number[] } | null}
+     */
     buildScalePlaybackPlan({ root, scaleType, direction, movementStyle, sectionLength }) {
         const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, sectionLength });
         if (!degreesModel) return null;
 
-        const { degreesAscAll, rootNote, rootMidi, pattern } = degreesModel;
+        const { degreesAscAll, rootMidi, pattern } = degreesModel;
 
-        // STEP 1: Determine section notes based on direction (with deduplication at turn points)
         const ascending = degreesAscAll;
         const descending = [...degreesAscAll].reverse();
 
@@ -4160,13 +4023,11 @@ class ScalesController {
             directionLabel = 'down';
             startsAscending = false;
         } else if (direction === 'both') {
-            // up+down: remove duplicate at top
             sectionNotes = [...ascending, ...descending.slice(1)];
             directionLabel = 'up+down';
             turnIndex = ascending.length - 1;
             startsAscending = true;
         } else if (direction === 'down_and_up') {
-            // down+up: remove duplicate at bottom
             sectionNotes = [...descending, ...ascending.slice(1)];
             directionLabel = 'down+up';
             turnIndex = descending.length - 1;
@@ -4177,14 +4038,13 @@ class ScalesController {
             startsAscending = true;
         }
 
-        // STEP 2: Apply movement pattern to the unified section notes
-        const rootIndexInSection = sectionNotes.indexOf(rootNote);
+        const rootIndexInSection = sectionNotes.indexOf(rootMidi);
         const movementResult = this.buildMovementSequence({
             movementStyle,
             degreesAscAll: sectionNotes,
             degreesFromRoot: rootIndexInSection >= 0 ? sectionNotes.slice(rootIndexInSection) : sectionNotes,
-            rootNote,
-            degreesAscendingRef: degreesAscAll,  // Always use ascending scale for finding above/below
+            rootMidi,
+            degreesAscendingRef: degreesAscAll,
             scaleType,
             turnIndex,
             startsAscending
@@ -4193,24 +4053,20 @@ class ScalesController {
         const segments = [{ label: directionLabel, groups: movementResult.groups }];
         const notes = movementResult.notes;
 
-        return { segments, notes, rootNote, rootMidi, pattern };
+        return { segments, notes, rootMidi, pattern };
     }
 
     formatGroupsForPreview(groups, transposeSemitones = 0) {
         const groupStrings = groups.map(group => {
-            const notes = group.notes.map(n => {
-                const t = transposeSemitones ? this.transposeNote(n, transposeSemitones) : n;
-                return this.stripOctave(t);
-            });
-            return notes.join(' ');
+            const midiNotes = group.notes.map(m => m + transposeSemitones);
+            return midiNotes.map(m => NOTE_NAMES[midiPitchClass(m)]).join(' ');
         });
         return groupStrings.join(' | ');
     }
 
     /**
-     * Update the note sequence display with a compact representation of what will be played.
-     * Shows just the note names without octaves, e.g. "CDEFGABCBAGFEDC"
-     * @param {number} [transpose=0] - Semitones to transpose the preview (for rising mode)
+     * Update the note sequence display. All notes are MIDI integers.
+     * @param {number} [transpose=0] - Semitones to transpose the preview
      */
     updateNoteSequencePreview(transpose = 0) {
         const el = document.getElementById('noteSequence');
@@ -4234,20 +4090,18 @@ class ScalesController {
         const groups = plan.segments[0].groups;
         const defaultOctave = this.settings.octave;
 
-        // Universal display logic using explicit group metadata
         const parts = groups.map(group => {
-            const { notes, sectionIndex, isChord } = group;
-            // Apply transpose if rising mode is active
-            const displayNotes = transpose !== 0
-                ? notes.map(n => this.transposeNote(n, transpose))
-                : notes;
+            const { notes: midiNotes, sectionIndex, isChord } = group;
+            const displayMidi = transpose !== 0
+                ? midiNotes.map(m => m + transpose)
+                : midiNotes;
 
             if (isChord) {
-                return `[${displayNotes.map(n => this.formatNoteDisplay(n, true, defaultOctave)).join('')}]`;
+                return `[${displayMidi.map(m => this.formatMidiDisplay(m, true, defaultOctave)).join('')}]`;
             }
 
-            return displayNotes.map((n, i) => {
-                return this.formatNoteDisplay(n, i === sectionIndex, defaultOctave);
+            return displayMidi.map((m, i) => {
+                return this.formatMidiDisplay(m, i === sectionIndex, defaultOctave);
             }).join('');
         });
 

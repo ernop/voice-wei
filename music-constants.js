@@ -80,6 +80,38 @@ function midiToNoteName(midi) {
 }
 
 /**
+ * Canonical converter: MIDI integer to Tone.js pitch string.
+ * This is the ONLY place pitch strings should be constructed from MIDI.
+ * All internal note passing uses MIDI integers; this converts at boundaries
+ * (Tone.js playback, DOM display, status text).
+ * @param {number} midi - MIDI note number (e.g. 60 = C4)
+ * @returns {string} Pitch string (e.g. "C4", "C#4")
+ */
+function midiToPitchString(midi) {
+    const noteIndex = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return `${NOTE_NAMES[noteIndex]}${octave}`;
+}
+
+/**
+ * Extract pitch class index (0-11) from MIDI note number.
+ * @param {number} midi
+ * @returns {number} 0=C, 1=C#, 2=D, ... 11=B
+ */
+function midiPitchClass(midi) {
+    return ((midi % 12) + 12) % 12;
+}
+
+/**
+ * Extract octave from MIDI note number.
+ * @param {number} midi
+ * @returns {number}
+ */
+function midiOctave(midi) {
+    return Math.floor(midi / 12) - 1;
+}
+
+/**
  * Convert note name and octave to MIDI note number
  * @param {string} noteName - Note name (e.g., 'C', 'F#')
  * @param {number} octave - Octave number
