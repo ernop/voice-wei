@@ -6,6 +6,15 @@ alwaysApply: false
 
 # Data Handling
 
+## Explicit Data Structures
+Complex data deserves a proper data type. Never encode meaning in implicit properties like array length, index position, or the absence of a field. If you need a value, add a named field that carries it directly.
+
+- **Named fields over positional encoding.** If a group has a "section note index," store `sectionIndex: 2`, don't rely on "the first element is always the section note."
+- **Typed objects over parallel arrays.** If notes have associated metadata (isSection, intervalName), bundle them into one structure rather than maintaining two arrays that must stay in sync.
+- **Explicit flags over derived inference.** If something can be a chord or a sequence, add `isChord: true`, don't infer it from the number of notes.
+- **Dedicated fields over overloaded values.** Don't use `0` to mean "off" and a positive number to mean "on" if the on/off distinction matters separately from the numeric value. Use `{ enabled: true, value: 3 }`.
+- When reviewing code, ask: "If I add a new case or change an assumption, does this representation still work, or does it silently break?"
+
 ## Single Source of Truth
 - No scripts store local copies of data lists; all info comes from imports.
 - Having something configured does NOT mean data exists; check manifests separately.

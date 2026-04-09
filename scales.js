@@ -2795,16 +2795,20 @@ class ScalesController {
                 }
             }
         } else if (style === 'one_three_five') {
+            // Arpeggiate the diatonic triad on each scale degree:
+            // skip one scale step for the 3rd, skip three for the 5th
+            const DIATONIC_3RD = 2;
+            const DIATONIC_5TH = 4;
             for (let i = 0; i < sectionNotes.length; i++) {
                 const midi = sectionNotes[i];
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 4);
-                    const moveNotes = [];
-                    if (aboveNotes.length >= 2) moveNotes.push(aboveNotes[1]);
-                    if (aboveNotes.length >= 4) moveNotes.push(aboveNotes[3]);
-                    groups.push(makeGroup([midi, ...moveNotes], 0));
+                    const scaleSteps = this.getNotesAbove(midi, ascendingScale, DIATONIC_5TH);
+                    const moveNotes = [midi];
+                    if (scaleSteps.length >= DIATONIC_3RD) moveNotes.push(scaleSteps[DIATONIC_3RD - 1]);
+                    if (scaleSteps.length >= DIATONIC_5TH) moveNotes.push(scaleSteps[DIATONIC_5TH - 1]);
+                    groups.push(makeGroup(moveNotes, 0));
                 }
             }
         } else if (style === 'neighbors') {
@@ -3215,7 +3219,8 @@ class ScalesController {
             movementStyle
         };
 
-        if (movementStyle !== 'normal' && allGroups.length > 1) {
+        const hasGroupedPlayback = movementStyle !== 'normal';
+        if (hasGroupedPlayback) {
             await this.playGroupSequence(allGroups, modifiers, context);
         } else {
             await this.playSequence(notes, modifiers, context);
@@ -3230,8 +3235,6 @@ class ScalesController {
         this.clearScalePreview();
         this.clearActuallyPlayed();
         this.updatePatternPreview(0);
-
-        const phraseGap = 'note';
 
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
@@ -3280,14 +3283,7 @@ class ScalesController {
                         }
                     }
 
-                    const isLastGroup = g === groups.length - 1;
-                    if (!isLastGroup) {
-                        if (phraseGap === 'note') {
-                            // no extra gap
-                        } else if (phraseGap > 0) {
-                            await this.audio.sleep(phraseGap);
-                        }
-                    }
+                    // Movement styles flow note-to-note with no extra gap between groups
                 }
 
                 r++;
@@ -3412,33 +3408,29 @@ class ScalesController {
         if (rootMidi === null) return;
 
         const arpIntervals = quality === 'minor' ? [0, 3, 7, 12] : [0, 4, 7, 12];
-        let notes = arpIntervals.map(interval => rootMidi + interval);
-        let intervals = [0, 1, 2, 3];
+        // Bundle MIDI and degree index so they can't get out of sync
+        let steps = arpIntervals.map((interval, degreeIdx) => ({
+            midi: rootMidi + interval,
+            degreeIdx
+        }));
 
         const direction = modifiers.direction || this.settings.direction;
         if (direction === 'descending') {
-            notes = notes.reverse();
-            intervals = intervals.reverse();
+            steps = steps.reverse();
         } else if (direction === 'both') {
-            const ascending = [...notes];
-            const descending = [...notes].reverse().slice(1);
-            notes = [...ascending, ...descending];
-            intervals = [...intervals, ...[...intervals].reverse().slice(1)];
+            steps = [...steps, ...[...steps].reverse().slice(1)];
         } else if (direction === 'down_and_up') {
-            const descending = [...notes].reverse();
-            const ascending = [...notes].slice(1);
-            notes = [...descending, ...ascending];
-            intervals = [...[...intervals].reverse(), ...[...intervals].slice(1)];
+            steps = [...[...steps].reverse(), ...[...steps].slice(1)];
         }
 
         const context = {
             type: 'arpeggio',
             root,
             quality,
-            intervals
+            intervals: steps.map(s => s.degreeIdx)
         };
 
-        await this.playSequence(notes, modifiers, context);
+        await this.playSequence(steps.map(s => s.midi), modifiers, context);
     }
 
     async playChord(root, quality, modifiers = {}) {
