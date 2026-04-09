@@ -448,15 +448,16 @@ class ScalesController {
             shiftingSteps: 0
         };
 
-        // Exercise patterns: arrays of scale degree offsets from starting note
-        // e.g., [0,1,2,3,4,3,2,1,0] = 1-2-3-4-5-4-3-2-1 (five_note warmup)
-        /** @type {Record<string, number[]>} */
+        // Exercise pattern templates use scale degree offsets from starting note.
+        // 'O' is a placeholder for "one octave up" (resolved to notesPerOctave at runtime).
+        // This makes patterns work correctly for any scale, not just 7-note diatonic.
+        /** @type {Record<string, (number | 'O')[]>} */
         this.exercisePatterns = {
-            'none': [], // Use full scale
-            'five_note': [0, 1, 2, 3, 4, 3, 2, 1, 0], // 1-2-3-4-5-4-3-2-1
-            'octave_jump': [0, 7, 0], // 1-8-1
-            'arpeggio_return': [0, 2, 4, 7, 4, 2, 0], // 1-3-5-8-5-3-1
-            'thirds': [0, 2, 1, 3, 2, 4, 3, 5, 4, 6, 5, 7] // 1-3-2-4-3-5-4-6-5-7-6-8
+            'none': [],
+            'five_note': [0, 1, 2, 3, 4, 3, 2, 1, 0],         // 1-2-3-4-5-4-3-2-1
+            'octave_jump': [0, 'O', 0],                         // 1-8va-1
+            'arpeggio_return': [0, 2, 4, 'O', 4, 2, 0],        // 1-3-5-8va-5-3-1
+            'thirds': [0, 2, 1, 3, 2, 4, 3, 5, 4, 6, 5, 'O']  // 1-3-2-4-3-5-...-8va
         };
 
         // Maps tempo voice commands to ms values
@@ -3321,9 +3322,9 @@ class ScalesController {
         this.clearActuallyPlayed();
 
         const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        const notesPerOctave = basePattern.length - 1;
         const extendedScale = [];
 
-        // Build 3 octaves of scale MIDI notes for shifting room
         for (let octaveShift = 0; octaveShift < 3; octaveShift++) {
             for (const interval of basePattern.slice(0, -1)) {
                 extendedScale.push(rootMidi + interval + octaveShift * 12);
@@ -3331,6 +3332,9 @@ class ScalesController {
         }
         const lastInterval = basePattern[basePattern.length - 1] || 12;
         extendedScale.push(rootMidi + lastInterval + 2 * 12);
+
+        // Resolve 'O' (octave) placeholders to actual notes-per-octave for this scale
+        const resolvedPattern = exercisePattern.map(v => v === 'O' ? notesPerOctave : v);
 
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
@@ -3353,7 +3357,7 @@ class ScalesController {
                 const startingDegree = shiftingSteps * r;
 
                 const notes = [];
-                for (const offset of exercisePattern) {
+                for (const offset of resolvedPattern) {
                     const scaleIndex = startingDegree + offset;
                     if (scaleIndex >= 0 && scaleIndex < extendedScale.length) {
                         notes.push(extendedScale[scaleIndex]);

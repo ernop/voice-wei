@@ -108,20 +108,24 @@ Modifiers can be combined with any scale, arpeggio, or interval command.
 ### Note Length (Tempo)
 | Voice Command | Note Duration |
 |---------------|---------------|
-| `very fast` | 150ms (v.short) |
-| `fast` / `quickly` | 300ms (short) |
-| *(default)* | 500ms (normal) |
-| `slowly` | 800ms (long) |
-| `very slowly` | 1500ms (v.long) |
-| `super slowly` | 3000ms (super) |
+| `very fast` | 100ms |
+| `fast` / `quickly` | 150ms |
+| *(default)* | 300ms |
+| `normal` | 500ms |
+| `slowly` | 1000ms |
+| `very slowly` | 2000ms |
+| `super slowly` | 5000ms |
+
+UI buttons offer finer control: 0.1s, 0.15s, 0.3s (default), 0.5s, 0.8s, 1s, 1.5s, 2s, 3s, 5s.
 
 ### Gaps (Pauses Between Notes)
 | Modifier | Effect |
 |----------|--------|
 | `legato` / no modifier | No gap (none) |
 | `with a gap` / `small gap` | 50ms (small) |
-| `with a medium gap` | 150ms (medium) |
+| `with a medium gap` | 150ms (normal) |
 | `staccato` / `large gap` | 300ms (large) |
+| `very large gap` | 500ms (very large) |
 
 ### Repetition
 | Modifier | Effect |
@@ -141,27 +145,19 @@ Modifiers can be combined with any scale, arpeggio, or interval command.
 | `up and down` / `both ways` | Up then down |
 | `down and up` | Down then up |
 
-### Range (Wide Scale)
-| Modifier | Effect |
-|----------|--------|
-| `wide` | Expand range by 3 notes on each end |
-| `very wide` | Expand range by 5 notes on each end |
-| `narrow` | No range expansion (normal) |
-
-The "wide scale" feature adds extra chromatic notes below the root and above the top of the scale.
-
-### Octave Span
-| Modifier | Effect |
-|----------|--------|
-| `single octave` | Normal 1-octave scale (default) |
-| `double octave` / `two octaves` | Play scale over 2 octaves |
+### Section Width
+| Voice Command | Effect |
+|---------------|--------|
+| `1 octave` | Normal 1-octave scale (default) |
+| `octave plus third` / `1o+3` | Octave + major 3rd |
+| `octave plus fifth` / `1o+5` | Octave + perfect 5th |
+| `2 octaves` | Play scale over 2 octaves |
 
 ### Octave Selection
 | Modifier | Effect |
 |----------|--------|
-| `octave 3` / `3` | Start in octave 3 |
-| `octave 4` / `4` | Start in octave 4 (default) |
-| `octave 5` / `5` | Start in octave 5 |
+| `octave 3` | Start in octave 3 |
+| `octave 4` | Start in octave 4 (default) |
 
 ### Example Combinations
 
@@ -186,15 +182,18 @@ The UI uses a **compact inline layout** with labels on the left and clickable op
 
 | Row | Options | Default |
 |-----|---------|---------|
-| **Repeat** | once, twice, forever | once |
 | **Root** | C, C#, D, D#, E, F, F#, G, G#, A, A#, B | C |
-| **Octave** | 2, 3, 4, 5, 6 | 4 |
-| **Scale** | major, minor, chromatic, pentatonic, harmonic minor, melodic minor | major |
+| **Octave** | 3, 4 | 4 |
+| **Scale** | major, minor, chromatic, pentatonic, h minor, m minor | major |
+| **Move** | normal, +1+2, 1-3-5, neighbors, chords, from 1, to 1, +1-1 | normal |
+| **Note Length** | 0.1s, 0.15s, 0.3s, 0.5s, 0.8s, 1s, 1.5s, 2s, 3s, 5s | 0.3s |
 | **Direction** | up, down, up+down, down+up | up |
-| **Note Length** | v.short, short, normal, long, v.long, super | normal |
-| **Gap** | none, small, medium, large | none |
-| **Span** | 1 octave, 2 octaves | 1 octave |
-| **Wide** | off, +2, +3, +4, +5, +6 | off |
+| **Repeat** | once, twice, infinity, infinity+no gap | once |
+| **Rising** | off, half, whole | off |
+| **Exercise** | full scale, 5-note, oct jump, arp return, thirds | full scale |
+| **Shifting** | off, on | off |
+| **Section Width** | 1 octave, octave+3rd, octave+5th, 2 octaves | 1 octave |
+| **Note Gap** | -50%, -10%, -5%, 0s, 0.05s, 0.1s, 0.15s, 0.3s, 0.5s, 1s | 0s |
 
 ### Main Buttons
 
@@ -227,11 +226,12 @@ D minor | short | E4 [2nd]
 
 ## Piano Keyboard
 
-- **15 white keys** spanning ~2 octaves (C4 to C6 when Octave=4)
-- **10 black keys** for sharps
+- **15 white keys** spanning 2 octaves + top C (C4 to C6 when Octave=4)
+- **10 black keys** for sharps/flats
 - **Click keys** to play individual notes
-- **Octave control** shifts the entire keyboard
-- **Active keys highlight** during scale playback
+- **Octave control** (3 or 4) shifts the entire keyboard
+- **Active keys highlight green** during scale playback (notes outside the keyboard range highlight the same pitch class at the nearest available octave)
+- **Scale preview** highlights all scale notes when idle (root note in darker green)
 - **C notes labeled** with octave number (C4, C5, C6)
 
 ---
