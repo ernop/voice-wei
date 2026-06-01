@@ -4,10 +4,6 @@ Voice-first tools for singers, musicians, and readers.
 
 **Main Release:** https://fuseki.net/music8899b/scales.html
 
-## Agent Writing Rule
-
-Never add fake emotional messages, encouragement, praise, or affective filler to the product or documentation. Emotional text is allowed only when it comes directly from yui.
-
 ## Tools
 
 ### Scales
@@ -33,6 +29,10 @@ Everything you can say is also visible and clickable. Voice commands reset to de
 - Works on mobile (Chrome, Safari, Edge)
 
 See [SCALES.md](SCALES.md) for full command reference.
+
+### Phrases
+
+Random scale-degree phrase practice for singers. Choose root, scale, range, phrase length, ending behavior, and output mode, including sing numbers.
 
 ### Pitch Meter
 

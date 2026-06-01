@@ -58,41 +58,6 @@
     font-weight: 500;
 }
 
-.phrase-display {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin: 10px 0;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.24);
-    border: 1px solid rgba(134, 239, 172, 0.25);
-    border-radius: 8px;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-}
-
-.phrase-display-label {
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.phrase-display-degrees {
-    color: #86efac;
-    font-size: 1.55rem;
-    font-weight: 700;
-}
-
-.phrase-display-notes {
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 0.85rem;
-}
-
-.history-phrase-degrees {
-    color: #86efac;
-    font-weight: 700;
-}
-
 /* Echo Toggle - compact, right-aligned (legacy, kept for compatibility) */
 .echo-toggle {
     display: flex;

@@ -1,8 +1,9 @@
-const APP_VERSION = "46";
+const APP_VERSION = "47";
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
     { id: "intervals", href: "scales2.html", label: "Intervals" },
+    { id: "phrases", href: "phrases.html", label: "Phrases" },
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
     { id: "music", href: "player.html", label: "Music" },
     { id: "books", href: "ebook.html", label: "Books" },

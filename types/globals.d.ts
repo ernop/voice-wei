@@ -25,6 +25,7 @@ interface Window {
     VoiceCommandCore?: any;
     TranscriptManager?: any;
     VoiceOutput?: any;
+    PatternPracticeCore?: any;
 }
 
 // -----------------------------------------------------------------------

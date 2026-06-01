@@ -381,12 +381,13 @@
 
     function initUI() {
         // Exercise type toggle
-        document.querySelectorAll('[data-type]').forEach(btn => {
+        document.querySelectorAll('[data-type]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
             if (btn.dataset.type === state.exerciseType) btn.classList.add('selected');
             btn.addEventListener('click', () => {
                 document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
-                state.exerciseType = btn.dataset.type;
+                state.exerciseType = btn.dataset.type || 'A';
                 updateLevelButtons();
             });
         });
@@ -425,7 +426,8 @@
             { id: 'toggleRepeat', key: 'repeat' },
         ];
         for (const { id, key } of toggles) {
-            const el = document.getElementById(id);
+            const el = /** @type {HTMLInputElement | null} */ (document.getElementById(id));
+            if (!el) continue;
             el.checked = state[key];
             el.addEventListener('change', () => { state[key] = el.checked; });
         }
