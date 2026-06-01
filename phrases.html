@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=47">
-    <link rel="stylesheet" href="scales.css?v=47">
-    <link rel="stylesheet" href="phrases.css?v=47">
+    <link rel="stylesheet" href="style.css?v=48">
+    <link rel="stylesheet" href="scales.css?v=48">
+    <link rel="stylesheet" href="phrases.css?v=48">
 </head>
 
 <body data-page="phrases">
@@ -25,8 +25,8 @@
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
                 </button>
-                <button id="repeatBtn" class="play-button phrase-repeat-button" aria-label="Repeat phrase">
-                    <span class="button-text">Repeat</span>
+                <button id="repeatBtn" class="play-button phrase-repeat-button" aria-label="Toggle phrase repeat" aria-pressed="false">
+                    <span class="button-text">Repeat Off</span>
                     <span class="button-icon">&#8635;</span>
                 </button>
                 <button id="nextBtn" class="next-button" aria-label="Next phrase">
@@ -38,7 +38,12 @@
             <section class="phrase-stage" aria-live="polite">
                 <div class="phrase-stage-label" id="phraseMeta">Press Play or Next to generate a phrase</div>
                 <div class="phrase-degrees-large" id="phraseDegrees">--</div>
+                <div class="phrase-note-toggles" id="phraseNoteToggles" aria-label="Active notes"></div>
                 <div class="phrase-notes-line" id="phraseNotes"></div>
+                <div class="phrase-stage-actions">
+                    <button id="reflectBtn" class="phrase-stage-btn" type="button" aria-pressed="false">Reflect Off</button>
+                    <button id="allNotesBtn" class="phrase-stage-btn" type="button">All Notes</button>
+                </div>
                 <div class="phrase-status" id="phraseStatus">Ready</div>
             </section>
 
@@ -93,18 +98,35 @@
 
                 <div class="vf-row">
                     <span class="vf-label">Min Len</span>
-                    <div class="vf-options">
+                    <div class="vf-options phrase-length-options">
+                        <button class="vf-btn" data-min-length="2">2</button>
                         <button class="vf-btn" data-min-length="3">3</button>
+                        <button class="vf-btn" data-min-length="4">4</button>
                         <button class="vf-btn" data-min-length="5">5</button>
+                        <button class="vf-btn" data-min-length="6">6</button>
+                        <button class="vf-btn" data-min-length="7">7</button>
                         <button class="vf-btn" data-min-length="8">8</button>
+                        <button class="vf-btn" data-min-length="9">9</button>
+                        <button class="vf-btn" data-min-length="10">10</button>
                         <button class="vf-btn" data-min-length="12">12</button>
+                        <button class="vf-btn" data-min-length="16">16</button>
                     </div>
                     <span class="vf-label vf-label-inline">Max Len</span>
-                    <div class="vf-options">
+                    <div class="vf-options phrase-length-options">
+                        <button class="vf-btn" data-max-length="3">3</button>
+                        <button class="vf-btn" data-max-length="4">4</button>
                         <button class="vf-btn" data-max-length="5">5</button>
+                        <button class="vf-btn" data-max-length="6">6</button>
+                        <button class="vf-btn" data-max-length="7">7</button>
+                        <button class="vf-btn" data-max-length="8">8</button>
+                        <button class="vf-btn" data-max-length="9">9</button>
                         <button class="vf-btn" data-max-length="10">10</button>
+                        <button class="vf-btn" data-max-length="12">12</button>
                         <button class="vf-btn" data-max-length="16">16</button>
                         <button class="vf-btn" data-max-length="24">24</button>
+                        <button class="vf-btn" data-max-length="32">32</button>
+                        <button class="vf-btn" data-max-length="40">40</button>
+                        <button class="vf-btn" data-max-length="50">50</button>
                     </div>
                 </div>
 
@@ -180,11 +202,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=47"></script>
-    <script src="music-constants.js?v=47"></script>
-    <script src="voice-output.js?v=47"></script>
-    <script src="pattern-practice-core.js?v=47"></script>
-    <script src="phrases.js?v=47"></script>
+    <script src="shared-header.js?v=48"></script>
+    <script src="music-constants.js?v=48"></script>
+    <script src="voice-output.js?v=48"></script>
+    <script src="pattern-practice-core.js?v=48"></script>
+    <script src="phrases.js?v=48"></script>
 </body>
 
 </html>

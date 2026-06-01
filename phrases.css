@@ -48,3 +48,61 @@
     font-weight: 700;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
 }
+
+
+.phrase-note-toggles {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 28px;
+    touch-action: none;
+}
+
+.phrase-note-toggle {
+    min-width: 30px;
+    padding: 4px 6px;
+    border: 1px solid rgba(134, 239, 172, 0.65);
+    border-radius: 999px;
+    background: rgba(74, 222, 128, 0.25);
+    color: #e8f5e9;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.phrase-note-toggle.inactive {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.phrase-stage-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.phrase-stage-btn {
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.phrase-stage-btn.selected,
+.voice-controls-row .phrase-repeat-button.selected {
+    border-color: rgba(74, 222, 128, 0.7);
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+    box-shadow: 0 4px 15px rgba(74, 222, 128, 0.25);
+}
+
+.phrase-length-options {
+    max-width: 100%;
+}

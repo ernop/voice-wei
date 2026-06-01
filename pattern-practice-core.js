@@ -114,8 +114,10 @@ const PatternPracticeCore = (function () {
         const minOffset = options.allowOutOfOctave ? -Math.floor(dp / 2) : 0;
         const maxOffset = options.allowOutOfOctave ? dp * 2 : dp;
         const minLength = clamp(Math.round(options.minLength), 1, 32);
-        const maxLength = clamp(Math.max(Math.round(options.maxLength), minLength), minLength, 32);
-        const length = randomInt(minLength, maxLength);
+        const maxLength = clamp(Math.max(Math.round(options.maxLength), minLength), minLength, 64);
+        const possibleLengths = [];
+        for (let length = minLength; length <= maxLength; length++) possibleLengths.push(length);
+        const length = possibleLengths[randomInt(0, possibleLengths.length - 1)];
 
         const offsets = [];
         let current = options.startAtOne ? 0 : randomInt(0, dp);
@@ -152,6 +154,12 @@ const PatternPracticeCore = (function () {
         }
 
         return offsets;
+    }
+
+    /** @param {number[]} offsets @param {string} scaleType */
+    function reflectOffsets(offsets, scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        return offsets.map(offset => dp - offset);
     }
 
     /**
@@ -200,6 +208,7 @@ const PatternPracticeCore = (function () {
         offsetToSpoken,
         midiToSpeechPitch,
         generateClusteredOffsets,
+        reflectOffsets,
         generatePhrase
     };
 })();

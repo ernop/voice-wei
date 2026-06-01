@@ -20,8 +20,16 @@
         outputMode: 'sing_numbers',
         noteLengthMs: 900,
         gapMs: 100,
-        showNoteNames: true
+        showNoteNames: true,
+        reflected: false,
+        loopCurrent: false
     };
+
+    const STRUCTURE_KEYS = new Set([
+        'root', 'octave', 'scaleType', 'startAtOne', 'allowOutOfOctave',
+        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot'
+    ]);
+    const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
     let synth = null;
@@ -29,23 +37,17 @@
     let gainNode = null;
     /** @type {any | null} */
     let currentPhrase = null;
+    /** @type {boolean[] } */
+    let activeMask = [];
     /** @type {any[]} */
     const phraseHistory = [];
     let playToken = 0;
+    let isPointerToggling = false;
+    let pointerToggleValue = true;
 
-    function getEl(id) {
-        return document.getElementById(id);
-    }
-
-    function setStatus(text) {
-        const el = getEl('phraseStatus');
-        if (el) el.textContent = text;
-    }
-
-    function setMeta(text) {
-        const el = getEl('phraseMeta');
-        if (el) el.textContent = text;
-    }
+    function getEl(id) { return document.getElementById(id); }
+    function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
+    function setMeta(text) { const el = getEl('phraseMeta'); if (el) el.textContent = text; }
 
     async function initAudio() {
         gainNode = new Tone.Gain(1).toDestination();
@@ -70,26 +72,22 @@
     }
 
     async function ensureAudioStarted() {
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
+        if (Tone.context.state !== 'running') await Tone.start();
     }
 
-    function stopPlayback() {
+    function stopPlayback(status = 'Stopped') {
         playToken++;
+        state.loopCurrent = false;
+        syncRepeatButton();
         if (synth) synth.releaseAll();
         if (gainNode) gainNode.gain.setValueAtTime(0, Tone.now());
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        setStatus('Stopped');
+        setStatus(status);
     }
 
-    /** @param {number} ms */
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-    /** @param {number} midi */
     function playMidi(midi) {
         if (!synth || !gainNode) return;
         gainNode.gain.setValueAtTime(1, Tone.now());
@@ -110,31 +108,59 @@
         });
     }
 
+    function rootMidi() { return noteNameToMidi(state.root, state.octave); }
+
+    function deriveDisplayPhrase() {
+        if (!currentPhrase) return null;
+        if (!state.reflected) return currentPhrase;
+        const root = rootMidi();
+        if (root === null) return currentPhrase;
+        const reflectedOffsets = PatternPracticeCore.reflectOffsets(currentPhrase.offsets, currentPhrase.scaleType);
+        const dp = PatternPracticeCore.degreesPerOctave(currentPhrase.scaleType);
+        const midiNotes = reflectedOffsets.map(offset => PatternPracticeCore.scaleOffsetToMidi(root, currentPhrase.scaleType, offset));
+        return {
+            ...currentPhrase,
+            offsets: reflectedOffsets,
+            midiNotes,
+            displayDegrees: reflectedOffsets.map(offset => PatternPracticeCore.offsetToDegree(offset, dp)),
+            spokenDegrees: reflectedOffsets.map(offset => PatternPracticeCore.offsetToSpoken(offset, dp)),
+            noteNames: midiNotes.map(midi => midiToPitchString(midi))
+        };
+    }
+
+    function activeIndexes(phrase) {
+        const indexes = [];
+        for (let i = 0; i < phrase.midiNotes.length; i++) {
+            if (activeMask[i] !== false) indexes.push(i);
+        }
+        if (indexes.length) return indexes;
+        return phrase.midiNotes.map((_, i) => i);
+    }
+
     function updatePhraseDisplay() {
         const degreesEl = getEl('phraseDegrees');
         const notesEl = getEl('phraseNotes');
         if (!degreesEl || !notesEl) return;
-
-        if (!currentPhrase) {
+        const phrase = deriveDisplayPhrase();
+        if (!phrase) {
             degreesEl.textContent = '--';
             notesEl.textContent = '';
+            renderNoteToggles(null);
             return;
         }
-
-        degreesEl.textContent = currentPhrase.displayDegrees.join('-');
-        notesEl.textContent = state.showNoteNames ? currentPhrase.noteNames.join(' ') : '';
-
+        degreesEl.textContent = phrase.displayDegrees.join('-');
+        notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
         const rangeText = state.allowOutOfOctave ? 'out of octave' : 'within octave';
         const startText = state.startAtOne ? 'start 1' : 'random start';
-        setMeta(`${state.root} ${state.scaleType.replace(/_/g, ' ')} | ${startText} | ${rangeText}`);
+        const reflectedText = state.reflected ? ' | reflected' : '';
+        setMeta(`${state.root} ${state.scaleType.replace(/_/g, ' ')} | ${startText} | ${rangeText}${reflectedText}`);
+        renderNoteToggles(phrase);
     }
 
     function generatePhrase() {
         currentPhrase = buildPhrase();
-        if (!currentPhrase) {
-            setStatus('Could not generate phrase');
-            return null;
-        }
+        if (!currentPhrase) { setStatus('Could not generate phrase'); return null; }
+        activeMask = currentPhrase.midiNotes.map(() => true);
         phraseHistory.unshift(currentPhrase);
         if (phraseHistory.length > 50) phraseHistory.pop();
         updatePhraseDisplay();
@@ -142,75 +168,62 @@
         return currentPhrase;
     }
 
-    /** @param {any} phrase */
-    async function playPhrase(phrase) {
-        await ensureAudioStarted();
-        const token = ++playToken;
+    function phraseForPlayback() { return deriveDisplayPhrase(); }
+
+    async function playPhraseOnce(phrase, token) {
         updatePhraseDisplay();
         setStatus(`Playing ${phrase.displayDegrees.join('-')}`);
-
-        if (state.outputMode === 'display') {
-            setStatus('Displayed');
-            return;
-        }
-
+        if (state.outputMode === 'display') { setStatus('Displayed'); return; }
         if (state.outputMode === 'speak') {
-            await VoiceOutput.speak(phrase.spokenDegrees.join(', '));
-            setStatus('Ready');
+            await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
+            if (token === playToken) setStatus('Ready');
             return;
         }
-
         if (state.outputMode === 'speak_tones') {
-            await VoiceOutput.speak(phrase.spokenDegrees.join(', '));
+            await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
             if (token !== playToken) return;
             await playToneSequence(phrase, token);
             return;
         }
-
         if (state.outputMode === 'sing_numbers') {
             await playSingNumberSequence(phrase, token);
             return;
         }
-
         await playToneSequence(phrase, token);
     }
 
-    /** @param {any} phrase @param {number} token */
+    async function playPhrase(phrase) {
+        await ensureAudioStarted();
+        const token = ++playToken;
+        do {
+            await playPhraseOnce(phrase, token);
+            if (token !== playToken || !state.loopCurrent) break;
+            setStatus('Repeating');
+            await sleep(650);
+        } while (token === playToken && state.loopCurrent);
+    }
+
     async function playToneSequence(phrase, token) {
-        for (let i = 0; i < phrase.midiNotes.length; i++) {
+        for (const i of activeIndexes(phrase)) {
             if (token !== playToken) return;
             const midi = phrase.midiNotes[i];
             setStatus(`${phrase.displayDegrees[i]} | ${midiToPitchString(midi)}`);
             playMidi(midi);
             await sleep(state.noteLengthMs + state.gapMs);
         }
-        setStatus('Ready');
+        if (token === playToken && !state.loopCurrent) setStatus('Ready');
     }
 
-    /**
-     * @param {string} text
-     * @param {number} midi
-     * @param {number} durationMs
-     */
     function speakNumberAtPitch(text, midi, durationMs) {
         return new Promise(resolve => {
-            if (!('speechSynthesis' in window)) {
-                resolve(undefined);
-                return;
-            }
-
+            if (!('speechSynthesis' in window)) { resolve(undefined); return; }
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.pitch = PatternPracticeCore.midiToSpeechPitch(midi);
             utterance.rate = state.noteLengthMs >= 1000 ? 0.85 : 1.0;
             utterance.volume = 1.0;
-
             let settled = false;
-            const finish = () => {
-                if (settled) return;
-                settled = true;
-                resolve(undefined);
-            };
+            const finish = () => { if (settled) return; settled = true; resolve(undefined); };
             utterance.onend = finish;
             utterance.onerror = finish;
             window.speechSynthesis.speak(utterance);
@@ -218,9 +231,8 @@
         });
     }
 
-    /** @param {any} phrase @param {number} token */
     async function playSingNumberSequence(phrase, token) {
-        for (let i = 0; i < phrase.midiNotes.length; i++) {
+        for (const i of activeIndexes(phrase)) {
             if (token !== playToken) return;
             const midi = phrase.midiNotes[i];
             const degree = phrase.displayDegrees[i];
@@ -232,32 +244,91 @@
             ]);
             if (state.gapMs > 0) await sleep(state.gapMs);
         }
-        setStatus('Ready');
+        if (token === playToken && !state.loopCurrent) setStatus('Ready');
     }
 
     async function playCurrentOrNew() {
-        const phrase = currentPhrase || generatePhrase();
+        if (!currentPhrase) generatePhrase();
+        const phrase = phraseForPlayback();
         if (phrase) await playPhrase(phrase);
     }
 
     async function playNext() {
-        const phrase = generatePhrase();
+        state.loopCurrent = false;
+        syncRepeatButton();
+        generatePhrase();
+        const phrase = phraseForPlayback();
         if (phrase) await playPhrase(phrase);
     }
 
-    async function repeatCurrent() {
-        if (!currentPhrase) {
-            await playCurrentOrNew();
-            return;
+    async function toggleRepeatLoop() {
+        if (!currentPhrase) generatePhrase();
+        state.loopCurrent = !state.loopCurrent;
+        syncRepeatButton();
+        if (state.loopCurrent) {
+            const phrase = phraseForPlayback();
+            if (phrase) await playPhrase(phrase);
+        } else {
+            stopPlayback('Repeat off');
         }
-        await playPhrase(currentPhrase);
+    }
+
+    function syncRepeatButton() {
+        const btn = getEl('repeatBtn');
+        if (!btn) return;
+        btn.classList.toggle('selected', state.loopCurrent);
+        btn.setAttribute('aria-pressed', String(state.loopCurrent));
+        const text = btn.querySelector('.button-text');
+        if (text) text.textContent = state.loopCurrent ? 'Repeat On' : 'Repeat Off';
+    }
+
+    function renderNoteToggles(phrase) {
+        const container = getEl('phraseNoteToggles');
+        if (!container) return;
+        container.textContent = '';
+        if (!phrase) return;
+        phrase.displayDegrees.forEach((degree, index) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'phrase-note-toggle';
+            btn.textContent = activeMask[index] === false ? 'off' : 'on';
+            btn.title = `${degree} ${phrase.noteNames[index]}`;
+            btn.dataset.index = String(index);
+            btn.classList.toggle('inactive', activeMask[index] === false);
+            btn.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                isPointerToggling = true;
+                pointerToggleValue = activeMask[index] === false;
+                setNoteActive(index, pointerToggleValue);
+            });
+            btn.addEventListener('pointerenter', () => {
+                if (isPointerToggling) setNoteActive(index, pointerToggleValue);
+            });
+            container.appendChild(btn);
+        });
+    }
+
+    function setNoteActive(index, active) {
+        activeMask[index] = active;
+        const btn = document.querySelector(`.phrase-note-toggle[data-index="${index}"]`);
+        if (btn) {
+            btn.classList.toggle('inactive', !active);
+            btn.textContent = active ? 'on' : 'off';
+        }
+    }
+
+    function endPointerToggle() { isPointerToggling = false; }
+
+    function setAllNotes(active) {
+        if (!currentPhrase) return;
+        activeMask = currentPhrase.midiNotes.map(() => active);
+        renderNoteToggles(deriveDisplayPhrase());
     }
 
     function renderHistory() {
         const list = getEl('historyList');
         if (!list) return;
         list.textContent = '';
-
         if (!phraseHistory.length) {
             const empty = document.createElement('p');
             empty.className = 'history-empty';
@@ -265,11 +336,9 @@
             list.appendChild(empty);
             return;
         }
-
         phraseHistory.forEach((phrase, index) => {
             const item = document.createElement('div');
             item.className = 'history-item';
-
             const playBtn = document.createElement('button');
             playBtn.className = 'history-play-btn';
             playBtn.type = 'button';
@@ -277,25 +346,22 @@
             playBtn.textContent = '>';
             playBtn.addEventListener('click', async () => {
                 currentPhrase = phrase;
+                activeMask = phrase.midiNotes.map(() => true);
                 updatePhraseDisplay();
-                await playPhrase(phrase);
+                const playbackPhrase = phraseForPlayback();
+                if (playbackPhrase) await playPhrase(playbackPhrase);
             });
-
             const text = document.createElement('div');
             text.className = 'history-text';
-
             const degrees = document.createElement('div');
             degrees.className = 'phrase-history-degrees';
             degrees.textContent = phrase.displayDegrees.join('-');
-
             const notes = document.createElement('div');
             notes.className = 'history-transcript';
             notes.textContent = phrase.noteNames.join(' ');
-
             const time = document.createElement('span');
             time.className = 'history-time';
             time.textContent = index === 0 ? 'new' : '';
-
             text.appendChild(degrees);
             text.appendChild(notes);
             item.appendChild(playBtn);
@@ -305,20 +371,45 @@
         });
     }
 
-    /** @param {string} attr @param {string} stateKey @param {(value: string) => any} parse */
+
+    function syncSingleSelect(attr, expectedValue) {
+        document.querySelectorAll(`[${attr}]`).forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', btn.getAttribute(attr) === String(expectedValue));
+        });
+    }
+
+    function syncLengthButtons() {
+        syncSingleSelect('data-min-length', state.minLength);
+        syncSingleSelect('data-max-length', state.maxLength);
+    }
+
+    function onSettingChanged(key) {
+        if (STRUCTURE_KEYS.has(key)) {
+            if (currentPhrase) generatePhrase();
+            return;
+        }
+        if (PLAYBACK_KEYS.has(key)) {
+            updatePhraseDisplay();
+            if (currentPhrase) playCurrentOrNew();
+        }
+    }
+
     function wireSingleSelect(attr, stateKey, parse) {
         document.querySelectorAll(`[${attr}]`).forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             const raw = btn.getAttribute(attr) || '';
             if (String(parse(raw)) === String(state[stateKey])) btn.classList.add('selected');
-
             btn.addEventListener('click', () => {
                 document.querySelectorAll(`[${attr}]`).forEach(other => other.classList.remove('selected'));
                 btn.classList.add('selected');
                 state[stateKey] = parse(raw);
-                if (state.minLength > state.maxLength) state.maxLength = state.minLength;
-                currentPhrase = null;
-                updatePhraseDisplay();
+                if (state.minLength > state.maxLength) {
+                    if (stateKey === 'maxLength') state.minLength = state.maxLength;
+                    else state.maxLength = state.minLength;
+                    syncLengthButtons();
+                }
+                onSettingChanged(stateKey);
             });
         });
     }
@@ -329,9 +420,20 @@
         el.checked = Boolean(state[stateKey]);
         el.addEventListener('change', () => {
             state[stateKey] = el.checked;
-            currentPhrase = null;
-            updatePhraseDisplay();
+            onSettingChanged(stateKey);
         });
+    }
+
+    function toggleReflect() {
+        state.reflected = !state.reflected;
+        const btn = getEl('reflectBtn');
+        if (btn) {
+            btn.classList.toggle('selected', state.reflected);
+            btn.setAttribute('aria-pressed', String(state.reflected));
+            btn.textContent = state.reflected ? 'Reflect On' : 'Reflect Off';
+        }
+        updatePhraseDisplay();
+        if (currentPhrase) playCurrentOrNew();
     }
 
     function initUI() {
@@ -345,22 +447,21 @@
         wireSingleSelect('data-output', 'outputMode', String);
         wireSingleSelect('data-length', 'noteLengthMs', Number);
         wireSingleSelect('data-gap', 'gapMs', Number);
-
         wireToggle('returnInitialToggle', 'returnToInitial');
         wireToggle('returnRootToggle', 'returnToRoot');
         wireToggle('showNamesToggle', 'showNoteNames');
-
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
-        getEl('repeatBtn')?.addEventListener('click', repeatCurrent);
+        getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
         getEl('nextBtn')?.addEventListener('click', playNext);
-        getEl('stopBtn')?.addEventListener('click', stopPlayback);
-        getEl('clearHistoryBtn')?.addEventListener('click', () => {
-            phraseHistory.length = 0;
-            renderHistory();
-        });
-
+        getEl('stopBtn')?.addEventListener('click', () => stopPlayback());
+        getEl('reflectBtn')?.addEventListener('click', toggleReflect);
+        getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
+        getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
+        window.addEventListener('pointerup', endPointerToggle);
+        window.addEventListener('pointercancel', endPointerToggle);
         updatePhraseDisplay();
         renderHistory();
+        syncRepeatButton();
     }
 
     async function boot() {
