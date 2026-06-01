@@ -332,6 +332,12 @@ const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
  * @property {number} rangeExpansion
  * @property {number} octaveSpan
  * @property {string} sectionLength
+ * @property {string} practiceMode
+ * @property {boolean} phraseStartAtOne
+ * @property {boolean} phraseAllowOutOfOctave
+ * @property {number} phraseMinLength
+ * @property {number} phraseMaxLength
+ * @property {string} phraseDelivery
  */
 
 /**
@@ -390,8 +396,22 @@ const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
  * @property {string} [type]
  * @property {string} [message]
  * @property {string} [description]
+ * @property {PhraseInstance} [phrase]
  * @property {Object} [details]
  * @property {Date} [timestamp]
+ */
+
+/**
+ * @typedef {Object} PhraseInstance
+ * @property {number[]} offsets
+ * @property {number[]} midiNotes
+ * @property {string[]} displayDegrees
+ * @property {string[]} spokenDegrees
+ * @property {string[]} noteNames
+ * @property {string} root
+ * @property {string} scaleType
+ * @property {number} octave
+ * @property {string} createdAt
  */
 
 class ScalesController {
@@ -426,7 +446,13 @@ class ScalesController {
             octaveSpan: 1,      // 1 or 2: how many octaves to span
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
-            shiftingSteps: 0  // 0=off, 1=shift up 1 scale degree each repeat, etc.
+            shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
+            practiceMode: 'scale',
+            phraseStartAtOne: true,
+            phraseAllowOutOfOctave: false,
+            phraseMinLength: 3,
+            phraseMaxLength: 10,
+            phraseDelivery: 'tones'
         };
 
         // Default settings for reset (and for voice commands which reset first)
@@ -445,7 +471,13 @@ class ScalesController {
             octaveSpan: 1,
             sectionLength: '1o',
             exercise: 'none',
-            shiftingSteps: 0
+            shiftingSteps: 0,
+            practiceMode: 'scale',
+            phraseStartAtOne: true,
+            phraseAllowOutOfOctave: false,
+            phraseMinLength: 3,
+            phraseMaxLength: 10,
+            phraseDelivery: 'tones'
         };
 
         // Exercise pattern templates use scale degree offsets from starting note.
@@ -492,6 +524,8 @@ class ScalesController {
         this.commandHistory = [];
         /** @type {number} */
         this.maxHistoryLength = 50;
+        /** @type {PhraseInstance | null} */
+        this.currentPhrase = null;
 
         // Note: settings store actual values (noteLengthMs in ms, gapMs in ms or negative for overlap ratio)
         // Helper to format ms as display label
@@ -561,7 +595,7 @@ class ScalesController {
             parse: (/** @type {string} */ transcript) => this.parseScaleCommand(transcript),
             execute: async (/** @type {ScaleCommand} */ command, /** @type {string} */ transcript) => {
                 // Reset to defaults before applying voice command (unless it's a control command)
-                const controlCommands = ['stop', 'help', 'play', 'setting'];
+                const controlCommands = ['stop', 'help', 'play', 'nextPhrase', 'setting'];
                 if (!controlCommands.includes(command.type)) {
                     this.resetToDefaults();
                 }
@@ -593,6 +627,7 @@ class ScalesController {
     // Reset to defaults without updating status (used before voice commands)
     resetToDefaults() {
         this.settings = { ...this.defaultSettings };
+        this.currentPhrase = null;
         console.log(`[noteLengthMs] reset to default: ${this.settings.noteLengthMs}ms`);
         this.syncUIToSettings();
     }
@@ -645,6 +680,11 @@ class ScalesController {
         const againBtn = document.getElementById('againBtn');
         if (againBtn) {
             againBtn.addEventListener('click', () => this.playAgainOrCurrent());
+        }
+
+        const nextPhraseBtn = document.getElementById('nextPhraseBtn');
+        if (nextPhraseBtn) {
+            nextPhraseBtn.addEventListener('click', () => this.playNextPhrase());
         }
 
         // Clear history button
@@ -742,7 +782,15 @@ class ScalesController {
             root: s.root,
             rangeExpansion: s.rangeExpansion,
             octaveSpan: s.octaveSpan,
-            sectionLength: s.sectionLength
+            sectionLength: s.sectionLength,
+            exercise: s.exercise,
+            shiftingSteps: s.shiftingSteps,
+            practiceMode: s.practiceMode,
+            phraseStartAtOne: s.phraseStartAtOne,
+            phraseAllowOutOfOctave: s.phraseAllowOutOfOctave,
+            phraseMinLength: s.phraseMinLength,
+            phraseMaxLength: s.phraseMaxLength,
+            phraseDelivery: s.phraseDelivery
         };
     }
 
@@ -772,6 +820,17 @@ class ScalesController {
         /** @type {Record<string, string>} */
         const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
         const parts = [];
+
+        if (c.practiceMode === 'phrases') {
+            parts.push(`${c.root} ${c.scaleType.replace(/_/g, ' ')} phrases`);
+            parts.push(c.phraseStartAtOne === false ? 'random start' : 'start 1');
+            parts.push(c.phraseAllowOutOfOctave ? 'out of octave' : 'within octave');
+            parts.push(`${c.phraseMinLength || this.defaultSettings.phraseMinLength}-${c.phraseMaxLength || this.defaultSettings.phraseMaxLength} notes`);
+            if (c.phraseDelivery && c.phraseDelivery !== this.defaultSettings.phraseDelivery) {
+                parts.push(this.getPhraseDeliveryLabel(c.phraseDelivery));
+            }
+            return parts.join(' ');
+        }
 
         parts.push(`${c.scaleType.replace(/_/g, ' ')} ${c.root} scale`);
 
@@ -820,6 +879,15 @@ class ScalesController {
         this.settings.rangeExpansion = c.rangeExpansion;
         this.settings.octaveSpan = c.octaveSpan;
         this.settings.sectionLength = c.sectionLength ?? '1o';
+        this.settings.exercise = c.exercise ?? 'none';
+        this.settings.shiftingSteps = c.shiftingSteps ?? 0;
+        this.settings.practiceMode = c.practiceMode ?? 'scale';
+        this.settings.phraseStartAtOne = c.phraseStartAtOne ?? true;
+        this.settings.phraseAllowOutOfOctave = c.phraseAllowOutOfOctave ?? false;
+        this.settings.phraseMinLength = c.phraseMinLength ?? this.defaultSettings.phraseMinLength;
+        this.settings.phraseMaxLength = c.phraseMaxLength ?? this.defaultSettings.phraseMaxLength;
+        this.settings.phraseDelivery = c.phraseDelivery ?? this.defaultSettings.phraseDelivery;
+        this.currentPhrase = null;
 
         this.updatePianoKeyOctaves?.();
         this.onSettingChanged();
@@ -939,6 +1007,8 @@ class ScalesController {
         // Base "thing" being played
         if (command?.type === 'scale') {
             badges.push(`${command.scaleType.replace(/_/g, ' ')} ${command.root} scale`);
+        } else if (command?.type === 'phrase') {
+            badges.push(`${this.settings.root} ${this.settings.scaleType.replace(/_/g, ' ')} phrases`);
         } else if (command?.type === 'arpeggio') {
             badges.push(`${command.root} ${command.quality} arpeggio`);
         } else if (command?.type === 'chord') {
@@ -949,8 +1019,16 @@ class ScalesController {
             badges.push(`${command.note}${command.octave ?? ''}`.trim());
         } else if (command?.type === 'tuning') {
             badges.push('A440');
+        } else if (s.practiceMode === 'phrases') {
+            badges.push(`${s.root} ${s.scaleType.replace(/_/g, ' ')} phrases`);
         } else {
             badges.push(`${s.scaleType.replace(/_/g, ' ')} ${s.root} scale`);
+        }
+        if (s.practiceMode === 'phrases') {
+            badges.push(s.phraseStartAtOne ? 'start 1' : 'random start');
+            badges.push(s.phraseAllowOutOfOctave ? 'out of octave' : 'within octave');
+            badges.push(`${s.phraseMinLength}-${s.phraseMaxLength}`);
+            return badges.filter(Boolean);
         }
 
         const mods = command?.modifiers || {};
@@ -1073,6 +1151,11 @@ class ScalesController {
 
     // Sync UI elements to match current settings (bidirectional binding)
     syncUIToSettings() {
+        document.querySelectorAll('[data-practice-mode]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', btn.dataset.practiceMode === this.settings.practiceMode);
+        });
+
         // Repeat buttons (at the top)
         document.querySelectorAll('[data-repeat]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1164,6 +1247,36 @@ class ScalesController {
             btn.classList.toggle('selected', btn.dataset.sectionLength === this.settings.sectionLength);
         });
 
+        document.querySelectorAll('[data-phrase-start]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const value = btn.dataset.phraseStart || 'one';
+            btn.classList.toggle('selected', value === (this.settings.phraseStartAtOne ? 'one' : 'random'));
+        });
+
+        document.querySelectorAll('[data-phrase-range]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const value = btn.dataset.phraseRange || 'within';
+            btn.classList.toggle('selected', value === (this.settings.phraseAllowOutOfOctave ? 'expanded' : 'within'));
+        });
+
+        document.querySelectorAll('[data-phrase-min-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', parseInt(btn.dataset.phraseMinLength || '0') === this.settings.phraseMinLength);
+        });
+
+        document.querySelectorAll('[data-phrase-max-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', parseInt(btn.dataset.phraseMaxLength || '0') === this.settings.phraseMaxLength);
+        });
+
+        document.querySelectorAll('[data-phrase-delivery]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', btn.dataset.phraseDelivery === this.settings.phraseDelivery);
+        });
+
+        this.updatePracticeModeVisibility();
+        this.updatePhraseDisplay();
+
         // Update piano scale preview
         this.updateScalePreview();
         this.updatePatternPreview();
@@ -1191,8 +1304,12 @@ class ScalesController {
         // Restart if we were playing - use current settings directly
         if (wasPlaying) {
             this.voiceCore.updateStatus(this.formatCurrentCommand());
-            const modifiers = this.buildModifiersFromSettings();
-            await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
+            if (this.settings.practiceMode === 'phrases') {
+                await this.playPhraseInstruction({ forceNew: true });
+            } else {
+                const modifiers = this.buildModifiersFromSettings();
+                await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
+            }
         }
     }
 
@@ -1220,6 +1337,14 @@ class ScalesController {
 
         // Always include root and scale type
         const scaleLabel = s.scaleType.replace('_', ' ');
+        if (s.practiceMode === 'phrases') {
+            const parts = [`${s.root} ${scaleLabel} phrases`];
+            parts.push(s.phraseStartAtOne ? 'start 1' : 'random start');
+            parts.push(s.phraseAllowOutOfOctave ? 'out of octave' : 'within octave');
+            parts.push(`${s.phraseMinLength}-${s.phraseMaxLength} notes`);
+            parts.push(this.getPhraseDeliveryLabel(s.phraseDelivery));
+            return parts.join(' | ');
+        }
         let parts = [`${s.root} ${scaleLabel}`];
 
         // Only add non-default options
@@ -1279,6 +1404,15 @@ class ScalesController {
 
     // Setup voice-first clickable UI elements (all bidirectional controls)
     setupVoiceFirstUI() {
+        document.querySelectorAll('[data-practice-mode]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.practiceMode = btn.dataset.practiceMode || 'scale';
+                this.currentPhrase = null;
+                this.onSettingChanged();
+            });
+        });
+
         // Repeat buttons (at the top)
         document.querySelectorAll('[data-repeat]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1411,11 +1545,54 @@ class ScalesController {
             });
         });
 
+        document.querySelectorAll('[data-phrase-start]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.phraseStartAtOne = (btn.dataset.phraseStart || 'one') === 'one';
+                this.currentPhrase = null;
+                this.onSettingChanged();
+            });
+        });
+        document.querySelectorAll('[data-phrase-range]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.phraseAllowOutOfOctave = (btn.dataset.phraseRange || 'within') === 'expanded';
+                this.currentPhrase = null;
+                this.onSettingChanged();
+            });
+        });
+        document.querySelectorAll('[data-phrase-min-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.phraseMinLength = parseInt(btn.dataset.phraseMinLength || '3');
+                if (this.settings.phraseMinLength > this.settings.phraseMaxLength) this.settings.phraseMaxLength = this.settings.phraseMinLength;
+                this.currentPhrase = null;
+                this.onSettingChanged();
+            });
+        });
+        document.querySelectorAll('[data-phrase-max-length]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.phraseMaxLength = parseInt(btn.dataset.phraseMaxLength || '10');
+                if (this.settings.phraseMaxLength < this.settings.phraseMinLength) this.settings.phraseMinLength = this.settings.phraseMaxLength;
+                this.currentPhrase = null;
+                this.onSettingChanged();
+            });
+        });
+        document.querySelectorAll('[data-phrase-delivery]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.settings.phraseDelivery = btn.dataset.phraseDelivery || 'tones';
+                this.onSettingChanged();
+            });
+        });
+
         // Reset button
         const resetBtn = document.getElementById('resetBtn');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
                 this.settings = { ...this.defaultSettings };
+                this.currentPhrase = null;
                 this.updatePianoKeyOctaves();
                 this.voiceCore.updateStatus('Settings reset to defaults');
                 this.onSettingChanged();
@@ -1879,6 +2056,47 @@ class ScalesController {
         // Play command (or again/repeat)
         if (originalLower.match(/^(play|again|repeat that|play (it |that )?again|one more time|do (it |that )?again)$/)) {
             return { type: 'play' };
+        }
+        if (originalLower.match(/^(next|next phrase|new phrase|another phrase|go next)$/)) return { type: 'nextPhrase' };
+        if (originalLower.match(/^(phrases?|phrase mode)$/)) {
+            this.settings.practiceMode = 'phrases'; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'practiceMode', value: 'phrases' };
+        }
+        if (originalLower.match(/^(scale mode|scales?)$/)) {
+            this.settings.practiceMode = 'scale'; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'practiceMode', value: 'scale' };
+        }
+        if (originalLower.match(/^(start at (1|one)|start on (1|one))$/)) {
+            this.settings.phraseStartAtOne = true; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseStartAtOne', value: 1 };
+        }
+        if (originalLower.match(/^(random start|start random|do not start at (1|one)|don't start at (1|one))$/)) {
+            this.settings.phraseStartAtOne = false; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseStartAtOne', value: 0 };
+        }
+        if (originalLower.match(/^(within octave|inside octave|current octave)$/)) {
+            this.settings.phraseAllowOutOfOctave = false; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseAllowOutOfOctave', value: 0 };
+        }
+        if (originalLower.match(/^(out of octave|outside octave|expanded range|allow out of octave)$/)) {
+            this.settings.phraseAllowOutOfOctave = true; this.currentPhrase = null; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseAllowOutOfOctave', value: 1 };
+        }
+        if (originalLower.match(/^(display numbers|show numbers|text only)$/)) {
+            this.settings.phraseDelivery = 'display'; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseDelivery', value: 'display' };
+        }
+        if (originalLower.match(/^(say numbers|speak numbers)$/)) {
+            this.settings.phraseDelivery = 'speak'; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseDelivery', value: 'speak' };
+        }
+        if (originalLower.match(/^(play tones|tones only)$/)) {
+            this.settings.phraseDelivery = 'tones'; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseDelivery', value: 'tones' };
+        }
+        if (originalLower.match(/^(say and play|say plus tones|speak and play)$/)) {
+            this.settings.phraseDelivery = 'speak_tones'; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseDelivery', value: 'speak_tones' };
         }
 
         // Standalone movement style commands
@@ -2456,6 +2674,10 @@ class ScalesController {
                 await this.playCurrentSettings();
                 return; // Don't store 'play' as last command
 
+            case 'nextPhrase':
+                await this.playNextPhrase();
+                return;
+
             case 'note': {
                 const noteMidi = noteNameToMidi(command.note, command.octave);
                 this.voiceCore.updateStatus(`Playing ${midiToPitchString(noteMidi)}`);
@@ -2532,7 +2754,9 @@ class ScalesController {
             case 'setting':
                 // Setting was already applied in parseCommand, now restart if we were playing
                 this.voiceCore.updateStatus(this.formatCurrentCommand());
-                if (wasPlaying && this.lastCommand && this.lastCommand.type === 'scale') {
+                if (wasPlaying && this.settings.practiceMode === 'phrases') {
+                    await this.playPhraseInstruction({ forceNew: true });
+                } else if (wasPlaying && this.lastCommand && this.lastCommand.type === 'scale') {
                     // Restart with new settings
                     const modifiers = this.buildModifiersFromSettings();
                     await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
@@ -2625,6 +2849,10 @@ class ScalesController {
                 parts.push(command.scaleType.replace('_', ' '));
                 parts.push('scale');
                 break;
+            case 'phrase':
+                return this.currentPhrase
+                    ? `phrase ${this.currentPhrase.displayDegrees.join('-')}`
+                    : `${this.settings.root} ${this.settings.scaleType.replace('_', ' ')} phrases`;
             case 'arpeggio':
                 parts.push(this.speakableNote(command.root));
                 parts.push(command.quality);
@@ -3082,6 +3310,8 @@ class ScalesController {
             }
         } else if (context.type === 'interval') {
             intervalInfo = index === 0 ? 'root' : context.intervalName || '';
+        } else if (context.type === 'phrase') {
+            intervalInfo = context.displayDegrees?.[index] || '';
         }
 
         if (intervalInfo) {
@@ -3096,6 +3326,112 @@ class ScalesController {
      */
     playNote(midi, duration = '8n') {
         this.audio.playNote(midi, duration);
+    }
+
+    randomInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+    clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+    positiveModulo(n, modulus) { return ((n % modulus) + modulus) % modulus; }
+    degreesPerOctave(scaleType) {
+        const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        return pattern.filter(interval => interval < 12).length;
+    }
+    scaleOffsetToMidi(rootMidi, scaleType, offset) {
+        const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        const baseIntervals = pattern.filter(interval => interval < 12);
+        const dp = baseIntervals.length;
+        return rootMidi + Math.floor(offset / dp) * 12 + baseIntervals[this.positiveModulo(offset, dp)];
+    }
+    formatPhraseDegree(offset, degreesPerOctave) {
+        if (offset >= 0) return String(offset + 1);
+        return `${this.positiveModulo(offset, degreesPerOctave) + 1}d`;
+    }
+    formatPhraseSpokenDegree(offset, degreesPerOctave) {
+        if (offset >= 0) return String(offset + 1);
+        return `${this.positiveModulo(offset, degreesPerOctave) + 1} down`;
+    }
+    generatePhraseOffsets() {
+        const s = this.settings;
+        const dp = this.degreesPerOctave(s.scaleType);
+        const minOffset = s.phraseAllowOutOfOctave ? -Math.floor(dp / 2) : 0;
+        const maxOffset = s.phraseAllowOutOfOctave ? dp * 2 : dp;
+        const minLength = this.clamp(s.phraseMinLength, 1, 32);
+        const maxLength = this.clamp(Math.max(s.phraseMaxLength, minLength), minLength, 32);
+        const offsets = [];
+        let current = s.phraseStartAtOne ? 0 : this.randomInt(0, dp);
+        offsets.push(current);
+        for (let i = 1; i < this.randomInt(minLength, maxLength); i++) {
+            let next = current;
+            for (let attempt = 0; attempt < 8; attempt++) {
+                const roll = Math.random();
+                if (roll < 0.62) next = current + this.randomInt(1, 2) * (Math.random() < 0.5 ? -1 : 1);
+                else if (roll < 0.86) next = current + this.randomInt(3, 4) * (Math.random() < 0.5 ? -1 : 1);
+                else { next = this.randomInt(minOffset, maxOffset); break; }
+                if (next >= minOffset && next <= maxOffset && next !== current) break;
+                next = current;
+            }
+            if (next === current) next = this.randomInt(minOffset, maxOffset);
+            current = this.clamp(next, minOffset, maxOffset);
+            offsets.push(current);
+        }
+        return offsets;
+    }
+    generatePhraseInstance() {
+        const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
+        if (rootMidi === null) return null;
+        const dp = this.degreesPerOctave(this.settings.scaleType);
+        const offsets = this.generatePhraseOffsets();
+        const midiNotes = offsets.map(offset => this.scaleOffsetToMidi(rootMidi, this.settings.scaleType, offset));
+        return {
+            offsets,
+            midiNotes,
+            displayDegrees: offsets.map(offset => this.formatPhraseDegree(offset, dp)),
+            spokenDegrees: offsets.map(offset => this.formatPhraseSpokenDegree(offset, dp)),
+            noteNames: midiNotes.map(midi => midiToPitchString(midi)),
+            root: this.settings.root,
+            scaleType: this.settings.scaleType,
+            octave: this.settings.octave,
+            createdAt: new Date().toISOString()
+        };
+    }
+    updatePhraseDisplay() {
+        const phraseDisplay = document.getElementById('phraseDisplay');
+        const degreeEl = document.getElementById('phraseDegrees');
+        const notesEl = document.getElementById('phraseNotes');
+        if (!phraseDisplay || !degreeEl || !notesEl) return;
+        if (this.settings.practiceMode !== 'phrases') { phraseDisplay.style.display = 'none'; return; }
+        phraseDisplay.style.display = 'flex';
+        degreeEl.textContent = this.currentPhrase ? this.currentPhrase.displayDegrees.join('-') : '--';
+        notesEl.textContent = this.currentPhrase ? this.currentPhrase.noteNames.join(' ') : '';
+    }
+    async playNextPhrase() {
+        this.settings.practiceMode = 'phrases';
+        this.syncUIToSettings();
+        await this.playPhraseInstruction({ forceNew: true });
+    }
+    /** @param {{ forceNew?: boolean, skipHistory?: boolean }} [options] */
+    async playPhraseInstruction(options = {}) {
+        const forceNew = options.forceNew === true;
+        const skipHistory = options.skipHistory === true;
+        await this.ensureAudioStarted();
+        if (forceNew || !this.currentPhrase) {
+            this.currentPhrase = this.generatePhraseInstance();
+            if (this.currentPhrase && !skipHistory) this.addPhraseToHistory(this.currentPhrase);
+        }
+        if (!this.currentPhrase) { this.voiceCore.updateStatus('Could not generate phrase'); return; }
+        const command = { type: 'phrase' };
+        const degreeText = this.currentPhrase.displayDegrees.join('-');
+        this.updatePianoNotificationCommand(command);
+        this.updatePhraseDisplay();
+        this.updatePatternPreview();
+        this.voiceCore.updateStatus(`Phrase ${degreeText}`);
+        this.lastCommand = command;
+        this.lastTranscript = `phrase ${degreeText}`;
+        if (this.settings.phraseDelivery === 'speak' || this.settings.phraseDelivery === 'speak_tones') {
+            await this.voiceCore.speakTextAsync(this.currentPhrase.spokenDegrees.join(', '));
+        }
+        if (this.settings.phraseDelivery === 'tones' || this.settings.phraseDelivery === 'speak_tones') {
+            await this.playSequence(this.currentPhrase.midiNotes, { repeat: 1, repeatGapMs: this.settings.repeatGapMs, direction: 'ascending', risingSemitones: 0 }, { type: 'phrase', displayDegrees: this.currentPhrase.displayDegrees });
+        }
     }
 
     /**
@@ -3577,6 +3913,7 @@ class ScalesController {
 
     stopPlayback() {
         this.audio.stop();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         this.clearPianoHighlights();
         this.updateScalePreview();
         this.setPianoNotificationActiveNotes([]);
@@ -3589,6 +3926,11 @@ class ScalesController {
     // Play current settings (always - "Again" always plays what's in the UI)
     async playCurrentSettings() {
         await this.ensureAudioStarted();
+
+        if (this.settings.practiceMode === 'phrases') {
+            await this.playPhraseInstruction({ forceNew: false });
+            return;
+        }
 
         // Build command from current settings
         const command = {
@@ -3623,6 +3965,21 @@ class ScalesController {
     // Alias for button click (same behavior)
     async playAgainOrCurrent() {
         await this.playCurrentSettings();
+    }
+
+    /** @param {PhraseInstance} phrase */
+    addPhraseToHistory(phrase) {
+        const degreeText = phrase.displayDegrees.join('-');
+        const historyEntry = {
+            type: 'phrase',
+            phrase: JSON.parse(JSON.stringify(phrase)),
+            description: `phrase ${degreeText}`,
+            transcript: `${phrase.root} ${phrase.scaleType.replace(/_/g, ' ')} phrases`,
+            timestamp: new Date()
+        };
+        this.commandHistory.unshift(historyEntry);
+        if (this.commandHistory.length > this.maxHistoryLength) this.commandHistory.pop();
+        this.renderHistory();
     }
 
     // Add a command to history
@@ -3673,6 +4030,21 @@ class ScalesController {
                         <div class="history-text">
                             <div class="history-error-message">${this.escapeHtml(entry.message)}</div>
                             ${errorDetails ? `<div class="history-error-details">${this.escapeHtml(errorDetails)}</div>` : ''}
+                        </div>
+                        <span class="history-time">${timeStr}</span>
+                    </div>
+                `;
+            }
+
+            if (entry.type === 'phrase' && entry.phrase) {
+                const degrees = entry.phrase.displayDegrees.join('-');
+                const notes = entry.phrase.noteNames.join(' ');
+                return `
+                    <div class="history-item" data-index="${index}">
+                        <button class="history-play-btn" data-index="${index}" title="Play again">&#9654;</button>
+                        <div class="history-text">
+                            <span class="history-phrase-degrees">${this.escapeHtml(degrees)}</span>
+                            <div class="history-transcript">${this.escapeHtml(notes)}</div>
                         </div>
                         <span class="history-time">${timeStr}</span>
                     </div>
@@ -3733,6 +4105,10 @@ class ScalesController {
             if (entry.type === 'error') {
                 const errorDetails = entry.details?.error ? `\n${this.formatErrorDetails(entry.details)}` : '';
                 return `[${timeStr}] ERROR: ${entry.message}${errorDetails}`;
+            } else if (entry.type === 'phrase' && entry.phrase) {
+                const degrees = entry.phrase.displayDegrees.join('-');
+                const notes = entry.phrase.noteNames.join(' ');
+                return `[${timeStr}] phrase ${degrees} (${notes})`;
             } else {
                 const transcript = entry.transcript !== entry.description ? ` ("${entry.transcript}")` : '';
                 return `[${timeStr}] ${entry.description}${transcript}`;
@@ -3771,7 +4147,13 @@ class ScalesController {
     // Play a command from history
     async playFromHistory(index) {
         const entry = this.commandHistory[index];
-        if (entry && entry.type === 'command' && entry.command) {
+        if (entry && entry.type === 'phrase' && entry.phrase) {
+            this.settings.practiceMode = 'phrases';
+            this.currentPhrase = JSON.parse(JSON.stringify(entry.phrase));
+            this.syncUIToSettings();
+            this.voiceCore.updateStatus(`Replaying: phrase ${this.currentPhrase.displayDegrees.join('-')}`);
+            await this.playPhraseInstruction({ forceNew: false, skipHistory: true });
+        } else if (entry && entry.type === 'command' && entry.command) {
             this.voiceCore.updateStatus(`Replaying: ${entry.description}`);
             await this.executeScaleCommand(entry.command, null, true); // skipHistory=true
         }
@@ -4049,6 +4431,13 @@ class ScalesController {
     updateNoteSequencePreview(transpose = 0) {
         const el = document.getElementById('noteSequence');
         if (!el) return;
+
+        if (this.settings.practiceMode === 'phrases') {
+            el.textContent = this.currentPhrase
+                ? this.currentPhrase.displayDegrees.join('-')
+                : '--';
+            return;
+        }
 
         const { root, scaleType, direction, movementStyle, sectionLength } = this.settings;
 

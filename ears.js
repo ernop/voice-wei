@@ -1236,8 +1236,8 @@ class EarsController {
         this.stopPitchDetection();
 
         if (success) {
-            this.showFeedback('Great singing!', 'correct');
-            if (this.drivingMode) this.speak('Great singing!');
+            this.showFeedback('Sung correctly', 'correct');
+            if (this.drivingMode) this.speak('Sung correctly');
 
             // In sing-only mode, record as correct
             if (this.mode === 'sing' && this.currentInterval) {
@@ -1246,7 +1246,7 @@ class EarsController {
             // In both mode, the identify result was already handled
             // We could track sing accuracy separately in the future
         } else {
-            const msg = reason === 'timeout' ? 'Time\'s up!' : 'Keep practicing!';
+            const msg = reason === 'timeout' ? 'Time\'s up' : 'Not matched';
             this.showFeedback(msg, 'incorrect');
             if (this.drivingMode) this.speak(msg);
 

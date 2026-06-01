@@ -4,6 +4,10 @@ Voice-first tools for singers, musicians, and readers.
 
 **Main Release:** https://fuseki.net/music8899b/scales.html
 
+## Agent Writing Rule
+
+Never add fake emotional messages, encouragement, praise, or affective filler to the product or documentation. Emotional text is allowed only when it comes directly from yui.
+
 ## Tools
 
 ### Scales

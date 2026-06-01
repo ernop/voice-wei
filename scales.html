@@ -29,6 +29,10 @@
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
                 </button>
+                <button id="nextPhraseBtn" class="next-button" aria-label="Next phrase" style="display: none;">
+                    <span class="button-text">Next</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
                 <button id="submitBtn" class="submit-button-large" style="display: none;"
                     aria-label="Submit">Submit</button>
             </div>
@@ -67,10 +71,25 @@
                 <code class="note-sequence" id="actuallyPlayed">--</code>
             </div>
 
+            <div class="phrase-display" id="phraseDisplay" style="display: none;">
+                <span class="phrase-display-label">Phrase</span>
+                <span class="phrase-display-degrees" id="phraseDegrees">--</span>
+                <span class="phrase-display-notes" id="phraseNotes"></span>
+            </div>
+
             <!-- Voice-First Scale Builder - All Bidirectional Controls -->
             <div class="voice-first-ui">
                 <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
                     click directly. <button class="vf-dismiss" id="dismissInstruction">x</button></p>
+
+                <div class="vf-row">
+                    <span class="vf-label" data-full="Mode" data-abbr="Mode">Mode</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-practice-mode="scale" data-full="scale" data-abbr="Scl">scale</button>
+                        <button class="vf-btn" data-practice-mode="phrases" data-full="phrases"
+                            data-abbr="Phr">phrases</button>
+                    </div>
+                </div>
 
                 <div class="vf-row">
                     <span class="vf-label" data-full="Root" data-abbr="Rt">Root</span>
@@ -111,7 +130,7 @@
                     </div>
                 </div>
 
-                <div class="vf-row">
+                <div class="vf-row scale-only">
                     <span class="vf-label" data-full="Move" data-abbr="Mv">Move</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-movement="normal" data-full="normal" data-abbr="-">normal</button>
@@ -147,7 +166,7 @@
                     </div>
                 </div>
 
-                <div class="vf-row">
+                <div class="vf-row scale-only">
                     <span class="vf-label" data-full="Direction" data-abbr="Dir">Direction</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
@@ -159,7 +178,7 @@
                     </div>
                 </div>
 
-                <div class="vf-row">
+                <div class="vf-row scale-only">
                     <span class="vf-label" data-full="Repeat" data-abbr="Rep">Repeat</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
@@ -177,7 +196,7 @@
                     </div>
                 </div>
 
-                <div class="vf-row">
+                <div class="vf-row scale-only">
                     <span class="vf-label" data-full="Exercise" data-abbr="Ex">Exercise</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-exercise="none" data-full="full scale" data-abbr="-">full
@@ -198,7 +217,7 @@
                     </div>
                 </div>
 
-                <div class="vf-row">
+                <div class="vf-row scale-only">
                     <span class="vf-label" data-full="Section Width" data-abbr="Wid">Section Width</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
@@ -209,6 +228,52 @@
                             data-abbr="1o+5">octave+5th</button>
                         <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
                             octaves</button>
+                    </div>
+                </div>
+
+                <div class="vf-row phrases-only" style="display: none;">
+                    <span class="vf-label" data-full="Phrase Start" data-abbr="Start">Phrase Start</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-phrase-start="one" data-full="start at 1" data-abbr="1">start at
+                            1</button>
+                        <button class="vf-btn" data-phrase-start="random" data-full="random start"
+                            data-abbr="?">random start</button>
+                    </div>
+                    <span class="vf-label vf-label-inline" data-full="Range" data-abbr="Rng">Range</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-phrase-range="within" data-full="within octave"
+                            data-abbr="1o">within octave</button>
+                        <button class="vf-btn" data-phrase-range="expanded" data-full="out of octave"
+                            data-abbr="out">out of octave</button>
+                    </div>
+                </div>
+
+                <div class="vf-row phrases-only" style="display: none;">
+                    <span class="vf-label" data-full="Min Length" data-abbr="Min">Min Length</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-phrase-min-length="3">3</button>
+                        <button class="vf-btn" data-phrase-min-length="5">5</button>
+                        <button class="vf-btn" data-phrase-min-length="8">8</button>
+                    </div>
+                    <span class="vf-label vf-label-inline" data-full="Max Length" data-abbr="Max">Max Length</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-phrase-max-length="5">5</button>
+                        <button class="vf-btn" data-phrase-max-length="10">10</button>
+                        <button class="vf-btn" data-phrase-max-length="16">16</button>
+                    </div>
+                </div>
+
+                <div class="vf-row phrases-only" style="display: none;">
+                    <span class="vf-label" data-full="Phrase Output" data-abbr="Out">Phrase Output</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-phrase-delivery="display" data-full="display"
+                            data-abbr="Txt">display</button>
+                        <button class="vf-btn" data-phrase-delivery="speak" data-full="say numbers"
+                            data-abbr="Say">say numbers</button>
+                        <button class="vf-btn" data-phrase-delivery="tones" data-full="play tones"
+                            data-abbr="Tone">play tones</button>
+                        <button class="vf-btn" data-phrase-delivery="speak_tones" data-full="say + tones"
+                            data-abbr="Both">say + tones</button>
                     </div>
                 </div>
 
@@ -258,6 +323,8 @@
                 <span class="vcc-label">Voice controls:</span>
                 <code>stop</code>
                 <code>play</code>
+                <code>phrases</code>
+                <code>next phrase</code>
             </div>
 
             <!-- Saved Configurations (Presets) -->
