@@ -1315,6 +1315,8 @@ class ScalesController {
                 return 'say numbers';
             case 'speak_tones':
                 return 'say + tones';
+            case 'sung_numbers':
+                return 'sung numbers';
             default:
                 return 'play tones';
         }
@@ -2129,6 +2131,10 @@ class ScalesController {
         if (originalLower.match(/^(say and play|say plus tones|speak and play)$/)) {
             this.settings.phraseDelivery = 'speak_tones'; this.syncUIToSettings();
             return { type: 'setting', setting: 'phraseDelivery', value: 'speak_tones' };
+        }
+        if (originalLower.match(/^(sung numbers|sing numbers|sing the numbers)$/)) {
+            this.settings.phraseDelivery = 'sung_numbers'; this.syncUIToSettings();
+            return { type: 'setting', setting: 'phraseDelivery', value: 'sung_numbers' };
         }
 
         // Standalone movement style commands
@@ -3381,6 +3387,71 @@ class ScalesController {
         if (offset >= 0) return String(offset + 1);
         return `${this.positiveModulo(offset, degreesPerOctave) + 1} down`;
     }
+    midiToSpeechPitch(midi) {
+        const c4 = noteNameToMidi('C', 4) || 60;
+        return this.clamp(1 + ((midi - c4) / 24), 0.45, 1.9);
+    }
+    speakNumberAtMidiPitchAsync(text, midi, durationMs) {
+        return new Promise((resolve) => {
+            if (!('speechSynthesis' in window)) {
+                resolve();
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.pitch = this.midiToSpeechPitch(midi);
+            utterance.rate = this.voiceCore?.settings?.voiceRate || 1;
+
+            const voiceName = this.voiceCore?.settings?.voiceName;
+            if (voiceName && this.voiceCore?.availableVoices?.length) {
+                const voice = this.voiceCore.availableVoices.find(v => v.name === voiceName);
+                if (voice) utterance.voice = voice;
+            }
+
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                resolve();
+            };
+            utterance.onend = finish;
+            utterance.onerror = finish;
+            window.speechSynthesis.speak(utterance);
+            setTimeout(finish, Math.max(250, durationMs + 250));
+        });
+    }
+    async playSungNumberPhrase(phrase) {
+        this.clearScalePreview();
+        this.clearActuallyPlayed();
+        const playId = this.audio.requestSequencePlayback();
+        try {
+            for (let i = 0; i < phrase.midiNotes.length; i++) {
+                if (!this.audio.isPlaybackValid(playId)) break;
+                const midi = phrase.midiNotes[i];
+                const duration = this.getNoteDuration({});
+                const numberText = phrase.spokenDegrees[i];
+
+                this.highlightPianoKey(midi);
+                this.setPianoNotificationActiveNotes([midi]);
+                this.appendActuallyPlayed(midi, true);
+                this.voiceCore.updateStatus(`Phrase ${phrase.displayDegrees.join('-')} | ${midiToPitchString(midi)} [${phrase.displayDegrees[i]}]`);
+                this.audio.playNote(midi, duration.tone);
+                await Promise.all([
+                    this.speakNumberAtMidiPitchAsync(numberText, midi, duration.ms),
+                    this.audio.sleep(Math.max(0, duration.ms))
+                ]);
+
+                if (duration.gap > 0 && this.audio.isPlaybackValid(playId)) await this.audio.sleep(duration.gap);
+            }
+        } finally {
+            if (this.audio.playbackId === playId) this.audio.isPlaying = false;
+            this.clearPianoHighlights();
+            this.setPianoNotificationActiveNotes([]);
+            this.updateScalePreview();
+            this.voiceCore.updateStatus('Ready');
+        }
+    }
     generatePhraseOffsets() {
         const s = this.settings;
         const dp = this.degreesPerOctave(s.scaleType);
@@ -3458,6 +3529,10 @@ class ScalesController {
         this.voiceCore.updateStatus(`Phrase ${degreeText}`);
         this.lastCommand = command;
         this.lastTranscript = `phrase ${degreeText}`;
+        if (this.settings.phraseDelivery === 'sung_numbers') {
+            await this.playSungNumberPhrase(this.currentPhrase);
+            return;
+        }
         if (this.settings.phraseDelivery === 'speak' || this.settings.phraseDelivery === 'speak_tones') {
             await this.voiceCore.speakTextAsync(this.currentPhrase.spokenDegrees.join(', '));
         }
