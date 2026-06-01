@@ -718,9 +718,88 @@ Stats read aloud on request: "You've done 20 intervals, 85% correct. Weakest is 
 
 ---
 
+---
+
+# Phrases Practice Brief
+
+Dedicated tab: `phrases.html` / `phrases.js` / `phrases.css`, with shared scale-degree helpers in `pattern-practice-core.js`.
+
+## Goal
+
+Phrases trains melodic memory and reproduction. It generates short-to-long scale-degree phrases, shows the full degree sequence, and lets the singer replay the whole phrase or isolate parts until the shape is internalized.
+
+## Default State
+
+- Root: D-sharp
+- Octave/chord level: 3
+- Note length: 0.3 seconds
+- Gap: 0.0 seconds
+- Output: play notes only
+- Return to initial note: on
+- Return to root: off
+
+## Generation Rules
+
+- Phrase length is sampled uniformly from every integer length between the selected minimum and maximum.
+- Phrases are clustered: local stepwise movement is common, with occasional larger jumps.
+- Start can be fixed at degree 1 or randomized.
+- Range can stay within the octave or allow out-of-octave degrees.
+- Optional endings can append the initial note, the scale root, or both.
+
+## Controls and Behavior
+
+### Structural controls regenerate
+
+Changing these means the current phrase no longer matches the requested exercise, so Phrases generates a new current phrase immediately:
+
+- Root
+- Octave/chord level
+- Scale
+- Start at 1 vs random start
+- Within octave vs out of octave
+- Minimum length
+- Maximum length
+- Return to initial note
+- Return to root
+
+### Playback/display controls preserve the current phrase
+
+Changing these should not replace the phrase. The current phrase remains selected and is replayed or redrawn using the new setting:
+
+- Note length
+- Gap
+- Output mode
+- Show note names
+- Reflect
+- Per-note active/inactive markers
+
+### Transport
+
+- Play: play the current phrase once, creating one if needed.
+- Repeat: toggle a loop of the current phrase with a short pause between repetitions.
+- Next: generate a new phrase and play it.
+- Stop: stop audio/speech and turn repeat off.
+
+### Reflect
+
+Reflect flips the current phrase around the octave. A degree sequence that moves up from 1 is transformed into the corresponding movement down from 8. For example, offsets for 1-5-7-1 become reflected degrees such as 8-4-2-8. Reflect is a view/playback transform of the current phrase, not a request to generate a new phrase.
+
+### Per-note active markers
+
+Every displayed degree has an on/off marker underneath it. All notes are active by default. Clicking or dragging across markers toggles notes in or out of playback, so a singer can drill one section of a phrase without losing the original phrase context.
+
+## Output Modes
+
+- Display: show the numbers only.
+- Say numbers: speak the degree numbers without tones.
+- Play tones: play only the target notes.
+- Say + tones: speak the numbers, then play the notes.
+- Sing numbers: play the exact piano pitch while speaking each number with pitch shaped toward that note. Native browser speech pitch is approximate; the piano tone remains the exact target.
+
+
 # Version System
 
-All five pages share a unified version number stored in the `VERSION` file.
+All pages share a unified version number stored in the `VERSION` file.
 
 ## Current Version
 
@@ -754,10 +833,12 @@ This updates:
 Voice-Wei is a collection of voice-first tools for musicians and readers:
 
 1. **Scales**: Voice-controlled scale practice with realistic piano
-2. **Pitch Meter**: Real-time pitch detection for vocal accuracy
-3. **Music Player**: AI-powered voice-controlled YouTube player
-4. **Books**: Ebook to audiobook converter using OpenAI TTS
-5. **Ears**: Interval ear training - identification and singing production
+2. **Intervals**: Scale-degree and interval pattern drills
+3. **Phrases**: Melodic phrase memory and reproduction practice
+4. **Pitch Meter**: Real-time pitch detection for vocal accuracy
+5. **Music Player**: AI-powered voice-controlled YouTube player
+6. **Books**: Ebook to audiobook converter using OpenAI TTS
+7. **Ears**: Interval ear training - identification and singing production
 
 The common thread is hands-free, voice-first operation. Whether practicing scales, checking pitch, training your ear, playing music while driving, or listening to books, these tools minimize visual attention and maximize voice control.
 

@@ -8,18 +8,18 @@
     'use strict';
 
     const state = {
-        root: 'C',
-        octave: 4,
+        root: 'D#',
+        octave: 3,
         scaleType: 'major',
         startAtOne: true,
         allowOutOfOctave: false,
         minLength: 5,
         maxLength: 10,
-        returnToInitial: false,
+        returnToInitial: true,
         returnToRoot: false,
-        outputMode: 'sing_numbers',
-        noteLengthMs: 900,
-        gapMs: 100,
+        outputMode: 'tones',
+        noteLengthMs: 300,
+        gapMs: 0,
         showNoteNames: true,
         reflected: false,
         loopCurrent: false
@@ -75,14 +75,18 @@
         if (Tone.context.state !== 'running') await Tone.start();
     }
 
-    function stopPlayback(status = 'Stopped') {
-        playToken++;
-        state.loopCurrent = false;
-        syncRepeatButton();
+    function cancelCurrentSound() {
         if (synth) synth.releaseAll();
         if (gainNode) gainNode.gain.setValueAtTime(0, Tone.now());
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function stopPlayback(status = 'Stopped') {
+        playToken++;
+        state.loopCurrent = false;
+        syncRepeatButton();
+        cancelCurrentSound();
         setStatus(status);
     }
 
@@ -194,6 +198,7 @@
 
     async function playPhrase(phrase) {
         await ensureAudioStarted();
+        cancelCurrentSound();
         const token = ++playToken;
         do {
             await playPhraseOnce(phrase, token);
@@ -386,7 +391,10 @@
 
     function onSettingChanged(key) {
         if (STRUCTURE_KEYS.has(key)) {
-            if (currentPhrase) generatePhrase();
+            if (currentPhrase) {
+                stopPlayback('Regenerated');
+                generatePhrase();
+            }
             return;
         }
         if (PLAYBACK_KEYS.has(key)) {

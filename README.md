@@ -32,7 +32,22 @@ See [SCALES.md](SCALES.md) for full command reference.
 
 ### Phrases
 
-Random scale-degree phrase practice for singers. Choose root, scale, range, phrase length, ending behavior, and output mode, including sing numbers.
+Dedicated scale-degree phrase practice for singers: https://fuseki.net/music8899b/phrases.html
+
+Use **Phrases** when the exercise is about remembering and reproducing whole melodic shapes rather than running a scale. The page is button-first; voice controls are not required to start practice.
+
+**Default setup:** D-sharp, octave 3, 0.3s note length, 0.0s gap, play notes only, and return to the initial note enabled.
+
+**Controls:**
+- Root, octave, scale, start at 1/random start, within octave/out of octave
+- Uniform random phrase length between selected min and max
+- Return to initial note and return to scale root endings
+- Output modes: display, say numbers, play tones, say + tones, sing numbers
+- Reflect flips the current phrase around the octave so upward distances become downward distances from 8
+- Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
+- Play plays once, Repeat loops the current phrase, Next generates a new phrase
+
+**Setting behavior:** structural settings regenerate the current phrase; playback/display settings keep the current phrase and replay or redraw it.
 
 ### Pitch Meter
 
