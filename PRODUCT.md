@@ -748,13 +748,18 @@ Phrases trains melodic memory and reproduction. It generates short-to-long scale
 
 ## Controls and Behavior
 
-### Structural controls regenerate
+### Projection controls preserve the phrase
 
-Changing these means the current phrase no longer matches the requested exercise, so Phrases generates a new current phrase immediately:
+Changing these does not replace the phrase. The scale-degree offsets stay the same, while note names and playback pitches are recalculated in the new musical context. For example, 1-2-3 in C major displays and plays as C-D-E; switching the root to F keeps 1-2-3 and displays/plays F-G-A.
 
 - Root
 - Octave/chord level
 - Scale
+
+### Structural controls regenerate
+
+Changing these means the current phrase no longer matches the requested exercise shape, so Phrases generates a new current phrase immediately:
+
 - Start at 1 vs random start
 - Within octave vs out of octave
 - Minimum length
@@ -762,7 +767,7 @@ Changing these means the current phrase no longer matches the requested exercise
 - Return to initial note
 - Return to root
 
-### Playback/display controls preserve the current phrase
+### Playback/display controls preserve the phrase
 
 Changing these should not replace the phrase. The current phrase remains selected and is replayed or redrawn using the new setting:
 

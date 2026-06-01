@@ -26,9 +26,10 @@
     };
 
     const STRUCTURE_KEYS = new Set([
-        'root', 'octave', 'scaleType', 'startAtOne', 'allowOutOfOctave',
-        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot'
+        'startAtOne', 'allowOutOfOctave', 'minLength', 'maxLength',
+        'returnToInitial', 'returnToRoot'
     ]);
+    const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
@@ -116,18 +117,24 @@
 
     function deriveDisplayPhrase() {
         if (!currentPhrase) return null;
-        if (!state.reflected) return currentPhrase;
         const root = rootMidi();
         if (root === null) return currentPhrase;
-        const reflectedOffsets = PatternPracticeCore.reflectOffsets(currentPhrase.offsets, currentPhrase.scaleType);
-        const dp = PatternPracticeCore.degreesPerOctave(currentPhrase.scaleType);
-        const midiNotes = reflectedOffsets.map(offset => PatternPracticeCore.scaleOffsetToMidi(root, currentPhrase.scaleType, offset));
+
+        const offsets = state.reflected
+            ? PatternPracticeCore.reflectOffsets(currentPhrase.offsets, state.scaleType)
+            : currentPhrase.offsets;
+        const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
+        const midiNotes = offsets.map(offset => PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset));
+
         return {
             ...currentPhrase,
-            offsets: reflectedOffsets,
+            root: state.root,
+            scaleType: state.scaleType,
+            octave: state.octave,
+            offsets,
             midiNotes,
-            displayDegrees: reflectedOffsets.map(offset => PatternPracticeCore.offsetToDegree(offset, dp)),
-            spokenDegrees: reflectedOffsets.map(offset => PatternPracticeCore.offsetToSpoken(offset, dp)),
+            displayDegrees: offsets.map(offset => PatternPracticeCore.offsetToDegree(offset, dp)),
+            spokenDegrees: offsets.map(offset => PatternPracticeCore.offsetToSpoken(offset, dp)),
             noteNames: midiNotes.map(midi => midiToPitchString(midi))
         };
     }
@@ -397,7 +404,7 @@
             }
             return;
         }
-        if (PLAYBACK_KEYS.has(key)) {
+        if (PROJECT_KEYS.has(key) || PLAYBACK_KEYS.has(key)) {
             updatePhraseDisplay();
             if (currentPhrase) playCurrentOrNew();
         }

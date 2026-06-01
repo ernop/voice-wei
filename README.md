@@ -47,7 +47,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
-**Setting behavior:** structural settings regenerate the current phrase; playback/display settings keep the current phrase and replay or redraw it.
+**Setting behavior:** root, octave, and scale changes keep the current degree sequence and transpose/reproject it into the new context; structural generation settings regenerate; playback/display settings keep the current phrase and replay or redraw it.
 
 ### Pitch Meter
 
