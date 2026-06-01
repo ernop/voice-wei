@@ -19,12 +19,26 @@
 }
 
 .phrase-degrees-large {
+    display: grid;
+    justify-content: center;
+    align-items: end;
+    gap: 6px;
+    max-width: 100%;
+    overflow-x: auto;
     color: #86efac;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: clamp(2rem, 8vw, 4.5rem);
     font-weight: 800;
     line-height: 1.05;
-    overflow-wrap: anywhere;
+}
+
+.phrase-degree-token {
+    min-width: 2.8rem;
+    text-align: center;
+}
+
+.phrase-degree-token.inactive {
+    color: rgba(255, 255, 255, 0.25);
 }
 
 .phrase-notes-line,
@@ -51,17 +65,19 @@
 
 
 .phrase-note-toggles {
-    display: flex;
-    align-items: center;
+    display: grid;
     justify-content: center;
-    flex-wrap: wrap;
-    gap: 4px;
+    align-items: start;
+    gap: 6px;
     min-height: 28px;
+    max-width: 100%;
+    overflow-x: auto;
     touch-action: none;
 }
 
 .phrase-note-toggle {
-    min-width: 30px;
+    min-width: 2.8rem;
+    width: 100%;
     padding: 4px 6px;
     border: 1px solid rgba(134, 239, 172, 0.65);
     border-radius: 999px;

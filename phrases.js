@@ -139,6 +139,26 @@
         };
     }
 
+
+    function phraseGridTemplate(phrase) {
+        return `repeat(${phrase.displayDegrees.length}, 2.8rem)`;
+    }
+
+    function renderDegreeRow(phrase) {
+        const degreesEl = getEl('phraseDegrees');
+        if (!degreesEl) return;
+        degreesEl.textContent = '';
+        degreesEl.style.gridTemplateColumns = phraseGridTemplate(phrase);
+        phrase.displayDegrees.forEach((degree, index) => {
+            const token = document.createElement('span');
+            token.className = 'phrase-degree-token';
+            token.dataset.index = String(index);
+            token.textContent = degree;
+            token.classList.toggle('inactive', activeMask[index] === false);
+            degreesEl.appendChild(token);
+        });
+    }
+
     function activeIndexes(phrase) {
         const indexes = [];
         for (let i = 0; i < phrase.midiNotes.length; i++) {
@@ -159,7 +179,7 @@
             renderNoteToggles(null);
             return;
         }
-        degreesEl.textContent = phrase.displayDegrees.join('-');
+        renderDegreeRow(phrase);
         notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
         const rangeText = state.allowOutOfOctave ? 'out of octave' : 'within octave';
         const startText = state.startAtOne ? 'start 1' : 'random start';
@@ -183,7 +203,7 @@
 
     async function playPhraseOnce(phrase, token) {
         updatePhraseDisplay();
-        setStatus(`Playing ${phrase.displayDegrees.join('-')}`);
+        setStatus(`Playing ${phrase.displayDegrees.join(' ')}`);
         if (state.outputMode === 'display') { setStatus('Displayed'); return; }
         if (state.outputMode === 'speak') {
             await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
@@ -299,6 +319,7 @@
         if (!container) return;
         container.textContent = '';
         if (!phrase) return;
+        container.style.gridTemplateColumns = phraseGridTemplate(phrase);
         phrase.displayDegrees.forEach((degree, index) => {
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -327,6 +348,8 @@
             btn.classList.toggle('inactive', !active);
             btn.textContent = active ? 'on' : 'off';
         }
+        const token = document.querySelector(`.phrase-degree-token[data-index="${index}"]`);
+        if (token) token.classList.toggle('inactive', !active);
     }
 
     function endPointerToggle() { isPointerToggling = false; }
@@ -367,7 +390,7 @@
             text.className = 'history-text';
             const degrees = document.createElement('div');
             degrees.className = 'phrase-history-degrees';
-            degrees.textContent = phrase.displayDegrees.join('-');
+            degrees.textContent = phrase.displayDegrees.join(' ');
             const notes = document.createElement('div');
             notes.className = 'history-transcript';
             notes.textContent = phrase.noteNames.join(' ');
