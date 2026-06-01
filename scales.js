@@ -332,6 +332,8 @@ const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
  * @property {number} rangeExpansion
  * @property {number} octaveSpan
  * @property {string} sectionLength
+ * @property {string} exercise
+ * @property {number} shiftingSteps
  * @property {string} practiceMode
  * @property {boolean} phraseStartAtOne
  * @property {boolean} phraseAllowOutOfOctave
@@ -1285,6 +1287,36 @@ class ScalesController {
         if (!this.audio.isPlaying) {
             this.updatePianoNotificationCommand(null);
             this.setPianoNotificationActiveNotes([]);
+        }
+    }
+
+    updatePracticeModeVisibility() {
+        const isPhrases = this.settings.practiceMode === 'phrases';
+        document.querySelectorAll('.scale-only').forEach(el => {
+            const node = /** @type {HTMLElement} */ (el);
+            node.style.display = isPhrases ? 'none' : '';
+        });
+        document.querySelectorAll('.phrases-only').forEach(el => {
+            const node = /** @type {HTMLElement} */ (el);
+            node.style.display = isPhrases ? '' : 'none';
+        });
+        const phraseDisplay = document.getElementById('phraseDisplay');
+        if (phraseDisplay) phraseDisplay.style.display = isPhrases ? 'flex' : 'none';
+        const nextPhraseBtn = document.getElementById('nextPhraseBtn');
+        if (nextPhraseBtn) nextPhraseBtn.style.display = isPhrases ? '' : 'none';
+    }
+
+    /** @param {string} delivery */
+    getPhraseDeliveryLabel(delivery) {
+        switch (delivery) {
+            case 'display':
+                return 'display';
+            case 'speak':
+                return 'say numbers';
+            case 'speak_tones':
+                return 'say + tones';
+            default:
+                return 'play tones';
         }
     }
 
