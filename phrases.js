@@ -140,22 +140,41 @@
     }
 
 
-    function phraseGridTemplate(phrase) {
-        return `repeat(${phrase.displayDegrees.length}, 2.8rem)`;
-    }
-
-    function renderDegreeRow(phrase) {
+    function renderPhraseUnits(phrase) {
         const degreesEl = getEl('phraseDegrees');
         if (!degreesEl) return;
         degreesEl.textContent = '';
-        degreesEl.style.gridTemplateColumns = phraseGridTemplate(phrase);
         phrase.displayDegrees.forEach((degree, index) => {
+            const unit = document.createElement('span');
+            unit.className = 'phrase-note-unit';
+            unit.dataset.index = String(index);
+            unit.classList.toggle('inactive', activeMask[index] === false);
+
             const token = document.createElement('span');
             token.className = 'phrase-degree-token';
             token.dataset.index = String(index);
             token.textContent = degree;
-            token.classList.toggle('inactive', activeMask[index] === false);
-            degreesEl.appendChild(token);
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'phrase-note-toggle';
+            btn.textContent = activeMask[index] === false ? 'off' : 'on';
+            btn.title = `${degree} ${phrase.noteNames[index]}`;
+            btn.dataset.index = String(index);
+            btn.classList.toggle('inactive', activeMask[index] === false);
+            btn.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                isPointerToggling = true;
+                pointerToggleValue = activeMask[index] === false;
+                setNoteActive(index, pointerToggleValue);
+            });
+            btn.addEventListener('pointerenter', () => {
+                if (isPointerToggling) setNoteActive(index, pointerToggleValue);
+            });
+
+            unit.appendChild(token);
+            unit.appendChild(btn);
+            degreesEl.appendChild(unit);
         });
     }
 
@@ -176,16 +195,16 @@
         if (!phrase) {
             degreesEl.textContent = '--';
             notesEl.textContent = '';
-            renderNoteToggles(null);
+            const togglesEl = getEl('phraseNoteToggles');
+            if (togglesEl) togglesEl.textContent = '';
             return;
         }
-        renderDegreeRow(phrase);
+        renderPhraseUnits(phrase);
         notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
         const rangeText = state.allowOutOfOctave ? 'out of octave' : 'within octave';
         const startText = state.startAtOne ? 'start 1' : 'random start';
         const reflectedText = state.reflected ? ' | reflected' : '';
         setMeta(`${state.root} ${state.scaleType.replace(/_/g, ' ')} | ${startText} | ${rangeText}${reflectedText}`);
-        renderNoteToggles(phrase);
     }
 
     function generatePhrase() {
@@ -316,29 +335,7 @@
 
     function renderNoteToggles(phrase) {
         const container = getEl('phraseNoteToggles');
-        if (!container) return;
-        container.textContent = '';
-        if (!phrase) return;
-        container.style.gridTemplateColumns = phraseGridTemplate(phrase);
-        phrase.displayDegrees.forEach((degree, index) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'phrase-note-toggle';
-            btn.textContent = activeMask[index] === false ? 'off' : 'on';
-            btn.title = `${degree} ${phrase.noteNames[index]}`;
-            btn.dataset.index = String(index);
-            btn.classList.toggle('inactive', activeMask[index] === false);
-            btn.addEventListener('pointerdown', event => {
-                event.preventDefault();
-                isPointerToggling = true;
-                pointerToggleValue = activeMask[index] === false;
-                setNoteActive(index, pointerToggleValue);
-            });
-            btn.addEventListener('pointerenter', () => {
-                if (isPointerToggling) setNoteActive(index, pointerToggleValue);
-            });
-            container.appendChild(btn);
-        });
+        if (container) container.textContent = '';
     }
 
     function setNoteActive(index, active) {
@@ -350,6 +347,8 @@
         }
         const token = document.querySelector(`.phrase-degree-token[data-index="${index}"]`);
         if (token) token.classList.toggle('inactive', !active);
+        const unit = document.querySelector(`.phrase-note-unit[data-index="${index}"]`);
+        if (unit) unit.classList.toggle('inactive', !active);
     }
 
     function endPointerToggle() { isPointerToggling = false; }
@@ -357,7 +356,7 @@
     function setAllNotes(active) {
         if (!currentPhrase) return;
         activeMask = currentPhrase.midiNotes.map(() => active);
-        renderNoteToggles(deriveDisplayPhrase());
+        renderPhraseUnits(deriveDisplayPhrase());
     }
 
     function renderHistory() {
