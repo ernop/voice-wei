@@ -38,6 +38,13 @@
     const TEST_GLITCH_WINDOW_MS = 220;
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
+    const ADJUSTER_VALUES = {
+        octave: [2, 3, 4],
+        noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
+        gapMs: [0, 100, 250, 500],
+        minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],
+        maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 32, 40, 50]
+    };
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
     let synth = null;
@@ -919,23 +926,52 @@
         });
     }
 
-    function syncSelect(id, value) {
-        const el = /** @type {HTMLSelectElement | null} */ (getEl(id));
-        if (el) el.value = String(value);
+    function formatSeconds(ms) {
+        return `${ms / 1000}s`;
+    }
+
+    function setValueText(id, text) {
+        const el = getEl(id);
+        if (el) el.textContent = text;
     }
 
     function syncLengthControls() {
         syncSingleSelect('data-min-length', state.minLength);
         syncSingleSelect('data-max-length', state.maxLength);
-        syncSelect('minLengthSelect', state.minLength);
-        syncSelect('maxLengthSelect', state.maxLength);
+        setValueText('minLengthValue', String(state.minLength));
+        setValueText('maxLengthValue', String(state.maxLength));
     }
 
-    function syncCompactSelects() {
-        syncSelect('octaveSelect', state.octave);
-        syncSelect('noteLengthSelect', state.noteLengthMs);
-        syncSelect('gapSelect', state.gapMs);
+    function syncAdjusterControls() {
+        setValueText('octaveValue', String(state.octave));
+        setValueText('noteLengthValue', formatSeconds(state.noteLengthMs));
+        setValueText('gapValue', formatSeconds(state.gapMs));
         syncLengthControls();
+
+        document.querySelectorAll('[data-preset-key]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const key = btn.getAttribute('data-preset-key') || '';
+            const value = btn.getAttribute('data-preset-value') || '';
+            btn.classList.toggle('selected', String(state[key]) === value);
+        });
+
+        document.querySelectorAll('[data-length-range-min]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle(
+                'selected',
+                btn.getAttribute('data-length-range-min') === String(state.minLength)
+                && btn.getAttribute('data-length-range-max') === String(state.maxLength)
+            );
+        });
+
+        document.querySelectorAll('[data-step-key]').forEach(el => {
+            const btn = /** @type {HTMLButtonElement} */ (el);
+            const key = btn.getAttribute('data-step-key') || '';
+            const delta = Number(btn.getAttribute('data-step-delta') || 0);
+            const values = ADJUSTER_VALUES[key] || [];
+            const index = values.indexOf(state[key]);
+            btn.disabled = delta < 0 ? index <= 0 : index >= values.length - 1;
+        });
     }
 
     function onSettingChanged(key) {
@@ -971,18 +1007,52 @@
         });
     }
 
-    function wireSelect(id, stateKey, parse) {
-        const el = /** @type {HTMLSelectElement | null} */ (getEl(id));
-        if (!el) return;
-        el.value = String(state[stateKey]);
-        el.addEventListener('change', () => {
-            state[stateKey] = parse(el.value);
-            if (state.minLength > state.maxLength) {
-                if (stateKey === 'maxLength') state.minLength = state.maxLength;
-                else state.maxLength = state.minLength;
-                syncLengthControls();
-            }
-            onSettingChanged(stateKey);
+    function normalizeLengthBounds(key) {
+        if (state.minLength > state.maxLength) {
+            if (key === 'maxLength') state.minLength = state.maxLength;
+            else state.maxLength = state.minLength;
+        }
+    }
+
+    function setAdjusterValue(key, value) {
+        state[key] = value;
+        normalizeLengthBounds(key);
+        syncAdjusterControls();
+        onSettingChanged(key);
+    }
+
+    function stepAdjusterValue(key, delta) {
+        const values = ADJUSTER_VALUES[key] || [];
+        const index = values.indexOf(state[key]);
+        if (index === -1) return;
+        const nextIndex = PatternPracticeCore.clamp(index + delta, 0, values.length - 1);
+        if (nextIndex === index) return;
+        setAdjusterValue(key, values[nextIndex]);
+    }
+
+    function wireAdjusters() {
+        document.querySelectorAll('[data-step-key]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                stepAdjusterValue(btn.getAttribute('data-step-key') || '', Number(btn.getAttribute('data-step-delta') || 0));
+            });
+        });
+
+        document.querySelectorAll('[data-preset-key]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                setAdjusterValue(btn.getAttribute('data-preset-key') || '', Number(btn.getAttribute('data-preset-value') || 0));
+            });
+        });
+
+        document.querySelectorAll('[data-length-range-min]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                state.minLength = Number(btn.getAttribute('data-length-range-min') || state.minLength);
+                state.maxLength = Number(btn.getAttribute('data-length-range-max') || state.maxLength);
+                syncAdjusterControls();
+                onSettingChanged('minLength');
+            });
         });
     }
 
@@ -1019,11 +1089,7 @@
         wireSingleSelect('data-output', 'outputMode', String);
         wireSingleSelect('data-length', 'noteLengthMs', Number);
         wireSingleSelect('data-gap', 'gapMs', Number);
-        wireSelect('octaveSelect', 'octave', Number);
-        wireSelect('noteLengthSelect', 'noteLengthMs', Number);
-        wireSelect('gapSelect', 'gapMs', Number);
-        wireSelect('minLengthSelect', 'minLength', Number);
-        wireSelect('maxLengthSelect', 'maxLength', Number);
+        wireAdjusters();
         wireToggle('returnInitialToggle', 'returnToInitial');
         wireToggle('returnRootToggle', 'returnToRoot');
         wireToggle('showNamesToggle', 'showNoteNames');
@@ -1048,7 +1114,7 @@
         renderHistory();
         syncRepeatButton();
         syncPhraseTestControls();
-        syncCompactSelects();
+        syncAdjusterControls();
     }
 
     async function boot() {

@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=58">
-    <link rel="stylesheet" href="scales.css?v=58">
-    <link rel="stylesheet" href="phrases.css?v=58">
+    <link rel="stylesheet" href="style.css?v=59">
+    <link rel="stylesheet" href="scales.css?v=59">
+    <link rel="stylesheet" href="phrases.css?v=59">
 </head>
 
 <body data-page="phrases">
@@ -81,32 +81,29 @@
             <div class="voice-first-ui phrase-controls phrase-control-grid">
                 <section class="phrase-control-card phrase-control-card-timing">
                     <div class="phrase-control-card-title">Timing</div>
-                    <div class="phrase-compact-fields">
-                        <label class="phrase-select-field">
-                            <span>Note Len</span>
-                            <select id="noteLengthSelect">
-                                <option value="200">0.2s</option>
-                                <option value="250">0.25s</option>
-                                <option value="300">0.3s</option>
-                                <option value="350">0.35s</option>
-                                <option value="400">0.4s</option>
-                                <option value="450">0.45s</option>
-                                <option value="500">0.5s</option>
-                                <option value="600">0.6s</option>
-                                <option value="900">0.9s</option>
-                                <option value="1200">1.2s</option>
-                                <option value="1600">1.6s</option>
-                            </select>
-                        </label>
-                        <label class="phrase-select-field">
-                            <span>Gap</span>
-                            <select id="gapSelect">
-                                <option value="0">0s</option>
-                                <option value="100">0.1s</option>
-                                <option value="250">0.25s</option>
-                                <option value="500">0.5s</option>
-                            </select>
-                        </label>
+                    <div class="phrase-step-field">
+                        <span class="phrase-step-label">Note Len</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
+                        <span class="phrase-step-value" id="noteLengthValue">0.3s</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
+                    </div>
+                    <div class="phrase-preset-row" aria-label="Note length presets">
+                        <button class="vf-btn" data-preset-key="noteLengthMs" data-preset-value="200">fast</button>
+                        <button class="vf-btn" data-preset-key="noteLengthMs" data-preset-value="300">default</button>
+                        <button class="vf-btn" data-preset-key="noteLengthMs" data-preset-value="600">steady</button>
+                        <button class="vf-btn" data-preset-key="noteLengthMs" data-preset-value="1200">slow</button>
+                    </div>
+                    <div class="phrase-step-field">
+                        <span class="phrase-step-label">Gap</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Shorter gap">-</button>
+                        <span class="phrase-step-value" id="gapValue">0s</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Longer gap">+</button>
+                    </div>
+                    <div class="phrase-preset-row" aria-label="Gap presets">
+                        <button class="vf-btn" data-preset-key="gapMs" data-preset-value="0">none</button>
+                        <button class="vf-btn" data-preset-key="gapMs" data-preset-value="100">tiny</button>
+                        <button class="vf-btn" data-preset-key="gapMs" data-preset-value="250">clear</button>
+                        <button class="vf-btn" data-preset-key="gapMs" data-preset-value="500">wide</button>
                     </div>
                 </section>
 
@@ -127,14 +124,17 @@
                         <button class="vf-btn" data-root="B">B</button>
                     </div>
                     <div class="phrase-compact-fields phrase-key-fields">
-                        <label class="phrase-select-field">
-                            <span>Octave</span>
-                            <select id="octaveSelect">
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                            </select>
-                        </label>
+                        <div class="phrase-step-field">
+                            <span class="phrase-step-label">Octave</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="octave" data-step-delta="-1" aria-label="Lower octave">-</button>
+                            <span class="phrase-step-value" id="octaveValue">3</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="octave" data-step-delta="1" aria-label="Higher octave">+</button>
+                        </div>
+                        <div class="phrase-preset-row" aria-label="Octave presets">
+                            <button class="vf-btn" data-preset-key="octave" data-preset-value="2">low</button>
+                            <button class="vf-btn" data-preset-key="octave" data-preset-value="3">mid</button>
+                            <button class="vf-btn" data-preset-key="octave" data-preset-value="4">high</button>
+                        </div>
                     </div>
                     <div class="phrase-button-row phrase-scale-row">
                         <button class="vf-btn" data-scale="major">major</button>
@@ -154,38 +154,25 @@
                         <button class="vf-btn" data-range="within">within octave</button>
                         <button class="vf-btn" data-range="expanded">out of octave</button>
                     </div>
-                    <div class="phrase-length-pair">
-                        <span>Length</span>
-                        <select id="minLengthSelect" aria-label="Minimum phrase length">
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10">10</option>
-                            <option value="12">12</option>
-                            <option value="16">16</option>
-                        </select>
-                        <span>to</span>
-                        <select id="maxLengthSelect" aria-label="Maximum phrase length">
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10">10</option>
-                            <option value="12">12</option>
-                            <option value="16">16</option>
-                            <option value="24">24</option>
-                            <option value="32">32</option>
-                            <option value="40">40</option>
-                            <option value="50">50</option>
-                        </select>
+                    <div class="phrase-length-adjusters">
+                        <div class="phrase-step-field">
+                            <span class="phrase-step-label">Min</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="minLength" data-step-delta="-1" aria-label="Shorter minimum phrase length">-</button>
+                            <span class="phrase-step-value" id="minLengthValue">5</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="minLength" data-step-delta="1" aria-label="Longer minimum phrase length">+</button>
+                        </div>
+                        <div class="phrase-step-field">
+                            <span class="phrase-step-label">Max</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="maxLength" data-step-delta="-1" aria-label="Shorter maximum phrase length">-</button>
+                            <span class="phrase-step-value" id="maxLengthValue">10</span>
+                            <button class="phrase-step-btn" type="button" data-step-key="maxLength" data-step-delta="1" aria-label="Longer maximum phrase length">+</button>
+                        </div>
+                    </div>
+                    <div class="phrase-preset-row" aria-label="Phrase length presets">
+                        <button class="vf-btn" data-length-range-min="2" data-length-range-max="5">short</button>
+                        <button class="vf-btn" data-length-range-min="5" data-length-range-max="10">default</button>
+                        <button class="vf-btn" data-length-range-min="8" data-length-range-max="16">long</button>
+                        <button class="vf-btn" data-length-range-min="16" data-length-range-max="50">huge</button>
                     </div>
                     <div class="phrase-toggle-row">
                         <label class="display-toggle">
@@ -233,11 +220,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=58"></script>
-    <script src="music-constants.js?v=58"></script>
-    <script src="voice-output.js?v=58"></script>
-    <script src="pattern-practice-core.js?v=58"></script>
-    <script src="phrases.js?v=58"></script>
+    <script src="shared-header.js?v=59"></script>
+    <script src="music-constants.js?v=59"></script>
+    <script src="voice-output.js?v=59"></script>
+    <script src="pattern-practice-core.js?v=59"></script>
+    <script src="phrases.js?v=59"></script>
 </body>
 
 </html>
