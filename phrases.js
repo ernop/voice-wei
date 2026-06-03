@@ -682,6 +682,7 @@
     }
 
     async function playNext() {
+        closePhraseTestMode();
         state.loopCurrent = false;
         syncRepeatButton();
         generatePhrase();
@@ -755,6 +756,15 @@
         syncPhraseTestControls();
         setPhraseTestStatus('Listening off');
         drawPhraseTest();
+    }
+
+    function closePhraseTestMode() {
+        if (!state.testPanelOpen && !state.testListening) return;
+        stopPhraseTestListening();
+        state.testPanelOpen = false;
+        syncPhraseTestControls();
+        clearPhraseTestReadout();
+        setPhraseTestStatus('Ready');
     }
 
     function runPhraseTestPitchLoop() {
@@ -1021,7 +1031,10 @@
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
         getEl('testBtn')?.addEventListener('click', startPhraseTest);
         getEl('nextBtn')?.addEventListener('click', playNext);
-        getEl('stopBtn')?.addEventListener('click', () => stopPlayback());
+        getEl('stopBtn')?.addEventListener('click', () => {
+            closePhraseTestMode();
+            stopPlayback();
+        });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
         getEl('phraseTestRestartBtn')?.addEventListener('click', restartPhraseTest);
