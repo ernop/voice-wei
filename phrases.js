@@ -34,6 +34,10 @@
     ]);
     const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
+    const TEST_GLITCH_JUMP_MIDI = 5.5;
+    const TEST_GLITCH_WINDOW_MS = 220;
+    const TEST_GLITCH_CONFIRM_MS = 260;
+    const TEST_GLITCH_CONFIRM_MIDI = 1.2;
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
     let synth = null;
@@ -60,6 +64,10 @@
     let testAnimationId = null;
     /** @type {Array<{ time: number, freq: number, midi: number, cents: number, note: string }>} */
     let testPitchHistory = [];
+    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
+    let testLastAcceptedPitch = null;
+    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
+    let testPendingPitchJump = null;
     let testSessionStartedAt = 0;
 
     function getEl(id) { return document.getElementById(id); }
@@ -354,10 +362,45 @@
 
     function resetPhraseTestSession() {
         testPitchHistory = [];
+        testLastAcceptedPitch = null;
+        testPendingPitchJump = null;
         testSessionStartedAt = performance.now();
         clearPhraseTestReadout();
         setPhraseTestStatus('Listening for your pitch');
         drawPhraseTest();
+    }
+
+    /** @param {{ time: number, freq: number, midi: number, cents: number, note: string }} sample */
+    function recordPhraseTestPitchSample(sample) {
+        if (!testLastAcceptedPitch) {
+            testPitchHistory.push(sample);
+            testLastAcceptedPitch = sample;
+            return true;
+        }
+
+        const elapsedFromLast = sample.time - testLastAcceptedPitch.time;
+        const jumpFromLast = Math.abs(sample.midi - testLastAcceptedPitch.midi);
+        if (elapsedFromLast <= TEST_GLITCH_WINDOW_MS && jumpFromLast > TEST_GLITCH_JUMP_MIDI) {
+            const confirmsPendingJump = testPendingPitchJump
+                && sample.time - testPendingPitchJump.time <= TEST_GLITCH_CONFIRM_MS
+                && Math.abs(sample.midi - testPendingPitchJump.midi) <= TEST_GLITCH_CONFIRM_MIDI;
+
+            if (!confirmsPendingJump) {
+                testPendingPitchJump = sample;
+                return false;
+            }
+
+            testPitchHistory.push(testPendingPitchJump);
+            testPitchHistory.push(sample);
+            testLastAcceptedPitch = sample;
+            testPendingPitchJump = null;
+            return true;
+        }
+
+        testPendingPitchJump = null;
+        testPitchHistory.push(sample);
+        testLastAcceptedPitch = sample;
+        return true;
     }
 
     function resizePhraseTestCanvas() {
@@ -485,7 +528,9 @@
             ctx.moveTo(timeToX(previous.time), midiToY(previous.midi));
             for (let i = 1; i < testPitchHistory.length; i++) {
                 const point = testPitchHistory[i];
-                if (point.time - previous.time > 240) {
+                const fastJump = point.time - previous.time <= TEST_GLITCH_WINDOW_MS
+                    && Math.abs(point.midi - previous.midi) > TEST_GLITCH_JUMP_MIDI;
+                if (point.time - previous.time > 240 || fastJump) {
                     ctx.moveTo(timeToX(point.time), midiToY(point.midi));
                 } else {
                     ctx.lineTo(timeToX(point.time), midiToY(point.midi));
@@ -724,16 +769,20 @@
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
             const elapsed = performance.now() - testSessionStartedAt;
-            testPitchHistory.push({
+            const sample = {
                 time: elapsed,
                 freq,
                 midi,
                 cents,
                 note: noteInfo.full
-            });
-            updatePhraseTestReadout(noteInfo.full, cents, freq);
-            setPhraseTestStatus('Listening and drawing');
+            };
+            const accepted = recordPhraseTestPitchSample(sample);
+            if (accepted) {
+                updatePhraseTestReadout(noteInfo.full, cents, freq);
+                setPhraseTestStatus('Listening and drawing');
+            }
         } else {
+            testPendingPitchJump = null;
             clearPhraseTestReadout();
         }
 
