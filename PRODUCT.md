@@ -793,19 +793,6 @@ Reflect flips the current phrase around the octave. A degree sequence that moves
 
 Every displayed degree has an on/off marker underneath it. All notes are active by default. Clicking or dragging across markers toggles notes in or out of playback, so a singer can drill one section of a phrase without losing the original phrase context.
 
-### Test mode
-
-Test turns the current phrase into a sing-along pitch visualization:
-
-- The **Test** button opens an inline Phrase Test panel, creates a phrase if needed, starts microphone listening, resets the timeline, and plays the current phrase using the selected output mode.
-- The vertical axis is scale-aware. It draws horizontal rails for notes in the current root, octave, and scale, including the octave from degree 1 through degree 8 for seven-note scales plus a little below and above. If an out-of-octave phrase needs more room, the rails expand to include the target notes.
-- Rail labels include the scale degree and note name, such as `1 first A3`, `2 second B3`, or `8 eighth A4`.
-- Blue target bands show where each phrase note belongs over time. The band positions use the same note length and gap controls as playback, and inactive per-note markers are dimmed rather than removed.
-- The sung pitch trace is drawn left to right over the same timeline using the microphone autocorrelation path already proven on the Pitch Meter page.
-- **Restart** clears the trace, restarts the phrase timing, keeps listening, and replays the phrase.
-- **Listening On/Off** toggles microphone capture without closing the visualization.
-- **Targets On/Off** hides or shows the blue phrase-note overlay while keeping the scale rails visible.
-
 ## Output Modes
 
 - Display: show the numbers only.
@@ -813,6 +800,25 @@ Test turns the current phrase into a sing-along pitch visualization:
 - Play tones: play only the target notes.
 - Say + tones: speak the numbers, then play the notes.
 - Sing numbers: play the exact piano pitch while speaking each number with pitch shaped toward that note. Native browser speech pitch is approximate; the piano tone remains the exact target.
+
+
+# Test Tab - Key Pitch Trace
+
+Dedicated tab: `test.html` / `test.js` / `test.css`.
+
+## Goal
+
+Test is for free singing inside a selected key while watching pitch movement over time. It is separate from Phrases so the singer can practice scale motion, typed guide patterns, and intonation without first generating a phrase.
+
+## Behavior
+
+- Start begins microphone listening and left-to-right pitch tracing.
+- Reset clears the trace and keeps the current key/pattern settings.
+- Root, octave, and scale define the vertical rails.
+- The chart labels scale degrees vertically, such as 1 through 8 for seven-note octave scales.
+- The guide interval controls horizontal spacing for typed pattern targets.
+- The pattern input accepts degree sequences like `1 2 3 5 3 1`; guide bands are drawn over the live trace.
+- Pitch detections outside the selected key range are discarded rather than drawn, which removes rare one-frame high/low outliers while preserving natural vibrato and wavering around real notes.
 
 
 # Version System

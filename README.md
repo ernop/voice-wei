@@ -45,10 +45,22 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Output modes: display, say numbers, play tones, say + tones, sing numbers
 - Reflect flips the current phrase around the octave so upward distances become downward distances from 8
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
-- Test opens a pitch-trace panel: scale-degree rails show the current key, blue bands show phrase-note targets over time, and your sung pitch draws left to right from the microphone
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
 **Setting behavior:** root, octave, and scale changes keep the current degree sequence and transpose/reproject it into the new context; structural generation settings regenerate; playback/display settings keep the current phrase and replay or redraw it.
+
+### Test
+
+Standalone key-aware pitch trace: https://fuseki.net/music8899b/test.html
+
+Use **Test** when you want to sing freely in a key and see the voice trace without first generating a phrase.
+
+**Controls:**
+- Start begins microphone listening; Reset clears the trace.
+- Pick root, octave, and scale to draw scale-degree rails.
+- Guide interval controls the horizontal spacing for typed pattern targets.
+- Type patterns like `1 2 3 5 3 1` to draw blue target bands over the live trace.
+- Extreme pitch detections outside the selected key range are discarded so one-frame high/low spikes do not clutter the chart.
 
 ### Pitch Meter
 

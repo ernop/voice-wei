@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Test - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=60">
+    <link rel="stylesheet" href="scales.css?v=60">
+    <link rel="stylesheet" href="test.css?v=60">
+</head>
+
+<body data-page="test">
+    <div class="container">
+        <header id="siteHeader"></header>
+
+        <main>
+            <section class="test-hero">
+                <div>
+                    <h2>Key pitch trace</h2>
+                    <p>Start singing and watch your voice move through the current key. Type a degree pattern to add guide targets.</p>
+                </div>
+                <div class="test-actions">
+                    <button id="startBtn" class="test-primary-btn" type="button">Start</button>
+                    <button id="resetBtn" class="test-secondary-btn" type="button">Reset</button>
+                </div>
+            </section>
+
+            <section class="test-pattern-card">
+                <label for="patternInput">Pattern guides</label>
+                <input id="patternInput" type="text" inputmode="text" autocomplete="off" placeholder="1 2 3 5 3 1">
+                <div class="test-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.</div>
+            </section>
+
+            <section class="test-control-grid">
+                <div class="test-card">
+                    <div class="test-card-title">Key</div>
+                    <div class="test-root-grid" aria-label="Root note">
+                        <button class="vf-btn" data-root="C">C</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
+                        <button class="vf-btn" data-root="D">D</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
+                        <button class="vf-btn" data-root="E">E</button>
+                        <button class="vf-btn" data-root="F">F</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
+                        <button class="vf-btn" data-root="G">G</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
+                        <button class="vf-btn" data-root="A">A</button>
+                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
+                        <button class="vf-btn" data-root="B">B</button>
+                    </div>
+                    <div class="test-step-field">
+                        <span>Octave</span>
+                        <button class="test-step-btn" type="button" data-step-key="octave" data-step-delta="-1" aria-label="Lower octave">-</button>
+                        <strong id="octaveValue">3</strong>
+                        <button class="test-step-btn" type="button" data-step-key="octave" data-step-delta="1" aria-label="Higher octave">+</button>
+                    </div>
+                    <div class="test-presets">
+                        <button class="vf-btn" data-preset-key="octave" data-preset-value="2">low</button>
+                        <button class="vf-btn" data-preset-key="octave" data-preset-value="3">mid</button>
+                        <button class="vf-btn" data-preset-key="octave" data-preset-value="4">high</button>
+                    </div>
+                </div>
+
+                <div class="test-card">
+                    <div class="test-card-title">Scale</div>
+                    <div class="test-scale-row">
+                        <button class="vf-btn" data-scale="major">major</button>
+                        <button class="vf-btn" data-scale="minor">minor</button>
+                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
+                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
+                    </div>
+                    <div class="test-step-field">
+                        <span>Interval</span>
+                        <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="-1" aria-label="Shorter guide interval">-</button>
+                        <strong id="guideIntervalValue">1s</strong>
+                        <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
+                    </div>
+                    <div class="test-presets">
+                        <button class="vf-btn" data-preset-key="guideIntervalMs" data-preset-value="500">fast</button>
+                        <button class="vf-btn" data-preset-key="guideIntervalMs" data-preset-value="1000">1s</button>
+                        <button class="vf-btn" data-preset-key="guideIntervalMs" data-preset-value="1500">1.5s</button>
+                        <button class="vf-btn" data-preset-key="guideIntervalMs" data-preset-value="2000">2s</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="test-readout" aria-live="polite">
+                <span id="pitchReadout">Pitch: --</span>
+                <span id="statusReadout">Ready</span>
+            </section>
+
+            <section class="test-chart-wrap" aria-label="Pitch trace chart">
+                <canvas id="testCanvas"></canvas>
+            </section>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="shared-header.js?v=60"></script>
+    <script src="music-constants.js?v=60"></script>
+    <script src="test.js?v=60"></script>
+</body>
+
+</html>
