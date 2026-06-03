@@ -45,6 +45,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Output modes: display, say numbers, play tones, say + tones, sing numbers
 - Reflect flips the current phrase around the octave so upward distances become downward distances from 8
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
+- Test opens a pitch-trace panel: scale-degree rails show the current key, blue bands show phrase-note targets over time, and your sung pitch draws left to right from the microphone
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
 **Setting behavior:** root, octave, and scale changes keep the current degree sequence and transpose/reproject it into the new context; structural generation settings regenerate; playback/display settings keep the current phrase and replay or redraw it.
