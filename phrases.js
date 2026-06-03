@@ -860,9 +860,23 @@
         });
     }
 
-    function syncLengthButtons() {
+    function syncSelect(id, value) {
+        const el = /** @type {HTMLSelectElement | null} */ (getEl(id));
+        if (el) el.value = String(value);
+    }
+
+    function syncLengthControls() {
         syncSingleSelect('data-min-length', state.minLength);
         syncSingleSelect('data-max-length', state.maxLength);
+        syncSelect('minLengthSelect', state.minLength);
+        syncSelect('maxLengthSelect', state.maxLength);
+    }
+
+    function syncCompactSelects() {
+        syncSelect('octaveSelect', state.octave);
+        syncSelect('noteLengthSelect', state.noteLengthMs);
+        syncSelect('gapSelect', state.gapMs);
+        syncLengthControls();
     }
 
     function onSettingChanged(key) {
@@ -891,10 +905,25 @@
                 if (state.minLength > state.maxLength) {
                     if (stateKey === 'maxLength') state.minLength = state.maxLength;
                     else state.maxLength = state.minLength;
-                    syncLengthButtons();
+                    syncLengthControls();
                 }
                 onSettingChanged(stateKey);
             });
+        });
+    }
+
+    function wireSelect(id, stateKey, parse) {
+        const el = /** @type {HTMLSelectElement | null} */ (getEl(id));
+        if (!el) return;
+        el.value = String(state[stateKey]);
+        el.addEventListener('change', () => {
+            state[stateKey] = parse(el.value);
+            if (state.minLength > state.maxLength) {
+                if (stateKey === 'maxLength') state.minLength = state.maxLength;
+                else state.maxLength = state.minLength;
+                syncLengthControls();
+            }
+            onSettingChanged(stateKey);
         });
     }
 
@@ -931,6 +960,11 @@
         wireSingleSelect('data-output', 'outputMode', String);
         wireSingleSelect('data-length', 'noteLengthMs', Number);
         wireSingleSelect('data-gap', 'gapMs', Number);
+        wireSelect('octaveSelect', 'octave', Number);
+        wireSelect('noteLengthSelect', 'noteLengthMs', Number);
+        wireSelect('gapSelect', 'gapMs', Number);
+        wireSelect('minLengthSelect', 'minLength', Number);
+        wireSelect('maxLengthSelect', 'maxLength', Number);
         wireToggle('returnInitialToggle', 'returnToInitial');
         wireToggle('returnRootToggle', 'returnToRoot');
         wireToggle('showNamesToggle', 'showNoteNames');
@@ -952,6 +986,7 @@
         renderHistory();
         syncRepeatButton();
         syncPhraseTestControls();
+        syncCompactSelects();
     }
 
     async function boot() {

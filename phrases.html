@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=55">
-    <link rel="stylesheet" href="scales.css?v=55">
-    <link rel="stylesheet" href="phrases.css?v=55">
+    <link rel="stylesheet" href="style.css?v=56">
+    <link rel="stylesheet" href="scales.css?v=56">
+    <link rel="stylesheet" href="phrases.css?v=56">
 </head>
 
 <body data-page="phrases">
@@ -78,10 +78,41 @@
                 </div>
             </section>
 
-            <div class="voice-first-ui phrase-controls">
-                <div class="vf-row">
-                    <span class="vf-label">Root</span>
-                    <div class="vf-options">
+            <div class="voice-first-ui phrase-controls phrase-control-grid">
+                <section class="phrase-control-card phrase-control-card-timing">
+                    <div class="phrase-control-card-title">Timing</div>
+                    <div class="phrase-compact-fields">
+                        <label class="phrase-select-field">
+                            <span>Note Len</span>
+                            <select id="noteLengthSelect">
+                                <option value="200">0.2s</option>
+                                <option value="250">0.25s</option>
+                                <option value="300">0.3s</option>
+                                <option value="350">0.35s</option>
+                                <option value="400">0.4s</option>
+                                <option value="450">0.45s</option>
+                                <option value="500">0.5s</option>
+                                <option value="600">0.6s</option>
+                                <option value="900">0.9s</option>
+                                <option value="1200">1.2s</option>
+                                <option value="1600">1.6s</option>
+                            </select>
+                        </label>
+                        <label class="phrase-select-field">
+                            <span>Gap</span>
+                            <select id="gapSelect">
+                                <option value="0">0s</option>
+                                <option value="100">0.1s</option>
+                                <option value="250">0.25s</option>
+                                <option value="500">0.5s</option>
+                            </select>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="phrase-control-card phrase-control-card-key">
+                    <div class="phrase-control-card-title">Key</div>
+                    <div class="phrase-key-picker" aria-label="Root note">
                         <button class="vf-btn" data-root="C">C</button>
                         <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
                         <button class="vf-btn" data-root="D">D</button>
@@ -95,17 +126,17 @@
                         <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
                         <button class="vf-btn" data-root="B">B</button>
                     </div>
-                    <span class="vf-label vf-label-inline">Octave</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-octave="2">2</button>
-                        <button class="vf-btn" data-octave="3">3</button>
-                        <button class="vf-btn" data-octave="4">4</button>
+                    <div class="phrase-compact-fields phrase-key-fields">
+                        <label class="phrase-select-field">
+                            <span>Octave</span>
+                            <select id="octaveSelect">
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </label>
                     </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Scale</span>
-                    <div class="vf-options">
+                    <div class="phrase-button-row phrase-scale-row">
                         <button class="vf-btn" data-scale="major">major</button>
                         <button class="vf-btn" data-scale="minor">minor</button>
                         <button class="vf-btn" data-scale="chromatic">chromatic</button>
@@ -113,113 +144,75 @@
                         <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
                         <button class="vf-btn" data-scale="melodic_minor">m minor</button>
                     </div>
-                </div>
+                </section>
 
-                <div class="vf-row">
-                    <span class="vf-label">Start</span>
-                    <div class="vf-options">
+                <section class="phrase-control-card phrase-control-card-shape">
+                    <div class="phrase-control-card-title">Phrase</div>
+                    <div class="phrase-button-row">
                         <button class="vf-btn" data-start="one">start at 1</button>
                         <button class="vf-btn" data-start="random">random start</button>
-                    </div>
-                    <span class="vf-label vf-label-inline">Range</span>
-                    <div class="vf-options">
                         <button class="vf-btn" data-range="within">within octave</button>
                         <button class="vf-btn" data-range="expanded">out of octave</button>
                     </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Min Len</span>
-                    <div class="vf-options phrase-length-options">
-                        <button class="vf-btn" data-min-length="2">2</button>
-                        <button class="vf-btn" data-min-length="3">3</button>
-                        <button class="vf-btn" data-min-length="4">4</button>
-                        <button class="vf-btn" data-min-length="5">5</button>
-                        <button class="vf-btn" data-min-length="6">6</button>
-                        <button class="vf-btn" data-min-length="7">7</button>
-                        <button class="vf-btn" data-min-length="8">8</button>
-                        <button class="vf-btn" data-min-length="9">9</button>
-                        <button class="vf-btn" data-min-length="10">10</button>
-                        <button class="vf-btn" data-min-length="12">12</button>
-                        <button class="vf-btn" data-min-length="16">16</button>
+                    <div class="phrase-length-pair">
+                        <span>Length</span>
+                        <select id="minLengthSelect" aria-label="Minimum phrase length">
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="12">12</option>
+                            <option value="16">16</option>
+                        </select>
+                        <span>to</span>
+                        <select id="maxLengthSelect" aria-label="Maximum phrase length">
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="12">12</option>
+                            <option value="16">16</option>
+                            <option value="24">24</option>
+                            <option value="32">32</option>
+                            <option value="40">40</option>
+                            <option value="50">50</option>
+                        </select>
                     </div>
-                    <span class="vf-label vf-label-inline">Max Len</span>
-                    <div class="vf-options phrase-length-options">
-                        <button class="vf-btn" data-max-length="3">3</button>
-                        <button class="vf-btn" data-max-length="4">4</button>
-                        <button class="vf-btn" data-max-length="5">5</button>
-                        <button class="vf-btn" data-max-length="6">6</button>
-                        <button class="vf-btn" data-max-length="7">7</button>
-                        <button class="vf-btn" data-max-length="8">8</button>
-                        <button class="vf-btn" data-max-length="9">9</button>
-                        <button class="vf-btn" data-max-length="10">10</button>
-                        <button class="vf-btn" data-max-length="12">12</button>
-                        <button class="vf-btn" data-max-length="16">16</button>
-                        <button class="vf-btn" data-max-length="24">24</button>
-                        <button class="vf-btn" data-max-length="32">32</button>
-                        <button class="vf-btn" data-max-length="40">40</button>
-                        <button class="vf-btn" data-max-length="50">50</button>
-                    </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Ending</span>
-                    <div class="vf-options">
+                    <div class="phrase-toggle-row">
                         <label class="display-toggle">
                             <input type="checkbox" id="returnInitialToggle">
-                            <span>Return initial note</span>
+                            <span>Return initial</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="returnRootToggle">
                             <span>Return root</span>
                         </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="showNamesToggle" checked>
+                            <span>Show names</span>
+                        </label>
                     </div>
-                </div>
+                </section>
 
-                <div class="vf-row">
-                    <span class="vf-label">Output</span>
-                    <div class="vf-options">
+                <section class="phrase-control-card phrase-control-card-output">
+                    <div class="phrase-control-card-title">Output</div>
+                    <div class="phrase-button-row">
                         <button class="vf-btn" data-output="display">display</button>
                         <button class="vf-btn" data-output="speak">say numbers</button>
                         <button class="vf-btn" data-output="tones">play tones</button>
                         <button class="vf-btn" data-output="speak_tones">say + tones</button>
                         <button class="vf-btn" data-output="sing_numbers">sing numbers</button>
                     </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Note Len</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-length="200">0.2s</button>
-                        <button class="vf-btn" data-length="250">0.25s</button>
-                        <button class="vf-btn" data-length="300">0.3s</button>
-                        <button class="vf-btn" data-length="350">0.35s</button>
-                        <button class="vf-btn" data-length="400">0.4s</button>
-                        <button class="vf-btn" data-length="450">0.45s</button>
-                        <button class="vf-btn" data-length="500">0.5s</button>
-                        <button class="vf-btn" data-length="600">0.6s</button>
-                        <button class="vf-btn" data-length="900">0.9s</button>
-                        <button class="vf-btn" data-length="1200">1.2s</button>
-                        <button class="vf-btn" data-length="1600">1.6s</button>
-                    </div>
-                    <span class="vf-label vf-label-inline">Gap</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-gap="0">0s</button>
-                        <button class="vf-btn" data-gap="100">0.1s</button>
-                        <button class="vf-btn" data-gap="250">0.25s</button>
-                        <button class="vf-btn" data-gap="500">0.5s</button>
-                    </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label">Display</span>
-                    <div class="vf-options">
-                        <label class="display-toggle">
-                            <input type="checkbox" id="showNamesToggle" checked>
-                            <span>Show note names</span>
-                        </label>
-                    </div>
-                </div>
+                </section>
             </div>
 
             <div class="command-history">
@@ -240,11 +233,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=55"></script>
-    <script src="music-constants.js?v=55"></script>
-    <script src="voice-output.js?v=55"></script>
-    <script src="pattern-practice-core.js?v=55"></script>
-    <script src="phrases.js?v=55"></script>
+    <script src="shared-header.js?v=56"></script>
+    <script src="music-constants.js?v=56"></script>
+    <script src="voice-output.js?v=56"></script>
+    <script src="pattern-practice-core.js?v=56"></script>
+    <script src="phrases.js?v=56"></script>
 </body>
 
 </html>
