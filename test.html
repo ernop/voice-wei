@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Test - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=74">
-    <link rel="stylesheet" href="scales.css?v=74">
-    <link rel="stylesheet" href="test.css?v=74">
+    <link rel="stylesheet" href="style.css?v=75">
+    <link rel="stylesheet" href="scales.css?v=75">
+    <link rel="stylesheet" href="test.css?v=75">
 </head>
 
 <body data-page="test">
@@ -37,30 +37,42 @@
                 </label>
             </section>
 
-            <section class="test-control-grid">
-                <div class="test-card">
-                    <div class="test-card-title">Key</div>
-                    <div class="test-step-field test-pitch-step-field">
-                        <span>Root</span>
-                        <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
-                        <strong id="rootPitchValue">D#3</strong>
-                        <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
-                    </div>
-                </div>
-
-                <div class="test-card">
-                    <div class="test-card-title">Guide Interval</div>
-                    <div class="test-step-field">
-                        <span>Interval</span>
-                        <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="-1" aria-label="Shorter guide interval">-</button>
-                        <strong id="guideIntervalValue">1s</strong>
-                        <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
-                    </div>
-                </div>
+            <section class="test-readout" aria-live="polite">
+                <span id="pitchReadout">Pitch: --</span>
+                <span id="statusReadout">Ready</span>
             </section>
 
-            <section class="test-card test-scale-card">
-                <div class="test-card-title">Scale Type</div>
+            <section class="test-chart-wrap" aria-label="Pitch trace chart">
+                <canvas id="testCanvas"></canvas>
+            </section>
+
+            <section class="test-compact-controls">
+                <div class="test-step-field test-pitch-step-field">
+                    <span>Root</span>
+                    <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                    <strong id="rootPitchValue">D#3</strong>
+                    <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                </div>
+                <div class="test-step-field">
+                    <span>Interval</span>
+                    <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="-1" aria-label="Shorter guide interval">-</button>
+                    <strong id="guideIntervalValue">1s</strong>
+                    <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
+                </div>
+                <div class="test-option-row">
+                    <label class="display-toggle">
+                        <input type="checkbox" id="pauseOnSilenceToggle" checked>
+                        <span>Pause on silence</span>
+                    </label>
+                    <label class="display-toggle">
+                        <input type="checkbox" id="fixedWindowToggle">
+                        <span>20s window</span>
+                    </label>
+                    <label class="display-toggle">
+                        <input type="checkbox" id="expandRangeToggle">
+                        <span>Expand range</span>
+                    </label>
+                </div>
                 <div class="test-scale-row">
                     <button class="vf-btn" data-scale="major">major</button>
                     <button class="vf-btn" data-scale="minor">minor</button>
@@ -71,15 +83,6 @@
                 </div>
             </section>
 
-            <section class="test-readout" aria-live="polite">
-                <span id="pitchReadout">Pitch: --</span>
-                <span id="statusReadout">Ready</span>
-            </section>
-
-            <section class="test-chart-wrap" aria-label="Pitch trace chart">
-                <canvas id="testCanvas"></canvas>
-            </section>
-
             <footer class="page-footer">
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
                 <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
@@ -87,9 +90,9 @@
         </main>
     </div>
 
-    <script src="shared-header.js?v=74"></script>
-    <script src="music-constants.js?v=74"></script>
-    <script src="test.js?v=74"></script>
+    <script src="shared-header.js?v=75"></script>
+    <script src="music-constants.js?v=75"></script>
+    <script src="test.js?v=75"></script>
 </body>
 
 </html>

@@ -798,7 +798,7 @@ Every displayed degree has an on/off marker underneath it. All notes are active 
 
 ### Embedded Test
 
-Phrases includes an embedded Test panel for checking the current phrase against sung pitch. Pressing Test starts a fresh listening instance for the current phrase. Restart clears the trace without playing guide notes by default. A "Play guide on restart" option is available when the singer wants to hear the target phrase. The Test timeline is voice-gated: silence does not move time forward, and the trace starts counting against target notes only once singing is detected.
+Phrases includes an embedded Test panel for checking the current phrase against sung pitch. Pressing Test starts a fresh listening instance for the current phrase. Restart clears the trace without playing guide notes by default. A "Play guide on restart" option is available when the singer wants to hear the target phrase. The Test timeline is voice-gated by default: silence does not move time forward, and the trace starts counting against target notes only once singing is detected. The panel also supports a fixed 20-second window and an expanded vertical range when the singer needs to see notes above and below the selected octave.
 
 ## Output Modes
 
@@ -827,6 +827,9 @@ Test is for free singing inside a selected key while watching pitch movement ove
 - The guide interval controls horizontal spacing for typed pattern targets.
 - The pattern input accepts degree sequences like `1 2 3 5 3 1`; guide bands are drawn over the live trace.
 - Optional guide playback on reset is available, but it is off by default so reset only clears and redraws unless the singer asks to hear the pattern.
+- Pause on silence is on by default; when off, the chart clock keeps moving and silence creates visible gaps.
+- The 20-second window option switches from auto-compressed time to a fixed-width scrolling viewport.
+- The expanded range option shows scale rails above and below the selected octave.
 - Pitch detections outside the selected key range are discarded rather than drawn, which removes rare one-frame high/low outliers while preserving natural vibrato and wavering around real notes.
 
 

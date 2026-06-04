@@ -46,6 +46,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Reflect flips the current phrase around the octave so upward distances become downward distances from 8
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
 - Test opens an embedded phrase pitch trace; its timeline starts only when singing is detected, and restart is silent unless guide playback is enabled
+- Phrase Test includes Pause on silence, 20s window, and Expand range options
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
 **Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; min/max length and return-to-1 regenerate; start and in/out octave apply to the next generated phrase; playback/display settings keep the current phrase and replay or redraw it.
@@ -62,6 +63,7 @@ Use **Test** when you want to sing freely in a key and see the voice trace witho
 - Guide interval controls the horizontal spacing for typed pattern targets.
 - Type patterns like `1 2 3 5 3 1` to draw blue target bands over the live trace.
 - Optional "Play guide on reset" plays the typed pattern; it is off by default.
+- Pause on silence is on by default; 20s window and Expand range are optional.
 - Extreme pitch detections outside the selected key range are discarded so one-frame high/low spikes do not clutter the chart.
 
 ### Pitch Meter

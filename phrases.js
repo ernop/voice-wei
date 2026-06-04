@@ -26,7 +26,10 @@
         testPanelOpen: false,
         testListening: false,
         showTestTargets: true,
-        testPlayOnRestart: false
+        testPlayOnRestart: false,
+        testPauseOnSilence: true,
+        testFixedWindow: false,
+        testExpandRange: false
     };
 
     const STRUCTURE_KEYS = new Set([
@@ -38,6 +41,7 @@
     const TEST_GLITCH_WINDOW_MS = 220;
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
+    const TEST_FIXED_WINDOW_MS = 20000;
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -298,8 +302,9 @@
         const degreesPerOctave = PatternPracticeCore.degreesPerOctave(state.scaleType);
         const lines = [];
         const phraseOffsets = Array.isArray(phrase.offsets) ? phrase.offsets : [];
-        const lowerOffset = Math.min(-1, ...phraseOffsets) - 1;
-        const upperOffset = Math.max(degreesPerOctave + 1, ...phraseOffsets) + 1;
+        const extraRange = state.testExpandRange ? degreesPerOctave : 0;
+        const lowerOffset = Math.min(-1, ...phraseOffsets) - 1 - extraRange;
+        const upperOffset = Math.max(degreesPerOctave + 1, ...phraseOffsets) + 1 + extraRange;
         for (let offset = lowerOffset; offset <= upperOffset; offset++) {
             const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
             lines.push({
@@ -322,7 +327,13 @@
 
     /** @param {any} phrase */
     function phraseTestTimeWindowMs(phrase) {
-        return Math.max(4000, phraseTestDurationMs(phrase) + 700, testVoiceElapsedMs + 250);
+        if (state.testFixedWindow) return TEST_FIXED_WINDOW_MS;
+        return Math.max(4000, phraseTestDurationMs(phrase) + 700, phraseTestClockMs() + 250);
+    }
+
+    function phraseTestClockMs() {
+        if (state.testPauseOnSilence) return testVoiceElapsedMs;
+        return testSessionStartedAt ? performance.now() - testSessionStartedAt : 0;
     }
 
     function syncPhraseTestControls() {
@@ -344,6 +355,7 @@
         }
 
         syncPhraseTestPlayToggle();
+        syncPhraseTestOptionToggles();
     }
 
     /** @param {string} message */
@@ -487,6 +499,7 @@
         const graphWidth = Math.max(width - left - right, 1);
         const graphHeight = Math.max(height - top - bottom, 1);
         const timeWindow = phraseTestTimeWindowMs(phrase);
+        const windowStart = state.testFixedWindow ? Math.max(0, phraseTestClockMs() - timeWindow) : 0;
         const phraseDuration = phraseTestDurationMs(phrase);
 
         /** @param {number} midi */
@@ -495,7 +508,7 @@
             return top + (maxMidi - clamped) / midiRange * graphHeight;
         };
         /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms)) / timeWindow * graphWidth;
+        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
 
         ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
         ctx.textAlign = 'right';
@@ -576,7 +589,7 @@
         }
 
         if (testSessionStartedAt) {
-            const x = timeToX(testVoiceElapsedMs);
+            const x = timeToX(phraseTestClockMs());
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 5]);
@@ -798,7 +811,7 @@
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
             const sample = {
-                time: nextPhraseTestVoiceTime(),
+                time: state.testPauseOnSilence ? nextPhraseTestVoiceTime() : phraseTestClockMs(),
                 freq,
                 midi,
                 cents,
@@ -887,6 +900,15 @@
     function syncPhraseTestPlayToggle() {
         const el = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPlayToggle'));
         if (el) el.checked = state.testPlayOnRestart;
+    }
+
+    function syncPhraseTestOptionToggles() {
+        const pauseEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseToggle'));
+        const windowEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestWindowToggle'));
+        const rangeEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestRangeToggle'));
+        if (pauseEl) pauseEl.checked = state.testPauseOnSilence;
+        if (windowEl) windowEl.checked = state.testFixedWindow;
+        if (rangeEl) rangeEl.checked = state.testExpandRange;
     }
 
     function renderHistory() {
@@ -1116,6 +1138,30 @@
             phraseTestPlayToggle.checked = state.testPlayOnRestart;
             phraseTestPlayToggle.addEventListener('change', () => {
                 state.testPlayOnRestart = phraseTestPlayToggle.checked;
+            });
+        }
+        const phraseTestPauseToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseToggle'));
+        if (phraseTestPauseToggle) {
+            phraseTestPauseToggle.checked = state.testPauseOnSilence;
+            phraseTestPauseToggle.addEventListener('change', () => {
+                state.testPauseOnSilence = phraseTestPauseToggle.checked;
+                resetPhraseTestSession();
+            });
+        }
+        const phraseTestWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestWindowToggle'));
+        if (phraseTestWindowToggle) {
+            phraseTestWindowToggle.checked = state.testFixedWindow;
+            phraseTestWindowToggle.addEventListener('change', () => {
+                state.testFixedWindow = phraseTestWindowToggle.checked;
+                drawPhraseTest();
+            });
+        }
+        const phraseTestRangeToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestRangeToggle'));
+        if (phraseTestRangeToggle) {
+            phraseTestRangeToggle.checked = state.testExpandRange;
+            phraseTestRangeToggle.addEventListener('change', () => {
+                state.testExpandRange = phraseTestRangeToggle.checked;
+                drawPhraseTest();
             });
         }
         getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });

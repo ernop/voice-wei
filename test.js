@@ -13,7 +13,10 @@
         scaleType: 'major',
         guideIntervalMs: 1000,
         patternText: '',
-        playGuidesOnReset: false
+        playGuidesOnReset: false,
+        pauseOnSilence: true,
+        fixedWindow: false,
+        expandRange: false
     };
 
     const ADJUSTER_VALUES = {
@@ -21,6 +24,7 @@
     };
     const ROOT_PITCH_MIN_MIDI = 36; // C2
     const ROOT_PITCH_MAX_MIDI = 71; // B4
+    const FIXED_WINDOW_MS = 20000;
 
     const GLITCH_JUMP_MIDI = 5.5;
     const GLITCH_WINDOW_MS = 220;
@@ -44,6 +48,9 @@
     /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
     let pendingPitchJump = null;
     let sessionStartedAt = 0;
+    let voiceElapsedMs = 0;
+    /** @type {number | null} */
+    let lastVoiceAt = null;
     let isListening = false;
     let guidePlaybackToken = 0;
 
@@ -113,12 +120,26 @@
         });
     }
 
+    function chartScaleNotes() {
+        const root = rootMidi();
+        if (root === null) return [];
+        const shifts = state.expandRange ? [-1, 0, 1] : [0];
+        return shifts.flatMap(octaveShift => scaleIntervals().map((interval, index) => {
+            const midi = root + octaveShift * 12 + interval;
+            return {
+                degree: index + 1,
+                midi,
+                noteName: midiToPitchString(midi)
+            };
+        }));
+    }
+
     function scaleRange() {
-        const notes = scaleNotes();
+        const notes = chartScaleNotes();
         if (!notes.length) return { min: 0, max: 0 };
         return {
-            min: notes[0].midi - 2,
-            max: notes[notes.length - 1].midi + 2
+            min: Math.min(...notes.map(note => note.midi)),
+            max: Math.max(...notes.map(note => note.midi))
         };
     }
 
@@ -192,10 +213,30 @@
         pitchHistory = [];
         lastAcceptedPitch = null;
         pendingPitchJump = null;
+        voiceElapsedMs = 0;
+        lastVoiceAt = null;
         sessionStartedAt = performance.now();
         clearPitchReadout();
         setStatus(isListening ? 'Listening' : 'Ready');
         drawChart();
+    }
+
+    function clockMs() {
+        if (state.pauseOnSilence) return voiceElapsedMs;
+        return sessionStartedAt ? performance.now() - sessionStartedAt : 0;
+    }
+
+    function nextVoiceTime() {
+        const now = performance.now();
+        if (lastVoiceAt === null) {
+            lastVoiceAt = now;
+            return voiceElapsedMs;
+        }
+
+        const delta = now - lastVoiceAt;
+        lastVoiceAt = now;
+        if (delta <= 240) voiceElapsedMs += delta;
+        return voiceElapsedMs;
     }
 
     function sleep(ms) {
@@ -264,6 +305,7 @@
             stream.getTracks().forEach(track => track.stop());
             stream = null;
         }
+        lastVoiceAt = null;
         syncControls();
         setStatus('Stopped');
         drawChart();
@@ -281,7 +323,7 @@
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
             const sample = {
-                time: performance.now() - sessionStartedAt,
+                time: state.pauseOnSilence ? nextVoiceTime() : clockMs(),
                 freq,
                 midi,
                 cents,
@@ -293,6 +335,7 @@
             }
         } else {
             pendingPitchJump = null;
+            lastVoiceAt = null;
             clearPitchReadout();
         }
 
@@ -347,8 +390,8 @@
     }
 
     function timeWindowMs() {
-        const elapsed = sessionStartedAt ? performance.now() - sessionStartedAt : 0;
-        return Math.max(8000, patternDurationMs() + 1000, elapsed + 500);
+        if (state.fixedWindow) return FIXED_WINDOW_MS;
+        return Math.max(8000, patternDurationMs() + 1000, clockMs() + 500);
     }
 
     function resizeCanvas() {
@@ -380,13 +423,13 @@
         const height = canvas.height / dpr;
         if (width <= 0 || height <= 0) return;
 
-        const notes = scaleNotes();
+        const notes = chartScaleNotes();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
         ctx.fillRect(0, 0, width, height);
         if (!notes.length) return;
 
-        const minMidi = notes[0].midi;
-        const maxMidi = notes[notes.length - 1].midi;
+        const minMidi = Math.min(...notes.map(note => note.midi));
+        const maxMidi = Math.max(...notes.map(note => note.midi));
         const midiRange = Math.max(maxMidi - minMidi, 1);
         const left = width < 520 ? 88 : 118;
         const right = 14;
@@ -395,11 +438,12 @@
         const graphWidth = Math.max(width - left - right, 1);
         const graphHeight = Math.max(height - top - bottom, 1);
         const timeWindow = timeWindowMs();
+        const windowStart = state.fixedWindow ? Math.max(0, clockMs() - timeWindow) : 0;
 
         /** @param {number} midi */
         const midiToY = (midi) => top + (maxMidi - Math.max(minMidi, Math.min(maxMidi, midi))) / midiRange * graphHeight;
         /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms)) / timeWindow * graphWidth;
+        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
 
         ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
         ctx.textAlign = 'right';
@@ -418,8 +462,9 @@
         });
 
         const pattern = parsedPatternDegrees();
+        const guideNotes = scaleNotes();
         pattern.forEach((degree, index) => {
-            const note = notes[degree - 1];
+            const note = guideNotes[degree - 1];
             if (!note) return;
             const x1 = timeToX(index * state.guideIntervalMs);
             const x2 = timeToX(index * state.guideIntervalMs + state.guideIntervalMs * 0.82);
@@ -466,7 +511,7 @@
         }
 
         if (sessionStartedAt) {
-            const x = timeToX(performance.now() - sessionStartedAt);
+            const x = timeToX(clockMs());
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 5]);
@@ -506,6 +551,12 @@
         if (rootPitchValue) rootPitchValue.textContent = `${state.root}${state.octave}`;
         const intervalValue = getEl('guideIntervalValue');
         if (intervalValue) intervalValue.textContent = `${state.guideIntervalMs / 1000}s`;
+        const pauseToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseOnSilenceToggle'));
+        const windowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedWindowToggle'));
+        const rangeToggle = /** @type {HTMLInputElement | null} */ (getEl('expandRangeToggle'));
+        if (pauseToggle) pauseToggle.checked = state.pauseOnSilence;
+        if (windowToggle) windowToggle.checked = state.fixedWindow;
+        if (rangeToggle) rangeToggle.checked = state.expandRange;
     }
 
     /** @param {string} key @param {string | number} value */
@@ -565,6 +616,30 @@
             playGuidesToggle.checked = state.playGuidesOnReset;
             playGuidesToggle.addEventListener('change', () => {
                 state.playGuidesOnReset = playGuidesToggle.checked;
+            });
+        }
+        const pauseToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseOnSilenceToggle'));
+        if (pauseToggle) {
+            pauseToggle.checked = state.pauseOnSilence;
+            pauseToggle.addEventListener('change', () => {
+                state.pauseOnSilence = pauseToggle.checked;
+                resetTrace();
+            });
+        }
+        const windowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedWindowToggle'));
+        if (windowToggle) {
+            windowToggle.checked = state.fixedWindow;
+            windowToggle.addEventListener('change', () => {
+                state.fixedWindow = windowToggle.checked;
+                drawChart();
+            });
+        }
+        const rangeToggle = /** @type {HTMLInputElement | null} */ (getEl('expandRangeToggle'));
+        if (rangeToggle) {
+            rangeToggle.checked = state.expandRange;
+            rangeToggle.addEventListener('change', () => {
+                state.expandRange = rangeToggle.checked;
+                drawChart();
             });
         }
         window.addEventListener('resize', resizeCanvas);
