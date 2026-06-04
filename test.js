@@ -483,11 +483,6 @@
             const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.getAttribute('data-scale') === state.scaleType);
         });
-        document.querySelectorAll('[data-preset-key]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const key = btn.getAttribute('data-preset-key') || '';
-            btn.classList.toggle('selected', String(state[key]) === btn.getAttribute('data-preset-value'));
-        });
         document.querySelectorAll('[data-step-key]').forEach(el => {
             const btn = /** @type {HTMLButtonElement} */ (el);
             const key = btn.getAttribute('data-step-key') || '';
@@ -555,11 +550,6 @@
             const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => stepStateValue(btn.getAttribute('data-step-key') || '', Number(btn.getAttribute('data-step-delta') || 0)));
         });
-        document.querySelectorAll('[data-preset-key]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => setStateValue(btn.getAttribute('data-preset-key') || '', Number(btn.getAttribute('data-preset-value') || 0)));
-        });
-
         const patternInput = /** @type {HTMLInputElement | null} */ (getEl('patternInput'));
         if (patternInput) {
             state.patternText = patternInput.value;

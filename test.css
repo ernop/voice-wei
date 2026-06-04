@@ -124,8 +124,7 @@
     margin-bottom: 9px;
 }
 
-.test-scale-row,
-.test-presets {
+.test-scale-row {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
@@ -139,22 +138,8 @@
     flex: 1 1 auto;
 }
 
-.test-presets {
-    margin-top: 7px;
-}
-
 .test-scale-card {
     margin-bottom: 10px;
-}
-
-.test-presets .vf-btn {
-    min-width: 58px;
-    padding: 5px 8px;
-    border-radius: 999px;
-    background: rgba(14, 165, 233, 0.13);
-    border-color: rgba(125, 211, 252, 0.22);
-    color: rgba(224, 242, 254, 0.86);
-    font-size: 0.68rem;
 }
 
 .test-step-field {

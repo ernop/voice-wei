@@ -206,22 +206,6 @@
     gap: 7px;
 }
 
-.phrase-preset-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.phrase-preset-row .vf-btn {
-    min-width: 58px;
-    padding: 5px 8px;
-    font-size: 0.68rem;
-    background: rgba(14, 165, 233, 0.13);
-    border-color: rgba(125, 211, 252, 0.22);
-    color: rgba(224, 242, 254, 0.86);
-}
-
 .phrase-toggle-row .display-toggle {
     margin: 0;
 }
