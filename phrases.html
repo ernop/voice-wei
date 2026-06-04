@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=61">
-    <link rel="stylesheet" href="scales.css?v=61">
-    <link rel="stylesheet" href="phrases.css?v=61">
+    <link rel="stylesheet" href="style.css?v=62">
+    <link rel="stylesheet" href="scales.css?v=62">
+    <link rel="stylesheet" href="phrases.css?v=62">
 </head>
 
 <body data-page="phrases">
@@ -29,6 +29,10 @@
                     <span class="button-text">Repeat Off</span>
                     <span class="button-icon">&#8635;</span>
                 </button>
+                <button id="testBtn" class="play-button phrase-test-button" aria-label="Test phrase pitch">
+                    <span class="button-text">Test</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
                 <button id="nextBtn" class="next-button" aria-label="Next phrase">
                     <span class="button-text">Next</span>
                     <span class="button-icon">&#9654;</span>
@@ -45,6 +49,37 @@
                     <button id="allNotesBtn" class="phrase-stage-btn" type="button">All Notes</button>
                 </div>
                 <div class="phrase-status" id="phraseStatus">Ready</div>
+            </section>
+
+            <section class="phrase-test-panel" id="phraseTestPanel" aria-label="Phrase pitch test" hidden>
+                <div class="phrase-test-header">
+                    <div>
+                        <h2>Phrase Test</h2>
+                        <p id="phraseTestSubtitle">Sing the phrase. Time starts only when your voice is detected.</p>
+                    </div>
+                    <div class="phrase-test-actions">
+                        <button id="phraseTestRestartBtn" class="phrase-stage-btn" type="button">Restart</button>
+                        <button id="phraseTestListenBtn" class="phrase-stage-btn" type="button" aria-pressed="true">Listening On</button>
+                        <button id="phraseTestTargetsBtn" class="phrase-stage-btn selected" type="button" aria-pressed="true">Targets On</button>
+                    </div>
+                </div>
+                <label class="display-toggle phrase-test-play-toggle">
+                    <input type="checkbox" id="phraseTestPlayToggle">
+                    <span>Play guide on restart</span>
+                </label>
+                <div class="phrase-test-readout" aria-live="polite">
+                    <span id="phraseTestPitch">Pitch: --</span>
+                    <span id="phraseTestCents">-- cents</span>
+                    <span id="phraseTestStatus">Sing to start time</span>
+                </div>
+                <div class="phrase-test-canvas-wrap">
+                    <canvas id="phraseTestCanvas"></canvas>
+                </div>
+                <div class="phrase-test-legend">
+                    <span><i class="legend-target"></i> target phrase</span>
+                    <span><i class="legend-sung"></i> sung pitch</span>
+                    <span><i class="legend-scale"></i> scale degree rails</span>
+                </div>
             </section>
 
             <div class="voice-first-ui phrase-controls phrase-control-grid">
@@ -189,11 +224,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=61"></script>
-    <script src="music-constants.js?v=61"></script>
-    <script src="voice-output.js?v=61"></script>
-    <script src="pattern-practice-core.js?v=61"></script>
-    <script src="phrases.js?v=61"></script>
+    <script src="shared-header.js?v=62"></script>
+    <script src="music-constants.js?v=62"></script>
+    <script src="voice-output.js?v=62"></script>
+    <script src="pattern-practice-core.js?v=62"></script>
+    <script src="phrases.js?v=62"></script>
 </body>
 
 </html>

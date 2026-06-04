@@ -1,10 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Not Found</title>
+    <title>Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=62">
+    <style>
+        .home-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .home-hero {
+            margin: 10px 0 14px;
+            padding: 20px;
+            border: 1px solid rgba(134, 239, 172, 0.24);
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.28);
+            text-align: center;
+        }
+
+        .home-kicker {
+            color: rgba(255, 255, 255, 0.58);
+            font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .home-title {
+            margin-top: 8px;
+            color: #86efac;
+            font-size: clamp(2.2rem, 11vw, 4.6rem);
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .home-card {
+            display: block;
+            padding: 16px;
+            border: 1px solid rgba(74, 222, 128, 0.22);
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.28);
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .home-card h2 {
+            margin: 0 0 8px;
+            color: #a7f3d0;
+            font-size: 1.15rem;
+        }
+
+        .home-card p {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.66);
+            font-size: 0.92rem;
+        }
+
+        .home-note {
+            margin: 12px 0 0;
+            color: rgba(255, 255, 255, 0.58);
+            font-size: 0.9rem;
+        }
+    </style>
 </head>
+
 <body>
+    <div class="container">
+        <header id="siteHeader"></header>
+        <main>
+            <section class="home-hero">
+                <div class="home-kicker">Voice-first tools for singers, musicians, and readers</div>
+                <div class="home-title">Voice-Wei</div>
+                <p class="home-note">Firefox can browse these pages, but voice recognition features require Chrome, Edge, or Safari.</p>
+            </section>
+
+            <div class="home-card-grid">
+                <a class="home-card" href="scales.html">
+                    <h2>Scales</h2>
+                    <p>Voice-controlled scale and interval practice.</p>
+                </a>
+                <a class="home-card" href="phrases.html">
+                    <h2>Phrases</h2>
+                    <p>Generate and reproduce scale-degree phrase patterns.</p>
+                </a>
+                <a class="home-card" href="test.html">
+                    <h2>Test</h2>
+                    <p>Trace your sung pitch against key-aware guide lines.</p>
+                </a>
+                <a class="home-card" href="pitch-meter.html">
+                    <h2>Pitch</h2>
+                    <p>Real-time pitch meter and scale matching.</p>
+                </a>
+                <a class="home-card" href="player.html">
+                    <h2>Music</h2>
+                    <p>AI-assisted voice music player.</p>
+                </a>
+                <a class="home-card" href="ebook.html">
+                    <h2>Books</h2>
+                    <p>Ebook to audiobook conversion.</p>
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <script src="shared-header.js?v=62"></script>
 </body>
+
 </html>

@@ -793,6 +793,10 @@ Reflect flips the current phrase around the octave. A degree sequence that moves
 
 Every displayed degree has an on/off marker underneath it. All notes are active by default. Clicking or dragging across markers toggles notes in or out of playback, so a singer can drill one section of a phrase without losing the original phrase context.
 
+### Embedded Test
+
+Phrases includes an embedded Test panel for checking the current phrase against sung pitch. Pressing Test starts a fresh listening instance for the current phrase. Restart clears the trace without playing guide notes by default. A "Play guide on restart" option is available when the singer wants to hear the target phrase. The Test timeline is voice-gated: silence does not move time forward, and the trace starts counting against target notes only once singing is detected.
+
 ## Output Modes
 
 - Display: show the numbers only.

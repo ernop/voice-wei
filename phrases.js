@@ -77,6 +77,9 @@
     /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
     let testPendingPitchJump = null;
     let testSessionStartedAt = 0;
+    let testVoiceElapsedMs = 0;
+    /** @type {number | null} */
+    let testLastVoiceAt = null;
 
     function getEl(id) { return document.getElementById(id); }
     function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
@@ -320,8 +323,7 @@
 
     /** @param {any} phrase */
     function phraseTestTimeWindowMs(phrase) {
-        const elapsed = testSessionStartedAt ? performance.now() - testSessionStartedAt : 0;
-        return Math.max(4000, phraseTestDurationMs(phrase) + 700, elapsed + 250);
+        return Math.max(4000, phraseTestDurationMs(phrase) + 700, testVoiceElapsedMs + 250);
     }
 
     function syncPhraseTestControls() {
@@ -341,6 +343,8 @@
             targetsBtn.setAttribute('aria-pressed', String(state.showTestTargets));
             targetsBtn.textContent = state.showTestTargets ? 'Targets On' : 'Targets Off';
         }
+
+        syncPhraseTestPlayToggle();
     }
 
     /** @param {string} message */
@@ -372,10 +376,25 @@
         testPitchHistory = [];
         testLastAcceptedPitch = null;
         testPendingPitchJump = null;
+        testVoiceElapsedMs = 0;
+        testLastVoiceAt = null;
         testSessionStartedAt = performance.now();
         clearPhraseTestReadout();
-        setPhraseTestStatus('Listening for your pitch');
+        setPhraseTestStatus('Sing to start time');
         drawPhraseTest();
+    }
+
+    function nextPhraseTestVoiceTime() {
+        const now = performance.now();
+        if (testLastVoiceAt === null) {
+            testLastVoiceAt = now;
+            return testVoiceElapsedMs;
+        }
+
+        const delta = now - testLastVoiceAt;
+        testLastVoiceAt = now;
+        if (delta <= 240) testVoiceElapsedMs += delta;
+        return testVoiceElapsedMs;
     }
 
     /** @param {{ time: number, freq: number, midi: number, cents: number, note: string }} sample */
@@ -558,8 +577,7 @@
         }
 
         if (testSessionStartedAt) {
-            const elapsed = performance.now() - testSessionStartedAt;
-            const x = timeToX(elapsed);
+            const x = timeToX(testVoiceElapsedMs);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 5]);
@@ -761,6 +779,7 @@
             testStream.getTracks().forEach(track => track.stop());
             testStream = null;
         }
+        testLastVoiceAt = null;
         syncPhraseTestControls();
         setPhraseTestStatus('Listening off');
         drawPhraseTest();
@@ -786,9 +805,8 @@
             const midi = freqToMidi(freq);
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
-            const elapsed = performance.now() - testSessionStartedAt;
             const sample = {
-                time: elapsed,
+                time: nextPhraseTestVoiceTime(),
                 freq,
                 midi,
                 cents,
@@ -801,6 +819,7 @@
             }
         } else {
             testPendingPitchJump = null;
+            testLastVoiceAt = null;
             clearPhraseTestReadout();
         }
 
@@ -829,7 +848,7 @@
 
             state.testListening = true;
             syncPhraseTestControls();
-            setPhraseTestStatus('Listening for your pitch');
+            setPhraseTestStatus('Sing to start time');
             runPhraseTestPitchLoop();
         } catch (err) {
             console.error('Microphone access denied:', err);
@@ -871,6 +890,11 @@
         state.showTestTargets = !state.showTestTargets;
         syncPhraseTestControls();
         drawPhraseTest();
+    }
+
+    function syncPhraseTestPlayToggle() {
+        const el = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPlayToggle'));
+        if (el) el.checked = state.testPlayOnRestart;
     }
 
     function renderHistory() {
@@ -1107,6 +1131,13 @@
         getEl('phraseTestRestartBtn')?.addEventListener('click', restartPhraseTest);
         getEl('phraseTestListenBtn')?.addEventListener('click', togglePhraseTestListening);
         getEl('phraseTestTargetsBtn')?.addEventListener('click', togglePhraseTestTargets);
+        const phraseTestPlayToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPlayToggle'));
+        if (phraseTestPlayToggle) {
+            phraseTestPlayToggle.checked = state.testPlayOnRestart;
+            phraseTestPlayToggle.addEventListener('change', () => {
+                state.testPlayOnRestart = phraseTestPlayToggle.checked;
+            });
+        }
         getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
         window.addEventListener('pointerup', endPointerToggle);
         window.addEventListener('pointercancel', endPointerToggle);
