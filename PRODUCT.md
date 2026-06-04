@@ -804,7 +804,8 @@ Phrases includes an embedded Test panel for checking the current phrase against 
 - Say numbers: speak the degree numbers without tones.
 - Play tones: play only the target notes.
 - Say + tones: speak the numbers, then play the notes.
-- Sing numbers: play the exact piano pitch while speaking each number with pitch shaped toward that note. Native browser speech pitch is approximate; the piano tone remains the exact target.
+- Sing numbers: speak each number with browser speech pitch shaped toward that note. No piano tone is layered underneath.
+- None: keep the phrase displayed and produce no audio.
 
 
 # Test Tab - Key Pitch Trace

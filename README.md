@@ -42,7 +42,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Root, octave, scale, start at 1/random start, within octave/out of octave
 - Uniform random phrase length between selected min and max
 - Return to initial note and return to scale root endings
-- Output modes: display, say numbers, play tones, say + tones, sing numbers
+- Output modes: display, say numbers, play tones, say + tones, sing numbers, none
 - Reflect flips the current phrase around the octave so upward distances become downward distances from 8
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
 - Test opens an embedded phrase pitch trace; its timeline starts only when singing is detected, and restart is silent unless guide playback is enabled

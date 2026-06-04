@@ -628,6 +628,7 @@
     async function playPhraseOnce(phrase, token) {
         updatePhraseDisplay();
         setStatus(`Playing ${phrase.displayDegrees.join(' ')}`);
+        if (state.outputMode === 'none') { setStatus('No audio'); return; }
         if (state.outputMode === 'display') { setStatus('Displayed'); return; }
         if (state.outputMode === 'speak') {
             await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
@@ -693,11 +694,7 @@
             const midi = phrase.midiNotes[i];
             const degree = phrase.displayDegrees[i];
             setStatus(`${degree} | ${midiToPitchString(midi)}`);
-            playMidi(midi);
-            await Promise.all([
-                speakNumberAtPitch(phrase.spokenDegrees[i], midi, state.noteLengthMs),
-                sleep(state.noteLengthMs)
-            ]);
+            await speakNumberAtPitch(phrase.spokenDegrees[i], midi, state.noteLengthMs);
             if (state.gapMs > 0) await sleep(state.gapMs);
         }
         if (token === playToken && !state.loopCurrent) setStatus('Ready');
