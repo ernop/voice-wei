@@ -60,6 +60,7 @@ Use **Test** when you want to sing freely in a key and see the voice trace witho
 - Pick root, octave, and scale to draw scale-degree rails.
 - Guide interval controls the horizontal spacing for typed pattern targets.
 - Type patterns like `1 2 3 5 3 1` to draw blue target bands over the live trace.
+- Optional "Play guide on reset" plays the typed pattern; it is off by default.
 - Extreme pitch detections outside the selected key range are discarded so one-frame high/low spikes do not clutter the chart.
 
 ### Pitch Meter

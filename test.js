@@ -12,7 +12,8 @@
         octave: 3,
         scaleType: 'major',
         guideIntervalMs: 1000,
-        patternText: ''
+        patternText: '',
+        playGuidesOnReset: false
     };
 
     const ADJUSTER_VALUES = {
@@ -43,6 +44,7 @@
     let pendingPitchJump = null;
     let sessionStartedAt = 0;
     let isListening = false;
+    let guidePlaybackToken = 0;
 
     function getEl(id) { return document.getElementById(id); }
 
@@ -185,6 +187,7 @@
     }
 
     function resetTrace() {
+        guidePlaybackToken++;
         pitchHistory = [];
         lastAcceptedPitch = null;
         pendingPitchJump = null;
@@ -194,7 +197,59 @@
         drawChart();
     }
 
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function ensureAudioContext() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') await audioContext.resume();
+        return audioContext;
+    }
+
+    /**
+     * @param {number} midi
+     * @param {number} durationMs
+     */
+    async function playGuideTone(midi, durationMs) {
+        const ctx = await ensureAudioContext();
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = midiToFreq(midi);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + durationMs / 1000 + 0.03);
+    }
+
+    async function playPatternGuide() {
+        const notes = scaleNotes();
+        const pattern = parsedPatternDegrees();
+        if (!pattern.length) return;
+        const token = ++guidePlaybackToken;
+        const durationMs = Math.max(120, Math.min(650, state.guideIntervalMs * 0.7));
+
+        for (const degree of pattern) {
+            if (token !== guidePlaybackToken) return;
+            const note = notes[degree - 1];
+            if (note) await playGuideTone(note.midi, durationMs);
+            await sleep(Math.max(80, state.guideIntervalMs - durationMs));
+        }
+    }
+
+    async function resetFromButton() {
+        resetTrace();
+        if (state.playGuidesOnReset) await playPatternGuide();
+    }
+
     function stopListening() {
+        guidePlaybackToken++;
         isListening = false;
         if (animationId !== null) {
             cancelAnimationFrame(animationId);
@@ -500,7 +555,14 @@
             });
         }
         getEl('startBtn')?.addEventListener('click', startListening);
-        getEl('resetBtn')?.addEventListener('click', resetTrace);
+        getEl('resetBtn')?.addEventListener('click', resetFromButton);
+        const playGuidesToggle = /** @type {HTMLInputElement | null} */ (getEl('playGuidesToggle'));
+        if (playGuidesToggle) {
+            playGuidesToggle.checked = state.playGuidesOnReset;
+            playGuidesToggle.addEventListener('change', () => {
+                state.playGuidesOnReset = playGuidesToggle.checked;
+            });
+        }
         window.addEventListener('resize', resizeCanvas);
         syncControls();
         resizeCanvas();

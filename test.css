@@ -104,6 +104,11 @@
     font-size: 0.82rem;
 }
 
+.test-play-toggle {
+    width: fit-content;
+    margin-top: 10px;
+}
+
 .test-control-grid {
     display: grid;
     grid-template-columns: 1.15fr 0.85fr;

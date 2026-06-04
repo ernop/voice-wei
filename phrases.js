@@ -25,7 +25,8 @@
         loopCurrent: false,
         testPanelOpen: false,
         testListening: false,
-        showTestTargets: true
+        showTestTargets: true,
+        testPlayOnRestart: false
     };
 
     const STRUCTURE_KEYS = new Set([
@@ -846,7 +847,7 @@
         resetPhraseTestSession();
         await startPhraseTestListening();
         const phrase = phraseForPlayback();
-        if (phrase) await playPhrase(phrase);
+        if (phrase && state.testPlayOnRestart) await playPhrase(phrase);
     }
 
     async function startPhraseTest() {

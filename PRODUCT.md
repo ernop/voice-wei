@@ -818,6 +818,7 @@ Test is for free singing inside a selected key while watching pitch movement ove
 - The chart labels scale degrees vertically, such as 1 through 8 for seven-note octave scales.
 - The guide interval controls horizontal spacing for typed pattern targets.
 - The pattern input accepts degree sequences like `1 2 3 5 3 1`; guide bands are drawn over the live trace.
+- Optional guide playback on reset is available, but it is off by default so reset only clears and redraws unless the singer asks to hear the pattern.
 - Pitch detections outside the selected key range are discarded rather than drawn, which removes rare one-frame high/low outliers while preserving natural vibrato and wavering around real notes.
 
 
