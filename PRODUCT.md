@@ -737,7 +737,6 @@ Phrases trains melodic memory and reproduction. It generates short-to-long scale
 - Gap: 0.0 seconds
 - Output: play notes only
 - Return to initial note: on
-- Return to root: off
 
 ## Generation Rules
 
@@ -745,16 +744,15 @@ Phrases trains melodic memory and reproduction. It generates short-to-long scale
 - Phrases are clustered: local movement is possible, but repeated same-direction scale runs are dampened so phrases include more varied contours.
 - Start can be fixed at degree 1 or randomized.
 - Range can stay within the octave or allow out-of-octave degrees.
-- Optional endings can append the initial note, the scale root, or both.
+- Optional ending can append the initial note.
 
 ## Controls and Behavior
 
 ### Projection controls preserve the phrase
 
-Changing these does not replace the phrase. The scale-degree offsets stay the same, while note names and playback pitches are recalculated in the new musical context. For example, 1-2-3 in C major displays and plays as C-D-E; switching the root to F keeps 1-2-3 and displays/plays F-G-A.
+Changing these does not replace the phrase. The scale-degree offsets stay the same, while note names and playback pitches are recalculated in the new musical context. For example, 1-2-3 in C major displays and plays as C-D-E; stepping the root pitch to F keeps 1-2-3 and displays/plays F-G-A.
 
-- Root
-- Octave/chord level
+- Root pitch
 - Scale
 
 ### Structural controls regenerate
@@ -765,8 +763,7 @@ Changing these means the current phrase no longer matches the requested exercise
 - Within octave vs out of octave
 - Minimum length
 - Maximum length
-- Return to initial note
-- Return to root
+- Return to 1 vs no return
 
 ### Playback/display controls preserve the phrase
 

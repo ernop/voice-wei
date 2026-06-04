@@ -39,9 +39,9 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 **Default setup:** D-sharp, octave 3, 5-8 note phrases, 0.3s note length, 0.0s gap, play notes only, and return to the initial note enabled.
 
 **Controls:**
-- Root, octave, scale, start at 1/random start, within octave/out of octave
+- Root pitch, scale, start at 1/random start, within octave/out of octave
 - Uniform random phrase length between selected min and max
-- Return to initial note and return to scale root endings
+- Return to 1 / no return ending
 - Output modes: display, say numbers, play tones, say + tones, sing numbers, none
 - Reflect flips the current phrase around the octave so upward distances become downward distances from 8
 - Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
