@@ -67,49 +67,28 @@
 }
 
 .phrase-controls {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .phrase-control-grid {
-    display: grid;
-    grid-template-columns: minmax(190px, 0.7fr) minmax(280px, 1.3fr);
-    gap: 10px;
-    padding: 10px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 5px;
 }
 
 .phrase-control-card {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
     min-width: 0;
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 14px;
-    background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
-        rgba(0, 0, 0, 0.18);
-}
-
-.phrase-control-card-key,
-.phrase-control-card-output {
-    grid-column: span 1;
-}
-
-.phrase-control-card-shape,
-.phrase-control-card-scale {
-    grid-column: 1 / -1;
-}
-
-.phrase-control-card-output {
-    grid-column: 1 / -1;
-}
-
-.phrase-control-card-title {
-    color: rgba(255, 255, 255, 0.68);
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .phrase-compact-fields,
@@ -119,40 +98,40 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 7px;
+    gap: 5px;
 }
 
 .phrase-segment-row {
     width: fit-content;
     max-width: 100%;
-    padding: 4px;
-    gap: 4px;
+    padding: 3px;
+    gap: 3px;
     border: 1px solid rgba(134, 239, 172, 0.18);
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.22);
 }
 
 .phrase-segment-row .vf-btn {
-    min-width: 86px;
+    min-width: 82px;
     border-radius: 999px;
     text-align: center;
 }
 
 .phrase-step-field {
     display: grid;
-    grid-template-columns: 64px 42px 56px 42px;
+    grid-template-columns: 58px 38px 54px 38px;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     width: fit-content;
     max-width: 100%;
-    padding: 5px;
+    padding: 3px;
     border: 1px solid rgba(134, 239, 172, 0.18);
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.22);
 }
 
 .phrase-step-label {
-    padding: 0 4px 0 6px;
+    padding: 0 3px 0 5px;
     color: rgba(255, 255, 255, 0.62);
     font-size: 0.68rem;
     font-weight: 800;
@@ -162,8 +141,8 @@
 }
 
 .phrase-step-btn {
-    width: 42px;
-    height: 36px;
+    width: 38px;
+    height: 32px;
     border: 1px solid rgba(74, 222, 128, 0.32);
     border-radius: 999px;
     background: rgba(8, 47, 31, 0.9);
@@ -191,7 +170,7 @@
 }
 
 .phrase-step-value {
-    width: 56px;
+    width: 54px;
     box-sizing: border-box;
     padding: 5px 8px;
     border-radius: 999px;
@@ -209,7 +188,7 @@
 }
 
 .phrase-pitch-step-field {
-    margin-bottom: 7px;
+    margin-bottom: 0;
 }
 
 .phrase-scale-row .vf-btn {
@@ -220,7 +199,7 @@
     display: grid;
     grid-template-columns: max-content max-content;
     align-items: center;
-    gap: 7px;
+    gap: 5px;
 }
 
 .phrase-toggle-row .display-toggle {
@@ -419,44 +398,40 @@
 
 @media (max-width: 640px) {
     .phrase-control-grid {
-        grid-template-columns: 1fr;
-        padding: 8px;
-    }
-
-    .phrase-control-card-key,
-    .phrase-control-card-shape,
-    .phrase-control-card-scale,
-    .phrase-control-card-output {
-        grid-column: auto;
+        gap: 5px;
+        padding: 4px;
     }
 
     .phrase-step-field {
-        width: 100%;
-        grid-template-columns: 64px 42px minmax(56px, 1fr) 42px;
+        width: auto;
+        grid-template-columns: 54px 36px 54px 36px;
         justify-content: space-between;
     }
 
     .phrase-step-value {
-        width: 100%;
+        width: 54px;
     }
 
     .phrase-length-adjusters {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: max-content max-content;
+        gap: 4px;
     }
 
     .phrase-length-adjusters .phrase-step-field {
-        grid-template-columns: 36px 36px minmax(38px, 1fr) 36px;
+        grid-template-columns: 32px 32px 42px 32px;
         gap: 3px;
         padding: 4px;
     }
 
     .phrase-segment-row {
-        width: 100%;
+        width: auto;
     }
 
     .phrase-segment-row .vf-btn {
-        flex: 1;
-        min-width: 0;
+        flex: 0 0 auto;
+        min-width: 74px;
+        padding-left: 5px;
+        padding-right: 5px;
     }
 
     .phrase-test-header {
