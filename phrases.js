@@ -84,7 +84,6 @@
 
     function getEl(id) { return document.getElementById(id); }
     function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
-    function setMeta(text) { const el = getEl('phraseMeta'); if (el) el.textContent = text; }
 
     async function initAudio() {
         gainNode = new Tone.Gain(1).toDestination();
@@ -604,10 +603,6 @@
         }
         renderPhraseUnits(phrase);
         notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
-        const rangeText = state.allowOutOfOctave ? 'out of octave' : 'within octave';
-        const startText = state.startAtOne ? 'start 1' : 'random start';
-        const reflectedText = state.reflected ? ' | reflected' : '';
-        setMeta(`${state.root} ${state.scaleType.replace(/_/g, ' ')} | ${startText} | ${rangeText}${reflectedText}`);
         drawPhraseTest();
     }
 
@@ -1096,14 +1091,13 @@
         wireSingleSelect('data-scale', 'scaleType', String);
         wireSingleSelect('data-start', 'startAtOne', value => value === 'one');
         wireSingleSelect('data-range', 'allowOutOfOctave', value => value === 'expanded');
+        wireSingleSelect('data-return-initial', 'returnToInitial', value => value === 'yes');
         wireSingleSelect('data-min-length', 'minLength', Number);
         wireSingleSelect('data-max-length', 'maxLength', Number);
         wireSingleSelect('data-output', 'outputMode', String);
         wireSingleSelect('data-length', 'noteLengthMs', Number);
         wireSingleSelect('data-gap', 'gapMs', Number);
         wireAdjusters();
-        wireToggle('returnInitialToggle', 'returnToInitial');
-        wireToggle('returnRootToggle', 'returnToRoot');
         wireToggle('showNamesToggle', 'showNoteNames');
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);

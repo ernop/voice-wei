@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=70">
-    <link rel="stylesheet" href="scales.css?v=70">
-    <link rel="stylesheet" href="phrases.css?v=70">
+    <link rel="stylesheet" href="style.css?v=71">
+    <link rel="stylesheet" href="scales.css?v=71">
+    <link rel="stylesheet" href="phrases.css?v=71">
 </head>
 
 <body data-page="phrases">
@@ -40,7 +40,6 @@
             </div>
 
             <section class="phrase-stage" aria-live="polite">
-                <div class="phrase-stage-label" id="phraseMeta">Press Play or Next to generate a phrase</div>
                 <div class="phrase-degrees-large" id="phraseDegrees">--</div>
                 <div class="phrase-note-toggles" id="phraseNoteToggles" aria-label="Active notes"></div>
                 <div class="phrase-notes-line" id="phraseNotes"></div>
@@ -99,7 +98,6 @@
                 </section>
 
                 <section class="phrase-control-card phrase-control-card-key">
-                    <div class="phrase-control-card-title">Key</div>
                     <div class="phrase-step-field phrase-pitch-step-field">
                         <span class="phrase-step-label">Root</span>
                         <button class="phrase-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
@@ -110,11 +108,13 @@
 
                 <section class="phrase-control-card phrase-control-card-shape">
                     <div class="phrase-control-card-title">Phrase</div>
-                    <div class="phrase-button-row">
+                    <div class="phrase-segment-row">
                         <button class="vf-btn" data-start="one">start at 1</button>
                         <button class="vf-btn" data-start="random">random start</button>
-                        <button class="vf-btn" data-range="within">within octave</button>
-                        <button class="vf-btn" data-range="expanded">out of octave</button>
+                    </div>
+                    <div class="phrase-segment-row">
+                        <button class="vf-btn" data-range="within">in octave</button>
+                        <button class="vf-btn" data-range="expanded">out octave</button>
                     </div>
                     <div class="phrase-length-adjusters">
                         <div class="phrase-step-field">
@@ -130,15 +130,11 @@
                             <button class="phrase-step-btn" type="button" data-step-key="maxLength" data-step-delta="1" aria-label="Longer maximum phrase length">+</button>
                         </div>
                     </div>
+                    <div class="phrase-segment-row">
+                        <button class="vf-btn" data-return-initial="yes">return to 1</button>
+                        <button class="vf-btn" data-return-initial="no">no return</button>
+                    </div>
                     <div class="phrase-toggle-row">
-                        <label class="display-toggle">
-                            <input type="checkbox" id="returnInitialToggle">
-                            <span>Return initial</span>
-                        </label>
-                        <label class="display-toggle">
-                            <input type="checkbox" id="returnRootToggle">
-                            <span>Return root</span>
-                        </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="showNamesToggle" checked>
                             <span>Show names</span>
@@ -189,11 +185,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=70"></script>
-    <script src="music-constants.js?v=70"></script>
-    <script src="voice-output.js?v=70"></script>
-    <script src="pattern-practice-core.js?v=70"></script>
-    <script src="phrases.js?v=70"></script>
+    <script src="shared-header.js?v=71"></script>
+    <script src="music-constants.js?v=71"></script>
+    <script src="voice-output.js?v=71"></script>
+    <script src="pattern-practice-core.js?v=71"></script>
+    <script src="phrases.js?v=71"></script>
 </body>
 
 </html>
