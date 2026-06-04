@@ -98,6 +98,18 @@ python -m http.server 8000
 
 HTTPS required for microphone access when deployed.
 
+## Development Checks
+
+Install the pinned npm tooling before running project checks:
+
+```bash
+npm ci
+npm run typecheck
+npm run check
+```
+
+`npm run check` runs the full TypeScript check and the ast-grep lint scan.
+
 ## Browser Support
 
 - Chrome/Edge/Safari - Full support
