@@ -53,7 +53,7 @@
                 <div class="phrase-test-header">
                     <div>
                         <h2>Phrase Test</h2>
-                        <p id="phraseTestSubtitle">Sing the phrase. Time starts only when your voice is detected.</p>
+                        <p id="phraseTestSubtitle">Sing the phrase and choose whether silence pauses the trace clock.</p>
                     </div>
                     <div class="phrase-test-actions">
                         <button id="phraseTestRestartBtn" class="phrase-stage-btn" type="button">Restart</button>
@@ -65,6 +65,16 @@
                     <input type="checkbox" id="phraseTestPlayToggle">
                     <span>Play guide on restart</span>
                 </label>
+                <div class="phrase-test-trace-options">
+                    <label class="display-toggle">
+                        <input type="checkbox" id="phraseTestFixedTraceWindowToggle">
+                        <span>Fixed 20s window</span>
+                    </label>
+                    <label class="display-toggle">
+                        <input type="checkbox" id="phraseTestPauseTraceOnSilenceToggle" checked>
+                        <span>Pause time on silence</span>
+                    </label>
+                </div>
                 <div class="phrase-test-readout" aria-live="polite">
                     <span id="phraseTestPitch">Pitch: --</span>
                     <span id="phraseTestCents">-- cents</span>

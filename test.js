@@ -13,7 +13,9 @@
         scaleType: 'major',
         guideIntervalMs: 1000,
         patternText: '',
-        playGuidesOnReset: false
+        playGuidesOnReset: false,
+        fixedTraceWindow: false,
+        pauseTraceOnSilence: true
     };
 
     const ADJUSTER_VALUES = {
@@ -26,6 +28,8 @@
     const GLITCH_WINDOW_MS = 220;
     const GLITCH_CONFIRM_MS = 260;
     const GLITCH_CONFIRM_MIDI = 1.2;
+    const SILENCE_GAP_MS = 240;
+    const FIXED_TRACE_WINDOW_MS = 20000;
 
     /** @type {AudioContext | null} */
     let audioContext = null;
@@ -44,6 +48,11 @@
     /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
     let pendingPitchJump = null;
     let sessionStartedAt = 0;
+    let traceElapsedMs = 0;
+    /** @type {number | null} */
+    let lastTraceFrameAt = null;
+    /** @type {number | null} */
+    let lastVoiceAt = null;
     let isListening = false;
     let guidePlaybackToken = 0;
 
@@ -193,9 +202,37 @@
         lastAcceptedPitch = null;
         pendingPitchJump = null;
         sessionStartedAt = performance.now();
+        traceElapsedMs = 0;
+        lastTraceFrameAt = null;
+        lastVoiceAt = null;
         clearPitchReadout();
         setStatus(isListening ? 'Listening' : 'Ready');
         drawChart();
+    }
+
+    /** @param {boolean} hasVoice */
+    function advanceTraceClock(hasVoice) {
+        const now = performance.now();
+
+        if (!state.pauseTraceOnSilence) {
+            if (lastTraceFrameAt !== null) traceElapsedMs += now - lastTraceFrameAt;
+            lastTraceFrameAt = now;
+            lastVoiceAt = hasVoice ? now : null;
+            return traceElapsedMs;
+        }
+
+        lastTraceFrameAt = now;
+        if (!hasVoice) {
+            lastVoiceAt = null;
+            return traceElapsedMs;
+        }
+
+        if (lastVoiceAt !== null) {
+            const delta = now - lastVoiceAt;
+            if (delta <= SILENCE_GAP_MS) traceElapsedMs += delta;
+        }
+        lastVoiceAt = now;
+        return traceElapsedMs;
     }
 
     function sleep(ms) {
@@ -275,13 +312,15 @@
         const buffer = new Float32Array(analyser.fftSize);
         analyser.getFloatTimeDomainData(buffer);
         const freq = detectPitch(buffer, audioContext.sampleRate);
+        const hasVoice = freq > 0 && freq < 2000;
+        const traceTime = advanceTraceClock(hasVoice);
 
-        if (freq > 0 && freq < 2000) {
+        if (hasVoice) {
             const midi = freqToMidi(freq);
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
             const sample = {
-                time: performance.now() - sessionStartedAt,
+                time: traceTime,
                 freq,
                 midi,
                 cents,
@@ -293,6 +332,7 @@
             }
         } else {
             pendingPitchJump = null;
+            lastVoiceAt = null;
             clearPitchReadout();
         }
 
@@ -346,9 +386,18 @@
         return count ? count * state.guideIntervalMs : 0;
     }
 
-    function timeWindowMs() {
-        const elapsed = sessionStartedAt ? performance.now() - sessionStartedAt : 0;
-        return Math.max(8000, patternDurationMs() + 1000, elapsed + 500);
+    function autoTraceWindowMs() {
+        return Math.max(8000, patternDurationMs() + 1000, traceElapsedMs + 500);
+    }
+
+    function visibleTraceRange() {
+        const duration = state.fixedTraceWindow ? FIXED_TRACE_WINDOW_MS : autoTraceWindowMs();
+        const start = state.fixedTraceWindow ? Math.max(0, traceElapsedMs - duration) : 0;
+        return {
+            start,
+            end: start + duration,
+            duration
+        };
     }
 
     function resizeCanvas() {
@@ -394,12 +443,15 @@
         const bottom = 30;
         const graphWidth = Math.max(width - left - right, 1);
         const graphHeight = Math.max(height - top - bottom, 1);
-        const timeWindow = timeWindowMs();
+        const traceRange = visibleTraceRange();
 
         /** @param {number} midi */
         const midiToY = (midi) => top + (maxMidi - Math.max(minMidi, Math.min(maxMidi, midi))) / midiRange * graphHeight;
         /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms)) / timeWindow * graphWidth;
+        const timeToX = (ms) => {
+            const clamped = Math.max(traceRange.start, Math.min(traceRange.end, ms));
+            return left + (clamped - traceRange.start) / traceRange.duration * graphWidth;
+        };
 
         ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
         ctx.textAlign = 'right';
@@ -421,8 +473,11 @@
         pattern.forEach((degree, index) => {
             const note = notes[degree - 1];
             if (!note) return;
-            const x1 = timeToX(index * state.guideIntervalMs);
-            const x2 = timeToX(index * state.guideIntervalMs + state.guideIntervalMs * 0.82);
+            const targetStart = index * state.guideIntervalMs;
+            const targetEnd = targetStart + state.guideIntervalMs * 0.82;
+            if (targetEnd < traceRange.start || targetStart > traceRange.end) return;
+            const x1 = timeToX(targetStart);
+            const x2 = timeToX(targetEnd);
             const y = midiToY(note.midi);
             ctx.fillStyle = 'rgba(96, 165, 250, 0.28)';
             ctx.strokeStyle = 'rgba(147, 197, 253, 0.92)';
@@ -434,16 +489,17 @@
             ctx.fillText(String(degree), x1 + 4, y - 17);
         });
 
-        if (pitchHistory.length > 1) {
+        const visiblePitchHistory = pitchHistory.filter(point => point.time >= traceRange.start && point.time <= traceRange.end);
+        if (visiblePitchHistory.length > 1) {
             ctx.lineWidth = 2.4;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.strokeStyle = '#facc15';
             ctx.beginPath();
-            let previous = pitchHistory[0];
+            let previous = visiblePitchHistory[0];
             ctx.moveTo(timeToX(previous.time), midiToY(previous.midi));
-            for (let i = 1; i < pitchHistory.length; i++) {
-                const point = pitchHistory[i];
+            for (let i = 1; i < visiblePitchHistory.length; i++) {
+                const point = visiblePitchHistory[i];
                 const fastJump = point.time - previous.time <= GLITCH_WINDOW_MS
                     && Math.abs(point.midi - previous.midi) > GLITCH_JUMP_MIDI;
                 if (point.time - previous.time > 260 || fastJump) {
@@ -455,8 +511,8 @@
             }
             ctx.stroke();
 
-            for (let i = 0; i < pitchHistory.length; i += 3) {
-                const point = pitchHistory[i];
+            for (let i = 0; i < visiblePitchHistory.length; i += 3) {
+                const point = visiblePitchHistory[i];
                 const absCents = Math.abs(point.cents);
                 ctx.fillStyle = absCents < 12 ? '#4ade80' : absCents < 30 ? '#facc15' : '#fb7185';
                 ctx.beginPath();
@@ -466,7 +522,7 @@
         }
 
         if (sessionStartedAt) {
-            const x = timeToX(performance.now() - sessionStartedAt);
+            const x = timeToX(traceElapsedMs);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 5]);
@@ -506,6 +562,10 @@
         if (rootPitchValue) rootPitchValue.textContent = `${state.root}${state.octave}`;
         const intervalValue = getEl('guideIntervalValue');
         if (intervalValue) intervalValue.textContent = `${state.guideIntervalMs / 1000}s`;
+        const fixedWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedTraceWindowToggle'));
+        if (fixedWindowToggle) fixedWindowToggle.checked = state.fixedTraceWindow;
+        const pauseSilenceToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseTraceOnSilenceToggle'));
+        if (pauseSilenceToggle) pauseSilenceToggle.checked = state.pauseTraceOnSilence;
     }
 
     /** @param {string} key @param {string | number} value */
@@ -565,6 +625,23 @@
             playGuidesToggle.checked = state.playGuidesOnReset;
             playGuidesToggle.addEventListener('change', () => {
                 state.playGuidesOnReset = playGuidesToggle.checked;
+            });
+        }
+        const fixedWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedTraceWindowToggle'));
+        if (fixedWindowToggle) {
+            fixedWindowToggle.checked = state.fixedTraceWindow;
+            fixedWindowToggle.addEventListener('change', () => {
+                state.fixedTraceWindow = fixedWindowToggle.checked;
+                syncControls();
+                drawChart();
+            });
+        }
+        const pauseSilenceToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseTraceOnSilenceToggle'));
+        if (pauseSilenceToggle) {
+            pauseSilenceToggle.checked = state.pauseTraceOnSilence;
+            pauseSilenceToggle.addEventListener('change', () => {
+                state.pauseTraceOnSilence = pauseSilenceToggle.checked;
+                resetTrace();
             });
         }
         window.addEventListener('resize', resizeCanvas);

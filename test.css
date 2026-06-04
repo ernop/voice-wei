@@ -109,6 +109,13 @@
     margin-top: 10px;
 }
 
+.test-trace-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
 .test-control-grid {
     display: grid;
     grid-template-columns: 1.15fr 0.85fr;

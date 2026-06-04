@@ -26,7 +26,9 @@
         testPanelOpen: false,
         testListening: false,
         showTestTargets: true,
-        testPlayOnRestart: false
+        testPlayOnRestart: false,
+        testFixedTraceWindow: false,
+        testPauseTraceOnSilence: true
     };
 
     const STRUCTURE_KEYS = new Set([
@@ -39,6 +41,8 @@
     const TEST_GLITCH_WINDOW_MS = 220;
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
+    const TEST_SILENCE_GAP_MS = 240;
+    const TEST_FIXED_TRACE_WINDOW_MS = 20000;
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -78,7 +82,9 @@
     /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
     let testPendingPitchJump = null;
     let testSessionStartedAt = 0;
-    let testVoiceElapsedMs = 0;
+    let testTraceElapsedMs = 0;
+    /** @type {number | null} */
+    let testLastTraceFrameAt = null;
     /** @type {number | null} */
     let testLastVoiceAt = null;
 
@@ -322,8 +328,19 @@
     }
 
     /** @param {any} phrase */
-    function phraseTestTimeWindowMs(phrase) {
-        return Math.max(4000, phraseTestDurationMs(phrase) + 700, testVoiceElapsedMs + 250);
+    function phraseTestAutoWindowMs(phrase) {
+        return Math.max(4000, phraseTestDurationMs(phrase) + 700, testTraceElapsedMs + 250);
+    }
+
+    /** @param {any} phrase */
+    function phraseTestVisibleRange(phrase) {
+        const duration = state.testFixedTraceWindow ? TEST_FIXED_TRACE_WINDOW_MS : phraseTestAutoWindowMs(phrase);
+        const start = state.testFixedTraceWindow ? Math.max(0, testTraceElapsedMs - duration) : 0;
+        return {
+            start,
+            end: start + duration,
+            duration
+        };
     }
 
     function syncPhraseTestControls() {
@@ -344,6 +361,10 @@
             targetsBtn.textContent = state.showTestTargets ? 'Targets On' : 'Targets Off';
         }
 
+        const fixedWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestFixedTraceWindowToggle'));
+        if (fixedWindowToggle) fixedWindowToggle.checked = state.testFixedTraceWindow;
+        const pauseSilenceToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseTraceOnSilenceToggle'));
+        if (pauseSilenceToggle) pauseSilenceToggle.checked = state.testPauseTraceOnSilence;
         syncPhraseTestPlayToggle();
     }
 
@@ -376,7 +397,8 @@
         testPitchHistory = [];
         testLastAcceptedPitch = null;
         testPendingPitchJump = null;
-        testVoiceElapsedMs = 0;
+        testTraceElapsedMs = 0;
+        testLastTraceFrameAt = null;
         testLastVoiceAt = null;
         testSessionStartedAt = performance.now();
         clearPhraseTestReadout();
@@ -384,17 +406,29 @@
         drawPhraseTest();
     }
 
-    function nextPhraseTestVoiceTime() {
+    /** @param {boolean} hasVoice */
+    function advancePhraseTestTraceClock(hasVoice) {
         const now = performance.now();
-        if (testLastVoiceAt === null) {
-            testLastVoiceAt = now;
-            return testVoiceElapsedMs;
+
+        if (!state.testPauseTraceOnSilence) {
+            if (testLastTraceFrameAt !== null) testTraceElapsedMs += now - testLastTraceFrameAt;
+            testLastTraceFrameAt = now;
+            testLastVoiceAt = hasVoice ? now : null;
+            return testTraceElapsedMs;
         }
 
-        const delta = now - testLastVoiceAt;
+        testLastTraceFrameAt = now;
+        if (!hasVoice) {
+            testLastVoiceAt = null;
+            return testTraceElapsedMs;
+        }
+
+        if (testLastVoiceAt !== null) {
+            const delta = now - testLastVoiceAt;
+            if (delta <= TEST_SILENCE_GAP_MS) testTraceElapsedMs += delta;
+        }
         testLastVoiceAt = now;
-        if (delta <= 240) testVoiceElapsedMs += delta;
-        return testVoiceElapsedMs;
+        return testTraceElapsedMs;
     }
 
     /** @param {{ time: number, freq: number, midi: number, cents: number, note: string }} sample */
@@ -487,7 +521,7 @@
         const bottom = 28;
         const graphWidth = Math.max(width - left - right, 1);
         const graphHeight = Math.max(height - top - bottom, 1);
-        const timeWindow = phraseTestTimeWindowMs(phrase);
+        const traceRange = phraseTestVisibleRange(phrase);
         const phraseDuration = phraseTestDurationMs(phrase);
 
         /** @param {number} midi */
@@ -496,7 +530,10 @@
             return top + (maxMidi - clamped) / midiRange * graphHeight;
         };
         /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms)) / timeWindow * graphWidth;
+        const timeToX = (ms) => {
+            const clamped = Math.max(traceRange.start, Math.min(traceRange.end, ms));
+            return left + (clamped - traceRange.start) / traceRange.duration * graphWidth;
+        };
 
         ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
         ctx.textAlign = 'right';
@@ -529,8 +566,11 @@
             const stepMs = state.noteLengthMs + state.gapMs;
             phrase.midiNotes.forEach((midi, index) => {
                 const y = midiToY(midi);
-                const x1 = timeToX(index * stepMs);
-                const x2 = timeToX(Math.min(index * stepMs + state.noteLengthMs, phraseDuration));
+                const targetStart = index * stepMs;
+                const targetEnd = Math.min(targetStart + state.noteLengthMs, phraseDuration);
+                if (targetEnd < traceRange.start || targetStart > traceRange.end) return;
+                const x1 = timeToX(targetStart);
+                const x2 = timeToX(targetEnd);
                 const targetWidth = Math.max(x2 - x1, 5);
                 const active = activeMask[index] !== false;
                 ctx.fillStyle = active ? 'rgba(96, 165, 250, 0.3)' : 'rgba(148, 163, 184, 0.15)';
@@ -545,16 +585,17 @@
             });
         }
 
-        if (testPitchHistory.length > 1) {
+        const visiblePitchHistory = testPitchHistory.filter(point => point.time >= traceRange.start && point.time <= traceRange.end);
+        if (visiblePitchHistory.length > 1) {
             ctx.lineWidth = 2.4;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.strokeStyle = '#facc15';
             ctx.beginPath();
-            let previous = testPitchHistory[0];
+            let previous = visiblePitchHistory[0];
             ctx.moveTo(timeToX(previous.time), midiToY(previous.midi));
-            for (let i = 1; i < testPitchHistory.length; i++) {
-                const point = testPitchHistory[i];
+            for (let i = 1; i < visiblePitchHistory.length; i++) {
+                const point = visiblePitchHistory[i];
                 const fastJump = point.time - previous.time <= TEST_GLITCH_WINDOW_MS
                     && Math.abs(point.midi - previous.midi) > TEST_GLITCH_JUMP_MIDI;
                 if (point.time - previous.time > 240 || fastJump) {
@@ -566,8 +607,8 @@
             }
             ctx.stroke();
 
-            for (let i = 0; i < testPitchHistory.length; i += 3) {
-                const point = testPitchHistory[i];
+            for (let i = 0; i < visiblePitchHistory.length; i += 3) {
+                const point = visiblePitchHistory[i];
                 const absCents = Math.abs(point.cents);
                 ctx.fillStyle = absCents < 12 ? '#4ade80' : absCents < 30 ? '#facc15' : '#fb7185';
                 ctx.beginPath();
@@ -577,7 +618,7 @@
         }
 
         if (testSessionStartedAt) {
-            const x = timeToX(testVoiceElapsedMs);
+            const x = timeToX(testTraceElapsedMs);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 5]);
@@ -793,13 +834,15 @@
         const buffer = new Float32Array(testAnalyser.fftSize);
         testAnalyser.getFloatTimeDomainData(buffer);
         const freq = detectPitch(buffer, testAudioContext.sampleRate);
+        const hasVoice = freq > 0 && freq < 2000;
+        const traceTime = advancePhraseTestTraceClock(hasVoice);
 
-        if (freq > 0 && freq < 2000) {
+        if (hasVoice) {
             const midi = freqToMidi(freq);
             const noteInfo = midiToNoteName(midi);
             const cents = getCentsDeviation(freq);
             const sample = {
-                time: nextPhraseTestVoiceTime(),
+                time: traceTime,
                 freq,
                 midi,
                 cents,
@@ -812,7 +855,6 @@
             }
         } else {
             testPendingPitchJump = null;
-            testLastVoiceAt = null;
             clearPhraseTestReadout();
         }
 
@@ -1117,6 +1159,23 @@
             phraseTestPlayToggle.checked = state.testPlayOnRestart;
             phraseTestPlayToggle.addEventListener('change', () => {
                 state.testPlayOnRestart = phraseTestPlayToggle.checked;
+            });
+        }
+        const phraseTestFixedWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestFixedTraceWindowToggle'));
+        if (phraseTestFixedWindowToggle) {
+            phraseTestFixedWindowToggle.checked = state.testFixedTraceWindow;
+            phraseTestFixedWindowToggle.addEventListener('change', () => {
+                state.testFixedTraceWindow = phraseTestFixedWindowToggle.checked;
+                syncPhraseTestControls();
+                drawPhraseTest();
+            });
+        }
+        const phraseTestPauseSilenceToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseTraceOnSilenceToggle'));
+        if (phraseTestPauseSilenceToggle) {
+            phraseTestPauseSilenceToggle.checked = state.testPauseTraceOnSilence;
+            phraseTestPauseSilenceToggle.addEventListener('change', () => {
+                state.testPauseTraceOnSilence = phraseTestPauseSilenceToggle.checked;
+                resetPhraseTestSession();
             });
         }
         getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
