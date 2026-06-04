@@ -35,6 +35,39 @@ interface Window {
 declare const Tone: typeof import('tone');
 
 // -----------------------------------------------------------------------
+// Ebook page libraries loaded from CDN
+// -----------------------------------------------------------------------
+
+interface JSZipFile {
+    async(type: 'text'): Promise<string>;
+    async(type: 'blob'): Promise<Blob>;
+}
+
+declare const pdfjsLib: {
+    GlobalWorkerOptions: {
+        workerSrc: string;
+    };
+    getDocument: (params: { data: ArrayBuffer }) => {
+        promise: Promise<{
+            numPages: number;
+            getPage: (pageNumber: number) => Promise<{
+                getTextContent: () => Promise<{ items: unknown[] }>;
+                getViewport: (params: { scale: number }) => { width: number; height: number };
+                render: (params: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => {
+                    promise: Promise<void>;
+                };
+            }>;
+        }>;
+    };
+};
+
+declare const JSZip: {
+    loadAsync: (file: Blob) => Promise<{
+        file: (path: string) => JSZipFile | null;
+    }>;
+};
+
+// -----------------------------------------------------------------------
 // YouTube IFrame API - YT namespace is declared by @types/youtube
 // -----------------------------------------------------------------------
 

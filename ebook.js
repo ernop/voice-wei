@@ -10,7 +10,7 @@ if (typeof pdfjsLib !== 'undefined') {
 const TTS_CHUNK_SIZE = 4000;
 
 // Timing constants
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
+const EBOOK_PROGRESS_UPDATE_INTERVAL_MS = 100;
 
 // Voice descriptions for UI
 const VOICE_DESCRIPTIONS = {
@@ -206,7 +206,7 @@ class EbookController {
             return;
         }
 
-        const previewBtn = document.getElementById('previewVoiceBtn');
+        const previewBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('previewVoiceBtn'));
         if (!previewBtn) return;
 
         // If already playing, stop
