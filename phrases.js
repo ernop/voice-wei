@@ -42,6 +42,7 @@
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
     const TEST_FIXED_WINDOW_MS = 20000;
+    const SILENT_WAV_DATA_URI = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -84,6 +85,8 @@
     let testVoiceElapsedMs = 0;
     /** @type {number | null} */
     let testLastVoiceAt = null;
+    /** @type {HTMLAudioElement | null} */
+    let mediaSessionAudio = null;
 
     function getEl(id) { return document.getElementById(id); }
     function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
@@ -130,6 +133,20 @@
     }
 
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    async function activateMediaSessionAudio() {
+        if (!mediaSessionAudio) {
+            mediaSessionAudio = new Audio(SILENT_WAV_DATA_URI);
+            mediaSessionAudio.loop = true;
+            mediaSessionAudio.volume = 0;
+        }
+
+        try {
+            await mediaSessionAudio.play();
+        } catch (err) {
+            // Chrome may require a user gesture before exposing hardware media controls.
+        }
+    }
 
     /**
      * @param {Float32Array} buffer
@@ -707,12 +724,14 @@
     }
 
     async function playCurrentOrNew() {
+        await activateMediaSessionAudio();
         if (!currentPhrase) generatePhrase();
         const phrase = phraseForPlayback();
         if (phrase) await playPhrase(phrase);
     }
 
     async function playNext() {
+        await activateMediaSessionAudio();
         closePhraseTestMode();
         state.loopCurrent = false;
         syncRepeatButton();
@@ -1106,6 +1125,35 @@
         if (currentPhrase) playCurrentOrNew();
     }
 
+    function registerMediaSessionHandlers() {
+        if (!('mediaSession' in navigator)) return;
+
+        try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'Phrases',
+                artist: 'Voice-Wei'
+            });
+        } catch (err) {
+            // Metadata is optional; action handlers are the useful part here.
+        }
+
+        /** @type {Array<[MediaSessionAction, () => void]>} */
+        const handlers = [
+            ['play', () => { playCurrentOrNew(); }],
+            ['pause', () => { playCurrentOrNew(); }],
+            ['nexttrack', () => { playNext(); }],
+            ['seekforward', () => { playNext(); }]
+        ];
+
+        handlers.forEach(([action, handler]) => {
+            try {
+                navigator.mediaSession.setActionHandler(action, handler);
+            } catch (err) {
+                // Individual actions vary by browser/device.
+            }
+        });
+    }
+
     function initUI() {
         wireSingleSelect('data-root', 'root', String);
         wireSingleSelect('data-octave', 'octave', Number);
@@ -1173,6 +1221,7 @@
         syncRepeatButton();
         syncPhraseTestControls();
         syncAdjusterControls();
+        registerMediaSessionHandlers();
     }
 
     async function boot() {

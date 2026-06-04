@@ -787,6 +787,7 @@ Changing these should not replace the phrase. The current phrase remains selecte
 - Repeat: toggle a loop of the current phrase with a short pause between repetitions.
 - Next: generate a new phrase and play it.
 - Stop: stop audio/speech and turn repeat off.
+- Chrome/Android car or headset media controls can map to Phrases through Media Session: play and pause both replay the current phrase once; next/seek-forward generate and play the next phrase.
 
 ### Reflect
 
