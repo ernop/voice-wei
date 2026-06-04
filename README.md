@@ -48,7 +48,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Test opens an embedded phrase pitch trace; its timeline starts only when singing is detected, and restart is silent unless guide playback is enabled
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
-**Setting behavior:** root, octave, and scale changes keep the current degree sequence and transpose/reproject it into the new context; structural generation settings regenerate; playback/display settings keep the current phrase and replay or redraw it.
+**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; min/max length and return-to-1 regenerate; start and in/out octave apply to the next generated phrase; playback/display settings keep the current phrase and replay or redraw it.
 
 ### Test
 

@@ -759,11 +759,16 @@ Changing these does not replace the phrase. The scale-degree offsets stay the sa
 
 Changing these means the current phrase no longer matches the requested exercise shape, so Phrases generates a new current phrase immediately:
 
-- Start at 1 vs random start
-- Within octave vs out of octave
 - Minimum length
 - Maximum length
 - Return to 1 vs no return
+
+### Next-phrase generation controls preserve the current phrase
+
+Changing these does not replace the currently displayed phrase. They apply when the next phrase is generated:
+
+- Start at 1 vs random start
+- Within octave vs out of octave
 
 ### Playback/display controls preserve the phrase
 

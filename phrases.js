@@ -30,8 +30,7 @@
     };
 
     const STRUCTURE_KEYS = new Set([
-        'startAtOne', 'allowOutOfOctave', 'minLength', 'maxLength',
-        'returnToInitial', 'returnToRoot'
+        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot'
     ]);
     const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
