@@ -40,7 +40,6 @@
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
     const ADJUSTER_VALUES = {
-        octave: [2, 3, 4],
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],

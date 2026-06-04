@@ -17,7 +17,6 @@
     };
 
     const ADJUSTER_VALUES = {
-        octave: [2, 3, 4],
         guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
     };
     const ROOT_PITCH_MIN_MIDI = 36; // C2

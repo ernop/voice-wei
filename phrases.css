@@ -95,7 +95,8 @@
     grid-column: span 1;
 }
 
-.phrase-control-card-shape {
+.phrase-control-card-shape,
+.phrase-control-card-scale {
     grid-column: 1 / -1;
 }
 
@@ -192,10 +193,6 @@
 
 .phrase-pitch-step-field {
     margin-bottom: 7px;
-}
-
-.phrase-key-fields {
-    margin-top: -2px;
 }
 
 .phrase-scale-row .vf-btn {
@@ -427,6 +424,7 @@
 
     .phrase-control-card-key,
     .phrase-control-card-shape,
+    .phrase-control-card-scale,
     .phrase-control-card-output {
         grid-column: auto;
     }

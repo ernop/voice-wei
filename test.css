@@ -132,7 +132,7 @@
 }
 
 .test-scale-row {
-    margin-bottom: 9px;
+    margin-bottom: 0;
 }
 
 .test-scale-row .vf-btn {
@@ -141,6 +141,10 @@
 
 .test-presets {
     margin-top: 7px;
+}
+
+.test-scale-card {
+    margin-bottom: 10px;
 }
 
 .test-presets .vf-btn {
