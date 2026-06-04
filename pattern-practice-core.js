@@ -128,13 +128,20 @@ const PatternPracticeCore = (function () {
             let next = current;
             for (let attempt = 0; attempt < 8; attempt++) {
                 const roll = Math.random();
-                if (roll < 0.62) {
+                if (roll < 0.38) {
                     next = current + randomInt(1, 2) * (Math.random() < 0.5 ? -1 : 1);
-                } else if (roll < 0.86) {
-                    next = current + randomInt(3, 4) * (Math.random() < 0.5 ? -1 : 1);
+                } else if (roll < 0.78) {
+                    next = current + randomInt(3, 5) * (Math.random() < 0.5 ? -1 : 1);
                 } else {
                     next = randomInt(minOffset, maxOffset);
                     break;
+                }
+
+                const delta = next - current;
+                const previousDelta = offsets.length >= 2 ? current - offsets[offsets.length - 2] : 0;
+                if (Math.abs(delta) === 1 && delta === previousDelta && attempt < 7) {
+                    next = current;
+                    continue;
                 }
 
                 if (next >= minOffset && next <= maxOffset && next !== current) break;

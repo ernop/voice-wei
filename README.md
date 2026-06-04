@@ -36,7 +36,7 @@ Dedicated scale-degree phrase practice for singers: https://fuseki.net/music8899
 
 Use **Phrases** when the exercise is about remembering and reproducing whole melodic shapes rather than running a scale. The page is button-first; voice controls are not required to start practice.
 
-**Default setup:** D-sharp, octave 3, 0.3s note length, 0.0s gap, play notes only, and return to the initial note enabled.
+**Default setup:** D-sharp, octave 3, 5-8 note phrases, 0.3s note length, 0.0s gap, play notes only, and return to the initial note enabled.
 
 **Controls:**
 - Root, octave, scale, start at 1/random start, within octave/out of octave

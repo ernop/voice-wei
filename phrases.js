@@ -14,7 +14,7 @@
         startAtOne: true,
         allowOutOfOctave: false,
         minLength: 5,
-        maxLength: 10,
+        maxLength: 8,
         returnToInitial: true,
         returnToRoot: false,
         outputMode: 'tones',

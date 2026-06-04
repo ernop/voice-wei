@@ -732,6 +732,7 @@ Phrases trains melodic memory and reproduction. It generates short-to-long scale
 
 - Root: D-sharp
 - Octave/chord level: 3
+- Phrase length: 5-8 notes
 - Note length: 0.3 seconds
 - Gap: 0.0 seconds
 - Output: play notes only
@@ -741,7 +742,7 @@ Phrases trains melodic memory and reproduction. It generates short-to-long scale
 ## Generation Rules
 
 - Phrase length is sampled uniformly from every integer length between the selected minimum and maximum.
-- Phrases are clustered: local stepwise movement is common, with occasional larger jumps.
+- Phrases are clustered: local movement is possible, but repeated same-direction scale runs are dampened so phrases include more varied contours.
 - Start can be fixed at degree 1 or randomized.
 - Range can stay within the octave or allow out-of-octave degrees.
 - Optional endings can append the initial note, the scale root, or both.
