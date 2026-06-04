@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Test - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=64">
-    <link rel="stylesheet" href="scales.css?v=64">
-    <link rel="stylesheet" href="test.css?v=64">
+    <link rel="stylesheet" href="style.css?v=65">
+    <link rel="stylesheet" href="scales.css?v=65">
+    <link rel="stylesheet" href="test.css?v=65">
 </head>
 
 <body data-page="test">
@@ -40,25 +40,11 @@
             <section class="test-control-grid">
                 <div class="test-card">
                     <div class="test-card-title">Key</div>
-                    <div class="test-root-grid" aria-label="Root note">
-                        <button class="vf-btn" data-root="C">C</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
-                        <button class="vf-btn" data-root="D">D</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
-                        <button class="vf-btn" data-root="E">E</button>
-                        <button class="vf-btn" data-root="F">F</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
-                        <button class="vf-btn" data-root="G">G</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
-                        <button class="vf-btn" data-root="A">A</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
-                        <button class="vf-btn" data-root="B">B</button>
-                    </div>
-                    <div class="test-step-field">
-                        <span>Octave</span>
-                        <button class="test-step-btn" type="button" data-step-key="octave" data-step-delta="-1" aria-label="Lower octave">-</button>
-                        <strong id="octaveValue">3</strong>
-                        <button class="test-step-btn" type="button" data-step-key="octave" data-step-delta="1" aria-label="Higher octave">+</button>
+                    <div class="test-step-field test-pitch-step-field">
+                        <span>Root</span>
+                        <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                        <strong id="rootPitchValue">D#3</strong>
+                        <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
                     </div>
                     <div class="test-presets">
                         <button class="vf-btn" data-preset-key="octave" data-preset-value="2">2</button>
@@ -108,9 +94,9 @@
         </main>
     </div>
 
-    <script src="shared-header.js?v=64"></script>
-    <script src="music-constants.js?v=64"></script>
-    <script src="test.js?v=64"></script>
+    <script src="shared-header.js?v=65"></script>
+    <script src="music-constants.js?v=65"></script>
+    <script src="test.js?v=65"></script>
 </body>
 
 </html>

@@ -20,6 +20,8 @@
         octave: [2, 3, 4],
         guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
     };
+    const ROOT_PITCH_MIN_MIDI = 36; // C2
+    const ROOT_PITCH_MAX_MIDI = 71; // B4
 
     const GLITCH_JUMP_MIDI = 5.5;
     const GLITCH_WINDOW_MS = 220;
@@ -478,10 +480,6 @@
     }
 
     function syncControls() {
-        document.querySelectorAll('[data-root]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.getAttribute('data-root') === state.root);
-        });
         document.querySelectorAll('[data-scale]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.getAttribute('data-scale') === state.scaleType);
@@ -495,6 +493,11 @@
             const btn = /** @type {HTMLButtonElement} */ (el);
             const key = btn.getAttribute('data-step-key') || '';
             const delta = Number(btn.getAttribute('data-step-delta') || 0);
+            if (key === 'rootPitch') {
+                const midi = rootMidi();
+                btn.disabled = midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+                return;
+            }
             const values = ADJUSTER_VALUES[key] || [];
             const index = values.indexOf(state[key]);
             btn.disabled = delta < 0 ? index <= 0 : index >= values.length - 1;
@@ -505,8 +508,8 @@
             startBtn.textContent = isListening ? 'Stop' : 'Start';
             startBtn.classList.toggle('listening', isListening);
         }
-        const octaveValue = getEl('octaveValue');
-        if (octaveValue) octaveValue.textContent = String(state.octave);
+        const rootPitchValue = getEl('rootPitchValue');
+        if (rootPitchValue) rootPitchValue.textContent = `${state.root}${state.octave}`;
         const intervalValue = getEl('guideIntervalValue');
         if (intervalValue) intervalValue.textContent = `${state.guideIntervalMs / 1000}s`;
     }
@@ -518,8 +521,24 @@
         resetTrace();
     }
 
+    /** @param {number} midi */
+    function setRootPitchFromMidi(midi) {
+        const bounded = Math.max(ROOT_PITCH_MIN_MIDI, Math.min(ROOT_PITCH_MAX_MIDI, midi));
+        const info = midiToNoteName(bounded);
+        state.root = info.name;
+        state.octave = info.octave;
+        syncControls();
+        resetTrace();
+    }
+
     /** @param {string} key @param {number} delta */
     function stepStateValue(key, delta) {
+        if (key === 'rootPitch') {
+            const midi = rootMidi();
+            if (midi !== null) setRootPitchFromMidi(midi + delta);
+            return;
+        }
+
         const values = ADJUSTER_VALUES[key] || [];
         const index = values.indexOf(state[key]);
         if (index === -1) return;
@@ -529,10 +548,6 @@
     }
 
     function initUI() {
-        document.querySelectorAll('[data-root]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => setStateValue('root', btn.getAttribute('data-root') || state.root));
-        });
         document.querySelectorAll('[data-scale]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => setStateValue('scaleType', btn.getAttribute('data-scale') || state.scaleType));

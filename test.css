@@ -120,26 +120,8 @@
     padding: 12px;
 }
 
-.test-root-grid {
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 3px;
+.test-pitch-step-field {
     margin-bottom: 9px;
-    padding: 5px;
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.22);
-}
-
-.test-root-grid .vf-btn {
-    min-width: 0;
-    padding: 8px 2px;
-    border-radius: 8px;
-    text-align: center;
-}
-
-.test-root-grid .vf-btn-sharp {
-    transform: translateY(-2px);
-    background: rgba(17, 24, 39, 0.72);
 }
 
 .test-scale-row,
@@ -173,7 +155,7 @@
 
 .test-step-field {
     display: inline-grid;
-    grid-template-columns: 64px 42px 68px 42px;
+    grid-template-columns: 64px 42px 56px 42px;
     align-items: center;
     gap: 5px;
     max-width: 100%;
@@ -193,7 +175,7 @@
 }
 
 .test-step-field strong {
-    width: 68px;
+    width: 56px;
     box-sizing: border-box;
     padding: 5px 8px;
     border-radius: 999px;
@@ -269,19 +251,11 @@
         grid-template-columns: 1fr 1fr;
     }
 
-    .test-root-grid {
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-
-    .test-root-grid .vf-btn-sharp {
-        transform: none;
-    }
-
     .test-step-field {
         display: grid;
         width: 100%;
         box-sizing: border-box;
-        grid-template-columns: 64px 42px minmax(68px, 1fr) 42px;
+        grid-template-columns: 64px 42px minmax(56px, 1fr) 42px;
         justify-content: space-between;
     }
 

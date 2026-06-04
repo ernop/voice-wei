@@ -46,6 +46,8 @@
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 32, 40, 50]
     };
+    const ROOT_PITCH_MIN_MIDI = 36; // C2
+    const ROOT_PITCH_MAX_MIDI = 71; // B4
 
     /** @type {InstanceType<typeof Tone.Sampler> | null} */
     let synth = null;
@@ -968,7 +970,7 @@
     }
 
     function syncAdjusterControls() {
-        setValueText('octaveValue', String(state.octave));
+        setValueText('rootPitchValue', `${state.root}${state.octave}`);
         setValueText('noteLengthValue', formatSeconds(state.noteLengthMs));
         setValueText('gapValue', formatSeconds(state.gapMs));
         syncLengthControls();
@@ -993,6 +995,11 @@
             const btn = /** @type {HTMLButtonElement} */ (el);
             const key = btn.getAttribute('data-step-key') || '';
             const delta = Number(btn.getAttribute('data-step-delta') || 0);
+            if (key === 'rootPitch') {
+                const midi = rootMidi();
+                btn.disabled = midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+                return;
+            }
             const values = ADJUSTER_VALUES[key] || [];
             const index = values.indexOf(state[key]);
             btn.disabled = delta < 0 ? index <= 0 : index >= values.length - 1;
@@ -1046,7 +1053,23 @@
         onSettingChanged(key);
     }
 
+    /** @param {number} midi */
+    function setRootPitchFromMidi(midi) {
+        const bounded = PatternPracticeCore.clamp(midi, ROOT_PITCH_MIN_MIDI, ROOT_PITCH_MAX_MIDI);
+        const info = midiToNoteName(bounded);
+        state.root = info.name;
+        state.octave = info.octave;
+        syncAdjusterControls();
+        onSettingChanged('root');
+    }
+
     function stepAdjusterValue(key, delta) {
+        if (key === 'rootPitch') {
+            const midi = rootMidi();
+            if (midi !== null) setRootPitchFromMidi(midi + delta);
+            return;
+        }
+
         const values = ADJUSTER_VALUES[key] || [];
         const index = values.indexOf(state[key]);
         if (index === -1) return;

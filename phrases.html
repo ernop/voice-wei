@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=64">
-    <link rel="stylesheet" href="scales.css?v=64">
-    <link rel="stylesheet" href="phrases.css?v=64">
+    <link rel="stylesheet" href="style.css?v=65">
+    <link rel="stylesheet" href="scales.css?v=65">
+    <link rel="stylesheet" href="phrases.css?v=65">
 </head>
 
 <body data-page="phrases">
@@ -113,27 +113,13 @@
 
                 <section class="phrase-control-card phrase-control-card-key">
                     <div class="phrase-control-card-title">Key</div>
-                    <div class="phrase-key-picker" aria-label="Root note">
-                        <button class="vf-btn" data-root="C">C</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
-                        <button class="vf-btn" data-root="D">D</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
-                        <button class="vf-btn" data-root="E">E</button>
-                        <button class="vf-btn" data-root="F">F</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
-                        <button class="vf-btn" data-root="G">G</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
-                        <button class="vf-btn" data-root="A">A</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
-                        <button class="vf-btn" data-root="B">B</button>
+                    <div class="phrase-step-field phrase-pitch-step-field">
+                        <span class="phrase-step-label">Root</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                        <span class="phrase-step-value" id="rootPitchValue">D#3</span>
+                        <button class="phrase-step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
                     </div>
                     <div class="phrase-compact-fields phrase-key-fields">
-                        <div class="phrase-step-field">
-                            <span class="phrase-step-label">Octave</span>
-                            <button class="phrase-step-btn" type="button" data-step-key="octave" data-step-delta="-1" aria-label="Lower octave">-</button>
-                            <span class="phrase-step-value" id="octaveValue">3</span>
-                            <button class="phrase-step-btn" type="button" data-step-key="octave" data-step-delta="1" aria-label="Higher octave">+</button>
-                        </div>
                         <div class="phrase-preset-row" aria-label="Octave presets">
                             <button class="vf-btn" data-preset-key="octave" data-preset-value="2">2</button>
                             <button class="vf-btn" data-preset-key="octave" data-preset-value="3">3</button>
@@ -224,11 +210,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=64"></script>
-    <script src="music-constants.js?v=64"></script>
-    <script src="voice-output.js?v=64"></script>
-    <script src="pattern-practice-core.js?v=64"></script>
-    <script src="phrases.js?v=64"></script>
+    <script src="shared-header.js?v=65"></script>
+    <script src="music-constants.js?v=65"></script>
+    <script src="voice-output.js?v=65"></script>
+    <script src="pattern-practice-core.js?v=65"></script>
+    <script src="phrases.js?v=65"></script>
 </body>
 
 </html>
