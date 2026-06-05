@@ -42,7 +42,8 @@
     const TEST_GLITCH_CONFIRM_MS = 260;
     const TEST_GLITCH_CONFIRM_MIDI = 1.2;
     const TEST_FIXED_WINDOW_MS = 20000;
-    const SILENT_WAV_DATA_URI = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const MEDIA_SESSION_SILENCE_SECONDS = 10;
+    const MEDIA_SESSION_SAMPLE_RATE = 8000;
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -87,6 +88,8 @@
     let testLastVoiceAt = null;
     /** @type {HTMLAudioElement | null} */
     let mediaSessionAudio = null;
+    /** @type {string | null} */
+    let mediaSessionAudioUrl = null;
 
     function getEl(id) { return document.getElementById(id); }
     function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
@@ -134,15 +137,52 @@
 
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    function createSilentWavUrl() {
+        const sampleCount = MEDIA_SESSION_SAMPLE_RATE * MEDIA_SESSION_SILENCE_SECONDS;
+        const byteRate = MEDIA_SESSION_SAMPLE_RATE;
+        const buffer = new ArrayBuffer(44 + sampleCount);
+        const view = new DataView(buffer);
+
+        /** @param {number} offset @param {string} text */
+        const writeAscii = (offset, text) => {
+            for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+        };
+
+        writeAscii(0, 'RIFF');
+        view.setUint32(4, 36 + sampleCount, true);
+        writeAscii(8, 'WAVE');
+        writeAscii(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, MEDIA_SESSION_SAMPLE_RATE, true);
+        view.setUint32(28, byteRate, true);
+        view.setUint16(32, 1, true);
+        view.setUint16(34, 8, true);
+        writeAscii(36, 'data');
+        view.setUint32(40, sampleCount, true);
+
+        const samples = new Uint8Array(buffer, 44);
+        samples.fill(128);
+
+        return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+    }
+
     async function activateMediaSessionAudio() {
         if (!mediaSessionAudio) {
-            mediaSessionAudio = new Audio(SILENT_WAV_DATA_URI);
+            mediaSessionAudioUrl = createSilentWavUrl();
+            mediaSessionAudio = new Audio(mediaSessionAudioUrl);
             mediaSessionAudio.loop = true;
-            mediaSessionAudio.volume = 0;
+            mediaSessionAudio.volume = 1;
+            mediaSessionAudio.preload = 'auto';
+            mediaSessionAudio.setAttribute('playsinline', 'true');
+            mediaSessionAudio.style.display = 'none';
+            document.body.appendChild(mediaSessionAudio);
         }
 
         try {
             await mediaSessionAudio.play();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
         } catch (err) {
             // Chrome may require a user gesture before exposing hardware media controls.
         }
@@ -1133,6 +1173,7 @@
                 title: 'Phrases',
                 artist: 'Voice-Wei'
             });
+            navigator.mediaSession.playbackState = 'playing';
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
@@ -1142,7 +1183,8 @@
             ['play', () => { playCurrentOrNew(); }],
             ['pause', () => { playCurrentOrNew(); }],
             ['nexttrack', () => { playNext(); }],
-            ['seekforward', () => { playNext(); }]
+            ['seekforward', () => { playNext(); }],
+            ['seekto', () => { playNext(); }]
         ];
 
         handlers.forEach(([action, handler]) => {
@@ -1152,6 +1194,13 @@
                 // Individual actions vary by browser/device.
             }
         });
+    }
+
+    function primeMediaSessionOnUserGesture() {
+        const prime = () => { activateMediaSessionAudio(); };
+        document.addEventListener('pointerup', prime, { once: true });
+        document.addEventListener('click', prime, { once: true });
+        document.addEventListener('touchend', prime, { once: true });
     }
 
     function initUI() {
@@ -1222,6 +1271,7 @@
         syncPhraseTestControls();
         syncAdjusterControls();
         registerMediaSessionHandlers();
+        primeMediaSessionOnUserGesture();
     }
 
     async function boot() {
