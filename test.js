@@ -2,9 +2,8 @@
 //-----------------------------------------------------------------------
 // TEST
 // Standalone key-aware pitch trace and pattern guide page.
-// Consumes pitch-detect-core, pitch-trace-view, practice-controls,
-// and settings-store. Guide tones use plain oscillators so this page
-// stays instant-on (no sampler download).
+// Consumes piano-core, pitch-detect-core, pitch-trace-view,
+// practice-controls, and settings-store.
 //-----------------------------------------------------------------------
 
 (function () {
@@ -15,6 +14,7 @@
         octave: 3,
         scaleType: 'major',
         guideIntervalMs: 1000,
+        guideSound: 'piano',
         patternText: '',
         playGuidesOnReset: false,
         pauseOnSilence: true,
@@ -24,8 +24,9 @@
 
     const STORAGE_KEY = 'test-settings';
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'guideIntervalMs', 'patternText',
-        'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow', 'expandRange'
+        'root', 'octave', 'scaleType', 'guideIntervalMs', 'guideSound',
+        'patternText', 'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow',
+        'expandRange'
     ];
 
     const ADJUSTER_VALUES = {
@@ -35,8 +36,10 @@
     const ROOT_PITCH_MAX_MIDI = 71; // B4
     const FIXED_WINDOW_MS = 20000;
 
-    /** @type {AudioContext | null} */
-    let guideAudioContext = null;
+    /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+    let guidePiano = null;
+    /** @type {ReturnType<typeof PianoCore.createSineSynth> | null} */
+    let guideSine = null;
     let guidePlaybackToken = 0;
 
     const getEl = PracticeControls.getEl;
@@ -184,31 +187,14 @@
         drawChart();
     }
 
-    async function ensureGuideAudioContext() {
-        if (!guideAudioContext) {
-            guideAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (guideAudioContext.state === 'suspended') await guideAudioContext.resume();
-        return guideAudioContext;
-    }
-
     /**
      * @param {number} midi
      * @param {number} durationMs
      */
     async function playGuideTone(midi, durationMs) {
-        const ctx = await ensureGuideAudioContext();
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = midiToFreq(midi);
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-        oscillator.start();
-        oscillator.stop(ctx.currentTime + durationMs / 1000 + 0.03);
+        await PianoCore.ensureStarted();
+        const player = state.guideSound === 'beep' ? guideSine : guidePiano;
+        if (player) player.playMidi(midi, durationMs / 1000);
     }
 
     async function playPatternGuide() {
@@ -257,6 +243,7 @@
 
     function syncControls() {
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
+        PracticeControls.syncSingleSelect('data-guide-sound', state.guideSound);
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 const midi = rootMidi();
@@ -312,6 +299,10 @@
         PracticeControls.wireSingleSelect('data-scale', String, state.scaleType, value => {
             setStateValue('scaleType', value);
         });
+        PracticeControls.wireSingleSelect('data-guide-sound', String, state.guideSound, value => {
+            state.guideSound = value;
+            saveSettings();
+        });
         PracticeControls.wireSteppers(stepStateValue);
 
         const patternInput = /** @type {HTMLInputElement | null} */ (getEl('patternInput'));
@@ -350,6 +341,12 @@
         resetTrace();
     }
 
-    SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
-    initUI();
+    async function boot() {
+        SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        initUI();
+        guideSine = PianoCore.createSineSynth();
+        guidePiano = await PianoCore.createPiano();
+    }
+
+    boot();
 })();

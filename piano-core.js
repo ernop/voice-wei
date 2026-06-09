@@ -95,7 +95,35 @@ const PianoCore = (function () {
         });
     }
 
-    return { ensureStarted, sleep, createPiano };
+    /**
+     * Lightweight sine synth with the same playMidi/mute interface as the
+     * piano. Ready immediately (no sample download); used for guide beeps
+     * and drones where the full sampler is not wanted.
+     * @param {{ volume?: number }} [options]
+     */
+    function createSineSynth(options = {}) {
+        const { volume = -10 } = options;
+        const synth = new Tone.Synth({
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.015, decay: 0.08, sustain: 0.55, release: 0.12 }
+        }).toDestination();
+        synth.volume.value = volume;
+        return {
+            synth,
+            /**
+             * @param {number} midi
+             * @param {number | string} duration - Tone time (seconds or notation like '2n')
+             */
+            playMidi(midi, duration) {
+                synth.triggerAttackRelease(midiToPitchString(midi), duration);
+            },
+            mute() {
+                synth.triggerRelease();
+            }
+        };
+    }
+
+    return { ensureStarted, sleep, createPiano, createSineSynth };
 })();
 
 window.PianoCore = PianoCore;
