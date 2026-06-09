@@ -1,5 +1,28 @@
 # Music Pages Convergence Plan
 
+## Status
+
+Done (v78):
+- Phase 1 complete: `piano-core.js`, `pitch-detect-core.js`, `pitch-trace-view.js`,
+  `practice-controls.js`, `settings-store.js`, `media-session-core.js` extracted from
+  phrases; phrases and test are thin consumers. Canonical trace params: 250ms line
+  break, outlier gate ON everywhere.
+- Phase 2 complete: scales2 uses PatternPracticeCore (note: negative degrees now
+  display as "7d" instead of an arrow, matching phrases); pitch-meter and ears use the
+  shared detector/mic/piano; media keys on scales and intervals; all TTS routed
+  through VoiceOutput (voice-command-core fallback removed; scales' voice settings
+  flow through VoiceOutput options).
+- Phase 4 partial: per-tab settings persistence on phrases/test/intervals/
+  pitch-meter/scales (ears already had it); ast-grep guards for salamander URL,
+  getUserMedia, and SpeechSynthesisUtterance ownership.
+
+Remaining:
+- Phase 3 (UI/CSS convergence): shared `practice-controls.css`, stepper/segment-row
+  adoption on scales/intervals/pitch-meter/ears.
+- app.js speech recognition stack vs voice-command-core (deferred).
+- Open question: should the Test page guide tones switch from sine oscillators to
+  the shared piano (adds Tone.js + sample download to an instant-on page)?
+
 Goal: pages with similar UIs use the same library internally (parameterized where needed),
 instead of repeating code. Phrases is the gold standard for style, design, and JS patterns;
 older pages converge toward it. Extraction direction is always: lift the newest (phrases)

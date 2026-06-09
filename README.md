@@ -109,10 +109,30 @@ HTTPS required for microphone access when deployed.
 
 ```
 scales.html/js/css       # Scale practice
+scales2.html/js          # Interval training
+phrases.html/js/css      # Phrase practice
+test.html/js/css         # Standalone pitch trace
 pitch-meter.html/js/css  # Pitch detection
+ears.html/js/css         # Interval ear training
 player.html + app.js     # Music player
 ebook.html/js/css        # Ebook converter
-voice-command-core.js    # Shared voice recognition
+```
+
+Shared libraries (pages consume these instead of carrying their own copies;
+ast-grep rules enforce it):
+
+```
+music-constants.js       # Note math, scale patterns
+pattern-practice-core.js # Scale-degree offset and phrase math
+piano-core.js            # Salamander piano sampler
+pitch-detect-core.js     # Mic capture + autocorrelation pitch detection
+pitch-trace-view.js      # Sung-pitch canvas renderer
+practice-controls.js     # Steppers, segmented buttons, toggles
+settings-store.js        # Per-page settings persistence
+media-session-core.js    # Hardware media key integration
+voice-command-core.js    # Voice recognition
+voice-output.js          # Text-to-speech (the only owner of TTS)
+shared-header.js         # Site header and nav
 ```
 
 ## Version System
