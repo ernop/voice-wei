@@ -16,12 +16,27 @@ Done (v78):
   pitch-meter/scales (ears already had it); ast-grep guards for salamander URL,
   getUserMedia, and SpeechSynthesisUtterance ownership.
 
+Done (v79):
+- `pitch-test-panel.js`: the embeddable "listen" component. It renders its own
+  markup, owns the mic session, trace canvas, and panel options (targets,
+  play-guide-on-restart, pause on silence, 20s window, expand range; persisted
+  per page). Pages supply the pre-seed: rails, targets, content duration, and a
+  guide-playback callback. Phrases' test panel is now this component;
+  Scales gained a "Sing" panel seeded from the current scale (rails = section
+  degrees, targets = planned playback notes at current note length/gap).
+- `practice-controls.css`: shared panel styles (`pitch-test-*`) and the blue
+  launch button; phrases.css shrank accordingly.
+- Guide sounds are shared and configurable: `PianoCore.createSineSynth()` joins
+  `createPiano()`, and the Test page offers piano (default) or beep guides.
+
 Remaining:
-- Phase 3 (UI/CSS convergence): shared `practice-controls.css`, stepper/segment-row
-  adoption on scales/intervals/pitch-meter/ears.
+- Phase 3 (UI/CSS convergence, rest of it): stepper/segment-row primitives into
+  `practice-controls.css`, adoption on scales/intervals/pitch-meter/ears.
+- Sing-panel scoring: the panel currently judges visually (cents-colored dots,
+  live cents readout). Per-note scoring like pitch-meter's could become a panel
+  option later.
+- Sing targets ignore active exercises (they follow the scale/movement plan).
 - app.js speech recognition stack vs voice-command-core (deferred).
-- Open question: should the Test page guide tones switch from sine oscillators to
-  the shared piano (adds Tone.js + sample download to an instant-on page)?
 
 Goal: pages with similar UIs use the same library internally (parameterized where needed),
 instead of repeating code. Phrases is the gold standard for style, design, and JS patterns;

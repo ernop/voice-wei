@@ -26,6 +26,9 @@ Everything you can say is also visible and clickable. Voice commands reset to de
 - Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" = Bb)
 - Direction, tempo, gap, repeat, octave span controls
 - Live status shows current note and interval during playback
+- Sing opens an embedded pitch trace seeded with the current scale: rails are
+  the scale degrees, targets are the planned playback notes (same listen
+  panel as Phrases)
 - Works on mobile (Chrome, Safari, Edge)
 
 See [SCALES.md](SCALES.md) for full command reference.
@@ -63,6 +66,7 @@ Use **Test** when you want to sing freely in a key and see the voice trace witho
 - Guide interval controls the horizontal spacing for typed pattern targets.
 - Type patterns like `1 2 3 5 3 1` to draw blue target bands over the live trace.
 - Optional "Play guide on reset" plays the typed pattern; it is off by default.
+- Guide sound is selectable: piano (default) or sine beep.
 - Pause on silence is on by default; 20s window and Expand range are optional.
 - Extreme pitch detections outside the selected key range are discarded so one-frame high/low spikes do not clutter the chart.
 
