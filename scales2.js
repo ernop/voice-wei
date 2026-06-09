@@ -42,13 +42,33 @@
                 const nStops = ri(1, 5);
                 const pool = [];
                 for (let i = 1; i < ceil; i++) pool.push(i);
-                // Shuffle and pick nStops unique intermediate degrees
                 for (let i = pool.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [pool[i], pool[j]] = [pool[j], pool[i]];
                 }
                 const stops = pool.slice(0, nStops).sort((a, b) => a - b);
                 const offsets = [0, ...stops, ceil];
+                const label = offsets.map(o => o + 1).join('-');
+                return { offsets, label };
+            } },
+        { id: 'a8', name: '1-...-8 free',   desc: 'Non-decreasing path, repeats allowed (3-7 notes)',
+            gen: (dp, ceil) => {
+                const nStops = ri(1, 5);
+                const stops = [];
+                for (let i = 0; i < nStops; i++) stops.push(ri(0, dp));
+                stops.sort((a, b) => a - b);
+                const offsets = [0, ...stops, dp];
+                const label = offsets.map(o => o + 1).join('-');
+                return { offsets, label };
+            } },
+        { id: 'a9', name: '1-...-8-...-1',  desc: 'Non-decreasing up then back down',
+            gen: (dp, ceil) => {
+                const nStops = ri(1, 5);
+                const stops = [];
+                for (let i = 0; i < nStops; i++) stops.push(ri(0, dp));
+                stops.sort((a, b) => a - b);
+                const descent = stops.slice().reverse();
+                const offsets = [0, ...stops, dp, ...descent, 0];
                 const label = offsets.map(o => o + 1).join('-');
                 return { offsets, label };
             } },
