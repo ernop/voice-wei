@@ -2,6 +2,9 @@
 //-----------------------------------------------------------------------
 // TEST
 // Standalone key-aware pitch trace and pattern guide page.
+// Consumes pitch-detect-core, pitch-trace-view, practice-controls,
+// and settings-store. Guide tones use plain oscillators so this page
+// stays instant-on (no sampler download).
 //-----------------------------------------------------------------------
 
 (function () {
@@ -19,6 +22,12 @@
         expandRange: false
     };
 
+    const STORAGE_KEY = 'test-settings';
+    const PERSISTED_KEYS = [
+        'root', 'octave', 'scaleType', 'guideIntervalMs', 'patternText',
+        'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow', 'expandRange'
+    ];
+
     const ADJUSTER_VALUES = {
         guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
     };
@@ -26,77 +35,15 @@
     const ROOT_PITCH_MAX_MIDI = 71; // B4
     const FIXED_WINDOW_MS = 20000;
 
-    const GLITCH_JUMP_MIDI = 5.5;
-    const GLITCH_WINDOW_MS = 220;
-    const GLITCH_CONFIRM_MS = 260;
-    const GLITCH_CONFIRM_MIDI = 1.2;
-
     /** @type {AudioContext | null} */
-    let audioContext = null;
-    /** @type {AnalyserNode | null} */
-    let analyser = null;
-    /** @type {MediaStreamAudioSourceNode | null} */
-    let microphone = null;
-    /** @type {MediaStream | null} */
-    let stream = null;
-    /** @type {number | null} */
-    let animationId = null;
-    /** @type {Array<{ time: number, freq: number, midi: number, cents: number, note: string }>} */
-    let pitchHistory = [];
-    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
-    let lastAcceptedPitch = null;
-    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
-    let pendingPitchJump = null;
-    let sessionStartedAt = 0;
-    let voiceElapsedMs = 0;
-    /** @type {number | null} */
-    let lastVoiceAt = null;
-    let isListening = false;
+    let guideAudioContext = null;
     let guidePlaybackToken = 0;
 
-    function getEl(id) { return document.getElementById(id); }
+    const getEl = PracticeControls.getEl;
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    /**
-     * @param {Float32Array} buffer
-     * @param {number} sampleRate
-     */
-    function detectPitch(buffer, sampleRate) {
-        const size = buffer.length;
-        const maxSamples = Math.floor(size / 2);
-        let bestOffset = -1;
-        let bestCorrelation = 0;
-        let foundGoodCorrelation = false;
-        const correlations = new Array(maxSamples);
-
-        let rms = 0;
-        for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
-        rms = Math.sqrt(rms / size);
-        if (rms < 0.01) return -1;
-
-        let lastCorrelation = 1;
-        for (let offset = 0; offset < maxSamples; offset++) {
-            let correlation = 0;
-            for (let i = 0; i < maxSamples; i++) {
-                correlation += Math.abs(buffer[i] - buffer[i + offset]);
-            }
-            correlation = 1 - correlation / maxSamples;
-            correlations[offset] = correlation;
-
-            if (correlation > 0.9 && correlation > lastCorrelation) {
-                foundGoodCorrelation = true;
-                if (correlation > bestCorrelation) {
-                    bestCorrelation = correlation;
-                    bestOffset = offset;
-                }
-            } else if (foundGoodCorrelation) {
-                const shift = (correlations[bestOffset + 1] - correlations[bestOffset - 1]) / correlations[bestOffset];
-                return sampleRate / (bestOffset + 8 * shift);
-            }
-            lastCorrelation = correlation;
-        }
-
-        if (bestCorrelation > 0.01 && bestOffset > 0) return sampleRate / bestOffset;
-        return -1;
+    function saveSettings() {
+        SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
     function rootMidi() {
@@ -129,62 +76,19 @@
             return {
                 degree: index + 1,
                 midi,
+                octaveShift,
                 noteName: midiToPitchString(midi)
             };
         }));
     }
 
-    function scaleRange() {
-        const notes = chartScaleNotes();
-        if (!notes.length) return { min: 0, max: 0 };
-        return {
-            min: Math.min(...notes.map(note => note.midi)),
-            max: Math.max(...notes.map(note => note.midi))
-        };
-    }
-
     /** @param {number} midi */
     function isExtremeOutlier(midi) {
-        const range = scaleRange();
-        return midi < range.min || midi > range.max;
-    }
-
-    /** @param {{ time: number, freq: number, midi: number, cents: number, note: string }} sample */
-    function recordPitchSample(sample) {
-        if (isExtremeOutlier(sample.midi)) {
-            pendingPitchJump = null;
-            return false;
-        }
-
-        if (!lastAcceptedPitch) {
-            pitchHistory.push(sample);
-            lastAcceptedPitch = sample;
-            return true;
-        }
-
-        const elapsedFromLast = sample.time - lastAcceptedPitch.time;
-        const jumpFromLast = Math.abs(sample.midi - lastAcceptedPitch.midi);
-        if (elapsedFromLast <= GLITCH_WINDOW_MS && jumpFromLast > GLITCH_JUMP_MIDI) {
-            const confirmsPendingJump = pendingPitchJump
-                && sample.time - pendingPitchJump.time <= GLITCH_CONFIRM_MS
-                && Math.abs(sample.midi - pendingPitchJump.midi) <= GLITCH_CONFIRM_MIDI;
-
-            if (!confirmsPendingJump) {
-                pendingPitchJump = sample;
-                return false;
-            }
-
-            pitchHistory.push(pendingPitchJump);
-            pitchHistory.push(sample);
-            lastAcceptedPitch = sample;
-            pendingPitchJump = null;
-            return true;
-        }
-
-        pendingPitchJump = null;
-        pitchHistory.push(sample);
-        lastAcceptedPitch = sample;
-        return true;
+        const notes = chartScaleNotes();
+        if (!notes.length) return false;
+        const min = Math.min(...notes.map(note => note.midi));
+        const max = Math.max(...notes.map(note => note.midi));
+        return midi < min || midi > max;
     }
 
     function setStatus(message) {
@@ -208,47 +112,84 @@
         if (el) el.textContent = 'Pitch: --';
     }
 
+    const session = PitchDetectCore.createTraceSession({
+        pauseOnSilence: () => state.pauseOnSilence,
+        isOutlier: isExtremeOutlier,
+        onAccepted: sample => {
+            updatePitchReadout(sample.note, sample.cents, sample.freq);
+            setStatus('Listening and drawing');
+        },
+        onSilence: () => clearPitchReadout(),
+        onFrame: () => drawChart()
+    });
+
+    function parsedPatternDegrees() {
+        const tokens = state.patternText.trim().split(/[\s,;/-]+/).filter(Boolean);
+        const notes = scaleNotes();
+        return tokens.map(token => Number(token))
+            .filter(degree => Number.isInteger(degree) && degree >= 1 && degree <= notes.length);
+    }
+
+    function patternDurationMs() {
+        const count = parsedPatternDegrees().length;
+        return count ? count * state.guideIntervalMs : 0;
+    }
+
+    function timeWindowMs() {
+        if (state.fixedWindow) return FIXED_WINDOW_MS;
+        return Math.max(8000, patternDurationMs() + 1000, session.clockMs() + 500);
+    }
+
+    function buildGuideTargets() {
+        const guideNotes = scaleNotes();
+        const targets = [];
+        parsedPatternDegrees().forEach((degree, index) => {
+            const note = guideNotes[degree - 1];
+            if (!note) return;
+            targets.push({
+                midi: note.midi,
+                startMs: index * state.guideIntervalMs,
+                endMs: index * state.guideIntervalMs + state.guideIntervalMs * 0.82,
+                label: String(degree),
+                active: true
+            });
+        });
+        return targets;
+    }
+
+    const view = PitchTraceView.create({
+        canvasId: 'testCanvas',
+        defaultHeightPx: 430,
+        rails: () => chartScaleNotes().map(note => ({
+            midi: note.midi,
+            label: `${note.degree} ${note.noteName}`,
+            emphasized: note.octaveShift === 0
+        })),
+        targets: buildGuideTargets,
+        history: () => session.history,
+        clockMs: () => session.clockMs(),
+        windowMs: timeWindowMs,
+        fixedWindow: () => state.fixedWindow,
+        showPlayhead: () => session.startedAt > 0
+    });
+
+    function drawChart() { view.draw(); }
+    function resizeCanvas() { view.resize(); }
+
     function resetTrace() {
         guidePlaybackToken++;
-        pitchHistory = [];
-        lastAcceptedPitch = null;
-        pendingPitchJump = null;
-        voiceElapsedMs = 0;
-        lastVoiceAt = null;
-        sessionStartedAt = performance.now();
+        session.reset();
         clearPitchReadout();
-        setStatus(isListening ? 'Listening' : 'Ready');
+        setStatus(session.listening ? 'Listening' : 'Ready');
         drawChart();
     }
 
-    function clockMs() {
-        if (state.pauseOnSilence) return voiceElapsedMs;
-        return sessionStartedAt ? performance.now() - sessionStartedAt : 0;
-    }
-
-    function nextVoiceTime() {
-        const now = performance.now();
-        if (lastVoiceAt === null) {
-            lastVoiceAt = now;
-            return voiceElapsedMs;
+    async function ensureGuideAudioContext() {
+        if (!guideAudioContext) {
+            guideAudioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
-
-        const delta = now - lastVoiceAt;
-        lastVoiceAt = now;
-        if (delta <= 240) voiceElapsedMs += delta;
-        return voiceElapsedMs;
-    }
-
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function ensureAudioContext() {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioContext.state === 'suspended') await audioContext.resume();
-        return audioContext;
+        if (guideAudioContext.state === 'suspended') await guideAudioContext.resume();
+        return guideAudioContext;
     }
 
     /**
@@ -256,7 +197,7 @@
      * @param {number} durationMs
      */
     async function playGuideTone(midi, durationMs) {
-        const ctx = await ensureAudioContext();
+        const ctx = await ensureGuideAudioContext();
         const oscillator = ctx.createOscillator();
         const gain = ctx.createGain();
         oscillator.type = 'sine';
@@ -292,276 +233,54 @@
 
     function stopListening() {
         guidePlaybackToken++;
-        isListening = false;
-        if (animationId !== null) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
-        }
-        if (microphone) {
-            microphone.disconnect();
-            microphone = null;
-        }
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        lastVoiceAt = null;
+        session.stop();
         syncControls();
         setStatus('Stopped');
         drawChart();
     }
 
-    function analyzeLoop() {
-        if (!isListening || !analyser || !audioContext) return;
-
-        const buffer = new Float32Array(analyser.fftSize);
-        analyser.getFloatTimeDomainData(buffer);
-        const freq = detectPitch(buffer, audioContext.sampleRate);
-
-        if (freq > 0 && freq < 2000) {
-            const midi = freqToMidi(freq);
-            const noteInfo = midiToNoteName(midi);
-            const cents = getCentsDeviation(freq);
-            const sample = {
-                time: state.pauseOnSilence ? nextVoiceTime() : clockMs(),
-                freq,
-                midi,
-                cents,
-                note: noteInfo.full
-            };
-            if (recordPitchSample(sample)) {
-                updatePitchReadout(noteInfo.full, cents, freq);
-                setStatus('Listening and drawing');
-            }
-        } else {
-            pendingPitchJump = null;
-            lastVoiceAt = null;
-            clearPitchReadout();
-        }
-
-        drawChart();
-        animationId = requestAnimationFrame(analyzeLoop);
-    }
-
-    async function startListening() {
-        if (isListening) {
+    async function toggleListening() {
+        if (session.listening) {
             stopListening();
             return;
         }
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setStatus('Microphone unavailable');
+
+        const ok = await session.start();
+        if (!ok) {
+            syncControls();
+            setStatus('Microphone unavailable or access denied');
             return;
         }
-
-        try {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioContext.state === 'suspended') await audioContext.resume();
-
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            microphone = audioContext.createMediaStreamSource(stream);
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 2048;
-            microphone.connect(analyser);
-
-            isListening = true;
-            resetTrace();
-            syncControls();
-            analyzeLoop();
-        } catch (err) {
-            console.error('Microphone access denied:', err);
-            isListening = false;
-            syncControls();
-            setStatus('Microphone access denied');
-        }
-    }
-
-    function parsedPatternDegrees() {
-        const tokens = state.patternText.trim().split(/[\s,;/-]+/).filter(Boolean);
-        const notes = scaleNotes();
-        return tokens.map(token => Number(token))
-            .filter(degree => Number.isInteger(degree) && degree >= 1 && degree <= notes.length);
-    }
-
-    function patternDurationMs() {
-        const count = parsedPatternDegrees().length;
-        return count ? count * state.guideIntervalMs : 0;
-    }
-
-    function timeWindowMs() {
-        if (state.fixedWindow) return FIXED_WINDOW_MS;
-        return Math.max(8000, patternDurationMs() + 1000, clockMs() + 500);
-    }
-
-    function resizeCanvas() {
-        const canvas = /** @type {HTMLCanvasElement | null} */ (getEl('testCanvas'));
-        if (!canvas) return;
-        const container = canvas.parentElement;
-        if (!container) return;
-        const rect = container.getBoundingClientRect();
-        if (rect.width <= 0) return;
-        const dpr = window.devicePixelRatio || 1;
-        const cssHeight = canvas.getBoundingClientRect().height || 430;
-        canvas.width = Math.floor(rect.width * dpr);
-        canvas.height = Math.floor(cssHeight * dpr);
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${cssHeight}px`;
-        const ctx = canvas.getContext('2d');
-        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawChart();
-    }
-
-    function drawChart() {
-        const canvas = /** @type {HTMLCanvasElement | null} */ (getEl('testCanvas'));
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const width = canvas.width / dpr;
-        const height = canvas.height / dpr;
-        if (width <= 0 || height <= 0) return;
-
-        const notes = chartScaleNotes();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
-        ctx.fillRect(0, 0, width, height);
-        if (!notes.length) return;
-
-        const minMidi = Math.min(...notes.map(note => note.midi));
-        const maxMidi = Math.max(...notes.map(note => note.midi));
-        const midiRange = Math.max(maxMidi - minMidi, 1);
-        const left = width < 520 ? 88 : 118;
-        const right = 14;
-        const top = 18;
-        const bottom = 30;
-        const graphWidth = Math.max(width - left - right, 1);
-        const graphHeight = Math.max(height - top - bottom, 1);
-        const timeWindow = timeWindowMs();
-        const windowStart = state.fixedWindow ? Math.max(0, clockMs() - timeWindow) : 0;
-
-        /** @param {number} midi */
-        const midiToY = (midi) => top + (maxMidi - Math.max(minMidi, Math.min(maxMidi, midi))) / midiRange * graphHeight;
-        /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
-
-        ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        notes.forEach(note => {
-            const y = midiToY(note.midi);
-            ctx.strokeStyle = 'rgba(134, 239, 172, 0.46)';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(left, y);
-            ctx.lineTo(width - right, y);
-            ctx.stroke();
-
-            ctx.fillStyle = 'rgba(216, 252, 225, 0.92)';
-            ctx.fillText(`${note.degree} ${note.noteName}`, left - 8, y);
-        });
-
-        const pattern = parsedPatternDegrees();
-        const guideNotes = scaleNotes();
-        pattern.forEach((degree, index) => {
-            const note = guideNotes[degree - 1];
-            if (!note) return;
-            const x1 = timeToX(index * state.guideIntervalMs);
-            const x2 = timeToX(index * state.guideIntervalMs + state.guideIntervalMs * 0.82);
-            const y = midiToY(note.midi);
-            ctx.fillStyle = 'rgba(96, 165, 250, 0.28)';
-            ctx.strokeStyle = 'rgba(147, 197, 253, 0.92)';
-            ctx.lineWidth = 2;
-            ctx.fillRect(x1, y - 8, Math.max(x2 - x1, 6), 16);
-            ctx.strokeRect(x1, y - 8, Math.max(x2 - x1, 6), 16);
-            ctx.fillStyle = '#dbeafe';
-            ctx.textAlign = 'left';
-            ctx.fillText(String(degree), x1 + 4, y - 17);
-        });
-
-        if (pitchHistory.length > 1) {
-            ctx.lineWidth = 2.4;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#facc15';
-            ctx.beginPath();
-            let previous = pitchHistory[0];
-            ctx.moveTo(timeToX(previous.time), midiToY(previous.midi));
-            for (let i = 1; i < pitchHistory.length; i++) {
-                const point = pitchHistory[i];
-                const fastJump = point.time - previous.time <= GLITCH_WINDOW_MS
-                    && Math.abs(point.midi - previous.midi) > GLITCH_JUMP_MIDI;
-                if (point.time - previous.time > 260 || fastJump) {
-                    ctx.moveTo(timeToX(point.time), midiToY(point.midi));
-                } else {
-                    ctx.lineTo(timeToX(point.time), midiToY(point.midi));
-                }
-                previous = point;
-            }
-            ctx.stroke();
-
-            for (let i = 0; i < pitchHistory.length; i += 3) {
-                const point = pitchHistory[i];
-                const absCents = Math.abs(point.cents);
-                ctx.fillStyle = absCents < 12 ? '#4ade80' : absCents < 30 ? '#facc15' : '#fb7185';
-                ctx.beginPath();
-                ctx.arc(timeToX(point.time), midiToY(point.midi), 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        if (sessionStartedAt) {
-            const x = timeToX(clockMs());
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 5]);
-            ctx.beginPath();
-            ctx.moveTo(x, top);
-            ctx.lineTo(x, height - bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
+        resetTrace();
+        syncControls();
     }
 
     function syncControls() {
-        document.querySelectorAll('[data-scale]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.getAttribute('data-scale') === state.scaleType);
-        });
-        document.querySelectorAll('[data-step-key]').forEach(el => {
-            const btn = /** @type {HTMLButtonElement} */ (el);
-            const key = btn.getAttribute('data-step-key') || '';
-            const delta = Number(btn.getAttribute('data-step-delta') || 0);
+        PracticeControls.syncSingleSelect('data-scale', state.scaleType);
+        PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 const midi = rootMidi();
-                btn.disabled = midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
-                return;
+                return midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
             }
-            const values = ADJUSTER_VALUES[key] || [];
-            const index = values.indexOf(state[key]);
-            btn.disabled = delta < 0 ? index <= 0 : index >= values.length - 1;
+            return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
 
         const startBtn = getEl('startBtn');
         if (startBtn) {
-            startBtn.textContent = isListening ? 'Stop' : 'Start';
-            startBtn.classList.toggle('listening', isListening);
+            startBtn.textContent = session.listening ? 'Stop' : 'Start';
+            startBtn.classList.toggle('listening', session.listening);
         }
-        const rootPitchValue = getEl('rootPitchValue');
-        if (rootPitchValue) rootPitchValue.textContent = `${state.root}${state.octave}`;
-        const intervalValue = getEl('guideIntervalValue');
-        if (intervalValue) intervalValue.textContent = `${state.guideIntervalMs / 1000}s`;
-        const pauseToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseOnSilenceToggle'));
-        const windowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedWindowToggle'));
-        const rangeToggle = /** @type {HTMLInputElement | null} */ (getEl('expandRangeToggle'));
-        if (pauseToggle) pauseToggle.checked = state.pauseOnSilence;
-        if (windowToggle) windowToggle.checked = state.fixedWindow;
-        if (rangeToggle) rangeToggle.checked = state.expandRange;
+        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
+        PracticeControls.setValueText('guideIntervalValue', PracticeControls.formatSeconds(state.guideIntervalMs));
+        PracticeControls.syncToggle('pauseOnSilenceToggle', state.pauseOnSilence);
+        PracticeControls.syncToggle('fixedWindowToggle', state.fixedWindow);
+        PracticeControls.syncToggle('expandRangeToggle', state.expandRange);
     }
 
     /** @param {string} key @param {string | number} value */
     function setStateValue(key, value) {
         state[key] = value;
+        saveSettings();
         syncControls();
         resetTrace();
     }
@@ -572,6 +291,7 @@
         const info = midiToNoteName(bounded);
         state.root = info.name;
         state.octave = info.octave;
+        saveSettings();
         syncControls();
         resetTrace();
     }
@@ -584,69 +304,52 @@
             return;
         }
 
-        const values = ADJUSTER_VALUES[key] || [];
-        const index = values.indexOf(state[key]);
-        if (index === -1) return;
-        const nextIndex = Math.max(0, Math.min(values.length - 1, index + delta));
-        if (nextIndex === index) return;
-        setStateValue(key, values[nextIndex]);
+        const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
+        if (next !== null) setStateValue(key, next);
     }
 
     function initUI() {
-        document.querySelectorAll('[data-scale]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => setStateValue('scaleType', btn.getAttribute('data-scale') || state.scaleType));
+        PracticeControls.wireSingleSelect('data-scale', String, state.scaleType, value => {
+            setStateValue('scaleType', value);
         });
-        document.querySelectorAll('[data-step-key]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => stepStateValue(btn.getAttribute('data-step-key') || '', Number(btn.getAttribute('data-step-delta') || 0)));
-        });
+        PracticeControls.wireSteppers(stepStateValue);
+
         const patternInput = /** @type {HTMLInputElement | null} */ (getEl('patternInput'));
         if (patternInput) {
-            state.patternText = patternInput.value;
+            patternInput.value = state.patternText;
             patternInput.addEventListener('input', () => {
                 state.patternText = patternInput.value;
+                saveSettings();
                 drawChart();
             });
         }
-        getEl('startBtn')?.addEventListener('click', startListening);
+        getEl('startBtn')?.addEventListener('click', toggleListening);
         getEl('resetBtn')?.addEventListener('click', resetFromButton);
-        const playGuidesToggle = /** @type {HTMLInputElement | null} */ (getEl('playGuidesToggle'));
-        if (playGuidesToggle) {
-            playGuidesToggle.checked = state.playGuidesOnReset;
-            playGuidesToggle.addEventListener('change', () => {
-                state.playGuidesOnReset = playGuidesToggle.checked;
-            });
-        }
-        const pauseToggle = /** @type {HTMLInputElement | null} */ (getEl('pauseOnSilenceToggle'));
-        if (pauseToggle) {
-            pauseToggle.checked = state.pauseOnSilence;
-            pauseToggle.addEventListener('change', () => {
-                state.pauseOnSilence = pauseToggle.checked;
-                resetTrace();
-            });
-        }
-        const windowToggle = /** @type {HTMLInputElement | null} */ (getEl('fixedWindowToggle'));
-        if (windowToggle) {
-            windowToggle.checked = state.fixedWindow;
-            windowToggle.addEventListener('change', () => {
-                state.fixedWindow = windowToggle.checked;
-                drawChart();
-            });
-        }
-        const rangeToggle = /** @type {HTMLInputElement | null} */ (getEl('expandRangeToggle'));
-        if (rangeToggle) {
-            rangeToggle.checked = state.expandRange;
-            rangeToggle.addEventListener('change', () => {
-                state.expandRange = rangeToggle.checked;
-                drawChart();
-            });
-        }
+        PracticeControls.wireToggle('playGuidesToggle', state.playGuidesOnReset, checked => {
+            state.playGuidesOnReset = checked;
+            saveSettings();
+        });
+        PracticeControls.wireToggle('pauseOnSilenceToggle', state.pauseOnSilence, checked => {
+            state.pauseOnSilence = checked;
+            saveSettings();
+            resetTrace();
+        });
+        PracticeControls.wireToggle('fixedWindowToggle', state.fixedWindow, checked => {
+            state.fixedWindow = checked;
+            saveSettings();
+            drawChart();
+        });
+        PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
+            state.expandRange = checked;
+            saveSettings();
+            drawChart();
+        });
         window.addEventListener('resize', resizeCanvas);
         syncControls();
         resizeCanvas();
         resetTrace();
     }
 
+    SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
     initUI();
 })();
