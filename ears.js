@@ -172,8 +172,11 @@ class EarsController {
         // Drone test mode
         /** @type {boolean} */
         this.droneActive = false;
-        /** @type {InstanceType<typeof Tone.Synth> | null} */
-        this.droneSynth = null;
+        // Quieter than the piano so the sung voice stays detectable.
+        this.droneSynth = PianoCore.createSineSynth({
+            volume: -12,
+            envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
+        });
         /** @type {string} */
         this.droneNote = 'C4';
         /** @type {number | null} */
@@ -1279,17 +1282,11 @@ class EarsController {
         if (display) display.style.display = 'block';
         if (targetEl) targetEl.textContent = this.droneNote;
 
-        // Create drone synth (simple sine wave)
         await PianoCore.ensureStarted();
-        this.droneSynth = new Tone.Synth({
-            oscillator: { type: 'sine' },
-            envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
-        }).toDestination();
-        this.droneSynth.volume.value = -12; // Quieter so voice is easier to detect
 
         // Start drone
         this.droneActive = true;
-        this.droneSynth.triggerAttack(this.droneNote);
+        if (this.droneTargetMidi !== null) this.droneSynth.startMidi(this.droneTargetMidi);
 
         // Start pitch detection with echo cancellation
         await this.startDronePitchDetection();
@@ -1299,13 +1296,7 @@ class EarsController {
         if (!this.droneActive) return;
 
         this.droneActive = false;
-
-        // Stop drone
-        if (this.droneSynth) {
-            this.droneSynth.triggerRelease();
-            this.droneSynth.dispose();
-            this.droneSynth = null;
-        }
+        this.droneSynth.mute();
 
         // Stop pitch detection
         this.stopPitchDetection();

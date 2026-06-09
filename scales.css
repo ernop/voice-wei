@@ -1265,3 +1265,35 @@
         padding: 4px 2px;
     }
 }
+/*-------INTERVALS PAGE (scales2)-------*/
+
+.pattern-desc {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.85rem;
+}
+
+.pattern-degrees {
+    color: #86efac;
+    font-weight: 700;
+    font-size: 1.6rem;
+}
+
+.pattern-notes {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    margin-left: 8px;
+}
+
+.history-text.history-desc {
+    color: rgba(255, 255, 255, 0.5);
+    min-width: 100px;
+}
+
+.history-text.history-degrees {
+    color: #86efac;
+    font-weight: 600;
+}
+
+.history-text.history-notes {
+    color: rgba(255, 255, 255, 0.5);
+}

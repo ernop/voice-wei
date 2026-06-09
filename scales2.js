@@ -246,12 +246,9 @@
             const noteStr = currentInstance.noteNames.join(' ');
 
             const namesPart = state.showNoteNames
-                ? `<span style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-left:8px">${noteStr}</span>` : '';
+                ? `<span class="pattern-notes">${noteStr}</span>` : '';
 
-            display.innerHTML =
-                `<span style="color:rgba(255,255,255,0.45);font-size:0.85rem">${currentInstance.description}</span>` +
-                `<span style="color:#86efac;font-weight:700;font-size:1.6rem">${degreeStr}</span>` +
-                namesPart;
+            display.innerHTML = `<span class="pattern-desc">${currentInstance.description}</span><span class="pattern-degrees">${degreeStr}</span>${namesPart}`;
 
             if (!firstRound || !state.repeat) {
                 addHistory(degreeStr, currentInstance.description, noteStr);
@@ -304,11 +301,7 @@
 
         const item = document.createElement('div');
         item.className = 'history-item';
-        item.innerHTML =
-            `<span class="history-text" style="color:rgba(255,255,255,0.5);min-width:100px">${desc}</span>` +
-            `<span class="history-text" style="font-weight:600;color:#86efac">${degrees}</span>` +
-            `<span class="history-text" style="color:rgba(255,255,255,0.5)">${notes}</span>` +
-            `<span class="history-time">${new Date().toLocaleTimeString()}</span>`;
+        item.innerHTML = `<span class="history-text history-desc">${desc}</span><span class="history-text history-degrees">${degrees}</span><span class="history-text history-notes">${notes}</span><span class="history-time">${new Date().toLocaleTimeString()}</span>`;
         list.prepend(item);
         while (list.children.length > 50) list.lastChild.remove();
     }

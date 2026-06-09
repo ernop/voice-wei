@@ -55,16 +55,14 @@ const VoiceOutput = (function () {
             const match = voices.find(v => pattern.test(v.name) && v.lang.startsWith('en'));
             if (match) {
                 preferredVoice = match;
-                console.log('[VoiceOutput] Selected voice:', match.name);
                 return;
             }
         }
 
-        // Fallback: any English voice
+        // Last resort: any English voice
         const english = voices.find(v => v.lang.startsWith('en'));
         if (english) {
             preferredVoice = english;
-            console.log('[VoiceOutput] Fallback voice:', english.name);
         }
     }
 
@@ -75,7 +73,6 @@ const VoiceOutput = (function () {
             pickBestVoice();
             // Voices may load asynchronously (Chrome does this)
             synthesis.addEventListener('voiceschanged', pickBestVoice);
-            console.log('[VoiceOutput] Browser speechSynthesis available');
         } else {
             console.warn('[VoiceOutput] Browser speechSynthesis not available');
         }

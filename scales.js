@@ -493,12 +493,11 @@ class ScalesController {
     }
 
     async init() {
-        this.updateLoadingStatus(false, 'Loading piano...');
         try {
             await this.audio.init();
-            this.updateLoadingStatus(true);
         } catch (err) {
-            this.updateLoadingStatus(false, 'Failed to load piano');
+            console.error('Error loading piano samples:', err);
+            this.showLoadFailure('Piano failed to load. Refresh to retry.');
         }
         this.loadSettings();
         this.setupVoiceCore();
@@ -609,19 +608,12 @@ class ScalesController {
         MediaSessionCore.primeOnUserGesture();
     }
 
-    /**
-     * @param {boolean} loaded
-     * @param {string | null} [message]
-     */
-    updateLoadingStatus(loaded, message = null) {
-        const statusRuntime = document.getElementById('statusRuntime');
-        if (statusRuntime) {
-            if (loaded) {
-                statusRuntime.textContent = 'Ready - say a command or tap the piano';
-            } else if (message) {
-                statusRuntime.textContent = message;
-            }
-        }
+    // The piano notification area is the page's status surface; loading is
+    // silent unless it fails.
+    /** @param {string} message */
+    showLoadFailure(message) {
+        const el = document.getElementById('pianoNotificationCommand');
+        if (el) el.textContent = message;
     }
 
     setupVoiceCore() {
@@ -632,7 +624,7 @@ class ScalesController {
             uiIds: {
                 statusEl: 'statusRuntime'
             },
-            onStatusChange: (/** @type {string} */ msg) => console.log('Status:', msg),
+            onStatusChange: () => { },
             onError: (/** @type {string} */ msg) => this.showError(msg)
         });
 
@@ -653,35 +645,16 @@ class ScalesController {
         this.voiceCore.init();
     }
 
-    /**
-     * @param {string} transcript
-     * @param {ScaleCommand} command
-     */
-    setInterpretationStatus(transcript, command) {
-        // Deprecated: old "statusInterpretation" element removed in favor of the piano notification table.
-        // Kept as a no-op so existing call sites don't break.
-    }
-
-    /**
-     * @param {string} transcript
-     * @param {ScaleCommand} command
-     */
-    buildInterpretationMessage(transcript, command) {
-        // Deprecated: no longer used (old debug/interpretation string).
-        return '';
-    }
-
     // Reset to defaults without updating status (used before voice commands)
     resetToDefaults() {
         this.settings = { ...this.defaultSettings };
-        console.log(`[noteLengthMs] reset to default: ${this.settings.noteLengthMs}ms`);
         this.syncUIToSettings();
     }
 
+    // The source tag documents where length changes originate (button,
+    // voice command, preset) since many paths funnel through here.
     setNoteLengthMs(ms, source = 'unknown') {
-        const old = this.settings.noteLengthMs;
         this.settings.noteLengthMs = ms;
-        console.log(`[noteLengthMs] ${old}ms -> ${ms}ms (${source})`);
     }
 
     // Rising implies forever - if rising is enabled and repeat isn't already forever, set it
