@@ -70,8 +70,7 @@
     padding: 12px;
 }
 
-.test-pattern-card label,
-.test-card-title {
+.test-pattern-card label {
     display: block;
     margin-bottom: 8px;
     color: rgba(255, 255, 255, 0.68);
@@ -131,59 +130,6 @@
     margin: 0;
 }
 
-.test-step-field {
-    display: inline-grid;
-    grid-template-columns: 58px 38px 54px 38px;
-    align-items: center;
-    gap: 3px;
-    max-width: 100%;
-    padding: 3px;
-    border: 1px solid rgba(134, 239, 172, 0.18);
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.22);
-}
-
-.test-step-field span {
-    padding: 0 3px 0 5px;
-    color: rgba(255, 255, 255, 0.62);
-    font-size: 0.68rem;
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.test-step-field strong {
-    width: 54px;
-    box-sizing: border-box;
-    padding: 5px 8px;
-    border-radius: 999px;
-    background: rgba(74, 222, 128, 0.18);
-    color: #d9f99d;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 0.85rem;
-    text-align: center;
-}
-
-.test-step-btn {
-    width: 38px;
-    height: 32px;
-    border: 1px solid rgba(74, 222, 128, 0.32);
-    border-radius: 999px;
-    background: rgba(8, 47, 31, 0.9);
-    color: #e8f5e9;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 1rem;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.test-step-btn:disabled {
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.22);
-    cursor: not-allowed;
-}
-
 .test-readout {
     display: flex;
     justify-content: center;
@@ -222,18 +168,6 @@
     .test-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
-    }
-
-    .test-step-field {
-        display: grid;
-        width: auto;
-        box-sizing: border-box;
-        grid-template-columns: 54px 36px 54px 36px;
-        justify-content: space-between;
-    }
-
-    .test-step-field strong {
-        width: 54px;
     }
 
     #testCanvas {

@@ -61,7 +61,6 @@
     let pointerToggleValue = true;
 
     const getEl = PracticeControls.getEl;
-    function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
 
     function saveSettings() {
         SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
@@ -73,12 +72,11 @@
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
 
-    function stopPlayback(status = 'Stopped') {
+    function stopPlayback() {
         playToken++;
         state.loopCurrent = false;
         syncRepeatButton();
         cancelCurrentSound();
-        setStatus(status);
     }
 
     const sleep = PianoCore.sleep;
@@ -279,8 +277,6 @@
         if (!phrase) {
             degreesEl.textContent = '--';
             notesEl.textContent = '';
-            const togglesEl = getEl('phraseNoteToggles');
-            if (togglesEl) togglesEl.textContent = '';
             return;
         }
         renderPhraseUnits(phrase);
@@ -290,7 +286,7 @@
 
     function generatePhrase() {
         currentPhrase = buildPhrase();
-        if (!currentPhrase) { setStatus('Could not generate phrase'); return null; }
+        if (!currentPhrase) return null;
         activeMask = currentPhrase.midiNotes.map(() => true);
         phraseHistory.unshift(currentPhrase);
         if (phraseHistory.length > 50) phraseHistory.pop();
@@ -303,12 +299,9 @@
 
     async function playPhraseOnce(phrase, token) {
         updatePhraseDisplay();
-        setStatus(`Playing ${phrase.displayDegrees.join(' ')}`);
-        if (state.outputMode === 'none') { setStatus('No audio'); return; }
-        if (state.outputMode === 'display') { setStatus('Displayed'); return; }
+        if (state.outputMode === 'none' || state.outputMode === 'display') return;
         if (state.outputMode === 'speak') {
             await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
-            if (token === playToken) setStatus('Ready');
             return;
         }
         if (state.outputMode === 'speak_tones') {
@@ -331,7 +324,6 @@
         do {
             await playPhraseOnce(phrase, token);
             if (token !== playToken || !state.loopCurrent) break;
-            setStatus('Repeating');
             await sleep(650);
         } while (token === playToken && state.loopCurrent);
     }
@@ -339,12 +331,9 @@
     async function playToneSequence(phrase, token) {
         for (const i of activeIndexes(phrase)) {
             if (token !== playToken) return;
-            const midi = phrase.midiNotes[i];
-            setStatus(`${phrase.displayDegrees[i]} | ${midiToPitchString(midi)}`);
-            playMidi(midi);
+            playMidi(phrase.midiNotes[i]);
             await sleep(state.noteLengthMs + state.gapMs);
         }
-        if (token === playToken && !state.loopCurrent) setStatus('Ready');
     }
 
     function speakNumberAtPitch(text, midi, durationMs) {
@@ -359,12 +348,9 @@
         for (const i of activeIndexes(phrase)) {
             if (token !== playToken) return;
             const midi = phrase.midiNotes[i];
-            const degree = phrase.displayDegrees[i];
-            setStatus(`${degree} | ${midiToPitchString(midi)}`);
             await speakNumberAtPitch(phrase.spokenDegrees[i], midi, state.noteLengthMs);
             if (state.gapMs > 0) await sleep(state.gapMs);
         }
-        if (token === playToken && !state.loopCurrent) setStatus('Ready');
     }
 
     async function playCurrentOrNew() {
@@ -392,7 +378,7 @@
             const phrase = phraseForPlayback();
             if (phrase) await playPhrase(phrase);
         } else {
-            stopPlayback('Repeat off');
+            stopPlayback();
         }
     }
 
@@ -499,7 +485,7 @@
         saveSettings();
         if (STRUCTURE_KEYS.has(key)) {
             if (currentPhrase) {
-                stopPlayback('Regenerated');
+                stopPlayback();
                 generatePhrase();
             }
             return;
@@ -604,10 +590,8 @@
 
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
-        setStatus('Loading piano');
         piano = await PianoCore.createPiano();
         initUI();
-        setStatus('Ready');
     }
 
     boot();

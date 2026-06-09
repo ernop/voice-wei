@@ -8,6 +8,7 @@
     <title>Test - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=79">
     <link rel="stylesheet" href="scales.css?v=79">
+    <link rel="stylesheet" href="practice-controls.css?v=79">
     <link rel="stylesheet" href="test.css?v=79">
 </head>
 
@@ -47,17 +48,17 @@
             </section>
 
             <section class="test-compact-controls">
-                <div class="test-step-field test-pitch-step-field">
-                    <span>Root</span>
-                    <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
-                    <strong id="rootPitchValue">D#3</strong>
-                    <button class="test-step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                <div class="step-field">
+                    <span class="step-label">Root</span>
+                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                    <span class="step-value" id="rootPitchValue">D#3</span>
+                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
                 </div>
-                <div class="test-step-field">
-                    <span>Interval</span>
-                    <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="-1" aria-label="Shorter guide interval">-</button>
-                    <strong id="guideIntervalValue">1s</strong>
-                    <button class="test-step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
+                <div class="step-field">
+                    <span class="step-label">Interval</span>
+                    <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="-1" aria-label="Shorter guide interval">-</button>
+                    <span class="step-value" id="guideIntervalValue">1s</span>
+                    <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
                 </div>
                 <div class="test-option-row">
                     <label class="display-toggle">

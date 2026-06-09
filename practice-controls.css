@@ -1,7 +1,120 @@
-/* Shared practice-page UI primitives.
-   Currently: the pitch test panel rendered by pitch-test-panel.js and
-   the blue launch button that opens it. The stepper/segment primitives
-   move here as pages converge on them. */
+/* Shared practice-page UI primitives: the pitch test panel rendered by
+   pitch-test-panel.js, its blue launch button, and the stepper /
+   segmented-row control language introduced on the Phrases page. */
+
+/* Stepper field: label, minus, value, plus */
+.step-field {
+    display: grid;
+    grid-template-columns: 58px 38px 54px 38px;
+    align-items: center;
+    gap: 3px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px;
+    border: 1px solid rgba(134, 239, 172, 0.18);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.step-label {
+    padding: 0 3px 0 5px;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.step-btn {
+    width: 38px;
+    height: 32px;
+    border: 1px solid rgba(74, 222, 128, 0.32);
+    border-radius: 999px;
+    background: rgba(8, 47, 31, 0.9);
+    color: #e8f5e9;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.step-btn:hover {
+    border-color: rgba(134, 239, 172, 0.64);
+    background: rgba(22, 101, 52, 0.92);
+}
+
+.step-btn:disabled {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.22);
+    cursor: not-allowed;
+}
+
+.step-btn:active {
+    transform: scale(0.94);
+}
+
+.step-btn:focus {
+    outline: 2px solid rgba(74, 222, 128, 0.45);
+    outline-offset: 2px;
+}
+
+.step-value {
+    width: 54px;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: rgba(74, 222, 128, 0.18);
+    color: #d9f99d;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.85rem;
+    font-weight: 900;
+    text-align: center;
+}
+
+/* Segmented row: mutually exclusive vf-btn options in a pill shell */
+.segment-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px;
+    gap: 3px;
+    border: 1px solid rgba(134, 239, 172, 0.18);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.segment-row .vf-btn {
+    min-width: 82px;
+    border-radius: 999px;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .step-field {
+        width: auto;
+        grid-template-columns: 54px 36px 54px 36px;
+        justify-content: space-between;
+    }
+
+    .step-value {
+        width: 54px;
+    }
+
+    .segment-row {
+        width: auto;
+    }
+
+    .segment-row .vf-btn {
+        flex: 0 0 auto;
+        min-width: 74px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+}
 
 .pitch-test-panel {
     margin: 0 0 14px;
