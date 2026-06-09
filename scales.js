@@ -46,44 +46,14 @@ class AudioCoordinator {
     }
 
     async init() {
-        // Use Salamander Grand Piano samples for realistic piano sound
-        const baseUrl = 'https://tonejs.github.io/audio/salamander/';
-
-        // Create a gain node for hard cutoff on stop
-        this.gainNode = new Tone.Gain(1).toDestination();
-
-        return new Promise((resolve, reject) => {
-            this.synth = new Tone.Sampler({
-                urls: {
-                    'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-                    'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-                    'A2': 'A2.mp3', 'C3': 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-                    'A3': 'A3.mp3', 'C4': 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-                    'A4': 'A4.mp3', 'C5': 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-                    'A5': 'A5.mp3', 'C6': 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
-                    'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
-                    'A7': 'A7.mp3', 'C8': 'C8.mp3',
-                },
-                baseUrl: baseUrl,
-                onload: () => {
-                    console.log('Piano samples loaded');
-                    resolve();
-                },
-                onerror: (err) => {
-                    console.error('Error loading piano samples:', err);
-                    reject(err);
-                }
-            }).connect(this.gainNode);
-
-            this.synth.volume.value = -3;
-        });
+        const piano = await PianoCore.createPiano();
+        this.synth = piano.synth;
+        this.gainNode = piano.gainNode;
     }
 
     // Ensure Tone.js audio context is running (requires user interaction)
     async ensureStarted() {
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
+        await PianoCore.ensureStarted();
     }
 
     // Enable audio output (restore after hard cutoff)
@@ -315,6 +285,13 @@ const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 
 const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
 
+const SCALES_SETTINGS_STORAGE_KEY = 'scales-settings';
+const SCALES_PERSISTED_SETTING_KEYS = [
+    'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
+    'repeatGapMs', 'risingSemitones', 'movementStyle', 'scaleType', 'root',
+    'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps'
+];
+
 //-------SCALES CONTROLLER-------
 
 /**
@@ -523,11 +500,35 @@ class ScalesController {
         } catch (err) {
             this.updateLoadingStatus(false, 'Failed to load piano');
         }
+        this.loadSettings();
         this.setupVoiceCore();
         this.setupUI();
         this.loadPresetsFromStorage();
         this.renderPresets();
         this.setupErrorHandling();
+        this.setupMediaSession();
+    }
+
+    // JSON cannot store Infinity, so "repeat forever" round-trips as -1.
+    loadSettings() {
+        const snapshot = { ...this.settings };
+        SettingsStore.load(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
+        if (snapshot.repeatCount === -1) snapshot.repeatCount = Infinity;
+        Object.assign(this.settings, snapshot);
+    }
+
+    saveSettings() {
+        const snapshot = { ...this.settings };
+        if (snapshot.repeatCount === Infinity) snapshot.repeatCount = -1;
+        SettingsStore.save(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
+    }
+
+    setupMediaSession() {
+        MediaSessionCore.register('Scales', [
+            ['play', () => { this.playAgainOrCurrent(); }],
+            ['pause', () => { this.stopPlayback(); }]
+        ]);
+        MediaSessionCore.primeOnUserGesture();
     }
 
     /**
@@ -1183,6 +1184,8 @@ class ScalesController {
     async onSettingChanged() {
         const wasPlaying = this.audio.isPlaying;
 
+        this.saveSettings();
+
         // Stop any current playback immediately
         if (wasPlaying) {
             this.stopPlayback();
@@ -1587,6 +1590,7 @@ class ScalesController {
     }
 
     async ensureAudioStarted() {
+        await MediaSessionCore.activate();
         await this.audio.ensureStarted();
     }
 
@@ -3153,6 +3157,10 @@ class ScalesController {
     async playScale(root, scaleType, modifiers = {}) {
         const rootMidi = noteNameToMidi(root, this.settings.octave);
         if (rootMidi === null) return;
+
+        // Voice commands mutate settings without passing through
+        // onSettingChanged, so persist whatever is about to play.
+        this.saveSettings();
 
         const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const sectionLength = this.settings.sectionLength || '1o';
