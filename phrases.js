@@ -24,23 +24,14 @@
         gapMs: 0,
         showNoteNames: true,
         reflected: false,
-        loopCurrent: false,
-        testPanelOpen: false,
-        testListening: false,
-        showTestTargets: true,
-        testPlayOnRestart: false,
-        testPauseOnSilence: true,
-        testFixedWindow: false,
-        testExpandRange: false
+        loopCurrent: false
     };
 
     const STORAGE_KEY = 'phrases-settings';
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'startAtOne', 'allowOutOfOctave',
         'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames',
-        'showTestTargets', 'testPlayOnRestart', 'testPauseOnSilence',
-        'testFixedWindow', 'testExpandRange'
+        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
     const STRUCTURE_KEYS = new Set([
@@ -48,7 +39,6 @@
     ]);
     const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
-    const TEST_FIXED_WINDOW_MS = 20000;
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -211,15 +201,16 @@
 
     /**
      * @param {any} phrase
+     * @param {boolean} expandRange
      * @returns {Array<{ offset: number, midi: number, label: string, noteName: string }>}
      */
-    function buildPhraseTestScaleLines(phrase) {
+    function buildPhraseTestScaleLines(phrase, expandRange) {
         const root = rootMidi();
         if (root === null || !phrase) return [];
         const degreesPerOctave = PatternPracticeCore.degreesPerOctave(state.scaleType);
         const lines = [];
         const phraseOffsets = Array.isArray(phrase.offsets) ? phrase.offsets : [];
-        const extraRange = state.testExpandRange ? degreesPerOctave : 0;
+        const extraRange = expandRange ? degreesPerOctave : 0;
         const lowerOffset = Math.min(-1, ...phraseOffsets) - 1 - extraRange;
         const upperOffset = Math.max(degreesPerOctave + 1, ...phraseOffsets) + 1 + extraRange;
         for (let offset = lowerOffset; offset <= upperOffset; offset++) {
@@ -242,36 +233,7 @@
         return Math.max(1200, phraseMs);
     }
 
-    /** @param {any} phrase */
-    function phraseTestTimeWindowMs(phrase) {
-        if (state.testFixedWindow) return TEST_FIXED_WINDOW_MS;
-        return Math.max(4000, phraseTestDurationMs(phrase) + 700, session.clockMs() + 250);
-    }
-
-    // Singing far outside the charted rails is a detector artifact, not a
-    // note; such samples are discarded before they reach the trace.
-    /** @param {number} midi */
-    function isPhraseTestOutlier(midi) {
-        const lines = buildPhraseTestScaleLines(phraseForPlayback());
-        if (!lines.length) return false;
-        const min = Math.min(...lines.map(line => line.midi));
-        const max = Math.max(...lines.map(line => line.midi));
-        return midi < min || midi > max;
-    }
-
-    const session = PitchDetectCore.createTraceSession({
-        pauseOnSilence: () => state.testPauseOnSilence,
-        isOutlier: isPhraseTestOutlier,
-        onAccepted: sample => {
-            updatePhraseTestReadout(sample.note, sample.cents, sample.freq);
-            setPhraseTestStatus('Listening and drawing');
-        },
-        onSilence: () => clearPhraseTestReadout(),
-        onFrame: () => drawPhraseTest()
-    });
-
     function buildPhraseTestTargets() {
-        if (!state.showTestTargets) return [];
         const phrase = phraseForPlayback();
         if (!phrase) return [];
         const stepMs = state.noteLengthMs + state.gapMs;
@@ -285,82 +247,29 @@
         }));
     }
 
-    const testView = PitchTraceView.create({
-        canvasId: 'phraseTestCanvas',
-        defaultHeightPx: 380,
-        isVisible: () => state.testPanelOpen,
+    const testPanel = PitchTestPanel.create({
+        hostId: 'phraseTestPanel',
+        idPrefix: 'phraseTest',
+        title: 'Phrase Test',
+        subtitle: 'Sing the phrase. Time starts only when your voice is detected.',
+        storageKey: 'phrases-test-panel',
+        legendTargetLabel: 'target phrase',
+        guideToggleLabel: 'Play guide on restart',
         emptyMessage: () => (phraseForPlayback() ? null : 'Generate a phrase, then press Test.'),
-        rails: () => buildPhraseTestScaleLines(phraseForPlayback()).map(line => ({
+        rails: ({ expandRange }) => buildPhraseTestScaleLines(phraseForPlayback(), expandRange).map(line => ({
             midi: line.midi,
             label: `${line.label} ${line.noteName}`,
             emphasized: line.offset >= 0 && line.offset <= PatternPracticeCore.degreesPerOctave(state.scaleType)
         })),
         targets: buildPhraseTestTargets,
-        history: () => session.history,
-        clockMs: () => session.clockMs(),
-        windowMs: () => phraseTestTimeWindowMs(phraseForPlayback()),
-        fixedWindow: () => state.testFixedWindow,
-        showPlayhead: () => session.startedAt > 0
+        contentDurationMs: () => phraseTestDurationMs(phraseForPlayback()),
+        playGuide: async () => {
+            const phrase = phraseForPlayback();
+            if (phrase) await playPhrase(phrase);
+        }
     });
 
-    function drawPhraseTest() { testView.draw(); }
-    function resizePhraseTestCanvas() { testView.resize(); }
-
-    function syncPhraseTestControls() {
-        const panel = getEl('phraseTestPanel');
-        if (panel) panel.hidden = !state.testPanelOpen;
-
-        const listenBtn = getEl('phraseTestListenBtn');
-        if (listenBtn) {
-            listenBtn.classList.toggle('listening', state.testListening);
-            listenBtn.setAttribute('aria-pressed', String(state.testListening));
-            listenBtn.textContent = state.testListening ? 'Listening On' : 'Listening Off';
-        }
-
-        const targetsBtn = getEl('phraseTestTargetsBtn');
-        if (targetsBtn) {
-            targetsBtn.classList.toggle('selected', state.showTestTargets);
-            targetsBtn.setAttribute('aria-pressed', String(state.showTestTargets));
-            targetsBtn.textContent = state.showTestTargets ? 'Targets On' : 'Targets Off';
-        }
-
-        PracticeControls.syncToggle('phraseTestPlayToggle', state.testPlayOnRestart);
-        PracticeControls.syncToggle('phraseTestPauseToggle', state.testPauseOnSilence);
-        PracticeControls.syncToggle('phraseTestWindowToggle', state.testFixedWindow);
-        PracticeControls.syncToggle('phraseTestRangeToggle', state.testExpandRange);
-    }
-
-    /** @param {string} message */
-    function setPhraseTestStatus(message) {
-        const el = getEl('phraseTestStatus');
-        if (el) el.textContent = message;
-    }
-
-    /**
-     * @param {string} note
-     * @param {number} cents
-     * @param {number} freq
-     */
-    function updatePhraseTestReadout(note, cents, freq) {
-        const pitchEl = getEl('phraseTestPitch');
-        const centsEl = getEl('phraseTestCents');
-        if (pitchEl) pitchEl.textContent = `Pitch: ${note} ${freq.toFixed(1)} Hz`;
-        if (centsEl) centsEl.textContent = `${cents >= 0 ? '+' : ''}${cents.toFixed(0)} cents`;
-    }
-
-    function clearPhraseTestReadout() {
-        const pitchEl = getEl('phraseTestPitch');
-        const centsEl = getEl('phraseTestCents');
-        if (pitchEl) pitchEl.textContent = 'Pitch: --';
-        if (centsEl) centsEl.textContent = '-- cents';
-    }
-
-    function resetPhraseTestSession() {
-        session.reset();
-        clearPhraseTestReadout();
-        setPhraseTestStatus('Sing to start time');
-        drawPhraseTest();
-    }
+    function drawPhraseTest() { testPanel.draw(); }
 
     function updatePhraseDisplay() {
         const degreesEl = getEl('phraseDegrees');
@@ -467,7 +376,7 @@
 
     async function playNext() {
         await MediaSessionCore.activate();
-        closePhraseTestMode();
+        testPanel.close();
         state.loopCurrent = false;
         syncRepeatButton();
         generatePhrase();
@@ -519,70 +428,9 @@
         drawPhraseTest();
     }
 
-    function stopPhraseTestListening() {
-        session.stop();
-        state.testListening = false;
-        syncPhraseTestControls();
-        setPhraseTestStatus('Listening off');
-        drawPhraseTest();
-    }
-
-    function closePhraseTestMode() {
-        if (!state.testPanelOpen && !state.testListening) return;
-        stopPhraseTestListening();
-        state.testPanelOpen = false;
-        syncPhraseTestControls();
-        clearPhraseTestReadout();
-        setPhraseTestStatus('Ready');
-    }
-
-    async function startPhraseTestListening() {
-        if (state.testListening) return;
-        const ok = await session.start();
-        if (!ok) {
-            state.testListening = false;
-            syncPhraseTestControls();
-            setPhraseTestStatus('Microphone unavailable or access denied. Allow microphone access and try Test again.');
-            return;
-        }
-        state.testListening = true;
-        syncPhraseTestControls();
-        setPhraseTestStatus('Sing to start time');
-    }
-
-    async function restartPhraseTest() {
-        if (!currentPhrase) generatePhrase();
-        state.testPanelOpen = true;
-        syncPhraseTestControls();
-        resizePhraseTestCanvas();
-        resetPhraseTestSession();
-        await startPhraseTestListening();
-        const phrase = phraseForPlayback();
-        if (phrase && state.testPlayOnRestart) await playPhrase(phrase);
-    }
-
     async function startPhraseTest() {
         if (!currentPhrase) generatePhrase();
-        state.testPanelOpen = true;
-        syncPhraseTestControls();
-        resizePhraseTestCanvas();
-        await restartPhraseTest();
-    }
-
-    async function togglePhraseTestListening() {
-        if (state.testListening) {
-            stopPhraseTestListening();
-            return;
-        }
-        if (!session.startedAt) resetPhraseTestSession();
-        await startPhraseTestListening();
-    }
-
-    function togglePhraseTestTargets() {
-        state.showTestTargets = !state.showTestTargets;
-        saveSettings();
-        syncPhraseTestControls();
-        drawPhraseTest();
+        await testPanel.open();
     }
 
     function renderHistory() {
@@ -732,41 +580,17 @@
         getEl('testBtn')?.addEventListener('click', startPhraseTest);
         getEl('nextBtn')?.addEventListener('click', playNext);
         getEl('stopBtn')?.addEventListener('click', () => {
-            closePhraseTestMode();
+            testPanel.close();
             stopPlayback();
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
-        getEl('phraseTestRestartBtn')?.addEventListener('click', restartPhraseTest);
-        getEl('phraseTestListenBtn')?.addEventListener('click', togglePhraseTestListening);
-        getEl('phraseTestTargetsBtn')?.addEventListener('click', togglePhraseTestTargets);
-        PracticeControls.wireToggle('phraseTestPlayToggle', state.testPlayOnRestart, checked => {
-            state.testPlayOnRestart = checked;
-            saveSettings();
-        });
-        PracticeControls.wireToggle('phraseTestPauseToggle', state.testPauseOnSilence, checked => {
-            state.testPauseOnSilence = checked;
-            saveSettings();
-            resetPhraseTestSession();
-        });
-        PracticeControls.wireToggle('phraseTestWindowToggle', state.testFixedWindow, checked => {
-            state.testFixedWindow = checked;
-            saveSettings();
-            drawPhraseTest();
-        });
-        PracticeControls.wireToggle('phraseTestRangeToggle', state.testExpandRange, checked => {
-            state.testExpandRange = checked;
-            saveSettings();
-            drawPhraseTest();
-        });
         getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
         window.addEventListener('pointerup', endPointerToggle);
         window.addEventListener('pointercancel', endPointerToggle);
-        window.addEventListener('resize', resizePhraseTestCanvas);
         updatePhraseDisplay();
         renderHistory();
         syncRepeatButton();
-        syncPhraseTestControls();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],

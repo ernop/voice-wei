@@ -8,6 +8,7 @@
     <title>Phrases - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=78">
     <link rel="stylesheet" href="scales.css?v=78">
+    <link rel="stylesheet" href="practice-controls.css?v=78">
     <link rel="stylesheet" href="phrases.css?v=78">
 </head>
 
@@ -29,7 +30,7 @@
                     <span class="button-text">Repeat Off</span>
                     <span class="button-icon">&#8635;</span>
                 </button>
-                <button id="testBtn" class="play-button phrase-test-button" aria-label="Test phrase pitch">
+                <button id="testBtn" class="play-button pitch-test-launch-button" aria-label="Test phrase pitch">
                     <span class="button-text">Test</span>
                     <span class="button-icon">&#9835;</span>
                 </button>
@@ -49,50 +50,7 @@
                 </div>
             </section>
 
-            <section class="phrase-test-panel" id="phraseTestPanel" aria-label="Phrase pitch test" hidden>
-                <div class="phrase-test-header">
-                    <div>
-                        <h2>Phrase Test</h2>
-                        <p id="phraseTestSubtitle">Sing the phrase. Time starts only when your voice is detected.</p>
-                    </div>
-                    <div class="phrase-test-actions">
-                        <button id="phraseTestRestartBtn" class="phrase-stage-btn" type="button">Restart</button>
-                        <button id="phraseTestListenBtn" class="phrase-stage-btn" type="button" aria-pressed="true">Listening On</button>
-                        <button id="phraseTestTargetsBtn" class="phrase-stage-btn selected" type="button" aria-pressed="true">Targets On</button>
-                    </div>
-                </div>
-                <label class="display-toggle phrase-test-play-toggle">
-                    <input type="checkbox" id="phraseTestPlayToggle">
-                    <span>Play guide on restart</span>
-                </label>
-                <div class="phrase-test-options">
-                    <label class="display-toggle">
-                        <input type="checkbox" id="phraseTestPauseToggle" checked>
-                        <span>Pause on silence</span>
-                    </label>
-                    <label class="display-toggle">
-                        <input type="checkbox" id="phraseTestWindowToggle">
-                        <span>20s window</span>
-                    </label>
-                    <label class="display-toggle">
-                        <input type="checkbox" id="phraseTestRangeToggle">
-                        <span>Expand range</span>
-                    </label>
-                </div>
-                <div class="phrase-test-readout" aria-live="polite">
-                    <span id="phraseTestPitch">Pitch: --</span>
-                    <span id="phraseTestCents">-- cents</span>
-                    <span id="phraseTestStatus">Sing to start time</span>
-                </div>
-                <div class="phrase-test-canvas-wrap">
-                    <canvas id="phraseTestCanvas"></canvas>
-                </div>
-                <div class="phrase-test-legend">
-                    <span><i class="legend-target"></i> target phrase</span>
-                    <span><i class="legend-sung"></i> sung pitch</span>
-                    <span><i class="legend-scale"></i> scale degree rails</span>
-                </div>
-            </section>
+            <section id="phraseTestPanel" aria-label="Phrase pitch test" hidden></section>
 
             <div class="voice-first-ui phrase-controls phrase-control-grid">
                 <section class="phrase-control-card phrase-control-card-timing">
@@ -205,6 +163,7 @@
     <script src="practice-controls.js?v=78"></script>
     <script src="settings-store.js?v=78"></script>
     <script src="media-session-core.js?v=78"></script>
+    <script src="pitch-test-panel.js?v=78"></script>
     <script src="phrases.js?v=78"></script>
 </body>
 

@@ -32,6 +32,7 @@ interface Window {
     PracticeControls?: any;
     SettingsStore?: any;
     MediaSessionCore?: any;
+    PitchTestPanel?: any;
 }
 
 // -----------------------------------------------------------------------
