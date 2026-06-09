@@ -1,9 +1,8 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // PITCH METER - Real-time pitch detection with practice modes
-// Uses Web Audio API for microphone capture
-// Uses autocorrelation for pitch detection
-// Uses Tone.js Sampler with Salamander piano samples
+// Consumes pitch-detect-core (mic + detection + glitch filtering),
+// piano-core (Salamander piano), and settings-store.
 //
 // Requires: music-constants.js (NOTE_NAMES, SCALE_PATTERNS, utility functions)
 //-----------------------------------------------------------------------
@@ -16,57 +15,6 @@ const INSTRUMENT_PRESETS = Object.freeze({
     bass: { octave: 2, label: 'Bass' }
 });
 
-//-------PITCH DETECTION (Autocorrelation)-------
-
-/**
- * @param {Float32Array} buffer - Audio buffer samples
- * @param {number} sampleRate - Audio sample rate
- * @returns {number} Detected frequency in Hz, or -1 if no pitch detected
- */
-function autoCorrelate(buffer, sampleRate) {
-    const SIZE = buffer.length;
-    const MAX_SAMPLES = Math.floor(SIZE / 2);
-    let bestOffset = -1;
-    let bestCorrelation = 0;
-    let foundGoodCorrelation = false;
-    const correlations = new Array(MAX_SAMPLES);
-
-    let rms = 0;
-    for (let i = 0; i < SIZE; i++) {
-        rms += buffer[i] * buffer[i];
-    }
-    rms = Math.sqrt(rms / SIZE);
-    if (rms < 0.01) return -1;
-
-    let lastCorrelation = 1;
-    for (let offset = 0; offset < MAX_SAMPLES; offset++) {
-        let correlation = 0;
-        for (let i = 0; i < MAX_SAMPLES; i++) {
-            correlation += Math.abs(buffer[i] - buffer[i + offset]);
-        }
-        correlation = 1 - correlation / MAX_SAMPLES;
-        correlations[offset] = correlation;
-
-        if (correlation > 0.9 && correlation > lastCorrelation) {
-            foundGoodCorrelation = true;
-            if (correlation > bestCorrelation) {
-                bestCorrelation = correlation;
-                bestOffset = offset;
-            }
-        } else if (foundGoodCorrelation) {
-            const shift = (correlations[bestOffset + 1] - correlations[bestOffset - 1]) /
-                correlations[bestOffset];
-            return sampleRate / (bestOffset + 8 * shift);
-        }
-        lastCorrelation = correlation;
-    }
-
-    if (bestCorrelation > 0.01) {
-        return sampleRate / bestOffset;
-    }
-    return -1;
-}
-
 //-------PITCH METER CONTROLLER-------
 
 /**
@@ -76,23 +24,28 @@ function autoCorrelate(buffer, sampleRate) {
  */
 
 class PitchMeterController {
+    static STORAGE_KEY = 'pitch-meter-settings';
+    static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
+
     constructor() {
-        /** @type {AudioContext | null} */
-        this.audioContext = null;
-        /** @type {AnalyserNode | null} */
-        this.analyser = null;
-        /** @type {MediaStreamAudioSourceNode | null} */
-        this.microphone = null;
         /** @type {boolean} */
         this.isListening = false;
-        /** @type {number | null} */
-        this.animationId = null;
 
-        // Piano sampler (same as scales page)
-        /** @type {import('tone').Sampler | null} */
-        this.sampler = null;
-        /** @type {import('tone').Gain | null} */
-        this.gainNode = null;
+        // Mic capture + glitch-filtered recording (shared core)
+        this.session = PitchDetectCore.createTraceSession({
+            pauseOnSilence: () => false,
+            onAccepted: (sample) => this.onPitchAccepted(sample),
+            onSilence: () => this.clearPitchDisplay()
+        });
+        // While set, accepted samples are tagged and collected for scoring.
+        /** @type {PitchSample[] | null} */
+        this.captureSamples = null;
+        /** @type {string | null} */
+        this.captureTargetName = null;
+
+        // Piano (shared core)
+        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+        this.piano = null;
         /** @type {boolean} */
         this.samplerLoaded = false;
         /** @type {boolean} */
@@ -115,12 +68,6 @@ class PitchMeterController {
         this.octave = 4;
         /** @type {TargetNote[]} */
         this.targetNotes = [];
-
-        // Recording/listening data
-        /** @type {PitchSample[]} */
-        this.pitchHistory = [];
-        /** @type {number} */
-        this.sessionStartTime = 0;
 
         // Call & Response tracking
         /** @type {number} */
@@ -180,12 +127,14 @@ class PitchMeterController {
         if (modeSelect) modeSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.mode = /** @type {'free' | 'call-response' | 'play-along'} */ (target.value);
+            this.saveSettings();
             this.updateModeUI();
         });
 
         if (responseTimeSelect) responseTimeSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.responseTime = parseInt(target.value);
+            this.saveSettings();
         });
 
         const instrumentSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('instrumentSelect'));
@@ -196,67 +145,70 @@ class PitchMeterController {
         if (instrumentSelect) instrumentSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.instrument = target.value;
+            this.saveSettings();
             this.applyInstrumentPreset();
         });
         if (rootSelect) rootSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.rootNote = target.value;
+            this.saveSettings();
             this.updateTargetNotes();
         });
         if (scaleSelect) scaleSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.scaleType = target.value;
+            this.saveSettings();
             this.updateTargetNotes();
         });
         if (octaveSelect) octaveSelect.addEventListener('change', (e) => {
             const target = /** @type {HTMLSelectElement} */ (e.target);
             this.octave = parseInt(target.value);
+            this.saveSettings();
             this.updateTargetNotes();
         });
 
-        // Initialize sampler
-        await this.initSampler();
+        SettingsStore.load(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
+        this.syncSettingsUI();
+
+        await this.initPiano();
 
         this.updateTargetNotes();
         this.updateModeUI();
         this.drawChart();
     }
 
-    async initSampler() {
-        this.updateStatus('Loading piano...');
+    saveSettings() {
+        SettingsStore.save(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
+    }
 
-        const baseUrl = 'https://tonejs.github.io/audio/salamander/';
-        this.gainNode = new Tone.Gain(1).toDestination();
-
-        return new Promise((resolve) => {
-            this.sampler = new Tone.Sampler({
-                urls: {
-                    'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-                    'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-                    'A2': 'A2.mp3', 'C3': 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-                    'A3': 'A3.mp3', 'C4': 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-                    'A4': 'A4.mp3', 'C5': 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-                    'A5': 'A5.mp3', 'C6': 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
-                    'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
-                    'A7': 'A7.mp3', 'C8': 'C8.mp3',
-                },
-                baseUrl: baseUrl,
-                onload: () => {
-                    console.log('Piano samples loaded');
-                    this.samplerLoaded = true;
-                    this.enableButtons();
-                    this.updateStatus('Choose a mode and click Start');
-                    resolve();
-                },
-                onerror: (err) => {
-                    console.error('Error loading piano samples:', err);
-                    this.updateStatus('Failed to load piano. Refresh to retry.');
-                    resolve();
-                }
-            }).connect(this.gainNode);
-
-            this.sampler.volume.value = -3;
+    // Push restored settings back into the select elements.
+    syncSettingsUI() {
+        /** @type {Array<[string, string]>} */
+        const selectValues = [
+            ['modeSelect', this.mode],
+            ['responseTimeSelect', String(this.responseTime)],
+            ['instrumentSelect', this.instrument],
+            ['rootSelect', this.rootNote],
+            ['scaleSelect', this.scaleType],
+            ['octaveSelect', String(this.octave)]
+        ];
+        selectValues.forEach(([id, value]) => {
+            const el = /** @type {HTMLSelectElement | null} */ (document.getElementById(id));
+            if (el) el.value = value;
         });
+    }
+
+    async initPiano() {
+        this.updateStatus('Loading piano...');
+        try {
+            this.piano = await PianoCore.createPiano();
+            this.samplerLoaded = true;
+            this.enableButtons();
+            this.updateStatus('Choose a mode and click Start');
+        } catch (err) {
+            console.error('Error loading piano samples:', err);
+            this.updateStatus('Failed to load piano. Refresh to retry.');
+        }
     }
 
     enableButtons() {
@@ -334,52 +286,42 @@ class PitchMeterController {
     async startSession() {
         this.stopScalePlayback();
 
-        try {
-            if (!this.audioContext) {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            this.microphone = this.audioContext.createMediaStreamSource(stream);
-
-            this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 2048;
-            this.microphone.connect(this.analyser);
-
-            this.isListening = true;
-            this.sessionAborted = false;
-            this.pitchHistory = [];
-            this.noteResults = [];
-            this.currentNoteIndex = 0;
-            this.sessionStartTime = Date.now();
-
-            // Update UI
-            const listenBtn = document.getElementById('listenBtn');
-            const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
-            const resultsPanel = document.getElementById('resultsPanel');
-            if (listenBtn) {
-                listenBtn.classList.add('listening');
-                const btnText = listenBtn.querySelector('.button-text');
-                if (btnText) btnText.textContent = 'Listening...';
-            }
-            if (stopBtn) stopBtn.disabled = false;
-            if (resultsPanel) resultsPanel.style.display = 'none';
-
-            await Tone.start();
-
-            // Start the appropriate mode
-            if (this.mode === 'free') {
-                this.updateStatus('Listening... Sing any notes');
-                this.analyzeLoop();
-            } else if (this.mode === 'call-response') {
-                this.startCallResponseMode();
-            } else if (this.mode === 'play-along') {
-                this.startPlayAlongMode();
-            }
-
-        } catch (err) {
-            console.error('Microphone access denied:', err);
+        const ok = await this.session.start();
+        if (!ok) {
             this.updateStatus('Microphone access denied. Please allow microphone access.');
+            return;
+        }
+        this.session.reset();
+
+        this.isListening = true;
+        this.sessionAborted = false;
+        this.noteResults = [];
+        this.currentNoteIndex = 0;
+        this.captureSamples = null;
+        this.captureTargetName = null;
+
+        // Update UI
+        const listenBtn = document.getElementById('listenBtn');
+        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
+        const resultsPanel = document.getElementById('resultsPanel');
+        if (listenBtn) {
+            listenBtn.classList.add('listening');
+            const btnText = listenBtn.querySelector('.button-text');
+            if (btnText) btnText.textContent = 'Listening...';
+        }
+        if (stopBtn) stopBtn.disabled = false;
+        if (resultsPanel) resultsPanel.style.display = 'none';
+
+        await PianoCore.ensureStarted();
+
+        // The shared session records continuously; modes only direct the
+        // piano and tag/collect samples through onPitchAccepted.
+        if (this.mode === 'free') {
+            this.updateStatus('Listening... Sing any notes');
+        } else if (this.mode === 'call-response') {
+            this.startCallResponseMode();
+        } else if (this.mode === 'play-along') {
+            this.startPlayAlongMode();
         }
     }
 
@@ -387,20 +329,14 @@ class PitchMeterController {
         this.sessionAborted = true;
         this.isListening = false;
         this.isPlayingScale = false;
+        this.captureSamples = null;
+        this.captureTargetName = null;
 
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-
-        if (this.microphone) {
-            this.microphone.disconnect();
-            this.microphone = null;
-        }
+        this.session.stop();
 
         // Stop any playing notes
-        if (this.sampler) {
-            this.sampler.releaseAll();
+        if (this.piano) {
+            this.piano.mute();
         }
 
         // Update UI
@@ -413,7 +349,7 @@ class PitchMeterController {
         this.updateStatus('Stopped');
 
         // Show results if we have data
-        if (this.pitchHistory.length > 0) {
+        if (this.session.history.length > 0) {
             if (this.mode === 'call-response' && this.noteResults.length > 0) {
                 this.analyzeCallResponseResults();
             } else {
@@ -422,38 +358,14 @@ class PitchMeterController {
         }
     }
 
-    //-------FREE PRACTICE MODE-------
+    //-------SAMPLE HANDLING-------
 
-    analyzeLoop() {
-        if (!this.isListening) return;
-
-        const buffer = new Float32Array(this.analyser.fftSize);
-        this.analyser.getFloatTimeDomainData(buffer);
-
-        const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
-
-        if (freq > 0 && freq < 2000) {
-            const midi = freqToMidi(freq);
-            const noteInfo = midiToNoteName(midi);
-            const cents = getCentsDeviation(freq);
-
-            this.updatePitchDisplay(noteInfo.full, cents, freq);
-
-            const elapsed = Date.now() - this.sessionStartTime;
-            this.pitchHistory.push({
-                time: elapsed,
-                freq,
-                midi,
-                note: noteInfo.full,
-                cents
-            });
-
-            this.drawChart();
-        } else {
-            this.clearPitchDisplay();
-        }
-
-        this.animationId = requestAnimationFrame(() => this.analyzeLoop());
+    /** @param {PitchSample} sample */
+    onPitchAccepted(sample) {
+        this.updatePitchDisplay(sample.note, sample.cents, sample.freq);
+        if (this.captureTargetName) sample.targetNote = this.captureTargetName;
+        if (this.captureSamples) this.captureSamples.push(sample);
+        this.drawChart();
     }
 
     //-------CALL & RESPONSE MODE-------
@@ -478,7 +390,7 @@ class PitchMeterController {
         this.updateStatus(`Note ${noteNum}/${total}: Hear ${note.name}, then match it!`);
 
         // Play the note
-        this.sampler.triggerAttackRelease(note.name, '2n');
+        this.piano.playName(note.name, '2n');
 
         // Wait a moment for the note to sound, then start listening period
         await this.sleep(600);
@@ -488,48 +400,15 @@ class PitchMeterController {
         this.updateStatus(`Now sing ${note.name}! (${this.responseTime}s)`);
         this.noteStartTime = Date.now();
 
-        // Collect pitch data for the response time window
+        // Collect pitch data for the response time window; the shared
+        // session loop fills this through onPitchAccepted.
+        /** @type {PitchSample[]} */
         const pitchSamples = [];
-        const endTime = Date.now() + (this.responseTime * 1000);
-
-        while (Date.now() < endTime && this.isListening && !this.sessionAborted) {
-            const buffer = new Float32Array(this.analyser.fftSize);
-            this.analyser.getFloatTimeDomainData(buffer);
-            const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
-
-            if (freq > 0 && freq < 2000) {
-                const midi = freqToMidi(freq);
-                const noteInfo = midiToNoteName(midi);
-                const cents = getCentsDeviation(freq);
-
-                this.updatePitchDisplay(noteInfo.full, cents, freq);
-
-                pitchSamples.push({
-                    time: Date.now() - this.sessionStartTime,
-                    freq,
-                    midi,
-                    note: noteInfo.full,
-                    cents
-                });
-
-                // Also add to overall history for chart
-                const elapsed = Date.now() - this.sessionStartTime;
-                this.pitchHistory.push({
-                    time: elapsed,
-                    freq,
-                    midi,
-                    note: noteInfo.full,
-                    cents,
-                    targetNote: note.name
-                });
-
-                this.drawChart();
-            } else {
-                this.clearPitchDisplay();
-            }
-
-            await this.sleep(50);  // Sample roughly 20 times per second
-        }
+        this.captureSamples = pitchSamples;
+        this.captureTargetName = note.name;
+        await this.sleep(this.responseTime * 1000);
+        this.captureSamples = null;
+        this.captureTargetName = null;
 
         if (!this.isListening || this.sessionAborted) return;
 
@@ -677,48 +556,19 @@ class PitchMeterController {
 
         this.isPlayingScale = true;
 
-        // Play scale while simultaneously listening
+        // Play scale while simultaneously listening; the shared session
+        // records and tags samples via captureTargetName.
         for (let i = 0; i < this.targetNotes.length; i++) {
             if (!this.isListening || this.sessionAborted) break;
 
             const note = this.targetNotes[i];
             this.updateStatus(`Sing: ${note.name}`);
 
-            // Play the note
-            this.sampler.triggerAttackRelease(note.name, '4n');
-
-            // Listen for response time while note is playing
-            const endTime = Date.now() + (this.responseTime * 1000);
-            while (Date.now() < endTime && this.isListening && !this.sessionAborted) {
-                const buffer = new Float32Array(this.analyser.fftSize);
-                this.analyser.getFloatTimeDomainData(buffer);
-                const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
-
-                if (freq > 0 && freq < 2000) {
-                    const midi = freqToMidi(freq);
-                    const noteInfo = midiToNoteName(midi);
-                    const cents = getCentsDeviation(freq);
-
-                    this.updatePitchDisplay(noteInfo.full, cents, freq);
-
-                    const elapsed = Date.now() - this.sessionStartTime;
-                    this.pitchHistory.push({
-                        time: elapsed,
-                        freq,
-                        midi,
-                        note: noteInfo.full,
-                        cents,
-                        targetNote: note.name
-                    });
-
-                    this.drawChart();
-                } else {
-                    this.clearPitchDisplay();
-                }
-
-                await this.sleep(50);
-            }
+            this.piano.playName(note.name, '4n');
+            this.captureTargetName = note.name;
+            await this.sleep(this.responseTime * 1000);
         }
+        this.captureTargetName = null;
 
         if (this.isListening && !this.sessionAborted) {
             this.stopSession();
@@ -764,8 +614,8 @@ class PitchMeterController {
 
     stopScalePlayback() {
         this.isPlayingScale = false;
-        if (this.sampler) {
-            this.sampler.releaseAll();
+        if (this.piano) {
+            this.piano.mute();
         }
     }
 
@@ -778,7 +628,7 @@ class PitchMeterController {
         }
 
         this.isPlayingScale = true;
-        await Tone.start();
+        await PianoCore.ensureStarted();
 
         this.updateStatus('Playing ' + this.rootNote + ' ' + this.scaleType + ' scale...');
 
@@ -786,7 +636,7 @@ class PitchMeterController {
             if (!this.isPlayingScale) break;
 
             const note = this.targetNotes[i];
-            this.sampler.triggerAttackRelease(note.name, '4n');
+            this.piano.playName(note.name, '4n');
             await this.sleep(500);
         }
 
@@ -836,8 +686,8 @@ class PitchMeterController {
         });
 
         // Draw pitch history trace
-        if (this.pitchHistory.length > 1) {
-            const maxTime = this.pitchHistory[this.pitchHistory.length - 1].time;
+        if (this.session.history.length > 1) {
+            const maxTime = this.session.history[this.session.history.length - 1].time;
             const timeWindow = Math.max(maxTime, 5000);
 
             this.ctx.lineWidth = 2;
@@ -847,8 +697,8 @@ class PitchMeterController {
             this.ctx.beginPath();
             let started = false;
 
-            for (let i = 0; i < this.pitchHistory.length; i++) {
-                const point = this.pitchHistory[i];
+            for (let i = 0; i < this.session.history.length; i++) {
+                const point = this.session.history[i];
                 const x = 50 + (point.time / timeWindow) * (width - 60);
                 const y = midiToY(point.midi);
 
@@ -874,8 +724,8 @@ class PitchMeterController {
             this.ctx.stroke();
 
             // Draw dots at each point
-            for (let i = 0; i < this.pitchHistory.length; i += 3) {
-                const point = this.pitchHistory[i];
+            for (let i = 0; i < this.session.history.length; i += 3) {
+                const point = this.session.history[i];
                 const x = 50 + (point.time / timeWindow) * (width - 60);
                 const y = midiToY(point.midi);
 
@@ -912,7 +762,7 @@ class PitchMeterController {
         let totalCentsDeviation = 0;
         let validSamples = 0;
 
-        this.pitchHistory.forEach(sample => {
+        this.session.history.forEach(sample => {
             let nearestTarget = null;
             let nearestDist = Infinity;
 
