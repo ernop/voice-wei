@@ -1,0 +1,11 @@
+id: tts-only-in-voice-output
+message: Speech synthesis belongs in voice-output.js - use VoiceOutput.speak() or VoiceOutput.speakAtPitch() instead
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/voice-output.js"
+rule:
+  pattern: new SpeechSynthesisUtterance($$$ARGS)
+note: "Pages used to build their own utterances with drifting rate/pitch/voice choices. voice-output.js is the single owner of TTS."

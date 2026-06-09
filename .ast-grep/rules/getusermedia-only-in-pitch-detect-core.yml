@@ -1,0 +1,11 @@
+id: getusermedia-only-in-pitch-detect-core
+message: Microphone capture belongs in pitch-detect-core.js - use createMicCapture() or createTraceSession() instead
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/pitch-detect-core.js"
+rule:
+  pattern: navigator.mediaDevices.getUserMedia($$$ARGS)
+note: "Four pages used to open their own microphone pipeline. pitch-detect-core.js is the single owner of getUserMedia, analyser setup, and pitch detection."

@@ -1,0 +1,12 @@
+id: salamander-only-in-piano-core
+message: Salamander piano sampler setup belongs in piano-core.js - use PianoCore.createPiano() instead
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/piano-core.js"
+rule:
+  kind: string_fragment
+  regex: "salamander"
+note: "Five pages used to carry their own copy of this sampler setup. piano-core.js is the single owner now; consume it instead of duplicating."

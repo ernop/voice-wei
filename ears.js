@@ -1323,26 +1323,13 @@ class EarsController {
     async startDronePitchDetection() {
         if (this.isPitchDetecting) return;
 
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            this.audioContext = new AudioContext();
-            this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 2048;
-            this.microphone = this.audioContext.createMediaStreamSource(stream);
-            this.microphone.connect(this.analyser);
-
-            this.isPitchDetecting = true;
-            this.dronePitchLoop();
-        } catch (err) {
-            console.error('Microphone access denied:', err);
+        const ok = await this.micCapture.start();
+        if (!ok) {
             this.stopDroneTest();
+            return;
         }
+        this.isPitchDetecting = true;
+        this.dronePitchLoop();
     }
 
     dronePitchLoop() {
