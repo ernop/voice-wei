@@ -37,53 +37,23 @@ const INTERVAL_PRESETS = Object.freeze({
 });
 
 //-------AUDIO COORDINATOR (simplified for intervals)-------
+// Interval-specific playback on top of the shared piano-core sampler.
 
 class EarsAudioCoordinator {
     constructor() {
-        /** @type {InstanceType<typeof Tone.Sampler> | null} */
-        this.synth = null;
-        /** @type {InstanceType<typeof Tone.Gain> | null} */
-        this.gainNode = null;
+        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+        this.piano = null;
         /** @type {boolean} */
         this.isReady = false;
     }
 
     async init() {
-        const baseUrl = 'https://tonejs.github.io/audio/salamander/';
-        this.gainNode = new Tone.Gain(1).toDestination();
-
-        return new Promise((resolve, reject) => {
-            this.synth = new Tone.Sampler({
-                urls: {
-                    'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-                    'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-                    'A2': 'A2.mp3', 'C3': 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-                    'A3': 'A3.mp3', 'C4': 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-                    'A4': 'A4.mp3', 'C5': 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-                    'A5': 'A5.mp3', 'C6': 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
-                    'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
-                    'A7': 'A7.mp3', 'C8': 'C8.mp3',
-                },
-                baseUrl: baseUrl,
-                onload: () => {
-                    console.log('Piano samples loaded');
-                    this.isReady = true;
-                    resolve(undefined);
-                },
-                onerror: (err) => {
-                    console.error('Error loading piano samples:', err);
-                    reject(err);
-                }
-            }).connect(this.gainNode);
-
-            this.synth.volume.value = -3;
-        });
+        this.piano = await PianoCore.createPiano();
+        this.isReady = true;
     }
 
     async ensureStarted() {
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
+        await PianoCore.ensureStarted();
     }
 
     /**
@@ -96,19 +66,14 @@ class EarsAudioCoordinator {
      */
     async playMelodicInterval(rootMidi, semitones, direction, noteLength = 800, gap = 200) {
         await this.ensureStarted();
-        if (!this.synth) return;
+        if (!this.piano) return;
 
-        const note1 = midiToNoteName(rootMidi).full;
         const targetMidi = direction === 'ascending' ? rootMidi + semitones : rootMidi - semitones;
-        const note2 = midiToNoteName(targetMidi).full;
-
         const duration = noteLength / 1000;
 
-        this.synth.triggerAttackRelease(note1, duration);
-
-        await new Promise(resolve => setTimeout(resolve, noteLength + gap));
-
-        this.synth.triggerAttackRelease(note2, duration);
+        this.piano.playMidi(rootMidi, duration);
+        await PianoCore.sleep(noteLength + gap);
+        this.piano.playMidi(targetMidi, duration);
     }
 
     /**
@@ -118,12 +83,9 @@ class EarsAudioCoordinator {
      */
     async playHarmonicInterval(rootMidi, semitones) {
         await this.ensureStarted();
-        if (!this.synth) return;
+        if (!this.piano) return;
 
-        const note1 = midiToNoteName(rootMidi).full;
-        const note2 = midiToNoteName(rootMidi + semitones).full;
-
-        this.synth.triggerAttackRelease([note1, note2], '2n');
+        this.piano.playMidiChord([rootMidi, rootMidi + semitones], '2n');
     }
 
     /**
@@ -132,62 +94,10 @@ class EarsAudioCoordinator {
      */
     async playNote(midi) {
         await this.ensureStarted();
-        if (!this.synth) return;
+        if (!this.piano) return;
 
-        const note = midiToNoteName(midi).full;
-        this.synth.triggerAttackRelease(note, '2n');
+        this.piano.playMidi(midi, '2n');
     }
-}
-
-//-------PITCH DETECTION (from pitch-meter.js)-------
-
-/**
- * @param {Float32Array} buffer
- * @param {number} sampleRate
- * @returns {number}
- */
-function autoCorrelate(buffer, sampleRate) {
-    const SIZE = buffer.length;
-    const MAX_SAMPLES = Math.floor(SIZE / 2);
-    let bestOffset = -1;
-    let bestCorrelation = 0;
-    let foundGoodCorrelation = false;
-    const correlations = new Array(MAX_SAMPLES);
-
-    let rms = 0;
-    for (let i = 0; i < SIZE; i++) {
-        rms += buffer[i] * buffer[i];
-    }
-    rms = Math.sqrt(rms / SIZE);
-    if (rms < 0.01) return -1;
-
-    let lastCorrelation = 1;
-    for (let offset = 0; offset < MAX_SAMPLES; offset++) {
-        let correlation = 0;
-        for (let i = 0; i < MAX_SAMPLES; i++) {
-            correlation += Math.abs(buffer[i] - buffer[i + offset]);
-        }
-        correlation = 1 - correlation / MAX_SAMPLES;
-        correlations[offset] = correlation;
-
-        if (correlation > 0.9 && correlation > lastCorrelation) {
-            foundGoodCorrelation = true;
-            if (correlation > bestCorrelation) {
-                bestCorrelation = correlation;
-                bestOffset = offset;
-            }
-        } else if (foundGoodCorrelation) {
-            const shift = (correlations[bestOffset + 1] - correlations[bestOffset - 1]) /
-                correlations[bestOffset];
-            return sampleRate / (bestOffset + 8 * shift);
-        }
-        lastCorrelation = correlation;
-    }
-
-    if (bestCorrelation > 0.01) {
-        return sampleRate / bestOffset;
-    }
-    return -1;
 }
 
 //-------EARS CONTROLLER-------
@@ -197,13 +107,15 @@ class EarsController {
         // Audio
         this.audio = new EarsAudioCoordinator();
 
-        // Pitch detection
-        /** @type {AudioContext | null} */
-        this.audioContext = null;
-        /** @type {AnalyserNode | null} */
-        this.analyser = null;
-        /** @type {MediaStreamAudioSourceNode | null} */
-        this.microphone = null;
+        // Pitch detection (shared core). Echo cancellation helps filter
+        // out the piano/drone coming from the speakers.
+        this.micCapture = PitchDetectCore.createMicCapture({
+            audioConstraints: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
         /** @type {boolean} */
         this.isPitchDetecting = false;
         /** @type {number | null} */
@@ -1120,11 +1032,7 @@ class EarsController {
      * @param {string} text
      */
     speak(text) {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.1;
-            speechSynthesis.speak(utterance);
-        }
+        VoiceOutput.speak(text);
     }
 
     //-------SING MODE-------
@@ -1188,27 +1096,13 @@ class EarsController {
     async startPitchDetection() {
         if (this.isPitchDetecting) return;
 
-        try {
-            // Enable echo cancellation to help filter out speaker output
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            this.audioContext = new AudioContext();
-            this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 2048;
-            this.microphone = this.audioContext.createMediaStreamSource(stream);
-            this.microphone.connect(this.analyser);
-
-            this.isPitchDetecting = true;
-            this.detectPitchLoop();
-        } catch (err) {
-            console.error('Microphone access denied:', err);
+        const ok = await this.micCapture.start();
+        if (!ok) {
             this.showFeedback('Microphone access required for sing mode', 'info');
+            return;
         }
+        this.isPitchDetecting = true;
+        this.detectPitchLoop();
     }
 
     stopPitchDetection() {
@@ -1217,10 +1111,7 @@ class EarsController {
             cancelAnimationFrame(this.pitchAnimationId);
             this.pitchAnimationId = null;
         }
-        if (this.audioContext) {
-            this.audioContext.close();
-            this.audioContext = null;
-        }
+        this.micCapture.stop();
     }
 
     /**
@@ -1263,26 +1154,20 @@ class EarsController {
     }
 
     detectPitchLoop() {
-        if (!this.isPitchDetecting || !this.analyser || !this.audioContext) return;
+        if (!this.isPitchDetecting || !this.micCapture.running) return;
         if (this.singCompleted) return;
 
-        const buffer = new Float32Array(this.analyser.fftSize);
-        this.analyser.getFloatTimeDomainData(buffer);
+        const info = this.micCapture.readPitch();
 
-        const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
-
-        if (freq > 0) {
-            const midi = freqToMidi(freq);
-            const note = midiToNoteName(Math.round(midi));
-
+        if (info) {
             const pitchCurrent = document.getElementById('pitchCurrent');
             if (pitchCurrent) {
-                pitchCurrent.textContent = note.full;
+                pitchCurrent.textContent = info.note;
             }
 
             // Check accuracy against target
             if (this.targetMidi !== null) {
-                const cents = Math.round((midi - this.targetMidi) * 100);
+                const cents = Math.round((info.midi - this.targetMidi) * 100);
                 const pitchAccuracy = document.getElementById('pitchAccuracy');
                 const isGood = Math.abs(cents) <= this.singTolerance;
 
@@ -1395,7 +1280,7 @@ class EarsController {
         if (targetEl) targetEl.textContent = this.droneNote;
 
         // Create drone synth (simple sine wave)
-        await Tone.start();
+        await PianoCore.ensureStarted();
         this.droneSynth = new Tone.Synth({
             oscillator: { type: 'sine' },
             envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
@@ -1461,22 +1346,17 @@ class EarsController {
     }
 
     dronePitchLoop() {
-        if (!this.isPitchDetecting || !this.droneActive || !this.analyser || !this.audioContext) return;
+        if (!this.isPitchDetecting || !this.droneActive || !this.micCapture.running) return;
 
-        const buffer = new Float32Array(this.analyser.fftSize);
-        this.analyser.getFloatTimeDomainData(buffer);
-
-        const freq = autoCorrelate(buffer, this.audioContext.sampleRate);
+        const info = this.micCapture.readPitch();
 
         const currentEl = document.getElementById('dronePitchCurrent');
         const centsEl = document.getElementById('droneCents');
 
-        if (freq > 0 && this.droneTargetMidi !== null) {
-            const midi = freqToMidi(freq);
-            const note = midiToNoteName(Math.round(midi));
-            const cents = Math.round((midi - this.droneTargetMidi) * 100);
+        if (info && this.droneTargetMidi !== null) {
+            const cents = Math.round((info.midi - this.droneTargetMidi) * 100);
 
-            if (currentEl) currentEl.textContent = note.full;
+            if (currentEl) currentEl.textContent = info.note;
 
             if (centsEl) {
                 if (Math.abs(cents) <= 15) {
