@@ -1,5 +1,7 @@
 // @ts-check
-// Interval training -- two exercise types, level-based
+// Interval training -- two exercise types, level-based.
+// Consumes pattern-practice-core, piano-core, practice-controls,
+// settings-store, and media-session-core.
 
 (function () {
     'use strict';
@@ -12,6 +14,8 @@
     //
     // TYPE B: "Movement clusters" -- relative jumps, each from previous note.
     //   "+2, -3" from note X = play X, then X+2, then (X+2)-3 = X-1.
+
+    const ri = PatternPracticeCore.randomInt;
 
     // Type A levels (degree sequences). Offsets are degree distances from root.
     // dp = degrees per octave (7 for major). ceiling = dp normally, dp*2 when expanded.
@@ -80,8 +84,6 @@
             } },
     ];
 
-    function ri(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
-
     // ---- STATE ----
     const state = {
         root: 'C',
@@ -102,84 +104,40 @@
         nextRequested: false,
     };
 
-    /** @type {InstanceType<typeof Tone.Sampler> | null} */
-    let synth = null;
-    /** @type {InstanceType<typeof Tone.Gain> | null} */
-    let gainNode = null;
+    const STORAGE_KEY = 'intervals-settings';
+    const PERSISTED_KEYS = [
+        'root', 'octave', 'scale', 'lengthMs', 'gapMs', 'speakNumbers',
+        'playNotes', 'showNoteNames', 'expandRange', 'reverse', 'repeat',
+        'exerciseType', 'selectedLevel'
+    ];
 
-    // ---- AUDIO ----
-    async function initAudio() {
-        gainNode = new Tone.Gain(1).toDestination();
-        return new Promise((resolve, reject) => {
-            synth = new Tone.Sampler({
-                urls: {
-                    'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-                    'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-                    'A2': 'A2.mp3', 'C3': 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-                    'A3': 'A3.mp3', 'C4': 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-                    'A4': 'A4.mp3', 'C5': 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-                    'A5': 'A5.mp3', 'C6': 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
-                    'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
-                    'A7': 'A7.mp3', 'C8': 'C8.mp3',
-                },
-                baseUrl: 'https://tonejs.github.io/audio/salamander/',
-                onload: () => { console.log('Piano loaded'); resolve(); },
-                onerror: (err) => reject(err)
-            }).connect(gainNode);
-            synth.volume.value = -3;
-        });
+    /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+    let piano = null;
+
+    const sleep = PianoCore.sleep;
+
+    function saveSettings() {
+        SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
     function playNote(noteName) {
-        if (!synth) return;
-        gainNode.gain.setValueAtTime(1, Tone.now());
-        synth.triggerAttackRelease(noteName, state.lengthMs / 1000);
+        if (!piano) return;
+        piano.playName(noteName, state.lengthMs / 1000);
     }
-
-    function stopAudio() {
-        if (synth) synth.releaseAll();
-        if (gainNode) gainNode.gain.setValueAtTime(0, Tone.now());
-    }
-
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     // ---- SCALE MATH ----
     function buildExtendedScale() {
-        const pattern = SCALE_PATTERNS[state.scale] || SCALE_PATTERNS.major;
-        const baseIntervals = pattern.filter(s => s < 12);
-        const rootMidi = noteNameToMidi(state.root, state.octave);
-        if (rootMidi === null) return [];
-        const notes = [];
-        for (let oct = 0; oct < 3; oct++) {
-            for (const interval of baseIntervals) {
-                const midi = rootMidi + oct * 12 + interval;
-                const info = midiToNoteName(midi);
-                notes.push({ midi, name: info.full, noteName: info.name, octave: info.octave });
-            }
-        }
-        return notes;
+        return PatternPracticeCore.buildExtendedScale({
+            root: state.root,
+            octave: state.octave,
+            scaleType: state.scale,
+            lowerOctaves: 0,
+            upperOctaves: 3
+        });
     }
 
     function degreesPerOctave() {
-        const pattern = SCALE_PATTERNS[state.scale] || SCALE_PATTERNS.major;
-        return pattern.filter(s => s < 12).length;
-    }
-
-    // ---- DEGREE DISPLAY ----
-    // Converts an offset to a display degree string.
-    // Positive: off+1 (1,2,...8,9...). Negative: wraps to prior octave with down arrow.
-    // off=-1 in 7-note scale = degree 7 of the lower octave = "7\u2193"
-    function offsetToDegree(off, dpOct) {
-        if (off >= 0) return String(off + 1);
-        const wrapped = ((off % dpOct) + dpOct) % dpOct;
-        return (wrapped + 1) + '\u2193';
-    }
-
-    // For speech: same logic but says "down" instead of arrow
-    function offsetToSpoken(off, dpOct) {
-        if (off >= 0) return String(off + 1);
-        const wrapped = ((off % dpOct) + dpOct) % dpOct;
-        return (wrapped + 1) + ' down';
+        return PatternPracticeCore.degreesPerOctave(state.scale);
     }
 
     // ---- INSTANCE GENERATION ----
@@ -212,8 +170,8 @@
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
-            displayDegrees.push(offsetToDegree(off, dpOct));
-            spokenDegrees.push(offsetToSpoken(off, dpOct));
+            displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
+            spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
         }
 
         if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
@@ -250,8 +208,8 @@
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
-            displayDegrees.push(offsetToDegree(off, dpOct));
-            spokenDegrees.push(offsetToSpoken(off, dpOct));
+            displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
+            spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
         }
 
         if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
@@ -265,9 +223,8 @@
         state.running = true;
         state.stopRequested = false;
 
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
+        await MediaSessionCore.activate();
+        await PianoCore.ensureStarted();
 
         const display = document.getElementById('currentDisplay');
 
@@ -331,7 +288,11 @@
         state.stopRequested = true;
         state.running = false;
         VoiceOutput.stop();
-        stopAudio();
+        if (piano) piano.mute();
+    }
+
+    function requestNext() {
+        state.nextRequested = true;
     }
 
     // ---- HISTORY ----
@@ -361,6 +322,7 @@
         // If current selection is from wrong type, switch to first of correct type
         if (!levels.find(l => l.id === state.selectedLevel)) {
             state.selectedLevel = levels[0].id;
+            saveSettings();
         }
 
         for (const lvl of levels) {
@@ -374,6 +336,7 @@
                 container.querySelectorAll('[data-level]').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
                 state.selectedLevel = lvl.id;
+                saveSettings();
             });
             container.appendChild(btn);
         }
@@ -381,15 +344,10 @@
 
     function initUI() {
         // Exercise type toggle
-        document.querySelectorAll('[data-type]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            if (btn.dataset.type === state.exerciseType) btn.classList.add('selected');
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                state.exerciseType = btn.dataset.type || 'A';
-                updateLevelButtons();
-            });
+        PracticeControls.wireSingleSelect('data-type', String, state.exerciseType, value => {
+            state.exerciseType = value || 'A';
+            saveSettings();
+            updateLevelButtons();
         });
 
         // Level buttons (initial)
@@ -404,15 +362,9 @@
             { attr: 'data-gap', stateKey: 'gapMs', parse: Number },
         ];
         for (const { attr, stateKey, parse } of singleGroups) {
-            document.querySelectorAll(`[${attr}]`).forEach(btn => {
-                if (String(parse(btn.getAttribute(attr))) === String(state[stateKey])) {
-                    btn.classList.add('selected');
-                }
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll(`[${attr}]`).forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    state[stateKey] = parse(btn.getAttribute(attr));
-                });
+            PracticeControls.wireSingleSelect(attr, parse, state[stateKey], value => {
+                state[stateKey] = value;
+                saveSettings();
             });
         }
 
@@ -426,28 +378,34 @@
             { id: 'toggleRepeat', key: 'repeat' },
         ];
         for (const { id, key } of toggles) {
-            const el = /** @type {HTMLInputElement | null} */ (document.getElementById(id));
-            if (!el) continue;
-            el.checked = state[key];
-            el.addEventListener('change', () => { state[key] = el.checked; });
+            PracticeControls.wireToggle(id, Boolean(state[key]), checked => {
+                state[key] = checked;
+                saveSettings();
+            });
         }
 
         document.getElementById('playBtn').addEventListener('click', runLoop);
         document.getElementById('stopBtn').addEventListener('click', stopLoop);
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            state.nextRequested = true;
-        });
+        document.getElementById('nextBtn').addEventListener('click', requestNext);
         document.getElementById('clearHistoryBtn').addEventListener('click', () => {
             document.getElementById('historyList').innerHTML =
                 '<p class="history-empty">No patterns yet</p>';
         });
+
+        MediaSessionCore.register('Intervals', [
+            ['play', () => { runLoop(); }],
+            ['pause', () => { stopLoop(); }],
+            ['nexttrack', () => { requestNext(); }],
+            ['seekforward', () => { requestNext(); }]
+        ]);
+        MediaSessionCore.primeOnUserGesture();
     }
 
     // ---- BOOT ----
     async function boot() {
-        await initAudio();
+        SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        piano = await PianoCore.createPiano();
         initUI();
-        console.log('Intervals page ready');
     }
     boot();
 })();
