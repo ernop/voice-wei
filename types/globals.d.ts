@@ -26,6 +26,12 @@ interface Window {
     TranscriptManager?: any;
     VoiceOutput?: any;
     PatternPracticeCore?: any;
+    PianoCore?: any;
+    PitchDetectCore?: any;
+    PitchTraceView?: any;
+    PracticeControls?: any;
+    SettingsStore?: any;
+    MediaSessionCore?: any;
 }
 
 // -----------------------------------------------------------------------

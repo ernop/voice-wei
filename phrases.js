@@ -2,6 +2,8 @@
 //-----------------------------------------------------------------------
 // PHRASES
 // Dedicated phrase memory and reproduction practice.
+// Consumes piano-core, pitch-detect-core, pitch-trace-view,
+// practice-controls, settings-store, and media-session-core.
 //-----------------------------------------------------------------------
 
 (function () {
@@ -32,18 +34,21 @@
         testExpandRange: false
     };
 
+    const STORAGE_KEY = 'phrases-settings';
+    const PERSISTED_KEYS = [
+        'root', 'octave', 'scaleType', 'startAtOne', 'allowOutOfOctave',
+        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
+        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames',
+        'showTestTargets', 'testPlayOnRestart', 'testPauseOnSilence',
+        'testFixedWindow', 'testExpandRange'
+    ];
+
     const STRUCTURE_KEYS = new Set([
         'minLength', 'maxLength', 'returnToInitial', 'returnToRoot'
     ]);
     const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
-    const TEST_GLITCH_JUMP_MIDI = 5.5;
-    const TEST_GLITCH_WINDOW_MS = 220;
-    const TEST_GLITCH_CONFIRM_MS = 260;
-    const TEST_GLITCH_CONFIRM_MIDI = 1.2;
     const TEST_FIXED_WINDOW_MS = 20000;
-    const MEDIA_SESSION_SILENCE_SECONDS = 10;
-    const MEDIA_SESSION_SAMPLE_RATE = 8000;
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -53,10 +58,8 @@
     const ROOT_PITCH_MIN_MIDI = 36; // C2
     const ROOT_PITCH_MAX_MIDI = 71; // B4
 
-    /** @type {InstanceType<typeof Tone.Sampler> | null} */
-    let synth = null;
-    /** @type {InstanceType<typeof Tone.Gain> | null} */
-    let gainNode = null;
+    /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+    let piano = null;
     /** @type {any | null} */
     let currentPhrase = null;
     /** @type {boolean[] } */
@@ -66,63 +69,16 @@
     let playToken = 0;
     let isPointerToggling = false;
     let pointerToggleValue = true;
-    /** @type {AudioContext | null} */
-    let testAudioContext = null;
-    /** @type {AnalyserNode | null} */
-    let testAnalyser = null;
-    /** @type {MediaStreamAudioSourceNode | null} */
-    let testMicrophone = null;
-    /** @type {MediaStream | null} */
-    let testStream = null;
-    /** @type {number | null} */
-    let testAnimationId = null;
-    /** @type {Array<{ time: number, freq: number, midi: number, cents: number, note: string }>} */
-    let testPitchHistory = [];
-    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
-    let testLastAcceptedPitch = null;
-    /** @type {{ time: number, freq: number, midi: number, cents: number, note: string } | null} */
-    let testPendingPitchJump = null;
-    let testSessionStartedAt = 0;
-    let testVoiceElapsedMs = 0;
-    /** @type {number | null} */
-    let testLastVoiceAt = null;
-    /** @type {HTMLAudioElement | null} */
-    let mediaSessionAudio = null;
-    /** @type {string | null} */
-    let mediaSessionAudioUrl = null;
 
-    function getEl(id) { return document.getElementById(id); }
+    const getEl = PracticeControls.getEl;
     function setStatus(text) { const el = getEl('phraseStatus'); if (el) el.textContent = text; }
 
-    async function initAudio() {
-        gainNode = new Tone.Gain(1).toDestination();
-        return new Promise((resolve, reject) => {
-            synth = new Tone.Sampler({
-                urls: {
-                    'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-                    'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-                    'A2': 'A2.mp3', 'C3': 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-                    'A3': 'A3.mp3', 'C4': 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-                    'A4': 'A4.mp3', 'C5': 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-                    'A5': 'A5.mp3', 'C6': 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
-                    'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
-                    'A7': 'A7.mp3', 'C8': 'C8.mp3',
-                },
-                baseUrl: 'https://tonejs.github.io/audio/salamander/',
-                onload: () => resolve(undefined),
-                onerror: reject
-            }).connect(gainNode);
-            synth.volume.value = -3;
-        });
-    }
-
-    async function ensureAudioStarted() {
-        if (Tone.context.state !== 'running') await Tone.start();
+    function saveSettings() {
+        SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
     function cancelCurrentSound() {
-        if (synth) synth.releaseAll();
-        if (gainNode) gainNode.gain.setValueAtTime(0, Tone.now());
+        if (piano) piano.mute();
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
@@ -135,106 +91,11 @@
         setStatus(status);
     }
 
-    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-    function createSilentWavUrl() {
-        const sampleCount = MEDIA_SESSION_SAMPLE_RATE * MEDIA_SESSION_SILENCE_SECONDS;
-        const byteRate = MEDIA_SESSION_SAMPLE_RATE;
-        const buffer = new ArrayBuffer(44 + sampleCount);
-        const view = new DataView(buffer);
-
-        /** @param {number} offset @param {string} text */
-        const writeAscii = (offset, text) => {
-            for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
-        };
-
-        writeAscii(0, 'RIFF');
-        view.setUint32(4, 36 + sampleCount, true);
-        writeAscii(8, 'WAVE');
-        writeAscii(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, MEDIA_SESSION_SAMPLE_RATE, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, 1, true);
-        view.setUint16(34, 8, true);
-        writeAscii(36, 'data');
-        view.setUint32(40, sampleCount, true);
-
-        const samples = new Uint8Array(buffer, 44);
-        samples.fill(128);
-
-        return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
-    }
-
-    async function activateMediaSessionAudio() {
-        if (!mediaSessionAudio) {
-            mediaSessionAudioUrl = createSilentWavUrl();
-            mediaSessionAudio = new Audio(mediaSessionAudioUrl);
-            mediaSessionAudio.loop = true;
-            mediaSessionAudio.volume = 1;
-            mediaSessionAudio.preload = 'auto';
-            mediaSessionAudio.setAttribute('playsinline', 'true');
-            mediaSessionAudio.style.display = 'none';
-            document.body.appendChild(mediaSessionAudio);
-        }
-
-        try {
-            await mediaSessionAudio.play();
-            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        } catch (err) {
-            // Chrome may require a user gesture before exposing hardware media controls.
-        }
-    }
-
-    /**
-     * @param {Float32Array} buffer
-     * @param {number} sampleRate
-     */
-    function detectPitch(buffer, sampleRate) {
-        const size = buffer.length;
-        const maxSamples = Math.floor(size / 2);
-        let bestOffset = -1;
-        let bestCorrelation = 0;
-        let foundGoodCorrelation = false;
-        const correlations = new Array(maxSamples);
-
-        let rms = 0;
-        for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
-        rms = Math.sqrt(rms / size);
-        if (rms < 0.01) return -1;
-
-        let lastCorrelation = 1;
-        for (let offset = 0; offset < maxSamples; offset++) {
-            let correlation = 0;
-            for (let i = 0; i < maxSamples; i++) {
-                correlation += Math.abs(buffer[i] - buffer[i + offset]);
-            }
-            correlation = 1 - correlation / maxSamples;
-            correlations[offset] = correlation;
-
-            if (correlation > 0.9 && correlation > lastCorrelation) {
-                foundGoodCorrelation = true;
-                if (correlation > bestCorrelation) {
-                    bestCorrelation = correlation;
-                    bestOffset = offset;
-                }
-            } else if (foundGoodCorrelation) {
-                const shift = (correlations[bestOffset + 1] - correlations[bestOffset - 1]) / correlations[bestOffset];
-                return sampleRate / (bestOffset + 8 * shift);
-            }
-            lastCorrelation = correlation;
-        }
-
-        if (bestCorrelation > 0.01 && bestOffset > 0) return sampleRate / bestOffset;
-        return -1;
-    }
+    const sleep = PianoCore.sleep;
 
     function playMidi(midi) {
-        if (!synth || !gainNode) return;
-        gainNode.gain.setValueAtTime(1, Tone.now());
-        synth.triggerAttackRelease(midiToPitchString(midi), state.noteLengthMs / 1000);
+        if (!piano) return;
+        piano.playMidi(midi, state.noteLengthMs / 1000);
     }
 
     function buildPhrase() {
@@ -276,7 +137,6 @@
             noteNames: midiNotes.map(midi => midiToPitchString(midi))
         };
     }
-
 
     function renderPhraseUnits(phrase) {
         const degreesEl = getEl('phraseDegrees');
@@ -385,13 +245,66 @@
     /** @param {any} phrase */
     function phraseTestTimeWindowMs(phrase) {
         if (state.testFixedWindow) return TEST_FIXED_WINDOW_MS;
-        return Math.max(4000, phraseTestDurationMs(phrase) + 700, phraseTestClockMs() + 250);
+        return Math.max(4000, phraseTestDurationMs(phrase) + 700, session.clockMs() + 250);
     }
 
-    function phraseTestClockMs() {
-        if (state.testPauseOnSilence) return testVoiceElapsedMs;
-        return testSessionStartedAt ? performance.now() - testSessionStartedAt : 0;
+    // Singing far outside the charted rails is a detector artifact, not a
+    // note; such samples are discarded before they reach the trace.
+    /** @param {number} midi */
+    function isPhraseTestOutlier(midi) {
+        const lines = buildPhraseTestScaleLines(phraseForPlayback());
+        if (!lines.length) return false;
+        const min = Math.min(...lines.map(line => line.midi));
+        const max = Math.max(...lines.map(line => line.midi));
+        return midi < min || midi > max;
     }
+
+    const session = PitchDetectCore.createTraceSession({
+        pauseOnSilence: () => state.testPauseOnSilence,
+        isOutlier: isPhraseTestOutlier,
+        onAccepted: sample => {
+            updatePhraseTestReadout(sample.note, sample.cents, sample.freq);
+            setPhraseTestStatus('Listening and drawing');
+        },
+        onSilence: () => clearPhraseTestReadout(),
+        onFrame: () => drawPhraseTest()
+    });
+
+    function buildPhraseTestTargets() {
+        if (!state.showTestTargets) return [];
+        const phrase = phraseForPlayback();
+        if (!phrase) return [];
+        const stepMs = state.noteLengthMs + state.gapMs;
+        const phraseDuration = phraseTestDurationMs(phrase);
+        return phrase.midiNotes.map((midi, index) => ({
+            midi,
+            startMs: index * stepMs,
+            endMs: Math.min(index * stepMs + state.noteLengthMs, phraseDuration),
+            label: phrase.displayDegrees[index],
+            active: activeMask[index] !== false
+        }));
+    }
+
+    const testView = PitchTraceView.create({
+        canvasId: 'phraseTestCanvas',
+        defaultHeightPx: 380,
+        isVisible: () => state.testPanelOpen,
+        emptyMessage: () => (phraseForPlayback() ? null : 'Generate a phrase, then press Test.'),
+        rails: () => buildPhraseTestScaleLines(phraseForPlayback()).map(line => ({
+            midi: line.midi,
+            label: `${line.label} ${line.noteName}`,
+            emphasized: line.offset >= 0 && line.offset <= PatternPracticeCore.degreesPerOctave(state.scaleType)
+        })),
+        targets: buildPhraseTestTargets,
+        history: () => session.history,
+        clockMs: () => session.clockMs(),
+        windowMs: () => phraseTestTimeWindowMs(phraseForPlayback()),
+        fixedWindow: () => state.testFixedWindow,
+        showPlayhead: () => session.startedAt > 0
+    });
+
+    function drawPhraseTest() { testView.draw(); }
+    function resizePhraseTestCanvas() { testView.resize(); }
 
     function syncPhraseTestControls() {
         const panel = getEl('phraseTestPanel');
@@ -411,8 +324,10 @@
             targetsBtn.textContent = state.showTestTargets ? 'Targets On' : 'Targets Off';
         }
 
-        syncPhraseTestPlayToggle();
-        syncPhraseTestOptionToggles();
+        PracticeControls.syncToggle('phraseTestPlayToggle', state.testPlayOnRestart);
+        PracticeControls.syncToggle('phraseTestPauseToggle', state.testPauseOnSilence);
+        PracticeControls.syncToggle('phraseTestWindowToggle', state.testFixedWindow);
+        PracticeControls.syncToggle('phraseTestRangeToggle', state.testExpandRange);
     }
 
     /** @param {string} message */
@@ -441,221 +356,10 @@
     }
 
     function resetPhraseTestSession() {
-        testPitchHistory = [];
-        testLastAcceptedPitch = null;
-        testPendingPitchJump = null;
-        testVoiceElapsedMs = 0;
-        testLastVoiceAt = null;
-        testSessionStartedAt = performance.now();
+        session.reset();
         clearPhraseTestReadout();
         setPhraseTestStatus('Sing to start time');
         drawPhraseTest();
-    }
-
-    function nextPhraseTestVoiceTime() {
-        const now = performance.now();
-        if (testLastVoiceAt === null) {
-            testLastVoiceAt = now;
-            return testVoiceElapsedMs;
-        }
-
-        const delta = now - testLastVoiceAt;
-        testLastVoiceAt = now;
-        if (delta <= 240) testVoiceElapsedMs += delta;
-        return testVoiceElapsedMs;
-    }
-
-    /** @param {{ time: number, freq: number, midi: number, cents: number, note: string }} sample */
-    function recordPhraseTestPitchSample(sample) {
-        if (!testLastAcceptedPitch) {
-            testPitchHistory.push(sample);
-            testLastAcceptedPitch = sample;
-            return true;
-        }
-
-        const elapsedFromLast = sample.time - testLastAcceptedPitch.time;
-        const jumpFromLast = Math.abs(sample.midi - testLastAcceptedPitch.midi);
-        if (elapsedFromLast <= TEST_GLITCH_WINDOW_MS && jumpFromLast > TEST_GLITCH_JUMP_MIDI) {
-            const confirmsPendingJump = testPendingPitchJump
-                && sample.time - testPendingPitchJump.time <= TEST_GLITCH_CONFIRM_MS
-                && Math.abs(sample.midi - testPendingPitchJump.midi) <= TEST_GLITCH_CONFIRM_MIDI;
-
-            if (!confirmsPendingJump) {
-                testPendingPitchJump = sample;
-                return false;
-            }
-
-            testPitchHistory.push(testPendingPitchJump);
-            testPitchHistory.push(sample);
-            testLastAcceptedPitch = sample;
-            testPendingPitchJump = null;
-            return true;
-        }
-
-        testPendingPitchJump = null;
-        testPitchHistory.push(sample);
-        testLastAcceptedPitch = sample;
-        return true;
-    }
-
-    function resizePhraseTestCanvas() {
-        const canvas = /** @type {HTMLCanvasElement | null} */ (getEl('phraseTestCanvas'));
-        if (!canvas || !state.testPanelOpen) return;
-        const container = canvas.parentElement;
-        if (!container) return;
-        const rect = container.getBoundingClientRect();
-        if (rect.width <= 0) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const cssHeight = canvas.getBoundingClientRect().height || 380;
-        canvas.width = Math.floor(rect.width * dpr);
-        canvas.height = Math.floor(cssHeight * dpr);
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${cssHeight}px`;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawPhraseTest();
-    }
-
-    function drawPhraseTest() {
-        if (!state.testPanelOpen) return;
-
-        const canvas = /** @type {HTMLCanvasElement | null} */ (getEl('phraseTestCanvas'));
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const width = canvas.width / dpr;
-        const height = canvas.height / dpr;
-        if (width <= 0 || height <= 0) return;
-
-        const phrase = phraseForPlayback();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.48)';
-        ctx.fillRect(0, 0, width, height);
-
-        if (!phrase) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-            ctx.font = '14px system-ui';
-            ctx.textAlign = 'center';
-            ctx.fillText('Generate a phrase, then press Test.', width / 2, height / 2);
-            return;
-        }
-
-        const scaleLines = buildPhraseTestScaleLines(phrase);
-        if (!scaleLines.length) return;
-
-        const minMidi = Math.min(...scaleLines.map(line => line.midi));
-        const maxMidi = Math.max(...scaleLines.map(line => line.midi));
-        const midiRange = Math.max(maxMidi - minMidi, 1);
-        const left = width < 520 ? 96 : 132;
-        const right = 16;
-        const top = 18;
-        const bottom = 28;
-        const graphWidth = Math.max(width - left - right, 1);
-        const graphHeight = Math.max(height - top - bottom, 1);
-        const timeWindow = phraseTestTimeWindowMs(phrase);
-        const windowStart = state.testFixedWindow ? Math.max(0, phraseTestClockMs() - timeWindow) : 0;
-        const phraseDuration = phraseTestDurationMs(phrase);
-
-        /** @param {number} midi */
-        const midiToY = (midi) => {
-            const clamped = Math.max(minMidi, Math.min(maxMidi, midi));
-            return top + (maxMidi - clamped) / midiRange * graphHeight;
-        };
-        /** @param {number} ms */
-        const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
-
-        ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        scaleLines.forEach(line => {
-            const y = midiToY(line.midi);
-            const isOctave = line.offset >= 0 && line.offset <= PatternPracticeCore.degreesPerOctave(state.scaleType);
-            ctx.strokeStyle = isOctave ? 'rgba(134, 239, 172, 0.46)' : 'rgba(134, 239, 172, 0.22)';
-            ctx.lineWidth = isOctave ? 1.3 : 1;
-            ctx.setLineDash(isOctave ? [] : [4, 6]);
-            ctx.beginPath();
-            ctx.moveTo(left, y);
-            ctx.lineTo(width - right, y);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            ctx.fillStyle = isOctave ? 'rgba(216, 252, 225, 0.92)' : 'rgba(216, 252, 225, 0.55)';
-            ctx.fillText(`${line.label} ${line.noteName}`, left - 8, y);
-        });
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(left, top);
-        ctx.lineTo(left, height - bottom);
-        ctx.lineTo(width - right, height - bottom);
-        ctx.stroke();
-
-        if (state.showTestTargets) {
-            const stepMs = state.noteLengthMs + state.gapMs;
-            phrase.midiNotes.forEach((midi, index) => {
-                const y = midiToY(midi);
-                const x1 = timeToX(index * stepMs);
-                const x2 = timeToX(Math.min(index * stepMs + state.noteLengthMs, phraseDuration));
-                const targetWidth = Math.max(x2 - x1, 5);
-                const active = activeMask[index] !== false;
-                ctx.fillStyle = active ? 'rgba(96, 165, 250, 0.3)' : 'rgba(148, 163, 184, 0.15)';
-                ctx.strokeStyle = active ? 'rgba(147, 197, 253, 0.9)' : 'rgba(148, 163, 184, 0.38)';
-                ctx.lineWidth = active ? 2 : 1;
-                ctx.fillRect(x1, y - 8, targetWidth, 16);
-                ctx.strokeRect(x1, y - 8, targetWidth, 16);
-                ctx.fillStyle = active ? '#dbeafe' : 'rgba(226, 232, 240, 0.45)';
-                ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
-                ctx.textAlign = 'left';
-                ctx.fillText(phrase.displayDegrees[index], x1 + 4, y - 16);
-            });
-        }
-
-        if (testPitchHistory.length > 1) {
-            ctx.lineWidth = 2.4;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#facc15';
-            ctx.beginPath();
-            let previous = testPitchHistory[0];
-            ctx.moveTo(timeToX(previous.time), midiToY(previous.midi));
-            for (let i = 1; i < testPitchHistory.length; i++) {
-                const point = testPitchHistory[i];
-                const fastJump = point.time - previous.time <= TEST_GLITCH_WINDOW_MS
-                    && Math.abs(point.midi - previous.midi) > TEST_GLITCH_JUMP_MIDI;
-                if (point.time - previous.time > 240 || fastJump) {
-                    ctx.moveTo(timeToX(point.time), midiToY(point.midi));
-                } else {
-                    ctx.lineTo(timeToX(point.time), midiToY(point.midi));
-                }
-                previous = point;
-            }
-            ctx.stroke();
-
-            for (let i = 0; i < testPitchHistory.length; i += 3) {
-                const point = testPitchHistory[i];
-                const absCents = Math.abs(point.cents);
-                ctx.fillStyle = absCents < 12 ? '#4ade80' : absCents < 30 ? '#facc15' : '#fb7185';
-                ctx.beginPath();
-                ctx.arc(timeToX(point.time), midiToY(point.midi), 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        if (testSessionStartedAt) {
-            const x = timeToX(phraseTestClockMs());
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 5]);
-            ctx.beginPath();
-            ctx.moveTo(x, top);
-            ctx.lineTo(x, height - bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
     }
 
     function updatePhraseDisplay() {
@@ -712,7 +416,7 @@
     }
 
     async function playPhrase(phrase) {
-        await ensureAudioStarted();
+        await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
         do {
@@ -764,14 +468,14 @@
     }
 
     async function playCurrentOrNew() {
-        await activateMediaSessionAudio();
+        await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
         const phrase = phraseForPlayback();
         if (phrase) await playPhrase(phrase);
     }
 
     async function playNext() {
-        await activateMediaSessionAudio();
+        await MediaSessionCore.activate();
         closePhraseTestMode();
         state.loopCurrent = false;
         syncRepeatButton();
@@ -801,11 +505,6 @@
         if (text) text.textContent = state.loopCurrent ? 'Repeat On' : 'Repeat Off';
     }
 
-    function renderNoteToggles(phrase) {
-        const container = getEl('phraseNoteToggles');
-        if (container) container.textContent = '';
-    }
-
     function setNoteActive(index, active) {
         activeMask[index] = active;
         const btn = document.querySelector(`.phrase-note-toggle[data-index="${index}"]`);
@@ -830,20 +529,8 @@
     }
 
     function stopPhraseTestListening() {
+        session.stop();
         state.testListening = false;
-        if (testAnimationId !== null) {
-            cancelAnimationFrame(testAnimationId);
-            testAnimationId = null;
-        }
-        if (testMicrophone) {
-            testMicrophone.disconnect();
-            testMicrophone = null;
-        }
-        if (testStream) {
-            testStream.getTracks().forEach(track => track.stop());
-            testStream = null;
-        }
-        testLastVoiceAt = null;
         syncPhraseTestControls();
         setPhraseTestStatus('Listening off');
         drawPhraseTest();
@@ -858,68 +545,18 @@
         setPhraseTestStatus('Ready');
     }
 
-    function runPhraseTestPitchLoop() {
-        if (!state.testListening || !testAnalyser || !testAudioContext) return;
-
-        const buffer = new Float32Array(testAnalyser.fftSize);
-        testAnalyser.getFloatTimeDomainData(buffer);
-        const freq = detectPitch(buffer, testAudioContext.sampleRate);
-
-        if (freq > 0 && freq < 2000) {
-            const midi = freqToMidi(freq);
-            const noteInfo = midiToNoteName(midi);
-            const cents = getCentsDeviation(freq);
-            const sample = {
-                time: state.testPauseOnSilence ? nextPhraseTestVoiceTime() : phraseTestClockMs(),
-                freq,
-                midi,
-                cents,
-                note: noteInfo.full
-            };
-            const accepted = recordPhraseTestPitchSample(sample);
-            if (accepted) {
-                updatePhraseTestReadout(noteInfo.full, cents, freq);
-                setPhraseTestStatus('Listening and drawing');
-            }
-        } else {
-            testPendingPitchJump = null;
-            testLastVoiceAt = null;
-            clearPhraseTestReadout();
-        }
-
-        drawPhraseTest();
-        testAnimationId = requestAnimationFrame(runPhraseTestPitchLoop);
-    }
-
     async function startPhraseTestListening() {
         if (state.testListening) return;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setPhraseTestStatus('Microphone is unavailable in this browser');
-            return;
-        }
-
-        try {
-            if (!testAudioContext) {
-                testAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (testAudioContext.state === 'suspended') await testAudioContext.resume();
-
-            testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            testMicrophone = testAudioContext.createMediaStreamSource(testStream);
-            testAnalyser = testAudioContext.createAnalyser();
-            testAnalyser.fftSize = 2048;
-            testMicrophone.connect(testAnalyser);
-
-            state.testListening = true;
-            syncPhraseTestControls();
-            setPhraseTestStatus('Sing to start time');
-            runPhraseTestPitchLoop();
-        } catch (err) {
-            console.error('Microphone access denied:', err);
+        const ok = await session.start();
+        if (!ok) {
             state.testListening = false;
             syncPhraseTestControls();
-            setPhraseTestStatus('Microphone access denied. Allow microphone access and try Test again.');
+            setPhraseTestStatus('Microphone unavailable or access denied. Allow microphone access and try Test again.');
+            return;
         }
+        state.testListening = true;
+        syncPhraseTestControls();
+        setPhraseTestStatus('Sing to start time');
     }
 
     async function restartPhraseTest() {
@@ -946,28 +583,15 @@
             stopPhraseTestListening();
             return;
         }
-        if (!testSessionStartedAt) resetPhraseTestSession();
+        if (!session.startedAt) resetPhraseTestSession();
         await startPhraseTestListening();
     }
 
     function togglePhraseTestTargets() {
         state.showTestTargets = !state.showTestTargets;
+        saveSettings();
         syncPhraseTestControls();
         drawPhraseTest();
-    }
-
-    function syncPhraseTestPlayToggle() {
-        const el = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPlayToggle'));
-        if (el) el.checked = state.testPlayOnRestart;
-    }
-
-    function syncPhraseTestOptionToggles() {
-        const pauseEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseToggle'));
-        const windowEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestWindowToggle'));
-        const rangeEl = /** @type {HTMLInputElement | null} */ (getEl('phraseTestRangeToggle'));
-        if (pauseEl) pauseEl.checked = state.testPauseOnSilence;
-        if (windowEl) windowEl.checked = state.testFixedWindow;
-        if (rangeEl) rangeEl.checked = state.testExpandRange;
     }
 
     function renderHistory() {
@@ -1016,52 +640,24 @@
         });
     }
 
-
-    function syncSingleSelect(attr, expectedValue) {
-        document.querySelectorAll(`[${attr}]`).forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.getAttribute(attr) === String(expectedValue));
-        });
-    }
-
-    function formatSeconds(ms) {
-        return `${ms / 1000}s`;
-    }
-
-    function setValueText(id, text) {
-        const el = getEl(id);
-        if (el) el.textContent = text;
-    }
-
-    function syncLengthControls() {
-        syncSingleSelect('data-min-length', state.minLength);
-        syncSingleSelect('data-max-length', state.maxLength);
-        setValueText('minLengthValue', String(state.minLength));
-        setValueText('maxLengthValue', String(state.maxLength));
-    }
-
     function syncAdjusterControls() {
-        setValueText('rootPitchValue', `${state.root}${state.octave}`);
-        setValueText('noteLengthValue', formatSeconds(state.noteLengthMs));
-        setValueText('gapValue', formatSeconds(state.gapMs));
-        syncLengthControls();
+        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
+        PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
+        PracticeControls.setValueText('gapValue', PracticeControls.formatSeconds(state.gapMs));
+        PracticeControls.setValueText('minLengthValue', String(state.minLength));
+        PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
 
-        document.querySelectorAll('[data-step-key]').forEach(el => {
-            const btn = /** @type {HTMLButtonElement} */ (el);
-            const key = btn.getAttribute('data-step-key') || '';
-            const delta = Number(btn.getAttribute('data-step-delta') || 0);
+        PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 const midi = rootMidi();
-                btn.disabled = midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
-                return;
+                return midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
             }
-            const values = ADJUSTER_VALUES[key] || [];
-            const index = values.indexOf(state[key]);
-            btn.disabled = delta < 0 ? index <= 0 : index >= values.length - 1;
+            return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
     }
 
     function onSettingChanged(key) {
+        saveSettings();
         if (STRUCTURE_KEYS.has(key)) {
             if (currentPhrase) {
                 stopPlayback('Regenerated');
@@ -1075,22 +671,10 @@
         }
     }
 
-    function wireSingleSelect(attr, stateKey, parse) {
-        document.querySelectorAll(`[${attr}]`).forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const raw = btn.getAttribute(attr) || '';
-            if (String(parse(raw)) === String(state[stateKey])) btn.classList.add('selected');
-            btn.addEventListener('click', () => {
-                document.querySelectorAll(`[${attr}]`).forEach(other => other.classList.remove('selected'));
-                btn.classList.add('selected');
-                state[stateKey] = parse(raw);
-                if (state.minLength > state.maxLength) {
-                    if (stateKey === 'maxLength') state.minLength = state.maxLength;
-                    else state.maxLength = state.minLength;
-                    syncLengthControls();
-                }
-                onSettingChanged(stateKey);
-            });
+    function wireSetting(attr, stateKey, parse) {
+        PracticeControls.wireSingleSelect(attr, parse, state[stateKey], value => {
+            state[stateKey] = value;
+            onSettingChanged(stateKey);
         });
     }
 
@@ -1125,32 +709,8 @@
             return;
         }
 
-        const values = ADJUSTER_VALUES[key] || [];
-        const index = values.indexOf(state[key]);
-        if (index === -1) return;
-        const nextIndex = PatternPracticeCore.clamp(index + delta, 0, values.length - 1);
-        if (nextIndex === index) return;
-        setAdjusterValue(key, values[nextIndex]);
-    }
-
-    function wireAdjusters() {
-        document.querySelectorAll('[data-step-key]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                stepAdjusterValue(btn.getAttribute('data-step-key') || '', Number(btn.getAttribute('data-step-delta') || 0));
-            });
-        });
-
-    }
-
-    function wireToggle(id, stateKey) {
-        const el = /** @type {HTMLInputElement | null} */ (getEl(id));
-        if (!el) return;
-        el.checked = Boolean(state[stateKey]);
-        el.addEventListener('change', () => {
-            state[stateKey] = el.checked;
-            onSettingChanged(stateKey);
-        });
+        const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
+        if (next !== null) setAdjusterValue(key, next);
     }
 
     function toggleReflect() {
@@ -1165,58 +725,17 @@
         if (currentPhrase) playCurrentOrNew();
     }
 
-    function registerMediaSessionHandlers() {
-        if (!('mediaSession' in navigator)) return;
-
-        try {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: 'Phrases',
-                artist: 'Voice-Wei'
-            });
-            navigator.mediaSession.playbackState = 'playing';
-        } catch (err) {
-            // Metadata is optional; action handlers are the useful part here.
-        }
-
-        /** @type {Array<[MediaSessionAction, () => void]>} */
-        const handlers = [
-            ['play', () => { playCurrentOrNew(); }],
-            ['pause', () => { playCurrentOrNew(); }],
-            ['nexttrack', () => { playNext(); }],
-            ['seekforward', () => { playNext(); }],
-            ['seekto', () => { playNext(); }]
-        ];
-
-        handlers.forEach(([action, handler]) => {
-            try {
-                navigator.mediaSession.setActionHandler(action, handler);
-            } catch (err) {
-                // Individual actions vary by browser/device.
-            }
-        });
-    }
-
-    function primeMediaSessionOnUserGesture() {
-        const prime = () => { activateMediaSessionAudio(); };
-        document.addEventListener('pointerup', prime, { once: true });
-        document.addEventListener('click', prime, { once: true });
-        document.addEventListener('touchend', prime, { once: true });
-    }
-
     function initUI() {
-        wireSingleSelect('data-root', 'root', String);
-        wireSingleSelect('data-octave', 'octave', Number);
-        wireSingleSelect('data-scale', 'scaleType', String);
-        wireSingleSelect('data-start', 'startAtOne', value => value === 'one');
-        wireSingleSelect('data-range', 'allowOutOfOctave', value => value === 'expanded');
-        wireSingleSelect('data-return-initial', 'returnToInitial', value => value === 'yes');
-        wireSingleSelect('data-min-length', 'minLength', Number);
-        wireSingleSelect('data-max-length', 'maxLength', Number);
-        wireSingleSelect('data-output', 'outputMode', String);
-        wireSingleSelect('data-length', 'noteLengthMs', Number);
-        wireSingleSelect('data-gap', 'gapMs', Number);
-        wireAdjusters();
-        wireToggle('showNamesToggle', 'showNoteNames');
+        wireSetting('data-scale', 'scaleType', String);
+        wireSetting('data-start', 'startAtOne', value => value === 'one');
+        wireSetting('data-range', 'allowOutOfOctave', value => value === 'expanded');
+        wireSetting('data-return-initial', 'returnToInitial', value => value === 'yes');
+        wireSetting('data-output', 'outputMode', String);
+        PracticeControls.wireSteppers(stepAdjusterValue);
+        PracticeControls.wireToggle('showNamesToggle', state.showNoteNames, checked => {
+            state.showNoteNames = checked;
+            onSettingChanged('showNoteNames');
+        });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
         getEl('testBtn')?.addEventListener('click', startPhraseTest);
@@ -1230,37 +749,25 @@
         getEl('phraseTestRestartBtn')?.addEventListener('click', restartPhraseTest);
         getEl('phraseTestListenBtn')?.addEventListener('click', togglePhraseTestListening);
         getEl('phraseTestTargetsBtn')?.addEventListener('click', togglePhraseTestTargets);
-        const phraseTestPlayToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPlayToggle'));
-        if (phraseTestPlayToggle) {
-            phraseTestPlayToggle.checked = state.testPlayOnRestart;
-            phraseTestPlayToggle.addEventListener('change', () => {
-                state.testPlayOnRestart = phraseTestPlayToggle.checked;
-            });
-        }
-        const phraseTestPauseToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestPauseToggle'));
-        if (phraseTestPauseToggle) {
-            phraseTestPauseToggle.checked = state.testPauseOnSilence;
-            phraseTestPauseToggle.addEventListener('change', () => {
-                state.testPauseOnSilence = phraseTestPauseToggle.checked;
-                resetPhraseTestSession();
-            });
-        }
-        const phraseTestWindowToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestWindowToggle'));
-        if (phraseTestWindowToggle) {
-            phraseTestWindowToggle.checked = state.testFixedWindow;
-            phraseTestWindowToggle.addEventListener('change', () => {
-                state.testFixedWindow = phraseTestWindowToggle.checked;
-                drawPhraseTest();
-            });
-        }
-        const phraseTestRangeToggle = /** @type {HTMLInputElement | null} */ (getEl('phraseTestRangeToggle'));
-        if (phraseTestRangeToggle) {
-            phraseTestRangeToggle.checked = state.testExpandRange;
-            phraseTestRangeToggle.addEventListener('change', () => {
-                state.testExpandRange = phraseTestRangeToggle.checked;
-                drawPhraseTest();
-            });
-        }
+        PracticeControls.wireToggle('phraseTestPlayToggle', state.testPlayOnRestart, checked => {
+            state.testPlayOnRestart = checked;
+            saveSettings();
+        });
+        PracticeControls.wireToggle('phraseTestPauseToggle', state.testPauseOnSilence, checked => {
+            state.testPauseOnSilence = checked;
+            saveSettings();
+            resetPhraseTestSession();
+        });
+        PracticeControls.wireToggle('phraseTestWindowToggle', state.testFixedWindow, checked => {
+            state.testFixedWindow = checked;
+            saveSettings();
+            drawPhraseTest();
+        });
+        PracticeControls.wireToggle('phraseTestRangeToggle', state.testExpandRange, checked => {
+            state.testExpandRange = checked;
+            saveSettings();
+            drawPhraseTest();
+        });
         getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
         window.addEventListener('pointerup', endPointerToggle);
         window.addEventListener('pointercancel', endPointerToggle);
@@ -1270,13 +777,20 @@
         syncRepeatButton();
         syncPhraseTestControls();
         syncAdjusterControls();
-        registerMediaSessionHandlers();
-        primeMediaSessionOnUserGesture();
+        MediaSessionCore.register('Phrases', [
+            ['play', () => { playCurrentOrNew(); }],
+            ['pause', () => { playCurrentOrNew(); }],
+            ['nexttrack', () => { playNext(); }],
+            ['seekforward', () => { playNext(); }],
+            ['seekto', () => { playNext(); }]
+        ]);
+        MediaSessionCore.primeOnUserGesture();
     }
 
     async function boot() {
+        SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
         setStatus('Loading piano');
-        await initAudio();
+        piano = await PianoCore.createPiano();
         initUI();
         setStatus('Ready');
     }
