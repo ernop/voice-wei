@@ -9,6 +9,7 @@
     <title>Scales - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=78">
     <link rel="stylesheet" href="scales.css?v=78">
+    <link rel="stylesheet" href="practice-controls.css?v=78">
 </head>
 
 <body data-page="scales">
@@ -29,6 +30,10 @@
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
                 </button>
+                <button id="singBtn" class="play-button pitch-test-launch-button" aria-label="Open sing test">
+                    <span class="button-text">Sing</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
                 <button id="submitBtn" class="submit-button-large" style="display: none;"
                     aria-label="Submit">Submit</button>
             </div>
@@ -37,6 +42,8 @@
                 <p class="transcript-label">You said:</p>
                 <p class="transcript" id="transcript"></p>
             </div>
+
+            <section id="scalesSingPanel" aria-label="Sing test" hidden></section>
 
             <!-- Piano Keyboard -->
             <div class="piano-container">
@@ -331,8 +338,12 @@
     <script src="voice-output.js?v=78"></script>
     <script src="voice-command-core.js?v=78"></script>
     <script src="piano-core.js?v=78"></script>
+    <script src="pitch-detect-core.js?v=78"></script>
+    <script src="pitch-trace-view.js?v=78"></script>
+    <script src="practice-controls.js?v=78"></script>
     <script src="settings-store.js?v=78"></script>
     <script src="media-session-core.js?v=78"></script>
+    <script src="pitch-test-panel.js?v=78"></script>
     <script src="scales.js?v=78"></script>
 </body>
 

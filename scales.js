@@ -503,10 +503,88 @@ class ScalesController {
         this.loadSettings();
         this.setupVoiceCore();
         this.setupUI();
+        this.setupSingPanel();
         this.loadPresetsFromStorage();
         this.renderPresets();
         this.setupErrorHandling();
         this.setupMediaSession();
+    }
+
+    // Embedded "listen" panel pre-seeded with the current scale: rails are
+    // the scale degrees in the section range, targets are the planned
+    // playback notes at the current note length and gap.
+    setupSingPanel() {
+        this.singPanel = PitchTestPanel.create({
+            hostId: 'scalesSingPanel',
+            idPrefix: 'scalesSing',
+            title: 'Sing Test',
+            subtitle: 'Sing the current scale and watch your pitch against the target notes.',
+            storageKey: 'scales-sing-panel',
+            legendTargetLabel: 'target notes',
+            guideToggleLabel: 'Play scale on restart',
+            rails: ({ expandRange }) => this.buildSingRails(expandRange),
+            targets: () => this.buildSingTargets(),
+            contentDurationMs: () => this.singContentDurationMs(),
+            playGuide: async () => { await this.playAgainOrCurrent(); }
+        });
+
+        const singBtn = document.getElementById('singBtn');
+        if (singBtn) singBtn.addEventListener('click', () => { this.singPanel.open(); });
+    }
+
+    /** @param {boolean} expandRange */
+    buildSingRails(expandRange) {
+        const basePattern = SCALE_PATTERNS[this.settings.scaleType] || SCALE_PATTERNS.major;
+        const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
+        if (rootMidi === null) return [];
+
+        const { min, max } = this.getSectionRange(this.settings.sectionLength || '1o');
+        const lower = expandRange ? min - 12 : min;
+        const upper = expandRange ? max + 12 : max;
+        const intervals = this.getScaleDegreesInRange(basePattern, lower, upper);
+
+        return intervals.map(interval => {
+            const midi = rootMidi + interval;
+            const pitchClass = ((interval % 12) + 12) % 12;
+            const degreeIndex = basePattern.indexOf(pitchClass);
+            const noteName = midiToPitchString(midi);
+            return {
+                midi,
+                label: degreeIndex >= 0 ? `${degreeIndex + 1} ${noteName}` : noteName,
+                emphasized: interval >= 0 && interval <= 12
+            };
+        });
+    }
+
+    buildSingPlan() {
+        return this.buildScalePlaybackPlan({
+            root: this.settings.root,
+            scaleType: this.settings.scaleType,
+            direction: this.settings.direction,
+            movementStyle: this.settings.movementStyle,
+            sectionLength: this.settings.sectionLength
+        });
+    }
+
+    buildSingTargets() {
+        const plan = this.buildSingPlan();
+        if (!plan) return [];
+        const { ms, gap } = this.getNoteDuration();
+        const stepMs = ms + gap;
+        return plan.notes.map((midi, index) => ({
+            midi,
+            startMs: index * stepMs,
+            endMs: index * stepMs + ms,
+            label: NOTE_NAMES[midiPitchClass(midi)],
+            active: true
+        }));
+    }
+
+    singContentDurationMs() {
+        const plan = this.buildSingPlan();
+        if (!plan || !plan.notes.length) return 4000;
+        const { ms, gap } = this.getNoteDuration();
+        return plan.notes.length * (ms + gap);
     }
 
     // JSON cannot store Infinity, so "repeat forever" round-trips as -1.
@@ -1194,6 +1272,7 @@ class ScalesController {
         // Update UI to reflect new settings
         this.syncUIToSettings();
         this.updatePianoNotificationCommand(null);
+        if (this.singPanel) this.singPanel.draw();
 
         // Restart if we were playing - use current settings directly
         if (wasPlaying) {
