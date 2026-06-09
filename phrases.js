@@ -439,19 +439,10 @@
     }
 
     function speakNumberAtPitch(text, midi, durationMs) {
-        return new Promise(resolve => {
-            if (!('speechSynthesis' in window)) { resolve(undefined); return; }
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = PatternPracticeCore.midiToSpeechPitch(midi);
-            utterance.rate = state.noteLengthMs >= 1000 ? 0.85 : 1.0;
-            utterance.volume = 1.0;
-            let settled = false;
-            const finish = () => { if (settled) return; settled = true; resolve(undefined); };
-            utterance.onend = finish;
-            utterance.onerror = finish;
-            window.speechSynthesis.speak(utterance);
-            setTimeout(finish, Math.max(250, durationMs + 250));
+        return VoiceOutput.speakAtPitch(text, {
+            pitch: PatternPracticeCore.midiToSpeechPitch(midi),
+            rate: state.noteLengthMs >= 1000 ? 0.85 : 1.0,
+            durationMs
         });
     }
 

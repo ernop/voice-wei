@@ -29,6 +29,8 @@ const VoiceOutput = (function () {
     let synthesis = null;
     /** @type {SpeechSynthesisVoice | null} */
     let preferredVoice = null;
+    /** @type {SpeechSynthesisVoice | null} An explicit user selection wins over auto-pick */
+    let userVoice = null;
 
     // Ranked preference: first match wins.
     // "Natural" / "Online" voices are cloud-synthesized and dramatically better.
@@ -81,13 +83,20 @@ const VoiceOutput = (function () {
 
     //-------PUBLIC API-------
 
+    /** @param {string} name */
+    function findVoiceByName(name) {
+        if (!synthesis) return null;
+        return synthesis.getVoices().find(v => v.name === name) || null;
+    }
+
     /**
      * Speak text aloud using browser's speechSynthesis.
      *
      * @param {string} text - The text to speak
+     * @param {{ rate?: number, pitch?: number, voiceName?: string | null }} [options] - Per-call overrides
      * @returns {Promise<void>} Resolves when speech completes
      */
-    function speak(text) {
+    function speak(text, options = {}) {
         return new Promise((resolve, reject) => {
             if (!text || typeof text !== 'string') {
                 resolve();
@@ -103,9 +112,12 @@ const VoiceOutput = (function () {
             synthesis.cancel();
 
             const utterance = new SpeechSynthesisUtterance(text);
-            if (preferredVoice) utterance.voice = preferredVoice;
-            utterance.rate = CONFIG.rate;
-            utterance.pitch = CONFIG.pitch;
+            const voice = (options.voiceName ? findVoiceByName(options.voiceName) : null)
+                || userVoice
+                || preferredVoice;
+            if (voice) utterance.voice = voice;
+            utterance.rate = options.rate ?? CONFIG.rate;
+            utterance.pitch = options.pitch ?? CONFIG.pitch;
             utterance.volume = CONFIG.volume;
 
             utterance.onend = () => resolve();
@@ -120,6 +132,40 @@ const VoiceOutput = (function () {
 
             synthesis.speak(utterance);
         });
+    }
+
+    /**
+     * Speak text at an approximate utterance pitch, resolving after speech
+     * ends or after a duration cap. Used for "sing the numbers" output.
+     * Native speech pitch is approximate; callers map notes to pitch values.
+     *
+     * @param {string} text
+     * @param {{ pitch: number, rate?: number, durationMs?: number }} options
+     * @returns {Promise<void>}
+     */
+    function speakAtPitch(text, options) {
+        return new Promise(resolve => {
+            if (!synthesis) { resolve(); return; }
+            synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.pitch = options.pitch;
+            utterance.rate = options.rate ?? 1.0;
+            utterance.volume = CONFIG.volume;
+            let settled = false;
+            const finish = () => { if (settled) return; settled = true; resolve(); };
+            utterance.onend = finish;
+            utterance.onerror = finish;
+            synthesis.speak(utterance);
+            setTimeout(finish, Math.max(250, (options.durationMs || 0) + 250));
+        });
+    }
+
+    /**
+     * Select a specific voice by name; pass null to return to auto-pick.
+     * @param {string | null} name
+     */
+    function setVoiceByName(name) {
+        userVoice = name ? findVoiceByName(name) : null;
     }
 
     /**
@@ -169,6 +215,8 @@ const VoiceOutput = (function () {
     // Public API
     return {
         speak,
+        speakAtPitch,
+        setVoiceByName,
         stop,
         isSpeaking,
         configure,

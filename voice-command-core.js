@@ -558,39 +558,21 @@ class VoiceCommandCore {
     }
 
     /**
-     * Speak text aloud using VoiceOutput library or native speechSynthesis
+     * Speak text aloud via the shared VoiceOutput library, honoring this
+     * core's voice settings (rate, pitch, selected voice).
      * @param {string} text
      * @param {(() => void) | null} [onEnd]
      */
     speakText(text, onEnd = null) {
-        if (typeof VoiceOutput !== 'undefined') {
-            VoiceOutput.speak(text).then(() => {
-                if (onEnd) onEnd();
-            }).catch(() => {
-                if (onEnd) onEnd();
-            });
-        } else if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-
-            utterance.rate = this.settings.voiceRate;
-            utterance.pitch = this.settings.voicePitch;
-
-            if (this.settings.voiceName && this.availableVoices.length > 0) {
-                const voice = this.availableVoices.find(v => v.name === this.settings.voiceName);
-                if (voice) {
-                    utterance.voice = voice;
-                }
-            }
-
-            if (onEnd) {
-                utterance.onend = onEnd;
-            }
-            window.speechSynthesis.speak(utterance);
-        } else {
-            console.warn('[VoiceCommandCore] No speech synthesis available');
+        VoiceOutput.speak(text, {
+            rate: this.settings.voiceRate,
+            pitch: this.settings.voicePitch,
+            voiceName: this.settings.voiceName
+        }).then(() => {
             if (onEnd) onEnd();
-        }
+        }).catch(() => {
+            if (onEnd) onEnd();
+        });
     }
 
     /**
