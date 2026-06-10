@@ -11,6 +11,7 @@ const PORT = process.env.TEST_PORT || '8000';
 const ROOT = path.join(__dirname, '..');
 
 const SUITES = [
+    'test-css-ownership.js',
     'test-pages-load.js',
     'test-playback-engine.js',
     'test-controls.js',

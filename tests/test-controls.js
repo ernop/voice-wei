@@ -8,30 +8,42 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     const report = createReporter('shared controls');
     const browser = await launchWithMic();
 
-    // CANONICAL PICKERS: every page uses the shared picker kinds only.
+    // CANONICAL PICKERS AND CONTROLS: every page uses the shared kinds only.
     // Root/octave/single-pitch choosers are root-pitch steppers; no chip
     // grids, sliders, or selects remain (except Scales' dynamic TTS voice
-    // list, the one deliberate select).
+    // list, the one deliberate select). Retired control dialects must not
+    // reappear anywhere.
     {
         const tab = await browser.newPage();
+        // Classes deleted during convergence; markup using them is a regression
+        const retired = [
+            '.setting-btn', '.toggle-slider', '.setting-row', '.setting-label', '.setting-options',
+            '.preset-btn', '.next-pattern-button', '.stop-button-pitch', '.play-ref-button',
+            '.trace-primary-btn', '.trace-secondary-btn', '.phrase-button-row', '.phrase-toggle-row',
+            '.phrase-repeat-button', '.clear-history-btn', '.copy-all-history-btn', '.copy-all-btn',
+            '.vf-reset-btn', '.test-voice-btn', '.reset-stats-btn', '.sing-control-btn',
+            '.select-all-btn', '.log-toggle-btn', '.clear-log-btn', '.model-selector', '.provider-tab',
+        ].join(', ');
         const expectations = [
             { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], input[type="range"]' },
             { page: 'intervals', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
-            { page: 'ears', steppers: ['droneNote', 'rootRangeMid'], forbidden: 'select, input[type="range"], .setting-btn, .toggle-slider' },
+            { page: 'ears', steppers: ['droneNote', 'rootRangeMid'], forbidden: 'select, input[type="range"]' },
             { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'trace', steppers: [], forbidden: 'select, input[type="range"]' },
+            { page: 'player', steppers: [], forbidden: 'select, input[type="range"]' },
         ];
         for (const { page, steppers, forbidden } of expectations) {
             await tab.goto(`${BASE_URL}/${page}.html`, { waitUntil: 'networkidle' });
             await tab.waitForTimeout(800);
-            const result = await tab.evaluate(({ steppers, forbidden }) => ({
+            const result = await tab.evaluate(({ steppers, forbidden, retired }) => ({
                 missing: steppers.filter(key =>
                     !document.querySelector(`.step-btn[data-step-key="${key}"]`)),
                 stray: Array.from(document.querySelectorAll(forbidden)).length,
-            }), { steppers, forbidden });
-            report.check(`${page} canonical pickers (missing: ${result.missing.join(',') || 'none'}, stray: ${result.stray})`,
-                result.missing.length === 0 && result.stray === 0);
+                dialects: Array.from(document.querySelectorAll(retired)).length,
+            }), { steppers, forbidden, retired });
+            report.check(`${page} canonical controls (missing: ${result.missing.join(',') || 'none'}, stray: ${result.stray}, retired: ${result.dialects})`,
+                result.missing.length === 0 && result.stray === 0 && result.dialects === 0);
         }
         await tab.goto(`${BASE_URL}/scales.html`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(800);

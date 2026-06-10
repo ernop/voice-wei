@@ -166,6 +166,40 @@ One picker kind per value kind, everywhere:
 The only remaining `<select>` is the Scales TTS voice list (dynamic,
 OS-dependent, dozens of entries - a genuinely different picker).
 
+## Canonical control surfaces
+
+Beyond pickers, the rest of the control vocabulary is also fixed:
+
+- **Settings rows**: `vf-row` (labeled row) + `vf-label` (small-caps left
+  label) + `vf-options` (wrapping option container, 5px gap). Standalone
+  `vf-options` is the label-less chip row (phrases output/scale rows).
+- **Transport buttons**: `listen-button` (wide green mic bar),
+  `stop-button` (red), `play-button` (teal; `.listening` goes amber),
+  `next-button` (orange), `repeat-button` (indigo; `.selected` goes green
+  for latching repeat). Same classes in the sticky voice row and inside
+  panels (pitch-meter, trace). `pitch-test-launch-button` is the blue
+  Sing/Test variant of play.
+- **Panel action chips**: `panel-action-btn` for small corner/inline
+  actions (Copy All, Clear, Save, Apply, Delete, Reset, Random, Test,
+  Show, Select All). Add `.danger` for destructive actions (red hover).
+- **Secondary buttons**: `secondary-btn` for mid-size neutral actions
+  (trace Reset, ears sing controls). Also takes `.danger`.
+- **Text fields**: `text-input` base look; pages may size (width,
+  font-size, resize), never re-skin.
+- **Selected state**: `.selected`, everywhere. No `.active` dialects.
+
+Page stylesheets may add layout (placement, sizing) on top of these but
+must not redefine their look. `tests/test-css-ownership.js` fails the
+suite if a page stylesheet redefines a selector owned by
+practice-controls.css.
+
+## Deliberately distinct surfaces
+
+Gameplay surfaces that are not settings controls and intentionally keep
+their own look: ears' answer grid and interval multi-select, scales'
+piano keyboard, the player's media transport bar and lyrics overlay,
+and the ebook reader (a separate non-music tool with its own selects).
+
 ## Known deliberate gaps
 
 - New gaps must be listed here with their reasoning, or fixed.
