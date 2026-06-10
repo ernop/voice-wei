@@ -679,21 +679,6 @@ class VoiceMusicController {
             });
         }
 
-        // Overlay provider tabs
-        const providerTabs = document.querySelectorAll('.provider-tab');
-        providerTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const provider = tab.getAttribute('data-provider');
-                providerTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-
-                const claudeSection = document.getElementById('overlayClaudeSection');
-                const openaiSection = document.getElementById('overlayOpenaiSection');
-                if (claudeSection) claudeSection.style.display = provider === 'claude' ? 'block' : 'none';
-                if (openaiSection) openaiSection.style.display = provider === 'openai' ? 'block' : 'none';
-            });
-        });
-
         // Overlay save buttons
         const claudeOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
         const claudeOverlaySaveBtn = document.getElementById('saveClaudeApiKeyOverlayBtn');

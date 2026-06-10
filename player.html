@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=91">
-    <link rel="stylesheet" href="practice-controls.css?v=91">
+    <link rel="stylesheet" href="style.css?v=92">
+    <link rel="stylesheet" href="practice-controls.css?v=92">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -23,7 +23,7 @@
                 <label for="claudeApiKeyInput">Claude API Key:</label>
                 <div class="api-key-status" id="claudeApiKeyStatus"></div>
                 <div class="api-key-input-row" id="claudeApiKeyInputRow" style="display: none;">
-                    <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." class="api-key-input" />
+                    <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." class="text-input api-key-input" />
                     <button id="saveClaudeApiKeyBtn" class="save-api-key-btn">Save</button>
                 </div>
                 <div class="api-key-actions" id="claudeApiKeyActions" style="display: none;">
@@ -36,13 +36,13 @@
             </div>
 
             <div class="setting-item">
-                <label>
+                <label class="display-toggle">
                     <input type="checkbox" id="readClaudeResponse" />
                     <span>Read Claude responses aloud</span>
                 </label>
             </div>
             <div class="setting-item">
-                <label>
+                <label class="display-toggle">
                     <input type="checkbox" id="autoSubmitMode" checked />
                     <span>Auto-submit when done talking</span>
                 </label>
@@ -68,7 +68,7 @@
                 </p>
                 <div class="api-key-input-row">
                     <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
-                        class="api-key-input" />
+                        class="text-input api-key-input" />
                     <button id="saveClaudeApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
                 </div>
                 <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
@@ -123,7 +123,7 @@
             <div class="typed-command-panel">
                 <label class="typed-command-label" for="typedCommandInput">Type a music request</label>
                 <div class="typed-command-row">
-                    <textarea id="typedCommandInput" class="typed-command-input" rows="2"
+                    <textarea id="typedCommandInput" class="text-input typed-command-input" rows="2"
                         placeholder='Type something like "play mellow Bill Evans for dinner"' aria-label="Type a music request"></textarea>
                     <button id="typedCommandSubmitBtn" class="typed-command-submit-btn"
                         aria-label="Send typed request">Send</button>
@@ -180,10 +180,10 @@
             <div class="log-container collapsed" id="logContainer">
                 <div class="log-header" id="logHeader">
                     <span class="log-label">Log</span>
-                    <button id="logToggleBtn" class="log-toggle-btn">Show</button>
-                    <button id="selectAllLogBtn" class="select-all-btn" style="display: none;">Select All</button>
-                    <button id="copyAllLogBtn" class="copy-all-btn" style="display: none;">Copy All</button>
-                    <button id="clearLogBtn" class="clear-log-btn" style="display: none;">Clear</button>
+                    <button id="logToggleBtn" class="panel-action-btn">Show</button>
+                    <button id="selectAllLogBtn" class="panel-action-btn" style="display: none;">Select All</button>
+                    <button id="copyAllLogBtn" class="panel-action-btn" style="display: none;">Copy All</button>
+                    <button id="clearLogBtn" class="panel-action-btn danger" style="display: none;">Clear</button>
                 </div>
                 <div class="log-content" id="logContent" style="display: none;"></div>
             </div>
@@ -228,11 +228,11 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="shared-header.js?v=91"></script>
-    <script src="practice-controls.js?v=91"></script>
-    <script src="voice-output.js?v=91"></script>
-    <script src="voice-command-core.js?v=91"></script>
-    <script src="player.js?v=91"></script>
+    <script src="shared-header.js?v=92"></script>
+    <script src="practice-controls.js?v=92"></script>
+    <script src="voice-output.js?v=92"></script>
+    <script src="voice-command-core.js?v=92"></script>
+    <script src="player.js?v=92"></script>
 </body>
 
 </html>
