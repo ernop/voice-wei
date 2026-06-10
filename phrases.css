@@ -54,7 +54,9 @@
 .phrase-degree-token {
     flex: 0 0 auto;
     min-width: 1.1ch;
-    padding: 0 0.06em;
+    /* Wide enough that two-character degrees (7d, 15) keep clear air
+       between neighbors even with fallback font metrics on phones */
+    padding: 0 0.14em;
     border: none;
     background: none;
     color: inherit;

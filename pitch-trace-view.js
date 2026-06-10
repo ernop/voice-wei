@@ -147,6 +147,13 @@ const PitchTraceView = (function () {
             ctx.lineTo(width - right, height - bottom);
             ctx.stroke();
 
+            // Labels have no layout engine: keep a per-row cursor so a
+            // wide label ("7d") on a narrow span never collides with its
+            // neighbors - it is skipped instead (the box still shows).
+            ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
+            ctx.textAlign = 'left';
+            /** @type {Map<number, number>} label row y -> right edge of last label */
+            const labelCursor = new Map();
             options.targets().forEach(target => {
                 const y = midiToY(target.midi);
                 const x1 = timeToX(target.startMs);
@@ -160,10 +167,18 @@ const PitchTraceView = (function () {
                 ctx.lineWidth = target.active ? 2 : 1;
                 ctx.fillRect(x1, y - 8, targetWidth, 16);
                 ctx.strokeRect(x1, y - 8, targetWidth, 16);
-                ctx.fillStyle = colors.label;
-                ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
-                ctx.textAlign = 'left';
-                ctx.fillText(target.label, x1 + 4, y - 16);
+
+                // Band the cursor by ~one text height so labels on the
+                // same or neighboring rails share collision space.
+                const labelY = y - 16;
+                const band = Math.round(labelY / 12);
+                const labelWidth = ctx.measureText(target.label).width;
+                const cursor = labelCursor.get(band) ?? -Infinity;
+                if (x1 + 4 >= cursor) {
+                    ctx.fillStyle = colors.label;
+                    ctx.fillText(target.label, x1 + 4, labelY);
+                    labelCursor.set(band, x1 + 4 + labelWidth + 3);
+                }
             });
 
             const history = options.history();
