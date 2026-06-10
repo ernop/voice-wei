@@ -143,6 +143,30 @@ panel) or session (pitch meter) appends to the `practice-progress` list
 (capped at 1000 entries) via `progress-store.js`, which renders per-day
 trend lines.
 
+## Typed contracts (static guarantees first)
+
+The shared musical vocabulary lives in `types/music.d.ts` as global
+ambient types: `KeyContext`, `TargetSpan`, `RailLine`,
+`PitchTestPanelConfig`. Rules:
+
+1. **Data the component cannot work without is required in its config
+   type.** A pitch test cannot exist without `key()` and `playNote()` -
+   omitting them is a tsc error at the call site, before anything runs.
+2. **`create()` validates required fields and throws.** A bad consumer
+   dies at page load (caught by the pages-load suite and by anyone
+   opening the page in dev), never mid-interaction in front of the user.
+3. **Derived behavior is owned by the component, from the typed data.**
+   The panel sequences its own guide from the active `TargetSpan`s, so
+   the guide is by construction the same notes/key/timing as the drawn
+   notation - a consumer cannot supply a guide that disagrees. Consumers
+   only provide `playNote(midi, durationSec)`.
+4. **Shared state is reified, not implicit.** The key is data the panel
+   holds and displays ("Key: D#3 major" in the readout), not something
+   smeared across closures.
+
+New shared components follow the same pattern: a named `...Config` type
+in `types/`, required fields for required data, a throwing constructor.
+
 ## Testing
 
 `npm test` runs the fast headless profile in `tests/`: JavaScript syntax,
@@ -153,13 +177,14 @@ Use `node tests/run-all.js --suite <suite-file>` for targeted browser checks.
 Use `npm run test:full` for slower playback law, shared controls +
 persistence, per-tab functions, and fake-mic listening tests when touching
 those systems. `npm run lint` (ast-grep, including the ownership guards) and
-`npm run typecheck` (checkJs) must stay clean - errors in `player.js` /
-`ebook.js` are a known pre-existing baseline.
+`npm run typecheck` (checkJs) must stay clean - **zero errors, no tolerated
+baseline**. Both run as gates in the deploy workflow; a type error or guard
+violation blocks the push from reaching the live site.
 
 ## Deploy
 
-Push to master -> GitHub Actions rsyncs to production (`--delete`; docs,
-tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
+Push to master -> GitHub Actions runs the static gates (typecheck, lint)
+and then rsyncs to production (`--delete`; docs, tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
 header label, and every `?v=` cache buster - run it whenever a release
 ships. Manual deploy: `./deploy.sh`.
 

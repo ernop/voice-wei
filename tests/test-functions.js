@@ -117,9 +117,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         }));
         report.check(`intervals Sing opens with a pattern ("${opened.pattern}")`,
             opened.open && opened.pattern.length > 0);
-        // Wall-clock mode so the windows pass; take should be recorded
+        // Wall-clock mode so the windows pass; take should be recorded.
+        // Wait scales with the pattern: the guide plays on open and the
+        // last target window must pass before the take records.
         await tab.evaluate(() => document.getElementById('intervalsSingPauseToggle').click());
-        await tab.waitForTimeout(3500);
+        const noteCount = Math.max(2, opened.pattern.split('-').length);
+        await tab.waitForTimeout(noteCount * 600 + 2500);
         const recorded = await tab.evaluate(() => {
             const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
             return entries.some(e => e.tool === 'intervals-sing');
