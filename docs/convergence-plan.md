@@ -47,6 +47,18 @@ Done (v80, cleanup pass):
   player.html gained the robots meta every other page had; `favicon.svg`
   added and linked from every page (no more 404 on each load).
 
+Done (v81, playback correctness):
+- Zero-overlap guarantee in piano-core: the sampler now uses a realistic
+  0.3s damper release (was Tone's 1s default), `mute()` records when tails
+  will be dead, and `waitForSilence()` makes every restart path (phrases
+  replay, scales sequence/exercise/chord, intervals loop, pitch-meter
+  reference/call-response) wait ~350ms so old-settings notes never sound
+  under new ones. Restarts are token/playbackId guarded, so rapid setting
+  changes supersede each other cleanly.
+- Phrases regen rule fixed: min/max length steppers only bound the NEXT
+  generated phrase; they no longer regenerate the current sequence.
+  Regeneration is now only return-to-1 / return-to-root.
+
 Remaining:
 - Phase 3 (rest of it): stepper/segment-row adoption on scales chip rows,
   intervals, pitch-meter selects, ears.
