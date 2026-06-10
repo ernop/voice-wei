@@ -18,6 +18,19 @@ const PatternPracticeCore = (function () {
         return items[randomInt(0, items.length - 1)];
     }
 
+    /**
+     * Uniform random integer in [min, max] excluding one value. Immediate
+     * note repetition reads as a stutter, so generators draw with this
+     * unless a repeat serves a deliberate anchor.
+     * @param {number} min @param {number} max @param {number} exclude
+     */
+    function randomIntExcluding(min, max, exclude) {
+        if (min >= max) return min;
+        if (exclude < min || exclude > max) return randomInt(min, max);
+        const drawn = randomInt(min, max - 1);
+        return drawn >= exclude ? drawn + 1 : drawn;
+    }
+
     /** @param {number} value @param {number} min @param {number} max */
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
@@ -234,7 +247,7 @@ const PatternPracticeCore = (function () {
                 } else if (roll < 0.78) {
                     next = current + randomInt(3, 5) * (Math.random() < 0.5 ? -1 : 1);
                 } else {
-                    next = randomInt(minOffset, maxOffset);
+                    next = randomIntExcluding(minOffset, maxOffset, current);
                     break;
                 }
 
@@ -249,7 +262,7 @@ const PatternPracticeCore = (function () {
                 next = current;
             }
 
-            if (next === current) next = randomInt(minOffset, maxOffset);
+            if (next === current) next = randomIntExcluding(minOffset, maxOffset, current);
             current = clamp(next, minOffset, maxOffset);
             offsets.push(current);
         }
@@ -273,7 +286,7 @@ const PatternPracticeCore = (function () {
         const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
 
         for (let i = 1; i < length; i++) {
-            offsets.push(randomInt(minOffset, maxOffset));
+            offsets.push(randomIntExcluding(minOffset, maxOffset, offsets[offsets.length - 1]));
         }
 
         return addPhraseAnchors(offsets, options, initial);
@@ -364,8 +377,13 @@ const PatternPracticeCore = (function () {
                 ? maxOffset
                 : minOffset;
             const maxStep = Math.random() < 0.72 ? 2 : 4;
+            const previous = current;
             current = stepToward(current, target, maxStep, minOffset, maxOffset);
-            if (Math.random() < 0.18) current = boundedMove(current, randomChoice([-1, 1]), minOffset, maxOffset);
+            if (Math.random() < 0.18) {
+                // The wiggle must not step back onto the note just played.
+                const wiggled = boundedMove(current, randomChoice([-1, 1]), minOffset, maxOffset);
+                if (wiggled !== previous) current = wiggled;
+            }
             offsets.push(current);
         }
 
@@ -492,6 +510,7 @@ const PatternPracticeCore = (function () {
 
     return {
         randomInt,
+        randomIntExcluding,
         clamp,
         positiveModulo,
         rangeBounds,
