@@ -509,12 +509,28 @@ class ScalesController {
             targets: () => this.buildSingTargets(),
             contentDurationMs: () => this.singContentDurationMs(),
             playGuide: async () => { await this.playAgainOrCurrent(); },
+            onOpenChange: open => this.syncSingButton(open),
             progressTool: 'scales-sing',
             progressContext: () => `${this.settings.root}${this.settings.octave} ${this.settings.scaleType} ${this.settings.direction}`
         });
 
+        // The Sing button is a toggle: open the panel, or dismiss it.
         const singBtn = document.getElementById('singBtn');
-        if (singBtn) singBtn.addEventListener('click', () => { this.singPanel.open(); });
+        if (singBtn) singBtn.addEventListener('click', () => {
+            if (this.singPanel.isOpen) {
+                this.singPanel.close();
+                return;
+            }
+            this.singPanel.open();
+        });
+    }
+
+    /** @param {boolean} open */
+    syncSingButton(open) {
+        const btn = document.getElementById('singBtn');
+        if (!btn) return;
+        btn.classList.toggle('selected', open);
+        btn.setAttribute('aria-pressed', String(open));
     }
 
     /** @param {boolean} expandRange */

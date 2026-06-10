@@ -394,18 +394,30 @@
                     await sleep(state.lengthMs);
                 }
             },
+            onOpenChange: open => {
+                const btn = document.getElementById('singBtn');
+                if (!btn) return;
+                btn.classList.toggle('selected', open);
+                btn.setAttribute('aria-pressed', String(open));
+            },
             progressTool: 'intervals-sing',
             progressContext: () => (currentInstance
                 ? `${state.root} ${state.scale} ${currentInstance.description}`
                 : '')
         });
 
+        // The Sing button is a toggle: open the panel, or dismiss it.
         document.getElementById('singBtn')?.addEventListener('click', async () => {
+            if (!singPanel) return;
+            if (singPanel.isOpen) {
+                singPanel.close();
+                return;
+            }
             if (!currentInstance) {
                 currentInstance = generateRandomInstance();
                 if (currentInstance) showInstance(currentInstance);
             }
-            if (singPanel) await singPanel.open();
+            await singPanel.open();
         });
     }
 

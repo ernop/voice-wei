@@ -42,6 +42,8 @@ const PitchTestPanel = (function () {
      *   targets: () => Array<{ midi: number, startMs: number, endMs: number, label: string, active: boolean }>,
      *   contentDurationMs: () => number,
      *   playGuide?: () => Promise<void>,
+     *   defaultPlayOnRestart?: boolean,
+     *   onOpenChange?: (open: boolean) => void,
      *   progressTool?: string,
      *   progressContext?: () => string
      * }} config
@@ -50,7 +52,7 @@ const PitchTestPanel = (function () {
         const prefix = config.idPrefix;
         const options = {
             showTargets: true,
-            playOnRestart: false,
+            playOnRestart: config.defaultPlayOnRestart === true,
             pauseOnSilence: true,
             fixedWindow: false,
             expandRange: false
@@ -348,6 +350,7 @@ const PitchTestPanel = (function () {
         async function open() {
             panelOpen = true;
             syncControls();
+            if (config.onOpenChange) config.onOpenChange(true);
             updateProgressLine();
             view.resize();
             resetSession();
@@ -360,6 +363,7 @@ const PitchTestPanel = (function () {
             stopListening();
             panelOpen = false;
             syncControls();
+            if (config.onOpenChange) config.onOpenChange(false);
             clearReadout();
             setStatus('Ready');
         }

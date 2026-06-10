@@ -254,10 +254,20 @@
         })),
         targets: buildPhraseTestTargets,
         contentDurationMs: () => phraseTestDurationMs(phraseForPlayback()),
+        // The test is a pitch test: the guide must anchor the actual key,
+        // so it always plays the phrase as piano tones in the current
+        // root - regardless of the page's output mode (which may be
+        // display-only, spoken numbers, or uncalibrated TTS singing).
         playGuide: async () => {
             const phrase = phraseForPlayback();
-            if (phrase) await playPhrase(phrase);
+            if (!phrase) return;
+            await PianoCore.ensureStarted();
+            cancelCurrentSound();
+            const token = ++playToken;
+            await playToneSequence(phrase, token);
         },
+        defaultPlayOnRestart: true,
+        onOpenChange: open => syncTestButton(open),
         progressTool: 'phrases-test',
         progressContext: () => `${state.root}${state.octave} ${state.scaleType}`
     });
@@ -400,7 +410,20 @@
         drawPhraseTest();
     }
 
-    async function startPhraseTest() {
+    /** @param {boolean} open */
+    function syncTestButton(open) {
+        const btn = getEl('testBtn');
+        if (!btn) return;
+        btn.classList.toggle('selected', open);
+        btn.setAttribute('aria-pressed', String(open));
+    }
+
+    /** The Test button is a toggle: open the panel, or dismiss it. */
+    async function togglePhraseTest() {
+        if (testPanel.isOpen) {
+            testPanel.close();
+            return;
+        }
         if (!currentPhrase) generatePhrase();
         await testPanel.open();
     }
@@ -541,7 +564,7 @@
         });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
-        getEl('testBtn')?.addEventListener('click', startPhraseTest);
+        getEl('testBtn')?.addEventListener('click', togglePhraseTest);
         getEl('nextBtn')?.addEventListener('click', playNext);
         getEl('stopBtn')?.addEventListener('click', () => {
             testPanel.close();

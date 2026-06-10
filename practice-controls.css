@@ -307,9 +307,15 @@
     display: none;
 }
 
-/* Blue controls-row button that opens the panel (Test on phrases, Sing on scales) */
+/* Blue controls-row button that toggles the panel (Test on phrases, Sing on scales) */
 .pitch-test-launch-button {
     background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+}
+
+/* Latched while the panel is open */
+.pitch-test-launch-button.selected {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+    box-shadow: 0 4px 15px rgba(74, 222, 128, 0.25);
 }
 
 @media (max-width: 640px) {

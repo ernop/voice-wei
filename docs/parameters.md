@@ -146,7 +146,7 @@ Per page key (`phrases-test-panel`, `scales-sing-panel`,
 | Option | Default | Behavior |
 |--------|---------|----------|
 | showTargets | true | redraw |
-| playOnRestart | false | immediate (next restart) |
+| playOnRestart | false (phrases: true - the test guide anchors the key) | immediate (next restart) |
 | pauseOnSilence | true | immediate + trace reset |
 | fixedWindow | false | redraw |
 | expandRange | false | redraw |
