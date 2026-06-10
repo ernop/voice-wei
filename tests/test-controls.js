@@ -86,7 +86,19 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.waitForTimeout(300);
         const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('intervals-settings')));
         report.check(`intervals steppers saved ${saved.lengthMs}/${saved.gapMs}`,
-            saved.lengthMs === 400 && saved.gapMs === 1500);
+            saved.lengthMs === 500 && saved.gapMs === 1500);
+
+        // The trio of shared pickers exposes the same preset lists on every
+        // page: one step from the shared defaults lands on shared values.
+        const presets = await tab.evaluate(() => ({
+            lengths: PracticeControls.NOTE_LENGTH_VALUES,
+            gaps: PracticeControls.GAP_VALUES,
+            rootMin: PracticeControls.ROOT_PITCH_MIN_MIDI,
+            rootMax: PracticeControls.ROOT_PITCH_MAX_MIDI
+        }));
+        report.check(`shared step presets exposed (lengths=${presets.lengths.length}, gaps=${presets.gaps.length}, root=${presets.rootMin}-${presets.rootMax})`,
+            presets.lengths.length > 0 && presets.gaps.length > 0
+            && presets.rootMin === 36 && presets.rootMax === 83);
         await ctx.close();
     }
 
@@ -148,6 +160,44 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.waitForTimeout(300);
         const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-settings')).autoAdvance);
         report.check('ears toggle persisted', saved === true);
+        await ctx.close();
+    }
+
+    // PHRASES: long phrases with multi-character degrees (10, 15, 7d) render
+    // without glyph clipping or token overlap on a desktop viewport.
+    {
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'phrases-stage', report.errors);
+        await tab.goto(`${BASE_URL}/phrases.html`, { waitUntil: 'networkidle' });
+        await tab.evaluate(() => {
+            localStorage.setItem('phrases-settings', JSON.stringify({
+                root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
+                startAtOne: false, rangeMode: 'expanded', minLength: 28, maxLength: 32,
+                returnToInitial: true, returnToRoot: false, outputMode: 'display',
+                noteLengthMs: 300, gapMs: 0, showNoteNames: true
+            }));
+        });
+        await tab.reload({ waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1000);
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(500);
+        const stage = await tab.evaluate(() => {
+            const tokens = Array.from(document.querySelectorAll('.phrase-degree-token'));
+            const clipped = tokens.filter(t => t.scrollWidth > t.clientWidth + 1).length;
+            const rects = tokens.map(t => t.getBoundingClientRect());
+            let overlaps = 0;
+            for (let i = 0; i < rects.length; i++) {
+                for (let j = i + 1; j < rects.length; j++) {
+                    const x = Math.min(rects[i].right, rects[j].right) - Math.max(rects[i].left, rects[j].left);
+                    const y = Math.min(rects[i].bottom, rects[j].bottom) - Math.max(rects[i].top, rects[j].top);
+                    if (x > 1 && y > 1) overlaps++;
+                }
+            }
+            return { count: tokens.length, clipped, overlaps };
+        });
+        report.check(`phrases stage tokens don't clip or overlap (n=${stage.count}, clipped=${stage.clipped}, overlaps=${stage.overlaps})`,
+            stage.count >= 28 && stage.clipped === 0 && stage.overlaps === 0);
         await ctx.close();
     }
 
