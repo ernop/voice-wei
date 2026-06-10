@@ -55,6 +55,28 @@ const PracticeControls = (function () {
     }
 
     /**
+     * Wire a multi-select chip group. Scoped by CSS selector because pages
+     * may reuse the data attribute elsewhere (e.g. ears answer buttons).
+     * @param {string} selector @param {string} attr @param {(value: string) => void} toggle
+     */
+    function wireMultiSelect(selector, attr, toggle) {
+        document.querySelectorAll(selector).forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => toggle(btn.getAttribute(attr) || ''));
+        });
+    }
+
+    /**
+     * Reflect multi-select membership via .selected.
+     * @param {string} selector @param {string} attr @param {(value: string) => boolean} isSelected
+     */
+    function syncMultiSelect(selector, attr, isSelected) {
+        document.querySelectorAll(selector).forEach(el => {
+            el.classList.toggle('selected', isSelected(el.getAttribute(attr) || ''));
+        });
+    }
+
+    /**
      * Wire every [data-step-key] button to step(key, delta).
      * @param {(key: string, delta: number) => void} step
      */
@@ -131,6 +153,8 @@ const PracticeControls = (function () {
         formatSeconds,
         syncSingleSelect,
         wireSingleSelect,
+        wireMultiSelect,
+        syncMultiSelect,
         wireSteppers,
         syncStepperDisabled,
         stepValue,

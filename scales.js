@@ -540,6 +540,16 @@ class ScalesController {
     }
 
     buildSingPlan() {
+        // Active exercises define the sung notes; targets use the first
+        // repetition (shifting changes later repetitions).
+        const exercisePattern = this.exercisePatterns[this.settings.exercise];
+        if (exercisePattern && exercisePattern.length > 0) {
+            const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
+            if (rootMidi === null) return null;
+            const notes = this.buildExerciseNotes(rootMidi, this.settings.scaleType, exercisePattern, 0);
+            return notes.length ? { notes } : null;
+        }
+
         return this.buildScalePlaybackPlan({
             root: this.settings.root,
             scaleType: this.settings.scaleType,
@@ -3363,14 +3373,16 @@ class ScalesController {
     }
 
     /**
-     * Play an exercise pattern with optional shifting. All notes are MIDI.
+     * Build one repetition of an exercise pattern as MIDI notes.
+     * 'O' placeholders resolve to this scale's notes-per-octave; shifting
+     * moves the starting degree.
+     * @param {number} rootMidi
+     * @param {string} scaleType
+     * @param {(number | 'O')[]} exercisePattern
+     * @param {number} [startingDegree]
+     * @returns {number[]}
      */
-    async playExercise(root, scaleType, exercisePattern, modifiers, context) {
-        const { degreesAscAll, rootMidi, shiftingSteps } = context;
-
-        this.clearScalePreview();
-        this.clearActuallyPlayed();
-
+    buildExerciseNotes(rootMidi, scaleType, exercisePattern, startingDegree = 0) {
         const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const notesPerOctave = basePattern.length - 1;
         const extendedScale = [];
@@ -3383,8 +3395,25 @@ class ScalesController {
         const lastInterval = basePattern[basePattern.length - 1] || 12;
         extendedScale.push(rootMidi + lastInterval + 2 * 12);
 
-        // Resolve 'O' (octave) placeholders to actual notes-per-octave for this scale
         const resolvedPattern = exercisePattern.map(v => v === 'O' ? notesPerOctave : v);
+        const notes = [];
+        for (const offset of resolvedPattern) {
+            const scaleIndex = startingDegree + offset;
+            if (scaleIndex >= 0 && scaleIndex < extendedScale.length) {
+                notes.push(extendedScale[scaleIndex]);
+            }
+        }
+        return notes;
+    }
+
+    /**
+     * Play an exercise pattern with optional shifting. All notes are MIDI.
+     */
+    async playExercise(root, scaleType, exercisePattern, modifiers, context) {
+        const { rootMidi, shiftingSteps } = context;
+
+        this.clearScalePreview();
+        this.clearActuallyPlayed();
 
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
@@ -3404,15 +3433,7 @@ class ScalesController {
 
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                const startingDegree = shiftingSteps * r;
-
-                const notes = [];
-                for (const offset of resolvedPattern) {
-                    const scaleIndex = startingDegree + offset;
-                    if (scaleIndex >= 0 && scaleIndex < extendedScale.length) {
-                        notes.push(extendedScale[scaleIndex]);
-                    }
-                }
+                const notes = this.buildExerciseNotes(rootMidi, scaleType, exercisePattern, shiftingSteps * r);
 
                 if (notes.length === 0) break;
 

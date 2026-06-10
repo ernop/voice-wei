@@ -490,15 +490,9 @@ class EarsController {
             });
         });
 
-        // Interval toggles
-        document.querySelectorAll('.interval-toggle').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const interval = /** @type {HTMLElement} */ (e.currentTarget).dataset.interval;
-                if (interval) {
-                    this.toggleInterval(interval);
-                }
-            });
-        });
+        // Interval toggles (shared multi-select wiring)
+        PracticeControls.wireMultiSelect('.interval-toggle', 'data-interval',
+            interval => this.toggleInterval(interval));
 
         // Presets
         document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -630,12 +624,8 @@ class EarsController {
     }
 
     updateIntervalToggles() {
-        document.querySelectorAll('.interval-toggle').forEach(btn => {
-            const interval = /** @type {HTMLElement} */ (btn).dataset.interval;
-            if (interval) {
-                btn.classList.toggle('selected', this.enabledIntervals.has(interval));
-            }
-        });
+        PracticeControls.syncMultiSelect('.interval-toggle', 'data-interval',
+            interval => this.enabledIntervals.has(interval));
     }
 
     /**
