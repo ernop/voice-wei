@@ -35,15 +35,15 @@
 /* Stepper field: label, minus, value, plus */
 .step-field {
     display: grid;
-    grid-template-columns: 58px 38px 54px 38px;
+    grid-template-columns: 58px 34px 46px 34px;
     align-items: center;
     gap: 3px;
     width: fit-content;
     max-width: 100%;
     padding: 3px;
-    border: 1px solid rgba(134, 239, 172, 0.18);
+    border: 1px solid rgba(134, 239, 172, 0.38);
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.22);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 /* Stepper without an internal label (the row provides one) */
@@ -109,6 +109,8 @@
 }
 
 /* Segmented row: mutually exclusive vf-btn options in a pill shell */
+/* The group shell: every option group is one clearly bounded control.
+   The border must read at a glance - groups never visually merge. */
 .segment-row {
     display: flex;
     align-items: center;
@@ -117,9 +119,9 @@
     max-width: 100%;
     padding: 3px;
     gap: 3px;
-    border: 1px solid rgba(134, 239, 172, 0.18);
+    border: 1px solid rgba(134, 239, 172, 0.38);
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.22);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .segment-row .vf-btn {

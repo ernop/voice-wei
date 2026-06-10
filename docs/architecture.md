@@ -245,16 +245,30 @@ One picker kind per value kind, everywhere:
   same values on every page, resolved and labeled by the same helpers
   (`effectiveGapMs`, `formatGapLabel`). Pages never carry their own
   copies of these lists (see docs/parameters.md "Shared step presets").
-- **Small exclusive set** (mode, direction, type, repeat...): segment-row
-  of vf-btn pills.
-- **Large named set** (scale types, output modes, presets): plain vf-btn
-  chip row.
+- **Exclusive option set** (mode, direction, type, repeat, output,
+  scale...): segment-row of vf-btn pills, regardless of set size.
 - **On/off**: display-toggle chip checkbox.
 - **Multi-select** (Ears interval grid): vf multi-select chips - the only
   multi-value picker, and deliberately distinct.
 
 The only remaining `<select>` is the Scales TTS voice list (dynamic,
 OS-dependent, dozens of entries - a genuinely different picker).
+
+### Grouping rule (visual separability)
+
+Controls must be identifiable as groups at a glance:
+
+1. **Every option group is visually bounded.** Either it sits in a
+   segment shell (the bordered pill container) or it lives in a labeled
+   `vf-row` where the left label marks the boundary (the voice-first
+   pages). Bare chip runs where one group bleeds into the next are
+   forbidden.
+2. **Numeric steppers cluster together.** All of a page's step fields
+   share one row/card (each step field is its own bounded pill), never
+   scattered between option groups.
+3. **Shells are tight.** Group containers use minimal padding; the
+   boundary comes from the border, not from whitespace. Don't spend
+   vertical or horizontal space to imply grouping.
 
 ## Canonical control surfaces
 

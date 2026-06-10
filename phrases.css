@@ -125,13 +125,6 @@
     flex: 1 1 auto;
 }
 
-.phrase-length-adjusters {
-    display: grid;
-    grid-template-columns: max-content max-content;
-    align-items: center;
-    gap: 5px;
-}
-
 .phrase-control-card-output .vf-options {
     justify-content: center;
 }
@@ -180,17 +173,6 @@
 @media (max-width: 640px) {
     .phrase-control-grid {
         gap: 5px;
-        padding: 4px;
-    }
-
-    .phrase-length-adjusters {
-        grid-template-columns: max-content max-content;
-        gap: 4px;
-    }
-
-    .phrase-length-adjusters .step-field {
-        grid-template-columns: 32px 32px 42px 32px;
-        gap: 3px;
         padding: 4px;
     }
 }
