@@ -17,8 +17,10 @@ jobs:
         with:
           node-version: 22
 
+      # package-lock.json is gitignored (project choice), so install from
+      # the version ranges; only typecheck/lint tooling is needed here.
       - name: Install dev tooling
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       # Static gates: typed contracts and lint guards must hold before
       # anything reaches the live site. Zero tolerated errors.
