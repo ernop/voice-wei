@@ -1012,35 +1012,7 @@
     gap: 1px;
 }
 
-/* Voice-First Button - looks like a code snippet, acts like a button */
-.vf-btn {
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 0.75rem;
-    padding: 5px 7px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: rgba(255, 255, 255, 0.85);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.vf-btn:hover {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(255, 255, 255, 0.35);
-}
-
-.vf-btn:active {
-    transform: scale(0.97);
-}
-
-/* Selected state - green highlight */
-.vf-btn.selected {
-    background: rgba(74, 222, 128, 0.35);
-    border-color: rgba(74, 222, 128, 0.6);
-    color: #fff;
-    box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
-}
+/* .vf-btn base styles live in practice-controls.css (shared primitive). */
 
 /* Sharp notes - slightly different color */
 .vf-btn-sharp {

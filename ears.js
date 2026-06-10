@@ -495,19 +495,17 @@ class EarsController {
             });
         });
 
-        // Toggles
-        document.getElementById('adaptiveToggle')?.addEventListener('change', (e) => {
-            this.adaptiveMode = /** @type {HTMLInputElement} */ (e.target).checked;
+        // Toggles (shared control wiring)
+        PracticeControls.wireToggle('adaptiveToggle', this.adaptiveMode, checked => {
+            this.adaptiveMode = checked;
             this.saveSettings();
         });
-
-        document.getElementById('drivingToggle')?.addEventListener('change', (e) => {
-            this.drivingMode = /** @type {HTMLInputElement} */ (e.target).checked;
+        PracticeControls.wireToggle('drivingToggle', this.drivingMode, checked => {
+            this.drivingMode = checked;
             this.saveSettings();
         });
-
-        document.getElementById('autoAdvanceToggle')?.addEventListener('change', (e) => {
-            this.autoAdvance = /** @type {HTMLInputElement} */ (e.target).checked;
+        PracticeControls.wireToggle('autoAdvanceToggle', this.autoAdvance, checked => {
+            this.autoAdvance = checked;
             this.saveSettings();
         });
 

@@ -26,6 +26,9 @@ const INSTRUMENT_PRESETS = Object.freeze({
 class PitchMeterController {
     static STORAGE_KEY = 'pitch-meter-settings';
     static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
+    static RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5];
+    static ROOT_PITCH_MIN_MIDI = 36; // C2
+    static ROOT_PITCH_MAX_MIDI = 83; // B5
 
     constructor() {
         /** @type {boolean} */
@@ -117,58 +120,30 @@ class PitchMeterController {
         const listenBtn = document.getElementById('listenBtn');
         const stopBtn = document.getElementById('stopBtn');
         const playRefBtn = document.getElementById('playRefBtn');
-        const modeSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('modeSelect'));
-        const responseTimeSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('responseTimeSelect'));
 
         if (listenBtn) listenBtn.addEventListener('click', () => this.toggleListening());
         if (stopBtn) stopBtn.addEventListener('click', () => this.stopSession());
         if (playRefBtn) playRefBtn.addEventListener('click', () => this.playReferenceScale());
 
-        if (modeSelect) modeSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.mode = /** @type {'free' | 'call-response' | 'play-along'} */ (target.value);
+        SettingsStore.load(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
+
+        PracticeControls.wireSingleSelect('data-mode', String, this.mode, value => {
+            this.mode = /** @type {'free' | 'call-response' | 'play-along'} */ (value);
             this.saveSettings();
             this.updateModeUI();
         });
-
-        if (responseTimeSelect) responseTimeSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.responseTime = parseInt(target.value);
-            this.saveSettings();
-        });
-
-        const instrumentSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('instrumentSelect'));
-        const rootSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('rootSelect'));
-        const scaleSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('scaleSelect'));
-        const octaveSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('octaveSelect'));
-
-        if (instrumentSelect) instrumentSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.instrument = target.value;
+        PracticeControls.wireSingleSelect('data-instrument', String, this.instrument, value => {
+            this.instrument = value;
             this.saveSettings();
             this.applyInstrumentPreset();
         });
-        if (rootSelect) rootSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.rootNote = target.value;
+        PracticeControls.wireSingleSelect('data-scale', String, this.scaleType, value => {
+            this.scaleType = value;
             this.saveSettings();
             this.updateTargetNotes();
         });
-        if (scaleSelect) scaleSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.scaleType = target.value;
-            this.saveSettings();
-            this.updateTargetNotes();
-        });
-        if (octaveSelect) octaveSelect.addEventListener('change', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.octave = parseInt(target.value);
-            this.saveSettings();
-            this.updateTargetNotes();
-        });
-
-        SettingsStore.load(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
-        this.syncSettingsUI();
+        PracticeControls.wireSteppers((key, delta) => this.stepSetting(key, delta));
+        this.syncControls();
 
         await this.initPiano();
 
@@ -181,20 +156,41 @@ class PitchMeterController {
         SettingsStore.save(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
     }
 
-    // Push restored settings back into the select elements.
-    syncSettingsUI() {
-        /** @type {Array<[string, string]>} */
-        const selectValues = [
-            ['modeSelect', this.mode],
-            ['responseTimeSelect', String(this.responseTime)],
-            ['instrumentSelect', this.instrument],
-            ['rootSelect', this.rootNote],
-            ['scaleSelect', this.scaleType],
-            ['octaveSelect', String(this.octave)]
-        ];
-        selectValues.forEach(([id, value]) => {
-            const el = /** @type {HTMLSelectElement | null} */ (document.getElementById(id));
-            if (el) el.value = value;
+    /** @param {string} key @param {number} delta */
+    stepSetting(key, delta) {
+        if (key === 'responseTime') {
+            const next = PracticeControls.stepValue(PitchMeterController.RESPONSE_TIME_VALUES, this.responseTime, delta);
+            if (next === null) return;
+            this.responseTime = next;
+        } else if (key === 'rootPitch') {
+            const midi = noteNameToMidi(this.rootNote, this.octave);
+            if (midi === null) return;
+            const bounded = Math.max(PitchMeterController.ROOT_PITCH_MIN_MIDI,
+                Math.min(PitchMeterController.ROOT_PITCH_MAX_MIDI, midi + delta));
+            const info = midiToNoteName(bounded);
+            this.rootNote = info.name;
+            this.octave = info.octave;
+            this.updateTargetNotes();
+        } else {
+            return;
+        }
+        this.saveSettings();
+        this.syncControls();
+    }
+
+    syncControls() {
+        PracticeControls.syncSingleSelect('data-mode', this.mode);
+        PracticeControls.syncSingleSelect('data-instrument', this.instrument);
+        PracticeControls.syncSingleSelect('data-scale', this.scaleType);
+        PracticeControls.setValueText('rootPitchValue', `${this.rootNote}${this.octave}`);
+        PracticeControls.setValueText('responseTimeValue', `${this.responseTime}s`);
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'responseTime') {
+                return PracticeControls.stepDisabled(PitchMeterController.RESPONSE_TIME_VALUES, this.responseTime, delta);
+            }
+            const midi = noteNameToMidi(this.rootNote, this.octave);
+            return midi === null
+                || (delta < 0 ? midi <= PitchMeterController.ROOT_PITCH_MIN_MIDI : midi >= PitchMeterController.ROOT_PITCH_MAX_MIDI);
         });
     }
 
@@ -257,8 +253,8 @@ class PitchMeterController {
         const preset = INSTRUMENT_PRESETS[this.instrument];
         if (preset) {
             this.octave = preset.octave;
-            const octaveSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('octaveSelect'));
-            if (octaveSelect) octaveSelect.value = String(preset.octave);
+            this.saveSettings();
+            this.syncControls();
             this.updateTargetNotes();
         }
     }

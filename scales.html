@@ -9,8 +9,8 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Scales - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=82">
-    <link rel="stylesheet" href="scales.css?v=82">
     <link rel="stylesheet" href="practice-controls.css?v=82">
+    <link rel="stylesheet" href="scales.css?v=82">
 </head>
 
 <body data-page="scales">
@@ -142,16 +142,11 @@
                 <div class="vf-row">
                     <span class="vf-label" data-full="Note Length" data-abbr="Len">Note Length</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-length-ms="100">0.1s</button>
-                        <button class="vf-btn" data-length-ms="150">0.15s</button>
-                        <button class="vf-btn" data-length-ms="300">0.3s</button>
-                        <button class="vf-btn" data-length-ms="500">0.5s</button>
-                        <button class="vf-btn" data-length-ms="800">0.8s</button>
-                        <button class="vf-btn" data-length-ms="1000">1s</button>
-                        <button class="vf-btn" data-length-ms="1500">1.5s</button>
-                        <button class="vf-btn" data-length-ms="2000">2s</button>
-                        <button class="vf-btn" data-length-ms="3000">3s</button>
-                        <button class="vf-btn" data-length-ms="5000">5s</button>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
+                            <span class="step-value" id="noteLengthValue">0.3s</span>
+                            <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -223,16 +218,11 @@
                 <div class="vf-row">
                     <span class="vf-label" data-full="Note Gap" data-abbr="Gap">Note Gap</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-gap-value="-0.5">-50%</button>
-                        <button class="vf-btn" data-gap-value="-0.1">-10%</button>
-                        <button class="vf-btn" data-gap-value="-0.05">-5%</button>
-                        <button class="vf-btn" data-gap-value="0">0s</button>
-                        <button class="vf-btn" data-gap-value="50">0.05s</button>
-                        <button class="vf-btn" data-gap-value="100">0.1s</button>
-                        <button class="vf-btn" data-gap-value="150">0.15s</button>
-                        <button class="vf-btn" data-gap-value="300">0.3s</button>
-                        <button class="vf-btn" data-gap-value="500">0.5s</button>
-                        <button class="vf-btn" data-gap-value="1000">1s</button>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
+                            <span class="step-value" id="gapValue">0s</span>
+                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
+                        </div>
                     </div>
                 </div>
 

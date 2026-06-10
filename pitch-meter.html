@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Pitch - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=82">
+    <link rel="stylesheet" href="practice-controls.css?v=82">
     <link rel="stylesheet" href="pitch-meter.css?v=82">
 </head>
 
@@ -22,70 +23,50 @@
             <!-- Practice Mode Selection -->
             <div class="mode-settings">
                 <div class="setting-group">
-                    <label for="modeSelect">Mode:</label>
-                    <select id="modeSelect">
-                        <option value="free">Free Practice</option>
-                        <option value="call-response" selected>Call & Response</option>
-                        <option value="play-along">Play Along</option>
-                    </select>
+                    <span class="setting-label">Mode</span>
+                    <div class="segment-row">
+                        <button class="vf-btn" data-mode="free">free practice</button>
+                        <button class="vf-btn" data-mode="call-response">call &amp; response</button>
+                        <button class="vf-btn" data-mode="play-along">play along</button>
+                    </div>
                 </div>
                 <div class="setting-group" id="responseTimeGroup">
-                    <label for="responseTimeSelect">Time to match:</label>
-                    <select id="responseTimeSelect">
-                        <option value="1">1 sec</option>
-                        <option value="2" selected>2 sec</option>
-                        <option value="3">3 sec</option>
-                        <option value="4">4 sec</option>
-                        <option value="5">5 sec</option>
-                    </select>
+                    <div class="step-field">
+                        <span class="step-label">Match</span>
+                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="-1" aria-label="Shorter match time">-</button>
+                        <span class="step-value" id="responseTimeValue">2s</span>
+                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="1" aria-label="Longer match time">+</button>
+                    </div>
                 </div>
             </div>
 
             <!-- Scale Selection -->
             <div class="pitch-settings">
                 <div class="setting-group">
-                    <label for="instrumentSelect">Range:</label>
-                    <select id="instrumentSelect">
-                        <option value="voice" selected>Voice</option>
-                        <option value="violin">Violin</option>
-                        <option value="bass">Bass</option>
-                    </select>
+                    <span class="setting-label">Range</span>
+                    <div class="segment-row">
+                        <button class="vf-btn" data-instrument="voice">voice</button>
+                        <button class="vf-btn" data-instrument="violin">violin</button>
+                        <button class="vf-btn" data-instrument="bass">bass</button>
+                    </div>
                 </div>
                 <div class="setting-group">
-                    <label for="rootSelect">Root:</label>
-                    <select id="rootSelect">
-                        <option value="C" selected>C</option>
-                        <option value="C#">C#</option>
-                        <option value="D">D</option>
-                        <option value="D#">D#</option>
-                        <option value="E">E</option>
-                        <option value="F">F</option>
-                        <option value="F#">F#</option>
-                        <option value="G">G</option>
-                        <option value="G#">G#</option>
-                        <option value="A">A</option>
-                        <option value="A#">A#</option>
-                        <option value="B">B</option>
-                    </select>
+                    <div class="step-field">
+                        <span class="step-label">Root</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                        <span class="step-value" id="rootPitchValue">C4</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                    </div>
                 </div>
                 <div class="setting-group">
-                    <label for="scaleSelect">Scale:</label>
-                    <select id="scaleSelect">
-                        <option value="major" selected>Major</option>
-                        <option value="minor">Minor</option>
-                        <option value="chromatic">Chromatic</option>
-                        <option value="pentatonic">Pentatonic</option>
-                        <option value="blues">Blues</option>
-                    </select>
-                </div>
-                <div class="setting-group">
-                    <label for="octaveSelect">Octave:</label>
-                    <select id="octaveSelect">
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4" selected>4</option>
-                        <option value="5">5</option>
-                    </select>
+                    <span class="setting-label">Scale</span>
+                    <div class="segment-row">
+                        <button class="vf-btn" data-scale="major">major</button>
+                        <button class="vf-btn" data-scale="minor">minor</button>
+                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale="blues">blues</button>
+                    </div>
                 </div>
             </div>
 
@@ -162,6 +143,7 @@
     <script src="music-constants.js?v=82"></script>
     <script src="piano-core.js?v=82"></script>
     <script src="pitch-detect-core.js?v=82"></script>
+    <script src="practice-controls.js?v=82"></script>
     <script src="settings-store.js?v=82"></script>
     <script src="pitch-meter.js?v=82"></script>
 </body>

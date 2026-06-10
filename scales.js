@@ -263,6 +263,10 @@ const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 
 const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
 
+// Stepper value lists (the former chip-row options)
+const SCALES_NOTE_LENGTH_VALUES = [100, 150, 300, 500, 800, 1000, 1500, 2000, 3000, 5000];
+const SCALES_GAP_VALUES = [-0.5, -0.1, -0.05, 0, 50, 100, 150, 300, 500, 1000];
+
 const SCALES_SETTINGS_STORAGE_KEY = 'scales-settings';
 const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
@@ -633,6 +637,25 @@ class ScalesController {
     // voice command, preset) since many paths funnel through here.
     setNoteLengthMs(ms, source = 'unknown') {
         this.settings.noteLengthMs = ms;
+    }
+
+    /**
+     * Stepper handler for the timing controls.
+     * @param {string} key @param {number} delta
+     */
+    stepTimingValue(key, delta) {
+        if (key === 'noteLengthMs') {
+            const next = PracticeControls.stepValue(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
+            if (next === null) return;
+            this.setNoteLengthMs(next, 'stepper');
+        } else if (key === 'gapMs') {
+            const next = PracticeControls.stepValue(SCALES_GAP_VALUES, this.settings.gapMs, delta);
+            if (next === null) return;
+            this.settings.gapMs = next;
+        } else {
+            return;
+        }
+        this.onSettingChanged();
     }
 
     // Rising implies forever - if rising is enabled and repeat isn't already forever, set it
@@ -1160,16 +1183,14 @@ class ScalesController {
             btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
         });
 
-        // Note length buttons
-        document.querySelectorAll('[data-length-ms]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', parseInt(btn.dataset.lengthMs || '0') === this.settings.noteLengthMs);
-        });
-
-        // Gap buttons
-        document.querySelectorAll('[data-gap-value]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', parseFloat(btn.dataset.gapValue || '0') === this.settings.gapMs);
+        // Note length / gap steppers (shared control)
+        PracticeControls.setValueText('noteLengthValue', this.formatMsLabel(this.settings.noteLengthMs));
+        PracticeControls.setValueText('gapValue', this.formatGapLabel(this.settings.gapMs));
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'noteLengthMs') {
+                return PracticeControls.stepDisabled(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
+            }
+            return PracticeControls.stepDisabled(SCALES_GAP_VALUES, this.settings.gapMs, delta);
         });
 
         // Octave buttons
@@ -1393,23 +1414,8 @@ class ScalesController {
             });
         });
 
-        // Note length buttons
-        document.querySelectorAll('[data-length-ms]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.setNoteLengthMs(parseInt(btn.dataset.lengthMs || '500'), 'button');
-                this.onSettingChanged();
-            });
-        });
-
-        // Gap buttons
-        document.querySelectorAll('[data-gap-value]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.gapMs = parseFloat(btn.dataset.gapValue || '0');
-                this.onSettingChanged();
-            });
-        });
+        // Note length / gap steppers (shared control)
+        PracticeControls.wireSteppers((key, delta) => this.stepTimingValue(key, delta));
 
         // Octave buttons
         document.querySelectorAll('[data-octave]').forEach(el => {
@@ -1549,9 +1555,7 @@ class ScalesController {
         const scaleTypes = Array.from(document.querySelectorAll('[data-scale-type]'))
             .map(el => (/** @type {HTMLElement} */ (el)).dataset.scaleType)
             .filter(Boolean);
-        const lengths = Array.from(document.querySelectorAll('[data-length-ms]'))
-            .map(el => parseInt((/** @type {HTMLElement} */ (el)).dataset.lengthMs || '0'))
-            .filter(n => Number.isFinite(n));
+        const lengths = SCALES_NOTE_LENGTH_VALUES;
 
         const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 

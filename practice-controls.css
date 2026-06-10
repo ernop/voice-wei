@@ -1,6 +1,36 @@
 /* Shared practice-page UI primitives: the pitch test panel rendered by
-   pitch-test-panel.js, its blue launch button, and the stepper /
-   segmented-row control language introduced on the Phrases page. */
+   pitch-test-panel.js, its blue launch button, the vf-btn option chip,
+   and the stepper / segmented-row control language introduced on the
+   Phrases page. Load this BEFORE page stylesheets so pages can override. */
+
+/* Option chip - looks like a code snippet, acts like a button */
+.vf-btn {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.75rem;
+    padding: 5px 7px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.vf-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.vf-btn:active {
+    transform: scale(0.97);
+}
+
+.vf-btn.selected {
+    background: rgba(74, 222, 128, 0.35);
+    border-color: rgba(74, 222, 128, 0.6);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
+}
 
 /* Stepper field: label, minus, value, plus */
 .step-field {
@@ -14,6 +44,11 @@
     border: 1px solid rgba(134, 239, 172, 0.18);
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.22);
+}
+
+/* Stepper without an internal label (the row provides one) */
+.step-field-bare {
+    grid-template-columns: 38px 54px 38px;
 }
 
 .step-label {

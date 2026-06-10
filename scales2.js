@@ -104,6 +104,11 @@
         nextRequested: false,
     };
 
+    const ADJUSTER_VALUES = {
+        lengthMs: [200, 400, 600, 800, 1000, 1500],
+        gapMs: [100, 500, 1000, 1500, 2000, 3000, 5000]
+    };
+
     const STORAGE_KEY = 'intervals-settings';
     const PERSISTED_KEYS = [
         'root', 'octave', 'scale', 'lengthMs', 'gapMs', 'speakNumbers',
@@ -307,6 +312,13 @@
     }
 
     // ---- UI ----
+    function syncSteppers() {
+        PracticeControls.setValueText('lengthValue', PracticeControls.formatSeconds(state.lengthMs));
+        PracticeControls.setValueText('gapValue', PracticeControls.formatSeconds(state.gapMs));
+        PracticeControls.syncStepperDisabled((key, delta) =>
+            PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta));
+    }
+
     function updateLevelButtons() {
         const container = document.getElementById('levelOptions');
         container.innerHTML = '';
@@ -351,8 +363,6 @@
             { attr: 'data-root', stateKey: 'root', parse: String },
             { attr: 'data-octave', stateKey: 'octave', parse: Number },
             { attr: 'data-scale', stateKey: 'scale', parse: String },
-            { attr: 'data-length', stateKey: 'lengthMs', parse: Number },
-            { attr: 'data-gap', stateKey: 'gapMs', parse: Number },
         ];
         for (const { attr, stateKey, parse } of singleGroups) {
             PracticeControls.wireSingleSelect(attr, parse, state[stateKey], value => {
@@ -360,6 +370,16 @@
                 saveSettings();
             });
         }
+
+        // Timing steppers (shared control)
+        PracticeControls.wireSteppers((key, delta) => {
+            const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
+            if (next === null) return;
+            state[key] = next;
+            saveSettings();
+            syncSteppers();
+        });
+        syncSteppers();
 
         // Toggles
         const toggles = [

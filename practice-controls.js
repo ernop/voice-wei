@@ -81,13 +81,21 @@ const PracticeControls = (function () {
     }
 
     /**
-     * Step through a discrete value list. Returns the next value, or
-     * null when already at the boundary (or current is not in the list).
+     * Step through a discrete value list. Returns the next value, or null
+     * at the boundary. When current is not in the list (e.g. set by a
+     * voice command), snaps to the nearest list value in the direction.
      * @param {ReadonlyArray<number>} values @param {number} current @param {number} delta
      */
     function stepValue(values, current, delta) {
         const index = values.indexOf(current);
-        if (index === -1) return null;
+        if (index === -1) {
+            if (delta > 0) {
+                const higher = values.find(value => value > current);
+                return higher === undefined ? null : higher;
+            }
+            const lower = [...values].reverse().find(value => value < current);
+            return lower === undefined ? null : lower;
+        }
         const nextIndex = Math.max(0, Math.min(values.length - 1, index + delta));
         return nextIndex === index ? null : values[nextIndex];
     }
@@ -97,8 +105,7 @@ const PracticeControls = (function () {
      * @param {ReadonlyArray<number>} values @param {number} current @param {number} delta
      */
     function stepDisabled(values, current, delta) {
-        const index = values.indexOf(current);
-        return delta < 0 ? index <= 0 : index >= values.length - 1;
+        return stepValue(values, current, delta) === null;
     }
 
     /**
