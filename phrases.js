@@ -34,9 +34,10 @@
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
-    const STRUCTURE_KEYS = new Set([
-        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot'
-    ]);
+    // Regenerate the sequence only for keys that reshape it. Min/max
+    // length merely bound the NEXT generated phrase (like start and
+    // in/out octave), so changing them keeps the current sequence.
+    const STRUCTURE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
     const ADJUSTER_VALUES = {
@@ -321,6 +322,10 @@
         await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
+        // Let tails from the previous settings die before the new
+        // playback starts; a newer restart during the wait supersedes us.
+        if (piano) await piano.waitForSilence();
+        if (token !== playToken) return;
         do {
             await playPhraseOnce(phrase, token);
             if (token !== playToken || !state.loopCurrent) break;

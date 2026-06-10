@@ -389,7 +389,8 @@ class PitchMeterController {
 
         this.updateStatus(`Note ${noteNum}/${total}: Hear ${note.name}, then match it!`);
 
-        // Play the note
+        // Play the note (after any tails from a previous stop have died)
+        await this.piano.waitForSilence();
         this.piano.playName(note.name, '2n');
 
         // Wait a moment for the note to sound, then start listening period
@@ -555,6 +556,7 @@ class PitchMeterController {
         if (!this.isListening || this.sessionAborted) return;
 
         this.isPlayingScale = true;
+        await this.piano.waitForSilence();
 
         // Play scale while simultaneously listening; the shared session
         // records and tags samples via captureTargetName.
@@ -629,6 +631,7 @@ class PitchMeterController {
 
         this.isPlayingScale = true;
         await PianoCore.ensureStarted();
+        await this.piano.waitForSilence();
 
         this.updateStatus('Playing ' + this.rootNote + ' ' + this.scaleType + ' scale...');
 

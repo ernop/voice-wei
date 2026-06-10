@@ -52,7 +52,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Phrase Test includes Pause on silence, 20s window, and Expand range options
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
-**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; min/max length and return-to-1 regenerate; start and in/out octave apply to the next generated phrase; playback/display settings keep the current phrase and replay or redraw it.
+**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; return-to-1 regenerates; min/max length, start, and in/out octave apply to the next generated phrase; playback/display settings keep the current phrase and replay or redraw it. Changing a setting never overlaps old-settings notes with new ones: playback hard-mutes, then restarts only after the old tails are fully dead.
 
 ### Test
 

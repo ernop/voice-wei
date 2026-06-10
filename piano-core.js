@@ -21,6 +21,12 @@ const PianoCore = (function () {
         'A7': 'A7.mp3', 'C8': 'C8.mp3'
     });
     const DEFAULT_VOLUME_DB = -3;
+    // Real pianos damp strings quickly; this also bounds how long released
+    // voices can linger, which makes the no-overlap guarantee below cheap.
+    const PIANO_RELEASE_SECONDS = 0.3;
+    // After a mute, released voices are fully dead once the release fade
+    // completes; new playback waits out the remainder of this window.
+    const RESTART_GRACE_MS = 350;
 
     // Tone.js requires a user gesture before audio can start.
     async function ensureStarted() {
@@ -36,6 +42,8 @@ const PianoCore = (function () {
      * @param {InstanceType<typeof Tone.Gain>} gainNode
      */
     function makePiano(synth, gainNode) {
+        let muteUntil = 0;
+
         return {
             synth,
             gainNode,
@@ -46,7 +54,17 @@ const PianoCore = (function () {
             // Hard cutoff: release voices and mute so nothing lingers.
             mute() {
                 synth.releaseAll();
+                gainNode.gain.cancelScheduledValues(Tone.now());
                 gainNode.gain.setValueAtTime(0, Tone.now());
+                muteUntil = performance.now() + RESTART_GRACE_MS;
+            },
+            // Old-settings notes must never sound under new ones: unmuting
+            // revives voices that are still in their release fade, so a new
+            // sequence waits until they are dead. No-op when nothing was
+            // recently muted.
+            async waitForSilence() {
+                const remaining = muteUntil - performance.now();
+                if (remaining > 0) await sleep(remaining);
             },
             /**
              * @param {number} midi
@@ -88,6 +106,7 @@ const PianoCore = (function () {
             const synth = new Tone.Sampler({
                 urls: { ...SALAMANDER_URLS },
                 baseUrl: SALAMANDER_BASE_URL,
+                release: PIANO_RELEASE_SECONDS,
                 onload: () => resolve(makePiano(synth, gainNode)),
                 onerror: reject
             }).connect(gainNode);
