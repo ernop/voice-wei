@@ -199,6 +199,8 @@ class VoiceCommandCore {
 
         /** @type {(msg: string) => void} */
         this.onStatusChange = options.onStatusChange || (() => { });
+        /** @type {() => void} Runs when the user initiates listening (not on auto-restarts) */
+        this.onBeforeListen = options.onBeforeListen || (() => { });
         /** @type {(listening: boolean) => void} */
         this.onListeningChange = options.onListeningChange || (() => { });
         /** @type {(text: string) => void} */
@@ -306,7 +308,9 @@ class VoiceCommandCore {
         this.recognition.onstart = () => {
             this.isListening = true;
             this.updateListenButton(true);
-            this.updateStatus('Listening...');
+            this.updateStatus(this.settings.autoSubmitMode
+                ? 'Listening...'
+                : 'Listening... say "submit" when done');
             this.onListeningChange(true);
         };
 
@@ -338,6 +342,26 @@ class VoiceCommandCore {
                 if (interimTranscript) {
                     this.transcript.setInterim(interimTranscript);
                 }
+
+                // Hands-free manual mode: a trailing spoken "submit" sends
+                // the accumulated transcript (minus the word itself).
+                const lowerFull = this.transcript.getFullText().toLowerCase().trim();
+                if (lowerFull === 'submit' || lowerFull.endsWith(' submit')) {
+                    if (this.transcript.interimText.toLowerCase().trim().endsWith('submit')) {
+                        this.transcript.setInterim('');
+                    } else if (this.transcript.segments.length > 0) {
+                        const segments = this.transcript.segments;
+                        segments[segments.length - 1] = segments[segments.length - 1].replace(/\s*submit\s*$/i, '').trim();
+                        if (!segments[segments.length - 1]) segments.pop();
+                    }
+                    if (this.transcript.getFinalizedText()) {
+                        this.submitManualTranscript();
+                    } else {
+                        this.stopListening();
+                    }
+                    return;
+                }
+
                 this.transcript.showSegments(this.transcript.segments, this.transcript.interimText);
                 this.onTranscriptChange(this.transcript.getFullText());
             }
@@ -345,9 +369,21 @@ class VoiceCommandCore {
 
         this.recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
             console.error('Speech recognition error:', event.error);
-            if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                this.onError(`Recognition error: ${event.error}`);
+            if (event.error === 'no-speech') {
+                // Manual mode restarts silently between segments; in auto
+                // mode silence means the user didn't speak.
+                if (this.settings.autoSubmitMode) {
+                    this.updateStatus('No speech detected. Tap Listen to try again.');
+                }
+                return;
             }
+            if (event.error === 'aborted') return;
+            if (event.error === 'network') {
+                this.updateStatus('Network error. Check connection.');
+            } else if (event.error === 'not-allowed') {
+                this.updateStatus('Microphone access denied. Check permissions.');
+            }
+            this.onError(`Recognition error: ${event.error}`);
         };
 
         this.recognition.onend = () => {
@@ -432,6 +468,7 @@ class VoiceCommandCore {
             return;
         }
 
+        this.onBeforeListen();
         this.transcript.reset();
         this.manualModeStopRequested = false;
 

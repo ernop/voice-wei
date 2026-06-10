@@ -41,7 +41,8 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `media-session-core.js` | Hardware media keys (silent-WAV trick + action maps) | - |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
-| `voice-command-core.js` | Speech recognition + transcript UI | - |
+| `voice-command-core.js` | Speech recognition, auto/manual modes, spoken "submit", transcript UI | yes (webkitSpeechRecognition) |
+| `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
 | `shared-header.js` | Site header, nav, version label | - |
 
 CSS: `style.css` (global shell) -> `practice-controls.css` (shared
@@ -147,10 +148,7 @@ ships. Manual deploy: `./deploy.sh`.
 
 ## Known deliberate gaps
 
-- Ears' interval multi-select grid and range slider are custom (no shared
-  multi-select/slider primitive yet); its visual dialect predates the
-  shared controls.
-- History list rendering is per-page (phrases, scales, intervals, ears).
-- Sing targets follow the scale/movement plan and ignore active exercises.
-- `player.js` has its own speech recognition stack and settings UI
-  (predates `voice-command-core.js`).
+- Ears' root-range slider stays custom (no shared slider primitive; one
+  consumer), and its visual dialect (.setting-btn) predates the shared
+  controls.
+- New gaps must be listed here with their reasoning, or fixed.

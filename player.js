@@ -95,14 +95,12 @@ const LYRICS_VIEW_SETTINGS_STORAGE_KEY = 'voiceMusicLyricsViewSettings';
 
 class VoiceMusicController {
     constructor() {
-        /** @type {InstanceType<typeof window.SpeechRecognition> | null} */
-        this.recognition = null;
+        /** @type {VoiceCommandCore | null} */
+        this.voiceCore = null;
         /** @type {Map<number, YT.Player>} */
         this.players = new Map();
         /** @type {Map<number, { promise: Promise<any>, resolve: Function }>} */
         this.playerReadyPromises = new Map();
-        /** @type {boolean} */
-        this.isListening = false;
         /** @type {number | null} */
         this.currentPlayingId = null;
         /** @type {AppConfig | null} */
@@ -126,8 +124,6 @@ class VoiceMusicController {
             aiProvider: 'claude'
         };
         // TTS handled by VoiceOutput library
-        /** @type {boolean} */
-        this.manualModeStopRequested = false;
         /** @type {ReturnType<typeof setInterval> | null} */
         this.progressUpdateInterval = null;
         /** @type {boolean} */
@@ -151,8 +147,8 @@ class VoiceMusicController {
         this.currentLyricsLineIndex = -1;
         /** @type {boolean} */
         this.isProcessingCommand = false;
-        /** @type {TranscriptManager} */
-        this.transcript = new TranscriptManager();
+        /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */
+        this.transcript = null;
         this.init();
     }
 
@@ -316,7 +312,6 @@ class VoiceMusicController {
     async init() {
         try {
             await this.loadConfig();
-            this.setupSpeechRecognition();
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
@@ -790,201 +785,49 @@ class VoiceMusicController {
         }
     }
 
-    setupSpeechRecognition() {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            this.updateStatus('Speech recognition not supported in this browser');
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        this.recognition = new SpeechRecognition();
-        this.recognition.lang = 'en-US';
-
-        this.updateRecognitionMode();
-
-        this.recognition.onstart = () => {
-            this.isListening = true;
-            this.manualModeStopRequested = false;
-            this.updateListenButton(true);
-            if (this.settings.autoSubmitMode) {
-                this.transcript.clear();
-                this.updateStatus('Listening...');
-            } else {
-                // Manual mode: only reset on fresh start, not on auto-restarts
-                if (this.transcript.segments.length === 0) {
-                    this.updateStatus('Listening... say "submit" when done');
-                } else {
-                    this.updateStatus('Still listening... say "submit" when done');
+    setupVoiceCore() {
+        this.voiceCore = new VoiceCommandCore({
+            settings: { autoSubmitMode: this.settings.autoSubmitMode },
+            onBeforeListen: () => {
+                // Pause playback while listening - music interferes with
+                // recognition accuracy. Resumes during the Claude wait
+                // (processMusicSearch), pauses again when the response lands.
+                this.wasPlayingBeforeListening = this.isPlaying && !this.isPaused;
+                if (this.wasPlayingBeforeListening) {
+                    this.pausePlayback();
                 }
-                this.transcript.setInterim('');
+            },
+            onError: (/** @type {string} */ msg) => this.logError('Voice recognition', { message: msg })
+        });
+
+        // Transport/control commands ("pause", "next", "shuffle"...) run locally
+        this.voiceCore.registerHandler({
+            parse: (/** @type {string} */ transcript) => this.parseControlCommand(transcript),
+            execute: async (/** @type {any} */ command, /** @type {string} */ transcript) => {
+                this.hideClaudeResponse();
+                this.logUserMessage(transcript);
+                this.executeControlCommand(command);
+                this.hidePrompt();
+                // Control commands manage their own playback state
+                this.wasPlayingBeforeListening = false;
             }
-        };
+        });
 
-        this.recognition.onresult = (/** @type {SpeechRecognitionEvent} */ event) => {
-            let transcriptText = '';
-            let isFinal = false;
+        // Everything else is a music request for Claude
+        this.voiceCore.setFallbackHandler(async (/** @type {string} */ transcript) => {
+            await this.processMusicSearch(transcript);
+        });
 
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                transcriptText += event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    isFinal = true;
-                }
-            }
+        this.voiceCore.init();
+        this.transcript = this.voiceCore.transcript;
 
-            if (this.settings.autoSubmitMode) {
-                // Auto mode: process final result
-                if (isFinal) {
-                    this.handleVoiceCommand(transcriptText);
-                }
-            } else {
-                // Manual mode: accumulate speech across recognition restarts
-
-                if (isFinal) {
-                    this.transcript.addSegment(transcriptText);
-                } else {
-                    this.transcript.setInterim(transcriptText);
-                }
-
-                const fullTranscript = this.transcript.getFullText();
-
-                // Check for "submit" command
-                const lowerFull = fullTranscript.toLowerCase().trim();
-                const words = lowerFull.split(/\s+/);
-                const lastWord = words[words.length - 1];
-
-                // If user says "submit" (as the last word or standalone), auto-submit
-                if (lastWord === 'submit' || lowerFull === 'submit') {
-                    // Remove "submit" from the last segment or interim
-                    let cleanSegments = [...this.transcript.segments];
-                    if (this.transcript.interimText && this.transcript.interimText.toLowerCase().trim().endsWith('submit')) {
-                        // Submit was in interim - don't add it
-                    } else if (cleanSegments.length > 0) {
-                        // Submit was in last segment - remove it
-                        cleanSegments[cleanSegments.length - 1] =
-                            cleanSegments[cleanSegments.length - 1].replace(/\s*submit\s*$/i, '').trim();
-                        if (!cleanSegments[cleanSegments.length - 1]) {
-                            cleanSegments.pop();
-                        }
-                    }
-
-                    const textToSubmit = cleanSegments.join(' ').trim();
-
-                    // Stop listening and submit
-                    this.manualModeStopRequested = true;
-                    this.recognition.stop();
-
-                    // Wait a moment for recognition to fully stop, then submit
-                    setTimeout(() => {
-                        if (textToSubmit) {
-                            this.handleVoiceCommand(textToSubmit);
-                            this.transcript.clear();
-                            this.updateSubmitButton(false);
-                        }
-                    }, RECOGNITION_RESTART_DELAY_MS);
-                    return;
-                }
-
-                this.transcript.showSegments(this.transcript.segments, this.transcript.interimText);
-                this.updateSubmitButton(true);
-
-                if (isFinal) {
-                    this.updateStatus('Still listening... say "submit" when done');
-                }
-            }
-        };
-
-        this.recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
-            console.error('Speech recognition error:', event.error);
-
-            // Different errors need different handling - some are expected, some need user action
-            if (event.error === 'no-speech') {
-                // In manual mode, silence is expected between speech segments - just restart silently.
-                // In auto mode, silence means user didn't speak, so prompt them.
-                if (!this.settings.autoSubmitMode) {
-                    return;
-                }
-                this.updateStatus('No speech detected. Tap Listen to try again.');
-            } else if (event.error === 'aborted') {
-                // Recognition was aborted - usually intentional, don't show error
-                if (this.manualModeStopRequested) {
-                    return; // Intentional stop, onend will handle it
-                }
-                this.updateStatus('Ready');
-            } else if (event.error === 'network') {
-                this.updateStatus('Network error. Check connection.');
-            } else if (event.error === 'not-allowed') {
-                this.updateStatus('Microphone access denied. Check permissions.');
-            } else {
-                this.updateStatus(`Error: ${event.error}`);
-            }
-
-            this.isListening = false;
-            this.updateListenButton(false);
-            this.updateSubmitButton(false);
-        };
-
-        this.recognition.onend = () => {
-            this.isListening = false;
-            this.updateListenButton(false);
-
-            if (this.settings.autoSubmitMode) {
-                this.updateStatus('Ready');
-                this.updateSubmitButton(false);
-            } else {
-                // Manual mode: auto-restart after each speech segment.
-                // Web Speech API stops after ~15s of silence. We restart it silently
-                // to maintain illusion of continuous listening until user says "submit".
-                if (!this.manualModeStopRequested) {
-                    this.updateStatus('Still listening... say "submit" when done');
-                    this.updateSubmitButton(true);
-                    setTimeout(() => {
-                        if (!this.settings.autoSubmitMode && !this.manualModeStopRequested) {
-                            try {
-                                this.recognition.start();
-                                this.isListening = true;
-                                this.updateListenButton(true);
-                            } catch (e) {
-                                // Recognition might already be running
-                                console.log('Could not restart recognition:', e);
-                            }
-                        }
-                    }, RECOGNITION_RESTART_DELAY_MS);
-                } else {
-                    // User explicitly stopped - show appropriate message
-                    this.manualModeStopRequested = false;
-                    if (this.transcript.getFullText()) {
-                        this.updateStatus('Tap Submit or Listen again');
-                        this.updateSubmitButton(true);
-                    } else {
-                        this.updateStatus('Ready');
-                        this.updateSubmitButton(false);
-                    }
-                }
-            }
-        };
-
-        // Text-to-speech now handled by VoiceOutput library (voice-output.js)
-        // No initialization needed here - VoiceOutput self-initializes
-    }
-
-    updateRecognitionMode() {
-        if (!this.recognition) return;
-
-        if (this.settings.autoSubmitMode) {
-            // Auto mode: stop after first result
-            this.recognition.continuous = false;
-            this.recognition.interimResults = false;
-        } else {
-            // Manual mode: continuous with interim results
-            this.recognition.continuous = true;
-            this.recognition.interimResults = true;
+        // The core's init sets status to Ready; keep the key-gate message
+        if (!(this.config?.claudeApiKey || this.config?.openaiApiKey)) {
+            this.updateStatus('API key required');
         }
     }
 
     setupUI() {
-        // Initialize transcript manager
-        this.transcript.init();
-
         // Setup API key management UI
         this.setupApiKeyUI();
 
@@ -1017,6 +860,11 @@ class VoiceMusicController {
         if (claudeModelEl) claudeModelEl.value = this.settings.claudeModel;
         this.updateModeToggle();
 
+        // Voice recognition (shared core) - created after settings restore
+        // so the saved auto/manual mode applies from the start. The core
+        // wires the Listen and Submit buttons itself.
+        this.setupVoiceCore();
+
         // Settings change handlers - use 'input' for immediate response as user adjusts
         if (readClaudeEl) readClaudeEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
@@ -1026,16 +874,7 @@ class VoiceMusicController {
 
         if (autoSubmitEl) autoSubmitEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
-            this.settings.autoSubmitMode = target.checked;
-            this.saveSettings();
-            this.updateRecognitionMode();
-            this.updateSubmitButton(false);
-            this.updateModeToggle();
-            // Clear accumulated state when switching modes
-            this.transcript.reset();
-            if (this.isListening) {
-                this.stopListening();
-            }
+            this.setAutoSubmitMode(target.checked);
         });
 
         if (claudeModelEl) claudeModelEl.addEventListener('input', (e) => {
@@ -1044,53 +883,20 @@ class VoiceMusicController {
             this.saveSettings();
         });
 
-        // Listen button
-        const listenBtn = document.getElementById('listenBtn');
-        listenBtn.addEventListener('click', () => {
-            if (this.isListening) {
-                this.stopListening();
-            } else {
-                this.startListening();
-            }
-        });
-
-        // Mode toggle button (if it exists in the UI)
+        // Mode toggle button (if it exists in the UI). Listen and Submit
+        // buttons are wired by the voice core.
         const modeToggleBtn = document.getElementById('modeToggleBtn');
         if (modeToggleBtn) {
             modeToggleBtn.addEventListener('click', () => {
-                this.settings.autoSubmitMode = !this.settings.autoSubmitMode;
-                this.saveSettings();
-                this.updateRecognitionMode();
-                this.updateModeToggle();
-                this.updateSubmitButton(false);
-                // Clear accumulated state when switching modes
-                this.transcript.reset();
+                this.setAutoSubmitMode(!this.settings.autoSubmitMode);
                 // Also update the settings checkbox
                 const autoSubmitCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
                 if (autoSubmitCheckbox) {
                     autoSubmitCheckbox.checked = this.settings.autoSubmitMode;
                 }
-                if (this.isListening) {
-                    this.stopListening();
-                }
             });
             this.updateModeToggle();
         }
-
-        // Submit button
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.addEventListener('click', () => {
-            this.manualModeStopRequested = true;
-            if (this.isListening) {
-                this.recognition.stop();
-            }
-            const textToSubmit = this.transcript.getFullText();
-            if (textToSubmit) {
-                this.handleVoiceCommand(textToSubmit);
-                this.transcript.reset();
-                this.updateSubmitButton(false);
-            }
-        });
 
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
         const typedCommandSubmitBtn = document.getElementById('typedCommandSubmitBtn');
@@ -1468,72 +1274,26 @@ class VoiceMusicController {
         }
     }
 
-    startListening() {
-        if (!this.recognition) {
-            this.updateStatus('Speech recognition not available');
-            return;
-        }
-
-        // Pause playback while listening - music interferes with speech recognition accuracy.
-        // Track state so we can resume during Claude API wait, then pause again when response arrives.
-        this.wasPlayingBeforeListening = this.isPlaying && !this.isPaused;
-        if (this.wasPlayingBeforeListening) {
-            this.pausePlayback();
-        }
-
-        // Clear transcript when starting fresh (user clicked Listen to start new command)
-        // This ensures old "You said" text disappears when starting a new input
-        this.transcript.reset();
-
-        try {
-            this.recognition.start();
-        } catch (error) {
-            console.error('Error starting recognition:', error);
-            this.updateStatus('Click Listen again');
-        }
+    get isListening() {
+        return this.voiceCore ? this.voiceCore.isListening : false;
     }
 
     stopListening() {
-        if (this.recognition && this.isListening) {
-            this.manualModeStopRequested = true;
-            this.recognition.stop();
-            // Let onend handle the rest - it will update status and buttons
-            // Clear transcript state if there's no text to preserve
-            if (!this.transcript.getFullText()) {
-                this.transcript.clear();
-            }
-        }
+        this.voiceCore?.stopListening();
     }
 
-    /** @param {boolean} listening */
-    updateListenButton(listening) {
-        const btn = document.getElementById('listenBtn');
-        if (listening) {
-            btn.classList.add('listening');
-            btn.querySelector('.button-text').textContent = 'Listening...';
-            this.updateSubmitButton(true);
-        } else {
-            btn.classList.remove('listening');
-            btn.querySelector('.button-text').textContent = 'Listen';
-            if (!this.isProcessingCommand) {
-                this.updateSubmitButton(false);
-            }
-        }
+    /** @param {boolean} enabled */
+    setAutoSubmitMode(enabled) {
+        this.settings.autoSubmitMode = enabled;
+        this.saveSettings();
+        this.updateModeToggle();
+        // The core resets the transcript and stops listening on mode change
+        this.voiceCore?.setAutoSubmitMode(enabled);
     }
 
     /** @param {boolean} show */
     updateSubmitButton(show) {
-        const submitBtn = document.getElementById('submitBtn');
-        const listenBtn = document.getElementById('listenBtn');
-        if (submitBtn && listenBtn) {
-            if (show) {
-                submitBtn.style.display = 'flex';
-                listenBtn.style.maxWidth = '50%';
-            } else {
-                submitBtn.style.display = 'none';
-                listenBtn.style.maxWidth = '100%';
-            }
-        }
+        this.voiceCore?.updateSubmitButton(show);
     }
 
     updateModeToggle() {
@@ -1582,36 +1342,6 @@ class VoiceMusicController {
         const statusEl = document.getElementById('status');
         if (statusEl) {
             statusEl.textContent = message;
-        }
-    }
-
-    /** @param {string} transcript */
-    async handleVoiceCommand(transcript) {
-        try {
-            // Check if it's a control command first
-            const command = this.parseControlCommand(transcript);
-            if (command) {
-                this.hideClaudeResponse();
-                this.logUserMessage(transcript);
-                // Show transcript briefly for commands, then auto-hide
-                this.transcript.show(transcript, { autoHideAfter: TRANSCRIPT_AUTO_HIDE_MS });
-                this.executeControlCommand(command);
-                this.hidePrompt();
-                // Don't resume playback for control commands - they handle their own state
-                this.wasPlayingBeforeListening = false;
-                this.updateSubmitButton(false);
-                return;
-            }
-
-            await this.processMusicSearch(transcript);
-        } catch (error) {
-            console.error('Error handling voice command:', error);
-            this.logError('Voice Command Error', error);
-            this.updateStatus('Error processing command. Try again.');
-            this.hidePrompt();
-            this.wasPlayingBeforeListening = false;
-            this.isProcessingCommand = false;
-            this.updateSubmitButton(false);
         }
     }
 

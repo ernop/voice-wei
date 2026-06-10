@@ -1,0 +1,17 @@
+id: speech-recognition-only-in-voice-command-core
+message: Speech recognition belongs in voice-command-core.js - use VoiceCommandCore instead
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/voice-command-core.js"
+  - "**/tests/**"
+  - "**/types/**"
+rule:
+  any:
+    - kind: identifier
+      regex: "webkitSpeechRecognition"
+    - kind: property_identifier
+      regex: "webkitSpeechRecognition"
+note: "The player used to carry its own recognition stack. voice-command-core.js is the single owner of SpeechRecognition setup, modes, and transcripts."

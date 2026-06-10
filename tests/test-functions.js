@@ -291,6 +291,80 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
+    // ============ PLAYER VOICE: shared core drives commands and music requests ============
+    {
+        const ctx = await browser.newContext();
+        // Fake key (long enough to pass the gate) and a controllable fake
+        // SpeechRecognition, installed before page scripts run.
+        await ctx.addInitScript(() => {
+            localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890');
+            window.__recs = [];
+            class FakeSpeechRecognition {
+                constructor() {
+                    window.__recs.push(this);
+                    this.continuous = false;
+                    this.interimResults = false;
+                    this.lang = '';
+                }
+                start() { this.onstart && this.onstart(); }
+                stop() { this.onend && this.onend(); }
+                abort() { this.onend && this.onend(); }
+            }
+            window.__emitResult = (text, isFinal = true) => {
+                const rec = window.__recs[window.__recs.length - 1];
+                const result = [{ transcript: text }];
+                result.isFinal = isFinal;
+                rec.onresult({ resultIndex: 0, results: [result] });
+            };
+            window.SpeechRecognition = FakeSpeechRecognition;
+            window.webkitSpeechRecognition = FakeSpeechRecognition;
+            // Claude is unreachable in tests; fail fast so the flow resolves
+            const realFetch = window.fetch.bind(window);
+            window.fetch = (url, ...rest) => {
+                if (String(url).includes('anthropic')) return Promise.reject(new Error('offline test'));
+                return realFetch(url, ...rest);
+            };
+        });
+        const tab = await ctx.newPage();
+        // The manual-mode request intentionally fails at the stubbed Claude
+        // fetch; those logged errors are expected.
+        /** @type {string[]} */
+        const playerVoiceErrors = [];
+        collectErrors(tab, 'player-voice', playerVoiceErrors);
+        await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(2000);
+
+        // Auto mode: spoken control command executes locally
+        await tab.click('#listenBtn');
+        await tab.waitForTimeout(200);
+        const listeningStatus = await tab.textContent('#status');
+        await tab.evaluate(() => window.__emitResult('clear'));
+        await tab.waitForTimeout(400);
+        const afterClear = await tab.textContent('#status');
+        report.check(`player voice control ("${listeningStatus}" -> "${afterClear}")`,
+            listeningStatus === 'Listening...' && afterClear === 'Playlist is already empty');
+
+        // Manual mode: segments accumulate, spoken "submit" sends to Claude path
+        await tab.click('#settingsBtn');
+        await tab.evaluate(() => document.getElementById('autoSubmitMode').click());
+        await tab.click('#closeSettingsBtn');
+        await tab.click('#listenBtn');
+        await tab.waitForTimeout(200);
+        const manualStatus = await tab.textContent('#status');
+        await tab.evaluate(() => window.__emitResult('play some jazz'));
+        await tab.waitForTimeout(200);
+        await tab.evaluate(() => window.__emitResult('submit'));
+        await tab.waitForTimeout(600);
+        const logged = await tab.evaluate(() =>
+            document.getElementById('logContent').textContent.includes('play some jazz'));
+        report.check(`player manual mode + spoken submit ("${manualStatus}", request logged: ${logged})`,
+            manualStatus.includes('say "submit"') && logged);
+        playerVoiceErrors
+            .filter(e => !e.includes('offline test'))
+            .forEach(e => report.errors.push(e));
+        await ctx.close();
+    }
+
     // ============ PLAYER: API key gating + settings panel ============
     {
         const ctx = await browser.newContext();
