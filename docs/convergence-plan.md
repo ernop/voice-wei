@@ -93,6 +93,21 @@ Done (v84, function verification pass):
   pages went fully dead if piano samples failed to load (each page now
   reports it on its own status surface and stays interactive).
 
+Done (v85, standardization):
+- File names match tab functions: scales2 -> intervals.{html,js},
+  test -> trace.{html,js,css} (tab renamed Trace, storage key
+  trace-settings), app.js -> player.js. Old URLs are gone from the server
+  (deploy uses --delete).
+- CSS ownership untangled: scales.css is scales-page-only; the cross-page
+  blocks (display toggles, transport buttons, vf rows, history list) moved
+  to practice-controls.css; intervals got its own intervals.css (and lost
+  its inline styles). Verified pixel-identical by screenshot diff.
+- The headless test suite is checked in under tests/ (npm test): page
+  loads, playback engine law, shared controls + persistence, per-tab
+  functions. Deploy excludes tests/ and node_modules.
+- docs/product-goals.md added: the distilled goal list (vision.md remains
+  the raw idea pool).
+
 Remaining (known, deliberate):
 - Ears' interval multi-select grid and root-range slider stay custom (no
   shared multi-select/slider primitive yet); its visual dialect (.setting-btn)

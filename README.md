@@ -178,7 +178,9 @@ Push to master triggers GitHub Actions deploy. Or manually:
 ./deploy.sh --dry-run # Preview changes
 ```
 
-See [PRODUCT.md](PRODUCT.md) for detailed product documentation.
+See [docs/product-goals.md](docs/product-goals.md) for what this system is
+for, [PRODUCT.md](PRODUCT.md) for detailed product documentation, and
+[docs/parameters.md](docs/parameters.md) for every setting's definition.
 
 ## License
 
