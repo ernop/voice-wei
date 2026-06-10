@@ -4,6 +4,7 @@
   "private": true,
   "description": "Voice-controlled music player and scale practice tool",
   "scripts": {
+    "test": "node tests/run-all.js",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",
     "typecheck:strict": "tsc --noEmit --strict",
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@ast-grep/cli": "^0.40.3",
     "@types/youtube": "^0.1.0",
+    "playwright": "^1.60.0",
     "tone": "^14.8.49",
     "typescript": "^5.7.2"
   }

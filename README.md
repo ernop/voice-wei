@@ -139,6 +139,20 @@ voice-output.js          # Text-to-speech (the only owner of TTS)
 shared-header.js         # Site header and nav
 ```
 
+## Testing
+
+```bash
+npm install   # once; installs playwright (uses your installed Chrome)
+npm test      # headless suite: page loads, playback engine, controls, tab functions
+```
+
+The suite starts its own static server on port 8000 (or reuses one already
+running). Set `CHROME_PATH` if Chrome is not auto-detected. The mic-based
+tests use Chrome's fake audio device, so no real microphone is needed.
+
+Also: `npm run lint` (ast-grep rules, including the shared-library ownership
+guards) and `npm run typecheck`.
+
 ## Version System
 
 All pages share a unified version number:

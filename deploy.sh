@@ -47,7 +47,11 @@ rsync -avz $DRY_RUN \
   --exclude='.git' \
   --exclude='.gitignore' \
   --exclude='.cursor' \
+  --exclude='.github' \
+  --exclude='.ast-grep' \
   --exclude='config.json' \
+  --exclude='tests' \
+  --exclude='node_modules' \
   --exclude='*.md' \
   --exclude='*.txt' \
   --exclude='*.sh' \
