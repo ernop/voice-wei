@@ -70,8 +70,10 @@ return to the initial note.
 
 Setting behaviors (the key design): root/scale changes **reproject** the
 current degree sequence into the new context; min/max length, start, and
-in/out-octave apply to the **next** generated phrase; return-to-1
-regenerates; playback settings replay; show-names redraws.
+range (in octave / just over / out octave) apply to the **next** generated
+phrase; return-to-1 regenerates; playback settings replay; show-names
+redraws. "Just over" lets phrases reach two degrees past the octave - down
+to 6 below, up to 3 above.
 
 ## Trace
 

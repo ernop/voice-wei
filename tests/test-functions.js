@@ -162,6 +162,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(1500);
         const s2 = await tab.evaluate(() => window.__voiceStarts);
         report.check(`phrases history records and replays (${historyCount} items)`, historyCount >= 2 && s2 > s1);
+
+        // "just over" range: offsets bounded to two degrees past the octave
+        const overBounded = await tab.evaluate(() => {
+            for (let i = 0; i < 300; i++) {
+                const offsets = PatternPracticeCore.generateClusteredOffsets({
+                    scaleType: 'major', startAtOne: false, rangeMode: 'over',
+                    minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
+                });
+                if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
+            }
+            return true;
+        });
+        report.check('phrases "just over" bounded to 6-below..3-above', overBounded);
+        await tab.click('[data-range="over"]');
+        await tab.waitForTimeout(200);
+        const savedRange = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).rangeMode);
+        report.check('phrases range mode persists', savedRange === 'over');
         await tab.close();
     }
 

@@ -35,7 +35,7 @@ master-output mute.
 | octave | 3 | via root stepper (C2-B4) | reproject |
 | scaleType | major | major, minor, chromatic, pentatonic, h minor, m minor | reproject |
 | startAtOne | true | start at 1 / random start | bounds-next |
-| allowOutOfOctave | false | in octave / out octave | bounds-next |
+| rangeMode | within | in octave / just over / out octave | bounds-next |
 | minLength | 5 | 2..16 list | bounds-next |
 | maxLength | 8 | 3..50 list | bounds-next |
 | returnToInitial | true | return to 1 / no return | regenerate |
@@ -44,6 +44,11 @@ master-output mute.
 | noteLengthMs | 300 | 200..1600 list | replay |
 | gapMs | 0 | 0, 100, 250, 500 | replay |
 | showNoteNames | true | toggle | redraw |
+
+Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
+past each end (down to 6 of the octave below, up to 3 of the octave above
+for seven-note scales); "out octave" allows half an octave below to two
+octaves up.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
 octave), Repeat loop, per-note on/off mask.

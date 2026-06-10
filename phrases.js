@@ -14,7 +14,7 @@
         octave: 3,
         scaleType: 'major',
         startAtOne: true,
-        allowOutOfOctave: false,
+        rangeMode: 'within',
         minLength: 5,
         maxLength: 8,
         returnToInitial: true,
@@ -29,14 +29,14 @@
 
     const STORAGE_KEY = 'phrases-settings';
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'startAtOne', 'allowOutOfOctave',
+        'root', 'octave', 'scaleType', 'startAtOne', 'rangeMode',
         'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
-    // affect the NEXT generated phrase (startAtOne, allowOutOfOctave,
+    // affect the NEXT generated phrase (startAtOne, rangeMode,
     // minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
@@ -95,7 +95,7 @@
             octave: state.octave,
             scaleType: state.scaleType,
             startAtOne: state.startAtOne,
-            allowOutOfOctave: state.allowOutOfOctave,
+            rangeMode: state.rangeMode,
             minLength: state.minLength,
             maxLength: state.maxLength,
             returnToInitial: state.returnToInitial,
@@ -560,7 +560,7 @@
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-start', 'startAtOne', value => value === 'one');
-        wireSetting('data-range', 'allowOutOfOctave', value => value === 'expanded');
+        wireSetting('data-range', 'rangeMode', String);
         wireSetting('data-return-initial', 'returnToInitial', value => value === 'yes');
         wireSetting('data-output', 'outputMode', String);
         PracticeControls.wireSteppers(stepAdjusterValue);

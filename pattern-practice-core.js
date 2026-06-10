@@ -98,10 +98,25 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * Phrase range modes: how far offsets may wander beyond the octave.
+     * 'within' = degrees 1..8 only; 'over' = two degrees past each end
+     * (down to 6 of the octave below, up to 3 of the octave above for
+     * seven-note scales); 'expanded' = half an octave below to two
+     * octaves up.
+     * @param {string} rangeMode
+     * @param {number} dp - degrees per octave
+     */
+    function rangeBounds(rangeMode, dp) {
+        if (rangeMode === 'expanded') return { min: -Math.floor(dp / 2), max: dp * 2 };
+        if (rangeMode === 'over') return { min: -2, max: dp + 2 };
+        return { min: 0, max: dp };
+    }
+
+    /**
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   allowOutOfOctave: boolean,
+     *   rangeMode: string,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -111,8 +126,7 @@ const PatternPracticeCore = (function () {
      */
     function generateClusteredOffsets(options) {
         const dp = degreesPerOctave(options.scaleType);
-        const minOffset = options.allowOutOfOctave ? -Math.floor(dp / 2) : 0;
-        const maxOffset = options.allowOutOfOctave ? dp * 2 : dp;
+        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
         const minLength = clamp(Math.round(options.minLength), 1, 32);
         const maxLength = clamp(Math.max(Math.round(options.maxLength), minLength), minLength, 64);
         const possibleLengths = [];
@@ -175,7 +189,7 @@ const PatternPracticeCore = (function () {
      *   octave: number,
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   allowOutOfOctave: boolean,
+     *   rangeMode: string,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -207,6 +221,7 @@ const PatternPracticeCore = (function () {
         randomInt,
         clamp,
         positiveModulo,
+        rangeBounds,
         degreesPerOctave,
         baseIntervalsForScale,
         buildExtendedScale,
