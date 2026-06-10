@@ -4,6 +4,36 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-06-10 (night)
+
+**Session context**: Yui called out rushing. The standing correction:
+when given a defect, analyze it to the base of the design - ask whether
+the defect is the product of an earlier design or data-structure choice,
+and fix THAT, across the whole system, not the symptom. This is now
+codified in agents.md ("The working method"), which is also now the root
+of the documentation tree (every md file linked; nothing outside the
+hierarchy).
+
+**The design fix this produced**: the masked-test scoring bug ("I sing
+the right note and it doesn't show") had already been patched at the
+read layer (the take plan), but the base flaw was still there: note
+sequences as parallel arrays (offsets[], midiNotes[], displayDegrees[],
+spokenDegrees[], noteNames[] + activeMask[]). Every consumer re-zipped
+by index; every re-zip was a chance to misalign - that's what the bug
+was. Fixed the class: `SequenceNote[]` is now the only sequence shape
+(zipped once in pattern-practice-core.buildSequenceNotes), `Phrase` and
+intervals instances carry `notes`, and the phrases page's authoritative
+state is an explicit `TakeNote[]` (offset + enabled). `buildTakePlan`
+is the single derivation everything reads. activeMask is gone.
+
+**For future mei**: when yui reports a defect, the patch that makes the
+symptom pass is the *start* of the work, not the end. Ask: what
+structure allowed this? Does it exist elsewhere? What type or guard
+makes it unrepresentable? And re-read agents.md first - it is the
+accumulating contract of how yui wants this collaboration to run.
+
+---
+
 ## 2026-06-10 (later)
 
 **Session context**: Yui sent a five-part cleanup request: (1) a display
