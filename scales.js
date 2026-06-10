@@ -1844,18 +1844,20 @@ class ScalesController {
             // "twice" (without repeat)
             modifiers.repeat = 2;
             text = text.replace(/\b(twice|two\s+times|2\s+times)\b/, '');
-        } else if (text.match(/\bforever\s+no\s+gap\b/)) {
+        } else if (text.match(/\b(and\s+)?(repeat\s+)?forever\s+no\s+gap\b/)) {
+            // "forever no gap", "repeat forever no gap"
             modifiers.repeat = Infinity;
             modifiers.repeatGapMs = 0;
-            text = text.replace(/\bforever\s+no\s+gap\b/, '');
-        } else if (text.match(/\bforever\b/)) {
+            text = text.replace(/\b(and\s+)?(repeat\s+)?forever\s+no\s+gap\b/, '');
+        } else if (text.match(/\b(and\s+)?(repeat\s+)?forever\b/)) {
+            // "forever", "repeat forever", "and repeat forever"
             modifiers.repeat = Infinity;
             modifiers.repeatGapMs = FOREVER_SECTION_GAP_MS;
-            text = text.replace(/\bforever\b/, '');
-        } else if (text.match(/\b(and\s+)?repeat\b/) || text.match(/\bloop\b/) || text.match(/\bforever\b/)) {
-            // "repeat" alone = forever, "loop" = forever, "forever" = forever
+            text = text.replace(/\b(and\s+)?(repeat\s+)?forever\b/, '');
+        } else if (text.match(/\b(and\s+)?repeat\b/) || text.match(/\bloop\b/)) {
+            // "repeat" alone = forever, "loop" = forever
             modifiers.repeat = Infinity;
-            text = text.replace(/\b(and\s+)?repeat\b/, '').replace(/\bloop\b/, '').replace(/\bforever\b/, '');
+            text = text.replace(/\b(and\s+)?repeat\b/, '').replace(/\bloop\b/, '');
         }
 
         // Direction modifiers (inline)
