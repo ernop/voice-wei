@@ -67,18 +67,32 @@ interface NoteTiming {
 }
 
 /**
+ * One note of a generated sequence, fully zipped at construction.
+ * Sequences of notes are ALWAYS lists of these objects - parallel
+ * arrays over note positions are forbidden at module boundaries
+ * (every consumer-side re-zip by index is a chance to misalign,
+ * which is exactly how the masked-test scoring bug happened).
+ */
+interface SequenceNote {
+    /** Scale-degree offset (0 = degree 1; half-integer = passing tone) */
+    offset: number;
+    /** MIDI note number in the sequence's key */
+    midi: number;
+    /** Display degree label (e.g. "4", "7d", "4#") */
+    degree: string;
+    /** Spoken label (e.g. "sharp 4") */
+    spoken: string;
+    /** Pitch string (e.g. "F#3") */
+    noteName: string;
+}
+
+/**
  * A generated phrase (pattern-practice-core.generatePhrase) - the one
  * shape for phrase data everywhere: generation, reprojection, playback,
- * history. Offsets are scale-degree offsets (0 = degree 1); midiNotes
- * are the projection into the phrase's key; everything else is derived
- * display/speech material.
+ * history.
  */
 interface Phrase {
-    offsets: number[];
-    midiNotes: number[];
-    displayDegrees: string[];
-    spokenDegrees: string[];
-    noteNames: string[];
+    notes: SequenceNote[];
     root: string;
     scaleType: string;
     octave: number;
@@ -92,23 +106,28 @@ interface Phrase {
  * null and the enabled notes share one compressed timeline that starts
  * at 0 with the first enabled note.
  */
-interface PhrasePlanNote {
-    /** Position in the phrase (mask index, display order) */
+interface PhrasePlanNote extends SequenceNote {
+    /** Position in the phrase (display order, toggle identity) */
     index: number;
-    /** MIDI note number */
-    midi: number;
-    /** Display degree label (e.g. "4", "7d", "4#") */
-    degree: string;
-    /** Spoken label (e.g. "sharp 4") */
-    spoken: string;
-    /** Pitch string for display (e.g. "F#3") */
-    noteName: string;
-    /** Whether this note is currently enabled (mask state) */
+    /** Whether this note is currently enabled */
     enabled: boolean;
     /** Window start on the take timeline; null when disabled */
     startMs: number | null;
     /** Window end on the take timeline; null when disabled */
     endMs: number | null;
+}
+
+/**
+ * The authoritative state of one take note on the phrases page: which
+ * source offset it is, and whether it is enabled. Everything else
+ * (midi, labels, timing) is derived from this plus the page key/timing
+ * settings, in one place.
+ */
+interface TakeNote {
+    /** Scale-degree offset as generated (before reflection/projection) */
+    offset: number;
+    /** Enabled = displayed bright, played, sung, scored */
+    enabled: boolean;
 }
 
 /** One horizontal reference line on a pitch trace. */

@@ -159,9 +159,13 @@ One representation per concept, conversions in one place:
 - **Scales are `SCALE_PATTERNS` ids** ('major', 'harmonic_minor'...),
   one frozen registry in music-constants.js; degree/offset math lives in
   `pattern-practice-core.js` (offset 0 = degree 1).
-- **Phrases are the `Phrase` shape** (types/music.d.ts) produced by
-  `generatePhrase`: degree offsets plus their MIDI projection and derived
-  display/speech arrays. Reprojection rebuilds the same shape.
+- **A sequence of notes is a list of note objects** (`SequenceNote[]`,
+  zipped once by `buildSequenceNotes`), never parallel arrays indexed by
+  position. Every consumer-side re-zip is a chance to misalign - the
+  masked-test scoring bug was exactly that. `Phrase` and the intervals
+  instances carry `notes`; the phrases page's authoritative take state
+  is an explicit `TakeNote[]` (offset + enabled), and `buildTakePlan` is
+  the single derivation everything reads.
 - **Time is milliseconds**, and names carry the unit (`noteLengthMs`,
   `gapMs`, `durationSec`). The piano boundary takes `ToneDuration`
   (seconds number or Tone notation string); scales' per-note triple is

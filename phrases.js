@@ -53,10 +53,16 @@
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
     let piano = null;
-    /** @type {any | null} */
+    /** @type {Phrase | null} The generated phrase (history payload) */
     let currentPhrase = null;
-    /** @type {boolean[] } */
-    let activeMask = [];
+    /**
+     * THE authoritative state of the current take: an explicit list of
+     * notes, each with its source offset and enabled flag. Everything
+     * else - midi, labels, timing, display, playback, test targets - is
+     * derived from this list plus the page settings, in buildTakePlan.
+     * @type {TakeNote[]}
+     */
+    let takeNotes = [];
     /** @type {ReturnType<typeof HistoryList.create> | null} */
     let history = null;
     let playToken = 0;
@@ -115,54 +121,65 @@
 
     function rootMidi() { return noteNameToMidi(state.root, state.octave); }
 
-    function deriveDisplayPhrase() {
-        if (!currentPhrase) return null;
+    /**
+     * The one derivation: project the authoritative take notes through
+     * the current key, reflection, and timing into fully-named plan
+     * notes. Display, playback, spoken output, and the test panel all
+     * read this list - nothing re-zips arrays by position. Enabled
+     * notes share one timeline that starts at 0 with the FIRST ENABLED
+     * note; disabled notes own no time at all - exactly how playback
+     * sounds.
+     * @returns {PhrasePlanNote[]}
+     */
+    function buildTakePlan() {
         const root = rootMidi();
-        if (root === null) return currentPhrase;
-
+        if (root === null || !takeNotes.length) return [];
+        const sourceOffsets = takeNotes.map(note => note.offset);
         const offsets = state.reflected
-            ? PatternPracticeCore.reflectOffsets(currentPhrase.offsets, state.scaleType)
-            : currentPhrase.offsets;
-        const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
-        const midiNotes = offsets.map(offset => PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset));
-
-        return {
-            ...currentPhrase,
-            root: state.root,
-            scaleType: state.scaleType,
-            octave: state.octave,
-            offsets,
-            midiNotes,
-            displayDegrees: PatternPracticeCore.offsetsToDisplay(offsets, dp),
-            spokenDegrees: PatternPracticeCore.offsetsToSpoken(offsets, dp),
-            noteNames: midiNotes.map(midi => midiToPitchString(midi))
-        };
+            ? PatternPracticeCore.reflectOffsets(sourceOffsets, state.scaleType)
+            : sourceOffsets;
+        const notes = PatternPracticeCore.buildSequenceNotes(offsets, root, state.scaleType);
+        const stepMs = state.noteLengthMs + effectiveGapMs();
+        let slot = 0;
+        return notes.map((note, index) => {
+            const enabled = takeNotes[index].enabled;
+            const startMs = enabled ? slot * stepMs : null;
+            if (enabled) slot++;
+            return {
+                ...note,
+                index,
+                enabled,
+                startMs,
+                endMs: startMs !== null ? startMs + state.noteLengthMs : null
+            };
+        });
     }
 
-    function renderPhraseUnits(phrase) {
+    /** @param {PhrasePlanNote[]} plan */
+    function renderPhraseUnits(plan) {
         const degreesEl = getEl('phraseDegrees');
         if (!degreesEl) return;
         degreesEl.textContent = '';
-        degreesEl.classList.toggle('phrase-degrees-many', phrase.displayDegrees.length > 18);
-        phrase.displayDegrees.forEach((degree, index) => {
+        degreesEl.classList.toggle('phrase-degrees-many', plan.length > 18);
+        plan.forEach(note => {
             // The degree number is the mute toggle: tap to flip, drag
             // across several to paint the same state. Keeps the stage to
             // a single row (vertical space is precious on the phone).
             const token = document.createElement('button');
             token.type = 'button';
             token.className = 'phrase-degree-token';
-            token.dataset.index = String(index);
-            token.textContent = degree;
-            token.title = `${degree} ${phrase.noteNames[index]} - tap to mute/unmute`;
-            token.classList.toggle('inactive', activeMask[index] === false);
+            token.dataset.index = String(note.index);
+            token.textContent = note.degree;
+            token.title = `${note.degree} ${note.noteName} - tap to mute/unmute`;
+            token.classList.toggle('inactive', !note.enabled);
             token.addEventListener('pointerdown', event => {
                 event.preventDefault();
                 isPointerToggling = true;
-                pointerToggleValue = activeMask[index] === false;
-                setNoteActive(index, pointerToggleValue);
+                pointerToggleValue = !takeNotes[note.index].enabled;
+                setNoteActive(note.index, pointerToggleValue);
             });
             token.addEventListener('pointerenter', () => {
-                if (isPointerToggling) setNoteActive(index, pointerToggleValue);
+                if (isPointerToggling) setNoteActive(note.index, pointerToggleValue);
             });
             degreesEl.appendChild(token);
         });
@@ -204,20 +221,20 @@
     }
 
     /**
-     * @param {any} phrase
      * @param {boolean} expandRange
      * @returns {Array<{ offset: number, midi: number, label: string, noteName: string }>}
      */
-    function buildPhraseTestScaleLines(phrase, expandRange) {
+    function buildPhraseTestScaleLines(expandRange) {
         const root = rootMidi();
-        if (root === null || !phrase) return [];
+        const plan = buildTakePlan();
+        if (root === null || !plan.length) return [];
         const degreesPerOctave = PatternPracticeCore.degreesPerOctave(state.scaleType);
         const lines = [];
-        const phraseOffsets = Array.isArray(phrase.offsets) ? phrase.offsets : [];
+        const planOffsets = plan.map(note => note.offset);
         const extraRange = expandRange ? degreesPerOctave : 0;
-        const lowerOffset = Math.min(-1, ...phraseOffsets) - 1 - extraRange;
-        const upperOffset = Math.max(degreesPerOctave + 1, ...phraseOffsets) + 1 + extraRange;
-        for (let offset = lowerOffset; offset <= upperOffset; offset++) {
+        const lowerOffset = Math.min(-1, ...planOffsets) - 1 - extraRange;
+        const upperOffset = Math.max(degreesPerOctave + 1, ...planOffsets) + 1 + extraRange;
+        for (let offset = Math.floor(lowerOffset); offset <= Math.ceil(upperOffset); offset++) {
             const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
             lines.push({
                 offset,
@@ -227,37 +244,6 @@
             });
         }
         return lines;
-    }
-
-    /** @param {any} phrase */
-    /**
-     * The explicit take plan: every note of the current phrase with
-     * named fields, nothing positional or implied. Display, playback,
-     * and the test panel all read this one list. Enabled notes share
-     * one timeline that starts at 0 with the FIRST ENABLED note;
-     * disabled notes own no time at all - exactly how playback sounds.
-     * @returns {PhrasePlanNote[]}
-     */
-    function buildTakePlan() {
-        const phrase = phraseForPlayback();
-        if (!phrase) return [];
-        const stepMs = state.noteLengthMs + effectiveGapMs();
-        let slot = 0;
-        return phrase.midiNotes.map((midi, index) => {
-            const enabled = activeMask[index] !== false;
-            const startMs = enabled ? slot * stepMs : null;
-            if (enabled) slot++;
-            return {
-                index,
-                midi,
-                degree: phrase.displayDegrees[index],
-                spoken: phrase.spokenDegrees[index],
-                noteName: phrase.noteNames[index],
-                enabled,
-                startMs,
-                endMs: enabled && startMs !== null ? startMs + state.noteLengthMs : null
-            };
-        });
     }
 
     function phraseTestDurationMs() {
@@ -286,13 +272,13 @@
         subtitle: 'Sing the phrase. Time starts only when your voice is detected.',
         storageKey: 'phrases-test-panel',
         legendTargetLabel: 'target phrase',
-        emptyMessage: () => (phraseForPlayback() ? null : 'Generate a phrase, then press Test.'),
+        emptyMessage: () => (takeNotes.length ? null : 'Generate a phrase, then press Test.'),
         key: () => ({
             rootMidi: rootMidi() ?? 60,
             rootLabel: `${state.root}${state.octave}`,
             scaleType: state.scaleType
         }),
-        rails: ({ expandRange }) => buildPhraseTestScaleLines(phraseForPlayback(), expandRange).map(line => ({
+        rails: ({ expandRange }) => buildPhraseTestScaleLines(expandRange).map(line => ({
             midi: line.midi,
             label: `${line.label} ${line.noteName}`,
             emphasized: line.offset >= 0 && line.offset <= PatternPracticeCore.degreesPerOctave(state.scaleType)
@@ -322,15 +308,15 @@
         const degreesEl = getEl('phraseDegrees');
         const notesEl = getEl('phraseNotes');
         if (!degreesEl || !notesEl) return;
-        const phrase = deriveDisplayPhrase();
-        if (!phrase) {
+        const plan = buildTakePlan();
+        if (!plan.length) {
             degreesEl.textContent = '--';
             degreesEl.classList.remove('phrase-degrees-many');
             notesEl.textContent = '';
             return;
         }
-        renderPhraseUnits(phrase);
-        notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
+        renderPhraseUnits(plan);
+        notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
         drawPhraseTest();
         updateStickyOffset();
     }
@@ -338,15 +324,21 @@
     function generatePhrase() {
         currentPhrase = buildPhrase();
         if (!currentPhrase) return null;
-        activeMask = currentPhrase.midiNotes.map(() => true);
-        updatePhraseDisplay();
+        setTakeFromPhrase(currentPhrase);
         if (history) history.add(currentPhrase);
         return currentPhrase;
     }
 
-    function phraseForPlayback() { return deriveDisplayPhrase(); }
+    /**
+     * Seed the authoritative take notes from a phrase (all enabled).
+     * @param {Phrase} phrase
+     */
+    function setTakeFromPhrase(phrase) {
+        takeNotes = phrase.notes.map(note => ({ offset: note.offset, enabled: true }));
+        updatePhraseDisplay();
+    }
 
-    async function playPhraseOnce(phrase, token) {
+    async function playPhraseOnce(token) {
         updatePhraseDisplay();
         if (state.outputMode === 'none' || state.outputMode === 'display') return;
         if (state.outputMode === 'speak') {
@@ -356,34 +348,35 @@
         if (state.outputMode === 'speak_tones') {
             await VoiceOutput.speak(spokenLine());
             if (token !== playToken) return;
-            await playToneSequence(phrase, token);
+            await playToneSequence(token);
             return;
         }
         if (state.outputMode === 'sing_numbers') {
-            await playSingNumberSequence(phrase, token);
+            await playSingNumberSequence(token);
             return;
         }
-        await playToneSequence(phrase, token);
+        await playToneSequence(token);
     }
 
-    async function playPhrase(phrase) {
+    async function playPhrase() {
+        if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
         do {
-            await playPhraseOnce(phrase, token);
+            await playPhraseOnce(token);
             if (token !== playToken || !state.loopCurrent) break;
             await sleep(650);
         } while (token === playToken && state.loopCurrent);
     }
 
-    // The mask is read live, right before each note starts: toggling a
+    // Enabled is read live, right before each note starts: toggling a
     // later note during playback changes what WILL be played without
     // touching the note currently sounding.
-    async function playToneSequence(phrase, token) {
+    async function playToneSequence(token) {
         for (const note of buildTakePlan()) {
             if (token !== playToken) return;
-            if (activeMask[note.index] === false) continue; // live mask read
+            if (!takeNotes[note.index].enabled) continue; // live read
             playMidi(note.midi);
             await sleep(state.noteLengthMs + effectiveGapMs());
         }
@@ -397,11 +390,11 @@
         });
     }
 
-    // Same live mask read as playToneSequence.
-    async function playSingNumberSequence(phrase, token) {
+    // Same live enabled read as playToneSequence.
+    async function playSingNumberSequence(token) {
         for (const note of buildTakePlan()) {
             if (token !== playToken) return;
-            if (activeMask[note.index] === false) continue; // live mask read
+            if (!takeNotes[note.index].enabled) continue; // live read
             await speakNumberAtPitch(note.spoken, note.midi, state.noteLengthMs);
             const gap = effectiveGapMs();
             if (gap > 0) await sleep(gap);
@@ -411,8 +404,7 @@
     async function playCurrentOrNew() {
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
-        const phrase = phraseForPlayback();
-        if (phrase) await playPhrase(phrase);
+        await playPhrase();
     }
 
     async function playNext() {
@@ -421,8 +413,7 @@
         state.loopCurrent = false;
         syncRepeatButton();
         generatePhrase();
-        const phrase = phraseForPlayback();
-        if (phrase) await playPhrase(phrase);
+        await playPhrase();
     }
 
     async function toggleRepeatLoop() {
@@ -430,8 +421,7 @@
         state.loopCurrent = !state.loopCurrent;
         syncRepeatButton();
         if (state.loopCurrent) {
-            const phrase = phraseForPlayback();
-            if (phrase) await playPhrase(phrase);
+            await playPhrase();
         } else {
             stopPlayback();
         }
@@ -446,8 +436,10 @@
         if (text) text.textContent = state.loopCurrent ? 'Repeat On' : 'Repeat Off';
     }
 
+    /** @param {number} index @param {boolean} active */
     function setNoteActive(index, active) {
-        activeMask[index] = active;
+        if (!takeNotes[index]) return;
+        takeNotes[index].enabled = active;
         const token = document.querySelector(`.phrase-degree-token[data-index="${index}"]`);
         if (token) token.classList.toggle('inactive', !active);
         drawPhraseTest();
@@ -455,10 +447,10 @@
 
     function endPointerToggle() { isPointerToggling = false; }
 
+    /** @param {boolean} active */
     function setAllNotes(active) {
-        if (!currentPhrase) return;
-        activeMask = currentPhrase.midiNotes.map(() => active);
-        renderPhraseUnits(deriveDisplayPhrase());
+        takeNotes.forEach(note => { note.enabled = active; });
+        renderPhraseUnits(buildTakePlan());
         drawPhraseTest();
     }
 
@@ -480,6 +472,7 @@
         await testPanel.open();
     }
 
+    /** @param {Phrase} phrase @param {number} index */
     function renderHistoryItem(phrase, index) {
         const item = document.createElement('div');
         item.className = 'history-item';
@@ -490,19 +483,17 @@
         playBtn.textContent = '>';
         playBtn.addEventListener('click', async () => {
             currentPhrase = phrase;
-            activeMask = phrase.midiNotes.map(() => true);
-            updatePhraseDisplay();
-            const playbackPhrase = phraseForPlayback();
-            if (playbackPhrase) await playPhrase(playbackPhrase);
+            setTakeFromPhrase(phrase);
+            await playPhrase();
         });
         const text = document.createElement('div');
         text.className = 'history-text';
         const degrees = document.createElement('div');
         degrees.className = 'phrase-history-degrees';
-        degrees.textContent = phrase.displayDegrees.join(' ');
+        degrees.textContent = phrase.notes.map(note => note.degree).join(' ');
         const notes = document.createElement('div');
         notes.className = 'history-transcript';
-        notes.textContent = phrase.noteNames.join(' ');
+        notes.textContent = phrase.notes.map(note => note.noteName).join(' ');
         const time = document.createElement('span');
         time.className = 'history-time';
         time.textContent = index === 0 ? 'new' : '';

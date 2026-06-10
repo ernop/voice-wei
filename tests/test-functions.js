@@ -232,7 +232,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     rangeMode: 'expanded', minLength: 8, maxLength: 10,
                     returnToInitial: false, returnToRoot: false, phraseAlgo: 'motif'
                 });
-                const o = phrase.offsets;
+                const o = phrase.notes.map(n => n.offset);
                 const d = o.slice(1).map((v, idx) => v - o[idx]);
                 for (let shapeLen = 2; shapeLen <= 3; shapeLen++) {
                     const shape = d.slice(0, shapeLen).join(',');
@@ -259,13 +259,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     returnToInitial: false, returnToRoot: false,
                     phraseAlgo: 'stepwise', chromaticRuns: true
                 });
-                phrase.offsets.forEach((off, idx) => {
-                    if (Number.isInteger(off)) return;
+                phrase.notes.forEach((note, idx) => {
+                    if (Number.isInteger(note.offset)) return;
                     decorated++;
-                    const m = phrase.midiNotes;
+                    const m = phrase.notes.map(n => n.midi);
                     const between = (m[idx - 1] < m[idx] && m[idx] < m[idx + 1])
                         || (m[idx - 1] > m[idx] && m[idx] > m[idx + 1]);
-                    const label = phrase.displayDegrees[idx];
+                    const label = note.degree;
                     if (!between || !(label.endsWith('#') || label.endsWith('b'))) invalid++;
                 });
             }

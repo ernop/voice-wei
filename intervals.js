@@ -159,6 +159,34 @@
     }
 
     // ---- INSTANCE GENERATION ----
+
+    /**
+     * Zip scale positions into SequenceNotes once (the representation
+     * law: sequences cross boundaries as lists of note objects, never
+     * parallel arrays). Returns null when an offset leaves the scale.
+     * @param {Array<{ midi: number, name: string }>} scale
+     * @param {number[]} offsets - scale-degree offsets (0 = degree 1)
+     * @param {number} startIdx - scale index of offset 0
+     * @param {number} dpOct
+     * @returns {SequenceNote[] | null}
+     */
+    function buildInstanceNotes(scale, offsets, startIdx, dpOct) {
+        /** @type {SequenceNote[]} */
+        const notes = [];
+        for (const off of offsets) {
+            const idx = startIdx + off;
+            if (idx < 0 || idx >= scale.length) return null;
+            notes.push({
+                offset: off,
+                midi: scale[idx].midi,
+                degree: PatternPracticeCore.offsetToDegree(off, dpOct),
+                spoken: PatternPracticeCore.offsetToSpoken(off, dpOct),
+                noteName: scale[idx].name
+            });
+        }
+        return notes;
+    }
+
     function generateRandomInstance() {
         const scale = buildExtendedScale();
         if (scale.length === 0) return null;
@@ -181,22 +209,11 @@
         // Always start on the root (degree 1). Offsets are absolute scale positions.
         const startIdx = dpOct;
 
-        const noteNames = [];
-        const midiNotes = [];
-        const displayDegrees = [];
-        const spokenDegrees = [];
-        for (const off of gen.offsets) {
-            const idx = startIdx + off;
-            if (idx < 0 || idx >= scale.length) return null;
-            noteNames.push(scale[idx].name);
-            midiNotes.push(scale[idx].midi);
-            displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
-            spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
-        }
-
-        if (state.reverse) { noteNames.reverse(); midiNotes.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
+        const notes = buildInstanceNotes(scale, gen.offsets, startIdx, dpOct);
+        if (!notes) return null;
+        if (state.reverse) notes.reverse();
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, spokenDegrees, noteNames, midiNotes };
+        return { description: desc, notes };
     }
 
     function generateClusterInstance(scale, dpOct) {
@@ -221,30 +238,19 @@
         if (lowestStart > highestStart) return null;
         const startIdx = ri(lowestStart, highestStart);
 
-        const noteNames = [];
-        const midiNotes = [];
-        const displayDegrees = [];
-        const spokenDegrees = [];
-        for (const off of offsets) {
-            const idx = startIdx + off;
-            if (idx < 0 || idx >= scale.length) return null;
-            noteNames.push(scale[idx].name);
-            midiNotes.push(scale[idx].midi);
-            displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
-            spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
-        }
-
-        if (state.reverse) { noteNames.reverse(); midiNotes.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
+        const notes = buildInstanceNotes(scale, offsets, startIdx, dpOct);
+        if (!notes) return null;
+        if (state.reverse) notes.reverse();
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, spokenDegrees, noteNames, midiNotes };
+        return { description: desc, notes };
     }
 
     // ---- DISPLAY ----
     function showInstance(instance) {
         const display = document.getElementById('currentDisplay');
         if (!display) return;
-        const degreeStr = instance.displayDegrees.join('-');
-        const noteStr = instance.noteNames.join(' ');
+        const degreeStr = instance.notes.map(note => note.degree).join('-');
+        const noteStr = instance.notes.map(note => note.noteName).join(' ');
         const namesPart = state.showNoteNames
             ? `<span class="pattern-notes">${noteStr}</span>` : '';
         display.innerHTML = `<span class="pattern-desc">${instance.description}</span><span class="pattern-degrees">${degreeStr}</span>${namesPart}`;
@@ -270,12 +276,12 @@
                 state.nextRequested = false;
                 // Avoid serving the identical pattern twice in a row
                 const previousKey = currentInstance
-                    ? currentInstance.description + currentInstance.displayDegrees.join('-')
+                    ? currentInstance.description + currentInstance.notes.map(note => note.degree).join('-')
                     : null;
                 let next = generateRandomInstance();
                 for (let attempt = 0;
                     attempt < 5 && next && previousKey
-                    && next.description + next.displayDegrees.join('-') === previousKey;
+                    && next.description + next.notes.map(note => note.degree).join('-') === previousKey;
                     attempt++) {
                     next = generateRandomInstance();
                 }
@@ -291,8 +297,8 @@
             if ((!firstRound || !state.repeat) && history) {
                 history.add({
                     desc: currentInstance.description,
-                    degrees: currentInstance.displayDegrees.join('-'),
-                    notes: currentInstance.noteNames.join(' '),
+                    degrees: currentInstance.notes.map(note => note.degree).join('-'),
+                    notes: currentInstance.notes.map(note => note.noteName).join(' '),
                     time: new Date().toLocaleTimeString()
                 });
             }
@@ -304,13 +310,13 @@
             firstRound = false;
 
             if (state.speakNumbers && !state.stopRequested) {
-                await VoiceOutput.speak(currentInstance.spokenDegrees.join(', '));
+                await VoiceOutput.speak(currentInstance.notes.map(note => note.spoken).join(', '));
             }
 
             if (state.playNotes && !state.stopRequested) {
-                for (const midi of currentInstance.midiNotes) {
+                for (const note of currentInstance.notes) {
                     if (state.stopRequested) break;
-                    playNote(midi);
+                    playNote(note.midi);
                     await sleep(state.lengthMs);
                 }
             }
@@ -355,8 +361,9 @@
         const scale = buildExtendedScale();
         if (!scale.length) return [];
         const dpOct = degreesPerOctave();
-        const minMidi = Math.min(...currentInstance.midiNotes);
-        const maxMidi = Math.max(...currentInstance.midiNotes);
+        const midis = currentInstance.notes.map(note => note.midi);
+        const minMidi = Math.min(...midis);
+        const maxMidi = Math.max(...midis);
         const pad = expandRange ? 12 : 4;
         return scale
             .map((note, index) => ({ note, index }))
@@ -364,17 +371,17 @@
             .map(({ note, index }) => ({
                 midi: note.midi,
                 label: `${(index % dpOct) + 1} ${note.name}`,
-                emphasized: currentInstance.midiNotes.includes(note.midi)
+                emphasized: midis.includes(note.midi)
             }));
     }
 
     function buildSingTargets() {
         if (!currentInstance) return [];
-        return currentInstance.midiNotes.map((midi, index) => ({
-            midi,
+        return currentInstance.notes.map((note, index) => ({
+            midi: note.midi,
             startMs: index * state.lengthMs,
             endMs: (index + 1) * state.lengthMs,
-            label: currentInstance.displayDegrees[index],
+            label: note.degree,
             active: true
         }));
     }
@@ -395,7 +402,7 @@
             }),
             rails: ({ expandRange }) => buildSingRails(expandRange),
             targets: buildSingTargets,
-            contentDurationMs: () => (currentInstance ? currentInstance.midiNotes.length * state.lengthMs : 4000),
+            contentDurationMs: () => (currentInstance ? currentInstance.notes.length * state.lengthMs : 4000),
             playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
             onOpenChange: open => {
                 const btn = document.getElementById('singBtn');

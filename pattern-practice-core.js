@@ -599,21 +599,40 @@ const PatternPracticeCore = (function () {
      * }} options
      * @returns {Phrase | null}
      */
+    /**
+     * The single construction point for note sequences: zip offsets with
+     * their projection and labels ONCE, here. Consumers receive a list
+     * of SequenceNote objects and never re-zip parallel arrays by index.
+     * @param {number[]} offsets
+     * @param {number} rootMidi
+     * @param {string} scaleType
+     * @returns {SequenceNote[]}
+     */
+    function buildSequenceNotes(offsets, rootMidi, scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        const degrees = offsetsToDisplay(offsets, dp);
+        const spokens = offsetsToSpoken(offsets, dp);
+        return offsets.map((offset, i) => {
+            const midi = scaleOffsetToMidi(rootMidi, scaleType, offset);
+            return {
+                offset,
+                midi,
+                degree: degrees[i],
+                spoken: spokens[i],
+                noteName: midiToPitchString(midi)
+            };
+        });
+    }
+
     function generatePhrase(options) {
         const rootMidi = noteNameToMidi(options.root, options.octave);
         if (rootMidi === null) return null;
 
-        const dp = degreesPerOctave(options.scaleType);
         let offsets = generatePhraseOffsets(options);
         if (options.chromaticRuns) offsets = addChromaticPassingTones(offsets, options);
-        const midiNotes = offsets.map(offset => scaleOffsetToMidi(rootMidi, options.scaleType, offset));
 
         return {
-            offsets,
-            midiNotes,
-            displayDegrees: offsetsToDisplay(offsets, dp),
-            spokenDegrees: offsetsToSpoken(offsets, dp),
-            noteNames: midiNotes.map(midi => midiToPitchString(midi)),
+            notes: buildSequenceNotes(offsets, rootMidi, options.scaleType),
             root: options.root,
             scaleType: options.scaleType,
             octave: options.octave,
@@ -637,6 +656,7 @@ const PatternPracticeCore = (function () {
         offsetsToSpoken,
         chromaticBetween,
         addChromaticPassingTones,
+        buildSequenceNotes,
         midiToSpeechPitch,
         generatePhraseOffsets,
         generateClusteredOffsets,
