@@ -267,7 +267,9 @@
         playGuide: async () => {
             const phrase = phraseForPlayback();
             if (phrase) await playPhrase(phrase);
-        }
+        },
+        progressTool: 'phrases-test',
+        progressContext: () => `${state.root}${state.octave} ${state.scaleType}`
     });
 
     function drawPhraseTest() { testPanel.draw(); }

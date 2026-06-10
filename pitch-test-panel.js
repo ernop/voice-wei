@@ -41,7 +41,9 @@ const PitchTestPanel = (function () {
      *   rails: (panelOptions: { expandRange: boolean }) => Array<{ midi: number, label: string, emphasized: boolean }>,
      *   targets: () => Array<{ midi: number, startMs: number, endMs: number, label: string, active: boolean }>,
      *   contentDurationMs: () => number,
-     *   playGuide?: () => Promise<void>
+     *   playGuide?: () => Promise<void>,
+     *   progressTool?: string,
+     *   progressContext?: () => string
      * }} config
      */
     function create(config) {
@@ -102,6 +104,9 @@ const PitchTestPanel = (function () {
 
         /** @type {Array<any>} */
         let scoredTargets = [];
+        // One progress entry per take: set once every active target has
+        // its verdict, cleared by Restart.
+        let takeRecorded = false;
 
         /**
          * Annotate each active target with a verdict once the clock has
@@ -144,9 +149,38 @@ const PitchTestPanel = (function () {
             el.textContent = text;
         }
 
+        function updateProgressLine() {
+            const el = getEl('Progress');
+            if (el && config.progressTool) el.textContent = ProgressStore.trendLine(config.progressTool);
+        }
+
+        // A take is complete when every active target has a verdict and
+        // something was actually sung.
+        function maybeRecordTake() {
+            if (takeRecorded || !config.progressTool) return;
+            const active = scoredTargets.filter(t => t.active);
+            if (active.length < 2) return;
+            if (!active.every(t => t.result)) return;
+            if (session.history.length < SCORE_MIN_SAMPLES) return;
+
+            const hit = active.filter(t => t.result === 'good' || t.result === 'ok');
+            ProgressStore.record({
+                tool: config.progressTool,
+                context: config.progressContext ? config.progressContext() : '',
+                total: active.length,
+                hit: hit.length,
+                avgCents: hit.length
+                    ? hit.reduce((sum, t) => sum + t.avgCents, 0) / hit.length
+                    : null
+            });
+            takeRecorded = true;
+            updateProgressLine();
+        }
+
         function refreshScores() {
             scoredTargets = scoreTargets();
             updateScoreReadout();
+            maybeRecordTake();
         }
 
         const view = PitchTraceView.create({
@@ -210,6 +244,7 @@ const PitchTestPanel = (function () {
                     <span id="${prefix}Status">Sing to start time</span>
                     <span id="${prefix}Score" class="pitch-test-score"></span>
                 </div>
+                <div class="progress-summary" id="${prefix}Progress"></div>
                 <div class="pitch-test-canvas-wrap">
                     <canvas id="${prefix}Canvas" class="pitch-test-canvas"></canvas>
                 </div>
@@ -273,6 +308,7 @@ const PitchTestPanel = (function () {
 
         function resetSession() {
             session.reset();
+            takeRecorded = false;
             clearReadout();
             setStatus('Sing to start time');
             refreshScores();
@@ -312,6 +348,7 @@ const PitchTestPanel = (function () {
         async function open() {
             panelOpen = true;
             syncControls();
+            updateProgressLine();
             view.resize();
             resetSession();
             await startListening();

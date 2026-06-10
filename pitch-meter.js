@@ -81,6 +81,8 @@ class PitchMeterController {
         this.noteResults = [];
         /** @type {boolean} */
         this.sessionAborted = false;
+        /** @type {boolean} One progress entry per session */
+        this.sessionRecorded = false;
 
         // Canvas
         /** @type {HTMLCanvasElement | null} */
@@ -271,6 +273,28 @@ class PitchMeterController {
         }
     }
 
+    /**
+     * Persist a finished session's result and refresh the trend line.
+     * @param {number} hit @param {number} total @param {number | null} avgCents
+     */
+    recordProgress(hit, total, avgCents) {
+        if (this.sessionRecorded || total === 0) return;
+        this.sessionRecorded = true;
+        ProgressStore.record({
+            tool: 'pitch-meter',
+            context: `${this.mode} ${this.rootNote}${this.octave} ${this.scaleType}`,
+            total,
+            hit,
+            avgCents
+        });
+        this.updateProgressLine();
+    }
+
+    updateProgressLine() {
+        const el = document.getElementById('progressSummary');
+        if (el) el.textContent = ProgressStore.trendLine('pitch-meter');
+    }
+
     async toggleListening() {
         if (this.isListening) {
             this.stopSession();
@@ -291,6 +315,7 @@ class PitchMeterController {
 
         this.isListening = true;
         this.sessionAborted = false;
+        this.sessionRecorded = false;
         this.noteResults = [];
         this.currentNoteIndex = 0;
         this.captureSamples = null;
@@ -508,6 +533,8 @@ class PitchMeterController {
         // Build note breakdown
         const breakdownEl = document.getElementById('noteBreakdown');
         breakdownEl.innerHTML = '<h4>Per-Note Results</h4>';
+
+        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null);
 
         this.noteResults.forEach((result, i) => {
             const note = this.targetNotes[i];
@@ -792,6 +819,8 @@ class PitchMeterController {
         const accuracy = validSamples > 0 ? (totalAccurateSamples / validSamples * 100) : 0;
         const avgDeviation = validSamples > 0 ? (totalCentsDeviation / validSamples) : 0;
         const notesHitCount = Object.values(noteHits).filter(n => n.count > 5).length;
+
+        this.recordProgress(notesHitCount, this.targetNotes.length, validSamples > 0 ? avgDeviation : null);
 
         document.getElementById('overallAccuracy').textContent = accuracy.toFixed(0) + '%';
         document.getElementById('avgDeviation').textContent = avgDeviation.toFixed(1) + ' cents';

@@ -506,7 +506,9 @@ class ScalesController {
             rails: ({ expandRange }) => this.buildSingRails(expandRange),
             targets: () => this.buildSingTargets(),
             contentDurationMs: () => this.singContentDurationMs(),
-            playGuide: async () => { await this.playAgainOrCurrent(); }
+            playGuide: async () => { await this.playAgainOrCurrent(); },
+            progressTool: 'scales-sing',
+            progressContext: () => `${this.settings.root}${this.settings.octave} ${this.settings.scaleType} ${this.settings.direction}`
         });
 
         const singBtn = document.getElementById('singBtn');

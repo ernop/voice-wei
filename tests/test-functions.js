@@ -199,6 +199,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const notesHit = await tab.textContent('#notesHit');
         report.check(`pitch-meter free session (${samples} samples, notesHit ${notesHit})`,
             samples > 10 && resultsShown === 'block' && /^\d+\/\d+$/.test(notesHit));
+
+        const pmProgress = await tab.evaluate(() => {
+            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            return {
+                count: entries.filter(e => e.tool === 'pitch-meter').length,
+                line: document.getElementById('progressSummary').textContent
+            };
+        });
+        report.check(`pitch-meter session recorded once (${pmProgress.count}) trend "${pmProgress.line}"`,
+            pmProgress.count === 1 && /^Progress: Today \d+%/.test(pmProgress.line));
         await ctx.close();
     }
 
@@ -217,6 +227,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const score = await tab.textContent('#scalesSingScore');
         report.check(`sing panel scores after windows pass ("${score}")`,
             /Score: \d+\/\d+ on pitch/.test(score));
+
+        // The completed take is recorded and the trend line appears
+        const progress = await tab.evaluate(() => {
+            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            return {
+                entry: entries.find(e => e.tool === 'scales-sing') || null,
+                line: document.getElementById('scalesSingProgress').textContent
+            };
+        });
+        report.check(`sing take recorded (${JSON.stringify(progress.entry && progress.entry.total)}) trend "${progress.line}"`,
+            progress.entry !== null && progress.entry.total > 0 && /^Progress: Today \d+%/.test(progress.line));
         await ctx.close();
     }
 

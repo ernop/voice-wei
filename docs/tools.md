@@ -182,5 +182,10 @@ running score ("Score: 6/8 on pitch (avg 12c)"). A note counts as matched
 when at least 30% of its window's samples land within 1.5 semitones, same
 thresholds as the Pitch tool. Restart clears the scores with the trace.
 
+**Progress over time**: each completed take (all notes scored) is recorded,
+and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)
+· Jun 9 48% (3)". The Pitch tool records its sessions the same way and
+shows its trend in the results panel.
+
 Options per page: targets on/off, play guide on restart, pause on silence,
 20s window, expand range.

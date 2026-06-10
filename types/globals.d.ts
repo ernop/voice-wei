@@ -33,6 +33,7 @@ interface Window {
     SettingsStore?: any;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
+    ProgressStore?: any;
 }
 
 // -----------------------------------------------------------------------

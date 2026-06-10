@@ -47,9 +47,10 @@ overshoot around degrees 6-7-8).
 
 ## Current priorities (deduplicated from the idea pool)
 
-1. **Deeper judgment**: per-note scoring in the shared sing panel (shipped
-   v86); next: progress tracking over time and call-and-response variants
-   on more tools.
+1. **Deeper judgment**: per-note scoring in the shared sing panel (v86) and
+   progress tracking over time (v88: scored takes persist, daily trend
+   lines on the panel and the Pitch tool); next: call-and-response
+   variants on more tools.
 2. **Car mode**: larger UI preset, wake word, fewer on-screen elements.
 3. **Training content**: more coach-style exercises and preset packs;
    lower-range control drills specifically.

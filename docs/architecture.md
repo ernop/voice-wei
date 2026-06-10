@@ -37,6 +37,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `pitch-test-panel.js` | The embeddable listen panel (renders markup, owns mic session + options) | - |
 | `practice-controls.js` | Steppers, segmented option groups, toggles wiring | - |
 | `settings-store.js` | Per-tab settings persistence (typed-merge restore) | - |
+| `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | Hardware media keys (silent-WAV trick + action maps) | - |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
@@ -118,6 +119,11 @@ panel options under `*-test-panel` / `*-sing-panel`). `settings-store.js`
 restores only keys whose stored type matches the default, so stale entries
 cannot corrupt state. JSON cannot store Infinity: scales' repeat-forever
 round-trips as -1.
+
+Scored practice persists separately: every completed take (pitch test
+panel) or session (pitch meter) appends to the `practice-progress` list
+(capped at 1000 entries) via `progress-store.js`, which renders per-day
+trend lines.
 
 ## Testing
 
