@@ -52,9 +52,9 @@ drilling it; takes are scored and recorded like Phrases and Scales.
 
 ## Phrases
 
-Melodic phrase memory and reproduction practice. Generates clustered
-scale-degree phrases (varied contours, dampened straight runs), shows the
-full degree sequence, and replays it until the shape is internalized.
+Melodic phrase memory and reproduction practice. Generates scale-degree
+phrases with selectable note-picking algorithms, shows the full degree
+sequence, and replays it until the shape is internalized.
 
 **Defaults**: D#3, major, 5-8 note phrases, 0.3s notes, no gap, play tones,
 return to the initial note.
@@ -74,11 +74,17 @@ return to the initial note.
   so the page keeps a silent audio element active after the first tap.)
 
 Setting behaviors (the key design): root/scale changes **reproject** the
-current degree sequence into the new context; min/max length, start, and
-range (in octave / just over / out octave) apply to the **next** generated
-phrase; return-to-1 regenerates; playback settings replay; show-names
-redraws. "Just over" lets phrases reach two degrees past the octave - down
-to 6 below, up to 3 above.
+current degree sequence into the new context; algorithm, min/max length,
+start, and range (in octave / just over / out octave) apply to the **next**
+generated phrase; return-to-1 regenerates; playback settings replay;
+show-names redraws. "Just over" lets phrases reach two degrees past the
+octave - down to 6 below, up to 3 above.
+
+Algorithm choices separate musical behavior from range: **balanced** is the
+original clustered random walk, **random** samples freely, **stepwise**
+emphasizes conjunct motion, **leapy** emphasizes disjunct motion with
+contrary-step compensation, **arch** creates a rise/fall contour, and
+**motif** repeats and varies a short contour cell.
 
 ## Trace
 

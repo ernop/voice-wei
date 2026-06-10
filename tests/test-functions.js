@@ -191,20 +191,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         // "just over" range: offsets bounded to two degrees past the octave
         const overBounded = await tab.evaluate(() => {
-            for (let i = 0; i < 300; i++) {
-                const offsets = PatternPracticeCore.generateClusteredOffsets({
-                    scaleType: 'major', startAtOne: false, rangeMode: 'over',
-                    minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
-                });
-                if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
+            const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif'];
+            for (const phraseAlgo of algos) {
+                for (let i = 0; i < 300; i++) {
+                    const offsets = PatternPracticeCore.generatePhraseOffsets({
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'over',
+                        minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
+                    });
+                    if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
+                }
             }
             return true;
         });
-        report.check('phrases "just over" bounded to 6-below..3-above', overBounded);
+        report.check('phrases algos keep "just over" bounded to 6-below..3-above', overBounded);
         await tab.click('[data-range="over"]');
         await tab.waitForTimeout(200);
         const savedRange = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).rangeMode);
         report.check('phrases range mode persists', savedRange === 'over');
+        await tab.click('[data-phrase-algo="arch"]');
+        await tab.waitForTimeout(200);
+        const savedAlgo = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).phraseAlgo);
+        report.check('phrases algorithm persists', savedAlgo === 'arch');
         await tab.close();
     }
 

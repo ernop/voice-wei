@@ -112,6 +112,10 @@
     flex: 1 1 auto;
 }
 
+.phrase-algo-row .vf-btn {
+    flex: 1 1 auto;
+}
+
 .phrase-length-adjusters {
     display: grid;
     grid-template-columns: max-content max-content;

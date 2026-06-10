@@ -13,6 +13,11 @@ const PatternPracticeCore = (function () {
         return min + Math.floor(Math.random() * (max - min + 1));
     }
 
+    /** @param {ReadonlyArray<any>} items */
+    function randomChoice(items) {
+        return items[randomInt(0, items.length - 1)];
+    }
+
     /** @param {number} value @param {number} min @param {number} max */
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
@@ -122,21 +127,103 @@ const PatternPracticeCore = (function () {
      *   returnToInitial: boolean,
      *   returnToRoot: boolean
      * }} options
-     * @returns {number[]}
      */
-    function generateClusteredOffsets(options) {
-        const dp = degreesPerOctave(options.scaleType);
-        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+    function phraseLength(options) {
         const minLength = clamp(Math.round(options.minLength), 1, 32);
         const maxLength = clamp(Math.max(Math.round(options.maxLength), minLength), minLength, 64);
-        const possibleLengths = [];
-        for (let length = minLength; length <= maxLength; length++) possibleLengths.push(length);
-        const length = possibleLengths[randomInt(0, possibleLengths.length - 1)];
+        return randomInt(minLength, maxLength);
+    }
 
-        const offsets = [];
-        let current = options.startAtOne ? 0 : randomInt(0, dp);
-        const initial = current;
-        offsets.push(current);
+    /**
+     * @param {{ startAtOne: boolean }} options
+     * @param {number} dp
+     */
+    function initialPhraseOffset(options, dp) {
+        return options.startAtOne ? 0 : randomInt(0, dp);
+    }
+
+    /**
+     * @param {number[]} offsets
+     * @param {{ returnToInitial: boolean, returnToRoot: boolean }} options
+     * @param {number} initial
+     */
+    function addPhraseAnchors(offsets, options, initial) {
+        if (options.returnToInitial && offsets[offsets.length - 1] !== initial) {
+            offsets.push(initial);
+        }
+        if (options.returnToRoot && offsets[offsets.length - 1] !== 0) {
+            offsets.push(0);
+        }
+        return offsets;
+    }
+
+    /**
+     * @param {number} current
+     * @param {number} delta
+     * @param {number} minOffset
+     * @param {number} maxOffset
+     */
+    function boundedMove(current, delta, minOffset, maxOffset) {
+        let next = current + delta;
+        if (next < minOffset || next > maxOffset) next = current - delta;
+        if (next < minOffset || next > maxOffset) next = clamp(current + Math.sign(delta || 1), minOffset, maxOffset);
+        if (next === current && minOffset < maxOffset) next = current > minOffset ? current - 1 : current + 1;
+        return clamp(next, minOffset, maxOffset);
+    }
+
+    /**
+     * @param {number} current
+     * @param {number} target
+     * @param {number} maxStep
+     * @param {number} minOffset
+     * @param {number} maxOffset
+     */
+    function stepToward(current, target, maxStep, minOffset, maxOffset) {
+        if (target === current) {
+            return boundedMove(current, randomChoice([-1, 1]), minOffset, maxOffset);
+        }
+        const distance = target - current;
+        const step = Math.sign(distance) * randomInt(1, Math.min(Math.abs(distance), maxStep));
+        return boundedMove(current, step, minOffset, maxOffset);
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {{ dp: number, minOffset: number, maxOffset: number, length: number, initial: number, offsets: number[] }}
+     */
+    function phraseSeed(options) {
+        const dp = degreesPerOctave(options.scaleType);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+        const length = phraseLength(options);
+        const initial = initialPhraseOffset(options, dp);
+        return { dp, minOffset, maxOffset, length, initial, offsets: [initial] };
+    }
+
+    /**
+     * The default generator: a balanced contour with mostly local motion,
+     * occasional leaps, and dampened straight scalar runs.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateBalancedOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        let current = initial;
 
         for (let i = 1; i < length; i++) {
             let next = current;
@@ -167,14 +254,199 @@ const PatternPracticeCore = (function () {
             offsets.push(current);
         }
 
-        if (options.returnToInitial && offsets[offsets.length - 1] !== initial) {
-            offsets.push(initial);
-        }
-        if (options.returnToRoot && offsets[offsets.length - 1] !== 0) {
-            offsets.push(0);
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateRandomOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+
+        for (let i = 1; i < length; i++) {
+            offsets.push(randomInt(minOffset, maxOffset));
         }
 
-        return offsets;
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * Conjunct motion: mostly neighboring scale degrees with a few skips.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateStepwiseOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        let current = initial;
+
+        for (let i = 1; i < length; i++) {
+            const size = Math.random() < 0.82 ? 1 : randomInt(2, 3);
+            current = boundedMove(current, size * randomChoice([-1, 1]), minOffset, maxOffset);
+            offsets.push(current);
+        }
+
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * Disjunct motion with leap compensation: larger intervals tend to resolve
+     * by smaller contrary motion.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateLeapyOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        let current = initial;
+        let previousDelta = 0;
+
+        for (let i = 1; i < length; i++) {
+            let delta;
+            if (Math.abs(previousDelta) >= 3 && Math.random() < 0.76) {
+                delta = -Math.sign(previousDelta) * randomInt(1, 2);
+            } else {
+                delta = randomInt(3, 5) * randomChoice([-1, 1]);
+            }
+            const next = boundedMove(current, delta, minOffset, maxOffset);
+            previousDelta = next - current;
+            current = next;
+            offsets.push(current);
+        }
+
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * A phrase-level contour: move toward a midpoint climax, then away from it.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateArchOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        const ascendFirst = initial <= (minOffset + maxOffset) / 2;
+        const apexIndex = Math.max(1, Math.floor((length - 1) * 0.55));
+        let current = initial;
+
+        for (let i = 1; i < length; i++) {
+            const target = (ascendFirst && i <= apexIndex) || (!ascendFirst && i > apexIndex)
+                ? maxOffset
+                : minOffset;
+            const maxStep = Math.random() < 0.72 ? 2 : 4;
+            current = stepToward(current, target, maxStep, minOffset, maxOffset);
+            if (Math.random() < 0.18) current = boundedMove(current, randomChoice([-1, 1]), minOffset, maxOffset);
+            offsets.push(current);
+        }
+
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * Motivic motion: repeat a short contour cell, transposed through the range.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateMotifOffsets(options) {
+        const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        const cells = [
+            [1, 1, -2],
+            [2, -1, -1],
+            [1, -2, 1],
+            [3, -1, -2],
+            [-1, -1, 2],
+            [-2, 1, 1]
+        ];
+        const cell = randomChoice(cells);
+        let current = initial;
+
+        for (let i = 1; i < length; i++) {
+            let delta = cell[(i - 1) % cell.length];
+            if (i > 1 && (i - 1) % cell.length === 0 && Math.random() < 0.55) {
+                delta += randomChoice([-1, 1]);
+            }
+            current = boundedMove(current, delta, minOffset, maxOffset);
+            offsets.push(current);
+        }
+
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseAlgo?: string
+     * }} options
+     * @returns {number[]}
+     */
+    function generatePhraseOffsets(options) {
+        if (options.phraseAlgo === 'random') return generateRandomOffsets(options);
+        if (options.phraseAlgo === 'stepwise') return generateStepwiseOffsets(options);
+        if (options.phraseAlgo === 'leapy') return generateLeapyOffsets(options);
+        if (options.phraseAlgo === 'arch') return generateArchOffsets(options);
+        if (options.phraseAlgo === 'motif') return generateMotifOffsets(options);
+        return generateBalancedOffsets(options);
+    }
+
+    /**
+     * Backward-compatible name for the default phrase generator.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateClusteredOffsets(options) {
+        return generateBalancedOffsets(options);
     }
 
     /** @param {number[]} offsets @param {string} scaleType */
@@ -193,7 +465,8 @@ const PatternPracticeCore = (function () {
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
-     *   returnToRoot: boolean
+     *   returnToRoot: boolean,
+     *   phraseAlgo?: string
      * }} options
      */
     function generatePhrase(options) {
@@ -201,7 +474,7 @@ const PatternPracticeCore = (function () {
         if (rootMidi === null) return null;
 
         const dp = degreesPerOctave(options.scaleType);
-        const offsets = generateClusteredOffsets(options);
+        const offsets = generatePhraseOffsets(options);
         const midiNotes = offsets.map(offset => scaleOffsetToMidi(rootMidi, options.scaleType, offset));
 
         return {
@@ -229,6 +502,7 @@ const PatternPracticeCore = (function () {
         offsetToDegree,
         offsetToSpoken,
         midiToSpeechPitch,
+        generatePhraseOffsets,
         generateClusteredOffsets,
         reflectOffsets,
         generatePhrase

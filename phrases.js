@@ -13,6 +13,7 @@
         root: 'D#',
         octave: 3,
         scaleType: 'major',
+        phraseAlgo: 'balanced',
         startAtOne: true,
         rangeMode: 'within',
         minLength: 5,
@@ -29,14 +30,14 @@
 
     const STORAGE_KEY = 'phrases-settings';
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'startAtOne', 'rangeMode',
+        'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
-    // affect the NEXT generated phrase (startAtOne, rangeMode,
+    // affect the NEXT generated phrase (phraseAlgo, startAtOne, rangeMode,
     // minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
@@ -94,6 +95,7 @@
             root: state.root,
             octave: state.octave,
             scaleType: state.scaleType,
+            phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
             rangeMode: state.rangeMode,
             minLength: state.minLength,
@@ -553,6 +555,7 @@
 
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
+        wireSetting('data-phrase-algo', 'phraseAlgo', String);
         wireSetting('data-start', 'startAtOne', value => value === 'one');
         wireSetting('data-range', 'rangeMode', String);
         wireSetting('data-return-initial', 'returnToInitial', value => value === 'yes');

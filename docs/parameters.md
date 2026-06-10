@@ -34,6 +34,7 @@ master-output mute.
 | root | D# | C..B chromatic | reproject |
 | octave | 3 | via root stepper (C2-B4) | reproject |
 | scaleType | major | major, minor, chromatic, pentatonic, h minor, m minor | reproject |
+| phraseAlgo | balanced | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
 | rangeMode | within | in octave / just over / out octave | bounds-next |
 | minLength | 5 | 2..16 list | bounds-next |
@@ -49,6 +50,13 @@ Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
 past each end (down to 6 of the octave below, up to 3 of the octave above
 for seven-note scales); "out octave" allows half an octave below to two
 octaves up.
+
+Algorithm modes choose the interior melodic behavior while start and return
+settings stay independent as anchors. "Balanced" is the original clustered
+random walk; "random" samples freely inside the range; "stepwise" emphasizes
+conjunct motion; "leapy" emphasizes disjunct motion with contrary-step
+compensation; "arch" shapes a midpoint climax; "motif" repeats and varies a
+short contour cell.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
 octave), Repeat loop, per-note on/off mask.
