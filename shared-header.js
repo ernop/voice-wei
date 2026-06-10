@@ -1,4 +1,4 @@
-const APP_VERSION = "92";
+const APP_VERSION = "93";
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
@@ -49,6 +49,12 @@ function renderSharedHeader() {
     const updateHeaderHeight = () => {
         document.documentElement.style.setProperty("--site-header-height", `${header.offsetHeight}px`);
     };
+
+    // On phones the nav is one scrollable row; keep the active tab visible
+    const activeTab = header.querySelector(".nav-tab.active");
+    if (activeTab) {
+        activeTab.scrollIntoView({ block: "nearest", inline: "center" });
+    }
 
     updateHeaderHeight();
     window.addEventListener("resize", updateHeaderHeight);

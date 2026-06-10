@@ -1413,28 +1413,39 @@ h1 {
     }
 
     .header-top {
-        align-items: flex-start;
+        align-items: center;
     }
 
     .header-title-group {
         gap: 8px;
+        align-items: baseline;
     }
 
-    .site-name {
-        width: 100%;
-    }
-
-    .nav-tabs {
+    .site-header {
         gap: 6px;
     }
 
+    /* One scrollable row instead of wrapping: saves a full nav row */
+    .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 6px;
+        scrollbar-width: none;
+    }
+
+    .nav-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
     .nav-tab {
-        padding: 7px 12px;
+        padding: 6px 11px;
         font-size: 0.8rem;
+        white-space: nowrap;
+        flex: 0 0 auto;
     }
 
     h1 {
-        font-size: 1.5rem;
+        font-size: 1.3rem;
     }
 
     .listen-button {
