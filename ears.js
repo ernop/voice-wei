@@ -194,9 +194,9 @@ class EarsController {
         /** @type {number} */
         this.streak = 0;
 
-        // History
-        /** @type {Array<{ interval: string, direction: string, correct: boolean, answer?: string }>} */
-        this.history = [];
+        // History (created in init once the DOM is ready)
+        /** @type {ReturnType<typeof HistoryList.create> | null} */
+        this.history = null;
 
         // Voice recognition
         /** @type {VoiceCommandCore | null} */
@@ -523,9 +523,13 @@ class EarsController {
             this.resetSessionStats();
         });
 
-        // Clear history
-        document.getElementById('clearHistoryBtn')?.addEventListener('click', () => {
-            this.clearHistory();
+        // History list (shared component owns rendering and the clear button)
+        this.history = HistoryList.create({
+            listId: 'historyList',
+            clearBtnId: 'clearHistoryBtn',
+            emptyText: 'No attempts yet',
+            max: 20,
+            renderItem: entry => this.renderHistoryItem(entry)
         });
 
         // Range slider
@@ -908,18 +912,18 @@ class EarsController {
         }
 
         // Add to history
-        this.history.unshift({
-            interval,
-            direction: this.currentDirection || 'unknown',
-            correct,
-            answer
-        });
-        if (this.history.length > 50) this.history.pop();
+        if (this.history) {
+            this.history.add({
+                interval,
+                direction: this.currentDirection || 'unknown',
+                correct,
+                answer
+            });
+        }
 
         // Update displays
         this.updateStatsDisplay();
         this.updateBreakdownDisplay();
-        this.updateHistoryDisplay();
     }
 
     /**
@@ -996,26 +1000,15 @@ class EarsController {
         }).join('');
     }
 
-    updateHistoryDisplay() {
-        const container = document.getElementById('historyList');
-        if (!container) return;
-
-        if (this.history.length === 0) {
-            container.innerHTML = '<p class="history-empty">No attempts yet</p>';
-            return;
-        }
-
-        container.innerHTML = this.history.slice(0, 20).map(item => {
-            const icon = item.correct ? '✓' : '✗';
-            const dir = item.direction === 'ascending' ? '↑' :
-                       item.direction === 'descending' ? '↓' : '⇅';
-            return `
-                <div class="history-item ${item.correct ? 'correct' : 'incorrect'}">
-                    <span class="history-icon">${icon}</span>
-                    <span>${item.interval} ${dir}</span>
-                </div>
-            `;
-        }).join('');
+    /** @param {{ interval: string, direction: string, correct: boolean }} entry */
+    renderHistoryItem(entry) {
+        const icon = entry.correct ? '✓' : '✗';
+        const dir = entry.direction === 'ascending' ? '↑' :
+                   entry.direction === 'descending' ? '↓' : '⇅';
+        const item = document.createElement('div');
+        item.className = `history-item ${entry.correct ? 'correct' : 'incorrect'}`;
+        item.innerHTML = `<span class="history-icon">${icon}</span><span>${entry.interval} ${dir}</span>`;
+        return item;
     }
 
     resetSessionStats() {
@@ -1025,10 +1018,6 @@ class EarsController {
         this.updateStatsDisplay();
     }
 
-    clearHistory() {
-        this.history = [];
-        this.updateHistoryDisplay();
-    }
 
     speakStats() {
         const pct = this.sessionTotal > 0 ? Math.round(100 * this.sessionCorrect / this.sessionTotal) : 0;

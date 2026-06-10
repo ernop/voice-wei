@@ -448,9 +448,9 @@ class ScalesController {
         /** @type {string | null} */
         this.lastTranscript = null;
 
-        // Command history for replay
-        /** @type {HistoryEntry[]} */
-        this.commandHistory = [];
+        // Command history for replay (HistoryList created in setupUI)
+        /** @type {ReturnType<typeof HistoryList.create> | null} */
+        this.history = null;
         /** @type {number} */
         this.maxHistoryLength = 50;
 
@@ -714,11 +714,14 @@ class ScalesController {
             againBtn.addEventListener('click', () => this.playAgainOrCurrent());
         }
 
-        // Clear history button
-        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-        if (clearHistoryBtn) {
-            clearHistoryBtn.addEventListener('click', () => this.clearHistory());
-        }
+        // Command history list (shared component owns rendering + clear)
+        this.history = HistoryList.create({
+            listId: 'historyList',
+            clearBtnId: 'clearHistoryBtn',
+            emptyText: 'No commands yet',
+            max: this.maxHistoryLength,
+            renderItem: (entry, index) => this.renderHistoryItem(entry, index)
+        });
 
         // Copy all history button
         const copyAllHistoryBtn = document.getElementById('copyAllHistoryBtn');
@@ -3706,74 +3709,43 @@ class ScalesController {
             timestamp: new Date()
         };
 
-        this.commandHistory.unshift(historyEntry); // Add to beginning
-
-        // Limit history length
-        if (this.commandHistory.length > this.maxHistoryLength) {
-            this.commandHistory.pop();
-        }
-
-        this.renderHistory();
+        this.history.add(historyEntry);
     }
 
-    // Clear command history
-    clearHistory() {
-        this.commandHistory = [];
-        this.renderHistory();
-    }
+    /**
+     * @param {HistoryEntry} entry
+     * @param {number} index
+     */
+    renderHistoryItem(entry, index) {
+        const timeStr = this.formatTime(entry.timestamp);
+        const item = document.createElement('div');
 
-    // Render the history list
-    renderHistory() {
-        const historyList = document.getElementById('historyList');
-        if (!historyList) return;
-
-        if (this.commandHistory.length === 0) {
-            historyList.innerHTML = '<p class="history-empty">No commands yet</p>';
-            return;
-        }
-
-        historyList.innerHTML = this.commandHistory.map((entry, index) => {
-            const timeStr = this.formatTime(entry.timestamp);
-
-            // Handle error entries
-            if (entry.type === 'error') {
-                const errorDetails = entry.details?.error ? `\n${this.formatErrorDetails(entry.details)}` : '';
-                return `
-                    <div class="history-item history-error" data-index="${index}">
-                        <div class="history-error-icon">⚠</div>
-                        <div class="history-text">
-                            <div class="history-error-message">${this.escapeHtml(entry.message)}</div>
-                            ${errorDetails ? `<div class="history-error-details">${this.escapeHtml(errorDetails)}</div>` : ''}
-                        </div>
-                        <span class="history-time">${timeStr}</span>
-                    </div>
-                `;
-            }
-
-            // Handle command entries
-            return `
-                <div class="history-item" data-index="${index}">
-                    <button class="history-play-btn" data-index="${index}" title="Play again">
-                        &#9654;
-                    </button>
-                    <div class="history-text">
-                        ${this.escapeHtml(entry.description)}
-                        ${entry.transcript !== entry.description ?
-                    `<div class="history-transcript">"${this.escapeHtml(entry.transcript)}"</div>` : ''}
-                    </div>
-                    <span class="history-time">${timeStr}</span>
+        if (entry.type === 'error') {
+            const errorDetails = entry.details?.error ? `\n${this.formatErrorDetails(entry.details)}` : '';
+            item.className = 'history-item history-error';
+            item.innerHTML = `
+                <div class="history-error-icon">⚠</div>
+                <div class="history-text">
+                    <div class="history-error-message">${this.escapeHtml(entry.message)}</div>
+                    ${errorDetails ? `<div class="history-error-details">${this.escapeHtml(errorDetails)}</div>` : ''}
                 </div>
+                <span class="history-time">${timeStr}</span>
             `;
-        }).join('');
+            return item;
+        }
 
-        // Add click handlers to play buttons (only for command entries)
-        historyList.querySelectorAll('.history-play-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const target = /** @type {HTMLElement} */ (e.currentTarget);
-                const index = parseInt(target.dataset.index || '0');
-                this.playFromHistory(index);
-            });
-        });
+        item.className = 'history-item';
+        item.innerHTML = `
+            <button class="history-play-btn" title="Play again">&#9654;</button>
+            <div class="history-text">
+                ${this.escapeHtml(entry.description)}
+                ${entry.transcript !== entry.description ?
+                `<div class="history-transcript">"${this.escapeHtml(entry.transcript)}"</div>` : ''}
+            </div>
+            <span class="history-time">${timeStr}</span>
+        `;
+        item.querySelector('.history-play-btn')?.addEventListener('click', () => this.playFromHistory(index));
+        return item;
     }
 
     formatErrorDetails(details) {
@@ -3796,9 +3768,9 @@ class ScalesController {
     }
 
     copyAllHistory() {
-        if (this.commandHistory.length === 0) return;
+        if (this.history.entries.length === 0) return;
 
-        const lines = this.commandHistory.map((entry, index) => {
+        const lines = this.history.entries.map((entry, index) => {
             const timeStr = this.formatTime(entry.timestamp);
 
             if (entry.type === 'error') {
@@ -3841,7 +3813,7 @@ class ScalesController {
 
     // Play a command from history
     async playFromHistory(index) {
-        const entry = this.commandHistory[index];
+        const entry = this.history.entries[index];
         if (entry && entry.type === 'command' && entry.command) {
             this.voiceCore.updateStatus(`Replaying: ${entry.description}`);
             await this.executeScaleCommand(entry.command, null, true); // skipHistory=true
@@ -4248,14 +4220,7 @@ class ScalesController {
             timestamp: new Date()
         };
 
-        this.commandHistory.unshift(errorEntry);
-
-        // Limit history length
-        if (this.commandHistory.length > this.maxHistoryLength) {
-            this.commandHistory.pop();
-        }
-
-        this.renderHistory();
+        if (this.history) this.history.add(errorEntry);
     }
 
     showError(msg) {

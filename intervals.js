@@ -122,6 +122,8 @@
     let currentInstance = null;
     /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
     let singPanel = null;
+    /** @type {ReturnType<typeof HistoryList.create> | null} */
+    let history = null;
 
     const sleep = PianoCore.sleep;
 
@@ -279,8 +281,13 @@
 
             showInstance(currentInstance);
 
-            if (!firstRound || !state.repeat) {
-                addHistory(currentInstance.displayDegrees.join('-'), currentInstance.description, currentInstance.noteNames.join(' '));
+            if ((!firstRound || !state.repeat) && history) {
+                history.add({
+                    desc: currentInstance.description,
+                    degrees: currentInstance.displayDegrees.join('-'),
+                    notes: currentInstance.noteNames.join(' '),
+                    time: new Date().toLocaleTimeString()
+                });
             }
 
             // Brief pause to read the display before audio starts
@@ -326,17 +333,11 @@
     }
 
     // ---- HISTORY ----
-    function addHistory(degrees, desc, notes) {
-        const list = document.getElementById('historyList');
-        if (!list) return;
-        const empty = list.querySelector('.history-empty');
-        if (empty) empty.remove();
-
+    function renderHistoryItem(entry) {
         const item = document.createElement('div');
         item.className = 'history-item';
-        item.innerHTML = `<span class="history-text history-desc">${desc}</span><span class="history-text history-degrees">${degrees}</span><span class="history-text history-notes">${notes}</span><span class="history-time">${new Date().toLocaleTimeString()}</span>`;
-        list.prepend(item);
-        while (list.children.length > 50) list.lastChild.remove();
+        item.innerHTML = `<span class="history-text history-desc">${entry.desc}</span><span class="history-text history-degrees">${entry.degrees}</span><span class="history-text history-notes">${entry.notes}</span><span class="history-time">${entry.time}</span>`;
+        return item;
     }
 
     // ---- SING PANEL ----
@@ -495,9 +496,12 @@
         document.getElementById('playBtn').addEventListener('click', runLoop);
         document.getElementById('stopBtn').addEventListener('click', stopLoop);
         document.getElementById('nextBtn').addEventListener('click', requestNext);
-        document.getElementById('clearHistoryBtn').addEventListener('click', () => {
-            document.getElementById('historyList').innerHTML =
-                '<p class="history-empty">No patterns yet</p>';
+
+        history = HistoryList.create({
+            listId: 'historyList',
+            clearBtnId: 'clearHistoryBtn',
+            emptyText: 'No patterns yet',
+            renderItem: renderHistoryItem
         });
 
         setupSingPanel();

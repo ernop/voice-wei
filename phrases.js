@@ -57,8 +57,8 @@
     let currentPhrase = null;
     /** @type {boolean[] } */
     let activeMask = [];
-    /** @type {any[]} */
-    const phraseHistory = [];
+    /** @type {ReturnType<typeof HistoryList.create> | null} */
+    let history = null;
     let playToken = 0;
     let isPointerToggling = false;
     let pointerToggleValue = true;
@@ -293,10 +293,8 @@
         currentPhrase = buildPhrase();
         if (!currentPhrase) return null;
         activeMask = currentPhrase.midiNotes.map(() => true);
-        phraseHistory.unshift(currentPhrase);
-        if (phraseHistory.length > 50) phraseHistory.pop();
         updatePhraseDisplay();
-        renderHistory();
+        if (history) history.add(currentPhrase);
         return currentPhrase;
     }
 
@@ -424,50 +422,38 @@
         await testPanel.open();
     }
 
-    function renderHistory() {
-        const list = getEl('historyList');
-        if (!list) return;
-        list.textContent = '';
-        if (!phraseHistory.length) {
-            const empty = document.createElement('p');
-            empty.className = 'history-empty';
-            empty.textContent = 'No phrases yet';
-            list.appendChild(empty);
-            return;
-        }
-        phraseHistory.forEach((phrase, index) => {
-            const item = document.createElement('div');
-            item.className = 'history-item';
-            const playBtn = document.createElement('button');
-            playBtn.className = 'history-play-btn';
-            playBtn.type = 'button';
-            playBtn.title = 'Play phrase';
-            playBtn.textContent = '>';
-            playBtn.addEventListener('click', async () => {
-                currentPhrase = phrase;
-                activeMask = phrase.midiNotes.map(() => true);
-                updatePhraseDisplay();
-                const playbackPhrase = phraseForPlayback();
-                if (playbackPhrase) await playPhrase(playbackPhrase);
-            });
-            const text = document.createElement('div');
-            text.className = 'history-text';
-            const degrees = document.createElement('div');
-            degrees.className = 'phrase-history-degrees';
-            degrees.textContent = phrase.displayDegrees.join(' ');
-            const notes = document.createElement('div');
-            notes.className = 'history-transcript';
-            notes.textContent = phrase.noteNames.join(' ');
-            const time = document.createElement('span');
-            time.className = 'history-time';
-            time.textContent = index === 0 ? 'new' : '';
-            text.appendChild(degrees);
-            text.appendChild(notes);
-            item.appendChild(playBtn);
-            item.appendChild(text);
-            item.appendChild(time);
-            list.appendChild(item);
+    function renderHistoryItem(phrase, index) {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const playBtn = document.createElement('button');
+        playBtn.className = 'history-play-btn';
+        playBtn.type = 'button';
+        playBtn.title = 'Play phrase';
+        playBtn.textContent = '>';
+        playBtn.addEventListener('click', async () => {
+            currentPhrase = phrase;
+            activeMask = phrase.midiNotes.map(() => true);
+            updatePhraseDisplay();
+            const playbackPhrase = phraseForPlayback();
+            if (playbackPhrase) await playPhrase(playbackPhrase);
         });
+        const text = document.createElement('div');
+        text.className = 'history-text';
+        const degrees = document.createElement('div');
+        degrees.className = 'phrase-history-degrees';
+        degrees.textContent = phrase.displayDegrees.join(' ');
+        const notes = document.createElement('div');
+        notes.className = 'history-transcript';
+        notes.textContent = phrase.noteNames.join(' ');
+        const time = document.createElement('span');
+        time.className = 'history-time';
+        time.textContent = index === 0 ? 'new' : '';
+        text.appendChild(degrees);
+        text.appendChild(notes);
+        item.appendChild(playBtn);
+        item.appendChild(text);
+        item.appendChild(time);
+        return item;
     }
 
     function syncAdjusterControls() {
@@ -580,11 +566,15 @@
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
-        getEl('clearHistoryBtn')?.addEventListener('click', () => { phraseHistory.length = 0; renderHistory(); });
+        history = HistoryList.create({
+            listId: 'historyList',
+            clearBtnId: 'clearHistoryBtn',
+            emptyText: 'No phrases yet',
+            renderItem: renderHistoryItem
+        });
         window.addEventListener('pointerup', endPointerToggle);
         window.addEventListener('pointercancel', endPointerToggle);
         updatePhraseDisplay();
-        renderHistory();
         syncRepeatButton();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [

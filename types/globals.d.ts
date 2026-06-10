@@ -34,6 +34,7 @@ interface Window {
     MediaSessionCore?: any;
     PitchTestPanel?: any;
     ProgressStore?: any;
+    HistoryList?: any;
 }
 
 // -----------------------------------------------------------------------
