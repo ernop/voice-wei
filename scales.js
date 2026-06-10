@@ -459,9 +459,7 @@ class ScalesController {
         this.maxHistoryLength = 50;
 
         // Note: settings store actual values (noteLengthMs in ms, gapMs in ms or negative for overlap ratio)
-        // Helper to format ms as display label
-        this.formatMsLabel = (ms) => `${ms / 1000}s`;
-        // Helper to format gap value as display label
+        // Helper to format gap value as display label (negative = overlap %)
         this.formatGapLabel = (gap) => {
             if (gap < 0) return `${Math.round(gap * 100)}%`;
             return `${gap / 1000}s`;
@@ -906,7 +904,7 @@ class ScalesController {
         if (c.shiftingSteps && c.shiftingSteps > 0) parts.push('shifting');
         if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
         if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
-        if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${this.formatMsLabel(c.noteLengthMs)}`);
+        if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
         if (c.gapMs !== this.defaultSettings.gapMs) parts.push(`gap ${this.formatGapLabel(c.gapMs)}`);
 
         if (c.repeatCount === Infinity) parts.push(c.repeatGapMs === 0 ? 'forever no gap' : 'forever');
@@ -1098,9 +1096,9 @@ class ScalesController {
         // Tempo and per-note gap (note-level controls)
         if (mods.tempo) {
             const ms = this.tempoNameToMs[mods.tempo];
-            if (ms !== undefined) badges.push(`len ${this.formatMsLabel(ms)}`);
+            if (ms !== undefined) badges.push(`len ${PracticeControls.formatSeconds(ms)}`);
         } else if (s.noteLengthMs !== d.noteLengthMs) {
-            badges.push(`len ${this.formatMsLabel(s.noteLengthMs)}`);
+            badges.push(`len ${PracticeControls.formatSeconds(s.noteLengthMs)}`);
         }
 
         if (mods.gap) {
@@ -1224,7 +1222,7 @@ class ScalesController {
 
         // Root pitch / note length / gap / voice steppers (shared control)
         PracticeControls.setValueText('rootPitchValue', `${this.settings.root}${this.settings.octave}`);
-        PracticeControls.setValueText('noteLengthValue', this.formatMsLabel(this.settings.noteLengthMs));
+        PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(this.settings.noteLengthMs));
         PracticeControls.setValueText('gapValue', this.formatGapLabel(this.settings.gapMs));
         this.syncVoiceSteppers();
 
@@ -1330,7 +1328,7 @@ class ScalesController {
             parts.push(`oct ${s.octave}`);
         }
         if (s.noteLengthMs !== d.noteLengthMs) {
-            parts.push(this.formatMsLabel(s.noteLengthMs));
+            parts.push(PracticeControls.formatSeconds(s.noteLengthMs));
         }
         if (s.gapMs !== d.gapMs) {
             parts.push(`gap: ${this.formatGapLabel(s.gapMs)}`);
