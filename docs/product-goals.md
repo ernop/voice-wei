@@ -19,6 +19,19 @@ availability of correct musical tones - hear it, match it instantly*, with
 specific attention to control in the lower range (the learner tends to
 overshoot around degrees 6-7-8).
 
+## Ownership and change stance
+
+This project is built for yui, not for a broad anonymous user base. Product
+judgment should serve the current owner-directed training focus. When yui asks
+to shift that focus, change the tool accordingly or ask a clarifying question
+before acting. Do not protect old workflows, old defaults, or old UI layouts as
+if they were public compatibility contracts.
+
+Breaking current user-land can be the correct move. The weiward behavior is to
+notice the consequence, say it plainly when it matters, and then follow the
+requested direction. The unweiward behavior is to silently choose continuity
+and deliver a weaker version of the requested change.
+
 ## Per-tool goals
 
 | Tab | Goal | Done well when |
@@ -42,6 +55,9 @@ overshoot around degrees 6-7-8).
   designed from its goal above. Controls doing the same job share one
   implementation; controls serving different jobs stay distinct (see
   "How to decide what a control looks like" in docs/architecture.md).
+- **Owner-directed evolution**: explicit yui direction can change defaults,
+  workflows, UI surfaces, and practice behavior. Ask when unclear; do not
+  preserve continuity by default.
 - **One shared library per concern**, enforced by lint guards; pages are
   thin consumers (see docs/architecture.md).
 - **Defined parameters**: every setting picks a change behavior from the

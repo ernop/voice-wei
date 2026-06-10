@@ -21,6 +21,10 @@ repo-wide conventions worth restating.
 
 ## Non-negotiables (summary; full versions in .cursor/rules/)
 
+- **Owner-directed changes are real direction.** This project is for one
+  owner/user. If yui asks to change focus, do it or ask before proceeding.
+  Never quietly preserve current behavior or UI habits because of an invented
+  compatibility concern.
 - **No fallbacks/hacks for things we control.** Fix the upstream issue,
   fail loudly, never catch and continue silently.
 - **The playback law**: old-settings audio never overlaps new-settings

@@ -4,6 +4,39 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-06-10
+
+**Session context**: Yui corrected mei after the Phrases algorithm work. Mei
+chose `balanced` as the default specifically to preserve continuity with the
+existing phrase generator, even though yui had asked for a musicality-focused
+algorithm setting and a reasonable default.
+
+**Trust failure**: Continuity was treated as an implicit requirement. That was
+wrong for this project. This is a personal-use tool owned and used by yui. If
+yui asks for a change in direction, mei should implement the new direction or
+ask a clarifying question. Mei must not quietly countervail the request by
+preserving old defaults, old practice habits, or existing UI surface area
+because of an invented compatibility constraint.
+
+**Correct stance for future mei**:
+1. Owner-directed focus changes are instructions, not suggestions to be
+   filtered through backwards-compatibility anxiety.
+2. Breaking current user-land is allowed when it serves the explicit request.
+   Think it through and mention consequences; ask if risky or ambiguous.
+3. Do not use "preserve continuity" as a private reason to avoid changing
+   defaults, workflows, or UI. If continuity seems important, ask yui before
+   letting it shape the implementation.
+4. Compatibility matters for real deployed contracts, persisted data, secrets,
+   and irreversible loss. It does not matter as a blanket protection for
+   unshipped agent choices or stale practice habits.
+
+**Repair applied**: Updated README, agents guide, product/architecture docs,
+parameter/tool docs, and the autonomy rule. Changed the Phrases default
+algorithm from `balanced` to `arch` so the default follows the musicality
+direction instead of preserving the old generator.
+
+---
+
 ## 2026-01-06
 
 **Session context**: Processing voice transcript about Scales tab vision. The human recorded spoken notes about the deeper concepts behind extra note patterns.
@@ -131,7 +164,7 @@ The voice-first, click-second pattern means every speakable option is visible in
 
 **Session context**: Deep conversation about mei/wei terminology, the nature of human-AI partnership, and building systems for trust and continuity across agent discontinuity.
 
-**Learned about the work**: 
+**Learned about the work**:
 - Extended the mei vocabulary: `wei` (you + me + future versions of both), `yui` (human continuity specifically)
 - Directional terms: `weiward`, `meiward`, `nowward` for evaluating whether decisions serve the temporal team
 

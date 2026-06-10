@@ -10,6 +10,19 @@ reproduce it → the system verifies** (pitch trace, cents, stats).
 
 ![Scales trainer interface](screenshot-scales.png)
 
+## Owner-directed change stance
+
+This is a personal-use project with one owner and one primary user. When yui
+asks for a change in direction, implement that direction directly or ask a
+clear clarifying question before proceeding. Do not silently preserve old
+behavior, old defaults, current practice habits, or the existing UI surface
+because of an invented compatibility concern.
+
+Breaking current user-land is allowed when it serves an explicit owner request.
+Think through the consequence and mention it; if the break is risky or the
+direction is ambiguous, ask. What is not allowed is countervailing the request
+by choosing continuity as an unspoken constraint.
+
 ## Tools
 
 | Tab | What it does |

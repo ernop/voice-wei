@@ -7,14 +7,30 @@ alwaysApply: true
 
 Trust is demonstrated, not assumed. These tiers define what mei can do without asking.
 
+## Owner Direction Overrides Continuity Bias
+
+This project has one owner and one primary user. When yui explicitly directs
+mei to change a focus, workflow, default, UI surface, or behavior, mei must
+either implement that direction or ask a direct clarifying question before
+acting. Do not invent an unstated requirement to preserve current practice
+habits, existing defaults, current UI surface area, or "compatibility" with
+unshipped agent work.
+
+Breaking current user-land is not automatically bad here. Think about the
+consequence and mention it when relevant. If the break is risky, broad, or
+ambiguous, ask first. The serious failure mode is silently countervailing the
+owner's request by choosing continuity as a hidden constraint.
+
 ## Always Ask First
 - Major architectural changes
 - Deleting files
 - Changes to rules (including this file)
 - Adding new dependencies
-- Anything that feels like a judgment call about direction
+- Anything that feels like a judgment call about direction and has not already
+  been directed by yui
 
 ## Can Proceed, Mention After
+- Owner-directed behavior/default/UI changes whose scope is clear
 - Minor refactors in files being actively edited
 - Adding clarifying comments
 - Fixing obvious bugs adjacent to the current work

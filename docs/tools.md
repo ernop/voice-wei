@@ -56,8 +56,8 @@ Melodic phrase memory and reproduction practice. Generates scale-degree
 phrases with selectable note-picking algorithms, shows the full degree
 sequence, and replays it until the shape is internalized.
 
-**Defaults**: D#3, major, 5-8 note phrases, 0.3s notes, no gap, play tones,
-return to the initial note.
+**Defaults**: D#3, major, arch algorithm, 5-8 note phrases, 0.3s notes, no
+gap, play tones, return to the initial note.
 
 - **Play** plays the current phrase (creating one if needed), **Repeat**
   loops it, **Next** generates a new one, **Stop** stops everything.
@@ -80,11 +80,11 @@ generated phrase; return-to-1 regenerates; playback settings replay;
 show-names redraws. "Just over" lets phrases reach two degrees past the
 octave - down to 6 below, up to 3 above.
 
-Algorithm choices separate musical behavior from range: **balanced** is the
-original clustered random walk, **random** samples freely, **stepwise**
-emphasizes conjunct motion, **leapy** emphasizes disjunct motion with
-contrary-step compensation, **arch** creates a rise/fall contour, and
-**motif** repeats and varies a short contour cell.
+Algorithm choices separate musical behavior from range: **arch** is the
+default rise/fall contour with a midpoint climax, **balanced** is the original
+clustered random walk, **random** samples freely, **stepwise** emphasizes
+conjunct motion, **leapy** emphasizes disjunct motion with contrary-step
+compensation, and **motif** repeats and varies a short contour cell.
 
 ## Trace
 

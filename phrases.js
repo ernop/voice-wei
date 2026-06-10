@@ -13,7 +13,7 @@
         root: 'D#',
         octave: 3,
         scaleType: 'major',
-        phraseAlgo: 'balanced',
+        phraseAlgo: 'arch',
         startAtOne: true,
         rangeMode: 'within',
         minLength: 5,

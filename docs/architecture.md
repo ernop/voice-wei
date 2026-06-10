@@ -23,6 +23,18 @@ player.html + player.js  # AI music player
 ebook.html/js/css        # Ebook to audiobook
 ```
 
+## Change stance: owner direction before continuity
+
+This architecture serves a personal-use product. Do not treat existing
+behavior, defaults, settings layout, or current practice habits as public API
+unless the docs say they are persisted contracts or yui says to preserve them.
+When yui asks for a new focus, the implementation should follow that focus.
+
+Compatibility work is still real where it protects data, secrets, deployed
+configuration, or irreversible user effort. For ordinary UX/default/practice
+behavior, preserving continuity is a choice that needs a reason. If that reason
+would countervail the request, ask yui before using it.
+
 ## Shared libraries - one owner per concern
 
 Pages must consume these instead of carrying their own copies; three of
