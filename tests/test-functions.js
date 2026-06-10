@@ -118,9 +118,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`intervals Sing opens with a pattern ("${opened.pattern}")`,
             opened.open && opened.pattern.length > 0);
         // Wall-clock mode so the windows pass; take should be recorded.
-        // Wait scales with the pattern: the guide plays on open and the
-        // last target window must pass before the take records.
-        await tab.evaluate(() => document.getElementById('intervalsSingPauseToggle').click());
+        // Sing deterministically through the explicit sample seam (the
+        // fake mic's beeps are not reliable enough to count on).
+        await tab.evaluate(() => {
+            document.getElementById('intervalsSingPauseToggle').click();
+            for (let k = 0; k < 5; k++) {
+                window.intervalsDebug.panel.recordSample(60, 30 + k * 50);
+            }
+        });
         const noteCount = Math.max(2, opened.pattern.split('-').length);
         await tab.waitForTimeout(noteCount * 600 + 2500);
         const recorded = await tab.evaluate(() => {
@@ -308,6 +313,37 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const voicesGuide = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         report.check(`phrases Guide button plays enabled targets (${voicesGuide - voicesAfter} voices)`,
             voicesGuide - voicesAfter === plan.targetCount);
+
+        // END-TO-END NOTE LINKAGE: with notes disabled, singing exactly
+        // the displayed enabled notes must credit every one of them.
+        // Sing via the explicit sample seam at each target's window.
+        const linkage = await tab.evaluate(async () => {
+            document.getElementById('phraseTestPauseToggle').click(); // wall clock + session reset
+            const targets = window.phrasesDebug.testTargets();
+            const panel = window.phrasesDebug.panel;
+            for (const t of targets) {
+                for (let k = 0; k < 5; k++) {
+                    panel.recordSample(t.midi, t.startMs + 10 + k * 55);
+                }
+            }
+            const lastEnd = targets[targets.length - 1].endMs;
+            await new Promise(r => setTimeout(r, lastEnd + 800));
+            return {
+                count: targets.length,
+                score: document.getElementById('phraseTestScore').textContent
+            };
+        });
+        report.check(`phrases sings-right-thing-scores-right (${linkage.score})`,
+            linkage.score.includes(`${linkage.count}/${linkage.count}`));
+
+        // The action row stays visible while scrolled mid-take.
+        await tab.evaluate(() => window.scrollTo(0, 700));
+        await tab.waitForTimeout(300);
+        const pinned = await tab.evaluate(() => {
+            const rect = document.querySelector('#phraseTestPanel .pitch-test-actions').getBoundingClientRect();
+            return { top: rect.top, visible: rect.top >= 0 && rect.bottom <= window.innerHeight };
+        });
+        report.check(`phrases test actions stay visible when scrolled (top=${pinned.top.toFixed(0)}px)`, pinned.visible);
         await tab.close();
     }
 
