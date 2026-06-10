@@ -32,6 +32,17 @@ structure allowed this? Does it exist elsewhere? What type or guard
 makes it unrepresentable? And re-read agents.md first - it is the
 accumulating contract of how yui wants this collaboration to run.
 
+**Sweep result (same session, continued)**: audited every other surface
+for the two fault classes. Parallel note arrays: scales, trace,
+pitch-meter, ears are clean (their remaining `midiNotes` are bare
+midi[] chord/highlight params, single arrays, never zipped). Timeline-
+equals-playback: scales sing targets share the playback plan and
+getNoteDuration ✓; intervals uniform lengthMs both sides ✓; trace was
+BROKEN - the guide loop slept `guideIntervalMs - durationMs` assuming
+playGuideTone blocked for the tone duration, but voices are fire-and-
+forget, so guides sounded ~3x faster than the chart drew them. Fixed
+(spacing = guideIntervalMs) with a voice-timestamp regression test.
+
 ---
 
 ## 2026-06-10 (later)

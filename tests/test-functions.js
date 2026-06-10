@@ -129,6 +129,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const noteCount = Math.max(2, opened.pattern.split('-').length);
         await tab.waitForTimeout(noteCount * 600 + 2500);
         const recorded = await tab.evaluate(() => {
+            // Verdicts re-evaluate on mic frames; the headless fake mic
+            // sometimes fails to start, so drive the evaluation by name.
+            window.intervalsDebug.panel.draw();
             const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
             return entries.some(e => e.tool === 'intervals-sing');
         });
@@ -300,6 +303,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             plan.firstDisabled && plan.firstTargetAtZero && plan.targetCount === plan.enabledCount && plan.allActive);
 
         // Opening the test never auto-plays: the user is there to sing.
+        // Quiesce any playback still running from earlier checks first.
+        await tab.click('#stopBtn');
+        await tab.waitForTimeout(500);
         const voicesBefore = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         await tab.click('#testBtn');
         await tab.waitForTimeout(1500);
