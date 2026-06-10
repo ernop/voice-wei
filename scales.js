@@ -497,7 +497,6 @@ class ScalesController {
             subtitle: 'Sing the current scale and watch your pitch against the target notes.',
             storageKey: 'scales-sing-panel',
             legendTargetLabel: 'target notes',
-            guideToggleLabel: 'Play scale on restart',
             key: () => ({
                 rootMidi: noteNameToMidi(this.settings.root, this.settings.octave) ?? 60,
                 rootLabel: `${this.settings.root}${this.settings.octave}`,

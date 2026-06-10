@@ -387,7 +387,6 @@
             subtitle: 'Sing the current pattern and watch your pitch against the targets. Turn Repeat on to hold one pattern.',
             storageKey: 'intervals-sing-panel',
             legendTargetLabel: 'target notes',
-            guideToggleLabel: 'Play pattern on restart',
             emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
             key: () => ({
                 rootMidi: noteNameToMidi(state.root, state.octave) ?? 60,

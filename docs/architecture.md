@@ -183,7 +183,13 @@ ambient types: `KeyContext`, `TargetSpan`, `RailLine`,
    The panel sequences its own guide from the active `TargetSpan`s, so
    the guide is by construction the same notes/key/timing as the drawn
    notation - a consumer cannot supply a guide that disagrees. Consumers
-   only provide `playNote(midi, durationSec)`.
+   only provide `playNote(midi, durationSec)`. The guide is an explicit
+   button - the panel never auto-plays into a take.
+4. **One timeline, explicitly named.** Phrases derives a single take
+   plan (`PhrasePlanNote[]`: index, midi, degree, spoken, enabled,
+   startMs/endMs) and display, playback, and the test panel all read
+   it. Disabled notes own no time; the timeline starts at 0 with the
+   first ENABLED note - never "assume the first item is zero".
 4. **Shared state is reified, not implicit.** The key is data the panel
    holds and displays ("Key: D#3 major" in the readout), not something
    smeared across closures.

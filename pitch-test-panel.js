@@ -16,7 +16,7 @@ const PitchTestPanel = (function () {
     'use strict';
 
     const FIXED_WINDOW_MS = 20000;
-    const OPTION_KEYS = ['showTargets', 'playOnRestart', 'pauseOnSilence', 'fixedWindow', 'expandRange'];
+    const OPTION_KEYS = ['showTargets', 'pauseOnSilence', 'fixedWindow', 'expandRange'];
 
     // The data the panel cannot function without. create() refuses to
     // build a panel missing any of these - a wrong consumer fails at
@@ -46,9 +46,6 @@ const PitchTestPanel = (function () {
         const prefix = config.idPrefix;
         const options = {
             showTargets: true,
-            // The panel's guide is the key anchor for the test; it plays
-            // unless the user explicitly turns it off.
-            playOnRestart: true,
             pauseOnSilence: true,
             fixedWindow: false,
             expandRange: false
@@ -234,25 +231,23 @@ const PitchTestPanel = (function () {
             host.classList.add('pitch-test-panel');
             host.hidden = true;
 
-            const guideToggleHtml = `<label class="display-toggle pitch-test-play-toggle">
-                       <input type="checkbox" id="${prefix}PlayToggle">
-                       <span>${config.guideToggleLabel || 'Play guide on restart'}</span>
-                   </label>`;
-
+            // Actions come FIRST so Restart/Guide/Close sit at the very
+            // top of the panel - reachable without scrolling. The test
+            // never auto-plays anything: Guide is an explicit button.
             host.innerHTML = `
                 <div class="pitch-test-header">
-                    <div>
-                        <h2>${config.title}</h2>
-                        <p>${config.subtitle}</p>
-                    </div>
                     <div class="pitch-test-actions">
                         <button id="${prefix}RestartBtn" class="pitch-test-btn" type="button">Restart</button>
+                        <button id="${prefix}GuideBtn" class="pitch-test-btn" type="button">Play Guide</button>
                         <button id="${prefix}ListenBtn" class="pitch-test-btn" type="button" aria-pressed="false">Listening Off</button>
                         <button id="${prefix}TargetsBtn" class="pitch-test-btn" type="button" aria-pressed="true">Targets On</button>
                         <button id="${prefix}CloseBtn" class="pitch-test-btn" type="button">Close</button>
                     </div>
+                    <div class="pitch-test-titles">
+                        <h2>${config.title}</h2>
+                        <p>${config.subtitle}</p>
+                    </div>
                 </div>
-                ${guideToggleHtml}
                 <div class="pitch-test-options">
                     <label class="display-toggle">
                         <input type="checkbox" id="${prefix}PauseToggle">
@@ -330,7 +325,6 @@ const PitchTestPanel = (function () {
                 targetsBtn.textContent = options.showTargets ? 'Targets On' : 'Targets Off';
             }
 
-            PracticeControls.syncToggle(prefix + 'PlayToggle', options.playOnRestart);
             PracticeControls.syncToggle(prefix + 'PauseToggle', options.pauseOnSilence);
             PracticeControls.syncToggle(prefix + 'WindowToggle', options.fixedWindow);
             PracticeControls.syncToggle(prefix + 'RangeToggle', options.expandRange);
@@ -384,7 +378,6 @@ const PitchTestPanel = (function () {
             view.resize();
             resetSession();
             await startListening();
-            if (options.playOnRestart) await playGuide();
         }
 
         function close() {
@@ -400,6 +393,7 @@ const PitchTestPanel = (function () {
 
         function wire() {
             getEl('RestartBtn')?.addEventListener('click', open);
+            getEl('GuideBtn')?.addEventListener('click', () => { void playGuide(); });
             getEl('ListenBtn')?.addEventListener('click', toggleListening);
             getEl('CloseBtn')?.addEventListener('click', close);
             getEl('TargetsBtn')?.addEventListener('click', () => {
@@ -407,10 +401,6 @@ const PitchTestPanel = (function () {
                 saveOptions();
                 syncControls();
                 view.draw();
-            });
-            PracticeControls.wireToggle(prefix + 'PlayToggle', options.playOnRestart, checked => {
-                options.playOnRestart = checked;
-                saveOptions();
             });
             PracticeControls.wireToggle(prefix + 'PauseToggle', options.pauseOnSilence, checked => {
                 options.pauseOnSilence = checked;

@@ -181,7 +181,12 @@ Per page key (`phrases-test-panel`, `scales-sing-panel`,
 | Option | Default | Behavior |
 |--------|---------|----------|
 | showTargets | true | redraw |
-| playOnRestart | true (the panel-owned guide anchors the key) | immediate (next restart) |
 | pauseOnSilence | true | immediate + trace reset |
 | fixedWindow | false | redraw |
 | expandRange | false | redraw |
+
+The panel NEVER auto-plays: the test exists for the user to sing, so
+opening or restarting it only resets the trace and starts listening.
+"Play Guide" is an explicit button (top action row, next to Restart)
+that plays the enabled targets in the current key. The action row sits
+at the very top of the panel, above the titles.
