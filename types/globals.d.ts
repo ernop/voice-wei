@@ -35,6 +35,12 @@ interface Window {
     PitchTestPanel?: any;
     ProgressStore?: any;
     HistoryList?: any;
+
+    // Named state inspection for the test suite (phrases take plan)
+    phrasesDebug?: {
+        takePlan: () => PhrasePlanNote[];
+        testTargets: () => TargetSpan[];
+    };
 }
 
 // -----------------------------------------------------------------------

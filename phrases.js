@@ -168,14 +168,15 @@
         });
     }
 
-    // Muted notes are simply not performed. Spoken output reads the mask
-    // once (one utterance); tone/sing playback reads it live, per note.
-    function activeIndexes(phrase) {
-        const indexes = [];
-        for (let i = 0; i < phrase.midiNotes.length; i++) {
-            if (activeMask[i] !== false) indexes.push(i);
-        }
-        return indexes;
+    // Muted notes are simply not performed. Spoken output reads the plan
+    // once (one utterance); tone/sing playback reads the mask live, per
+    // note. Everything goes through the named take plan - no positional
+    // conventions.
+    function spokenLine() {
+        return buildTakePlan()
+            .filter(note => note.enabled)
+            .map(note => note.spoken)
+            .join(', ');
     }
 
     /** @param {number} degree */
@@ -229,26 +230,53 @@
     }
 
     /** @param {any} phrase */
-    function phraseTestDurationMs(phrase) {
-        if (!phrase) return 4000;
-        const noteCount = Math.max(phrase.midiNotes.length, 1);
-        const gap = effectiveGapMs();
-        const phraseMs = (noteCount * (state.noteLengthMs + gap)) - gap;
-        return Math.max(1200, phraseMs);
-    }
-
-    function buildPhraseTestTargets() {
+    /**
+     * The explicit take plan: every note of the current phrase with
+     * named fields, nothing positional or implied. Display, playback,
+     * and the test panel all read this one list. Enabled notes share
+     * one timeline that starts at 0 with the FIRST ENABLED note;
+     * disabled notes own no time at all - exactly how playback sounds.
+     * @returns {PhrasePlanNote[]}
+     */
+    function buildTakePlan() {
         const phrase = phraseForPlayback();
         if (!phrase) return [];
         const stepMs = state.noteLengthMs + effectiveGapMs();
-        const phraseDuration = phraseTestDurationMs(phrase);
-        return phrase.midiNotes.map((midi, index) => ({
-            midi,
-            startMs: index * stepMs,
-            endMs: Math.min(index * stepMs + state.noteLengthMs, phraseDuration),
-            label: phrase.displayDegrees[index],
-            active: activeMask[index] !== false
-        }));
+        let slot = 0;
+        return phrase.midiNotes.map((midi, index) => {
+            const enabled = activeMask[index] !== false;
+            const startMs = enabled ? slot * stepMs : null;
+            if (enabled) slot++;
+            return {
+                index,
+                midi,
+                degree: phrase.displayDegrees[index],
+                spoken: phrase.spokenDegrees[index],
+                noteName: phrase.noteNames[index],
+                enabled,
+                startMs,
+                endMs: enabled && startMs !== null ? startMs + state.noteLengthMs : null
+            };
+        });
+    }
+
+    function phraseTestDurationMs() {
+        const enabled = buildTakePlan().filter(note => note.enabled);
+        if (!enabled.length) return 4000;
+        return Math.max(1200, enabled[enabled.length - 1].endMs || 0);
+    }
+
+    /** The test timeline is the enabled plan notes, by name. */
+    function buildPhraseTestTargets() {
+        return buildTakePlan()
+            .filter(note => note.enabled)
+            .map(note => ({
+                midi: note.midi,
+                startMs: /** @type {number} */ (note.startMs),
+                endMs: /** @type {number} */ (note.endMs),
+                label: note.degree,
+                active: true
+            }));
     }
 
     testPanel = PitchTestPanel.create({
@@ -258,7 +286,6 @@
         subtitle: 'Sing the phrase. Time starts only when your voice is detected.',
         storageKey: 'phrases-test-panel',
         legendTargetLabel: 'target phrase',
-        guideToggleLabel: 'Play guide on restart',
         emptyMessage: () => (phraseForPlayback() ? null : 'Generate a phrase, then press Test.'),
         key: () => ({
             rootMidi: rootMidi() ?? 60,
@@ -271,7 +298,7 @@
             emphasized: line.offset >= 0 && line.offset <= PatternPracticeCore.degreesPerOctave(state.scaleType)
         })),
         targets: buildPhraseTestTargets,
-        contentDurationMs: () => phraseTestDurationMs(phraseForPlayback()),
+        contentDurationMs: () => phraseTestDurationMs(),
         playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
         progressTool: 'phrases-test'
@@ -310,11 +337,11 @@
         updatePhraseDisplay();
         if (state.outputMode === 'none' || state.outputMode === 'display') return;
         if (state.outputMode === 'speak') {
-            await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
+            await VoiceOutput.speak(spokenLine());
             return;
         }
         if (state.outputMode === 'speak_tones') {
-            await VoiceOutput.speak(activeIndexes(phrase).map(i => phrase.spokenDegrees[i]).join(', '));
+            await VoiceOutput.speak(spokenLine());
             if (token !== playToken) return;
             await playToneSequence(phrase, token);
             return;
@@ -341,10 +368,10 @@
     // later note during playback changes what WILL be played without
     // touching the note currently sounding.
     async function playToneSequence(phrase, token) {
-        for (let i = 0; i < phrase.midiNotes.length; i++) {
+        for (const note of buildTakePlan()) {
             if (token !== playToken) return;
-            if (activeMask[i] === false) continue;
-            playMidi(phrase.midiNotes[i]);
+            if (activeMask[note.index] === false) continue; // live mask read
+            playMidi(note.midi);
             await sleep(state.noteLengthMs + effectiveGapMs());
         }
     }
@@ -359,11 +386,10 @@
 
     // Same live mask read as playToneSequence.
     async function playSingNumberSequence(phrase, token) {
-        for (let i = 0; i < phrase.midiNotes.length; i++) {
+        for (const note of buildTakePlan()) {
             if (token !== playToken) return;
-            if (activeMask[i] === false) continue;
-            const midi = phrase.midiNotes[i];
-            await speakNumberAtPitch(phrase.spokenDegrees[i], midi, state.noteLengthMs);
+            if (activeMask[note.index] === false) continue; // live mask read
+            await speakNumberAtPitch(note.spoken, note.midi, state.noteLengthMs);
             const gap = effectiveGapMs();
             if (gap > 0) await sleep(gap);
         }
@@ -619,6 +645,9 @@
             console.error('Error loading piano samples:', err);
         }
         initUI();
+        // Named state inspection for the test suite: the explicit take
+        // plan and the test timeline derived from it.
+        window.phrasesDebug = { takePlan: buildTakePlan, testTargets: buildPhraseTestTargets };
     }
 
     boot();

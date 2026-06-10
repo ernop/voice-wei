@@ -85,6 +85,32 @@ interface Phrase {
     createdAt: string;
 }
 
+/**
+ * One note of the current take, fully explicit - every consumer
+ * (display, playback, test panel) reads these named fields; nothing is
+ * positional or implied. Disabled notes own no time: startMs/endMs are
+ * null and the enabled notes share one compressed timeline that starts
+ * at 0 with the first enabled note.
+ */
+interface PhrasePlanNote {
+    /** Position in the phrase (mask index, display order) */
+    index: number;
+    /** MIDI note number */
+    midi: number;
+    /** Display degree label (e.g. "4", "7d", "4#") */
+    degree: string;
+    /** Spoken label (e.g. "sharp 4") */
+    spoken: string;
+    /** Pitch string for display (e.g. "F#3") */
+    noteName: string;
+    /** Whether this note is currently enabled (mask state) */
+    enabled: boolean;
+    /** Window start on the take timeline; null when disabled */
+    startMs: number | null;
+    /** Window end on the take timeline; null when disabled */
+    endMs: number | null;
+}
+
 /** One horizontal reference line on a pitch trace. */
 interface RailLine {
     /** MIDI note number the rail sits on */
@@ -137,7 +163,6 @@ interface PitchTestPanelConfig {
     /** Optional cosmetic / wiring extras */
     defaultHeightPx?: number;
     legendTargetLabel?: string;
-    guideToggleLabel?: string;
     emptyMessage?: () => string | null;
     /** Notified when the panel opens/closes (latching launch buttons) */
     onOpenChange?: (open: boolean) => void;
