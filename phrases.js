@@ -70,8 +70,12 @@
         SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
+    /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
+    let testPanel = null;
+
     function cancelCurrentSound() {
         if (piano) piano.stopAll();
+        if (testPanel) testPanel.cancelGuide();
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
@@ -240,7 +244,7 @@
         }));
     }
 
-    const testPanel = PitchTestPanel.create({
+    testPanel = PitchTestPanel.create({
         hostId: 'phraseTestPanel',
         idPrefix: 'phraseTest',
         title: 'Phrase Test',
@@ -249,6 +253,11 @@
         legendTargetLabel: 'target phrase',
         guideToggleLabel: 'Play guide on restart',
         emptyMessage: () => (phraseForPlayback() ? null : 'Generate a phrase, then press Test.'),
+        key: () => ({
+            rootMidi: rootMidi() ?? 60,
+            rootLabel: `${state.root}${state.octave}`,
+            scaleType: state.scaleType
+        }),
         rails: ({ expandRange }) => buildPhraseTestScaleLines(phraseForPlayback(), expandRange).map(line => ({
             midi: line.midi,
             label: `${line.label} ${line.noteName}`,
@@ -256,22 +265,9 @@
         })),
         targets: buildPhraseTestTargets,
         contentDurationMs: () => phraseTestDurationMs(phraseForPlayback()),
-        // The test is a pitch test: the guide must anchor the actual key,
-        // so it always plays the phrase as piano tones in the current
-        // root - regardless of the page's output mode (which may be
-        // display-only, spoken numbers, or uncalibrated TTS singing).
-        playGuide: async () => {
-            const phrase = phraseForPlayback();
-            if (!phrase) return;
-            await PianoCore.ensureStarted();
-            cancelCurrentSound();
-            const token = ++playToken;
-            await playToneSequence(phrase, token);
-        },
-        defaultPlayOnRestart: true,
+        playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
-        progressTool: 'phrases-test',
-        progressContext: () => `${state.root}${state.octave} ${state.scaleType}`
+        progressTool: 'phrases-test'
     });
 
     function drawPhraseTest() { testPanel.draw(); }

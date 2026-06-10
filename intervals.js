@@ -324,6 +324,7 @@
         state.running = false;
         VoiceOutput.stop();
         if (piano) piano.stopAll();
+        if (singPanel) singPanel.cancelGuide();
         // The loop only notices the stop at its next checkpoint (it may be
         // mid-gap for seconds); the display must reflect the stop now.
         const display = document.getElementById('currentDisplay');
@@ -383,27 +384,22 @@
             legendTargetLabel: 'target notes',
             guideToggleLabel: 'Play pattern on restart',
             emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
+            key: () => ({
+                rootMidi: noteNameToMidi(state.root, state.octave) ?? 60,
+                rootLabel: `${state.root}${state.octave}`,
+                scaleType: state.scale
+            }),
             rails: ({ expandRange }) => buildSingRails(expandRange),
             targets: buildSingTargets,
             contentDurationMs: () => (currentInstance ? currentInstance.midiNotes.length * state.lengthMs : 4000),
-            playGuide: async () => {
-                if (!currentInstance || !piano) return;
-                await PianoCore.ensureStarted();
-                for (const midi of currentInstance.midiNotes) {
-                    piano.playMidi(midi, state.lengthMs / 1000);
-                    await sleep(state.lengthMs);
-                }
-            },
+            playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
             onOpenChange: open => {
                 const btn = document.getElementById('singBtn');
                 if (!btn) return;
                 btn.classList.toggle('selected', open);
                 btn.setAttribute('aria-pressed', String(open));
             },
-            progressTool: 'intervals-sing',
-            progressContext: () => (currentInstance
-                ? `${state.root} ${state.scale} ${currentInstance.description}`
-                : '')
+            progressTool: 'intervals-sing'
         });
 
         // The Sing button is a toggle: open the panel, or dismiss it.

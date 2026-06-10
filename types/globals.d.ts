@@ -44,6 +44,13 @@ interface Window {
 declare const Tone: typeof import('tone');
 
 // -----------------------------------------------------------------------
+// Ebook page CDN libraries (pdf.js, JSZip)
+// -----------------------------------------------------------------------
+
+declare const pdfjsLib: any;
+declare const JSZip: any;
+
+// -----------------------------------------------------------------------
 // YouTube IFrame API - YT namespace is declared by @types/youtube
 // -----------------------------------------------------------------------
 

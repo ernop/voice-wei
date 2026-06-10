@@ -1,13 +1,15 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // PITCH TEST PANEL
-// The embeddable "listen" component: a page provides rails and targets
-// (the pre-seed), and this panel renders the markup, owns the mic
-// session, the trace canvas, and the panel options (targets on/off,
-// play guide on restart, pause on silence, 20s window, expand range).
+// The embeddable "listen" component: a page provides the key, rails and
+// targets (typed contract: PitchTestPanelConfig in types/music.d.ts),
+// and this panel renders the markup, owns the mic session, the trace
+// canvas, the guide playback, and the panel options. The guide is
+// sequenced by the panel from the active targets, so guide and notation
+// cannot disagree about key, notes, or timing.
 // Options persist per page through settings-store.
-// Requires pitch-detect-core.js, pitch-trace-view.js, practice-controls.js,
-// settings-store.js.
+// Requires piano-core.js, pitch-detect-core.js, pitch-trace-view.js,
+// practice-controls.js, settings-store.js.
 //-----------------------------------------------------------------------
 
 const PitchTestPanel = (function () {
@@ -15,6 +17,13 @@ const PitchTestPanel = (function () {
 
     const FIXED_WINDOW_MS = 20000;
     const OPTION_KEYS = ['showTargets', 'playOnRestart', 'pauseOnSilence', 'fixedWindow', 'expandRange'];
+
+    // The data the panel cannot function without. create() refuses to
+    // build a panel missing any of these - a wrong consumer fails at
+    // page load (and tsc flags the call site before that), never at
+    // singing time in front of the user.
+    const REQUIRED_CONFIG = ['hostId', 'idPrefix', 'title', 'subtitle', 'storageKey',
+        'key', 'rails', 'targets', 'contentDurationMs', 'playNote'];
 
     // Per-note scoring (same thresholds as the pitch meter): a note is
     // matched when at least 30% of its window's samples are within 1.5
@@ -27,32 +36,19 @@ const PitchTestPanel = (function () {
     // A window counts as passed (scoreable) shortly after its end.
     const SCORE_GRACE_MS = 60;
 
-    /**
-     * @param {{
-     *   hostId: string,
-     *   idPrefix: string,
-     *   title: string,
-     *   subtitle: string,
-     *   storageKey: string,
-     *   defaultHeightPx?: number,
-     *   legendTargetLabel?: string,
-     *   guideToggleLabel?: string,
-     *   emptyMessage?: () => string | null,
-     *   rails: (panelOptions: { expandRange: boolean }) => Array<{ midi: number, label: string, emphasized: boolean }>,
-     *   targets: () => Array<{ midi: number, startMs: number, endMs: number, label: string, active: boolean }>,
-     *   contentDurationMs: () => number,
-     *   playGuide?: () => Promise<void>,
-     *   defaultPlayOnRestart?: boolean,
-     *   onOpenChange?: (open: boolean) => void,
-     *   progressTool?: string,
-     *   progressContext?: () => string
-     * }} config
-     */
+    /** @param {PitchTestPanelConfig} config */
     function create(config) {
+        const missing = REQUIRED_CONFIG.filter(field => !config || config[field] === undefined);
+        if (missing.length) {
+            throw new Error(`PitchTestPanel.create: missing required config: ${missing.join(', ')}`);
+        }
+
         const prefix = config.idPrefix;
         const options = {
             showTargets: true,
-            playOnRestart: config.defaultPlayOnRestart === true,
+            // The panel's guide is the key anchor for the test; it plays
+            // unless the user explicitly turns it off.
+            playOnRestart: true,
             pauseOnSilence: true,
             fixedWindow: false,
             expandRange: false
@@ -104,15 +100,39 @@ const PitchTestPanel = (function () {
             return Math.max(4000, config.contentDurationMs() + 700, session.clockMs() + 250);
         }
 
-        /** @type {Array<any>} */
+        /** @type {TargetSpan[]} */
         let scoredTargets = [];
         // One progress entry per take: set once every active target has
         // its verdict, cleared by Restart.
         let takeRecorded = false;
 
+        // The guide is sequenced here, from the same TargetSpans that are
+        // drawn: identical notes, key, and timing by construction.
+        let guideToken = 0;
+
+        async function playGuide() {
+            const token = ++guideToken;
+            const spans = config.targets().filter(t => t.active);
+            if (!spans.length) return;
+            await PianoCore.ensureStarted();
+            for (let i = 0; i < spans.length; i++) {
+                if (token !== guideToken) return;
+                const span = spans[i];
+                config.playNote(span.midi, Math.max(0.05, (span.endMs - span.startMs) / 1000));
+                const next = spans[i + 1];
+                const waitMs = next ? next.startMs - span.startMs : span.endMs - span.startMs;
+                await PianoCore.sleep(Math.max(20, waitMs));
+            }
+        }
+
+        function cancelGuide() {
+            guideToken++;
+        }
+
         /**
          * Annotate each active target with a verdict once the clock has
          * passed its window: 'good' / 'ok' / 'missed', or null while pending.
+         * @returns {TargetSpan[]}
          */
         function scoreTargets() {
             const history = session.history;
@@ -156,6 +176,14 @@ const PitchTestPanel = (function () {
             if (el && config.progressTool) el.textContent = ProgressStore.trendLine(config.progressTool);
         }
 
+        /** The key on screen is always the key of rails, targets, and guide. */
+        function updateKeyReadout() {
+            const el = getEl('Key');
+            if (!el) return;
+            const key = config.key();
+            el.textContent = `Key: ${key.rootLabel} ${key.scaleType.replace(/_/g, ' ')}`;
+        }
+
         // A take is complete when every active target has a verdict and
         // something was actually sung.
         function maybeRecordTake() {
@@ -166,13 +194,14 @@ const PitchTestPanel = (function () {
             if (session.history.length < SCORE_MIN_SAMPLES) return;
 
             const hit = active.filter(t => t.result === 'good' || t.result === 'ok');
+            const key = config.key();
             ProgressStore.record({
                 tool: config.progressTool,
-                context: config.progressContext ? config.progressContext() : '',
+                context: `${key.rootLabel} ${key.scaleType}`,
                 total: active.length,
                 hit: hit.length,
                 avgCents: hit.length
-                    ? hit.reduce((sum, t) => sum + t.avgCents, 0) / hit.length
+                    ? hit.reduce((sum, t) => sum + (t.avgCents || 0), 0) / hit.length
                     : null
             });
             takeRecorded = true;
@@ -205,12 +234,10 @@ const PitchTestPanel = (function () {
             host.classList.add('pitch-test-panel');
             host.hidden = true;
 
-            const guideToggleHtml = config.playGuide
-                ? `<label class="display-toggle pitch-test-play-toggle">
+            const guideToggleHtml = `<label class="display-toggle pitch-test-play-toggle">
                        <input type="checkbox" id="${prefix}PlayToggle">
                        <span>${config.guideToggleLabel || 'Play guide on restart'}</span>
-                   </label>`
-                : '';
+                   </label>`;
 
             host.innerHTML = `
                 <div class="pitch-test-header">
@@ -241,6 +268,7 @@ const PitchTestPanel = (function () {
                     </label>
                 </div>
                 <div class="pitch-test-readout" aria-live="polite">
+                    <span id="${prefix}Key" class="pitch-test-key"></span>
                     <span id="${prefix}Pitch">Pitch: --</span>
                     <span id="${prefix}Cents">-- cents</span>
                     <span id="${prefix}Status">Sing to start time</span>
@@ -352,14 +380,16 @@ const PitchTestPanel = (function () {
             syncControls();
             if (config.onOpenChange) config.onOpenChange(true);
             updateProgressLine();
+            updateKeyReadout();
             view.resize();
             resetSession();
             await startListening();
-            if (options.playOnRestart && config.playGuide) await config.playGuide();
+            if (options.playOnRestart) await playGuide();
         }
 
         function close() {
             if (!panelOpen && !session.listening) return;
+            cancelGuide();
             stopListening();
             panelOpen = false;
             syncControls();
@@ -408,8 +438,10 @@ const PitchTestPanel = (function () {
             get isOpen() { return panelOpen; },
             open,
             close,
+            cancelGuide,
             draw: () => {
                 refreshScores();
+                updateKeyReadout();
                 view.draw();
             },
             resize: () => view.resize()

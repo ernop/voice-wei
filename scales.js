@@ -505,13 +505,17 @@ class ScalesController {
             storageKey: 'scales-sing-panel',
             legendTargetLabel: 'target notes',
             guideToggleLabel: 'Play scale on restart',
+            key: () => ({
+                rootMidi: noteNameToMidi(this.settings.root, this.settings.octave) ?? 60,
+                rootLabel: `${this.settings.root}${this.settings.octave}`,
+                scaleType: this.settings.scaleType
+            }),
             rails: ({ expandRange }) => this.buildSingRails(expandRange),
             targets: () => this.buildSingTargets(),
             contentDurationMs: () => this.singContentDurationMs(),
-            playGuide: async () => { await this.playAgainOrCurrent(); },
+            playNote: (midi, durationSec) => this.audio.piano?.playMidi(midi, durationSec),
             onOpenChange: open => this.syncSingButton(open),
-            progressTool: 'scales-sing',
-            progressContext: () => `${this.settings.root}${this.settings.octave} ${this.settings.scaleType} ${this.settings.direction}`
+            progressTool: 'scales-sing'
         });
 
         // The Sing button is a toggle: open the panel, or dismiss it.
@@ -3658,6 +3662,7 @@ class ScalesController {
 
     stopPlayback() {
         this.audio.stop();
+        if (this.singPanel) this.singPanel.cancelGuide();
         this.clearPianoHighlights();
         this.updateScalePreview();
         this.setPianoNotificationActiveNotes([]);

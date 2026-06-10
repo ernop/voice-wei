@@ -289,6 +289,11 @@
     background: linear-gradient(90deg, #4ade80 33%, #facc15 33%, #facc15 66%, #fb7185 66%);
 }
 
+.pitch-test-key {
+    color: #86efac;
+    font-weight: 700;
+}
+
 .pitch-test-score {
     color: #bbf7d0;
     font-weight: 800;
