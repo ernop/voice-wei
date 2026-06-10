@@ -29,9 +29,27 @@ Done (v79):
 - Guide sounds are shared and configurable: `PianoCore.createSineSynth()` joins
   `createPiano()`, and the Test page offers piano (default) or beep guides.
 
+Done (v80, cleanup pass):
+- Stepper (`.step-field`/`.step-label`/`.step-btn`/`.step-value`) and
+  `.segment-row` primitives moved into `practice-controls.css`; phrases and
+  test adopted them, deleting both pages' duplicate copies.
+- Dead code removed: phrases' status plumbing (the status line was removed by
+  design in an earlier release, the calls remained), the empty
+  `phraseNoteToggles` container, scales' deprecated interpretation stubs and
+  dead `#statusRuntime` writes (piano load failure now surfaces in the piano
+  notification area), unused CSS classes in phrases.css/test.css.
+- scales2 display/history markup moved from inline styles to classes in
+  scales.css (also cleared the last two lint warnings on music pages).
+- Ears' drone uses `PianoCore.createSineSynth` (gained envelope + sustained
+  `startMidi`); its header comment updated.
+- Debug console noise removed from scales.js and voice-output.js.
+- Consistency: home page gained Intervals and Ears cards (all 8 tools listed);
+  player.html gained the robots meta every other page had; `favicon.svg`
+  added and linked from every page (no more 404 on each load).
+
 Remaining:
-- Phase 3 (UI/CSS convergence, rest of it): stepper/segment-row primitives into
-  `practice-controls.css`, adoption on scales/intervals/pitch-meter/ears.
+- Phase 3 (rest of it): stepper/segment-row adoption on scales chip rows,
+  intervals, pitch-meter selects, ears.
 - Sing-panel scoring: the panel currently judges visually (cents-colored dots,
   live cents readout). Per-note scoring like pitch-meter's could become a panel
   option later.

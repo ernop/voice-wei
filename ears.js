@@ -3,7 +3,7 @@
 // EARS - Interval Ear Training
 // Identify Mode: Hear intervals, name them
 // Sing Mode: Hear reference, sing target interval
-// Uses Tone.js for piano playback, Web Audio for pitch detection
+// Uses piano-core for playback and pitch-detect-core for the microphone.
 //-----------------------------------------------------------------------
 
 //-------INTERVAL DEFINITIONS-------
