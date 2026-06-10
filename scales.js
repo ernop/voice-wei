@@ -10,7 +10,7 @@
 
 /**
  * @typedef {Object} PlaySequenceOptions
- * @property {(() => { ms: number, tone: number | string, gap: number })} [getDuration]
+ * @property {(() => NoteTiming)} [getDuration]
  * @property {((midi: number, index: number, repeatIndex: number) => void)} [onNote]
  * @property {((message: string) => void)} [onStatus]
  * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
@@ -55,7 +55,7 @@ class AudioCoordinator {
     /**
      * Play a single note (does not affect sequence playback state)
      * @param {number} midi - MIDI note number
-     * @param {string | number} [duration] - Tone.js time value (e.g. '8n', 0.3)
+     * @param {ToneDuration} [duration]
      */
     playNote(midi, duration = '8n') {
         this.piano.playMidi(midi, duration);
@@ -64,7 +64,7 @@ class AudioCoordinator {
     /**
      * Play a chord (multiple notes simultaneously)
      * @param {number[]} midiNotes - Array of MIDI note numbers
-     * @param {string | number} [duration] - Tone.js time value (e.g. '2n', 0.5)
+     * @param {ToneDuration} [duration]
      */
     playChord(midiNotes, duration = '2n') {
         this.piano.playMidiChord(midiNotes, duration);
@@ -2059,10 +2059,7 @@ class ScalesController {
                 if (modifier === 'sharp') {
                     note += '#';
                 } else if (modifier === 'flat') {
-                    const flatIndex = NOTE_NAMES_FLAT.indexOf(note + 'b');
-                    if (flatIndex >= 0) {
-                        note = NOTE_NAMES[flatIndex];
-                    }
+                    note = normalizePitchClassName(note + 'b') || note;
                 }
                 return { type: 'note', note, octave, modifiers };
             }
@@ -2132,10 +2129,7 @@ class ScalesController {
             if (noteModifier === 'sharp') {
                 root += '#';
             } else if (noteModifier === 'flat') {
-                const flatIndex = NOTE_NAMES_FLAT.indexOf(root + 'b');
-                if (flatIndex >= 0) {
-                    root = NOTE_NAMES[flatIndex];
-                }
+                root = normalizePitchClassName(root + 'b') || root;
             }
 
             return { type: 'scale', root, scaleType, modifiers };
@@ -2152,10 +2146,7 @@ class ScalesController {
             if (noteModifier === 'sharp' || noteModifier === '#') {
                 root += '#';
             } else if (noteModifier === 'flat' || noteModifier === 'b') {
-                const flatIndex = NOTE_NAMES_FLAT.indexOf(root + 'b');
-                if (flatIndex >= 0) {
-                    root = NOTE_NAMES[flatIndex];
-                }
+                root = normalizePitchClassName(root + 'b') || root;
             }
 
             return { type: 'arpeggio', root, quality, modifiers };
@@ -2171,10 +2162,7 @@ class ScalesController {
             if (noteModifier === 'sharp' || noteModifier === '#') {
                 root += '#';
             } else if (noteModifier === 'flat' || noteModifier === 'b') {
-                const flatIndex = NOTE_NAMES_FLAT.indexOf(root + 'b');
-                if (flatIndex >= 0) {
-                    root = NOTE_NAMES[flatIndex];
-                }
+                root = normalizePitchClassName(root + 'b') || root;
             }
 
             return { type: 'chord', root, quality, modifiers };

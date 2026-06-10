@@ -1,8 +1,16 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // MUSIC CONSTANTS
-// Shared musical constants used across the application.
-// Loaded by scales.html and pitch-meter.html.
+// Shared musical constants and the ONLY pitch-representation converters.
+//
+// Representation law (see docs/architecture.md):
+// - MIDI integers are the internal currency for pitch. All math is MIDI.
+// - Note-name strings ("D#", "Bb") and pitch strings ("D#3") exist only
+//   at boundaries: user input (voice, steppers), persistence, display.
+// - Every conversion goes through this file. No page builds pitch
+//   strings by hand or parses names with its own table.
+// - Sharp spellings are canonical internally; flats are accepted on
+//   input and normalized.
 //-----------------------------------------------------------------------
 
 /** @type {readonly string[]} Note names in chromatic order */
@@ -74,9 +82,12 @@ function freqToMidi(freq) {
  * @returns {{ name: string, octave: number, full: string }}
  */
 function midiToNoteName(midi) {
-    const noteIndex = Math.round(midi) % 12;
-    const octave = Math.floor(Math.round(midi) / 12) - 1;
-    return { name: NOTE_NAMES[noteIndex], octave, full: NOTE_NAMES[noteIndex] + octave };
+    const rounded = Math.round(midi);
+    return {
+        name: NOTE_NAMES[midiPitchClass(rounded)],
+        octave: midiOctave(rounded),
+        full: midiToPitchString(rounded)
+    };
 }
 
 /**
@@ -112,15 +123,28 @@ function midiOctave(midi) {
 }
 
 /**
- * Convert note name and octave to MIDI note number
- * @param {string} noteName - Note name (e.g., 'C', 'F#')
+ * Normalize a pitch-class name to its canonical sharp spelling.
+ * Accepts sharps ('F#'), flats ('Gb'), and naturals ('G').
+ * @param {string} name
+ * @returns {string | null} Canonical name, or null if not a pitch class
+ */
+function normalizePitchClassName(name) {
+    if (NOTE_NAMES.includes(name)) return name;
+    const flatIndex = NOTE_NAMES_FLAT.indexOf(name);
+    return flatIndex === -1 ? null : NOTE_NAMES[flatIndex];
+}
+
+/**
+ * Convert note name and octave to MIDI note number.
+ * Accepts sharp and flat spellings ('F#' and 'Gb').
+ * @param {string} noteName - Note name (e.g., 'C', 'F#', 'Bb')
  * @param {number} octave - Octave number
  * @returns {number | null} MIDI note number or null if invalid
  */
 function noteNameToMidi(noteName, octave) {
-    const noteIndex = NOTE_NAMES.indexOf(noteName);
-    if (noteIndex === -1) return null;
-    return (octave + 1) * 12 + noteIndex;
+    const canonical = normalizePitchClassName(noteName);
+    if (canonical === null) return null;
+    return (octave + 1) * 12 + NOTE_NAMES.indexOf(canonical);
 }
 
 /**
