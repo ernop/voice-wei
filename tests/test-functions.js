@@ -241,6 +241,37 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return hits;
         });
         report.check(`phrases motif restates its shape (${motifStructure}/6 samples)`, motifStructure >= 4);
+
+        // Chromatic runs: passing tones appear only between whole-step
+        // degrees and always sit strictly between their neighbors' pitches.
+        const chromatic = await tab.evaluate(() => {
+            let decorated = 0;
+            let invalid = 0;
+            for (let i = 0; i < 10; i++) {
+                const phrase = PatternPracticeCore.generatePhrase({
+                    root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
+                    rangeMode: 'over', minLength: 6, maxLength: 12,
+                    returnToInitial: false, returnToRoot: false,
+                    phraseAlgo: 'stepwise', chromaticRuns: true
+                });
+                phrase.offsets.forEach((off, idx) => {
+                    if (Number.isInteger(off)) return;
+                    decorated++;
+                    const m = phrase.midiNotes;
+                    const between = (m[idx - 1] < m[idx] && m[idx] < m[idx + 1])
+                        || (m[idx - 1] > m[idx] && m[idx] > m[idx + 1]);
+                    const label = phrase.displayDegrees[idx];
+                    if (!between || !(label.endsWith('#') || label.endsWith('b'))) invalid++;
+                });
+            }
+            return { decorated, invalid };
+        });
+        report.check(`phrases chromatic runs insert valid passing tones (${chromatic.decorated} inserted, ${chromatic.invalid} invalid)`,
+            chromatic.decorated > 0 && chromatic.invalid === 0);
+        await tab.evaluate(() => document.getElementById('chromaticToggle').click());
+        await tab.waitForTimeout(200);
+        const savedChromatic = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).chromaticRuns);
+        report.check('phrases chromatic toggle persists', savedChromatic === true);
         await tab.close();
     }
 

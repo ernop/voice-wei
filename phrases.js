@@ -16,6 +16,7 @@
         phraseAlgo: 'arch',
         startAtOne: true,
         rangeMode: 'within',
+        chromaticRuns: false,
         minLength: 5,
         maxLength: 8,
         returnToInitial: true,
@@ -31,14 +32,14 @@
     const STORAGE_KEY = 'phrases-settings';
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
-        'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
+        'chromaticRuns', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
     // affect the NEXT generated phrase (phraseAlgo, startAtOne, rangeMode,
-    // minLength, maxLength).
+    // chromaticRuns, minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs']);
@@ -104,6 +105,7 @@
             phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
             rangeMode: state.rangeMode,
+            chromaticRuns: state.chromaticRuns,
             minLength: state.minLength,
             maxLength: state.maxLength,
             returnToInitial: state.returnToInitial,
@@ -131,8 +133,8 @@
             octave: state.octave,
             offsets,
             midiNotes,
-            displayDegrees: offsets.map(offset => PatternPracticeCore.offsetToDegree(offset, dp)),
-            spokenDegrees: offsets.map(offset => PatternPracticeCore.offsetToSpoken(offset, dp)),
+            displayDegrees: PatternPracticeCore.offsetsToDisplay(offsets, dp),
+            spokenDegrees: PatternPracticeCore.offsetsToSpoken(offsets, dp),
             noteNames: midiNotes.map(midi => midiToPitchString(midi))
         };
     }
@@ -572,6 +574,10 @@
         PracticeControls.wireToggle('showNamesToggle', state.showNoteNames, checked => {
             state.showNoteNames = checked;
             onSettingChanged('showNoteNames');
+        });
+        PracticeControls.wireToggle('chromaticToggle', state.chromaticRuns, checked => {
+            state.chromaticRuns = checked;
+            onSettingChanged('chromaticRuns');
         });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);

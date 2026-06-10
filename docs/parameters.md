@@ -57,6 +57,7 @@ chooses a question range, not a root) and keeps its own range.
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
 | rangeMode | within | in octave / just over / out octave | bounds-next |
+| chromaticRuns | false | toggle - sometimes pass through the chromatic note between whole-step degrees (4 #4 5 up, 6 b6 5 down); only where such a note exists | bounds-next |
 | minLength | 5 | 2..16 list | bounds-next |
 | maxLength | 8 | 3..50 list | bounds-next |
 | returnToInitial | true | return to 1 / no return | regenerate |

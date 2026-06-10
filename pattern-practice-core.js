@@ -86,11 +86,34 @@ const PatternPracticeCore = (function () {
      * @param {number} offset
      */
     function scaleOffsetToMidi(rootMidi, scaleType, offset) {
+        // Half-integer offsets are chromatic passing tones: the note
+        // between two adjacent scale degrees (only generated where the
+        // degrees are a whole step apart, so this lands on the chromatic
+        // note - e.g. 4.5 in C major is F#).
+        if (!Number.isInteger(offset)) {
+            const lower = scaleOffsetToMidi(rootMidi, scaleType, Math.floor(offset));
+            const upper = scaleOffsetToMidi(rootMidi, scaleType, Math.ceil(offset));
+            return Math.round((lower + upper) / 2);
+        }
         const baseIntervals = baseIntervalsForScale(scaleType);
         const dp = baseIntervals.length;
         const octaveShift = Math.floor(offset / dp);
         const degreeIndex = positiveModulo(offset, dp);
         return rootMidi + octaveShift * 12 + baseIntervals[degreeIndex];
+    }
+
+    /**
+     * The chromatic passing offset between two phrase notes, or null if
+     * none exists: the notes must be adjacent scale degrees a whole step
+     * apart (4-5 in major has #4 between; 3-4 has nothing).
+     * @param {string} scaleType @param {number} a @param {number} b
+     * @returns {number | null}
+     */
+    function chromaticBetween(scaleType, a, b) {
+        if (Math.abs(a - b) !== 1 || !Number.isInteger(a) || !Number.isInteger(b)) return null;
+        const lower = Math.min(a, b);
+        const gap = scaleOffsetToMidi(0, scaleType, lower + 1) - scaleOffsetToMidi(0, scaleType, lower);
+        return gap === 2 ? lower + 0.5 : null;
     }
 
     /** @param {number} offset @param {number} dp */
@@ -103,6 +126,39 @@ const PatternPracticeCore = (function () {
     function offsetToSpoken(offset, dp) {
         if (offset >= 0) return String(offset + 1);
         return `${positiveModulo(offset, dp) + 1} down`;
+    }
+
+    /**
+     * Display labels with direction-aware spelling for passing tones:
+     * ascending through 4.5 reads "4#", descending reads "5b".
+     * @param {number[]} offsets @param {number} dp
+     * @returns {string[]}
+     */
+    function offsetsToDisplay(offsets, dp) {
+        return offsets.map((offset, i) => {
+            if (Number.isInteger(offset)) return offsetToDegree(offset, dp);
+            const next = offsets[i + 1];
+            const ascending = next === undefined || next > offset;
+            return ascending
+                ? `${offsetToDegree(Math.floor(offset), dp)}#`
+                : `${offsetToDegree(Math.ceil(offset), dp)}b`;
+        });
+    }
+
+    /**
+     * Spoken labels matching offsetsToDisplay ("sharp 4" / "flat 5").
+     * @param {number[]} offsets @param {number} dp
+     * @returns {string[]}
+     */
+    function offsetsToSpoken(offsets, dp) {
+        return offsets.map((offset, i) => {
+            if (Number.isInteger(offset)) return offsetToSpoken(offset, dp);
+            const next = offsets[i + 1];
+            const ascending = next === undefined || next > offset;
+            return ascending
+                ? `sharp ${offsetToSpoken(Math.floor(offset), dp)}`
+                : `flat ${offsetToSpoken(Math.ceil(offset), dp)}`;
+        });
     }
 
     /**
@@ -490,7 +546,41 @@ const PatternPracticeCore = (function () {
     /** @param {number[]} offsets @param {string} scaleType */
     function reflectOffsets(offsets, scaleType) {
         const dp = degreesPerOctave(scaleType);
-        return offsets.map(offset => dp - offset);
+        return offsets.map(offset => {
+            const reflected = dp - offset;
+            if (Number.isInteger(reflected)) return reflected;
+            // A reflected passing tone may land where no chromatic note
+            // exists (the gap is a half step there); snap to the degree.
+            return chromaticBetween(scaleType, Math.floor(reflected), Math.ceil(reflected)) !== null
+                ? reflected
+                : Math.floor(reflected);
+        });
+    }
+
+    /**
+     * Chromatic runs (an opt-in difficulty layer): wherever two
+     * consecutive notes are adjacent degrees a whole step apart,
+     * sometimes insert the chromatic note between them - 4 #4 5 going
+     * up, 6 b6 5 coming down. Inserts only where such a note exists and
+     * never past the phrase length cap.
+     * @param {number[]} offsets
+     * @param {{ scaleType: string, maxLength: number }} options
+     * @returns {number[]}
+     */
+    const CHROMATIC_PASSING_CHANCE = 0.35;
+    function addChromaticPassingTones(offsets, options) {
+        const out = [offsets[0]];
+        for (let i = 1; i < offsets.length; i++) {
+            const passing = chromaticBetween(options.scaleType, offsets[i - 1], offsets[i]);
+            const remaining = offsets.length - i;
+            if (passing !== null
+                && out.length + remaining < options.maxLength
+                && Math.random() < CHROMATIC_PASSING_CHANCE) {
+                out.push(passing);
+            }
+            out.push(offsets[i]);
+        }
+        return out;
     }
 
     /**
@@ -504,7 +594,8 @@ const PatternPracticeCore = (function () {
      *   maxLength: number,
      *   returnToInitial: boolean,
      *   returnToRoot: boolean,
-     *   phraseAlgo?: string
+     *   phraseAlgo?: string,
+     *   chromaticRuns?: boolean
      * }} options
      * @returns {Phrase | null}
      */
@@ -513,14 +604,15 @@ const PatternPracticeCore = (function () {
         if (rootMidi === null) return null;
 
         const dp = degreesPerOctave(options.scaleType);
-        const offsets = generatePhraseOffsets(options);
+        let offsets = generatePhraseOffsets(options);
+        if (options.chromaticRuns) offsets = addChromaticPassingTones(offsets, options);
         const midiNotes = offsets.map(offset => scaleOffsetToMidi(rootMidi, options.scaleType, offset));
 
         return {
             offsets,
             midiNotes,
-            displayDegrees: offsets.map(offset => offsetToDegree(offset, dp)),
-            spokenDegrees: offsets.map(offset => offsetToSpoken(offset, dp)),
+            displayDegrees: offsetsToDisplay(offsets, dp),
+            spokenDegrees: offsetsToSpoken(offsets, dp),
             noteNames: midiNotes.map(midi => midiToPitchString(midi)),
             root: options.root,
             scaleType: options.scaleType,
@@ -541,6 +633,10 @@ const PatternPracticeCore = (function () {
         scaleOffsetToMidi,
         offsetToDegree,
         offsetToSpoken,
+        offsetsToDisplay,
+        offsetsToSpoken,
+        chromaticBetween,
+        addChromaticPassingTones,
         midiToSpeechPitch,
         generatePhraseOffsets,
         generateClusteredOffsets,
