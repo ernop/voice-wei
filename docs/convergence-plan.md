@@ -79,6 +79,20 @@ Done (v83, control convergence - Phase 3 complete for practice pages):
 - Every option group on every practice page now goes through
   PracticeControls.wireSingleSelect/wireToggle/wireSteppers.
 
+Done (v84, function verification pass):
+- Every tab's primary function is exercised by a headless functional test:
+  scales voice parser (all README example commands) + command execution +
+  presets + repeat-forever persistence + media keys; intervals loop /
+  Next / Repeat / Stop; phrases reflect / note mask / output modes /
+  history replay; pitch-meter free session producing scored results; ears
+  identify-answer-record flow + presets; player API-key gating + settings.
+- Fixes found by the pass: "repeat forever" phrasing failed to parse
+  (the README's own example command); intervals' display showed the old
+  pattern for seconds after Stop; a TTS engine error could crash playback
+  loops awaiting VoiceOutput.speak (it now always resolves and logs);
+  pages went fully dead if piano samples failed to load (each page now
+  reports it on its own status surface and stays interactive).
+
 Remaining (known, deliberate):
 - Ears' interval multi-select grid and root-range slider stay custom (no
   shared multi-select/slider primitive yet); its visual dialect (.setting-btn)
