@@ -406,6 +406,10 @@
             progressTool: 'intervals-sing'
         });
 
+        // Named state inspection for the test suite (deterministic
+        // scoring via the panel's explicit recordSample seam).
+        window.intervalsDebug = { panel: singPanel };
+
         // The Sing button is a toggle: open the panel, or dismiss it.
         document.getElementById('singBtn')?.addEventListener('click', async () => {
             if (!singPanel) return;

@@ -434,7 +434,24 @@ const PitchTestPanel = (function () {
                 updateKeyReadout();
                 view.draw();
             },
-            resize: () => view.resize()
+            resize: () => view.resize(),
+            /**
+             * Explicit sample ingestion (test seam): sing a pitch into
+             * the session by name - midi and take-time, nothing implied.
+             * Routed through the same glitch filter as the microphone.
+             * @param {number} midi @param {number} timeMs
+             */
+            recordSample(midi, timeMs) {
+                session.record({
+                    time: timeMs,
+                    midi,
+                    freq: 0,
+                    cents: 0,
+                    note: ''
+                });
+                refreshScores();
+                view.draw();
+            }
         };
     }
 

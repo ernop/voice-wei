@@ -40,7 +40,9 @@ interface Window {
     phrasesDebug?: {
         takePlan: () => PhrasePlanNote[];
         testTargets: () => TargetSpan[];
+        panel: any;
     };
+    intervalsDebug?: { panel: any };
 }
 
 // -----------------------------------------------------------------------

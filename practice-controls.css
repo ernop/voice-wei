@@ -182,11 +182,21 @@
     color: rgba(255, 255, 255, 0.55);
 }
 
+/* Pinned while the panel is in use: Restart/Guide/Close stay visible
+   and reachable mid-take, below the page's sticky stack. Pages set
+   --pitch-test-actions-top to their transport(+stage) height. */
 .pitch-test-actions {
     display: flex;
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: 8px;
+    position: sticky;
+    top: var(--pitch-test-actions-top, 4px);
+    z-index: 30;
+    background: rgba(7, 26, 16, 0.92);
+    backdrop-filter: blur(6px);
+    border-radius: 10px;
+    padding: 6px;
 }
 
 .pitch-test-btn {

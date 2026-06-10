@@ -48,3 +48,14 @@
 .history-text.history-notes {
     color: rgba(255, 255, 255, 0.5);
 }
+
+/* Sticky offset for the sing panel's pinned action row (below transport) */
+body {
+    --pitch-test-actions-top: 52px;
+}
+
+@media (max-width: 768px) {
+    body {
+        --pitch-test-actions-top: 78px;
+    }
+}

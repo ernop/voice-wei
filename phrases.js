@@ -306,6 +306,18 @@
 
     function drawPhraseTest() { testPanel.draw(); }
 
+    /**
+     * The test panel's action row pins below the sticky transport+stage;
+     * the stage height varies with the phrase, so measure it.
+     */
+    function updateStickyOffset() {
+        const transport = document.querySelector('.voice-controls-row');
+        const stage = document.querySelector('.phrase-stage');
+        const top = (transport instanceof HTMLElement ? transport.offsetHeight : 0)
+            + (stage instanceof HTMLElement ? stage.offsetHeight : 0) + 6;
+        document.body.style.setProperty('--pitch-test-actions-top', `${top}px`);
+    }
+
     function updatePhraseDisplay() {
         const degreesEl = getEl('phraseDegrees');
         const notesEl = getEl('phraseNotes');
@@ -320,6 +332,7 @@
         renderPhraseUnits(phrase);
         notesEl.textContent = state.showNoteNames ? phrase.noteNames.join(' ') : '';
         drawPhraseTest();
+        updateStickyOffset();
     }
 
     function generatePhrase() {
@@ -645,9 +658,12 @@
             console.error('Error loading piano samples:', err);
         }
         initUI();
+        updateStickyOffset();
+        window.addEventListener('resize', updateStickyOffset);
         // Named state inspection for the test suite: the explicit take
-        // plan and the test timeline derived from it.
-        window.phrasesDebug = { takePlan: buildTakePlan, testTargets: buildPhraseTestTargets };
+        // plan, the test timeline derived from it, and the panel itself
+        // (for end-to-end scoring tests via recordSample).
+        window.phrasesDebug = { takePlan: buildTakePlan, testTargets: buildPhraseTestTargets, panel: testPanel };
     }
 
     boot();
