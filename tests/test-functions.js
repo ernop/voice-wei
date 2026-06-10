@@ -272,6 +272,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(200);
         const savedChromatic = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).chromaticRuns);
         report.check('phrases chromatic toggle persists', savedChromatic === true);
+
+        // The take plan is one explicit timeline: with the FIRST note
+        // muted, the first enabled target starts at 0 and disabled notes
+        // own no time (test matches what playback actually sounds like).
+        const plan = await tab.evaluate(() => {
+            const tokens = document.querySelectorAll('.phrase-degree-token');
+            tokens[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+            const notes = window.phrasesDebug.takePlan();
+            const targets = window.phrasesDebug.testTargets();
+            return {
+                total: notes.length,
+                firstDisabled: notes[0].enabled === false && notes[0].startMs === null,
+                targetCount: targets.length,
+                enabledCount: notes.filter(n => n.enabled).length,
+                firstTargetAtZero: targets[0].startMs === 0,
+                allActive: targets.every(t => t.active)
+            };
+        });
+        report.check(`phrases take plan: muted first note owns no time, timeline starts at 0 (${plan.targetCount}/${plan.total} targets)`,
+            plan.firstDisabled && plan.firstTargetAtZero && plan.targetCount === plan.enabledCount && plan.allActive);
+
+        // Opening the test never auto-plays: the user is there to sing.
+        const voicesBefore = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
+        await tab.click('#testBtn');
+        await tab.waitForTimeout(1500);
+        const voicesAfter = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
+        report.check(`phrases test open is silent (${voicesAfter - voicesBefore} voices started)`,
+            voicesAfter === voicesBefore);
+
+        // The Guide button is the explicit way to hear the targets.
+        await tab.evaluate(() => document.getElementById('phraseTestGuideBtn').click());
+        await tab.waitForTimeout(2500);
+        const voicesGuide = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
+        report.check(`phrases Guide button plays enabled targets (${voicesGuide - voicesAfter} voices)`,
+            voicesGuide - voicesAfter === plan.targetCount);
         await tab.close();
     }
 
