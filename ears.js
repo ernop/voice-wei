@@ -129,7 +129,7 @@ class EarsController {
         /** @type {Set<string>} */
         this.enabledIntervals = new Set(INTERVAL_ORDER);
         /** @type {number} */
-        this.rootRangeMid = 48; // C4 MIDI
+        this.rootRangeMid = 48; // C3 MIDI (range spans +/- one octave)
         /** @type {boolean} */
         this.adaptiveMode = true;
         /** @type {boolean} */
@@ -270,8 +270,6 @@ class EarsController {
                 }
                 if (settings.rootRangeMid) {
                     this.rootRangeMid = settings.rootRangeMid;
-                    const slider = /** @type {HTMLInputElement | null} */ (document.getElementById('rangeSlider'));
-                    if (slider) slider.value = String(this.rootRangeMid);
                     this.updateRangeDisplay();
                 }
             }
@@ -495,7 +493,7 @@ class EarsController {
             interval => this.toggleInterval(interval));
 
         // Presets
-        document.querySelectorAll('.preset-btn').forEach(btn => {
+        document.querySelectorAll('[data-preset]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const preset = /** @type {HTMLElement} */ (e.currentTarget).dataset.preset;
                 if (preset) {
@@ -503,6 +501,22 @@ class EarsController {
                 }
             });
         });
+
+        // Steppers (shared control): drone note and root range center
+        PracticeControls.wireSteppers((key, delta) => {
+            if (key === 'droneNote') {
+                const midi = Tone.Frequency(this.droneNote).toMidi();
+                this.droneNote = midiToNoteName(Math.max(48, Math.min(72, midi + delta))).full;
+            } else if (key === 'rootRangeMid') {
+                this.rootRangeMid = Math.max(36, Math.min(72, this.rootRangeMid + delta));
+                this.updateRangeDisplay();
+                this.saveSettings();
+            } else {
+                return;
+            }
+            this.syncSteppers();
+        });
+        this.syncSteppers();
 
         // Toggles (shared control wiring)
         PracticeControls.wireToggle('adaptiveToggle', this.adaptiveMode, checked => {
@@ -532,12 +546,6 @@ class EarsController {
             renderItem: entry => this.renderHistoryItem(entry)
         });
 
-        // Range slider
-        document.getElementById('rangeSlider')?.addEventListener('input', (e) => {
-            this.rootRangeMid = parseInt(/** @type {HTMLInputElement} */ (e.target).value);
-            this.updateRangeDisplay();
-            this.saveSettings();
-        });
 
         // Sing mode controls
         document.getElementById('singRepeatBtn')?.addEventListener('click', () => {
@@ -1253,17 +1261,25 @@ class EarsController {
 
     //-------DRONE TEST MODE-------
 
+    syncSteppers() {
+        PracticeControls.setValueText('droneNoteValue', this.droneNote);
+        PracticeControls.setValueText('rootRangeMidValue', midiToNoteName(this.rootRangeMid).full);
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'droneNote') {
+                const midi = Tone.Frequency(this.droneNote).toMidi();
+                return delta < 0 ? midi <= 48 : midi >= 72;
+            }
+            if (key === 'rootRangeMid') {
+                return delta < 0 ? this.rootRangeMid <= 36 : this.rootRangeMid >= 72;
+            }
+            return false;
+        });
+    }
+
     async startDroneTest() {
         if (this.droneActive) return;
 
-        // Get selected note
-        const noteSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('droneNoteSelect'));
-        this.droneNote = noteSelect?.value || 'C4';
-
-        // Parse note to MIDI
-        const noteName = this.droneNote.slice(0, -1);
-        const octave = parseInt(this.droneNote.slice(-1));
-        this.droneTargetMidi = noteNameToMidi(noteName, octave);
+        this.droneTargetMidi = Tone.Frequency(this.droneNote).toMidi();
 
         // Show UI
         const startBtn = document.getElementById('droneStartBtn');

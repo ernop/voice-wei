@@ -8,8 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Ears - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=90">
-    <link rel="stylesheet" href="ears.css?v=90">
+    <link rel="stylesheet" href="style.css?v=91">
+    <link rel="stylesheet" href="practice-controls.css?v=91">
+    <link rel="stylesheet" href="ears.css?v=91">
 </head>
 
 <body data-page="ears">
@@ -85,9 +86,11 @@
                 <div class="setting-row">
                     <span class="setting-label">Mode</span>
                     <div class="setting-options">
-                        <button class="setting-btn selected" data-mode="identify">Identify</button>
-                        <button class="setting-btn" data-mode="sing">Sing</button>
-                        <button class="setting-btn" data-mode="both">Both</button>
+                        <div class="segment-row">
+                            <button class="vf-btn selected" data-mode="identify">Identify</button>
+                            <button class="vf-btn" data-mode="sing">Sing</button>
+                            <button class="vf-btn" data-mode="both">Both</button>
+                        </div>
                     </div>
                 </div>
 
@@ -95,10 +98,12 @@
                 <div class="setting-row">
                     <span class="setting-label">Direction</span>
                     <div class="setting-options">
-                        <button class="setting-btn selected" data-direction="ascending">Ascending</button>
-                        <button class="setting-btn" data-direction="descending">Descending</button>
-                        <button class="setting-btn" data-direction="harmonic">Harmonic</button>
-                        <button class="setting-btn" data-direction="random">Random</button>
+                        <div class="segment-row">
+                            <button class="vf-btn selected" data-direction="ascending">Ascending</button>
+                            <button class="vf-btn" data-direction="descending">Descending</button>
+                            <button class="vf-btn" data-direction="harmonic">Harmonic</button>
+                            <button class="vf-btn" data-direction="random">Random</button>
+                        </div>
                     </div>
                 </div>
 
@@ -125,11 +130,11 @@
                 <div class="setting-row">
                     <span class="setting-label">Presets</span>
                     <div class="setting-options">
-                        <button class="preset-btn" data-preset="all">All</button>
-                        <button class="preset-btn" data-preset="perfect">Perfect</button>
-                        <button class="preset-btn" data-preset="thirds">3rds/6ths</button>
-                        <button class="preset-btn" data-preset="seconds">2nds/7ths</button>
-                        <button class="preset-btn" data-preset="weak">Weakest</button>
+                        <button class="vf-btn" data-preset="all">All</button>
+                        <button class="vf-btn" data-preset="perfect">Perfect</button>
+                        <button class="vf-btn" data-preset="thirds">3rds/6ths</button>
+                        <button class="vf-btn" data-preset="seconds">2nds/7ths</button>
+                        <button class="vf-btn" data-preset="weak">Weakest</button>
                     </div>
                 </div>
 
@@ -138,7 +143,11 @@
                     <span class="setting-label">Root Range</span>
                     <div class="setting-options range-options">
                         <span class="range-value" id="rangeMin">C3</span>
-                        <input type="range" id="rangeSlider" min="36" max="72" value="48" class="range-slider">
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rootRangeMid" data-step-delta="-1" aria-label="Lower root range">-</button>
+                            <span class="step-value" id="rootRangeMidValue">C4</span>
+                            <button class="step-btn" type="button" data-step-key="rootRangeMid" data-step-delta="1" aria-label="Higher root range">+</button>
+                        </div>
                         <span class="range-value" id="rangeMax">C5</span>
                     </div>
                 </div>
@@ -147,11 +156,10 @@
                 <div class="setting-row">
                     <span class="setting-label">Adaptive</span>
                     <div class="setting-options">
-                        <label class="toggle-switch">
+                        <label class="display-toggle">
                             <input type="checkbox" id="adaptiveToggle" checked>
-                            <span class="toggle-slider"></span>
+                            <span>Weight toward weak intervals</span>
                         </label>
-                        <span class="toggle-label">Weight toward weak intervals</span>
                     </div>
                 </div>
 
@@ -159,11 +167,10 @@
                 <div class="setting-row">
                     <span class="setting-label">Driving</span>
                     <div class="setting-options">
-                        <label class="toggle-switch">
+                        <label class="display-toggle">
                             <input type="checkbox" id="drivingToggle">
-                            <span class="toggle-slider"></span>
+                            <span>Audio-only feedback (TTS)</span>
                         </label>
-                        <span class="toggle-label">Audio-only feedback (TTS)</span>
                     </div>
                 </div>
 
@@ -171,11 +178,10 @@
                 <div class="setting-row">
                     <span class="setting-label">Auto</span>
                     <div class="setting-options">
-                        <label class="toggle-switch">
+                        <label class="display-toggle">
                             <input type="checkbox" id="autoAdvanceToggle">
-                            <span class="toggle-slider"></span>
+                            <span>Auto-advance after correct answer</span>
                         </label>
-                        <span class="toggle-label">Auto-advance after correct answer</span>
                     </div>
                 </div>
             </div>
@@ -187,25 +193,11 @@
                     <span class="drone-hint">(Use headphones for best results)</span>
                 </div>
                 <div class="drone-controls">
-                    <div class="drone-note-select">
-                        <label>Note:</label>
-                        <select id="droneNoteSelect">
-                            <option value="C3">C3</option>
-                            <option value="D3">D3</option>
-                            <option value="E3">E3</option>
-                            <option value="F3">F3</option>
-                            <option value="G3">G3</option>
-                            <option value="A3">A3</option>
-                            <option value="B3">B3</option>
-                            <option value="C4" selected>C4</option>
-                            <option value="D4">D4</option>
-                            <option value="E4">E4</option>
-                            <option value="F4">F4</option>
-                            <option value="G4">G4</option>
-                            <option value="A4">A4</option>
-                            <option value="B4">B4</option>
-                            <option value="C5">C5</option>
-                        </select>
+                    <div class="step-field">
+                        <span class="step-label">Note</span>
+                        <button class="step-btn" type="button" data-step-key="droneNote" data-step-delta="-1" aria-label="Lower drone note">-</button>
+                        <span class="step-value" id="droneNoteValue">C4</span>
+                        <button class="step-btn" type="button" data-step-key="droneNote" data-step-delta="1" aria-label="Higher drone note">+</button>
                     </div>
                     <button id="droneStartBtn" class="drone-btn">Start Drone</button>
                     <button id="droneStopBtn" class="drone-btn drone-stop-btn" style="display:none;">Stop</button>
@@ -276,16 +268,16 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=90"></script>
-    <script src="music-constants.js?v=90"></script>
-    <script src="voice-output.js?v=90"></script>
-    <script src="voice-command-core.js?v=90"></script>
-    <script src="piano-core.js?v=90"></script>
-    <script src="pitch-detect-core.js?v=90"></script>
-    <script src="practice-controls.js?v=90"></script>
-    <script src="history-list.js?v=90"></script>
-    <script src="media-session-core.js?v=90"></script>
-    <script src="ears.js?v=90"></script>
+    <script src="shared-header.js?v=91"></script>
+    <script src="music-constants.js?v=91"></script>
+    <script src="voice-output.js?v=91"></script>
+    <script src="voice-command-core.js?v=91"></script>
+    <script src="piano-core.js?v=91"></script>
+    <script src="pitch-detect-core.js?v=91"></script>
+    <script src="practice-controls.js?v=91"></script>
+    <script src="history-list.js?v=91"></script>
+    <script src="media-session-core.js?v=91"></script>
+    <script src="ears.js?v=91"></script>
 </body>
 
 </html>
