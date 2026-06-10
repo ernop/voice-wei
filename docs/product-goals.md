@@ -38,6 +38,10 @@ overshoot around degrees 6-7-8).
   spoken feedback where it helps driving.
 - **Exact audio control**: the piano engine knows every sounding voice;
   old-settings audio never overlaps new-settings audio; stop means stop.
+- **Purpose-first design**: every page's functionality and controls are
+  designed from its goal above. Controls doing the same job share one
+  implementation; controls serving different jobs stay distinct (see
+  "How to decide what a control looks like" in docs/architecture.md).
 - **One shared library per concern**, enforced by lint guards; pages are
   thin consumers (see docs/architecture.md).
 - **Defined parameters**: every setting picks a change behavior from the

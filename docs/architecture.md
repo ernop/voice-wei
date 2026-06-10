@@ -146,6 +146,24 @@ tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
 header label, and every `?v=` cache buster - run it whenever a release
 ships. Manual deploy: `./deploy.sh`.
 
+## How to decide what a control looks like
+
+Design order, never reversed:
+
+1. **Start from the page's purpose** (docs/product-goals.md). What is the
+   user trying to accomplish here, with what hands/eyes/attention budget?
+   Functionality and usage flow from that - not from what other pages do.
+2. **If the resulting control does the same job as one that already
+   exists** (pick a pitch, step a duration, choose one of N modes), it
+   must be the shared control. No derivative look-alikes. Ties between
+   versions go to the most recent reviewed page (currently phrases).
+3. **If the purpose genuinely calls for a different interaction**, build
+   it as its own named component and list it under "Deliberately distinct
+   surfaces" below with its reasoning.
+
+Convergence is the outcome of rule 2, not a goal in itself. A page must
+never get worse at its job to look like another page.
+
 ## Canonical pickers
 
 One picker kind per value kind, everywhere:
