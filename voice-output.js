@@ -89,19 +89,23 @@ const VoiceOutput = (function () {
     /**
      * Speak text aloud using browser's speechSynthesis.
      *
+     * Always resolves: speech is auxiliary output, so an engine error must
+     * never crash a playback loop awaiting it. Real errors are logged.
+     *
      * @param {string} text - The text to speak
      * @param {{ rate?: number, pitch?: number, voiceName?: string | null }} [options] - Per-call overrides
-     * @returns {Promise<void>} Resolves when speech completes
+     * @returns {Promise<void>} Resolves when speech completes (or fails)
      */
     function speak(text, options = {}) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             if (!text || typeof text !== 'string') {
                 resolve();
                 return;
             }
 
             if (!synthesis) {
-                reject(new Error('Browser speech synthesis not available'));
+                console.warn('[VoiceOutput] speechSynthesis not available; skipping speech');
+                resolve();
                 return;
             }
 
@@ -119,12 +123,11 @@ const VoiceOutput = (function () {
 
             utterance.onend = () => resolve();
             utterance.onerror = (event) => {
-                // 'interrupted' and 'canceled' are not real errors
-                if (event.error === 'interrupted' || event.error === 'canceled') {
-                    resolve();
-                } else {
-                    reject(new Error(`Speech error: ${event.error}`));
+                // 'interrupted' and 'canceled' are routine (a newer speak cancelled us)
+                if (event.error !== 'interrupted' && event.error !== 'canceled') {
+                    console.warn(`[VoiceOutput] Speech error: ${event.error}`);
                 }
+                resolve();
             };
 
             synthesis.speak(utterance);

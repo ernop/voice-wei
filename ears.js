@@ -305,8 +305,13 @@ class EarsController {
 
         // Initialize audio
         this.setStatus('Loading piano samples...');
-        await this.audio.init();
-        this.setStatus('Ready! Press Next to start.');
+        try {
+            await this.audio.init();
+            this.setStatus('Ready! Press Next to start.');
+        } catch (err) {
+            console.error('Error loading piano samples:', err);
+            this.setStatus('Piano failed to load. Refresh to retry.');
+        }
 
         // Initialize voice recognition
         this.initVoiceRecognition();

@@ -345,7 +345,12 @@
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
         initUI();
         guideSine = PianoCore.createSineSynth();
-        guidePiano = await PianoCore.createPiano();
+        try {
+            guidePiano = await PianoCore.createPiano();
+        } catch (err) {
+            // Trace and beep guides keep working; piano guides stay silent.
+            console.error('Error loading piano samples:', err);
+        }
     }
 
     boot();

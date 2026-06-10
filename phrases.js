@@ -597,7 +597,12 @@
 
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
-        piano = await PianoCore.createPiano();
+        try {
+            piano = await PianoCore.createPiano();
+        } catch (err) {
+            // Keep the page interactive; tone output stays silent.
+            console.error('Error loading piano samples:', err);
+        }
         initUI();
     }
 

@@ -291,6 +291,10 @@
         state.running = false;
         VoiceOutput.stop();
         if (piano) piano.stopAll();
+        // The loop only notices the stop at its next checkpoint (it may be
+        // mid-gap for seconds); the display must reflect the stop now.
+        const display = document.getElementById('currentDisplay');
+        if (display) display.textContent = 'Stopped';
     }
 
     function requestNext() {
@@ -417,7 +421,13 @@
     // ---- BOOT ----
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
-        piano = await PianoCore.createPiano();
+        try {
+            piano = await PianoCore.createPiano();
+        } catch (err) {
+            console.error('Error loading piano samples:', err);
+            const display = document.getElementById('currentDisplay');
+            if (display) display.textContent = 'Piano failed to load. Refresh to retry.';
+        }
         initUI();
     }
     boot();
