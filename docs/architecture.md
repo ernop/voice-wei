@@ -146,9 +146,26 @@ tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
 header label, and every `?v=` cache buster - run it whenever a release
 ships. Manual deploy: `./deploy.sh`.
 
+## Canonical pickers
+
+One picker kind per value kind, everywhere:
+
+- **Single pitch** (root, drone note, range center): the root-pitch stepper
+  (step field showing e.g. "D#3", +/- moves by semitone). No chip grids,
+  octave rows, sliders, or selects for pitches.
+- **Ordered numeric value** (durations, gaps, lengths, TTS rate/pitch):
+  step field over a fixed value list.
+- **Small exclusive set** (mode, direction, type, repeat...): segment-row
+  of vf-btn pills.
+- **Large named set** (scale types, output modes, presets): plain vf-btn
+  chip row.
+- **On/off**: display-toggle chip checkbox.
+- **Multi-select** (Ears interval grid): vf multi-select chips - the only
+  multi-value picker, and deliberately distinct.
+
+The only remaining `<select>` is the Scales TTS voice list (dynamic,
+OS-dependent, dozens of entries - a genuinely different picker).
+
 ## Known deliberate gaps
 
-- Ears' root-range slider stays custom (no shared slider primitive; one
-  consumer), and its visual dialect (.setting-btn) predates the shared
-  controls.
 - New gaps must be listed here with their reasoning, or fixed.

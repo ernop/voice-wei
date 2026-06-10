@@ -77,10 +77,9 @@ its default, then apply the spoken modifiers.
 
 | Setting | Default | Behavior |
 |---------|---------|----------|
-| root | C | live-restart |
+| root + octave | C4 (root pitch stepper, C2-B5) | live-restart |
 | scaleType | major | live-restart |
 | direction | ascending | live-restart |
-| octave | 4 | live-restart |
 | noteLengthMs | 300 | live-restart |
 | gapMs | 0 (negative = overlap ratio) | live-restart |
 | repeatCount | 1 (Infinity = forever) | live-restart |
@@ -104,7 +103,8 @@ The play loop reads settings when it generates each pattern.
 |---------|---------|----------|
 | exerciseType | A | next-round |
 | selectedLevel | a1 | next-round |
-| root / octave / scale | C4 major | next-round |
+| root + octave | C4 (root pitch stepper, C2-B5) | next-round |
+| scale | major | next-round |
 | lengthMs | 600 | next-round |
 | gapMs | 2000 | next-round |
 | expandRange | false | next-round |
@@ -134,9 +134,9 @@ The play loop reads settings when it generates each pattern.
 | adaptiveMode | true | next-round |
 | drivingMode | false | immediate (TTS feedback) |
 | autoAdvance | false | immediate |
-| rootRangeMid | 48 | next-round |
+| rootRangeMid | 48 (C3, range-center stepper C2-C5) | next-round |
 
-Drone test: note select applies on Start.
+Drone test: note stepper (C3-C5) applies on Start.
 
 ## Pitch test panel (shared component)
 
