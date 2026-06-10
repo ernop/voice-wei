@@ -4,6 +4,54 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-06-10 (later)
+
+**Session context**: Yui sent a five-part cleanup request: (1) a display
+error from an attached screenshot must become impossible, (2) no stuttered
+repeated notes from the phrase generators, (3) live re-reading of the
+phrase note mask during playback, (5) one canonical settings order across
+pages, (6) one shared preset list for the root/note-length/gap pickers.
+
+**Note for future mei**: the attachment never arrived in the task payload.
+Instead of guessing blind, mei rendered the pages headlessly (playwright +
+the repo's own helpers) at phone and desktop widths and found it: the
+phrase stage degree tokens had a fixed max-width (2.5rem) far smaller than
+multi-character degrees at desktop font size (3.8rem), so "10 15 7d"
+phrases drew as overlapping glyph soup. Fix: content-sized tokens, plus a
+`phrase-degrees-many` class so very long phrases scale down instead of
+flooding the sticky stage. A bounding-box/clip regression check now lives
+in test-controls.js. Rendering the page and looking at it beats reasoning
+about CSS in the abstract.
+
+**Repeated notes**: the arch generator's post-step wiggle could land back
+on the note just played; random sampled uniformly with repeats; balanced's
+fallback could re-pick the current note. All generators now draw through
+`randomIntExcluding`, and the wiggle rejects a step back onto the previous
+note. 12,000 generated phrases across all six algorithms: zero immediate
+repeats.
+
+**Live mask**: phrases tone/sing playback now checks `activeMask[i]`
+right before each note starts instead of snapshotting at play start, so
+muting an upcoming note mid-playthrough skips it in place - no restart, no
+effect on the sounding note. The all-muted "play everything anyway"
+fallback in activeIndexes was removed (anti-fallback; muted means muted).
+
+**Order + presets**: settings order is now canonical (timing, root,
+shape, output, scale - phrases was the reference); scales/intervals/trace
+were reordered to match, and the rule is documented in architecture.md.
+The root (C2-B5), note-length, and gap preset lists moved into
+practice-controls.js as the single owner; negative gap presets (overlap
+ratios) now mean the same thing everywhere via `effectiveGapMs`.
+
+**Why the scales page had drifted**: the convergence pass that made
+phrases the reference unified what controls look like but never said
+anything about order, so each page kept its historical layout. The lesson:
+when declaring a canonical reference, enumerate every axis it governs
+(look, behavior, order, presets), or the un-named axes silently stay
+divergent.
+
+---
+
 ## 2026-06-10
 
 **Session context**: Yui corrected mei after the Phrases algorithm work. Mei
