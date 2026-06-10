@@ -371,27 +371,7 @@ header {
     font-weight: 600;
 }
 
-.model-selector {
-    width: 100%;
-    padding: 10px;
-    font-size: 1rem;
-    border-radius: 8px;
-    border: 2px solid rgba(74, 222, 128, 0.3);
-    background: rgba(0, 0, 0, 0.3);
-    color: #e8f5e9;
-    cursor: pointer;
-}
-
-.model-selector option {
-    background: #1a3a2e;
-    color: #e8f5e9;
-}
-
-.model-selector:focus {
-    outline: none;
-    border-color: rgba(74, 222, 128, 0.6);
-    background: rgba(0, 0, 0, 0.4);
-}
+/* Model picker uses the shared segment-row control (practice-controls.css). */
 
 .setting-description {
     margin-top: 5px;

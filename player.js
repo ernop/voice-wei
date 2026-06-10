@@ -853,11 +853,10 @@ class VoiceMusicController {
         // Update UI with saved settings
         const readClaudeEl = /** @type {HTMLInputElement | null} */ (document.getElementById('readClaudeResponse'));
         const autoSubmitEl = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
-        const claudeModelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('claudeModel'));
 
         if (readClaudeEl) readClaudeEl.checked = this.settings.readClaudeResponse;
         if (autoSubmitEl) autoSubmitEl.checked = this.settings.autoSubmitMode;
-        if (claudeModelEl) claudeModelEl.value = this.settings.claudeModel;
+        PracticeControls.syncSingleSelect('data-claude-model', this.settings.claudeModel);
         this.updateModeToggle();
 
         // Voice recognition (shared core) - created after settings restore
@@ -877,9 +876,8 @@ class VoiceMusicController {
             this.setAutoSubmitMode(target.checked);
         });
 
-        if (claudeModelEl) claudeModelEl.addEventListener('input', (e) => {
-            const target = /** @type {HTMLSelectElement} */ (e.target);
-            this.settings.claudeModel = target.value;
+        PracticeControls.wireSingleSelect('data-claude-model', String, this.settings.claudeModel, value => {
+            this.settings.claudeModel = value;
             this.saveSettings();
         });
 

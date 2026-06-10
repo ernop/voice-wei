@@ -8,7 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=90">
+    <link rel="stylesheet" href="style.css?v=91">
+    <link rel="stylesheet" href="practice-controls.css?v=91">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -49,11 +50,11 @@
                     "submit" or click Submit button.</p>
             </div>
             <div class="setting-item">
-                <label for="claudeModel">Claude Model:</label>
-                <select id="claudeModel" class="model-selector">
-                    <option value="claude-opus-4-5-20251101">Opus 4.5</option>
-                    <option value="claude-haiku-4-5-20250514">Haiku 4.5 (unverified)</option>
-                </select>
+                <label>Claude Model:</label>
+                <div class="segment-row">
+                    <button class="vf-btn" type="button" data-claude-model="claude-opus-4-5-20251101">Opus 4.5</button>
+                    <button class="vf-btn" type="button" data-claude-model="claude-haiku-4-5-20250514">Haiku 4.5 (unverified)</button>
+                </div>
             </div>
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
@@ -227,10 +228,11 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="shared-header.js?v=90"></script>
-    <script src="voice-output.js?v=90"></script>
-    <script src="voice-command-core.js?v=90"></script>
-    <script src="player.js?v=90"></script>
+    <script src="shared-header.js?v=91"></script>
+    <script src="practice-controls.js?v=91"></script>
+    <script src="voice-output.js?v=91"></script>
+    <script src="voice-command-core.js?v=91"></script>
+    <script src="player.js?v=91"></script>
 </body>
 
 </html>
