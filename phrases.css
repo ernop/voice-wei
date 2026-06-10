@@ -48,12 +48,13 @@
     line-height: 1.05;
 }
 
-/* Each degree number is itself the mute toggle (tap or drag across) */
+/* Each degree number is itself the mute toggle (tap or drag across).
+   Tokens are content-sized: multi-character degrees (10, 15, 7d) must
+   never be wider than their box or they overlap their neighbors. */
 .phrase-degree-token {
-    flex: 0 1 clamp(1.35rem, 8vw, 2.35rem);
-    min-width: 1.25rem;
-    max-width: 2.5rem;
-    padding: 0;
+    flex: 0 0 auto;
+    min-width: 1.1ch;
+    padding: 0 0.06em;
     border: none;
     background: none;
     color: inherit;
@@ -64,6 +65,12 @@
     cursor: pointer;
     user-select: none;
     touch-action: none;
+}
+
+/* Long phrases scale down so the sticky stage stays a readable band
+   instead of covering the controls. */
+.phrase-degrees-large.phrase-degrees-many {
+    font-size: clamp(1rem, 4.6vw, 2.4rem);
 }
 
 .phrase-degree-token.inactive {
