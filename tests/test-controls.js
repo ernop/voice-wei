@@ -8,6 +8,40 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     const report = createReporter('shared controls');
     const browser = await launchWithMic();
 
+    // CANONICAL PICKERS: every page uses the shared picker kinds only.
+    // Root/octave/single-pitch choosers are root-pitch steppers; no chip
+    // grids, sliders, or selects remain (except Scales' dynamic TTS voice
+    // list, the one deliberate select).
+    {
+        const tab = await browser.newPage();
+        const expectations = [
+            { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], input[type="range"]' },
+            { page: 'intervals', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
+            { page: 'ears', steppers: ['droneNote', 'rootRangeMid'], forbidden: 'select, input[type="range"], .setting-btn, .toggle-slider' },
+            { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
+            { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
+            { page: 'trace', steppers: [], forbidden: 'select, input[type="range"]' },
+        ];
+        for (const { page, steppers, forbidden } of expectations) {
+            await tab.goto(`${BASE_URL}/${page}.html`, { waitUntil: 'networkidle' });
+            await tab.waitForTimeout(800);
+            const result = await tab.evaluate(({ steppers, forbidden }) => ({
+                missing: steppers.filter(key =>
+                    !document.querySelector(`.step-btn[data-step-key="${key}"]`)),
+                stray: Array.from(document.querySelectorAll(forbidden)).length,
+            }), { steppers, forbidden });
+            report.check(`${page} canonical pickers (missing: ${result.missing.join(',') || 'none'}, stray: ${result.stray})`,
+                result.missing.length === 0 && result.stray === 0);
+        }
+        await tab.goto(`${BASE_URL}/scales.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(800);
+        const allowed = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('select')).map(s => s.id));
+        report.check(`scales only select is the TTS voice list (${allowed.join(',')})`,
+            allowed.length === 1 && allowed[0] === 'voiceSelect');
+        await tab.close();
+    }
+
     // SCALES: stepper changes value, persists, restores after reload
     {
         const ctx = await browser.newContext();

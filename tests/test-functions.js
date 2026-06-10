@@ -49,7 +49,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.fill('#presetNameInput', 'suite-test');
         await tab.click('#savePresetBtn');
         await tab.waitForTimeout(300);
-        await tab.click('.vf-btn[data-root="A"]');
+        await tab.click('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]');
         await tab.waitForTimeout(400);
         const presetApplied = await tab.evaluate(async () => {
             const c = window.scalesController;
@@ -282,7 +282,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const stats = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-stats')));
         const total = Object.values(stats).reduce((sum, s) => sum + s.total, 0);
         report.check('ears answer recorded with feedback', feedback.trim().length > 0 && total >= 1);
-        await tab.click('.preset-btn[data-preset="perfect"]');
+        await tab.click('.vf-btn[data-preset="perfect"]');
         await tab.waitForTimeout(300);
         const enabled = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-settings')).enabledIntervals);
         report.check('ears preset filters intervals', Array.isArray(enabled) && enabled.length === 3);

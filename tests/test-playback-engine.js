@@ -75,7 +75,7 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.click('#againBtn');
         await tab.waitForTimeout(800);
         const tChange = await tab.evaluate(() => performance.now());
-        await tab.click('.vf-btn[data-root="G"]');
+        await tab.click('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]');
         await tab.waitForTimeout(1200);
         const trace = await tab.evaluate(() => window.__trace);
         const kills = trace.filter(e => e.type === 'kill' && e.t >= tChange);
