@@ -32,8 +32,6 @@
     const ADJUSTER_VALUES = {
         guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
     };
-    const ROOT_PITCH_MIN_MIDI = 36; // C2
-    const ROOT_PITCH_MAX_MIDI = 71; // B4
     const FIXED_WINDOW_MS = 20000;
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
@@ -246,8 +244,7 @@
         PracticeControls.syncSingleSelect('data-guide-sound', state.guideSound);
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
-                const midi = rootMidi();
-                return midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+                return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
@@ -274,7 +271,7 @@
 
     /** @param {number} midi */
     function setRootPitchFromMidi(midi) {
-        const bounded = Math.max(ROOT_PITCH_MIN_MIDI, Math.min(ROOT_PITCH_MAX_MIDI, midi));
+        const bounded = PracticeControls.clampRootMidi(midi);
         const info = midiToNoteName(bounded);
         state.root = info.name;
         state.octave = info.octave;

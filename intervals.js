@@ -105,11 +105,9 @@
     };
 
     const ADJUSTER_VALUES = {
-        lengthMs: [200, 400, 600, 800, 1000, 1500],
-        gapMs: [100, 500, 1000, 1500, 2000, 3000, 5000]
+        lengthMs: PracticeControls.NOTE_LENGTH_VALUES,
+        gapMs: PracticeControls.GAP_VALUES
     };
-    const ROOT_PITCH_MIN_MIDI = 36; // C2
-    const ROOT_PITCH_MAX_MIDI = 83; // B5
 
     const STORAGE_KEY = 'intervals-settings';
     const PERSISTED_KEYS = [
@@ -128,6 +126,12 @@
     let history = null;
 
     const sleep = PianoCore.sleep;
+
+    // The shared gap presets include overlap ratios (negative values);
+    // here the gap sits between patterns, so they resolve to "no pause".
+    function patternGapMs() {
+        return Math.max(0, PracticeControls.effectiveGapMs(state.gapMs, state.lengthMs));
+    }
 
     function saveSettings() {
         SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
@@ -294,7 +298,7 @@
 
             // Brief pause to read the display before audio starts
             if (!firstRound && !state.stopRequested) {
-                await sleep(Math.min(state.gapMs, 400));
+                await sleep(Math.min(patternGapMs(), 400));
             }
             firstRound = false;
 
@@ -311,7 +315,7 @@
             }
 
             if (!state.stopRequested) {
-                await sleep(state.gapMs);
+                await sleep(patternGapMs());
             }
         }
 
@@ -421,12 +425,10 @@
     function syncSteppers() {
         PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
         PracticeControls.setValueText('lengthValue', PracticeControls.formatSeconds(state.lengthMs));
-        PracticeControls.setValueText('gapValue', PracticeControls.formatSeconds(state.gapMs));
+        PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
-                const midi = noteNameToMidi(state.root, state.octave);
-                return midi === null
-                    || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+                return PracticeControls.rootStepDisabled(noteNameToMidi(state.root, state.octave), delta);
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
@@ -482,7 +484,7 @@
             if (key === 'rootPitch') {
                 const midi = noteNameToMidi(state.root, state.octave);
                 if (midi === null) return;
-                const bounded = Math.max(ROOT_PITCH_MIN_MIDI, Math.min(ROOT_PITCH_MAX_MIDI, midi + delta));
+                const bounded = PracticeControls.stepRootMidi(midi, delta);
                 const info = midiToNoteName(bounded);
                 state.root = info.name;
                 state.octave = info.octave;

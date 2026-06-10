@@ -9,7 +9,53 @@
 const PracticeControls = (function () {
     'use strict';
 
+    // Canonical preset values for the shared step pickers. Every root,
+    // note-length, and gap stepper on every page uses these same lists
+    // (see docs/parameters.md "Shared step presets").
+    const ROOT_PITCH_MIN_MIDI = 36; // C2
+    const ROOT_PITCH_MAX_MIDI = 83; // B5
+    const NOTE_LENGTH_VALUES = Object.freeze(
+        [100, 150, 200, 250, 300, 350, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 3000, 5000]);
+    // Negative gap values are overlap ratios of the note length
+    // (-0.5 starts the next note halfway through the current one).
+    const GAP_VALUES = Object.freeze(
+        [-0.5, -0.1, -0.05, 0, 50, 100, 150, 250, 300, 500, 1000, 1500, 2000, 3000, 5000]);
+
     function getEl(id) { return document.getElementById(id); }
+
+    /**
+     * Resolve a gap preset to milliseconds for the given note length.
+     * @param {number} gapValue @param {number} noteLengthMs
+     */
+    function effectiveGapMs(gapValue, noteLengthMs) {
+        if (gapValue < 0 && gapValue > -1) return Math.round(noteLengthMs * gapValue);
+        return gapValue;
+    }
+
+    /** Overlap ratios display as percentages, plain gaps as seconds.
+     * @param {number} gapValue */
+    function formatGapLabel(gapValue) {
+        if (gapValue < 0) return `${Math.round(gapValue * 100)}%`;
+        return formatSeconds(gapValue);
+    }
+
+    /** @param {number} midi */
+    function clampRootMidi(midi) {
+        return Math.max(ROOT_PITCH_MIN_MIDI, Math.min(ROOT_PITCH_MAX_MIDI, midi));
+    }
+
+    /** Step a root pitch by semitones inside the shared range.
+     * @param {number} midi @param {number} delta */
+    function stepRootMidi(midi, delta) {
+        return clampRootMidi(midi + delta);
+    }
+
+    /** Disabled-state companion to stepRootMidi.
+     * @param {number | null} midi @param {number} delta */
+    function rootStepDisabled(midi, delta) {
+        return midi === null
+            || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+    }
 
     /** @param {string} id @param {string} text */
     function setValueText(id, text) {
@@ -148,9 +194,18 @@ const PracticeControls = (function () {
     }
 
     return {
+        ROOT_PITCH_MIN_MIDI,
+        ROOT_PITCH_MAX_MIDI,
+        NOTE_LENGTH_VALUES,
+        GAP_VALUES,
         getEl,
         setValueText,
         formatSeconds,
+        formatGapLabel,
+        effectiveGapMs,
+        clampRootMidi,
+        stepRootMidi,
+        rootStepDisabled,
         syncSingleSelect,
         wireSingleSelect,
         wireMultiSelect,

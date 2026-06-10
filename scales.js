@@ -264,10 +264,6 @@ const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
 
 // Stepper value lists (the former chip-row options)
-const SCALES_NOTE_LENGTH_VALUES = [100, 150, 300, 500, 800, 1000, 1500, 2000, 3000, 5000];
-const SCALES_GAP_VALUES = [-0.5, -0.1, -0.05, 0, 50, 100, 150, 300, 500, 1000];
-const SCALES_ROOT_MIN_MIDI = 36; // C2
-const SCALES_ROOT_MAX_MIDI = 83; // B5
 const SCALES_VOICE_RATE_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
 const SCALES_VOICE_PITCH_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5];
 
@@ -458,12 +454,9 @@ class ScalesController {
         /** @type {number} */
         this.maxHistoryLength = 50;
 
-        // Note: settings store actual values (noteLengthMs in ms, gapMs in ms or negative for overlap ratio)
-        // Helper to format gap value as display label (negative = overlap %)
-        this.formatGapLabel = (gap) => {
-            if (gap < 0) return `${Math.round(gap * 100)}%`;
-            return `${gap / 1000}s`;
-        };
+        // Note: settings store actual values (noteLengthMs in ms, gapMs in
+        // ms or negative for overlap ratio); labels and interpretation come
+        // from PracticeControls (shared across pages).
         // Map ms to closest tempo name (for voice command generation)
         this.msToTempoName = (ms) => {
             if (ms <= 100) return 'very fast';
@@ -679,12 +672,11 @@ class ScalesController {
         PracticeControls.setValueText('voicePitchValue', this.voiceCore.settings.voicePitch.toFixed(1));
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
-                const midi = noteNameToMidi(this.settings.root, this.settings.octave);
-                return midi === null
-                    || (delta < 0 ? midi <= SCALES_ROOT_MIN_MIDI : midi >= SCALES_ROOT_MAX_MIDI);
+                return PracticeControls.rootStepDisabled(
+                    noteNameToMidi(this.settings.root, this.settings.octave), delta);
             }
             if (key === 'noteLengthMs') {
-                return PracticeControls.stepDisabled(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
+                return PracticeControls.stepDisabled(PracticeControls.NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
             }
             if (key === 'voiceRate') {
                 return PracticeControls.stepDisabled(SCALES_VOICE_RATE_VALUES, this.voiceCore.settings.voiceRate, delta);
@@ -692,7 +684,7 @@ class ScalesController {
             if (key === 'voicePitch') {
                 return PracticeControls.stepDisabled(SCALES_VOICE_PITCH_VALUES, this.voiceCore.settings.voicePitch, delta);
             }
-            return PracticeControls.stepDisabled(SCALES_GAP_VALUES, this.settings.gapMs, delta);
+            return PracticeControls.stepDisabled(PracticeControls.GAP_VALUES, this.settings.gapMs, delta);
         });
     }
 
@@ -721,17 +713,17 @@ class ScalesController {
         if (key === 'rootPitch') {
             const midi = noteNameToMidi(this.settings.root, this.settings.octave);
             if (midi === null) return;
-            const bounded = Math.max(SCALES_ROOT_MIN_MIDI, Math.min(SCALES_ROOT_MAX_MIDI, midi + delta));
+            const bounded = PracticeControls.stepRootMidi(midi, delta);
             const info = midiToNoteName(bounded);
             this.settings.root = info.name;
             this.settings.octave = info.octave;
             this.updatePianoKeyOctaves();
         } else if (key === 'noteLengthMs') {
-            const next = PracticeControls.stepValue(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
+            const next = PracticeControls.stepValue(PracticeControls.NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
             if (next === null) return;
             this.setNoteLengthMs(next, 'stepper');
         } else if (key === 'gapMs') {
-            const next = PracticeControls.stepValue(SCALES_GAP_VALUES, this.settings.gapMs, delta);
+            const next = PracticeControls.stepValue(PracticeControls.GAP_VALUES, this.settings.gapMs, delta);
             if (next === null) return;
             this.settings.gapMs = next;
         } else {
@@ -925,7 +917,7 @@ class ScalesController {
         if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
         if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
         if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
-        if (c.gapMs !== this.defaultSettings.gapMs) parts.push(`gap ${this.formatGapLabel(c.gapMs)}`);
+        if (c.gapMs !== this.defaultSettings.gapMs) parts.push(`gap ${PracticeControls.formatGapLabel(c.gapMs)}`);
 
         if (c.repeatCount === Infinity) parts.push(c.repeatGapMs === 0 ? 'forever no gap' : 'forever');
         else if (c.repeatCount > 1) parts.push(`x${c.repeatCount}`);
@@ -1123,9 +1115,9 @@ class ScalesController {
 
         if (mods.gap) {
             const gapVal = this.gapNameToValue[mods.gap];
-            if (gapVal !== undefined) badges.push(`gap ${this.formatGapLabel(gapVal)}`);
+            if (gapVal !== undefined) badges.push(`gap ${PracticeControls.formatGapLabel(gapVal)}`);
         } else if (s.gapMs !== d.gapMs) {
-            badges.push(`gap ${this.formatGapLabel(s.gapMs)}`);
+            badges.push(`gap ${PracticeControls.formatGapLabel(s.gapMs)}`);
         }
 
         // Repeat (loop mode)
@@ -1243,7 +1235,7 @@ class ScalesController {
         // Root pitch / note length / gap / voice steppers (shared control)
         PracticeControls.setValueText('rootPitchValue', `${this.settings.root}${this.settings.octave}`);
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(this.settings.noteLengthMs));
-        PracticeControls.setValueText('gapValue', this.formatGapLabel(this.settings.gapMs));
+        PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(this.settings.gapMs));
         this.syncVoiceSteppers();
 
         // Octave span buttons
@@ -1351,7 +1343,7 @@ class ScalesController {
             parts.push(PracticeControls.formatSeconds(s.noteLengthMs));
         }
         if (s.gapMs !== d.gapMs) {
-            parts.push(`gap: ${this.formatGapLabel(s.gapMs)}`);
+            parts.push(`gap: ${PracticeControls.formatGapLabel(s.gapMs)}`);
         }
         if (s.octaveSpan !== d.octaveSpan) {
             parts.push(s.octaveSpan === 2 ? '2 oct' : '1 oct');
@@ -1581,7 +1573,7 @@ class ScalesController {
         const scaleTypes = Array.from(document.querySelectorAll('[data-scale-type]'))
             .map(el => (/** @type {HTMLElement} */ (el)).dataset.scaleType)
             .filter(Boolean);
-        const lengths = SCALES_NOTE_LENGTH_VALUES;
+        const lengths = PracticeControls.NOTE_LENGTH_VALUES;
 
         const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -3642,19 +3634,13 @@ class ScalesController {
         // Tone duration in seconds
         const tone = ms / 1000;
 
-        // Gap: voice modifier overrides setting
-        // gapMs: negative = overlap ratio, 0+ = milliseconds
+        // Gap: voice modifier overrides setting; negative presets are
+        // overlap ratios, resolved by the shared helper.
         let gap;
         if (modifiers.gap && this.gapNameToValue[modifiers.gap] !== undefined) {
             gap = this.gapNameToValue[modifiers.gap];
         } else {
-            const gapVal = this.settings.gapMs;
-            if (gapVal < 0 && gapVal > -1) {
-                // Negative values are overlap ratios (e.g., -0.5 = 50% overlap)
-                gap = Math.round(ms * gapVal);
-            } else {
-                gap = gapVal;
-            }
+            gap = PracticeControls.effectiveGapMs(this.settings.gapMs, ms);
         }
 
         return { ms, tone, gap };

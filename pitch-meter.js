@@ -27,8 +27,6 @@ class PitchMeterController {
     static STORAGE_KEY = 'pitch-meter-settings';
     static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
     static RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5];
-    static ROOT_PITCH_MIN_MIDI = 36; // C2
-    static ROOT_PITCH_MAX_MIDI = 83; // B5
 
     constructor() {
         /** @type {boolean} */
@@ -167,8 +165,7 @@ class PitchMeterController {
         } else if (key === 'rootPitch') {
             const midi = noteNameToMidi(this.rootNote, this.octave);
             if (midi === null) return;
-            const bounded = Math.max(PitchMeterController.ROOT_PITCH_MIN_MIDI,
-                Math.min(PitchMeterController.ROOT_PITCH_MAX_MIDI, midi + delta));
+            const bounded = PracticeControls.stepRootMidi(midi, delta);
             const info = midiToNoteName(bounded);
             this.rootNote = info.name;
             this.octave = info.octave;
@@ -190,9 +187,7 @@ class PitchMeterController {
             if (key === 'responseTime') {
                 return PracticeControls.stepDisabled(PitchMeterController.RESPONSE_TIME_VALUES, this.responseTime, delta);
             }
-            const midi = noteNameToMidi(this.rootNote, this.octave);
-            return midi === null
-                || (delta < 0 ? midi <= PitchMeterController.ROOT_PITCH_MIN_MIDI : midi >= PitchMeterController.ROOT_PITCH_MAX_MIDI);
+            return PracticeControls.rootStepDisabled(noteNameToMidi(this.rootNote, this.octave), delta);
         });
     }
 
