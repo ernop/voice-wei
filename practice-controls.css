@@ -527,6 +527,32 @@
     }
 }
 
+/* Rows without the big mic bar (phrases, intervals) are pure transport;
+   they don't need driving height, so give the page back vertical space */
+@media (max-width: 768px) {
+    .voice-controls-row:not(:has(.listen-button)) {
+        min-height: 72px;
+    }
+
+    .voice-controls-row:not(:has(.listen-button)) .stop-button,
+    .voice-controls-row:not(:has(.listen-button)) .play-button,
+    .voice-controls-row:not(:has(.listen-button)) .next-button,
+    .voice-controls-row:not(:has(.listen-button)) .repeat-button {
+        height: 72px;
+        padding: 8px 10px;
+        min-width: 0;
+        font-size: 1rem;
+    }
+
+    .voice-controls-row:not(:has(.listen-button)) .button-text {
+        font-size: 1rem;
+    }
+
+    .voice-controls-row:not(:has(.listen-button)) .button-icon {
+        font-size: 1.1rem;
+    }
+}
+
 .command-history {
     margin-top: 20px;
     padding: 16px;
