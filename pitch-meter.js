@@ -406,7 +406,7 @@ class PitchMeterController {
         this.updateStatus(`Note ${noteNum}/${total}: Hear ${note.name}, then match it!`);
 
         // Play the note
-        this.piano.playName(note.name, '2n');
+        this.piano.playMidi(note.midi, '2n');
 
         // Wait a moment for the note to sound, then start listening period
         await this.sleep(600);
@@ -582,7 +582,7 @@ class PitchMeterController {
             const note = this.targetNotes[i];
             this.updateStatus(`Sing: ${note.name}`);
 
-            this.piano.playName(note.name, '4n');
+            this.piano.playMidi(note.midi, '4n');
             this.captureTargetName = note.name;
             await this.sleep(this.responseTime * 1000);
         }
@@ -654,7 +654,7 @@ class PitchMeterController {
             if (!this.isPlayingScale) break;
 
             const note = this.targetNotes[i];
-            this.piano.playName(note.name, '4n');
+            this.piano.playMidi(note.midi, '4n');
             await this.sleep(500);
         }
 

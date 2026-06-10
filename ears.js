@@ -177,8 +177,8 @@ class EarsController {
             volume: -12,
             envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
         });
-        /** @type {string} */
-        this.droneNote = 'C4';
+        /** @type {number} */
+        this.droneNoteMidi = 60; // C4 - MIDI like every other pitch here
         /** @type {number | null} */
         this.droneTargetMidi = null;
 
@@ -505,8 +505,7 @@ class EarsController {
         // Steppers (shared control): drone note and root range center
         PracticeControls.wireSteppers((key, delta) => {
             if (key === 'droneNote') {
-                const midi = Tone.Frequency(this.droneNote).toMidi();
-                this.droneNote = midiToNoteName(Math.max(48, Math.min(72, midi + delta))).full;
+                this.droneNoteMidi = Math.max(48, Math.min(72, this.droneNoteMidi + delta));
             } else if (key === 'rootRangeMid') {
                 this.rootRangeMid = Math.max(36, Math.min(72, this.rootRangeMid + delta));
                 this.updateRangeDisplay();
@@ -1262,12 +1261,11 @@ class EarsController {
     //-------DRONE TEST MODE-------
 
     syncSteppers() {
-        PracticeControls.setValueText('droneNoteValue', this.droneNote);
-        PracticeControls.setValueText('rootRangeMidValue', midiToNoteName(this.rootRangeMid).full);
+        PracticeControls.setValueText('droneNoteValue', midiToPitchString(this.droneNoteMidi));
+        PracticeControls.setValueText('rootRangeMidValue', midiToPitchString(this.rootRangeMid));
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'droneNote') {
-                const midi = Tone.Frequency(this.droneNote).toMidi();
-                return delta < 0 ? midi <= 48 : midi >= 72;
+                return delta < 0 ? this.droneNoteMidi <= 48 : this.droneNoteMidi >= 72;
             }
             if (key === 'rootRangeMid') {
                 return delta < 0 ? this.rootRangeMid <= 36 : this.rootRangeMid >= 72;
@@ -1279,7 +1277,7 @@ class EarsController {
     async startDroneTest() {
         if (this.droneActive) return;
 
-        this.droneTargetMidi = Tone.Frequency(this.droneNote).toMidi();
+        this.droneTargetMidi = this.droneNoteMidi;
 
         // Show UI
         const startBtn = document.getElementById('droneStartBtn');
@@ -1290,7 +1288,7 @@ class EarsController {
         if (startBtn) startBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'inline-block';
         if (display) display.style.display = 'block';
-        if (targetEl) targetEl.textContent = this.droneNote;
+        if (targetEl) targetEl.textContent = midiToPitchString(this.droneNoteMidi);
 
         await PianoCore.ensureStarted();
 

@@ -137,9 +137,10 @@
         SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
-    function playNote(noteName) {
+    /** @param {number} midi */
+    function playNote(midi) {
         if (!piano) return;
-        piano.playName(noteName, state.lengthMs / 1000);
+        piano.playMidi(midi, state.lengthMs / 1000);
     }
 
     // ---- SCALE MATH ----
@@ -307,9 +308,9 @@
             }
 
             if (state.playNotes && !state.stopRequested) {
-                for (const note of currentInstance.noteNames) {
+                for (const midi of currentInstance.midiNotes) {
                     if (state.stopRequested) break;
-                    playNote(note);
+                    playNote(midi);
                     await sleep(state.lengthMs);
                 }
             }

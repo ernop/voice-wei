@@ -110,29 +110,24 @@ const PianoCore = (function () {
             voices.add(voice);
         }
 
-        /** @param {number | string} duration - Tone time (seconds or notation like '2n') */
+        /** @param {ToneDuration} duration */
         function toSeconds(duration) {
             return Tone.Time(duration).toSeconds();
         }
 
+        // Pitch is MIDI-only at this boundary (the representation law):
+        // callers convert names/strings via music-constants before here.
         return {
             /**
              * @param {number} midi
-             * @param {number | string} duration
+             * @param {ToneDuration} duration
              */
             playMidi(midi, duration) {
                 startVoice(midi, toSeconds(duration));
             },
             /**
-             * @param {string} name - Pitch string like 'C4'
-             * @param {number | string} duration
-             */
-            playName(name, duration) {
-                startVoice(Tone.Frequency(name).toMidi(), toSeconds(duration));
-            },
-            /**
              * @param {number[]} midis - Notes played simultaneously
-             * @param {number | string} duration
+             * @param {ToneDuration} duration
              */
             playMidiChord(midis, duration) {
                 const seconds = toSeconds(duration);
