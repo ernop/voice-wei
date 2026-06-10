@@ -19,9 +19,17 @@ const PitchTraceView = (function () {
     const CENTS_GOOD = 12;
     const CENTS_OK = 30;
 
+    // Target band colors by scoring verdict (pending = not yet sung)
+    const TARGET_COLORS = {
+        pending: { fill: 'rgba(96, 165, 250, 0.3)', stroke: 'rgba(147, 197, 253, 0.9)', label: '#dbeafe' },
+        good: { fill: 'rgba(74, 222, 128, 0.32)', stroke: '#4ade80', label: '#bbf7d0' },
+        ok: { fill: 'rgba(250, 204, 21, 0.3)', stroke: '#facc15', label: '#fef08a' },
+        missed: { fill: 'rgba(251, 113, 133, 0.22)', stroke: '#fb7185', label: '#fecdd3' }
+    };
+
     /**
      * @typedef {{ midi: number, label: string, emphasized: boolean }} Rail
-     * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active: boolean }} Target
+     * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active: boolean, result?: 'good' | 'ok' | 'missed' | null }} Target
      *
      * @param {{
      *   canvasId: string,
@@ -144,12 +152,15 @@ const PitchTraceView = (function () {
                 const x1 = timeToX(target.startMs);
                 const x2 = timeToX(target.endMs);
                 const targetWidth = Math.max(x2 - x1, 5);
-                ctx.fillStyle = target.active ? 'rgba(96, 165, 250, 0.3)' : 'rgba(148, 163, 184, 0.15)';
-                ctx.strokeStyle = target.active ? 'rgba(147, 197, 253, 0.9)' : 'rgba(148, 163, 184, 0.38)';
+                const colors = target.active
+                    ? TARGET_COLORS[target.result || 'pending'] || TARGET_COLORS.pending
+                    : { fill: 'rgba(148, 163, 184, 0.15)', stroke: 'rgba(148, 163, 184, 0.38)', label: 'rgba(226, 232, 240, 0.45)' };
+                ctx.fillStyle = colors.fill;
+                ctx.strokeStyle = colors.stroke;
                 ctx.lineWidth = target.active ? 2 : 1;
                 ctx.fillRect(x1, y - 8, targetWidth, 16);
                 ctx.strokeRect(x1, y - 8, targetWidth, 16);
-                ctx.fillStyle = target.active ? '#dbeafe' : 'rgba(226, 232, 240, 0.45)';
+                ctx.fillStyle = colors.label;
                 ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
                 ctx.textAlign = 'left';
                 ctx.fillText(target.label, x1 + 4, y - 16);

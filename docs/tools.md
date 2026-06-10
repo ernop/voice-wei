@@ -169,7 +169,16 @@ Ebook to audiobook conversion using OpenAI TTS (key in localStorage).
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test) and Scales (Sing):
-scale-degree rails, blue target bands, your sung pitch as a yellow trace
-with cents-colored dots, and a voice-gated timeline (time starts when
-singing is detected). Options per page: targets on/off, play guide on
-restart, pause on silence, 20s window, expand range.
+scale-degree rails, target bands, your sung pitch as a yellow trace with
+cents-colored dots, and a voice-gated timeline (time starts when singing
+is detected).
+
+**Per-note scoring**: once your singing passes a target's window, the band
+recolors with its verdict - green (avg within 10 cents), yellow (within
+25), red (missed: too far off or not sung) - and the readout keeps a
+running score ("Score: 6/8 on pitch (avg 12c)"). A note counts as matched
+when at least 30% of its window's samples land within 1.5 semitones, same
+thresholds as the Pitch tool. Restart clears the scores with the trace.
+
+Options per page: targets on/off, play guide on restart, pause on silence,
+20s window, expand range.

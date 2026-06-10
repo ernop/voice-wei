@@ -16,6 +16,17 @@ const PitchTestPanel = (function () {
     const FIXED_WINDOW_MS = 20000;
     const OPTION_KEYS = ['showTargets', 'playOnRestart', 'pauseOnSilence', 'fixedWindow', 'expandRange'];
 
+    // Per-note scoring (same thresholds as the pitch meter): a note is
+    // matched when at least 30% of its window's samples are within 1.5
+    // semitones; the verdict comes from the average cents off target.
+    const SCORE_MATCH_SEMITONES = 1.5;
+    const SCORE_MATCH_RATIO = 0.3;
+    const SCORE_MIN_SAMPLES = 3;
+    const SCORE_GOOD_CENTS = 10;
+    const SCORE_OK_CENTS = 25;
+    // A window counts as passed (scoreable) shortly after its end.
+    const SCORE_GRACE_MS = 60;
+
     /**
      * @param {{
      *   hostId: string,
@@ -78,12 +89,64 @@ const PitchTestPanel = (function () {
                 setStatus('Listening and drawing');
             },
             onSilence: () => clearReadout(),
-            onFrame: () => view.draw()
+            onFrame: () => {
+                refreshScores();
+                view.draw();
+            }
         });
 
         function windowMs() {
             if (options.fixedWindow) return FIXED_WINDOW_MS;
             return Math.max(4000, config.contentDurationMs() + 700, session.clockMs() + 250);
+        }
+
+        /** @type {Array<any>} */
+        let scoredTargets = [];
+
+        /**
+         * Annotate each active target with a verdict once the clock has
+         * passed its window: 'good' / 'ok' / 'missed', or null while pending.
+         */
+        function scoreTargets() {
+            const history = session.history;
+            const clock = session.clockMs();
+            return config.targets().map(target => {
+                if (!target.active) return target;
+                if (clock < target.endMs + SCORE_GRACE_MS) return { ...target, result: null };
+
+                const samples = history.filter(s => s.time >= target.startMs && s.time <= target.endMs);
+                if (samples.length < SCORE_MIN_SAMPLES) return { ...target, result: 'missed' };
+
+                const close = samples.filter(s => Math.abs(s.midi - target.midi) <= SCORE_MATCH_SEMITONES);
+                if (close.length < samples.length * SCORE_MATCH_RATIO) return { ...target, result: 'missed' };
+
+                const avgCents = close.reduce((sum, s) => sum + Math.abs((s.midi - target.midi) * 100), 0) / close.length;
+                const result = avgCents <= SCORE_GOOD_CENTS ? 'good' : avgCents <= SCORE_OK_CENTS ? 'ok' : 'missed';
+                return { ...target, result, avgCents };
+            });
+        }
+
+        function updateScoreReadout() {
+            const el = getEl('Score');
+            if (!el) return;
+            const scored = scoredTargets.filter(t => t.active && t.result);
+            if (!scored.length) {
+                el.textContent = '';
+                return;
+            }
+            const hit = scored.filter(t => t.result === 'good' || t.result === 'ok');
+            const total = scoredTargets.filter(t => t.active).length;
+            let text = `Score: ${hit.length}/${total} on pitch`;
+            if (hit.length) {
+                const avg = hit.reduce((sum, t) => sum + t.avgCents, 0) / hit.length;
+                text += ` (avg ${avg.toFixed(0)}c)`;
+            }
+            el.textContent = text;
+        }
+
+        function refreshScores() {
+            scoredTargets = scoreTargets();
+            updateScoreReadout();
         }
 
         const view = PitchTraceView.create({
@@ -92,7 +155,7 @@ const PitchTestPanel = (function () {
             isVisible: () => panelOpen,
             emptyMessage: config.emptyMessage,
             rails: railLines,
-            targets: () => (options.showTargets ? config.targets() : []),
+            targets: () => (options.showTargets ? scoredTargets : []),
             history: () => session.history,
             clockMs: () => session.clockMs(),
             windowMs,
@@ -145,6 +208,7 @@ const PitchTestPanel = (function () {
                     <span id="${prefix}Pitch">Pitch: --</span>
                     <span id="${prefix}Cents">-- cents</span>
                     <span id="${prefix}Status">Sing to start time</span>
+                    <span id="${prefix}Score" class="pitch-test-score"></span>
                 </div>
                 <div class="pitch-test-canvas-wrap">
                     <canvas id="${prefix}Canvas" class="pitch-test-canvas"></canvas>
@@ -153,6 +217,7 @@ const PitchTestPanel = (function () {
                     <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'}</span>
                     <span><i class="legend-sung"></i> sung pitch</span>
                     <span><i class="legend-scale"></i> scale degree rails</span>
+                    <span><i class="legend-scored"></i> scored: green &le;10c, yellow &le;25c, red missed</span>
                 </div>
             `;
         }
@@ -210,6 +275,7 @@ const PitchTestPanel = (function () {
             session.reset();
             clearReadout();
             setStatus('Sing to start time');
+            refreshScores();
             view.draw();
         }
 
@@ -301,7 +367,10 @@ const PitchTestPanel = (function () {
             get isOpen() { return panelOpen; },
             open,
             close,
-            draw: () => view.draw(),
+            draw: () => {
+                refreshScores();
+                view.draw();
+            },
             resize: () => view.resize()
         };
     }

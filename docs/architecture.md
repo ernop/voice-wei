@@ -140,8 +140,6 @@ ships. Manual deploy: `./deploy.sh`.
   multi-select/slider primitive yet); its visual dialect predates the
   shared controls.
 - History list rendering is per-page (phrases, scales, intervals, ears).
-- The Sing/Test panel judges visually (cents-colored dots, live readout);
-  per-note scoring like pitch-meter's is a candidate panel option.
 - Sing targets follow the scale/movement plan and ignore active exercises.
 - `player.js` has its own speech recognition stack and settings UI
   (predates `voice-command-core.js`).

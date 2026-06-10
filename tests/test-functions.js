@@ -185,6 +185,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
+    // ============ SING PANEL: per-note scoring appears once windows pass ============
+    {
+        const ctx = await browser.newContext({ permissions: ['microphone'] });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'sing-panel', report.errors);
+        await tab.goto(`${BASE_URL}/scales.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(2500);
+        await tab.click('#singBtn');
+        await tab.waitForTimeout(1000);
+        // Wall-clock mode so all target windows pass deterministically
+        await tab.evaluate(() => document.getElementById('scalesSingPauseToggle').click());
+        await tab.waitForTimeout(4500);
+        const score = await tab.textContent('#scalesSingScore');
+        report.check(`sing panel scores after windows pass ("${score}")`,
+            /Score: \d+\/\d+ on pitch/.test(score));
+        await ctx.close();
+    }
+
     // ============ EARS: identify-answer-record + presets ============
     {
         const ctx = await browser.newContext({ permissions: ['microphone'] });
