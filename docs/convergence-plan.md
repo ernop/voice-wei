@@ -65,14 +65,30 @@ Done (v81-v82, playback correctness):
   next-round, immediate) plus a table of every parameter on every page.
   New settings must pick a behavior from the vocabulary and be listed.
 
-Remaining:
-- Phase 3 (rest of it): stepper/segment-row adoption on scales chip rows,
-  intervals, pitch-meter selects, ears.
+Done (v83, control convergence - Phase 3 complete for practice pages):
+- `.vf-btn` option chip moved to practice-controls.css as a shared primitive;
+  CSS load order standardized (style -> practice-controls -> page css).
+- Numeric value pickers are shared steppers everywhere: scales note-length and
+  gap chip rows (including negative overlap-ratio gaps), intervals note-length
+  and gap rows, pitch-meter match-time. `stepValue` snaps to the nearest list
+  value when the current value came from a voice command.
+- Pitch-meter's six `<select>`s replaced with shared segment rows (mode, range,
+  scale) and steppers (match time, combined root+octave pitch stepper);
+  instrument presets still set the octave.
+- Ears toggles wired through PracticeControls.
+- Every option group on every practice page now goes through
+  PracticeControls.wireSingleSelect/wireToggle/wireSteppers.
+
+Remaining (known, deliberate):
+- Ears' interval multi-select grid and root-range slider stay custom (no
+  shared multi-select/slider primitive yet); its visual dialect (.setting-btn)
+  is unchanged.
+- History list rendering is still per-page (phrases, scales, intervals, ears).
 - Sing-panel scoring: the panel currently judges visually (cents-colored dots,
   live cents readout). Per-note scoring like pitch-meter's could become a panel
   option later.
 - Sing targets ignore active exercises (they follow the scale/movement plan).
-- app.js speech recognition stack vs voice-command-core (deferred).
+- app.js (player) settings UI and speech recognition stack (deferred).
 
 Goal: pages with similar UIs use the same library internally (parameterized where needed),
 instead of repeating code. Phrases is the gold standard for style, design, and JS patterns;

@@ -111,12 +111,13 @@ The play loop reads settings when it generates each pattern.
 
 ## Pitch Meter (`pitch-meter-settings`)
 
-| Setting | Default | Behavior |
-|---------|---------|----------|
-| mode | call-response | next-round (next session) |
-| responseTime | 2s | next-round |
-| instrument | voice | immediate (sets octave preset, redraws targets) |
-| rootNote / scaleType / octave | C major 4 | immediate (redraws targets) |
+| Setting | Default | Values | Behavior |
+|---------|---------|--------|----------|
+| mode | call-response | free / call-response / play-along segment row | next-round (next session) |
+| responseTime | 2s | 1..5s stepper | next-round |
+| instrument | voice | voice / violin / bass segment row | immediate (sets octave preset, redraws targets) |
+| rootNote + octave | C4 | root pitch stepper (C2-B5) | immediate (redraws targets) |
+| scaleType | major | major, minor, chromatic, pentatonic, blues | immediate (redraws targets) |
 
 ## Ears (`ears-settings`, lifetime stats in `ears-stats`)
 
