@@ -2,9 +2,9 @@ const APP_VERSION = "84";
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
-    { id: "intervals", href: "scales2.html", label: "Intervals" },
+    { id: "intervals", href: "intervals.html", label: "Intervals" },
     { id: "phrases", href: "phrases.html", label: "Phrases" },
-    { id: "test", href: "test.html", label: "Test" },
+    { id: "trace", href: "trace.html", label: "Trace" },
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
     { id: "music", href: "player.html", label: "Music" },
     { id: "books", href: "ebook.html", label: "Books" },

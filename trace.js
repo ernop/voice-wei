@@ -1,7 +1,7 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // TEST
-// Standalone key-aware pitch trace and pattern guide page.
+// Standalone key-aware pitch trace and pattern guide page (the Trace tab).
 // Consumes piano-core, pitch-detect-core, pitch-trace-view,
 // practice-controls, and settings-store.
 //-----------------------------------------------------------------------
@@ -22,7 +22,7 @@
         expandRange: false
     };
 
-    const STORAGE_KEY = 'test-settings';
+    const STORAGE_KEY = 'trace-settings';
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'guideIntervalMs', 'guideSound',
         'patternText', 'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow',
@@ -161,7 +161,7 @@
     }
 
     const view = PitchTraceView.create({
-        canvasId: 'testCanvas',
+        canvasId: 'traceCanvas',
         defaultHeightPx: 430,
         rails: () => chartScaleNotes().map(note => ({
             midi: note.midi,

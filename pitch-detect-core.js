@@ -19,7 +19,7 @@ const PitchDetectCore = (function () {
     const GLITCH_CONFIRM_MS = 260;
     const GLITCH_CONFIRM_MIDI = 1.2;
     // Canonical trace gap: the drawn line breaks across silences longer
-    // than this (test.js used 260, phrases 240; unified at 250).
+    // than this (trace page used 260, phrases 240; unified at 250).
     const TRACE_BREAK_MS = 250;
     // Pause-on-silence clock only advances across gaps up to this long.
     const VOICE_CLOCK_MAX_STEP_MS = 240;

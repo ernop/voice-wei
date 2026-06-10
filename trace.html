@@ -6,49 +6,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <title>Test - Voice-Wei</title>
+    <title>Trace - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=84">
     <link rel="stylesheet" href="practice-controls.css?v=84">
     <link rel="stylesheet" href="scales.css?v=84">
-    <link rel="stylesheet" href="test.css?v=84">
+    <link rel="stylesheet" href="trace.css?v=84">
 </head>
 
-<body data-page="test">
+<body data-page="trace">
     <div class="container">
         <header id="siteHeader"></header>
 
         <main>
-            <section class="test-hero">
+            <section class="trace-hero">
                 <div>
                     <h2>Key pitch trace</h2>
                     <p>Start singing and watch your voice move through the current key. Type a degree pattern to add guide targets.</p>
                 </div>
-                <div class="test-actions">
-                    <button id="startBtn" class="test-primary-btn" type="button">Start</button>
-                    <button id="resetBtn" class="test-secondary-btn" type="button">Reset</button>
+                <div class="trace-actions">
+                    <button id="startBtn" class="trace-primary-btn" type="button">Start</button>
+                    <button id="resetBtn" class="trace-secondary-btn" type="button">Reset</button>
                 </div>
             </section>
 
-            <section class="test-pattern-card">
+            <section class="trace-pattern-card">
                 <label for="patternInput">Pattern guides</label>
                 <input id="patternInput" type="text" inputmode="text" autocomplete="off" placeholder="1 2 3 5 3 1">
-                <div class="test-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.</div>
-                <label class="display-toggle test-play-toggle">
+                <div class="trace-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.</div>
+                <label class="display-toggle trace-play-toggle">
                     <input type="checkbox" id="playGuidesToggle">
                     <span>Play guide on reset</span>
                 </label>
             </section>
 
-            <section class="test-readout" aria-live="polite">
+            <section class="trace-readout" aria-live="polite">
                 <span id="pitchReadout">Pitch: --</span>
                 <span id="statusReadout">Ready</span>
             </section>
 
-            <section class="test-chart-wrap" aria-label="Pitch trace chart">
-                <canvas id="testCanvas"></canvas>
+            <section class="trace-chart-wrap" aria-label="Pitch trace chart">
+                <canvas id="traceCanvas"></canvas>
             </section>
 
-            <section class="test-compact-controls">
+            <section class="trace-compact-controls">
                 <div class="step-field">
                     <span class="step-label">Root</span>
                     <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
@@ -61,7 +61,7 @@
                     <span class="step-value" id="guideIntervalValue">1s</span>
                     <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
                 </div>
-                <div class="test-option-row">
+                <div class="trace-option-row">
                     <label class="display-toggle">
                         <input type="checkbox" id="pauseOnSilenceToggle" checked>
                         <span>Pause on silence</span>
@@ -75,11 +75,11 @@
                         <span>Expand range</span>
                     </label>
                 </div>
-                <div class="test-scale-row" aria-label="Guide sound">
+                <div class="trace-scale-row" aria-label="Guide sound">
                     <button class="vf-btn" data-guide-sound="piano">piano guides</button>
                     <button class="vf-btn" data-guide-sound="beep">beep guides</button>
                 </div>
-                <div class="test-scale-row">
+                <div class="trace-scale-row">
                     <button class="vf-btn" data-scale="major">major</button>
                     <button class="vf-btn" data-scale="minor">minor</button>
                     <button class="vf-btn" data-scale="chromatic">chromatic</button>
@@ -104,7 +104,7 @@
     <script src="pitch-trace-view.js?v=84"></script>
     <script src="practice-controls.js?v=84"></script>
     <script src="settings-store.js?v=84"></script>
-    <script src="test.js?v=84"></script>
+    <script src="trace.js?v=84"></script>
 </body>
 
 </html>

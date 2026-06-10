@@ -54,11 +54,11 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 
 **Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; return-to-1 regenerates; min/max length, start, and in/out octave apply to the next generated phrase; playback settings replay the current phrase; show-names redraws. Every setting on every page follows the shared vocabulary in [docs/parameters.md](docs/parameters.md). Old-settings notes never overlap new ones: the piano engine tracks every voice and kills them exactly on stop.
 
-### Test
+### Trace
 
-Standalone key-aware pitch trace: https://fuseki.net/music8899b/test.html
+Standalone key-aware pitch trace: https://fuseki.net/music8899b/trace.html
 
-Use **Test** when you want to sing freely in a key and see the voice trace without first generating a phrase.
+Use **Trace** when you want to sing freely in a key and see the voice trace without first generating a phrase.
 
 **Controls:**
 - Start begins microphone listening; Reset clears the trace.
@@ -115,10 +115,10 @@ HTTPS required for microphone access when deployed.
 scales.html/js/css       # Scale practice
 scales2.html/js          # Interval training
 phrases.html/js/css      # Phrase practice
-test.html/js/css         # Standalone pitch trace
+trace.html/js/css        # Standalone pitch trace
 pitch-meter.html/js/css  # Pitch detection
 ears.html/js/css         # Interval ear training
-player.html + app.js     # Music player
+player.html + player.js     # Music player
 ebook.html/js/css        # Ebook converter
 ```
 

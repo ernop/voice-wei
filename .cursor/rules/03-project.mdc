@@ -10,7 +10,7 @@ Voice-controlled music player for hands-free operation while driving. Uses Claud
 
 ## Key Files
 - `player.html` - Main app page
-- `app.js` - Main application logic (VoiceMusicController class)
+- `player.js` - Main application logic (VoiceMusicController class)
 - `voice-output.js` - Text-to-speech library
 - `proxy.php` - Server-side YouTube search via Piped/Invidious
 - `config.json` - API keys (gitignored)

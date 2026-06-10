@@ -48,7 +48,7 @@ master-output mute.
 Actions (not persisted): Reflect (reproject of the current phrase around the
 octave), Repeat loop, per-note on/off mask.
 
-## Test (`test-settings`)
+## Trace (`trace-settings`)
 
 Changing any key/guide setting also resets the trace (the chart is only
 meaningful for one configuration).

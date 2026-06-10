@@ -813,7 +813,7 @@ Phrases includes an embedded Test panel for checking the current phrase against 
 
 # Test Tab - Key Pitch Trace
 
-Dedicated tab: `test.html` / `test.js` / `test.css`.
+Dedicated tab: `trace.html` / `trace.js` / `trace.css`.
 
 ## Goal
 
