@@ -145,9 +145,14 @@ trend lines.
 
 ## Testing
 
-`npm test` runs the headless suite in `tests/` (page loads, playback law,
-shared controls + persistence, per-tab functions; fake mic for listening
-tests). `npm run lint` (ast-grep, including the ownership guards) and
+`npm test` runs the fast headless profile in `tests/`: JavaScript syntax,
+CSS ownership, and page-load smoke. It is the default pre-push check for
+ordinary docs/CSS/small-JS work.
+
+Use `node tests/run-all.js --suite <suite-file>` for targeted browser checks.
+Use `npm run test:full` for slower playback law, shared controls +
+persistence, per-tab functions, and fake-mic listening tests when touching
+those systems. `npm run lint` (ast-grep, including the ownership guards) and
 `npm run typecheck` (checkJs) must stay clean - errors in `player.js` /
 `ebook.js` are a known pre-existing baseline.
 

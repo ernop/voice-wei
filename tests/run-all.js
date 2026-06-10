@@ -1,6 +1,9 @@
 // @ts-check
-// Runs the whole suite against a local static server.
-// Usage: npm test  (or: node tests/run-all.js)
+// Runs browser suites against a local static server.
+// Usage:
+//   npm test                 # fast default: syntax + smoke + CSS ownership
+//   npm run test:full        # slower audio/mic/playback end-to-end coverage
+//   node tests/run-all.js --suite test-controls.js
 // Requires: Chrome installed (or CHROME_PATH env), npm install done.
 
 const { spawn, spawnSync } = require('child_process');
@@ -10,13 +13,29 @@ const path = require('path');
 const PORT = process.env.TEST_PORT || '8000';
 const ROOT = path.join(__dirname, '..');
 
-const SUITES = [
+const FAST_SUITES = [
+    'test-syntax.js',
     'test-css-ownership.js',
-    'test-pages-load.js',
+    'test-pages-load.js'
+];
+
+const FULL_SUITES = [
+    ...FAST_SUITES,
     'test-playback-engine.js',
     'test-controls.js',
     'test-functions.js'
 ];
+
+function suitesForArgs(args) {
+    const suiteIndex = args.indexOf('--suite');
+    if (suiteIndex !== -1) {
+        const suite = args[suiteIndex + 1];
+        if (!suite) throw new Error('--suite requires a file name');
+        return { profile: 'custom', suites: [suite] };
+    }
+    if (args.includes('--full')) return { profile: 'full', suites: FULL_SUITES };
+    return { profile: 'fast', suites: FAST_SUITES };
+}
 
 function serverUp() {
     return new Promise(resolve => {
@@ -26,6 +45,7 @@ function serverUp() {
 }
 
 async function main() {
+    const { profile, suites } = suitesForArgs(process.argv.slice(2));
     let server = null;
     if (!(await serverUp())) {
         server = spawn('python3', ['-m', 'http.server', PORT], { cwd: ROOT, stdio: 'ignore' });
@@ -35,11 +55,12 @@ async function main() {
     }
 
     let failures = 0;
-    for (const suite of SUITES) {
+    console.log(`Running ${profile} test profile (${suites.join(', ')})`);
+    for (const suite of suites) {
         console.log(`\n========== ${suite} ==========`);
         const result = spawnSync('node', [path.join(__dirname, suite)], {
             stdio: 'inherit',
-            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}` }
+            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
         });
         if (result.status !== 0) failures++;
     }

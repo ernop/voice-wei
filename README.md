@@ -63,13 +63,18 @@ HTTPS is required for microphone access when deployed.
 
 ```bash
 npm install   # once; installs playwright (uses your installed Chrome)
-npm test      # headless suite: page loads, playback engine, controls, tab functions
+npm test      # fast suite: JS syntax, CSS ownership, page-load smoke
+npm run test:full  # slower playback/mic/control/tab end-to-end suite
 ```
 
 The suite starts its own static server on port 8000 (or reuses one already
-running). Set `CHROME_PATH` if Chrome is not auto-detected; mic tests use
-Chrome's fake audio device. Also: `npm run lint` (ast-grep, including the
-shared-library ownership guards) and `npm run typecheck`.
+running). Set `CHROME_PATH` if Chrome is not auto-detected; full mic tests use
+Chrome's fake audio device. For ordinary text/CSS/small JS changes, use the
+fast default plus any targeted suite (`node tests/run-all.js --suite
+test-controls.js`). Use `npm run test:full` when touching playback, mic,
+progress recording, media session behavior, or cross-tab flows. Also:
+`npm run lint` (ast-grep, including the shared-library ownership guards) and
+`npm run typecheck`.
 
 ## Version system
 

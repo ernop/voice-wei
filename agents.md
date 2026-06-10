@@ -17,7 +17,7 @@ repo-wide conventions worth restating.
 | docs/architecture.md | Touching shared libraries, playback, or the scales engine (the section-note rules there have caused real bugs) |
 | docs/parameters.md | Adding or changing any user-facing setting (pick a behavior from the fixed vocabulary, update the table) |
 | docs/tools.md | Changing user-visible behavior of a tab |
-| tests/ | Always: `npm test` must pass before pushing |
+| tests/ | Always: fast `npm test` must pass before pushing; use targeted suites or `npm run test:full` for risky playback/mic/control changes |
 
 ## Non-negotiables (summary; full versions in .cursor/rules/)
 
@@ -40,5 +40,8 @@ repo-wide conventions worth restating.
 ## Shipping
 
 1. `npm test` && `npm run lint` && `npm run typecheck`
+   - `npm test` is intentionally fast: JS syntax, CSS ownership, page-load smoke.
+   - Add `node tests/run-all.js --suite <suite-file>` or `npm run test:full`
+     when the touched code needs deeper playback/mic/control coverage.
 2. `./bump-version.sh` (updates VERSION, header label, all `?v=` cache busters)
 3. Commit in small logical steps, push `master` - this deploys to production.
