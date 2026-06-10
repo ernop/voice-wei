@@ -84,14 +84,6 @@
     background: transparent;
 }
 
-.phrase-button-row,
-.phrase-toggle-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
 .phrase-pitch-step-field {
     margin-bottom: 0;
 }
@@ -107,16 +99,8 @@
     gap: 5px;
 }
 
-.phrase-toggle-row .display-toggle {
-    margin: 0;
-}
-
-.phrase-control-card-output .phrase-button-row {
+.phrase-control-card-output .vf-options {
     justify-content: center;
-}
-
-.phrase-repeat-button {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
 }
 
 .phrase-history-degrees {
@@ -166,8 +150,7 @@
     cursor: pointer;
 }
 
-.phrase-stage-btn.selected,
-.voice-controls-row .phrase-repeat-button.selected {
+.phrase-stage-btn.selected {
     border-color: rgba(74, 222, 128, 0.7);
     background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
     box-shadow: 0 4px 15px rgba(74, 222, 128, 0.25);

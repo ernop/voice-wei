@@ -1,61 +1,7 @@
 /* Ears Page - Interval Training Styles */
 
-/* Voice Controls Row */
-.voice-controls-row {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-
-.next-button,
-.repeat-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 12px 20px;
-    min-width: 80px;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    margin: 0;
-}
-
-.next-button {
-    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
-    box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
-}
-
-.next-button:hover {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-    box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4);
-}
-
-.repeat-button {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
-}
-
-.repeat-button:hover {
-    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
-}
-
-.next-button:active,
-.repeat-button:active {
-    transform: scale(0.98);
-}
-
-.next-button .button-icon,
-.repeat-button .button-icon {
-    font-size: 1.2rem;
-}
+/* Voice row layout and transport button looks come from
+   practice-controls.css (shared vocabulary). */
 
 /* Interval Display */
 .interval-display {
@@ -243,26 +189,6 @@
     margin-top: 16px;
 }
 
-.sing-control-btn {
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.sing-control-btn:hover {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(255, 255, 255, 0.35);
-}
-
-.sing-skip-btn:hover {
-    background: rgba(239, 68, 68, 0.3);
-    border-color: rgba(239, 68, 68, 0.5);
-}
-
 /* Drone Test Panel */
 .drone-panel {
     background: rgba(0, 0, 0, 0.25);
@@ -364,34 +290,6 @@
     margin-bottom: 16px;
 }
 
-.setting-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.setting-row:last-child {
-    border-bottom: none;
-}
-
-.setting-label {
-    min-width: 70px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.setting-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-}
-
 /* Interval Toggles */
 .interval-toggles {
     gap: 4px;
@@ -453,22 +351,6 @@
     margin: 0;
     font-size: 1rem;
     color: rgba(255, 255, 255, 0.9);
-}
-
-.reset-stats-btn {
-    padding: 5px 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.7rem;
-    cursor: pointer;
-}
-
-.reset-stats-btn:hover {
-    background: rgba(239, 68, 68, 0.3);
-    border-color: rgba(239, 68, 68, 0.5);
-    color: #fff;
 }
 
 .stats-summary {
@@ -544,68 +426,28 @@
     margin-bottom: 16px;
 }
 
-.history-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.history-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.clear-history-btn {
-    padding: 5px 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.7rem;
-    cursor: pointer;
-}
-
-.clear-history-btn:hover {
-    background: rgba(239, 68, 68, 0.3);
-    border-color: rgba(239, 68, 68, 0.5);
-    color: #fff;
-}
-
-.history-list {
-    display: flex;
+/* Ears history is a compact chip flow (page modifier on the shared list) */
+.history-list-chips {
+    flex-direction: row;
     flex-wrap: wrap;
     gap: 6px;
     max-height: 120px;
-    overflow-y: auto;
 }
 
-.history-empty {
-    color: rgba(255, 255, 255, 0.4);
-    font-style: italic;
-    font-size: 0.85rem;
-    margin: 0;
-    padding: 8px 0;
-}
-
-.history-item {
-    display: flex;
-    align-items: center;
+.history-list-chips .history-item {
     gap: 4px;
     padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.08);
     border-radius: 4px;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.75rem;
 }
 
-.history-item.correct {
+.history-list-chips .history-item.correct {
     background: rgba(74, 222, 128, 0.15);
     color: #4ade80;
 }
 
-.history-item.incorrect {
+.history-list-chips .history-item.incorrect {
     background: rgba(248, 113, 113, 0.15);
     color: #f87171;
 }
@@ -652,14 +494,6 @@
         grid-template-columns: repeat(3, 1fr);
     }
 
-    .setting-row {
-        flex-wrap: wrap;
-    }
-
-    .setting-label {
-        min-width: 100%;
-        margin-bottom: 6px;
-    }
 
     .pitch-display {
         flex-direction: column;
@@ -676,13 +510,4 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .voice-controls-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .next-button,
-    .repeat-button {
-        width: 100%;
-    }
 }

@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Trace - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=91">
-    <link rel="stylesheet" href="practice-controls.css?v=91">
-    <link rel="stylesheet" href="trace.css?v=91">
+    <link rel="stylesheet" href="style.css?v=92">
+    <link rel="stylesheet" href="practice-controls.css?v=92">
+    <link rel="stylesheet" href="trace.css?v=92">
 </head>
 
 <body data-page="trace">
@@ -23,14 +23,14 @@
                     <p>Start singing and watch your voice move through the current key. Type a degree pattern to add guide targets.</p>
                 </div>
                 <div class="trace-actions">
-                    <button id="startBtn" class="trace-primary-btn" type="button">Start</button>
-                    <button id="resetBtn" class="trace-secondary-btn" type="button">Reset</button>
+                    <button id="startBtn" class="play-button" type="button">Start</button>
+                    <button id="resetBtn" class="secondary-btn" type="button">Reset</button>
                 </div>
             </section>
 
             <section class="trace-pattern-card">
                 <label for="patternInput">Pattern guides</label>
-                <input id="patternInput" type="text" inputmode="text" autocomplete="off" placeholder="1 2 3 5 3 1">
+                <input id="patternInput" class="text-input" type="text" inputmode="text" autocomplete="off" placeholder="1 2 3 5 3 1">
                 <div class="trace-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.</div>
                 <label class="display-toggle trace-play-toggle">
                     <input type="checkbox" id="playGuidesToggle">
@@ -60,7 +60,7 @@
                     <span class="step-value" id="guideIntervalValue">1s</span>
                     <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
                 </div>
-                <div class="trace-option-row">
+                <div class="vf-options">
                     <label class="display-toggle">
                         <input type="checkbox" id="pauseOnSilenceToggle" checked>
                         <span>Pause on silence</span>
@@ -74,11 +74,11 @@
                         <span>Expand range</span>
                     </label>
                 </div>
-                <div class="trace-scale-row" aria-label="Guide sound">
+                <div class="vf-options trace-scale-row" aria-label="Guide sound">
                     <button class="vf-btn" data-guide-sound="piano">piano guides</button>
                     <button class="vf-btn" data-guide-sound="beep">beep guides</button>
                 </div>
-                <div class="trace-scale-row">
+                <div class="vf-options trace-scale-row">
                     <button class="vf-btn" data-scale="major">major</button>
                     <button class="vf-btn" data-scale="minor">minor</button>
                     <button class="vf-btn" data-scale="chromatic">chromatic</button>
@@ -96,14 +96,14 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=91"></script>
-    <script src="music-constants.js?v=91"></script>
-    <script src="piano-core.js?v=91"></script>
-    <script src="pitch-detect-core.js?v=91"></script>
-    <script src="pitch-trace-view.js?v=91"></script>
-    <script src="practice-controls.js?v=91"></script>
-    <script src="settings-store.js?v=91"></script>
-    <script src="trace.js?v=91"></script>
+    <script src="shared-header.js?v=92"></script>
+    <script src="music-constants.js?v=92"></script>
+    <script src="piano-core.js?v=92"></script>
+    <script src="pitch-detect-core.js?v=92"></script>
+    <script src="pitch-trace-view.js?v=92"></script>
+    <script src="practice-controls.js?v=92"></script>
+    <script src="settings-store.js?v=92"></script>
+    <script src="trace.js?v=92"></script>
 </body>
 
 </html>

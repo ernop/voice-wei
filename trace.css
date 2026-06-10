@@ -37,34 +37,6 @@
     flex-wrap: wrap;
 }
 
-.trace-primary-btn,
-.trace-secondary-btn {
-    min-width: 98px;
-    padding: 13px 16px;
-    border: 0;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.trace-primary-btn {
-    background: linear-gradient(135deg, #14b8a6, #0f766e);
-    color: white;
-    box-shadow: 0 8px 24px rgba(20, 184, 166, 0.28);
-}
-
-.trace-primary-btn.listening {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.3);
-}
-
-.trace-secondary-btn {
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.86);
-}
-
 .trace-pattern-card {
     margin-bottom: 10px;
     padding: 12px;
@@ -80,21 +52,12 @@
     text-transform: uppercase;
 }
 
+/* Sizing only; the look comes from the shared .text-input */
 #patternInput {
     width: 100%;
     box-sizing: border-box;
-    padding: 13px 14px;
-    border: 1px solid rgba(125, 211, 252, 0.28);
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.34);
-    color: #e8f5e9;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 1.05rem;
-}
-
-#patternInput:focus {
-    outline: 2px solid rgba(14, 165, 233, 0.55);
-    outline-offset: 2px;
 }
 
 .trace-pattern-help {
@@ -109,14 +72,6 @@
 }
 
 .trace-compact-controls,
-.trace-scale-row,
-.trace-option-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
 .trace-compact-controls {
     margin: 0 0 10px;
     padding: 6px;
@@ -124,10 +79,6 @@
 
 .trace-scale-row .vf-btn {
     flex: 1 1 auto;
-}
-
-.trace-option-row .display-toggle {
-    margin: 0;
 }
 
 .trace-readout {

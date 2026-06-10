@@ -57,72 +57,12 @@ main {
     cursor: pointer;
 }
 
-.log-toggle-btn {
-    padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.7);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.log-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
 .log-label {
     font-weight: 600;
     font-size: 0.85rem;
     opacity: 0.7;
     flex: 1;
     text-align: left;
-}
-
-.select-all-btn {
-    padding: 5px 12px;
-    background: rgba(74, 222, 128, 0.2);
-    color: #86efac;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.select-all-btn:hover {
-    background: rgba(74, 222, 128, 0.3);
-}
-
-.copy-all-btn {
-    padding: 5px 12px;
-    background: rgba(74, 222, 128, 0.2);
-    color: #86efac;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.copy-all-btn:hover {
-    background: rgba(74, 222, 128, 0.3);
-}
-
-.clear-log-btn {
-    padding: 5px 12px;
-    background: rgba(239, 68, 68, 0.6);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.clear-log-btn:hover {
-    background: rgba(239, 68, 68, 0.8);
 }
 
 .log-content {
@@ -425,32 +365,8 @@ h1 {
     color: #a7f3d0;
 }
 
-.voice-controls-row {
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    gap: 8px;
-    margin-bottom: 10px;
-    min-height: 120px;
-
-    /* Keep primary controls reachable while scrolling */
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: rgba(0, 0, 0, 0.22);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(6px);
-}
-
-.voice-controls-row .listen-button {
-    flex: 1;
-    height: 120px;
-}
-
-.voice-controls-row .stop-button,
-.voice-controls-row .play-button {
-    height: 120px;
-}
+/* .voice-controls-row layout and transport button looks live in
+   practice-controls.css (single owner for the shared control set). */
 
 .submit-button-large {
     flex: 1;
@@ -505,6 +421,15 @@ h1 {
 
 .listen-button:active {
     transform: scale(0.95);
+}
+
+.listen-button:disabled {
+    background: rgba(100, 100, 100, 0.3);
+    color: rgba(255, 255, 255, 0.4);
+    cursor: not-allowed;
+    box-shadow: none;
+    animation: none;
+    transform: none;
 }
 
 .listen-button.listening {
@@ -600,27 +525,12 @@ h1 {
     align-items: stretch;
 }
 
+/* Sizing only; the look comes from the shared .text-input */
 .typed-command-input {
     flex: 1;
     min-height: 64px;
     resize: vertical;
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid rgba(74, 222, 128, 0.25);
-    background: rgba(255, 255, 255, 0.08);
-    color: #e8f5e9;
-    font: inherit;
     line-height: 1.4;
-}
-
-.typed-command-input:focus {
-    outline: none;
-    border-color: rgba(74, 222, 128, 0.55);
-    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.12);
-}
-
-.typed-command-input::placeholder {
-    color: rgba(232, 245, 233, 0.62);
 }
 
 .typed-command-submit-btn {
@@ -912,26 +822,7 @@ h1 {
     display: none;
 }
 
-.stop-button {
-    padding: 15px 40px;
-    font-size: 1.2rem;
-    font-weight: 600;
-    background: rgba(255, 71, 87, 0.9);
-    color: white;
-    border: none;
-    border-radius: 30px;
-    cursor: pointer;
-    margin-top: 20px;
-    touch-action: manipulation;
-}
-
-.stop-button:hover {
-    background: #ff4757;
-}
-
-.stop-button:active {
-    transform: scale(0.95);
-}
+/* Transport buttons (stop/play/next/repeat) live in practice-controls.css. */
 
 .central-player {
     margin: 8px 0;
@@ -1479,14 +1370,6 @@ h1 {
 
 /* Desktop: compact voice controls - the big button is designed for driving (mobile) */
 @media (min-width: 769px) {
-    .voice-controls-row {
-        min-height: 48px;
-    }
-
-    .voice-controls-row .listen-button {
-        height: 48px;
-    }
-
     .listen-button {
         height: 48px;
         font-size: 1rem;
@@ -1507,23 +1390,10 @@ h1 {
         font-size: 1.1rem;
         border-radius: 10px;
     }
-
-    .voice-controls-row .stop-button,
-    .voice-controls-row .play-button {
-        height: 48px;
-    }
 }
 
 /* Tablet: moderate sizing */
 @media (min-width: 481px) and (max-width: 768px) {
-    .voice-controls-row {
-        min-height: 80px;
-    }
-
-    .voice-controls-row .listen-button {
-        height: 80px;
-    }
-
     .listen-button {
         height: 80px;
     }
@@ -1694,15 +1564,10 @@ h1 {
     margin-bottom: 12px;
 }
 
+/* Sizing only; the look comes from the shared .text-input */
 .api-key-input {
     flex: 1;
-    padding: 12px 14px;
-    font-size: 1rem;
     font-family: 'SF Mono', 'Consolas', monospace;
-    border-radius: 8px;
-    border: 2px solid rgba(74, 222, 128, 0.3);
-    background: rgba(0, 0, 0, 0.3);
-    color: #e8f5e9;
 }
 
 .api-key-input:focus {

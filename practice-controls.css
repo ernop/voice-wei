@@ -366,7 +366,17 @@
     font-weight: 500;
 }
 
-.voice-controls-row .stop-button {
+/* ============================================
+   TRANSPORT BUTTONS (one vocabulary, every page)
+   stop = red, play = teal, next = orange, repeat = indigo.
+   Unscoped so the same button works in the sticky voice
+   row and inside panels (pitch-meter, trace).
+   ============================================ */
+
+.stop-button,
+.play-button,
+.next-button,
+.repeat-button {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -374,98 +384,147 @@
     gap: 4px;
     padding: 12px 20px;
     min-width: 80px;
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: white;
     border: none;
     border-radius: 12px;
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
     margin: 0;
 }
 
-.voice-controls-row .stop-button:hover {
+.stop-button {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.stop-button:hover {
     background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
     box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
-.voice-controls-row .stop-button:active {
-    transform: scale(0.98);
-}
-
-.voice-controls-row .stop-button .button-icon {
-    font-size: 1.2rem;
-}
-
-.voice-controls-row .play-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 12px 20px;
-    min-width: 80px;
+.play-button {
     background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
     box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
-    margin: 0;
 }
 
-.voice-controls-row .play-button:hover {
+.play-button:hover {
     background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
     box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4);
 }
 
-.voice-controls-row .play-button:active {
+/* Mic-toggle play buttons (trace Start) go amber while listening */
+.play-button.listening {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+
+.next-button {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+
+.next-button:hover {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+}
+
+.repeat-button {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.repeat-button:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+/* Latching repeat (phrases): green while repeat mode is on */
+.repeat-button.selected {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    box-shadow: 0 4px 15px rgba(74, 222, 128, 0.25);
+}
+
+.stop-button:active,
+.play-button:active,
+.next-button:active,
+.repeat-button:active {
     transform: scale(0.98);
 }
 
-.voice-controls-row .play-button:disabled {
+.stop-button:disabled,
+.play-button:disabled,
+.next-button:disabled,
+.repeat-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
 }
 
-.voice-controls-row .play-button .button-icon {
+.stop-button .button-icon,
+.play-button .button-icon,
+.next-button .button-icon,
+.repeat-button .button-icon {
     font-size: 1.2rem;
 }
 
-.voice-controls-row .next-button {
+/* The sticky voice row: layout and responsive sizing */
+.voice-controls-row {
     display: flex;
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 12px 20px;
-    min-width: 80px;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-    margin: 0;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 10px;
+    min-height: 120px;
+
+    /* Keep primary controls reachable while scrolling */
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.22);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(6px);
 }
 
-.voice-controls-row .next-button:hover {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+.voice-controls-row .listen-button {
+    flex: 1;
+    height: 120px;
 }
 
-.voice-controls-row .next-button:active {
-    transform: scale(0.98);
+.voice-controls-row .stop-button,
+.voice-controls-row .play-button,
+.voice-controls-row .next-button,
+.voice-controls-row .repeat-button {
+    height: 120px;
 }
 
-.voice-controls-row .next-button .button-icon {
-    font-size: 1.2rem;
+/* Desktop: compact voice controls - the big buttons are for driving */
+@media (min-width: 769px) {
+    .voice-controls-row {
+        min-height: 48px;
+    }
+
+    .voice-controls-row .listen-button {
+        height: 48px;
+    }
+
+    .voice-controls-row .stop-button,
+    .voice-controls-row .play-button,
+    .voice-controls-row .next-button,
+    .voice-controls-row .repeat-button {
+        height: 48px;
+    }
+}
+
+/* Tablet: moderate sizing */
+@media (min-width: 481px) and (max-width: 768px) {
+    .voice-controls-row {
+        min-height: 80px;
+    }
+
+    .voice-controls-row .listen-button {
+        height: 80px;
+    }
 }
 
 .command-history {
@@ -488,7 +547,30 @@
     color: rgba(255, 255, 255, 0.9);
 }
 
-.clear-history-btn {
+/* Text fields: one base look everywhere. Pages may size them
+   (width, font-size, resize) but never re-skin them. */
+.text-input {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+    font: inherit;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: rgba(74, 222, 128, 0.6);
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.12);
+}
+
+.text-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Small utility chip for panel corners and inline actions:
+   Copy All, Clear, Save, Apply, Delete, Reset, Random, Test, Show... */
+.panel-action-btn {
     padding: 6px 12px;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.7);
@@ -498,10 +580,45 @@
     cursor: pointer;
 }
 
-.clear-history-btn:hover {
+.panel-action-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+
+.panel-action-btn:active {
+    transform: scale(0.98);
+}
+
+/* Destructive chip actions (Clear, Delete, Reset stats) hover red */
+.panel-action-btn.danger:hover {
     background: rgba(239, 68, 68, 0.3);
     border-color: rgba(239, 68, 68, 0.5);
-    color: #fff;
+}
+
+/* Mid-size neutral action button (trace Reset, ears sing controls) */
+.secondary-btn {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.secondary-btn:active {
+    transform: scale(0.98);
+}
+
+.secondary-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
 }
 
 .history-list {
@@ -603,12 +720,6 @@
     margin-left: 12px;
 }
 
-.vf-row .vf-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1px;
-}
-
 .vf-label {
     font-size: 0.8rem;
     font-weight: 600;
@@ -618,10 +729,13 @@
     letter-spacing: 0.5px;
 }
 
+/* Option container: used inside labeled vf-rows and standalone
+   (phrases/trace chip rows). Canonical chip gap is 5px (phrases). */
 .vf-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 1px;
+    align-items: center;
+    gap: 5px;
 }
 
 @media (max-width: 600px) {

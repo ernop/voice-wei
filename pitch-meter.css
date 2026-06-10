@@ -20,10 +20,8 @@
     gap: 8px;
 }
 
-.setting-label {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: rgba(232, 245, 233, 0.8);
+.setting-group .vf-label {
+    margin-bottom: 0;
 }
 
 .pitch-settings {
@@ -44,108 +42,18 @@
     gap: 8px;
 }
 
-/* Control Buttons */
+/* Control buttons: same layout as the shared voice row; button looks
+   come from the shared transport set (listen/stop/play). */
 .pitch-controls {
     display: flex;
     justify-content: center;
+    align-items: stretch;
     gap: 12px;
     margin-bottom: 20px;
 }
 
-.listen-button,
-.stop-button-pitch,
-.play-ref-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 16px 32px;
-    border-radius: 12px;
-    border: none;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 100px;
-}
-
-.listen-button {
-    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-    color: #052e16;
-    box-shadow: 0 4px 20px rgba(74, 222, 128, 0.3);
-}
-
-.listen-button:hover:not(:disabled) {
-    transform: scale(1.05);
-    box-shadow: 0 6px 25px rgba(74, 222, 128, 0.4);
-}
-
-.listen-button:disabled {
-    background: rgba(100, 100, 100, 0.3);
-    color: rgba(255, 255, 255, 0.4);
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-.listen-button.listening {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    animation: pulse-listen 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-listen {
-
-    0%,
-    100% {
-        box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
-    }
-
-    50% {
-        box-shadow: 0 4px 35px rgba(245, 158, 11, 0.7);
-    }
-}
-
-.stop-button-pitch {
-    background: rgba(100, 100, 100, 0.3);
-    color: rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.stop-button-pitch:not(:disabled) {
-    background: rgba(239, 68, 68, 0.8);
-    color: white;
-    border-color: transparent;
-}
-
-.stop-button-pitch:not(:disabled):hover {
-    background: rgba(239, 68, 68, 1);
-    transform: scale(1.05);
-}
-
-.play-ref-button {
-    background: rgba(74, 222, 128, 0.2);
-    color: #86efac;
-    border: 1px solid rgba(74, 222, 128, 0.3);
-}
-
-.play-ref-button:hover:not(:disabled) {
-    background: rgba(74, 222, 128, 0.3);
-    transform: scale(1.05);
-}
-
-.play-ref-button:disabled {
-    background: rgba(100, 100, 100, 0.2);
-    color: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.1);
-    cursor: not-allowed;
-}
-
-.pitch-controls .button-icon {
-    font-size: 1.5rem;
-}
-
-.pitch-controls .button-text {
-    font-size: 0.9rem;
+.pitch-controls .listen-button {
+    flex: 1;
 }
 
 /* Real-time Pitch Display */
@@ -362,13 +270,6 @@
 
     .pitch-controls {
         flex-wrap: wrap;
-    }
-
-    .listen-button,
-    .stop-button-pitch,
-    .play-ref-button {
-        min-width: 80px;
-        padding: 12px 20px;
     }
 
     .pitch-display {
