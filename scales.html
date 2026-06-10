@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=90">
-    <link rel="stylesheet" href="practice-controls.css?v=90">
-    <link rel="stylesheet" href="scales.css?v=90">
+    <link rel="stylesheet" href="style.css?v=91">
+    <link rel="stylesheet" href="practice-controls.css?v=91">
+    <link rel="stylesheet" href="scales.css?v=91">
 </head>
 
 <body data-page="scales">
@@ -83,23 +83,11 @@
                 <div class="vf-row">
                     <span class="vf-label" data-full="Root" data-abbr="Rt">Root</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-root="C">C</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
-                        <button class="vf-btn" data-root="D">D</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
-                        <button class="vf-btn" data-root="E">E</button>
-                        <button class="vf-btn" data-root="F">F</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
-                        <button class="vf-btn" data-root="G">G</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
-                        <button class="vf-btn" data-root="A">A</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
-                        <button class="vf-btn" data-root="B">B</button>
-                    </div>
-                    <span class="vf-label vf-label-inline" data-full="Octave" data-abbr="Oct">Octave</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-octave="3">3</button>
-                        <button class="vf-btn" data-octave="4">4</button>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                            <span class="step-value" id="rootPitchValue">C4</span>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -153,30 +141,36 @@
                 <div class="vf-row">
                     <span class="vf-label" data-full="Direction" data-abbr="Dir">Direction</span>
                     <div class="vf-options">
+                        <div class="segment-row">
                         <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
                         <button class="vf-btn" data-direction="descending" data-full="down" data-abbr="d">down</button>
                         <button class="vf-btn" data-direction="both" data-full="up+down"
                             data-abbr="u+d">up+down</button>
                         <button class="vf-btn" data-direction="down_and_up" data-full="down+up"
                             data-abbr="d+u">down+up</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label" data-full="Repeat" data-abbr="Rep">Repeat</span>
                     <div class="vf-options">
+                        <div class="segment-row">
                         <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
                         <button class="vf-btn" data-repeat="2" data-full="twice" data-abbr="2x">twice</button>
                         <button class="vf-btn" data-repeat="Infinity" data-full="&#8734;"
                             data-abbr="&#8734;">&#8734;</button>
                         <button class="vf-btn" data-repeat="Infinity-nogap" data-full="&#8734;+no gap"
                             data-abbr="&#8734; 0g">&#8734;+no gap</button>
+                        </div>
                     </div>
                     <span class="vf-label vf-label-inline" data-full="Rising" data-abbr="Ris">Rising</span>
                     <div class="vf-options">
+                        <div class="segment-row">
                         <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
                         <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
+                        </div>
                     </div>
                 </div>
 
@@ -196,14 +190,17 @@
                     </div>
                     <span class="vf-label vf-label-inline" data-full="Shifting" data-abbr="Shf">Shifting</span>
                     <div class="vf-options">
+                        <div class="segment-row">
                         <button class="vf-btn" data-shifting="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-shifting="1" data-full="on" data-abbr="on">on</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <span class="vf-label" data-full="Section Width" data-abbr="Wid">Section Width</span>
                     <div class="vf-options">
+                        <div class="segment-row">
                         <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
                             octave</button>
                         <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
@@ -212,6 +209,7 @@
                             data-abbr="1o+5">octave+5th</button>
                         <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
                             octaves</button>
+                        </div>
                     </div>
                 </div>
 
@@ -303,14 +301,20 @@
                         </select>
                     </div>
                     <div class="setting-group">
-                        <label for="voiceRate">Speed:</label>
-                        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1">
-                        <span id="voiceRateValue">1x</span>
+                        <label>Speed:</label>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="-1" aria-label="Slower voice">-</button>
+                            <span class="step-value" id="voiceRateValue">1x</span>
+                            <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="1" aria-label="Faster voice">+</button>
+                        </div>
                     </div>
                     <div class="setting-group">
-                        <label for="voicePitch">Pitch:</label>
-                        <input type="range" id="voicePitch" min="0.5" max="1.5" step="0.1" value="1">
-                        <span id="voicePitchValue">1</span>
+                        <label>Pitch:</label>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="-1" aria-label="Lower voice pitch">-</button>
+                            <span class="step-value" id="voicePitchValue">1.0</span>
+                            <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="1" aria-label="Higher voice pitch">+</button>
+                        </div>
                     </div>
                     <button id="testVoiceBtn" class="test-voice-btn">Test</button>
                 </div>
@@ -324,20 +328,20 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=90"></script>
-    <script src="music-constants.js?v=90"></script>
-    <script src="voice-output.js?v=90"></script>
-    <script src="voice-command-core.js?v=90"></script>
-    <script src="piano-core.js?v=90"></script>
-    <script src="pitch-detect-core.js?v=90"></script>
-    <script src="pitch-trace-view.js?v=90"></script>
-    <script src="practice-controls.js?v=90"></script>
-    <script src="history-list.js?v=90"></script>
-    <script src="settings-store.js?v=90"></script>
-    <script src="progress-store.js?v=90"></script>
-    <script src="media-session-core.js?v=90"></script>
-    <script src="pitch-test-panel.js?v=90"></script>
-    <script src="scales.js?v=90"></script>
+    <script src="shared-header.js?v=91"></script>
+    <script src="music-constants.js?v=91"></script>
+    <script src="voice-output.js?v=91"></script>
+    <script src="voice-command-core.js?v=91"></script>
+    <script src="piano-core.js?v=91"></script>
+    <script src="pitch-detect-core.js?v=91"></script>
+    <script src="pitch-trace-view.js?v=91"></script>
+    <script src="practice-controls.js?v=91"></script>
+    <script src="history-list.js?v=91"></script>
+    <script src="settings-store.js?v=91"></script>
+    <script src="progress-store.js?v=91"></script>
+    <script src="media-session-core.js?v=91"></script>
+    <script src="pitch-test-panel.js?v=91"></script>
+    <script src="scales.js?v=91"></script>
 </body>
 
 </html>

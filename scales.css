@@ -739,22 +739,6 @@
 
 /* .vf-btn base styles live in practice-controls.css (shared primitive). */
 
-/* Sharp notes - slightly different color */
-
-/* Root notes layout - tighter grid */
-
-.vf-roots {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 4px;
-}
-
-.vf-roots .vf-btn {
-    padding: 10px 4px;
-    text-align: center;
-    font-size: 0.85rem;
-}
-
 /* Scale types - wrap nicely */
 
 .vf-scales {
@@ -927,27 +911,13 @@
     border-radius: 0;
 }
 
-/* Mobile: make root notes 6 columns */
-
 @media (max-width: 600px) {
-    .vf-roots {
-        grid-template-columns: repeat(6, 1fr);
-    }
-
     .vf-actions {
         flex-direction: column;
     }
 
     .vf-play-btn {
         width: 100%;
-    }
-}
-
-/* Mobile: tighter horizontal padding on all buttons */
-
-@media (max-width: 400px) {
-    .vf-roots {
-        grid-template-columns: repeat(4, 1fr);
     }
 }
 

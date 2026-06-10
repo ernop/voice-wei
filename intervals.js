@@ -108,6 +108,8 @@
         lengthMs: [200, 400, 600, 800, 1000, 1500],
         gapMs: [100, 500, 1000, 1500, 2000, 3000, 5000]
     };
+    const ROOT_PITCH_MIN_MIDI = 36; // C2
+    const ROOT_PITCH_MAX_MIDI = 83; // B5
 
     const STORAGE_KEY = 'intervals-settings';
     const PERSISTED_KEYS = [
@@ -409,10 +411,17 @@
 
     // ---- UI ----
     function syncSteppers() {
+        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
         PracticeControls.setValueText('lengthValue', PracticeControls.formatSeconds(state.lengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatSeconds(state.gapMs));
-        PracticeControls.syncStepperDisabled((key, delta) =>
-            PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta));
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'rootPitch') {
+                const midi = noteNameToMidi(state.root, state.octave);
+                return midi === null
+                    || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+            }
+            return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
+        });
     }
 
     function updateLevelButtons() {
@@ -455,23 +464,25 @@
         updateLevelButtons();
 
         // Single-select setting groups
-        const singleGroups = [
-            { attr: 'data-root', stateKey: 'root', parse: String },
-            { attr: 'data-octave', stateKey: 'octave', parse: Number },
-            { attr: 'data-scale', stateKey: 'scale', parse: String },
-        ];
-        for (const { attr, stateKey, parse } of singleGroups) {
-            PracticeControls.wireSingleSelect(attr, parse, state[stateKey], value => {
-                state[stateKey] = value;
-                saveSettings();
-            });
-        }
+        PracticeControls.wireSingleSelect('data-scale', String, state.scale, value => {
+            state.scale = value;
+            saveSettings();
+        });
 
-        // Timing steppers (shared control)
+        // Root pitch / timing steppers (shared control)
         PracticeControls.wireSteppers((key, delta) => {
-            const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
-            if (next === null) return;
-            state[key] = next;
+            if (key === 'rootPitch') {
+                const midi = noteNameToMidi(state.root, state.octave);
+                if (midi === null) return;
+                const bounded = Math.max(ROOT_PITCH_MIN_MIDI, Math.min(ROOT_PITCH_MAX_MIDI, midi + delta));
+                const info = midiToNoteName(bounded);
+                state.root = info.name;
+                state.octave = info.octave;
+            } else {
+                const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
+                if (next === null) return;
+                state[key] = next;
+            }
             saveSettings();
             syncSteppers();
         });

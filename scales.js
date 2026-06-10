@@ -266,6 +266,10 @@ const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
 // Stepper value lists (the former chip-row options)
 const SCALES_NOTE_LENGTH_VALUES = [100, 150, 300, 500, 800, 1000, 1500, 2000, 3000, 5000];
 const SCALES_GAP_VALUES = [-0.5, -0.1, -0.05, 0, 50, 100, 150, 300, 500, 1000];
+const SCALES_ROOT_MIN_MIDI = 36; // C2
+const SCALES_ROOT_MAX_MIDI = 83; // B5
+const SCALES_VOICE_RATE_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
+const SCALES_VOICE_PITCH_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5];
 
 const SCALES_SETTINGS_STORAGE_KEY = 'scales-settings';
 const SCALES_PERSISTED_SETTING_KEYS = [
@@ -651,12 +655,60 @@ class ScalesController {
         this.settings.noteLengthMs = ms;
     }
 
+    /** Sync the TTS voice stepper labels and all stepper disabled states. */
+    syncVoiceSteppers() {
+        PracticeControls.setValueText('voiceRateValue', this.voiceCore.settings.voiceRate + 'x');
+        PracticeControls.setValueText('voicePitchValue', this.voiceCore.settings.voicePitch.toFixed(1));
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'rootPitch') {
+                const midi = noteNameToMidi(this.settings.root, this.settings.octave);
+                return midi === null
+                    || (delta < 0 ? midi <= SCALES_ROOT_MIN_MIDI : midi >= SCALES_ROOT_MAX_MIDI);
+            }
+            if (key === 'noteLengthMs') {
+                return PracticeControls.stepDisabled(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
+            }
+            if (key === 'voiceRate') {
+                return PracticeControls.stepDisabled(SCALES_VOICE_RATE_VALUES, this.voiceCore.settings.voiceRate, delta);
+            }
+            if (key === 'voicePitch') {
+                return PracticeControls.stepDisabled(SCALES_VOICE_PITCH_VALUES, this.voiceCore.settings.voicePitch, delta);
+            }
+            return PracticeControls.stepDisabled(SCALES_GAP_VALUES, this.settings.gapMs, delta);
+        });
+    }
+
     /**
-     * Stepper handler for the timing controls.
+     * Stepper handler for the root pitch, timing and voice controls.
      * @param {string} key @param {number} delta
      */
-    stepTimingValue(key, delta) {
-        if (key === 'noteLengthMs') {
+    stepSettingValue(key, delta) {
+        // TTS voice settings: immediate, no playback restart
+        if (key === 'voiceRate') {
+            const next = PracticeControls.stepValue(SCALES_VOICE_RATE_VALUES, this.voiceCore.settings.voiceRate, delta);
+            if (next !== null) {
+                this.voiceCore.setVoiceRate(next);
+                this.syncVoiceSteppers();
+            }
+            return;
+        }
+        if (key === 'voicePitch') {
+            const next = PracticeControls.stepValue(SCALES_VOICE_PITCH_VALUES, this.voiceCore.settings.voicePitch, delta);
+            if (next !== null) {
+                this.voiceCore.setVoicePitch(next);
+                this.syncVoiceSteppers();
+            }
+            return;
+        }
+        if (key === 'rootPitch') {
+            const midi = noteNameToMidi(this.settings.root, this.settings.octave);
+            if (midi === null) return;
+            const bounded = Math.max(SCALES_ROOT_MIN_MIDI, Math.min(SCALES_ROOT_MAX_MIDI, midi + delta));
+            const info = midiToNoteName(bounded);
+            this.settings.root = info.name;
+            this.settings.octave = info.octave;
+            this.updatePianoKeyOctaves();
+        } else if (key === 'noteLengthMs') {
             const next = PracticeControls.stepValue(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
             if (next === null) return;
             this.setNoteLengthMs(next, 'stepper');
@@ -1082,28 +1134,6 @@ class ScalesController {
             });
         }
 
-        const voiceRate = /** @type {HTMLInputElement | null} */ (document.getElementById('voiceRate'));
-        const voiceRateValue = document.getElementById('voiceRateValue');
-        if (voiceRate) {
-            voiceRate.addEventListener('input', (e) => {
-                const target = /** @type {HTMLInputElement} */ (e.target);
-                const rate = parseFloat(target.value);
-                this.voiceCore.setVoiceRate(rate);
-                if (voiceRateValue) voiceRateValue.textContent = rate + 'x';
-            });
-        }
-
-        const voicePitch = /** @type {HTMLInputElement | null} */ (document.getElementById('voicePitch'));
-        const voicePitchValue = document.getElementById('voicePitchValue');
-        if (voicePitch) {
-            voicePitch.addEventListener('input', (e) => {
-                const target = /** @type {HTMLInputElement} */ (e.target);
-                const pitch = parseFloat(target.value);
-                this.voiceCore.setVoicePitch(pitch);
-                if (voicePitchValue) voicePitchValue.textContent = pitch.toFixed(1);
-            });
-        }
-
         const testVoiceBtn = document.getElementById('testVoiceBtn');
         if (testVoiceBtn) {
             testVoiceBtn.addEventListener('click', () => {
@@ -1154,12 +1184,6 @@ class ScalesController {
             btn.classList.toggle('selected', matchesCount && matchesGap);
         });
 
-        // Root note buttons
-        document.querySelectorAll('[data-root]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.root === this.settings.root);
-        });
-
         // Scale type buttons
         document.querySelectorAll('[data-scale-type]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1198,21 +1222,11 @@ class ScalesController {
             btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
         });
 
-        // Note length / gap steppers (shared control)
+        // Root pitch / note length / gap / voice steppers (shared control)
+        PracticeControls.setValueText('rootPitchValue', `${this.settings.root}${this.settings.octave}`);
         PracticeControls.setValueText('noteLengthValue', this.formatMsLabel(this.settings.noteLengthMs));
         PracticeControls.setValueText('gapValue', this.formatGapLabel(this.settings.gapMs));
-        PracticeControls.syncStepperDisabled((key, delta) => {
-            if (key === 'noteLengthMs') {
-                return PracticeControls.stepDisabled(SCALES_NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
-            }
-            return PracticeControls.stepDisabled(SCALES_GAP_VALUES, this.settings.gapMs, delta);
-        });
-
-        // Octave buttons
-        document.querySelectorAll('[data-octave]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', parseInt(btn.dataset.octave || '0') === this.settings.octave);
-        });
+        this.syncVoiceSteppers();
 
         // Octave span buttons
         document.querySelectorAll('[data-octave-span]').forEach(el => {
@@ -1365,15 +1379,6 @@ class ScalesController {
             });
         });
 
-        // Root note buttons
-        document.querySelectorAll('[data-root]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.root = btn.dataset.root || 'C';
-                this.onSettingChanged();
-            });
-        });
-
         // Scale type buttons
         document.querySelectorAll('[data-scale-type]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1429,18 +1434,8 @@ class ScalesController {
             });
         });
 
-        // Note length / gap steppers (shared control)
-        PracticeControls.wireSteppers((key, delta) => this.stepTimingValue(key, delta));
-
-        // Octave buttons
-        document.querySelectorAll('[data-octave]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.octave = parseInt(btn.dataset.octave || '4');
-                this.updatePianoKeyOctaves();
-                this.onSettingChanged();
-            });
-        });
+        // Root pitch / note length / gap steppers (shared control)
+        PracticeControls.wireSteppers((key, delta) => this.stepSettingValue(key, delta));
 
         // Octave span buttons
         document.querySelectorAll('[data-octave-span]').forEach(el => {
@@ -1555,9 +1550,7 @@ class ScalesController {
     }
 
     randomizeCoreFilters() {
-        const roots = Array.from(document.querySelectorAll('[data-root]'))
-            .map(el => (/** @type {HTMLElement} */ (el)).dataset.root)
-            .filter(Boolean);
+        const roots = NOTE_NAMES;
         const directions = Array.from(document.querySelectorAll('[data-direction]'))
             .map(el => (/** @type {HTMLElement} */ (el)).dataset.direction)
             .filter(Boolean);

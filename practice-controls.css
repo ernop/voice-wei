@@ -624,16 +624,6 @@
     gap: 1px;
 }
 
-.vf-btn-sharp {
-    background: rgba(100, 100, 100, 0.25);
-    font-size: 0.7rem;
-    padding: 5px 5px;
-}
-
-.vf-btn-sharp.selected {
-    background: rgba(74, 222, 128, 0.35);
-}
-
 @media (max-width: 600px) {
     .vf-btn {
         padding-left: 4px;

@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Intervals - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=90">
-    <link rel="stylesheet" href="practice-controls.css?v=90">
-    <link rel="stylesheet" href="intervals.css?v=90">
+    <link rel="stylesheet" href="style.css?v=91">
+    <link rel="stylesheet" href="practice-controls.css?v=91">
+    <link rel="stylesheet" href="intervals.css?v=91">
 </head>
 
 <body data-page="intervals">
@@ -53,23 +53,11 @@
                 <div class="vf-row">
                     <span class="vf-label">Root</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-root="C">C</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="C#">C#</button>
-                        <button class="vf-btn" data-root="D">D</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="D#">D#</button>
-                        <button class="vf-btn" data-root="E">E</button>
-                        <button class="vf-btn" data-root="F">F</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="F#">F#</button>
-                        <button class="vf-btn" data-root="G">G</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="G#">G#</button>
-                        <button class="vf-btn" data-root="A">A</button>
-                        <button class="vf-btn vf-btn-sharp" data-root="A#">A#</button>
-                        <button class="vf-btn" data-root="B">B</button>
-                    </div>
-                    <span class="vf-label vf-label-inline">Octave</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-octave="3">3</button>
-                        <button class="vf-btn" data-octave="4">4</button>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                            <span class="step-value" id="rootPitchValue">C4</span>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -90,8 +78,10 @@
                 <div class="vf-row">
                     <span class="vf-label">Type</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-type="A">Degrees (1-4-5)</button>
-                        <button class="vf-btn" data-type="B">Clusters (+2 -3)</button>
+                        <div class="segment-row">
+                            <button class="vf-btn" data-type="A">Degrees (1-4-5)</button>
+                            <button class="vf-btn" data-type="B">Clusters (+2 -3)</button>
+                        </div>
                     </div>
                 </div>
 
@@ -178,20 +168,20 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=90"></script>
-    <script src="music-constants.js?v=90"></script>
-    <script src="voice-output.js?v=90"></script>
-    <script src="pattern-practice-core.js?v=90"></script>
-    <script src="piano-core.js?v=90"></script>
-    <script src="pitch-detect-core.js?v=90"></script>
-    <script src="pitch-trace-view.js?v=90"></script>
-    <script src="practice-controls.js?v=90"></script>
-    <script src="history-list.js?v=90"></script>
-    <script src="settings-store.js?v=90"></script>
-    <script src="progress-store.js?v=90"></script>
-    <script src="media-session-core.js?v=90"></script>
-    <script src="pitch-test-panel.js?v=90"></script>
-    <script src="intervals.js?v=90"></script>
+    <script src="shared-header.js?v=91"></script>
+    <script src="music-constants.js?v=91"></script>
+    <script src="voice-output.js?v=91"></script>
+    <script src="pattern-practice-core.js?v=91"></script>
+    <script src="piano-core.js?v=91"></script>
+    <script src="pitch-detect-core.js?v=91"></script>
+    <script src="pitch-trace-view.js?v=91"></script>
+    <script src="practice-controls.js?v=91"></script>
+    <script src="history-list.js?v=91"></script>
+    <script src="settings-store.js?v=91"></script>
+    <script src="progress-store.js?v=91"></script>
+    <script src="media-session-core.js?v=91"></script>
+    <script src="pitch-test-panel.js?v=91"></script>
+    <script src="intervals.js?v=91"></script>
 </body>
 
 </html>
