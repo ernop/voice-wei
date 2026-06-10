@@ -9,9 +9,6 @@ if (typeof pdfjsLib !== 'undefined') {
 // OpenAI TTS limits: 4096 characters per request
 const TTS_CHUNK_SIZE = 4000;
 
-// Timing constants
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
-
 // Voice descriptions for UI
 const VOICE_DESCRIPTIONS = {
     alloy: 'Neutral and balanced, good for most content.',
@@ -206,7 +203,7 @@ class EbookController {
             return;
         }
 
-        const previewBtn = document.getElementById('previewVoiceBtn');
+        const previewBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('previewVoiceBtn'));
         if (!previewBtn) return;
 
         // If already playing, stop
@@ -305,7 +302,7 @@ class EbookController {
         }
 
         // Voice preview button
-        const previewBtn = document.getElementById('previewVoiceBtn');
+        const previewBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('previewVoiceBtn'));
         if (previewBtn) {
             previewBtn.addEventListener('click', () => this.previewVoice());
         }

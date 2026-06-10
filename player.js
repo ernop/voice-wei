@@ -273,6 +273,7 @@ class VoiceMusicController {
             if (!favData.videoId) continue;
             if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
 
+            /** @type {PlaylistItem} */
             const playlistItem = {
                 videoId: favData.videoId,
                 name: songName,
@@ -1087,6 +1088,7 @@ class VoiceMusicController {
             });
         }
 
+        /** @type {Array<[string, () => void]>} */
         const transportBindings = [
             ['lyricsTransportPrev', () => this.playPrevious()],
             ['lyricsTransportRestart', () => this.restartCurrentTrack()],
@@ -2992,6 +2994,7 @@ If the request is not about music, return an empty array [].`;
             return;
         }
 
+        /** @type {PlaylistItem} */
         const demoItem = {
             id: Date.now() + Math.random(),
             videoId: 'dQw4w9WgXcQ',
