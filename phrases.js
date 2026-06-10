@@ -44,13 +44,11 @@
     const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs']);
     const REDRAW_KEYS = new Set(['showNoteNames']);
     const ADJUSTER_VALUES = {
-        noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
-        gapMs: [0, 100, 250, 500],
+        noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
+        gapMs: PracticeControls.GAP_VALUES,
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 32, 40, 50]
     };
-    const ROOT_PITCH_MIN_MIDI = 36; // C2
-    const ROOT_PITCH_MAX_MIDI = 71; // B4
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
     let piano = null;
@@ -88,6 +86,10 @@
     }
 
     const sleep = PianoCore.sleep;
+
+    function effectiveGapMs() {
+        return PracticeControls.effectiveGapMs(state.gapMs, state.noteLengthMs);
+    }
 
     function playMidi(midi) {
         if (!piano) return;
@@ -139,6 +141,7 @@
         const degreesEl = getEl('phraseDegrees');
         if (!degreesEl) return;
         degreesEl.textContent = '';
+        degreesEl.classList.toggle('phrase-degrees-many', phrase.displayDegrees.length > 18);
         phrase.displayDegrees.forEach((degree, index) => {
             // The degree number is the mute toggle: tap to flip, drag
             // across several to paint the same state. Keeps the stage to
@@ -163,13 +166,14 @@
         });
     }
 
+    // Muted notes are simply not performed. Spoken output reads the mask
+    // once (one utterance); tone/sing playback reads it live, per note.
     function activeIndexes(phrase) {
         const indexes = [];
         for (let i = 0; i < phrase.midiNotes.length; i++) {
             if (activeMask[i] !== false) indexes.push(i);
         }
-        if (indexes.length) return indexes;
-        return phrase.midiNotes.map((_, i) => i);
+        return indexes;
     }
 
     /** @param {number} degree */
@@ -226,14 +230,15 @@
     function phraseTestDurationMs(phrase) {
         if (!phrase) return 4000;
         const noteCount = Math.max(phrase.midiNotes.length, 1);
-        const phraseMs = (noteCount * (state.noteLengthMs + state.gapMs)) - state.gapMs;
+        const gap = effectiveGapMs();
+        const phraseMs = (noteCount * (state.noteLengthMs + gap)) - gap;
         return Math.max(1200, phraseMs);
     }
 
     function buildPhraseTestTargets() {
         const phrase = phraseForPlayback();
         if (!phrase) return [];
-        const stepMs = state.noteLengthMs + state.gapMs;
+        const stepMs = state.noteLengthMs + effectiveGapMs();
         const phraseDuration = phraseTestDurationMs(phrase);
         return phrase.midiNotes.map((midi, index) => ({
             midi,
@@ -279,6 +284,7 @@
         const phrase = deriveDisplayPhrase();
         if (!phrase) {
             degreesEl.textContent = '--';
+            degreesEl.classList.remove('phrase-degrees-many');
             notesEl.textContent = '';
             return;
         }
@@ -329,11 +335,15 @@
         } while (token === playToken && state.loopCurrent);
     }
 
+    // The mask is read live, right before each note starts: toggling a
+    // later note during playback changes what WILL be played without
+    // touching the note currently sounding.
     async function playToneSequence(phrase, token) {
-        for (const i of activeIndexes(phrase)) {
+        for (let i = 0; i < phrase.midiNotes.length; i++) {
             if (token !== playToken) return;
+            if (activeMask[i] === false) continue;
             playMidi(phrase.midiNotes[i]);
-            await sleep(state.noteLengthMs + state.gapMs);
+            await sleep(state.noteLengthMs + effectiveGapMs());
         }
     }
 
@@ -345,12 +355,15 @@
         });
     }
 
+    // Same live mask read as playToneSequence.
     async function playSingNumberSequence(phrase, token) {
-        for (const i of activeIndexes(phrase)) {
+        for (let i = 0; i < phrase.midiNotes.length; i++) {
             if (token !== playToken) return;
+            if (activeMask[i] === false) continue;
             const midi = phrase.midiNotes[i];
             await speakNumberAtPitch(phrase.spokenDegrees[i], midi, state.noteLengthMs);
-            if (state.gapMs > 0) await sleep(state.gapMs);
+            const gap = effectiveGapMs();
+            if (gap > 0) await sleep(gap);
         }
     }
 
@@ -463,14 +476,13 @@
     function syncAdjusterControls() {
         PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
-        PracticeControls.setValueText('gapValue', PracticeControls.formatSeconds(state.gapMs));
+        PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
         PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
 
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
-                const midi = rootMidi();
-                return midi === null || (delta < 0 ? midi <= ROOT_PITCH_MIN_MIDI : midi >= ROOT_PITCH_MAX_MIDI);
+                return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
@@ -518,7 +530,7 @@
 
     /** @param {number} midi */
     function setRootPitchFromMidi(midi) {
-        const bounded = PatternPracticeCore.clamp(midi, ROOT_PITCH_MIN_MIDI, ROOT_PITCH_MAX_MIDI);
+        const bounded = PracticeControls.clampRootMidi(midi);
         const info = midiToNoteName(bounded);
         state.root = info.name;
         state.octave = info.octave;
