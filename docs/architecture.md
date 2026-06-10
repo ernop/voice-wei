@@ -215,6 +215,12 @@ One picker kind per value kind, everywhere:
   octave rows, sliders, or selects for pitches.
 - **Ordered numeric value** (durations, gaps, lengths, TTS rate/pitch):
   step field over a fixed value list.
+- **Shared presets**: the root, note-length, and gap pickers use the
+  single preset lists owned by `practice-controls.js`
+  (`ROOT_PITCH_MIN/MAX_MIDI`, `NOTE_LENGTH_VALUES`, `GAP_VALUES`) - the
+  same values on every page, resolved and labeled by the same helpers
+  (`effectiveGapMs`, `formatGapLabel`). Pages never carry their own
+  copies of these lists (see docs/parameters.md "Shared step presets").
 - **Small exclusive set** (mode, direction, type, repeat...): segment-row
   of vf-btn pills.
 - **Large named set** (scale types, output modes, presets): plain vf-btn
@@ -252,6 +258,23 @@ Page stylesheets may add layout (placement, sizing) on top of these but
 must not redefine their look. `tests/test-css-ownership.js` fails the
 suite if a page stylesheet redefines a selector owned by
 practice-controls.css.
+
+## Canonical settings order
+
+Settings appear in the same order on every practice page, following the
+most recent reviewed page (phrases):
+
+1. **Timing** - note length, then gap
+2. **Root** - the root pitch stepper
+3. **Shape** - the page's own pattern settings (range, algorithm,
+   direction, movement, repeat, exercise...)
+4. **Output/display options** - output mode chips, display toggles
+5. **Scale type** - the scale chip row
+6. **Actions** - reset/random rows close the block
+
+A page may omit groups it doesn't have, but never reorders the ones it
+shares. Page-unique surfaces that are not settings (scales' piano, the
+phrase stage) sit outside this order.
 
 ## Deliberately distinct surfaces
 

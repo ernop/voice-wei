@@ -46,8 +46,28 @@
 
             <section id="intervalsSingPanel" aria-label="Sing test" hidden></section>
 
-            <!-- Settings -->
+            <!-- Settings (canonical order: timing, root, shape, output, scale) -->
             <div class="voice-first-ui">
+
+                <!-- Note length / gap between patterns -->
+                <div class="vf-row">
+                    <span class="vf-label">Note Len</span>
+                    <div class="vf-options">
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="lengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
+                            <span class="step-value" id="lengthValue">0.6s</span>
+                            <button class="step-btn" type="button" data-step-key="lengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
+                        </div>
+                    </div>
+                    <span class="vf-label vf-label-inline">Gap</span>
+                    <div class="vf-options">
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
+                            <span class="step-value" id="gapValue">2s</span>
+                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Root / Octave -->
                 <div class="vf-row">
@@ -58,19 +78,6 @@
                             <span class="step-value" id="rootPitchValue">C4</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Scale type -->
-                <div class="vf-row">
-                    <span class="vf-label">Scale</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" data-scale="major">major</button>
-                        <button class="vf-btn" data-scale="minor">minor</button>
-                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
-                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
-                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
-                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
                     </div>
                 </div>
 
@@ -90,30 +97,6 @@
                     <span class="vf-label">Level</span>
                     <div class="vf-options" id="levelOptions">
                         <!-- Filled by JS -->
-                    </div>
-                </div>
-
-                <!-- Note length -->
-                <div class="vf-row">
-                    <span class="vf-label">Note Len</span>
-                    <div class="vf-options">
-                        <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="lengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
-                            <span class="step-value" id="lengthValue">0.6s</span>
-                            <button class="step-btn" type="button" data-step-key="lengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gap between patterns -->
-                <div class="vf-row">
-                    <span class="vf-label">Gap</span>
-                    <div class="vf-options">
-                        <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
-                            <span class="step-value" id="gapValue">2s</span>
-                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
-                        </div>
                     </div>
                 </div>
 
@@ -145,6 +128,19 @@
                             <input type="checkbox" id="toggleRepeat">
                             <span>Repeat</span>
                         </label>
+                    </div>
+                </div>
+
+                <!-- Scale type -->
+                <div class="vf-row">
+                    <span class="vf-label">Scale</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-scale="major">major</button>
+                        <button class="vf-btn" data-scale="minor">minor</button>
+                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
+                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
                     </div>
                 </div>
             </div>
