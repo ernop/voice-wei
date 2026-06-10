@@ -45,6 +45,11 @@ names), optionally speaks the numbers, plays the notes, then generates the
 next pattern after the gap. Repeat holds the current pattern; Next advances
 immediately; Stop is immediate. Media keys map to Go / Stop / Next.
 
+**Sing** opens the shared pitch-trace panel seeded with the current pattern
+(targets at the pattern's note timing, rails around its range with the
+pattern notes highlighted). Turn Repeat on to hold one pattern while
+drilling it; takes are scored and recorded like Phrases and Scales.
+
 ## Phrases
 
 Melodic phrase memory and reproduction practice. Generates clustered
@@ -124,7 +129,8 @@ Drone Test plays a sustained reference tone and shows live cents while you
 match it.
 
 Voice commands: "next", "repeat", "skip", "stats", or an interval name to
-answer.
+answer. Hardware media keys: play/pause repeat the current interval, next
+plays a new one.
 
 ## Music
 
@@ -170,7 +176,8 @@ Ebook to audiobook conversion using OpenAI TTS (key in localStorage).
 
 ## Pitch test panel (shared)
 
-The embedded "listen" component used by Phrases (Test) and Scales (Sing):
+The embedded "listen" component used by Phrases (Test), Scales (Sing), and
+Intervals (Sing):
 scale-degree rails, target bands, your sung pitch as a yellow trace with
 cents-colored dots, and a voice-gated timeline (time starts when singing
 is detected).

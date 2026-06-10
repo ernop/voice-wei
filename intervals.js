@@ -118,6 +118,10 @@
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
     let piano = null;
+    /** @type {any | null} The pattern currently displayed (and sung against) */
+    let currentInstance = null;
+    /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
+    let singPanel = null;
 
     const sleep = PianoCore.sleep;
 
@@ -169,19 +173,21 @@
         const startIdx = dpOct;
 
         const noteNames = [];
+        const midiNotes = [];
         const displayDegrees = [];
         const spokenDegrees = [];
         for (const off of gen.offsets) {
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
+            midiNotes.push(scale[idx].midi);
             displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
             spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
         }
 
-        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
+        if (state.reverse) { noteNames.reverse(); midiNotes.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, spokenDegrees, noteNames };
+        return { description: desc, displayDegrees, spokenDegrees, noteNames, midiNotes };
     }
 
     function generateClusterInstance(scale, dpOct) {
@@ -207,19 +213,33 @@
         const startIdx = ri(lowestStart, highestStart);
 
         const noteNames = [];
+        const midiNotes = [];
         const displayDegrees = [];
         const spokenDegrees = [];
         for (const off of offsets) {
             const idx = startIdx + off;
             if (idx < 0 || idx >= scale.length) return null;
             noteNames.push(scale[idx].name);
+            midiNotes.push(scale[idx].midi);
             displayDegrees.push(PatternPracticeCore.offsetToDegree(off, dpOct));
             spokenDegrees.push(PatternPracticeCore.offsetToSpoken(off, dpOct));
         }
 
-        if (state.reverse) { noteNames.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
+        if (state.reverse) { noteNames.reverse(); midiNotes.reverse(); displayDegrees.reverse(); spokenDegrees.reverse(); }
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, displayDegrees, spokenDegrees, noteNames };
+        return { description: desc, displayDegrees, spokenDegrees, noteNames, midiNotes };
+    }
+
+    // ---- DISPLAY ----
+    function showInstance(instance) {
+        const display = document.getElementById('currentDisplay');
+        if (!display) return;
+        const degreeStr = instance.displayDegrees.join('-');
+        const noteStr = instance.noteNames.join(' ');
+        const namesPart = state.showNoteNames
+            ? `<span class="pattern-notes">${noteStr}</span>` : '';
+        display.innerHTML = `<span class="pattern-desc">${instance.description}</span><span class="pattern-degrees">${degreeStr}</span>${namesPart}`;
+        if (singPanel) singPanel.draw();
     }
 
     // ---- MAIN LOOP ----
@@ -234,29 +254,33 @@
         const display = document.getElementById('currentDisplay');
 
         let firstRound = true;
-        let currentInstance = null;
 
         while (!state.stopRequested) {
             // Generate new pattern unless repeating the same one
             if (!currentInstance || !state.repeat || state.nextRequested) {
                 state.nextRequested = false;
-                currentInstance = generateRandomInstance();
+                // Avoid serving the identical pattern twice in a row
+                const previousKey = currentInstance
+                    ? currentInstance.description + currentInstance.displayDegrees.join('-')
+                    : null;
+                let next = generateRandomInstance();
+                for (let attempt = 0;
+                    attempt < 5 && next && previousKey
+                    && next.description + next.displayDegrees.join('-') === previousKey;
+                    attempt++) {
+                    next = generateRandomInstance();
+                }
+                currentInstance = next;
                 if (!currentInstance) {
                     display.textContent = 'Could not generate pattern -- check settings';
                     break;
                 }
             }
 
-            const degreeStr = currentInstance.displayDegrees.join('-');
-            const noteStr = currentInstance.noteNames.join(' ');
-
-            const namesPart = state.showNoteNames
-                ? `<span class="pattern-notes">${noteStr}</span>` : '';
-
-            display.innerHTML = `<span class="pattern-desc">${currentInstance.description}</span><span class="pattern-degrees">${degreeStr}</span>${namesPart}`;
+            showInstance(currentInstance);
 
             if (!firstRound || !state.repeat) {
-                addHistory(degreeStr, currentInstance.description, noteStr);
+                addHistory(currentInstance.displayDegrees.join('-'), currentInstance.description, currentInstance.noteNames.join(' '));
             }
 
             // Brief pause to read the display before audio starts
@@ -313,6 +337,73 @@
         item.innerHTML = `<span class="history-text history-desc">${desc}</span><span class="history-text history-degrees">${degrees}</span><span class="history-text history-notes">${notes}</span><span class="history-time">${new Date().toLocaleTimeString()}</span>`;
         list.prepend(item);
         while (list.children.length > 50) list.lastChild.remove();
+    }
+
+    // ---- SING PANEL ----
+    /** @param {boolean} expandRange */
+    function buildSingRails(expandRange) {
+        if (!currentInstance) return [];
+        const scale = buildExtendedScale();
+        if (!scale.length) return [];
+        const dpOct = degreesPerOctave();
+        const minMidi = Math.min(...currentInstance.midiNotes);
+        const maxMidi = Math.max(...currentInstance.midiNotes);
+        const pad = expandRange ? 12 : 4;
+        return scale
+            .map((note, index) => ({ note, index }))
+            .filter(({ note }) => note.midi >= minMidi - pad && note.midi <= maxMidi + pad)
+            .map(({ note, index }) => ({
+                midi: note.midi,
+                label: `${(index % dpOct) + 1} ${note.name}`,
+                emphasized: currentInstance.midiNotes.includes(note.midi)
+            }));
+    }
+
+    function buildSingTargets() {
+        if (!currentInstance) return [];
+        return currentInstance.midiNotes.map((midi, index) => ({
+            midi,
+            startMs: index * state.lengthMs,
+            endMs: (index + 1) * state.lengthMs,
+            label: currentInstance.displayDegrees[index],
+            active: true
+        }));
+    }
+
+    function setupSingPanel() {
+        singPanel = PitchTestPanel.create({
+            hostId: 'intervalsSingPanel',
+            idPrefix: 'intervalsSing',
+            title: 'Sing Test',
+            subtitle: 'Sing the current pattern and watch your pitch against the targets. Turn Repeat on to hold one pattern.',
+            storageKey: 'intervals-sing-panel',
+            legendTargetLabel: 'target notes',
+            guideToggleLabel: 'Play pattern on restart',
+            emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
+            rails: ({ expandRange }) => buildSingRails(expandRange),
+            targets: buildSingTargets,
+            contentDurationMs: () => (currentInstance ? currentInstance.midiNotes.length * state.lengthMs : 4000),
+            playGuide: async () => {
+                if (!currentInstance || !piano) return;
+                await PianoCore.ensureStarted();
+                for (const midi of currentInstance.midiNotes) {
+                    piano.playMidi(midi, state.lengthMs / 1000);
+                    await sleep(state.lengthMs);
+                }
+            },
+            progressTool: 'intervals-sing',
+            progressContext: () => (currentInstance
+                ? `${state.root} ${state.scale} ${currentInstance.description}`
+                : '')
+        });
+
+        document.getElementById('singBtn')?.addEventListener('click', async () => {
+            if (!currentInstance) {
+                currentInstance = generateRandomInstance();
+                if (currentInstance) showInstance(currentInstance);
+            }
+            if (singPanel) await singPanel.open();
+        });
     }
 
     // ---- UI ----
@@ -408,6 +499,8 @@
             document.getElementById('historyList').innerHTML =
                 '<p class="history-empty">No patterns yet</p>';
         });
+
+        setupSingPanel();
 
         MediaSessionCore.register('Intervals', [
             ['play', () => { runLoop(); }],

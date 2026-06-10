@@ -140,7 +140,8 @@ Drone test: note select applies on Start.
 
 ## Pitch test panel (shared component)
 
-Per page key (`phrases-test-panel`, `scales-sing-panel`).
+Per page key (`phrases-test-panel`, `scales-sing-panel`,
+`intervals-sing-panel`).
 
 | Option | Default | Behavior |
 |--------|---------|----------|

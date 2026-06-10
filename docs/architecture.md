@@ -71,10 +71,15 @@ discarded via per-page outlier gates) -> voice-gated clock (time advances
 only while singing when pause-on-silence is on). The trace line breaks
 across gaps >250ms.
 
-Consumers: the Trace page directly; Phrases and Scales through
+Consumers: the Trace page directly; Phrases, Scales, and Intervals through
 `pitch-test-panel.js`; pitch-meter through the same session plus its own
 scoring; ears through low-level `createMicCapture` for its hold-detection
 loops.
+
+Media keys: phrases, scales, intervals, and ears register hardware
+play/pause/next handlers (`media-session-core.js`). Trace and pitch-meter
+deliberately do not - they are watch-the-screen tools where hardware keys
+add nothing.
 
 ## Scales engine rules (movement styles, exercises)
 

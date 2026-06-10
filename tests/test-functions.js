@@ -102,6 +102,32 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.close();
     }
 
+    // ============ INTERVALS SING: panel seeds from the pattern and scores ============
+    {
+        const ctx = await browser.newContext({ permissions: ['microphone'] });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'intervals-sing', report.errors);
+        await tab.goto(`${BASE_URL}/intervals.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(2000);
+        await tab.click('#singBtn');
+        await tab.waitForTimeout(1000);
+        const opened = await tab.evaluate(() => ({
+            open: !document.getElementById('intervalsSingPanel').hidden,
+            pattern: document.querySelector('#currentDisplay .pattern-degrees')?.textContent || ''
+        }));
+        report.check(`intervals Sing opens with a pattern ("${opened.pattern}")`,
+            opened.open && opened.pattern.length > 0);
+        // Wall-clock mode so the windows pass; take should be recorded
+        await tab.evaluate(() => document.getElementById('intervalsSingPauseToggle').click());
+        await tab.waitForTimeout(3500);
+        const recorded = await tab.evaluate(() => {
+            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            return entries.some(e => e.tool === 'intervals-sing');
+        });
+        report.check('intervals sing take recorded', recorded);
+        await ctx.close();
+    }
+
     // ============ PHRASES: reflect / mask / modes / history ============
     {
         const tab = await browser.newPage();
@@ -260,6 +286,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(300);
         const enabled = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-settings')).enabledIntervals);
         report.check('ears preset filters intervals', Array.isArray(enabled) && enabled.length === 3);
+        const mediaTitle = await tab.evaluate(() => navigator.mediaSession.metadata?.title || 'none');
+        report.check('ears media session registered', mediaTitle === 'Ears');
         await ctx.close();
     }
 

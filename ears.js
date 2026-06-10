@@ -326,6 +326,16 @@ class EarsController {
 
         // Load saved settings
         this.loadSettings();
+
+        // Hardware media keys for hands-free practice (driving):
+        // play/pause repeat the current interval, next plays a new one.
+        MediaSessionCore.register('Ears', [
+            ['play', () => { this.repeatCurrentInterval(); }],
+            ['pause', () => { this.repeatCurrentInterval(); }],
+            ['nexttrack', () => { this.playNextInterval(); }],
+            ['seekforward', () => { this.playNextInterval(); }]
+        ]);
+        MediaSessionCore.primeOnUserGesture();
     }
 
     setStatus(message) {
@@ -713,6 +723,8 @@ class EarsController {
     }
 
     async playNextInterval() {
+        await MediaSessionCore.activate();
+
         // Reset state
         this.awaitingAnswer = false;
         this.answered = false;

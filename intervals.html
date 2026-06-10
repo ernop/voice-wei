@@ -31,6 +31,10 @@
                     <span class="button-text">Next</span>
                     <span class="button-icon">&#9197;</span>
                 </button>
+                <button id="singBtn" class="play-button pitch-test-launch-button" aria-label="Open sing test">
+                    <span class="button-text">Sing</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
             </div>
 
             <!-- Current pattern display -->
@@ -39,6 +43,8 @@
                     Press Go to start
                 </div>
             </div>
+
+            <section id="intervalsSingPanel" aria-label="Sing test" hidden></section>
 
             <!-- Settings -->
             <div class="voice-first-ui">
@@ -177,9 +183,13 @@
     <script src="voice-output.js?v=88"></script>
     <script src="pattern-practice-core.js?v=88"></script>
     <script src="piano-core.js?v=88"></script>
+    <script src="pitch-detect-core.js?v=88"></script>
+    <script src="pitch-trace-view.js?v=88"></script>
     <script src="practice-controls.js?v=88"></script>
     <script src="settings-store.js?v=88"></script>
+    <script src="progress-store.js?v=88"></script>
     <script src="media-session-core.js?v=88"></script>
+    <script src="pitch-test-panel.js?v=88"></script>
     <script src="intervals.js?v=88"></script>
 </body>
 
