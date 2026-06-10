@@ -134,36 +134,26 @@
         if (!degreesEl) return;
         degreesEl.textContent = '';
         phrase.displayDegrees.forEach((degree, index) => {
-            const unit = document.createElement('span');
-            unit.className = 'phrase-note-unit';
-            unit.dataset.index = String(index);
-            unit.classList.toggle('inactive', activeMask[index] === false);
-
-            const token = document.createElement('span');
+            // The degree number is the mute toggle: tap to flip, drag
+            // across several to paint the same state. Keeps the stage to
+            // a single row (vertical space is precious on the phone).
+            const token = document.createElement('button');
+            token.type = 'button';
             token.className = 'phrase-degree-token';
             token.dataset.index = String(index);
             token.textContent = degree;
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'phrase-note-toggle';
-            btn.textContent = activeMask[index] === false ? 'off' : 'on';
-            btn.title = `${degree} ${phrase.noteNames[index]}`;
-            btn.dataset.index = String(index);
-            btn.classList.toggle('inactive', activeMask[index] === false);
-            btn.addEventListener('pointerdown', event => {
+            token.title = `${degree} ${phrase.noteNames[index]} - tap to mute/unmute`;
+            token.classList.toggle('inactive', activeMask[index] === false);
+            token.addEventListener('pointerdown', event => {
                 event.preventDefault();
                 isPointerToggling = true;
                 pointerToggleValue = activeMask[index] === false;
                 setNoteActive(index, pointerToggleValue);
             });
-            btn.addEventListener('pointerenter', () => {
+            token.addEventListener('pointerenter', () => {
                 if (isPointerToggling) setNoteActive(index, pointerToggleValue);
             });
-
-            unit.appendChild(token);
-            unit.appendChild(btn);
-            degreesEl.appendChild(unit);
+            degreesEl.appendChild(token);
         });
     }
 
@@ -396,15 +386,8 @@
 
     function setNoteActive(index, active) {
         activeMask[index] = active;
-        const btn = document.querySelector(`.phrase-note-toggle[data-index="${index}"]`);
-        if (btn) {
-            btn.classList.toggle('inactive', !active);
-            btn.textContent = active ? 'on' : 'off';
-        }
         const token = document.querySelector(`.phrase-degree-token[data-index="${index}"]`);
         if (token) token.classList.toggle('inactive', !active);
-        const unit = document.querySelector(`.phrase-note-unit[data-index="${index}"]`);
-        if (unit) unit.classList.toggle('inactive', !active);
         drawPhraseTest();
     }
 

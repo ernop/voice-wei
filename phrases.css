@@ -1,15 +1,35 @@
+/* The stage is what you read while singing: it stays pinned under the
+   transport row so scrolling the controls never hides the phrase. */
 .phrase-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-height: 138px;
-    margin: 10px 0 14px;
-    padding: 18px;
-    background: rgba(0, 0, 0, 0.28);
+    gap: 6px;
+    min-height: 96px;
+    margin: 6px 0 10px;
+    padding: 10px 12px;
+    background: rgba(13, 40, 24, 0.93);
+    backdrop-filter: blur(6px);
     border: 1px solid rgba(134, 239, 172, 0.24);
     border-radius: 14px;
+    position: sticky;
+    top: 48px;
+    z-index: 40;
+}
+
+@media (max-width: 768px) {
+    .phrase-stage {
+        top: 72px;
+    }
+}
+
+.phrase-stage-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
 }
 
 .phrase-degrees-large {
@@ -28,28 +48,28 @@
     line-height: 1.05;
 }
 
-.phrase-note-unit {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
+/* Each degree number is itself the mute toggle (tap or drag across) */
+.phrase-degree-token {
     flex: 0 1 clamp(1.35rem, 8vw, 2.35rem);
     min-width: 1.25rem;
     max-width: 2.5rem;
-}
-
-.phrase-degree-token {
-    width: 100%;
-    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
     text-align: center;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
 }
 
-.phrase-degree-token.inactive,
-.phrase-note-unit.inactive .phrase-degree-token {
+.phrase-degree-token.inactive {
     color: rgba(255, 255, 255, 0.18);
     opacity: 0.55;
+    text-decoration: line-through;
 }
 
 .phrase-notes-line {
@@ -107,30 +127,6 @@
     color: #86efac;
     font-weight: 700;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-}
-
-.phrase-note-toggle {
-    min-width: 0;
-    width: 100%;
-    margin-top: 4px;
-    padding: 3px 1px;
-    border: 1px solid rgba(134, 239, 172, 0.65);
-    border-radius: 999px;
-    background: rgba(74, 222, 128, 0.25);
-    color: #e8f5e9;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: clamp(0.46rem, 1.7vw, 0.62rem);
-    cursor: pointer;
-    user-select: none;
-    line-height: 1;
-}
-
-.phrase-note-toggle.inactive,
-.phrase-note-unit.inactive .phrase-note-toggle {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.32);
-    opacity: 0.65;
 }
 
 .phrase-stage-actions {

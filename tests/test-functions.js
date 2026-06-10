@@ -156,7 +156,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const noteCount = degrees.split(' ').length;
         await tab.evaluate(() => {
-            const btn = document.querySelector('.phrase-note-toggle[data-index="0"]');
+            const btn = document.querySelector('.phrase-degree-token[data-index="0"]');
             btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
             window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
         });

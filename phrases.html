@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=92">
-    <link rel="stylesheet" href="practice-controls.css?v=92">
-    <link rel="stylesheet" href="phrases.css?v=92">
+    <link rel="stylesheet" href="style.css?v=93">
+    <link rel="stylesheet" href="practice-controls.css?v=93">
+    <link rel="stylesheet" href="phrases.css?v=93">
 </head>
 
 <body data-page="phrases">
@@ -42,10 +42,12 @@
 
             <section class="phrase-stage" aria-live="polite">
                 <div class="phrase-degrees-large" id="phraseDegrees">--</div>
-                <div class="phrase-notes-line" id="phraseNotes"></div>
-                <div class="phrase-stage-actions">
-                    <button id="reflectBtn" class="phrase-stage-btn" type="button" aria-pressed="false">Reflect Off</button>
-                    <button id="allNotesBtn" class="phrase-stage-btn" type="button">All Notes</button>
+                <div class="phrase-stage-meta">
+                    <div class="phrase-notes-line" id="phraseNotes"></div>
+                    <div class="phrase-stage-actions">
+                        <button id="reflectBtn" class="phrase-stage-btn" type="button" aria-pressed="false">Reflect Off</button>
+                        <button id="allNotesBtn" class="phrase-stage-btn" type="button">All Notes</button>
+                    </div>
                 </div>
             </section>
 
@@ -67,16 +69,13 @@
                     </div>
                 </section>
 
-                <section class="phrase-control-card phrase-control-card-key">
+                <section class="phrase-control-card phrase-control-card-shape">
                     <div class="step-field phrase-pitch-step-field">
                         <span class="step-label">Root</span>
                         <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
                         <span class="step-value" id="rootPitchValue">D#3</span>
                         <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
                     </div>
-                </section>
-
-                <section class="phrase-control-card phrase-control-card-shape">
                     <div class="segment-row">
                         <button class="vf-btn" data-start="one">start at 1</button>
                         <button class="vf-btn" data-start="random">random start</button>
@@ -153,20 +152,20 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="shared-header.js?v=92"></script>
-    <script src="music-constants.js?v=92"></script>
-    <script src="voice-output.js?v=92"></script>
-    <script src="pattern-practice-core.js?v=92"></script>
-    <script src="piano-core.js?v=92"></script>
-    <script src="pitch-detect-core.js?v=92"></script>
-    <script src="pitch-trace-view.js?v=92"></script>
-    <script src="practice-controls.js?v=92"></script>
-    <script src="history-list.js?v=92"></script>
-    <script src="settings-store.js?v=92"></script>
-    <script src="progress-store.js?v=92"></script>
-    <script src="media-session-core.js?v=92"></script>
-    <script src="pitch-test-panel.js?v=92"></script>
-    <script src="phrases.js?v=92"></script>
+    <script src="shared-header.js?v=93"></script>
+    <script src="music-constants.js?v=93"></script>
+    <script src="voice-output.js?v=93"></script>
+    <script src="pattern-practice-core.js?v=93"></script>
+    <script src="piano-core.js?v=93"></script>
+    <script src="pitch-detect-core.js?v=93"></script>
+    <script src="pitch-trace-view.js?v=93"></script>
+    <script src="practice-controls.js?v=93"></script>
+    <script src="history-list.js?v=93"></script>
+    <script src="settings-store.js?v=93"></script>
+    <script src="progress-store.js?v=93"></script>
+    <script src="media-session-core.js?v=93"></script>
+    <script src="pitch-test-panel.js?v=93"></script>
+    <script src="phrases.js?v=93"></script>
 </body>
 
 </html>
