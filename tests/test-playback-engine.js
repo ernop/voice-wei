@@ -124,6 +124,35 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.close();
     }
 
+    // --- TRACE: guide playback spacing matches the drawn target spacing ---
+    {
+        const tab = await browser.newPage();
+        collectErrors(tab, 'trace', report.errors);
+        await tab.goto(`${BASE_URL}/trace.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(2000);
+        await tab.evaluate(instrumentVoices);
+        await tab.fill('#patternInput', '1 3 5');
+        await tab.evaluate(() => {
+            document.getElementById('patternInput').dispatchEvent(new Event('input', { bubbles: true }));
+            const toggle = /** @type {HTMLInputElement} */ (document.getElementById('playGuidesToggle'));
+            if (!toggle.checked) toggle.click();
+        });
+        await tab.click('#resetBtn');
+        await tab.waitForTimeout(3200);
+        const spacing = await tab.evaluate(() => {
+            const starts = window.__trace.filter(e => e.type === 'voice-start').map(e => e.t);
+            const deltas = [];
+            for (let i = 1; i < starts.length; i++) deltas.push(starts[i] - starts[i - 1]);
+            return { count: starts.length, deltas: deltas.map(d => Math.round(d)) };
+        });
+        // Default guide interval is 1000ms; drawn targets are spaced at
+        // exactly that, so the sounded guide must be too.
+        const spacingOk = spacing.count === 3
+            && spacing.deltas.every(d => d >= 900 && d <= 1250);
+        report.check(`trace guide spacing matches chart (${spacing.deltas.join(', ')}ms)`, spacingOk);
+        await tab.close();
+    }
+
     await browser.close();
     report.finish();
 })();

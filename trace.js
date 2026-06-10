@@ -206,7 +206,10 @@
             if (token !== guidePlaybackToken) return;
             const note = notes[degree - 1];
             if (note) await playGuideTone(note.midi, durationMs);
-            await sleep(Math.max(80, state.guideIntervalMs - durationMs));
+            // playGuideTone returns immediately (voices are fire-and-
+            // forget), so the full interval is the note spacing - the
+            // same spacing the chart draws the guide targets at.
+            await sleep(Math.max(80, state.guideIntervalMs));
         }
     }
 
