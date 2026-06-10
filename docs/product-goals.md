@@ -1,10 +1,9 @@
 # Product Goals
 
-The distilled view of what this system is for. `vision.md` is the raw,
-unfiltered idea pool (several overlapping brainstorm dumps); `PRODUCT.md`
-documents implemented behavior in detail. This file is the short list that
-should stay true: when a change does not serve one of these goals, question
-it.
+What this system is for, what each tool must do well, and the deduplicated
+backlog. When a change does not serve one of these goals, question it.
+(Implemented behavior is documented in [tools.md](tools.md); how it's built
+in [architecture.md](architecture.md).)
 
 ## What this system is
 
@@ -40,7 +39,7 @@ overshoot around degrees 6-7-8).
 - **Exact audio control**: the piano engine knows every sounding voice;
   old-settings audio never overlaps new-settings audio; stop means stop.
 - **One shared library per concern**, enforced by lint guards; pages are
-  thin consumers (see docs/convergence-plan.md).
+  thin consumers (see docs/architecture.md).
 - **Defined parameters**: every setting picks a change behavior from the
   fixed vocabulary in docs/parameters.md and persists per tab.
 - **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step,
@@ -56,3 +55,61 @@ overshoot around degrees 6-7-8).
 4. **Conversational player**: follow-ups like "more like that", playlist
    operations by voice, reliability when Piped/Invidious instances are down.
 5. **Resilience**: PWA/offline caching, surfacing proxy health.
+
+## Backlog (the idea pool, deduplicated)
+
+Everything proposed so far, grouped. Items graduate into the priorities
+above; nothing here is a commitment.
+
+### Training tools
+
+- Metronome / count-in with subdivided clicks; backing drone during scale
+  practice (a sustained-note sine synth already exists in piano-core)
+- Solfege mode (do-re-mi) alongside degree numbers
+- Custom scale builder and user-created exercise patterns
+- Interval recognition quizzes and "sing the 3rd" drills beyond Ears
+- Mastery mode (N correct in a row), timed sessions, challenge mode with
+  self-leaderboards
+- Recording: capture practice, replay, compare to reference; range tracking
+  over time; session export (JSON/CSV)
+- Real-time coaching ("a bit flat", "go down a little") spoken during
+  practice
+- Multiple instrument sounds (guitar, strings, synth)
+- MIDI: keyboard input for practice tools, MIDI output to synths
+
+### Music player
+
+- Conversational context: "more like that", "less like that", "only live
+  versions", "90s only", multi-turn refinement
+- Playlist ops by voice: "remove song 3", "play the second one", "save
+  this playlist"; named playlists; queue management
+- Lyrics / sing-along surface: fetch lyrics by artist+title (research in
+  music-lyrics-research.md), full-screen large-text overlay, then
+  line-synced and word-synced phases; later key/pitch-center estimation
+  and singer aids (starting note, transposition hints)
+- Claude returning constraints (original vs live, era) to filter results
+- Better proxy health surfacing and failover UX
+- Spotify / Apple Music integration; song memory ("that song I liked last
+  week"); tempo/key-matched playlists
+
+### Books
+
+- Multimedia ebook mode: a content manifest linking text chunks, audio
+  segments, and extracted images/tables for synchronized listen-and-see
+  playback (audio-only / synchronized / browse modes); image extraction
+  from EPUB/PDF/HTML; figure-reference detection
+- Voice-cloned or higher-quality narration options
+
+### Platform
+
+- Progressive Web App: installable, offline caching of samples/playlists
+- Wake word ("Hey DJ" / "Hey Scales"); voice activity detection
+- Haptic feedback on mobile; high-contrast and accessibility passes
+- Optional server endpoint for Claude calls (rate limiting, key never in
+  browser)
+- Multi-language voice support; whisper-mode recognition
+
+### Personal training focus
+
+The learner overshoots around scale degrees 6-7-8; exercises specifically
+training control in the lower range remain the highest-signal content gap.

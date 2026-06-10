@@ -1,0 +1,175 @@
+# Tool Reference
+
+What each tab does and how to use it. Setting-change behavior for every
+control is defined in [parameters.md](parameters.md). The full scales voice
+command reference is [scales-commands.md](scales-commands.md).
+
+## Scales
+
+Voice-controlled scale trainer with realistic piano (Salamander samples).
+**Voice-first, click-second**: everything you can say is also visible and
+clickable, and both update the same state.
+
+Click **Listen**, then say things like:
+
+- "D minor scale"
+- "slowly chromatic"
+- "G major up and down"
+- "perfect fifth from A"
+- "harmonic minor repeat forever"
+
+Voice commands reset settings to defaults then apply your modifiers, so
+"D minor" always sounds the same regardless of previous UI state. Clicked
+settings persist per tab and restart playback live when something is playing.
+
+Features: direction / repeat / rising / shifting / movement styles /
+exercises / section width controls; note length and gap steppers (gap goes
+negative for overlap); piano keyboard preview; presets; command history;
+hardware media keys (play/pause); **Sing** opens the embedded pitch-trace
+panel seeded with the current scale.
+
+Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" =
+Bb). See [scales-commands.md](scales-commands.md) for the full grammar.
+
+## Intervals
+
+Level-based interval drills, button-first. Two exercise types:
+
+- **Type A - degree sequences**: absolute scale degrees to visit
+  ("1-x-8 up", "8-x-1 down", random ascending paths).
+- **Type B - movement clusters**: relative jumps from the previous note
+  ("+k, -j").
+
+Pick a level, press Go: the loop shows the degrees (and optionally note
+names), optionally speaks the numbers, plays the notes, then generates the
+next pattern after the gap. Repeat holds the current pattern; Next advances
+immediately; Stop is immediate. Media keys map to Go / Stop / Next.
+
+## Phrases
+
+Melodic phrase memory and reproduction practice. Generates clustered
+scale-degree phrases (varied contours, dampened straight runs), shows the
+full degree sequence, and replays it until the shape is internalized.
+
+**Defaults**: D#3, major, 5-8 note phrases, 0.3s notes, no gap, play tones,
+return to the initial note.
+
+- **Play** plays the current phrase (creating one if needed), **Repeat**
+  loops it, **Next** generates a new one, **Stop** stops everything.
+- **Reflect** flips the current phrase around the octave (up-from-1
+  becomes down-from-8). A view/playback transform, not a regeneration.
+- **Per-note on/off markers** under the degrees isolate phrase sections by
+  click or drag without losing the phrase.
+- **Output modes**: display only, say numbers, play tones, say + tones,
+  sing numbers (speech pitch shaped toward each note), none.
+- **Test** opens the embedded pitch-trace panel for the current phrase
+  (see "Pitch test panel" below).
+- Hardware media keys: play/pause replay the phrase, next/seek generate
+  the next one. (Chrome only routes media keys to pages with real media,
+  so the page keeps a silent audio element active after the first tap.)
+
+Setting behaviors (the key design): root/scale changes **reproject** the
+current degree sequence into the new context; min/max length, start, and
+in/out-octave apply to the **next** generated phrase; return-to-1
+regenerates; playback settings replay; show-names redraws.
+
+## Trace
+
+Free singing inside a selected key while watching the pitch line. Separate
+from Phrases so you can practice scale motion and intonation without
+generating anything first.
+
+- Start begins listening; Reset clears the trace (and optionally plays the
+  typed pattern as guides - off by default).
+- Root/octave/scale draw the scale-degree rails.
+- Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
+  guide interval stepper sets their horizontal spacing.
+- Guide sound: piano (default) or sine beep.
+- Pause on silence (default on): the clock only advances while you sing.
+- 20s window switches to a fixed-width scrolling viewport; Expand range
+  adds rails an octave above and below.
+- Detections outside the key range are discarded (one-frame octave spikes
+  never reach the chart); fast jumps need a confirming sample.
+
+## Pitch
+
+Structured accuracy practice with scoring.
+
+- **Free practice**: sing anything, watch the chart, stop to get per-note
+  accuracy against the selected scale.
+- **Call & response**: piano plays each scale note, you match it during the
+  response window, every note gets scored (match %, cents off).
+- **Play along**: sing with the piano as it walks the scale.
+
+Range presets (voice/violin/bass) set the octave; root+octave, scale, and
+match-time are shared steppers/segment rows. Results panel shows overall
+accuracy, average deviation, and per-note breakdown.
+
+## Ears
+
+Interval ear training: identification and production.
+
+- **Identify**: hear an interval (ascending, descending, or harmonic),
+  name it by button or voice ("major third", "tritone", aliases accepted).
+- **Sing**: hear a reference note, sing the prompted interval; pitch
+  detection confirms when you hold the target (~1.5s within tolerance).
+- **Both**: identify first, then sing it.
+
+Adaptive mode weights practice toward your weakest intervals. Presets
+filter the interval set (perfect / 3rds+6ths / 2nds+7ths / weakest).
+Driving mode speaks feedback. Lifetime per-interval stats persist. The
+Drone Test plays a sustained reference tone and shows live cents while you
+match it.
+
+Voice commands: "next", "repeat", "skip", "stats", or an interval name to
+answer.
+
+## Music
+
+AI voice music player: **one large button, speak naturally, get a
+playlist.**
+
+- "Play some jazz" - five tracks with comments explaining each match
+- "That Beatles song with the submarine" - Claude figures it out
+
+Claude interprets the request, YouTube (via the `proxy.php` Piped/Invidious
+proxy) supplies the videos. Requires a Claude API key (stored in
+localStorage; the page gates until one is entered). Settings cover
+auto-submit vs manual voice mode, model selection, and spoken responses.
+
+Transport voice commands:
+
+| Command | Action |
+|---------|--------|
+| "play" / "start" / "resume" | Play |
+| "pause" / "halt" | Pause |
+| "stop" | Stop |
+| "next" / "skip" | Next song |
+| "previous" / "back" | Previous song |
+| "fast forward" / "rewind" | Skip 10s |
+| "shuffle" | Shuffle playlist |
+| "clear" | Clear playlist |
+| "what's playing" | Announce current song |
+| "submit" | Send pending command (manual mode) |
+
+Music pauses while you speak, resumes while waiting for Claude, and pauses
+again while the response is read aloud.
+
+## Books
+
+Ebook to audiobook conversion using OpenAI TTS (key in localStorage).
+
+- Formats: TXT, EPUB, PDF, HTML
+- Six voices (Alloy, Echo, Fable, Onyx, Nova, Shimmer), TTS-1 or TTS-1-HD,
+  speed 0.25x-4x
+- Text is split into ~4000-char chunks, converted with progress shown and
+  cancellable, then combined into one downloadable MP3
+- Cost ballpark: a 10k-word book is roughly $0.90 (TTS-1) / $1.80 (HD)
+
+## Pitch test panel (shared)
+
+The embedded "listen" component used by Phrases (Test) and Scales (Sing):
+scale-degree rails, blue target bands, your sung pitch as a yellow trace
+with cents-colored dots, and a voice-gated timeline (time starts when
+singing is detected). Options per page: targets on/off, play guide on
+restart, pause on silence, 20s window, expand range.

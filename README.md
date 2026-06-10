@@ -1,143 +1,50 @@
 # Voice-Wei
 
-Voice-first tools for singers, musicians, and readers.
+Voice-first music tools for singers, musicians, and readers - built for
+hands-free practice, often while driving.
 
-**Main Release:** https://fuseki.net/music8899b/scales.html
+**Live:** https://fuseki.net/music8899b/scales.html
 
-## Tools
-
-### Scales
+Every practice tool runs one loop: **the system produces a target → you
+reproduce it → the system verifies** (pitch trace, cents, stats).
 
 ![Scales trainer interface](screenshot-scales.png)
 
-Voice-controlled scale trainer with realistic piano sounds. Speak naturally to practice scales, intervals, and ear training.
+## Tools
 
-Click **Listen**, then say:
-- "D minor scale"
-- "slowly chromatic"
-- "G major up and down"
-- "perfect fifth from A"
-- "harmonic minor repeat forever"
+| Tab | What it does |
+|-----|--------------|
+| [Scales](https://fuseki.net/music8899b/scales.html) | Speak a practice pattern ("D minor scale", "harmonic minor repeat forever"), hear it on a real piano |
+| [Intervals](https://fuseki.net/music8899b/intervals.html) | Level-based interval drills: degree sequences and relative jumps |
+| [Phrases](https://fuseki.net/music8899b/phrases.html) | Generate and reproduce melodic phrases; reproject across keys; embedded sing test |
+| [Trace](https://fuseki.net/music8899b/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
+| [Pitch](https://fuseki.net/music8899b/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
+| [Ears](https://fuseki.net/music8899b/ears.html) | Interval ear training: identify them, sing them, drone matching |
+| [Music](https://fuseki.net/music8899b/player.html) | AI voice music player: "play some jazz" becomes a playlist (Claude key required) |
+| [Books](https://fuseki.net/music8899b/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
 
-Everything you can say is also visible and clickable. Voice commands reset to defaults then apply your modifiers, so "D minor" always sounds the same regardless of previous UI state.
+Full usage details per tool: [docs/tools.md](docs/tools.md).
 
-**Features:**
-- Salamander Grand Piano samples via Tone.js
-- Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" = Bb)
-- Direction, tempo, gap, repeat, octave span controls
-- Live status shows current note and interval during playback
-- Sing opens an embedded pitch trace seeded with the current scale: rails are
-  the scale degrees, targets are the planned playback notes (same listen
-  panel as Phrases)
-- Works on mobile (Chrome, Safari, Edge)
+## Documentation map
 
-See [SCALES.md](SCALES.md) for full command reference.
+| Doc | Contents |
+|-----|----------|
+| [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
+| [docs/tools.md](docs/tools.md) | Per-tab usage reference |
+| [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
+| [docs/parameters.md](docs/parameters.md) | Every setting: values, defaults, change behavior |
+| [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, engine rules, testing, deploy |
+| [docs/setup.md](docs/setup.md) | Environment setup |
+| [agents.md](agents.md) | Entry point for AI agents working on this repo |
 
-### Phrases
-
-Dedicated scale-degree phrase practice for singers: https://fuseki.net/music8899b/phrases.html
-
-Use **Phrases** when the exercise is about remembering and reproducing whole melodic shapes rather than running a scale. The page is button-first; voice controls are not required to start practice.
-
-**Default setup:** D-sharp, octave 3, 5-8 note phrases, 0.3s note length, 0.0s gap, play notes only, and return to the initial note enabled.
-
-**Controls:**
-- Root pitch, scale, start at 1/random start, within octave/out of octave
-- Uniform random phrase length between selected min and max
-- Return to 1 / no return ending
-- Output modes: display, say numbers, play tones, say + tones, sing numbers, none
-- Reflect flips the current phrase around the octave so upward distances become downward distances from 8
-- Per-note on/off markers under the displayed phrase let you isolate phrase sections by click or drag
-- Test opens an embedded phrase pitch trace; its timeline starts only when singing is detected, and restart is silent unless guide playback is enabled
-- Phrase Test includes Pause on silence, 20s window, and Expand range options
-- Play plays once, Repeat loops the current phrase, Next generates a new phrase
-
-**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; return-to-1 regenerates; min/max length, start, and in/out octave apply to the next generated phrase; playback settings replay the current phrase; show-names redraws. Every setting on every page follows the shared vocabulary in [docs/parameters.md](docs/parameters.md). Old-settings notes never overlap new ones: the piano engine tracks every voice and kills them exactly on stop.
-
-### Trace
-
-Standalone key-aware pitch trace: https://fuseki.net/music8899b/trace.html
-
-Use **Trace** when you want to sing freely in a key and see the voice trace without first generating a phrase.
-
-**Controls:**
-- Start begins microphone listening; Reset clears the trace.
-- Pick root, octave, and scale to draw scale-degree rails.
-- Guide interval controls the horizontal spacing for typed pattern targets.
-- Type patterns like `1 2 3 5 3 1` to draw blue target bands over the live trace.
-- Optional "Play guide on reset" plays the typed pattern; it is off by default.
-- Guide sound is selectable: piano (default) or sine beep.
-- Pause on silence is on by default; 20s window and Expand range are optional.
-- Extreme pitch detections outside the selected key range are discarded so one-frame high/low spikes do not clutter the chart.
-
-### Pitch Meter
-
-![Pitch meter interface](screenshot-pitch.png)
-
-Real-time pitch detection for checking vocal accuracy. Select a scale, record yourself singing, see how close you hit each note.
-
-### Music Player
-
-![Music player interface](screenshot-player.png)
-
-Voice-controlled YouTube music player for hands-free operation. Speak your request ("play some jazz"), Claude AI interprets it, and songs appear in a playlist with comments explaining each match. Requires Claude API key (stored in browser localStorage).
-
-### Books (Ebook Converter)
-
-Convert ebooks to audiobooks using OpenAI's text-to-speech API.
-
-**Supported formats:** TXT, EPUB, PDF, HTML
-
-**Features:**
-- Six voice options (Alloy, Echo, Fable, Onyx, Nova, Shimmer)
-- Fast (TTS-1) or high-quality (TTS-1-HD) models
-- Speed control 0.25x to 4.0x
-- Download MP3 for offline use
-- Requires OpenAI API key (stored in browser localStorage)
-
-## Quick Start
+## Quick start
 
 ```bash
-python -m http.server 8000
+python3 -m http.server 8000
 # Visit http://localhost:8000/scales.html
 ```
 
-HTTPS required for microphone access when deployed.
-
-## Browser Support
-
-- Chrome/Edge/Safari - Full support
-- Firefox - No Web Speech API support
-
-## Files
-
-```
-scales.html/js/css       # Scale practice
-scales2.html/js          # Interval training
-phrases.html/js/css      # Phrase practice
-trace.html/js/css        # Standalone pitch trace
-pitch-meter.html/js/css  # Pitch detection
-ears.html/js/css         # Interval ear training
-player.html + player.js     # Music player
-ebook.html/js/css        # Ebook converter
-```
-
-Shared libraries (pages consume these instead of carrying their own copies;
-ast-grep rules enforce it):
-
-```
-music-constants.js       # Note math, scale patterns
-pattern-practice-core.js # Scale-degree offset and phrase math
-piano-core.js            # Piano voice engine (Salamander samples, exact voice control)
-pitch-detect-core.js     # Mic capture + autocorrelation pitch detection
-pitch-trace-view.js      # Sung-pitch canvas renderer
-practice-controls.js     # Steppers, segmented buttons, toggles
-settings-store.js        # Per-page settings persistence
-media-session-core.js    # Hardware media key integration
-voice-command-core.js    # Voice recognition
-voice-output.js          # Text-to-speech (the only owner of TTS)
-shared-header.js         # Site header and nav
-```
+HTTPS is required for microphone access when deployed.
 
 ## Testing
 
@@ -147,40 +54,31 @@ npm test      # headless suite: page loads, playback engine, controls, tab funct
 ```
 
 The suite starts its own static server on port 8000 (or reuses one already
-running). Set `CHROME_PATH` if Chrome is not auto-detected. The mic-based
-tests use Chrome's fake audio device, so no real microphone is needed.
+running). Set `CHROME_PATH` if Chrome is not auto-detected; mic tests use
+Chrome's fake audio device. Also: `npm run lint` (ast-grep, including the
+shared-library ownership guards) and `npm run typecheck`.
 
-Also: `npm run lint` (ast-grep rules, including the shared-library ownership
-guards) and `npm run typecheck`.
+## Version system
 
-## Version System
-
-All pages share a unified version number:
+All pages share one version number:
 
 ```bash
 cat VERSION              # Current version
-./bump-version.sh        # Increment and update all files
-./bump-version.sh 31     # Set specific version
+./bump-version.sh        # Increment; updates header label + all ?v= cache busters
 ```
 
-The shared header reads the release label from `shared-header.js`, and each page keeps cache-busted local asset URLs in sync with the same version.
-
-When a significant feature ships, always do both in the same change:
-- bump the global version across the app
-- push `master` so production deploy runs
+When a significant change ships, bump the version and push `master` in the
+same change.
 
 ## Deployment
 
-Push to master triggers GitHub Actions deploy. Or manually:
+Push to `master` triggers the GitHub Actions deploy (rsync `--delete`;
+docs, tests, and tooling are excluded). Manual: `./deploy.sh [--dry-run]`.
 
-```bash
-./deploy.sh           # Deploy to server
-./deploy.sh --dry-run # Preview changes
-```
+## Browser support
 
-See [docs/product-goals.md](docs/product-goals.md) for what this system is
-for, [PRODUCT.md](PRODUCT.md) for detailed product documentation, and
-[docs/parameters.md](docs/parameters.md) for every setting's definition.
+Chrome, Edge, and Safari. Firefox lacks the Web Speech API used for voice
+features.
 
 ## License
 
