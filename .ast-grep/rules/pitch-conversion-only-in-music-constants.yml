@@ -1,0 +1,11 @@
+id: pitch-conversion-only-in-music-constants
+message: Convert pitch representations via music-constants (noteNameToMidi, midiToPitchString) - not Tone.Frequency
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/piano-core.js"
+rule:
+  pattern: Tone.Frequency($$$)
+note: "MIDI integers are the internal pitch currency; names and pitch strings convert only through music-constants.js. Tone.Frequency was a parallel conversion path that let string-typed pitches leak through pages (the ears drone bug class)."

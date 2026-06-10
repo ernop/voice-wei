@@ -47,6 +47,44 @@ interface TargetSpan {
     avgCents?: number;
 }
 
+/**
+ * A duration at the piano boundary: seconds as a number, or Tone.js
+ * notation as a string ('2n', '8n'). Everywhere else in the system,
+ * timing is milliseconds and variable names carry the unit (noteLengthMs,
+ * gapMs, durationSec).
+ */
+type ToneDuration = number | string;
+
+/**
+ * Scales' per-note timing triple: wall-clock step in ms, sounding
+ * duration for the piano, and extra gap in ms (negative gap semantics
+ * are resolved before this is built).
+ */
+interface NoteTiming {
+    ms: number;
+    tone: ToneDuration;
+    gap: number;
+}
+
+/**
+ * A generated phrase (pattern-practice-core.generatePhrase) - the one
+ * shape for phrase data everywhere: generation, reprojection, playback,
+ * history. Offsets are scale-degree offsets (0 = degree 1); midiNotes
+ * are the projection into the phrase's key; everything else is derived
+ * display/speech material.
+ */
+interface Phrase {
+    offsets: number[];
+    midiNotes: number[];
+    displayDegrees: string[];
+    spokenDegrees: string[];
+    noteNames: string[];
+    root: string;
+    scaleType: string;
+    octave: number;
+    createdAt: string;
+}
+
 /** One horizontal reference line on a pitch trace. */
 interface RailLine {
     /** MIDI note number the rail sits on */

@@ -486,6 +486,7 @@ const PatternPracticeCore = (function () {
      *   returnToRoot: boolean,
      *   phraseAlgo?: string
      * }} options
+     * @returns {Phrase | null}
      */
     function generatePhrase(options) {
         const rootMidi = noteNameToMidi(options.root, options.octave);

@@ -143,6 +143,30 @@ panel) or session (pitch meter) appends to the `practice-progress` list
 (capped at 1000 entries) via `progress-store.js`, which renders per-day
 trend lines.
 
+## Data representation law
+
+One representation per concept, conversions in one place:
+
+- **Pitch is MIDI integers internally.** All math, state, and module
+  boundaries (piano engine, pitch detection, targets, rails) use MIDI.
+  Note names ("D#", "Bb") and pitch strings ("D#3") exist only at the
+  edges: voice input, persisted settings, display. Every conversion goes
+  through `music-constants.js` (`noteNameToMidi`, `midiToPitchString`,
+  `midiToNoteName`, `normalizePitchClassName`, `midiToFreq`/`freqToMidi`).
+  Sharps are the canonical spelling; flats are accepted on input and
+  normalized. An ast-grep guard forbids `Tone.Frequency` outside
+  piano-core so no parallel conversion path can reappear.
+- **Scales are `SCALE_PATTERNS` ids** ('major', 'harmonic_minor'...),
+  one frozen registry in music-constants.js; degree/offset math lives in
+  `pattern-practice-core.js` (offset 0 = degree 1).
+- **Phrases are the `Phrase` shape** (types/music.d.ts) produced by
+  `generatePhrase`: degree offsets plus their MIDI projection and derived
+  display/speech arrays. Reprojection rebuilds the same shape.
+- **Time is milliseconds**, and names carry the unit (`noteLengthMs`,
+  `gapMs`, `durationSec`). The piano boundary takes `ToneDuration`
+  (seconds number or Tone notation string); scales' per-note triple is
+  `NoteTiming`.
+
 ## Typed contracts (static guarantees first)
 
 The shared musical vocabulary lives in `types/music.d.ts` as global
