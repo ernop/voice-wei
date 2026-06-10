@@ -34,12 +34,14 @@
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
-    // Regenerate the sequence only for keys that reshape it. Min/max
-    // length merely bound the NEXT generated phrase (like start and
-    // in/out octave), so changing them keeps the current sequence.
-    const STRUCTURE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
-    const PROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const PLAYBACK_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames']);
+    // Setting-change behaviors follow the shared vocabulary defined in
+    // docs/parameters.md. Keys not listed here are bounds-next: they only
+    // affect the NEXT generated phrase (startAtOne, allowOutOfOctave,
+    // minLength, maxLength).
+    const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
+    const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
+    const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs']);
+    const REDRAW_KEYS = new Set(['showNoteNames']);
     const ADJUSTER_VALUES = {
         noteLengthMs: [200, 250, 300, 350, 400, 450, 500, 600, 900, 1200, 1600],
         gapMs: [0, 100, 250, 500],
@@ -68,7 +70,7 @@
     }
 
     function cancelCurrentSound() {
-        if (piano) piano.mute();
+        if (piano) piano.stopAll();
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
@@ -322,10 +324,6 @@
         await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
-        // Let tails from the previous settings die before the new
-        // playback starts; a newer restart during the wait supersedes us.
-        if (piano) await piano.waitForSilence();
-        if (token !== playToken) return;
         do {
             await playPhraseOnce(phrase, token);
             if (token !== playToken || !state.loopCurrent) break;
@@ -488,14 +486,18 @@
 
     function onSettingChanged(key) {
         saveSettings();
-        if (STRUCTURE_KEYS.has(key)) {
+        if (REGENERATE_KEYS.has(key)) {
             if (currentPhrase) {
                 stopPlayback();
                 generatePhrase();
             }
             return;
         }
-        if (PROJECT_KEYS.has(key) || PLAYBACK_KEYS.has(key)) {
+        if (REDRAW_KEYS.has(key)) {
+            updatePhraseDisplay();
+            return;
+        }
+        if (REPROJECT_KEYS.has(key) || REPLAY_KEYS.has(key)) {
             updatePhraseDisplay();
             if (currentPhrase) playCurrentOrNew();
         }

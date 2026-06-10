@@ -1296,7 +1296,7 @@ class EarsController {
         if (!this.droneActive) return;
 
         this.droneActive = false;
-        this.droneSynth.mute();
+        this.droneSynth.stopAll();
 
         // Stop pitch detection
         this.stopPitchDetection();

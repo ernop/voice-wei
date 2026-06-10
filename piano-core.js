@@ -1,9 +1,13 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // PIANO CORE
-// Single owner of the Salamander grand piano sampler.
-// Every page that plays piano notes loads this instead of building its
-// own Tone.Sampler. Requires Tone.js and music-constants.js.
+// Singleton piano voice engine over the Salamander samples.
+//
+// Every sounding voice is tracked in a registry and owns its gain node,
+// so playback control is exact: stopAll() kills the actual voices (with
+// a short declick fade), never by muting the master output and hoping
+// tails die. activeVoices() reports precisely what is sounding.
+// Requires Tone.js and music-constants.js.
 //-----------------------------------------------------------------------
 
 const PianoCore = (function () {
@@ -21,12 +25,11 @@ const PianoCore = (function () {
         'A7': 'A7.mp3', 'C8': 'C8.mp3'
     });
     const DEFAULT_VOLUME_DB = -3;
-    // Real pianos damp strings quickly; this also bounds how long released
-    // voices can linger, which makes the no-overlap guarantee below cheap.
-    const PIANO_RELEASE_SECONDS = 0.3;
-    // After a mute, released voices are fully dead once the release fade
-    // completes; new playback waits out the remainder of this window.
-    const RESTART_GRACE_MS = 350;
+    // Damper fade applied at a note's musical end (like lifting the key).
+    const DAMPER_SECONDS = 0.25;
+    // Declick fade when a voice is killed by stopAll(): long enough to
+    // avoid a click, short enough to be imperceptible as sound.
+    const KILL_FADE_SECONDS = 0.02;
 
     // Tone.js requires a user gesture before audio can start.
     async function ensureStarted() {
@@ -37,87 +40,152 @@ const PianoCore = (function () {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    /** @param {string} name - Sample key like 'D#1' */
+    function sampleNameToMidi(name) {
+        const match = name.match(/^([A-G]#?)(\d)$/);
+        if (!match) throw new Error(`Bad sample name: ${name}`);
+        const midi = noteNameToMidi(match[1], Number(match[2]));
+        if (midi === null) throw new Error(`Bad sample name: ${name}`);
+        return midi;
+    }
+
     /**
-     * @param {InstanceType<typeof Tone.Sampler>} synth
-     * @param {InstanceType<typeof Tone.Gain>} gainNode
+     * @param {InstanceType<typeof Tone.ToneAudioBuffers>} buffers
+     * @param {number} volume
      */
-    function makePiano(synth, gainNode) {
-        let muteUntil = 0;
+    function makePiano(buffers, volume) {
+        const output = new Tone.Gain(Tone.dbToGain(volume)).toDestination();
+        const samples = Object.keys(SALAMANDER_URLS)
+            .map(name => ({ name, midi: sampleNameToMidi(name) }))
+            .sort((a, b) => a.midi - b.midi);
+
+        /**
+         * The registry: every voice that is (or may be) sounding.
+         * endsAtMs is authoritative - after it, the voice is silent.
+         * @type {Set<{ midi: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
+         */
+        const voices = new Set();
+
+        /** @param {number} midi */
+        function nearestSample(midi) {
+            let best = samples[0];
+            for (const sample of samples) {
+                if (Math.abs(sample.midi - midi) < Math.abs(best.midi - midi)) best = sample;
+            }
+            return best;
+        }
+
+        /**
+         * @param {number} midi
+         * @param {number} durationSeconds
+         */
+        function startVoice(midi, durationSeconds) {
+            const sample = nearestSample(midi);
+            const gain = new Tone.Gain(1).connect(output);
+            const source = new Tone.ToneBufferSource({
+                url: buffers.get(sample.name),
+                playbackRate: Math.pow(2, (midi - sample.midi) / 12)
+            }).connect(gain);
+
+            const now = Tone.now();
+            const voice = {
+                midi,
+                startedAtMs: performance.now(),
+                endsAtMs: performance.now() + (durationSeconds + DAMPER_SECONDS) * 1000,
+                source,
+                gain
+            };
+            source.onended = () => {
+                voices.delete(voice);
+                source.dispose();
+                gain.dispose();
+            };
+
+            source.start(now);
+            // Hold full level until the musical end, then damper to silence.
+            gain.gain.setValueAtTime(1, now + durationSeconds);
+            gain.gain.linearRampToValueAtTime(0, now + durationSeconds + DAMPER_SECONDS);
+            source.stop(now + durationSeconds + DAMPER_SECONDS + 0.01);
+
+            voices.add(voice);
+        }
+
+        /** @param {number | string} duration - Tone time (seconds or notation like '2n') */
+        function toSeconds(duration) {
+            return Tone.Time(duration).toSeconds();
+        }
 
         return {
-            synth,
-            gainNode,
-            // Restore gain after a hard mute; call before every trigger.
-            unmute() {
-                gainNode.gain.setValueAtTime(1, Tone.now());
-            },
-            // Hard cutoff: release voices and mute so nothing lingers.
-            mute() {
-                synth.releaseAll();
-                gainNode.gain.cancelScheduledValues(Tone.now());
-                gainNode.gain.setValueAtTime(0, Tone.now());
-                muteUntil = performance.now() + RESTART_GRACE_MS;
-            },
-            // Old-settings notes must never sound under new ones: unmuting
-            // revives voices that are still in their release fade, so a new
-            // sequence waits until they are dead. No-op when nothing was
-            // recently muted.
-            async waitForSilence() {
-                const remaining = muteUntil - performance.now();
-                if (remaining > 0) await sleep(remaining);
-            },
             /**
              * @param {number} midi
-             * @param {number | string} duration - Tone time (seconds or notation like '2n')
+             * @param {number | string} duration
              */
             playMidi(midi, duration) {
-                this.unmute();
-                synth.triggerAttackRelease(midiToPitchString(midi), duration);
+                startVoice(midi, toSeconds(duration));
             },
             /**
              * @param {string} name - Pitch string like 'C4'
              * @param {number | string} duration
              */
             playName(name, duration) {
-                this.unmute();
-                synth.triggerAttackRelease(name, duration);
+                startVoice(Tone.Frequency(name).toMidi(), toSeconds(duration));
             },
             /**
              * @param {number[]} midis - Notes played simultaneously
              * @param {number | string} duration
              */
             playMidiChord(midis, duration) {
-                this.unmute();
-                synth.triggerAttackRelease(midis.map(midiToPitchString), duration);
+                const seconds = toSeconds(duration);
+                midis.forEach(midi => startVoice(midi, seconds));
+            },
+            // Kill every sounding voice now. Each voice's own gain ramps
+            // to zero over the declick fade; nothing is hidden behind a
+            // master mute, and nothing can come back later.
+            stopAll() {
+                const now = Tone.now();
+                const nowMs = performance.now();
+                voices.forEach(voice => {
+                    if (voice.endsAtMs <= nowMs) return;
+                    voice.gain.gain.cancelAndHoldAtTime(now);
+                    voice.gain.gain.linearRampToValueAtTime(0, now + KILL_FADE_SECONDS);
+                    voice.endsAtMs = nowMs + KILL_FADE_SECONDS * 1000;
+                });
+            },
+            /**
+             * Exactly what is sounding right now.
+             * @returns {Array<{ midi: number, startedAtMs: number, endsAtMs: number }>}
+             */
+            activeVoices() {
+                const nowMs = performance.now();
+                return Array.from(voices)
+                    .filter(voice => voice.endsAtMs > nowMs)
+                    .map(voice => ({ midi: voice.midi, startedAtMs: voice.startedAtMs, endsAtMs: voice.endsAtMs }));
             }
         };
     }
 
     /**
-     * Load the Salamander piano. Resolves with a piano object once all
-     * samples are ready.
+     * Load the Salamander samples. Resolves with the piano voice engine
+     * once all samples are ready.
      * @param {{ volume?: number }} [options]
      * @returns {Promise<ReturnType<typeof makePiano>>}
      */
     function createPiano(options = {}) {
         const { volume = DEFAULT_VOLUME_DB } = options;
-        const gainNode = new Tone.Gain(1).toDestination();
         return new Promise((resolve, reject) => {
-            const synth = new Tone.Sampler({
+            const buffers = new Tone.ToneAudioBuffers({
                 urls: { ...SALAMANDER_URLS },
                 baseUrl: SALAMANDER_BASE_URL,
-                release: PIANO_RELEASE_SECONDS,
-                onload: () => resolve(makePiano(synth, gainNode)),
+                onload: () => resolve(makePiano(buffers, volume)),
                 onerror: reject
-            }).connect(gainNode);
-            synth.volume.value = volume;
+            });
         });
     }
 
     /**
-     * Lightweight sine synth with the same playMidi/mute interface as the
-     * piano. Ready immediately (no sample download); used for guide beeps
-     * and sustained drones where the full sampler is not wanted.
+     * Lightweight sine synth for guide beeps and sustained drones.
+     * A mono Tone.Synth: its single voice is fully controlled by the
+     * synth itself, so stopAll() is an exact stop here too.
      * @param {{ volume?: number, envelope?: object }} [options]
      */
     function createSineSynth(options = {}) {
@@ -139,12 +207,12 @@ const PianoCore = (function () {
             playMidi(midi, duration) {
                 synth.triggerAttackRelease(midiToPitchString(midi), duration);
             },
-            // Sustained note (drone); ends on mute().
+            // Sustained note (drone); ends on stopAll().
             /** @param {number} midi */
             startMidi(midi) {
                 synth.triggerAttack(midiToPitchString(midi));
             },
-            mute() {
+            stopAll() {
                 synth.triggerRelease();
             }
         };

@@ -225,8 +225,6 @@
 
         await MediaSessionCore.activate();
         await PianoCore.ensureStarted();
-        // Never overlap tails from a previous stop with the new pattern.
-        if (piano) await piano.waitForSilence();
 
         const display = document.getElementById('currentDisplay');
 
@@ -287,7 +285,7 @@
         state.stopRequested = true;
         state.running = false;
         VoiceOutput.stop();
-        if (piano) piano.mute();
+        if (piano) piano.stopAll();
     }
 
     function requestNext() {

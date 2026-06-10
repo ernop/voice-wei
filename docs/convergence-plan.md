@@ -47,17 +47,23 @@ Done (v80, cleanup pass):
   player.html gained the robots meta every other page had; `favicon.svg`
   added and linked from every page (no more 404 on each load).
 
-Done (v81, playback correctness):
-- Zero-overlap guarantee in piano-core: the sampler now uses a realistic
-  0.3s damper release (was Tone's 1s default), `mute()` records when tails
-  will be dead, and `waitForSilence()` makes every restart path (phrases
-  replay, scales sequence/exercise/chord, intervals loop, pitch-meter
-  reference/call-response) wait ~350ms so old-settings notes never sound
-  under new ones. Restarts are token/playbackId guarded, so rapid setting
-  changes supersede each other cleanly.
-- Phrases regen rule fixed: min/max length steppers only bound the NEXT
-  generated phrase; they no longer regenerate the current sequence.
-  Regeneration is now only return-to-1 / return-to-root.
+Done (v81-v82, playback correctness):
+- Phrases regen rule fixed: min/max PHRASE length steppers only bound the
+  NEXT generated phrase; they no longer regenerate the current sequence.
+  Regeneration is now only return-to-1 / return-to-root. Show-names is
+  redraw-only (it used to replay).
+- piano-core rebuilt as a true voice engine (v82, replacing the v81
+  mute-and-wait approach, which was rejected as uncontrolled): every
+  sounding voice is registered with its own gain node; `stopAll()` kills
+  the actual voices with a 20ms declick fade; `activeVoices()` reports
+  exactly what is sounding. No master-gain muting, no timing guesses,
+  no restart delay. Tone.Sampler is gone; playback runs on
+  ToneAudioBuffers + per-voice ToneBufferSource with a 0.25s damper at
+  each note's musical end.
+- docs/parameters.md added: a fixed vocabulary of setting-change behaviors
+  (bounds-next, reproject, regenerate, replay, redraw, live-restart,
+  next-round, immediate) plus a table of every parameter on every page.
+  New settings must pick a behavior from the vocabulary and be listed.
 
 Remaining:
 - Phase 3 (rest of it): stepper/segment-row adoption on scales chip rows,

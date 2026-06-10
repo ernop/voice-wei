@@ -52,7 +52,7 @@ Use **Phrases** when the exercise is about remembering and reproducing whole mel
 - Phrase Test includes Pause on silence, 20s window, and Expand range options
 - Play plays once, Repeat loops the current phrase, Next generates a new phrase
 
-**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; return-to-1 regenerates; min/max length, start, and in/out octave apply to the next generated phrase; playback/display settings keep the current phrase and replay or redraw it. Changing a setting never overlaps old-settings notes with new ones: playback hard-mutes, then restarts only after the old tails are fully dead.
+**Setting behavior:** root pitch and scale changes keep the current degree sequence and transpose/reproject it into the new context; return-to-1 regenerates; min/max length, start, and in/out octave apply to the next generated phrase; playback settings replay the current phrase; show-names redraws. Every setting on every page follows the shared vocabulary in [docs/parameters.md](docs/parameters.md). Old-settings notes never overlap new ones: the piano engine tracks every voice and kills them exactly on stop.
 
 ### Test
 
@@ -128,7 +128,7 @@ ast-grep rules enforce it):
 ```
 music-constants.js       # Note math, scale patterns
 pattern-practice-core.js # Scale-degree offset and phrase math
-piano-core.js            # Salamander piano sampler
+piano-core.js            # Piano voice engine (Salamander samples, exact voice control)
 pitch-detect-core.js     # Mic capture + autocorrelation pitch detection
 pitch-trace-view.js      # Sung-pitch canvas renderer
 practice-controls.js     # Steppers, segmented buttons, toggles

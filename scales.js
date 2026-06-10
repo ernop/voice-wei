@@ -31,10 +31,6 @@ class AudioCoordinator {
     constructor() {
         /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
         this.piano = null;
-        /** @type {InstanceType<typeof Tone.Sampler> | null} */
-        this.synth = null;
-        /** @type {InstanceType<typeof Tone.Gain> | null} */
-        this.gainNode = null;
         /** @type {boolean} */
         this.isPlaying = false;
         /** @type {number} */
@@ -49,20 +45,11 @@ class AudioCoordinator {
 
     async init() {
         this.piano = await PianoCore.createPiano();
-        this.synth = this.piano.synth;
-        this.gainNode = this.piano.gainNode;
     }
 
     // Ensure Tone.js audio context is running (requires user interaction)
     async ensureStarted() {
         await PianoCore.ensureStarted();
-    }
-
-    // Enable audio output (restore after hard cutoff)
-    enableAudio() {
-        if (this.gainNode) {
-            this.gainNode.gain.setValueAtTime(1, Tone.now());
-        }
     }
 
     /**
@@ -71,8 +58,7 @@ class AudioCoordinator {
      * @param {string | number} [duration] - Tone.js time value (e.g. '8n', 0.3)
      */
     playNote(midi, duration = '8n') {
-        this.enableAudio();
-        this.synth.triggerAttackRelease(midiToPitchString(midi), duration);
+        this.piano.playMidi(midi, duration);
     }
 
     /**
@@ -81,23 +67,16 @@ class AudioCoordinator {
      * @param {string | number} [duration] - Tone.js time value (e.g. '2n', 0.5)
      */
     playChord(midiNotes, duration = '2n') {
-        this.enableAudio();
-        this.synth.triggerAttackRelease(midiNotes.map(midiToPitchString), duration);
+        this.piano.playMidiChord(midiNotes, duration);
     }
 
-    // Request to start a sequence - stops any existing playback first,
-    // then waits until released voices from the old settings are dead so
-    // old and new notes never overlap. Returns the playbackId for the
-    // caller to check validity; a newer request supersedes us during the
-    // wait, in which case the audio stays muted for the newer one.
-    async requestSequencePlayback() {
+    // Request to start a sequence - stops any existing playback first.
+    // Returns playbackId for the caller to check if still valid.
+    requestSequencePlayback() {
         this.stop();  // Stop any existing playback
         this.playbackId++;
         this.isPlaying = true;
-        const playId = this.playbackId;
-        if (this.piano) await this.piano.waitForSilence();
-        if (this.isPlaybackValid(playId)) this.enableAudio();
-        return playId;
+        return this.playbackId;
     }
 
     /**
@@ -125,7 +104,7 @@ class AudioCoordinator {
             getNotesForRepeat = null
         } = options;
 
-        const playId = await this.requestSequencePlayback();
+        const playId = this.requestSequencePlayback();
         const isInfinite = repeatCount === Infinity;
         const playTimes = repeatCount === 0 ? 1 : (isInfinite ? Infinity : repeatCount);
         let r = 0;
@@ -142,7 +121,7 @@ class AudioCoordinator {
                     const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
 
                     if (onNote) onNote(notesForRepeat[i], i, r);
-                    this.synth.triggerAttackRelease(midiToPitchString(notesForRepeat[i]), duration.tone);
+                    this.piano.playMidi(notesForRepeat[i], duration.tone);
 
                     await this.sleep(duration.ms + duration.gap);
                 }
@@ -184,13 +163,13 @@ class AudioCoordinator {
             gapMs = 2000
         } = options;
 
-        const playId = await this.requestSequencePlayback();
+        const playId = this.requestSequencePlayback();
         const isInfinite = repeatCount === Infinity;
         let r = 0;
 
         try {
             while (this.isPlaybackValid(playId) && (isInfinite || r < repeatCount)) {
-                this.synth.triggerAttackRelease(midiNotes.map(midiToPitchString), '2n');
+                this.piano.playMidiChord(midiNotes, '2n');
                 r++;
 
                 const hasMore = isInfinite || r < repeatCount;
@@ -208,11 +187,11 @@ class AudioCoordinator {
         }
     }
 
-    // Stop all playback immediately (hard mute via the shared piano)
+    // Stop all playback immediately: kills the actual voices
     stop() {
         this.isPlaying = false;
         this.playbackId++;  // Invalidate any in-flight playback
-        if (this.piano) this.piano.mute();
+        if (this.piano) this.piano.stopAll();
     }
 
     /** @param {number} ms */
@@ -3306,7 +3285,7 @@ class ScalesController {
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
 
-        const playId = await this.audio.requestSequencePlayback();
+        const playId = this.audio.requestSequencePlayback();
         let r = 0;
 
         try {
@@ -3404,7 +3383,7 @@ class ScalesController {
         const isInfinite = playTimes === Infinity;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
 
-        const playId = await this.audio.requestSequencePlayback();
+        const playId = this.audio.requestSequencePlayback();
         let r = 0;
 
         const exerciseLabels = {
