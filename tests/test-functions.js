@@ -215,6 +215,32 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(200);
         const savedAlgo = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).phraseAlgo);
         report.check('phrases algorithm persists', savedAlgo === 'arch');
+
+        // Motif is a transposed shape, not a wandering walk: the leading
+        // interval shape must be restated verbatim later in the phrase
+        // (away from range edges, where bounding may distort it).
+        const motifStructure = await tab.evaluate(() => {
+            let hits = 0;
+            for (let i = 0; i < 6; i++) {
+                const phrase = PatternPracticeCore.generatePhrase({
+                    root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
+                    rangeMode: 'expanded', minLength: 8, maxLength: 10,
+                    returnToInitial: false, returnToRoot: false, phraseAlgo: 'motif'
+                });
+                const o = phrase.offsets;
+                const d = o.slice(1).map((v, idx) => v - o[idx]);
+                for (let shapeLen = 2; shapeLen <= 3; shapeLen++) {
+                    const shape = d.slice(0, shapeLen).join(',');
+                    const rest = [];
+                    for (let s = shapeLen + 1; s + shapeLen <= d.length; s++) {
+                        rest.push(d.slice(s, s + shapeLen).join(','));
+                    }
+                    if (rest.includes(shape)) { hits++; break; }
+                }
+            }
+            return hits;
+        });
+        report.check(`phrases motif restates its shape (${motifStructure}/6 samples)`, motifStructure >= 4);
         await tab.close();
     }
 

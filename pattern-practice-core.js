@@ -403,26 +403,46 @@ const PatternPracticeCore = (function () {
      * }} options
      * @returns {number[]}
      */
+    /**
+     * Motif: a short interval shape is the meta-idea, and the phrase is
+     * that one shape stated again and again from moving anchors - the
+     * same gaps heard from different places in the scale. The shape
+     * never mutates; only its starting point moves. The ear is invited
+     * to hear through the surface notes to the relationship underneath.
+     */
     function generateMotifOffsets(options) {
         const { minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
-        const cells = [
-            [1, 1, -2],
-            [2, -1, -1],
-            [1, -2, 1],
-            [3, -1, -2],
-            [-1, -1, 2],
-            [-2, 1, 1]
+        // The identity: 2-3 scale-degree intervals, restated verbatim.
+        // No uniform shapes ([1,1]) - those read as scale runs, not as a
+        // figure; every shape changes direction or mixes step sizes.
+        const shapes = [
+            [2, -1], [1, -2], [-2, 1], [2, 1], [-1, -2],
+            [1, 2, -1], [2, -1, -1], [1, -2, 1], [3, -1, -1], [-1, 2, 1], [1, 3, -2]
         ];
-        const cell = randomChoice(cells);
-        let current = initial;
+        const shape = randomChoice(shapes);
+        // The guises: how the anchor walks between statements - a steady
+        // sequence step (classic rosalia) or a small alternating walk.
+        const anchorWalk = randomChoice([[1], [2], [-1], [-2], [2, -1], [1, 1, -2], [3, -1]]);
+        let anchor = initial;
+        let statement = 0;
 
-        for (let i = 1; i < length; i++) {
-            let delta = cell[(i - 1) % cell.length];
-            if (i > 1 && (i - 1) % cell.length === 0 && Math.random() < 0.55) {
-                delta += randomChoice([-1, 1]);
+        while (offsets.length < length) {
+            if (statement > 0) {
+                anchor = boundedMove(anchor, anchorWalk[(statement - 1) % anchorWalk.length], minOffset, maxOffset);
+                // Never repeat a note back-to-back across the seam: if the
+                // new anchor is the note we just ended on, nudge it.
+                if (anchor === offsets[offsets.length - 1]) {
+                    anchor = boundedMove(anchor, 1, minOffset, maxOffset);
+                }
+                offsets.push(anchor);
             }
-            current = boundedMove(current, delta, minOffset, maxOffset);
-            offsets.push(current);
+            let position = anchor;
+            for (const delta of shape) {
+                if (offsets.length >= length) break;
+                position = boundedMove(position, delta, minOffset, maxOffset);
+                offsets.push(position);
+            }
+            statement++;
         }
 
         return addPhraseAnchors(offsets, options, initial);
