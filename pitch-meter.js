@@ -20,7 +20,7 @@ const INSTRUMENT_PRESETS = Object.freeze({
 /**
  * @typedef {{ midi: number, freq: number, name: string, noteName: string, octave: number }} TargetNote
  * @typedef {{ time: number, freq: number, midi: number, note: string, cents: number, targetNote?: string }} PitchSample
- * @typedef {{ matched: boolean, accuracy: number, avgCents?: number, reason?: string, targetNote?: string, samples?: number }} NoteResult
+ * @typedef {{ matched: boolean, accuracy: number, avgCents?: number, biasCents?: number, reason?: string, targetNote?: string, samples?: number, label?: string, midi?: number }} NoteResult
  */
 
 class PitchMeterController {
@@ -271,8 +271,9 @@ class PitchMeterController {
     /**
      * Persist a finished session's result and refresh the trend line.
      * @param {number} hit @param {number} total @param {number | null} avgCents
+     * @param {ProgressNoteResult[]} [notes]
      */
-    recordProgress(hit, total, avgCents) {
+    recordProgress(hit, total, avgCents, notes = []) {
         if (this.sessionRecorded || total === 0) return;
         this.sessionRecorded = true;
         ProgressStore.record({
@@ -280,7 +281,8 @@ class PitchMeterController {
             context: `${this.mode} ${this.rootNote}${this.octave} ${this.scaleType}`,
             total,
             hit,
-            avgCents
+            avgCents,
+            notes
         });
         this.updateProgressLine();
     }
@@ -288,6 +290,8 @@ class PitchMeterController {
     updateProgressLine() {
         const el = document.getElementById('progressSummary');
         if (el) el.textContent = ProgressStore.trendLine('pitch-meter');
+        const weakEl = document.getElementById('weakSpotsSummary');
+        if (weakEl) weakEl.textContent = ProgressStore.weakSpotLine('pitch-meter');
     }
 
     async toggleListening() {
@@ -430,7 +434,7 @@ class PitchMeterController {
 
         // Analyze how well they matched
         const result = this.evaluateNoteMatch(note, pitchSamples);
-        this.noteResults.push(result);
+        this.noteResults.push({ ...result, label: note.name, midi: note.midi });
 
         // Brief feedback
         if (result.matched) {
@@ -470,6 +474,9 @@ class PitchMeterController {
         // Calculate accuracy based on cents deviation
         const centsDeviations = closeMatches.map(s => Math.abs((s.midi - targetMidi) * 100));
         const avgCents = centsDeviations.reduce((a, b) => a + b, 0) / centsDeviations.length;
+        // Signed deviation tells sharp from flat - the degree-level data
+        // the training goal needs ("you overshoot the 6th").
+        const biasCents = closeMatches.reduce((sum, s) => sum + (s.midi - targetMidi) * 100, 0) / closeMatches.length;
 
         // Convert cents to accuracy percentage (0 cents = 100%, 50 cents = 0%)
         const accuracy = Math.max(0, Math.round(100 - (avgCents * 2)));
@@ -478,6 +485,7 @@ class PitchMeterController {
             matched: true,
             accuracy,
             avgCents,
+            biasCents,
             targetNote: targetNote.name,
             samples: closeMatches.length
         };
@@ -529,7 +537,17 @@ class PitchMeterController {
         const breakdownEl = document.getElementById('noteBreakdown');
         breakdownEl.innerHTML = '<h4>Per-Note Results</h4>';
 
-        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null);
+        const noteOutcomes = this.noteResults.map(r => ({
+            label: r.label || r.targetNote || '?',
+            midi: r.midi ?? 0,
+            result: /** @type {'good' | 'ok' | 'missed'} */ (
+                !r.matched ? 'missed'
+                    : (r.avgCents ?? 99) <= 10 ? 'good'
+                        : (r.avgCents ?? 99) <= 25 ? 'ok' : 'missed'),
+            avgCents: r.avgCents ?? null,
+            biasCents: r.biasCents ?? null
+        }));
+        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null, noteOutcomes);
 
         this.noteResults.forEach((result, i) => {
             const note = this.targetNotes[i];
@@ -770,10 +788,10 @@ class PitchMeterController {
         if (resultsPanel) resultsPanel.style.display = 'block';
 
         const targetMidis = this.targetNotes.map(n => n.midi);
-        /** @type {Record<number, { hits: number, totalCents: number, count: number }>} */
+        /** @type {Record<number, { hits: number, totalCents: number, signedCents: number, count: number }>} */
         const noteHits = {};
         targetMidis.forEach(midi => {
-            noteHits[midi] = { hits: 0, totalCents: 0, count: 0 };
+            noteHits[midi] = { hits: 0, totalCents: 0, signedCents: 0, count: 0 };
         });
 
         let totalAccurateSamples = 0;
@@ -800,6 +818,7 @@ class PitchMeterController {
                 const cents = (sample.midi - targetKey) * 100;
                 entry.hits++;
                 entry.totalCents += Math.abs(cents);
+                entry.signedCents += cents;
                 entry.count++;
 
                 totalCentsDeviation += Math.abs(cents);
@@ -815,7 +834,20 @@ class PitchMeterController {
         const avgDeviation = validSamples > 0 ? (totalCentsDeviation / validSamples) : 0;
         const notesHitCount = Object.values(noteHits).filter(n => n.count > 5).length;
 
-        this.recordProgress(notesHitCount, this.targetNotes.length, validSamples > 0 ? avgDeviation : null);
+        const playAlongOutcomes = this.targetNotes.map(target => {
+            const entry = noteHits[target.midi];
+            const sung = entry && entry.count > 5;
+            const noteAvg = sung ? entry.totalCents / entry.count : null;
+            return {
+                label: target.name,
+                midi: target.midi,
+                result: /** @type {'good' | 'ok' | 'missed'} */ (
+                    !sung ? 'missed' : noteAvg <= 10 ? 'good' : noteAvg <= 25 ? 'ok' : 'missed'),
+                avgCents: noteAvg,
+                biasCents: sung ? entry.signedCents / entry.count : null
+            };
+        });
+        this.recordProgress(notesHitCount, this.targetNotes.length, validSamples > 0 ? avgDeviation : null, playAlongOutcomes);
 
         document.getElementById('overallAccuracy').textContent = accuracy.toFixed(0) + '%';
         document.getElementById('avgDeviation').textContent = avgDeviation.toFixed(1) + ' cents';

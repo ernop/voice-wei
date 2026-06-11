@@ -14,7 +14,10 @@ const ProgressStore = (function () {
 
     /**
      * @typedef {{ at: string, tool: string, context: string, total: number,
-     *             hit: number, avgCents: number | null }} ProgressEntry
+     *             hit: number, avgCents: number | null,
+     *             notes?: ProgressNoteResult[] }} ProgressEntry
+     * Entries recorded before per-note tracking have no `notes` field;
+     * every reader must treat that explicitly as "no note data".
      */
 
     /** @returns {ProgressEntry[]} */
@@ -32,7 +35,7 @@ const ProgressStore = (function () {
 
     /**
      * @param {{ tool: string, context: string, total: number, hit: number,
-     *           avgCents?: number | null }} entry
+     *           avgCents?: number | null, notes?: ProgressNoteResult[] }} entry
      */
     function record(entry) {
         const entries = load();
@@ -42,7 +45,8 @@ const ProgressStore = (function () {
             context: entry.context,
             total: entry.total,
             hit: entry.hit,
-            avgCents: entry.avgCents ?? null
+            avgCents: entry.avgCents ?? null,
+            notes: entry.notes ?? []
         });
         while (entries.length > MAX_ENTRIES) entries.shift();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -117,7 +121,70 @@ const ProgressStore = (function () {
         return parts.length ? `Progress: ${parts.join(' \u00b7 ')}` : '';
     }
 
-    return { record, list, dailySummary, trendLine };
+    /**
+     * Aggregate per-note outcomes by label over recent takes: how often
+     * each target was missed and which way the singing leaned. This is
+     * the degree-level view the training goal needs ("control in the
+     * lower range - overshoot around 6-7-8").
+     * @param {string} tool
+     * @param {number} [takes] - how many recent takes to aggregate
+     * @returns {Array<{ label: string, attempts: number, missRate: number,
+     *                   biasCents: number | null }>} worst first
+     */
+    function weakSpots(tool, takes = 20) {
+        /** @type {Map<string, { attempts: number, missed: number, biasSum: number, biasCount: number }>} */
+        const byLabel = new Map();
+        for (const entry of list(tool, takes)) {
+            for (const note of entry.notes || []) {
+                const agg = byLabel.get(note.label)
+                    || { attempts: 0, missed: 0, biasSum: 0, biasCount: 0 };
+                agg.attempts++;
+                if (note.result === 'missed') agg.missed++;
+                if (note.biasCents !== null && note.biasCents !== undefined) {
+                    agg.biasSum += note.biasCents;
+                    agg.biasCount++;
+                }
+                byLabel.set(note.label, agg);
+            }
+        }
+        return Array.from(byLabel.entries())
+            .map(([label, agg]) => ({
+                label,
+                attempts: agg.attempts,
+                missRate: agg.missed / agg.attempts,
+                biasCents: agg.biasCount ? agg.biasSum / agg.biasCount : null
+            }))
+            .sort((a, b) => {
+                const badness = (/** @type {{ missRate: number, biasCents: number | null }} */ spot) =>
+                    spot.missRate + Math.abs(spot.biasCents || 0) / 100;
+                return badness(b) - badness(a);
+            });
+    }
+
+    /**
+     * One-line weak-spot readout: worst labels with miss rate and lean.
+     * Only labels with enough attempts and a real problem are shown.
+     * @param {string} tool
+     * @param {number} [maxSpots]
+     */
+    function weakSpotLine(tool, maxSpots = 3) {
+        const spots = weakSpots(tool)
+            .filter(spot => spot.attempts >= 3
+                && (spot.missRate >= 0.3 || Math.abs(spot.biasCents || 0) >= 15))
+            .slice(0, maxSpots);
+        if (!spots.length) return '';
+        const parts = spots.map(spot => {
+            const pieces = [];
+            if (spot.missRate >= 0.3) pieces.push(`missed ${(spot.missRate * 100).toFixed(0)}%`);
+            if (spot.biasCents !== null && Math.abs(spot.biasCents) >= 15) {
+                pieces.push(`${Math.abs(spot.biasCents).toFixed(0)}c ${spot.biasCents > 0 ? 'sharp' : 'flat'}`);
+            }
+            return `${spot.label}: ${pieces.join(', ')}`;
+        });
+        return `Weak spots: ${parts.join(' \u00b7 ')}`;
+    }
+
+    return { record, list, dailySummary, trendLine, weakSpots, weakSpotLine };
 })();
 
 window.ProgressStore = ProgressStore;

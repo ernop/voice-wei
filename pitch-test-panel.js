@@ -145,8 +145,12 @@ const PitchTestPanel = (function () {
                 if (close.length < samples.length * SCORE_MATCH_RATIO) return { ...target, result: 'missed' };
 
                 const avgCents = close.reduce((sum, s) => sum + Math.abs((s.midi - target.midi) * 100), 0) / close.length;
+                // Signed deviation is kept separately: it tells sharp from
+                // flat ("you overshoot the 6th"), which the absolute value
+                // used for verdicts cannot.
+                const biasCents = close.reduce((sum, s) => sum + (s.midi - target.midi) * 100, 0) / close.length;
                 const result = avgCents <= SCORE_GOOD_CENTS ? 'good' : avgCents <= SCORE_OK_CENTS ? 'ok' : 'missed';
-                return { ...target, result, avgCents };
+                return { ...target, result, avgCents, biasCents };
             });
         }
 
@@ -169,8 +173,11 @@ const PitchTestPanel = (function () {
         }
 
         function updateProgressLine() {
+            if (!config.progressTool) return;
             const el = getEl('Progress');
-            if (el && config.progressTool) el.textContent = ProgressStore.trendLine(config.progressTool);
+            if (el) el.textContent = ProgressStore.trendLine(config.progressTool);
+            const weakEl = getEl('WeakSpots');
+            if (weakEl) weakEl.textContent = ProgressStore.weakSpotLine(config.progressTool);
         }
 
         /** The key on screen is always the key of rails, targets, and guide. */
@@ -199,7 +206,17 @@ const PitchTestPanel = (function () {
                 hit: hit.length,
                 avgCents: hit.length
                     ? hit.reduce((sum, t) => sum + (t.avgCents || 0), 0) / hit.length
-                    : null
+                    : null,
+                // Per-note outcomes make degree-level weak spots
+                // aggregatable (the original training goal: find and
+                // drill the degrees you miss or sing sharp/flat).
+                notes: active.map(t => ({
+                    label: t.label,
+                    midi: t.midi,
+                    result: /** @type {'good' | 'ok' | 'missed'} */ (t.result),
+                    avgCents: t.avgCents ?? null,
+                    biasCents: t.biasCents ?? null
+                }))
             });
             takeRecorded = true;
             updateProgressLine();
@@ -270,6 +287,7 @@ const PitchTestPanel = (function () {
                     <span id="${prefix}Score" class="pitch-test-score"></span>
                 </div>
                 <div class="progress-summary" id="${prefix}Progress"></div>
+                <div class="progress-summary" id="${prefix}WeakSpots"></div>
                 <div class="pitch-test-canvas-wrap">
                     <canvas id="${prefix}Canvas" class="pitch-test-canvas"></canvas>
                 </div>

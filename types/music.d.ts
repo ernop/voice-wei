@@ -43,8 +43,29 @@ interface TargetSpan {
     active: boolean;
     /** Scoring verdict, filled in by the panel once the window passes */
     result?: 'good' | 'ok' | 'missed' | null;
-    /** Average cents deviation for scored targets */
+    /** Average absolute cents deviation (drives the verdict thresholds) */
     avgCents?: number;
+    /**
+     * Average SIGNED cents deviation: positive = sung sharp, negative =
+     * sung flat. This is what makes "you overshoot the 6th" measurable.
+     */
+    biasCents?: number | null;
+}
+
+/**
+ * One note's outcome inside a recorded take - the per-degree record
+ * that degree-level analysis (weak spots) aggregates over.
+ */
+interface ProgressNoteResult {
+    /** Target label as displayed (degree or note name) */
+    label: string;
+    /** Target MIDI note */
+    midi: number;
+    result: 'good' | 'ok' | 'missed';
+    /** Average absolute cents deviation; null when nothing was sung close */
+    avgCents: number | null;
+    /** Average signed cents deviation (positive = sharp); null when unknown */
+    biasCents: number | null;
 }
 
 /**
