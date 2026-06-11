@@ -200,5 +200,13 @@ and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)
 · Jun 9 48% (3)". The Pitch tool records its sessions the same way and
 shows its trend in the results panel.
 
-Options per page: targets on/off, play guide on restart, pause on silence,
-20s window, expand range.
+**Weak spots**: every recorded note keeps its verdict and its SIGNED cents
+bias (sharp vs flat). Aggregated over recent takes, the panel and the
+Pitch tool show a weak-spot line - "Weak spots: 6: missed 40%, 18c sharp" -
+naming the degrees that need work and which way you lean on them. Labels
+appear once they have at least 3 attempts and a real problem (missed 30%+
+or leaning 15c+).
+
+Options per page: targets on/off, pause on silence, 20s window, expand
+range. The guide never auto-plays; "Play Guide" is an explicit button in
+the pinned action row.

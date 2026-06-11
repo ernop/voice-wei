@@ -67,10 +67,14 @@ and deliver a weaker version of the requested change.
 
 ## Current priorities (deduplicated from the idea pool)
 
-1. **Deeper judgment**: per-note scoring in the shared sing panel (v86) and
+1. **Deeper judgment**: per-note scoring in the shared sing panel (v86),
    progress tracking over time (v88: scored takes persist, daily trend
-   lines on the panel and the Pitch tool); next: call-and-response
-   variants on more tools.
+   lines on the panel and the Pitch tool), and degree-level analytics
+   (v106: every recorded take carries per-note outcomes with SIGNED
+   cents bias; "Weak spots: 6: 21c sharp" lines on the panel and the
+   Pitch tool - the original lower-range/overshoot goal is now
+   measurable). Next: generators biasing toward weak degrees;
+   call-and-response variants on more tools.
 2. **Car mode**: larger UI preset, wake word, fewer on-screen elements.
 3. **Training content**: more coach-style exercises and preset packs;
    lower-range control drills specifically.

@@ -342,6 +342,39 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`phrases sings-right-thing-scores-right (${linkage.score})`,
             linkage.score.includes(`${linkage.count}/${linkage.count}`));
 
+        // The recorded take carries per-note outcomes with signed bias -
+        // the degree-level data the training goal needs.
+        const noteRecord = await tab.evaluate(() => {
+            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            const mine = entries.filter(e => e.tool === 'phrases-test');
+            const last = mine[mine.length - 1] || {};
+            const notes = last.notes || [];
+            return {
+                count: notes.length,
+                labels: notes.map(n => n.label).join(' '),
+                allGoodCentered: notes.every(n => n.result === 'good'
+                    && n.biasCents !== null && Math.abs(n.biasCents) < 5)
+            };
+        });
+        report.check(`phrases take records per-note results (${noteRecord.count} notes: ${noteRecord.labels})`,
+            noteRecord.count === linkage.count && noteRecord.allGoodCentered);
+
+        // Weak-spot aggregation names the leaning degree and its direction.
+        const weakLine = await tab.evaluate(() => {
+            for (let i = 0; i < 3; i++) {
+                ProgressStore.record({
+                    tool: 'weak-spot-check', context: 'test', total: 2, hit: 2, avgCents: 12,
+                    notes: [
+                        { label: '6', midi: 60, result: 'ok', avgCents: 22, biasCents: 21 },
+                        { label: '1', midi: 52, result: 'good', avgCents: 3, biasCents: 1 }
+                    ]
+                });
+            }
+            return ProgressStore.weakSpotLine('weak-spot-check');
+        });
+        report.check(`weak spots name the sharp degree ("${weakLine}")`,
+            weakLine.includes('6:') && weakLine.includes('sharp') && !weakLine.includes('1:'));
+
         // The action row stays visible while scrolled mid-take.
         await tab.evaluate(() => window.scrollTo(0, 700));
         await tab.waitForTimeout(300);
