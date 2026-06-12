@@ -183,36 +183,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const total = window.phrasesDebug.takePlan().length;
             const first = passes[0] || [];
             const final = passes[passes.length - 1] || [];
-            const seen = new Set(first);
-            const increments = [];
-            let duplicateReveal = false;
-            for (const pass of passes.slice(1)) {
-                const additions = pass.filter(index => !seen.has(index));
-                increments.push(additions.length);
-                additions.forEach(index => {
-                    if (seen.has(index)) duplicateReveal = true;
-                    seen.add(index);
-                });
-            }
-            const pairedReveals = increments.every((count, index) =>
-                index === increments.length - 1 ? count >= 1 && count <= 2 : count === 2);
+            const upward = passes.every((pass, passIndex) =>
+                pass.length === passIndex + 1 && pass.every((index, idx) => index === idx));
             return {
                 total,
                 passCount: passes.length,
                 firstCount: first.length,
                 firstIncludesStart: first.includes(0),
-                firstIncludesEnd: first.includes(total - 1),
-                firstIncludesMiddle: total < 3 || first.some(index => index > 0 && index < total - 1),
-                pairedReveals,
-                duplicateReveal,
+                upward,
                 finalAll: final.length === total && final.every((index, idx) => index === idx)
             };
         });
-        report.check(`phrases breakdown plan anchors then reveals pairs (${breakdownPlan.passCount} passes for ${breakdownPlan.total} notes)`,
-            breakdownPlan.firstCount === Math.min(3, breakdownPlan.total)
-            && breakdownPlan.firstIncludesStart && breakdownPlan.firstIncludesEnd
-            && breakdownPlan.firstIncludesMiddle && breakdownPlan.pairedReveals
-            && !breakdownPlan.duplicateReveal && breakdownPlan.finalAll);
+        report.check(`phrases breakdown plan grows upward one note at a time (${breakdownPlan.passCount} passes for ${breakdownPlan.total} notes)`,
+            breakdownPlan.passCount === breakdownPlan.total
+            && breakdownPlan.firstCount === Math.min(1, breakdownPlan.total)
+            && breakdownPlan.firstIncludesStart
+            && breakdownPlan.upward && breakdownPlan.finalAll);
 
         await tab.click('[data-output="display"]');
         await tab.waitForTimeout(300);

@@ -65,9 +65,8 @@ gap, play tones, return to the initial note.
   becomes down-from-8). A view/playback transform, not a regeneration.
 - **Per-note on/off markers** under the degrees isolate phrase sections by
   click or drag without losing the phrase.
-- **Breakdown** starts from the first, a middle-ish note, and the last,
-  then reveals two more muted notes between automatic replays until the
-  full phrase is back on.
+- **Breakdown** starts from the first note, then adds the next note in
+  phrase order between automatic replays until the full phrase is back on.
 - **Output modes**: display only, say numbers, play tones, say + tones,
   sing numbers (speech pitch shaped toward each note), none.
 - **Test** opens the embedded pitch-trace panel for the current phrase

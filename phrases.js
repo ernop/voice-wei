@@ -472,73 +472,15 @@
     }
 
     /**
-     * @param {number[]} values
-     * @returns {number[]}
-     */
-    function shuffled(values) {
-        const copy = values.slice();
-        for (let i = copy.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [copy[i], copy[j]] = [copy[j], copy[i]];
-        }
-        return copy;
-    }
-
-    function chooseBreakdownMiddleIndex() {
-        const count = takeNotes.length;
-        if (count < 3) return null;
-        const low = Math.max(1, Math.floor((count - 1) * 0.35));
-        const high = Math.min(count - 2, Math.ceil((count - 1) * 0.65));
-        const candidates = [];
-        for (let index = low; index <= high; index++) candidates.push(index);
-        const anchorOffsets = new Set([takeNotes[0].offset, takeNotes[count - 1].offset]);
-        const distinctCandidates = candidates.filter(index => !anchorOffsets.has(takeNotes[index].offset));
-        const pool = distinctCandidates.length ? distinctCandidates : candidates;
-        return pool[Math.floor(Math.random() * pool.length)];
-    }
-
-    /**
-     * @param {Set<number>} anchorSet
-     * @returns {number[]}
-     */
-    function shuffledBreakdownRemainder(anchorSet) {
-        const remainder = [];
-        for (let index = 0; index < takeNotes.length; index++) {
-            if (!anchorSet.has(index)) remainder.push(index);
-        }
-        return shuffled(remainder);
-    }
-
-    /**
-     * @param {number[]} remaining
-     * @returns {number[]}
-     */
-    function takeBreakdownBatch(remaining) {
-        const batch = [];
-        while (batch.length < 2 && remaining.length) {
-            const batchOffsets = new Set(batch.map(index => takeNotes[index].offset));
-            const distinctIndex = remaining.findIndex(index => !batchOffsets.has(takeNotes[index].offset));
-            const nextIndex = distinctIndex === -1 ? 0 : distinctIndex;
-            batch.push(remaining.splice(nextIndex, 1)[0]);
-        }
-        return batch;
-    }
-
-    /**
      * @returns {number[][]}
      */
     function buildBreakdownPasses() {
         if (!takeNotes.length) return [];
-        const anchors = new Set([0, takeNotes.length - 1]);
-        const middle = chooseBreakdownMiddleIndex();
-        if (middle !== null) anchors.add(middle);
-
-        const enabled = new Set(anchors);
-        const passes = [Array.from(enabled).sort((a, b) => a - b)];
-        const remaining = shuffledBreakdownRemainder(enabled);
-        while (remaining.length) {
-            takeBreakdownBatch(remaining).forEach(index => enabled.add(index));
-            passes.push(Array.from(enabled).sort((a, b) => a - b));
+        const passes = [];
+        for (let lastEnabled = 0; lastEnabled < takeNotes.length; lastEnabled++) {
+            const enabled = [];
+            for (let index = 0; index <= lastEnabled; index++) enabled.push(index);
+            passes.push(enabled);
         }
         return passes;
     }
