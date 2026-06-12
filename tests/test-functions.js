@@ -178,6 +178,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const played = await tab.evaluate(() => window.__voiceStarts) - starts0;
         report.check(`phrases note mask (${noteCount} notes, 1 off, ${played} played)`, played === noteCount - 1);
 
+        const breakdownPlan = await tab.evaluate(() => {
+            const passes = window.phrasesDebug.breakdownPasses();
+            const total = window.phrasesDebug.takePlan().length;
+            const first = passes[0] || [];
+            const final = passes[passes.length - 1] || [];
+            const seen = new Set(first);
+            const increments = [];
+            let duplicateReveal = false;
+            for (const pass of passes.slice(1)) {
+                const additions = pass.filter(index => !seen.has(index));
+                increments.push(additions.length);
+                additions.forEach(index => {
+                    if (seen.has(index)) duplicateReveal = true;
+                    seen.add(index);
+                });
+            }
+            const pairedReveals = increments.every((count, index) =>
+                index === increments.length - 1 ? count >= 1 && count <= 2 : count === 2);
+            return {
+                total,
+                passCount: passes.length,
+                firstCount: first.length,
+                firstIncludesStart: first.includes(0),
+                firstIncludesEnd: first.includes(total - 1),
+                firstIncludesMiddle: total < 3 || first.some(index => index > 0 && index < total - 1),
+                pairedReveals,
+                duplicateReveal,
+                finalAll: final.length === total && final.every((index, idx) => index === idx)
+            };
+        });
+        report.check(`phrases breakdown plan anchors then reveals pairs (${breakdownPlan.passCount} passes for ${breakdownPlan.total} notes)`,
+            breakdownPlan.firstCount === Math.min(3, breakdownPlan.total)
+            && breakdownPlan.firstIncludesStart && breakdownPlan.firstIncludesEnd
+            && breakdownPlan.firstIncludesMiddle && breakdownPlan.pairedReveals
+            && !breakdownPlan.duplicateReveal && breakdownPlan.finalAll);
+
         await tab.click('[data-output="display"]');
         await tab.waitForTimeout(300);
         await tab.click('#stopBtn');
@@ -186,6 +222,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(800);
         const sAfter = await tab.evaluate(() => window.__voiceStarts);
         report.check('phrases display mode is silent', sBefore === sAfter);
+
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(breakdownPlan.passCount * 850 + 500);
+        const breakdownComplete = await tab.evaluate(() => ({
+            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length
+        }));
+        report.check(`phrases breakdown button restores full phrase (${breakdownComplete.enabled}/${breakdownComplete.total})`,
+            breakdownComplete.active === 'false' && breakdownComplete.enabled === breakdownComplete.total);
+
         await tab.click('[data-output="tones"]');
         await tab.waitForTimeout(200);
         await tab.click('#stopBtn');

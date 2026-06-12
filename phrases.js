@@ -44,6 +44,7 @@
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs']);
     const REDRAW_KEYS = new Set(['showNoteNames']);
+    const BREAKDOWN_PASS_PAUSE_MS = 700;
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
@@ -68,6 +69,7 @@
     let playToken = 0;
     let isPointerToggling = false;
     let pointerToggleValue = true;
+    let breakdownActive = false;
 
     const getEl = PracticeControls.getEl;
 
@@ -89,6 +91,7 @@
         playToken++;
         state.loopCurrent = false;
         syncRepeatButton();
+        setBreakdownActive(false);
         cancelCurrentSound();
     }
 
@@ -361,6 +364,7 @@
     async function playPhrase() {
         if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
+        setBreakdownActive(false);
         cancelCurrentSound();
         const token = ++playToken;
         do {
@@ -452,6 +456,128 @@
         takeNotes.forEach(note => { note.enabled = active; });
         renderPhraseUnits(buildTakePlan());
         drawPhraseTest();
+    }
+
+    /** @param {boolean} active */
+    function setBreakdownActive(active) {
+        breakdownActive = active;
+        syncBreakdownButton();
+    }
+
+    function syncBreakdownButton() {
+        const btn = getEl('breakdownBtn');
+        if (!btn) return;
+        btn.classList.toggle('selected', breakdownActive);
+        btn.setAttribute('aria-pressed', String(breakdownActive));
+    }
+
+    /**
+     * @param {number[]} values
+     * @returns {number[]}
+     */
+    function shuffled(values) {
+        const copy = values.slice();
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+    }
+
+    function chooseBreakdownMiddleIndex() {
+        const count = takeNotes.length;
+        if (count < 3) return null;
+        const low = Math.max(1, Math.floor((count - 1) * 0.35));
+        const high = Math.min(count - 2, Math.ceil((count - 1) * 0.65));
+        const candidates = [];
+        for (let index = low; index <= high; index++) candidates.push(index);
+        const anchorOffsets = new Set([takeNotes[0].offset, takeNotes[count - 1].offset]);
+        const distinctCandidates = candidates.filter(index => !anchorOffsets.has(takeNotes[index].offset));
+        const pool = distinctCandidates.length ? distinctCandidates : candidates;
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    /**
+     * @param {Set<number>} anchorSet
+     * @returns {number[]}
+     */
+    function shuffledBreakdownRemainder(anchorSet) {
+        const remainder = [];
+        for (let index = 0; index < takeNotes.length; index++) {
+            if (!anchorSet.has(index)) remainder.push(index);
+        }
+        return shuffled(remainder);
+    }
+
+    /**
+     * @param {number[]} remaining
+     * @returns {number[]}
+     */
+    function takeBreakdownBatch(remaining) {
+        const batch = [];
+        while (batch.length < 2 && remaining.length) {
+            const batchOffsets = new Set(batch.map(index => takeNotes[index].offset));
+            const distinctIndex = remaining.findIndex(index => !batchOffsets.has(takeNotes[index].offset));
+            const nextIndex = distinctIndex === -1 ? 0 : distinctIndex;
+            batch.push(remaining.splice(nextIndex, 1)[0]);
+        }
+        return batch;
+    }
+
+    /**
+     * @returns {number[][]}
+     */
+    function buildBreakdownPasses() {
+        if (!takeNotes.length) return [];
+        const anchors = new Set([0, takeNotes.length - 1]);
+        const middle = chooseBreakdownMiddleIndex();
+        if (middle !== null) anchors.add(middle);
+
+        const enabled = new Set(anchors);
+        const passes = [Array.from(enabled).sort((a, b) => a - b)];
+        const remaining = shuffledBreakdownRemainder(enabled);
+        while (remaining.length) {
+            takeBreakdownBatch(remaining).forEach(index => enabled.add(index));
+            passes.push(Array.from(enabled).sort((a, b) => a - b));
+        }
+        return passes;
+    }
+
+    /** @param {number[]} enabledIndices */
+    function applyNoteMask(enabledIndices) {
+        const enabledSet = new Set(enabledIndices);
+        takeNotes.forEach((note, index) => { note.enabled = enabledSet.has(index); });
+        updatePhraseDisplay();
+    }
+
+    async function runBreakdown() {
+        if (breakdownActive) {
+            stopPlayback();
+            return;
+        }
+        await MediaSessionCore.activate();
+        if (!currentPhrase) generatePhrase();
+        if (!takeNotes.length) return;
+        testPanel.close();
+        state.loopCurrent = false;
+        syncRepeatButton();
+        await PianoCore.ensureStarted();
+        cancelCurrentSound();
+
+        const token = ++playToken;
+        const passes = buildBreakdownPasses();
+        setBreakdownActive(true);
+        try {
+            for (let passIndex = 0; passIndex < passes.length; passIndex++) {
+                if (token !== playToken) return;
+                applyNoteMask(passes[passIndex]);
+                await playPhraseOnce(token);
+                if (token !== playToken) return;
+                if (passIndex < passes.length - 1) await sleep(BREAKDOWN_PASS_PAUSE_MS);
+            }
+        } finally {
+            setBreakdownActive(false);
+        }
     }
 
     /** @param {boolean} open */
@@ -619,6 +745,7 @@
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
+        getEl('breakdownBtn')?.addEventListener('click', runBreakdown);
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',
@@ -629,6 +756,7 @@
         window.addEventListener('pointercancel', endPointerToggle);
         updatePhraseDisplay();
         syncRepeatButton();
+        syncBreakdownButton();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],
@@ -654,7 +782,12 @@
         // Named state inspection for the test suite: the explicit take
         // plan, the test timeline derived from it, and the panel itself
         // (for end-to-end scoring tests via recordSample).
-        window.phrasesDebug = { takePlan: buildTakePlan, testTargets: buildPhraseTestTargets, panel: testPanel };
+        window.phrasesDebug = {
+            takePlan: buildTakePlan,
+            testTargets: buildPhraseTestTargets,
+            breakdownPasses: buildBreakdownPasses,
+            panel: testPanel
+        };
     }
 
     boot();
