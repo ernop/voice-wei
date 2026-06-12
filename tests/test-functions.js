@@ -183,22 +183,61 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const total = window.phrasesDebug.takePlan().length;
             const first = passes[0] || [];
             const final = passes[passes.length - 1] || [];
-            const upward = passes.every((pass, passIndex) =>
-                pass.length === passIndex + 1 && pass.every((index, idx) => index === idx));
+            let largestGapAdds = true;
+            let oneAtATime = true;
+            let previous = first;
+            for (const pass of passes.slice(1)) {
+                const additions = pass.filter(index => !previous.includes(index));
+                if (additions.length !== 1) oneAtATime = false;
+                const added = additions[0];
+                const prevSorted = previous.slice().sort((a, b) => a - b);
+                const gaps = [];
+                for (let i = 0; i < prevSorted.length - 1; i++) {
+                    const left = prevSorted[i];
+                    const right = prevSorted[i + 1];
+                    const size = right - left - 1;
+                    if (size > 0) gaps.push({ left, right, size });
+                }
+                const maxGap = Math.max(...gaps.map(gap => gap.size));
+                const chosenGap = gaps.find(gap => gap.left < added && added < gap.right);
+                if (!chosenGap || chosenGap.size !== maxGap) largestGapAdds = false;
+                previous = pass;
+            }
+            const firstShape = total === 1
+                ? first.length === 1 && first[0] === 0
+                : total === 2
+                    ? first.length === 2 && first.includes(0) && first.includes(1)
+                    : first.length === 3 && first.includes(0) && first.includes(total - 1)
+                        && first.some(index => index > 0 && index < total - 1);
             return {
                 total,
                 passCount: passes.length,
                 firstCount: first.length,
-                firstIncludesStart: first.includes(0),
-                upward,
+                firstShape,
+                oneAtATime,
+                largestGapAdds,
                 finalAll: final.length === total && final.every((index, idx) => index === idx)
             };
         });
-        report.check(`phrases breakdown plan grows upward one note at a time (${breakdownPlan.passCount} passes for ${breakdownPlan.total} notes)`,
-            breakdownPlan.passCount === breakdownPlan.total
-            && breakdownPlan.firstCount === Math.min(1, breakdownPlan.total)
-            && breakdownPlan.firstIncludesStart
-            && breakdownPlan.upward && breakdownPlan.finalAll);
+        report.check(`phrases breakdown plan fills largest gaps one note at a time (${breakdownPlan.passCount} passes for ${breakdownPlan.total} notes)`,
+            breakdownPlan.passCount === Math.max(1, breakdownPlan.total - 2)
+            && breakdownPlan.firstShape && breakdownPlan.oneAtATime
+            && breakdownPlan.largestGapAdds && breakdownPlan.finalAll);
+
+        const breakdownControls = await tab.evaluate(() => {
+            const stage = document.querySelector('.phrase-stage').getBoundingClientRect();
+            const actions = document.querySelector('.phrase-stage-actions').getBoundingClientRect();
+            const breakdownBtn = document.getElementById('breakdownBtn').getBoundingClientRect();
+            return {
+                leftDelta: actions.left - stage.left,
+                buttonHeight: breakdownBtn.height,
+                autoPressed: document.getElementById('autoAdvanceBtn').getAttribute('aria-pressed'),
+                addHidden: document.getElementById('addNoteBtn').hidden
+            };
+        });
+        report.check(`phrases breakdown controls are left/tall (left=${breakdownControls.leftDelta.toFixed(0)}, h=${breakdownControls.buttonHeight.toFixed(0)})`,
+            breakdownControls.leftDelta <= 16 && breakdownControls.buttonHeight >= 44
+            && breakdownControls.autoPressed === 'true' && breakdownControls.addHidden === true);
 
         await tab.click('[data-output="display"]');
         await tab.waitForTimeout(300);
@@ -218,6 +257,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         }));
         report.check(`phrases breakdown button restores full phrase (${breakdownComplete.enabled}/${breakdownComplete.total})`,
             breakdownComplete.active === 'false' && breakdownComplete.enabled === breakdownComplete.total);
+
+        await tab.click('#autoAdvanceBtn');
+        await tab.waitForTimeout(150);
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(300);
+        const manualBefore = await tab.evaluate(() => ({
+            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            auto: document.getElementById('autoAdvanceBtn').getAttribute('aria-pressed'),
+            addHidden: document.getElementById('addNoteBtn').hidden,
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length
+        }));
+        await tab.click('#addNoteBtn');
+        await tab.waitForTimeout(300);
+        const manualAfter = await tab.evaluate(() => ({
+            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length
+        }));
+        report.check(`phrases manual breakdown add note advances one step (${manualBefore.enabled}->${manualAfter.enabled})`,
+            manualBefore.active === 'true' && manualBefore.auto === 'false' && manualBefore.addHidden === false
+            && manualAfter.active === 'true'
+            && manualAfter.enabled === Math.min(manualBefore.total, manualBefore.enabled + 1));
+        await tab.click('#stopBtn');
+        await tab.waitForTimeout(200);
 
         await tab.click('[data-output="tones"]');
         await tab.waitForTimeout(200);

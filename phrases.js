@@ -26,7 +26,8 @@
         gapMs: 0,
         showNoteNames: true,
         reflected: false,
-        loopCurrent: false
+        loopCurrent: false,
+        breakdownAutoAdvance: true
     };
 
     const STORAGE_KEY = 'phrases-settings';
@@ -70,6 +71,9 @@
     let isPointerToggling = false;
     let pointerToggleValue = true;
     let breakdownActive = false;
+    /** @type {number[][]} */
+    let breakdownPasses = [];
+    let breakdownPassIndex = 0;
 
     const getEl = PracticeControls.getEl;
 
@@ -461,7 +465,7 @@
     /** @param {boolean} active */
     function setBreakdownActive(active) {
         breakdownActive = active;
-        syncBreakdownButton();
+        syncBreakdownControls();
     }
 
     function syncBreakdownButton() {
@@ -476,13 +480,54 @@
      */
     function buildBreakdownPasses() {
         if (!takeNotes.length) return [];
-        const passes = [];
-        for (let lastEnabled = 0; lastEnabled < takeNotes.length; lastEnabled++) {
-            const enabled = [];
-            for (let index = 0; index <= lastEnabled; index++) enabled.push(index);
-            passes.push(enabled);
+        const enabled = new Set([0]);
+        if (takeNotes.length > 1) enabled.add(takeNotes.length - 1);
+        if (takeNotes.length > 2) enabled.add(selectBreakdownGapNote(enabled));
+
+        const passes = [sortedBreakdownIndices(enabled)];
+        while (enabled.size < takeNotes.length) {
+            enabled.add(selectBreakdownGapNote(enabled));
+            passes.push(sortedBreakdownIndices(enabled));
         }
         return passes;
+    }
+
+    /**
+     * @param {Set<number>} enabled
+     * @returns {number[]}
+     */
+    function sortedBreakdownIndices(enabled) {
+        return Array.from(enabled).sort((a, b) => a - b);
+    }
+
+    /**
+     * @param {Set<number>} enabled
+     * @returns {number}
+     */
+    function selectBreakdownGapNote(enabled) {
+        const sorted = sortedBreakdownIndices(enabled);
+        let largestGaps = [];
+        let largestSize = -1;
+        for (let i = 0; i < sorted.length - 1; i++) {
+            const left = sorted[i];
+            const right = sorted[i + 1];
+            const size = right - left - 1;
+            if (size <= 0) continue;
+            if (size > largestSize) {
+                largestGaps = [{ left, right, size }];
+                largestSize = size;
+            } else if (size === largestSize) {
+                largestGaps.push({ left, right, size });
+            }
+        }
+        if (!largestGaps.length) {
+            for (let index = 0; index < takeNotes.length; index++) {
+                if (!enabled.has(index)) return index;
+            }
+            return 0;
+        }
+        const gap = largestGaps[Math.floor(Math.random() * largestGaps.length)];
+        return gap.left + 1 + Math.floor(Math.random() * gap.size);
     }
 
     /** @param {number[]} enabledIndices */
@@ -492,34 +537,109 @@
         updatePhraseDisplay();
     }
 
-    async function runBreakdown() {
-        if (breakdownActive) {
-            stopPlayback();
-            return;
-        }
+    async function prepareBreakdownRun() {
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
-        if (!takeNotes.length) return;
+        if (!takeNotes.length) return false;
         testPanel.close();
         state.loopCurrent = false;
         syncRepeatButton();
         await PianoCore.ensureStarted();
         cancelCurrentSound();
+        breakdownPasses = buildBreakdownPasses();
+        breakdownPassIndex = 0;
+        applyNoteMask(breakdownPasses[breakdownPassIndex]);
+        return true;
+    }
 
+    async function runBreakdown() {
+        if (breakdownActive) {
+            stopPlayback();
+            return;
+        }
+        if (!(await prepareBreakdownRun())) return;
+        if (state.breakdownAutoAdvance) {
+            await runAutoBreakdown();
+        } else {
+            startManualBreakdownLoop();
+        }
+    }
+
+    async function runAutoBreakdown() {
         const token = ++playToken;
-        const passes = buildBreakdownPasses();
         setBreakdownActive(true);
         try {
-            for (let passIndex = 0; passIndex < passes.length; passIndex++) {
+            for (let passIndex = 0; passIndex < breakdownPasses.length; passIndex++) {
                 if (token !== playToken) return;
-                applyNoteMask(passes[passIndex]);
+                breakdownPassIndex = passIndex;
+                syncBreakdownControls();
+                applyNoteMask(breakdownPasses[passIndex]);
                 await playPhraseOnce(token);
                 if (token !== playToken) return;
-                if (passIndex < passes.length - 1) await sleep(BREAKDOWN_PASS_PAUSE_MS);
+                if (passIndex < breakdownPasses.length - 1) await sleep(BREAKDOWN_PASS_PAUSE_MS);
             }
         } finally {
-            setBreakdownActive(false);
+            if (token === playToken) setBreakdownActive(false);
         }
+    }
+
+    function startManualBreakdownLoop() {
+        const token = ++playToken;
+        setBreakdownActive(true);
+        syncBreakdownControls();
+        repeatManualBreakdown(token);
+    }
+
+    /** @param {number} token */
+    async function repeatManualBreakdown(token) {
+        try {
+            while (token === playToken && breakdownActive) {
+                applyNoteMask(breakdownPasses[breakdownPassIndex]);
+                await playPhraseOnce(token);
+                if (token !== playToken || !breakdownActive) return;
+                await sleep(BREAKDOWN_PASS_PAUSE_MS);
+            }
+        } finally {
+            if (token === playToken) setBreakdownActive(false);
+        }
+    }
+
+    async function advanceBreakdownNote() {
+        if (state.breakdownAutoAdvance) return;
+        if (!breakdownActive) {
+            if (!(await prepareBreakdownRun())) return;
+            startManualBreakdownLoop();
+            return;
+        }
+        if (breakdownPassIndex >= breakdownPasses.length - 1) return;
+        const token = ++playToken;
+        breakdownPassIndex++;
+        cancelCurrentSound();
+        applyNoteMask(breakdownPasses[breakdownPassIndex]);
+        setBreakdownActive(true);
+        syncBreakdownControls();
+        repeatManualBreakdown(token);
+    }
+
+    function toggleBreakdownAutoAdvance() {
+        const next = !state.breakdownAutoAdvance;
+        if (breakdownActive) stopPlayback();
+        state.breakdownAutoAdvance = next;
+        syncBreakdownControls();
+    }
+
+    function syncBreakdownControls() {
+        const autoBtn = getEl('autoAdvanceBtn');
+        if (autoBtn) {
+            autoBtn.classList.toggle('selected', state.breakdownAutoAdvance);
+            autoBtn.setAttribute('aria-pressed', String(state.breakdownAutoAdvance));
+        }
+        const addBtn = getEl('addNoteBtn');
+        if (addBtn instanceof HTMLButtonElement) {
+            addBtn.hidden = state.breakdownAutoAdvance;
+            addBtn.disabled = breakdownActive && breakdownPassIndex >= breakdownPasses.length - 1;
+        }
+        syncBreakdownButton();
     }
 
     /** @param {boolean} open */
@@ -688,6 +808,8 @@
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
         getEl('breakdownBtn')?.addEventListener('click', runBreakdown);
+        getEl('autoAdvanceBtn')?.addEventListener('click', toggleBreakdownAutoAdvance);
+        getEl('addNoteBtn')?.addEventListener('click', advanceBreakdownNote);
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',
@@ -698,7 +820,7 @@
         window.addEventListener('pointercancel', endPointerToggle);
         updatePhraseDisplay();
         syncRepeatButton();
-        syncBreakdownButton();
+        syncBreakdownControls();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],
