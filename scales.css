@@ -320,7 +320,7 @@
 
 .piano-keys {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     position: relative;
     height: 130px;
     min-width: fit-content;
@@ -331,6 +331,7 @@
 /* Piano Keys */
 
 .piano-key {
+    position: relative;
     cursor: pointer;
     display: flex;
     align-items: flex-end;
@@ -365,6 +366,7 @@
 .white-key:active,
 .white-key.active {
     background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+    box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.45), 0 6px 16px rgba(34, 197, 94, 0.28);
 }
 
 .white-key:active span,
@@ -390,7 +392,26 @@
 
 .black-key:active,
 .black-key.active {
-    background: linear-gradient(180deg, #22c55e 0%, #166534 100%);
+    background: linear-gradient(180deg, #111827 0%, #020617 100%);
+    border: 2px solid #86efac;
+    box-shadow:
+        0 0 0 2px rgba(134, 239, 172, 0.35),
+        0 0 18px rgba(34, 197, 94, 0.55),
+        0 5px 10px rgba(0, 0, 0, 0.65);
+}
+
+.black-key:active::after,
+.black-key.active::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 9px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #86efac;
+    box-shadow: 0 0 10px rgba(134, 239, 172, 0.8);
+    transform: translateX(-50%);
 }
 
 /* Scale preview highlighting (when not playing) */

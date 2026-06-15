@@ -16,8 +16,26 @@
  * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
  * @property {number} [repeatCount]
  * @property {number} [repeatGapMs]
- * @property {boolean} [seamlessRepeat]
  * @property {((repeatIndex: number) => number[])} [getNotesForRepeat]
+ */
+
+/**
+ * @typedef {Object} SequencePlaybackStep
+ * @property {number} midi
+ * @property {number} sourceIndex
+ * @property {boolean} isSection
+ * @property {number} repeatIndex
+ */
+
+/**
+ * @typedef {Object} PlayRenderedSequenceOptions
+ * @property {(() => NoteTiming)} [getDuration]
+ * @property {((step: SequencePlaybackStep) => void)} [onStep]
+ * @property {((message: string) => void)} [onStatus]
+ * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
+ * @property {number} [repeatCount]
+ * @property {number} [repeatGapMs]
+ * @property {((repeatIndex: number) => SequencePlaybackStep[])} getStepsForRepeat
  */
 
 /**
@@ -100,7 +118,6 @@ class AudioCoordinator {
             onRepeatEnd,
             repeatCount = 1,
             repeatGapMs = 1500,
-            seamlessRepeat = false,
             getNotesForRepeat = null
         } = options;
 
@@ -113,9 +130,7 @@ class AudioCoordinator {
             while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
                 const notesForRepeat = getNotesForRepeat ? getNotesForRepeat(r) : notes;
 
-                const startIndex = (seamlessRepeat && r > 0) ? 1 : 0;
-
-                for (let i = startIndex; i < notesForRepeat.length; i++) {
+                for (let i = 0; i < notesForRepeat.length; i++) {
                     if (!this.isPlaybackValid(playId)) break;
 
                     const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
@@ -123,6 +138,64 @@ class AudioCoordinator {
                     if (onNote) onNote(notesForRepeat[i], i, r);
                     this.piano.playMidi(notesForRepeat[i], duration.tone);
 
+                    await this.sleep(duration.ms + duration.gap);
+                }
+
+                r++;
+
+                const hasMore = isInfinite || r < playTimes;
+                if (hasMore && this.isPlaybackValid(playId)) {
+                    if (onRepeatEnd) onRepeatEnd(r);
+
+                    if (repeatGapMs > 0) {
+                        if (onStatus) {
+                            if (isInfinite) {
+                                onStatus(`Loop ${r + 1}... (say "stop" to end)`);
+                            } else {
+                                onStatus(`Repeat ${r + 1} of ${playTimes}...`);
+                            }
+                        }
+                        await this.sleep(repeatGapMs);
+                    }
+                }
+            }
+        } finally {
+            if (this.playbackId === playId) {
+                this.isPlaying = false;
+            }
+        }
+    }
+
+    /**
+     * Play caller-rendered sequence steps. The caller owns note order,
+     * repeat transposition, seam notes, and display metadata; this method
+     * only schedules exactly those steps.
+     * @param {PlayRenderedSequenceOptions} options
+     */
+    async playRenderedSequence(options) {
+        const {
+            getDuration,
+            onStep,
+            onStatus,
+            onRepeatEnd,
+            repeatCount = 1,
+            repeatGapMs = 1500,
+            getStepsForRepeat
+        } = options;
+
+        const playId = this.requestSequencePlayback();
+        const isInfinite = repeatCount === Infinity;
+        const playTimes = repeatCount === 0 ? 1 : (isInfinite ? Infinity : repeatCount);
+        let r = 0;
+
+        try {
+            while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
+                const steps = getStepsForRepeat(r);
+                for (const step of steps) {
+                    if (!this.isPlaybackValid(playId)) break;
+                    const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
+                    if (onStep) onStep(step);
+                    this.piano.playMidi(step.midi, duration.tone);
                     await this.sleep(duration.ms + duration.gap);
                 }
 
@@ -3566,27 +3639,21 @@ class ScalesController {
 
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-        const getNotesForRepeat = risingSemitones > 0
-            ? (repeatIndex) => this.transposeMidi(notes, repeatIndex * risingSemitones)
-            : null;
-
-        const direction = modifiers.direction || this.settings.direction;
-        const isRoundTrip = direction === 'both' || direction === 'down_and_up';
-        const seamlessRepeat = isRoundTrip && playTimes > 1 && risingSemitones === 0;
 
         const mergedContext = {
             ...context,
             risingSemitones
         };
 
-        await this.audio.playSequence(notes, {
+        await this.audio.playRenderedSequence({
             getDuration: () => this.getNoteDuration(modifiers),
-            onNote: (midi, index, repeatIndex) => {
-                this.highlightPianoKey(midi);
-                const noteDisplay = this.formatNoteStatus(midi, index, { ...mergedContext, repeatIndex });
+            getStepsForRepeat: repeatIndex => this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones),
+            onStep: step => {
+                this.highlightPianoKey(step.midi);
+                const noteDisplay = this.formatNoteStatus(step.midi, step.sourceIndex, { ...mergedContext, repeatIndex: step.repeatIndex });
                 this.voiceCore.updateStatus(noteDisplay);
-                this.setPianoNotificationActiveNotes([midi]);
-                this.appendActuallyPlayed(midi, true);
+                this.setPianoNotificationActiveNotes([step.midi]);
+                this.appendActuallyPlayed(step.midi, step.isSection);
             },
             onStatus: (message) => {
                 this.clearPianoHighlights();
@@ -3598,15 +3665,30 @@ class ScalesController {
                 this.updatePatternPreview(nextTranspose);
             },
             repeatCount: playTimes,
-            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500),
-            seamlessRepeat,
-            getNotesForRepeat
+            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500)
         });
 
         this.clearPianoHighlights();
         this.voiceCore.updateStatus('Ready');
         this.setPianoNotificationActiveNotes([]);
         this.updateScalePreview();
+    }
+
+    /**
+     * Render the exact MIDI/display events for one sequence repetition.
+     * @param {number[]} notes
+     * @param {number} repeatIndex
+     * @param {number} risingSemitones
+     * @returns {SequencePlaybackStep[]}
+     */
+    buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones) {
+        const transpose = repeatIndex * risingSemitones;
+        return notes.map((midi, sourceIndex) => ({
+            midi: midi + transpose,
+            sourceIndex,
+            isSection: true,
+            repeatIndex
+        }));
     }
 
     getNoteDuration(modifiers = {}) {

@@ -73,6 +73,39 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const mediaTitle = await tab.evaluate(() => navigator.mediaSession.metadata?.title || 'none');
         report.check('scales media session registered', mediaTitle === 'Scales');
+
+        const renderedSequence = await tab.evaluate(async () => {
+            const c = window.scalesController;
+            c.stopPlayback();
+            c.settings.octave = 4;
+            c.settings.direction = 'both';
+            c.settings.movementStyle = 'normal';
+            c.settings.sectionLength = '1o';
+            c.settings.repeatCount = 2;
+            c.settings.risingSemitones = 0;
+            c.settings.noteLengthMs = 10;
+            c.settings.gapMs = 0;
+            c.audio.sleep = async () => {};
+            const played = [];
+            const highlighted = [];
+            const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
+            const realHighlight = c.highlightPianoKey.bind(c);
+            c.audio.piano.playMidi = (midi, duration) => { played.push(midi); };
+            c.highlightPianoKey = midi => { highlighted.push(midi); };
+            await c.playScale('C', 'major', { direction: 'both', repeat: 2, repeatGapMs: 0 });
+            c.audio.piano.playMidi = realPlayMidi;
+            c.highlightPianoKey = realHighlight;
+            return {
+                count: played.length,
+                highlightMatches: played.join(',') === highlighted.join(','),
+                first: played[0],
+                repeatFirst: played[15],
+                repeatSecond: played[16]
+            };
+        });
+        report.check(`scales rendered repeat drives matching highlights (${renderedSequence.count} notes, repeat ${renderedSequence.repeatFirst}->${renderedSequence.repeatSecond})`,
+            renderedSequence.count === 30 && renderedSequence.highlightMatches
+            && renderedSequence.first === 60 && renderedSequence.repeatFirst === 60 && renderedSequence.repeatSecond === 62);
         await tab.close();
     }
 
