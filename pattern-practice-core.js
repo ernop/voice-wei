@@ -505,6 +505,45 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * Alto gap work: orbit the 3/4 and 7/8 pairs, including direct
+     * 34, 43, 78, 87 motion plus neighbor approaches around those pairs.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean
+     * }} options
+     * @returns {number[]}
+     */
+    function generateAltoGapOffsets(options) {
+        const { dp, minOffset, maxOffset, length, initial, offsets } = phraseSeed(options);
+        const pairStarts = [2, 6].filter(offset => offset + 1 <= dp);
+        const patterns = [];
+        pairStarts.forEach(start => {
+            patterns.push([start, start + 1]);
+            patterns.push([start + 1, start]);
+            patterns.push([start - 1, start, start + 1]);
+            patterns.push([start + 2, start + 1, start]);
+            patterns.push([start, start + 1, start - 1]);
+            patterns.push([start + 1, start, start + 2]);
+        });
+
+        while (offsets.length < length) {
+            const pattern = randomChoice(patterns);
+            for (const raw of pattern) {
+                if (offsets.length >= length) break;
+                const offset = clamp(raw, minOffset, maxOffset);
+                if (offset !== offsets[offsets.length - 1]) offsets.push(offset);
+            }
+        }
+
+        return addPhraseAnchors(offsets, options, initial);
+    }
+
+    /**
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
@@ -523,6 +562,7 @@ const PatternPracticeCore = (function () {
         if (options.phraseAlgo === 'leapy') return generateLeapyOffsets(options);
         if (options.phraseAlgo === 'arch') return generateArchOffsets(options);
         if (options.phraseAlgo === 'motif') return generateMotifOffsets(options);
+        if (options.phraseAlgo === 'alto_gaps') return generateAltoGapOffsets(options);
         return generateBalancedOffsets(options);
     }
 
@@ -564,18 +604,21 @@ const PatternPracticeCore = (function () {
      * up, 6 b6 5 coming down. Inserts only where such a note exists and
      * never past the phrase length cap.
      * @param {number[]} offsets
-     * @param {{ scaleType: string, maxLength: number }} options
+     * @param {{ scaleType: string, maxLength: number, accidentalRate?: number }} options
      * @returns {number[]}
      */
-    const CHROMATIC_PASSING_CHANCE = 0.35;
+    const DEFAULT_CHROMATIC_PASSING_CHANCE = 0.35;
     function addChromaticPassingTones(offsets, options) {
+        const chance = typeof options.accidentalRate === 'number'
+            ? clamp(options.accidentalRate, 0, 1)
+            : DEFAULT_CHROMATIC_PASSING_CHANCE;
         const out = [offsets[0]];
         for (let i = 1; i < offsets.length; i++) {
             const passing = chromaticBetween(options.scaleType, offsets[i - 1], offsets[i]);
             const remaining = offsets.length - i;
             if (passing !== null
                 && out.length + remaining < options.maxLength
-                && Math.random() < CHROMATIC_PASSING_CHANCE) {
+                && Math.random() < chance) {
                 out.push(passing);
             }
             out.push(offsets[i]);
@@ -595,7 +638,8 @@ const PatternPracticeCore = (function () {
      *   returnToInitial: boolean,
      *   returnToRoot: boolean,
      *   phraseAlgo?: string,
-     *   chromaticRuns?: boolean
+     *   chromaticRuns?: boolean,
+     *   accidentalRate?: number
      * }} options
      * @returns {Phrase | null}
      */
@@ -629,7 +673,10 @@ const PatternPracticeCore = (function () {
         if (rootMidi === null) return null;
 
         let offsets = generatePhraseOffsets(options);
-        if (options.chromaticRuns) offsets = addChromaticPassingTones(offsets, options);
+        const accidentalRate = typeof options.accidentalRate === 'number'
+            ? options.accidentalRate
+            : (options.chromaticRuns ? DEFAULT_CHROMATIC_PASSING_CHANCE : 0);
+        if (accidentalRate > 0) offsets = addChromaticPassingTones(offsets, { ...options, accidentalRate });
 
         return {
             notes: buildSequenceNotes(offsets, rootMidi, options.scaleType),

@@ -39,6 +39,7 @@ interface Window {
     // Named state inspection for the test suite (phrases take plan)
     phrasesDebug?: {
         takePlan: () => PhrasePlanNote[];
+        tonePlaybackPlan: () => SequenceNote[];
         testTargets: () => TargetSpan[];
         breakdownPasses: () => number[][];
         panel: any;

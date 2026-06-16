@@ -331,7 +331,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         // "just over" range: offsets bounded to two degrees past the octave
         const overBounded = await tab.evaluate(() => {
-            const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif'];
+            const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
             for (const phraseAlgo of algos) {
                 for (let i = 0; i < 300; i++) {
                     const offsets = PatternPracticeCore.generatePhraseOffsets({
@@ -379,6 +379,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check(`phrases motif restates its shape (${motifStructure}/6 samples)`, motifStructure >= 4);
 
+        const altoGaps = await tab.evaluate(() => {
+            let pairTouches = 0;
+            for (let i = 0; i < 12; i++) {
+                const phrase = PatternPracticeCore.generatePhrase({
+                    root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
+                    rangeMode: 'within', minLength: 8, maxLength: 10,
+                    returnToInitial: false, returnToRoot: false, phraseAlgo: 'alto_gaps'
+                });
+                const offsets = phrase.notes.map(n => n.offset);
+                for (let j = 1; j < offsets.length; j++) {
+                    const pair = `${offsets[j - 1]},${offsets[j]}`;
+                    if (pair === '2,3' || pair === '3,2' || pair === '6,7' || pair === '7,6') {
+                        pairTouches++;
+                    }
+                }
+            }
+            return pairTouches;
+        });
+        report.check(`phrases alto gaps emphasizes 3/4 and 7/8 pairs (${altoGaps} direct touches)`, altoGaps >= 8);
+
         // Chromatic runs: passing tones appear only between whole-step
         // degrees and always sit strictly between their neighbors' pitches.
         const chromatic = await tab.evaluate(() => {
@@ -389,7 +409,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
                     rangeMode: 'over', minLength: 6, maxLength: 12,
                     returnToInitial: false, returnToRoot: false,
-                    phraseAlgo: 'stepwise', chromaticRuns: true
+                    phraseAlgo: 'stepwise', accidentalRate: 1
                 });
                 phrase.notes.forEach((note, idx) => {
                     if (Number.isInteger(note.offset)) return;
@@ -403,12 +423,47 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             return { decorated, invalid };
         });
-        report.check(`phrases chromatic runs insert valid passing tones (${chromatic.decorated} inserted, ${chromatic.invalid} invalid)`,
+        report.check(`phrases accidental rate inserts valid passing tones (${chromatic.decorated} inserted, ${chromatic.invalid} invalid)`,
             chromatic.decorated > 0 && chromatic.invalid === 0);
-        await tab.evaluate(() => document.getElementById('chromaticToggle').click());
+        await tab.click('[data-step-key="accidentalRate"][data-step-delta="1"]');
         await tab.waitForTimeout(200);
-        const savedChromatic = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).chromaticRuns);
-        report.check('phrases chromatic toggle persists', savedChromatic === true);
+        const savedAccidental = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).accidentalRate);
+        report.check('phrases accidental rate stepper persists', savedAccidental === 0.05);
+
+        const fillPlans = await tab.evaluate(() => {
+            const before = {
+                take: window.phrasesDebug.takePlan().length,
+                tone: window.phrasesDebug.tonePlaybackPlan().length,
+                targets: window.phrasesDebug.testTargets().length
+            };
+            document.getElementById('fillFullBtn').click();
+            const full = {
+                take: window.phrasesDebug.takePlan().length,
+                tone: window.phrasesDebug.tonePlaybackPlan().length,
+                targets: window.phrasesDebug.testTargets().length,
+                pressed: document.getElementById('fillFullBtn').getAttribute('aria-pressed')
+            };
+            document.getElementById('fillChordBtn').click();
+            const chord = {
+                take: window.phrasesDebug.takePlan().length,
+                tone: window.phrasesDebug.tonePlaybackPlan().length,
+                targets: window.phrasesDebug.testTargets().length,
+                fullPressed: document.getElementById('fillFullBtn').getAttribute('aria-pressed'),
+                chordPressed: document.getElementById('fillChordBtn').getAttribute('aria-pressed')
+            };
+            return { before, full, chord };
+        });
+        report.check(`phrases fill modes add invisible tone notes (${fillPlans.before.tone}->${fillPlans.full.tone}->${fillPlans.chord.tone})`,
+            fillPlans.before.take === fillPlans.before.tone
+            && fillPlans.full.take === fillPlans.before.take
+            && fillPlans.full.targets === fillPlans.before.targets
+            && fillPlans.full.tone >= fillPlans.before.tone
+            && fillPlans.full.pressed === 'true'
+            && fillPlans.chord.take === fillPlans.before.take
+            && fillPlans.chord.targets === fillPlans.before.targets
+            && fillPlans.chord.tone >= fillPlans.before.tone
+            && fillPlans.chord.fullPressed === 'false'
+            && fillPlans.chord.chordPressed === 'true');
 
         // The take plan is one explicit timeline: with the FIRST note
         // muted, the first enabled target starts at 0 and disabled notes

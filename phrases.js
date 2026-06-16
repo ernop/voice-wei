@@ -17,6 +17,8 @@
         startAtOne: true,
         rangeMode: 'within',
         chromaticRuns: false,
+        accidentalRate: 0,
+        fillMode: 'none',
         minLength: 5,
         maxLength: 8,
         returnToInitial: true,
@@ -33,7 +35,7 @@
     const STORAGE_KEY = 'phrases-settings';
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
-        'chromaticRuns', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
+        'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
     ];
 
@@ -43,12 +45,13 @@
     // chromaticRuns, minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs']);
+    const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'fillMode']);
     const REDRAW_KEYS = new Set(['showNoteNames']);
     const BREAKDOWN_PASS_PAUSE_MS = 700;
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
+        accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 32, 40, 50]
     };
@@ -118,7 +121,8 @@
             phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
             rangeMode: state.rangeMode,
-            chromaticRuns: state.chromaticRuns,
+            chromaticRuns: state.chromaticRuns || state.accidentalRate > 0,
+            accidentalRate: state.accidentalRate,
             minLength: state.minLength,
             maxLength: state.maxLength,
             returnToInitial: state.returnToInitial,
@@ -378,16 +382,76 @@
         } while (token === playToken && state.loopCurrent);
     }
 
-    // Enabled is read live, right before each note starts: toggling a
-    // later note during playback changes what WILL be played without
-    // touching the note currently sounding.
+    // Tone output may include invisible fill notes; the visible take plan
+    // remains the only source for display, speech, and pitch-test targets.
     async function playToneSequence(token) {
-        for (const note of buildTakePlan()) {
+        for (const note of buildTonePlaybackPlan()) {
             if (token !== playToken) return;
-            if (!takeNotes[note.index].enabled) continue; // live read
             playMidi(note.midi);
             await sleep(state.noteLengthMs + effectiveGapMs());
         }
+    }
+
+    /**
+     * Tone playback may add invisible fill notes; display, speech, and
+     * pitch-test targets remain the visible take plan.
+     * @returns {SequenceNote[]}
+     */
+    function buildTonePlaybackPlan() {
+        const visible = buildTakePlan().filter(note => note.enabled);
+        if (state.fillMode === 'none' || visible.length < 2) return visible;
+        const root = rootMidi();
+        if (root === null) return visible;
+
+        const offsets = fillPlaybackOffsets(visible.map(note => note.offset));
+        return PatternPracticeCore.buildSequenceNotes(offsets, root, state.scaleType);
+    }
+
+    /** @param {number[]} offsets */
+    function fillPlaybackOffsets(offsets) {
+        if (state.fillMode === 'chord') return fillChordToneOffsets(offsets);
+        return fillScaleRunOffsets(offsets);
+    }
+
+    /** @param {number[]} offsets */
+    function fillScaleRunOffsets(offsets) {
+        const out = [offsets[0]];
+        for (let i = 1; i < offsets.length; i++) {
+            appendIntegerPath(out, offsets[i - 1], offsets[i], null);
+        }
+        return out;
+    }
+
+    /** @param {number[]} offsets */
+    function fillChordToneOffsets(offsets) {
+        const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
+        const chordDegrees = new Set([0, 2, 4, dp]);
+        const out = [offsets[0]];
+        for (let i = 1; i < offsets.length; i++) {
+            appendIntegerPath(out, offsets[i - 1], offsets[i], chordDegrees);
+        }
+        return out;
+    }
+
+    /**
+     * @param {number[]} out
+     * @param {number} from
+     * @param {number} to
+     * @param {Set<number> | null} allowedDegreeClasses
+     */
+    function appendIntegerPath(out, from, to, allowedDegreeClasses) {
+        if (!Number.isInteger(from) || !Number.isInteger(to) || from === to) {
+            out.push(to);
+            return;
+        }
+        const step = Math.sign(to - from);
+        const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
+        for (let offset = from + step; offset !== to; offset += step) {
+            if (!allowedDegreeClasses || allowedDegreeClasses.has(PatternPracticeCore.positiveModulo(offset, dp))) {
+                out.push(offset);
+            }
+        }
+        out.push(to);
     }
 
     function speakNumberAtPitch(text, midi, durationMs) {
@@ -697,6 +761,7 @@
         PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
+        PracticeControls.setValueText('accidentalRateValue', `${Math.round(state.accidentalRate * 100)}%`);
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
         PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
 
@@ -706,6 +771,37 @@
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
+    }
+
+    function syncBinaryControls() {
+        const startBtn = getEl('startToggleBtn');
+        if (startBtn) {
+            startBtn.classList.toggle('selected', state.startAtOne);
+            startBtn.setAttribute('aria-pressed', String(state.startAtOne));
+            startBtn.textContent = state.startAtOne ? 'start at 1' : 'random start';
+        }
+
+        const returnBtn = getEl('returnInitialBtn');
+        if (returnBtn) {
+            returnBtn.classList.toggle('selected', state.returnToInitial);
+            returnBtn.setAttribute('aria-pressed', String(state.returnToInitial));
+            returnBtn.textContent = state.returnToInitial ? 'return to 1' : 'no return';
+        }
+
+        syncFillButtons();
+    }
+
+    function syncFillButtons() {
+        const fullBtn = getEl('fillFullBtn');
+        const chordBtn = getEl('fillChordBtn');
+        if (fullBtn) {
+            fullBtn.classList.toggle('selected', state.fillMode === 'full');
+            fullBtn.setAttribute('aria-pressed', String(state.fillMode === 'full'));
+        }
+        if (chordBtn) {
+            chordBtn.classList.toggle('selected', state.fillMode === 'chord');
+            chordBtn.setAttribute('aria-pressed', String(state.fillMode === 'chord'));
+        }
     }
 
     function onSettingChanged(key) {
@@ -781,21 +877,34 @@
         if (currentPhrase) playCurrentOrNew();
     }
 
+    function toggleStartAtOne() {
+        state.startAtOne = !state.startAtOne;
+        syncBinaryControls();
+        onSettingChanged('startAtOne');
+    }
+
+    function toggleReturnInitial() {
+        state.returnToInitial = !state.returnToInitial;
+        syncBinaryControls();
+        onSettingChanged('returnToInitial');
+    }
+
+    /** @param {'full' | 'chord'} mode */
+    function toggleFillMode(mode) {
+        state.fillMode = state.fillMode === mode ? 'none' : mode;
+        syncBinaryControls();
+        onSettingChanged('fillMode');
+    }
+
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
-        wireSetting('data-start', 'startAtOne', value => value === 'one');
         wireSetting('data-range', 'rangeMode', String);
-        wireSetting('data-return-initial', 'returnToInitial', value => value === 'yes');
         wireSetting('data-output', 'outputMode', String);
         PracticeControls.wireSteppers(stepAdjusterValue);
         PracticeControls.wireToggle('showNamesToggle', state.showNoteNames, checked => {
             state.showNoteNames = checked;
             onSettingChanged('showNoteNames');
-        });
-        PracticeControls.wireToggle('chromaticToggle', state.chromaticRuns, checked => {
-            state.chromaticRuns = checked;
-            onSettingChanged('chromaticRuns');
         });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
@@ -807,6 +916,10 @@
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
+        getEl('startToggleBtn')?.addEventListener('click', toggleStartAtOne);
+        getEl('returnInitialBtn')?.addEventListener('click', toggleReturnInitial);
+        getEl('fillFullBtn')?.addEventListener('click', () => toggleFillMode('full'));
+        getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
         getEl('breakdownBtn')?.addEventListener('click', runBreakdown);
         getEl('autoAdvanceBtn')?.addEventListener('click', toggleBreakdownAutoAdvance);
         getEl('addNoteBtn')?.addEventListener('click', advanceBreakdownNote);
@@ -821,6 +934,7 @@
         updatePhraseDisplay();
         syncRepeatButton();
         syncBreakdownControls();
+        syncBinaryControls();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],
@@ -834,6 +948,8 @@
 
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        if (state.chromaticRuns && !state.accidentalRate) state.accidentalRate = 0.35;
+        if (!['none', 'full', 'chord'].includes(state.fillMode)) state.fillMode = 'none';
         try {
             piano = await PianoCore.createPiano();
         } catch (err) {
@@ -848,6 +964,7 @@
         // (for end-to-end scoring tests via recordSample).
         window.phrasesDebug = {
             takePlan: buildTakePlan,
+            tonePlaybackPlan: buildTonePlaybackPlan,
             testTargets: buildPhraseTestTargets,
             breakdownPasses: buildBreakdownPasses,
             panel: testPanel

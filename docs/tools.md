@@ -69,6 +69,13 @@ gap, play tones, return to the initial note.
   adds one note from the largest remaining gap between automatic replays.
   Turn **auto-advance** off to repeat the current subset until **add note**
   advances to the next subset.
+- **Accidental rate** optionally inserts conventional chromatic passing
+  tones between whole-step scale degrees at a low controlled rate.
+- **Fill modes** add invisible tone-only notes during playback: **full
+  fill** walks the scale between displayed notes, and **1358 fill** adds
+  only root/third/fifth/octave path notes when they lie between them.
+- **Alto gaps** is a phrase style centered on 3/4 and 7/8 movement,
+  including direct and neighbor approaches around those pairs.
 - **Output modes**: display only, say numbers, play tones, say + tones,
   sing numbers (speech pitch shaped toward each note), none.
 - **Test** opens the embedded pitch-trace panel for the current phrase

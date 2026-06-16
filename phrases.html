@@ -93,10 +93,7 @@
 
                 <!-- Option groups: every group sits in its own segment shell -->
                 <section class="phrase-control-card phrase-control-card-shape">
-                    <div class="segment-row">
-                        <button class="vf-btn" data-start="one">start at 1</button>
-                        <button class="vf-btn" data-start="random">random start</button>
-                    </div>
+                    <button id="startToggleBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">start at 1</button>
                     <div class="segment-row">
                         <button class="vf-btn" data-range="within">in octave</button>
                         <button class="vf-btn" data-range="over">just over</button>
@@ -109,21 +106,25 @@
                         <button class="vf-btn" data-phrase-algo="leapy" title="Disjunct motion with contrary step compensation">leapy</button>
                         <button class="vf-btn" data-phrase-algo="arch" title="Phrase-level rise-and-fall contour">arch</button>
                         <button class="vf-btn" data-phrase-algo="motif" title="One short interval shape restated from moving anchors">motif</button>
+                        <button class="vf-btn" data-phrase-algo="alto_gaps" title="Alto gap work around 3-4 and 7-8">alto gaps</button>
                     </div>
-                    <div class="segment-row">
-                        <button class="vf-btn" data-return-initial="yes">return to 1</button>
-                        <button class="vf-btn" data-return-initial="no">no return</button>
-                    </div>
+                    <button id="returnInitialBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">return to 1</button>
                     <div class="vf-options">
                         <label class="display-toggle">
                             <input type="checkbox" id="showNamesToggle" checked>
                             <span>Show names</span>
                         </label>
-                        <label class="display-toggle"
-                            title="Sometimes pass through the chromatic note between whole-step degrees: 4 #4 5 up, 6 b6 5 down">
-                            <input type="checkbox" id="chromaticToggle">
-                            <span>Chromatic runs</span>
-                        </label>
+                        <button id="fillFullBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="false"
+                            title="Play invisible scale runs between phrase notes">full fill</button>
+                        <button id="fillChordBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="false"
+                            title="Fill invisible 1-3-5-8 chord-tone paths when available">1358 fill</button>
+                        <div class="step-field phrase-accidental-step-field"
+                            title="Chance of inserting conventional chromatic passing notes between whole-step degrees">
+                            <span class="step-label">Acc</span>
+                            <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="-1" aria-label="Lower accidental rate">-</button>
+                            <span class="step-value" id="accidentalRateValue">0%</span>
+                            <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="1" aria-label="Higher accidental rate">+</button>
+                        </div>
                     </div>
                 </section>
 

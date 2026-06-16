@@ -221,6 +221,40 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
+    // PHRASES: compact control chips wrap without overlap or full-row stretching
+    // on a car-phone-width viewport.
+    {
+        const ctx = await browser.newContext({ viewport: { width: 460, height: 900 } });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'phrases-controls-layout', report.errors);
+        await tab.goto(`${BASE_URL}/phrases.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1000);
+        const layout = await tab.evaluate(() => {
+            const controls = document.querySelector('.phrase-control-grid').getBoundingClientRect();
+            const buttons = Array.from(document.querySelectorAll('.phrase-control-grid .vf-btn, .phrase-control-grid .step-field'));
+            const rects = buttons.map(el => el.getBoundingClientRect());
+            let overlaps = 0;
+            let overflow = 0;
+            for (let i = 0; i < rects.length; i++) {
+                const r = rects[i];
+                if (r.left < controls.left - 1 || r.right > controls.right + 1) overflow++;
+                for (let j = i + 1; j < rects.length; j++) {
+                    const x = Math.min(rects[i].right, rects[j].right) - Math.max(rects[i].left, rects[j].left);
+                    const y = Math.min(rects[i].bottom, rects[j].bottom) - Math.max(rects[i].top, rects[j].top);
+                    if (x > 1 && y > 1) overlaps++;
+                }
+            }
+            const motif = document.querySelector('[data-phrase-algo="motif"]').getBoundingClientRect();
+            const minor = document.querySelector('[data-scale="melodic_minor"]').getBoundingClientRect();
+            return { overlaps, overflow, motifWidth: motif.width, minorWidth: minor.width, controlWidth: controls.width };
+        });
+        report.check(`phrases compact controls no overlap (overlaps=${layout.overlaps}, overflow=${layout.overflow}, motif=${layout.motifWidth.toFixed(0)}, mminor=${layout.minorWidth.toFixed(0)})`,
+            layout.overlaps === 0 && layout.overflow === 0
+            && layout.motifWidth < layout.controlWidth * 0.6
+            && layout.minorWidth < layout.controlWidth * 0.75);
+        await ctx.close();
+    }
+
     await browser.close();
     report.finish();
 })();
