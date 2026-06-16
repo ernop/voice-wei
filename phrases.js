@@ -638,9 +638,12 @@
                 breakdownPassIndex = passIndex;
                 syncBreakdownControls();
                 applyNoteMask(breakdownPasses[passIndex]);
+                if (passIndex > 0) {
+                    await sleep(BREAKDOWN_PASS_PAUSE_MS);
+                    if (token !== playToken) return;
+                }
                 await playPhraseOnce(token);
                 if (token !== playToken) return;
-                if (passIndex < breakdownPasses.length - 1) await sleep(BREAKDOWN_PASS_PAUSE_MS);
             }
         } finally {
             if (token === playToken) setBreakdownActive(false);
