@@ -3639,6 +3639,12 @@ class ScalesController {
 
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
+        const playbackRepeatGapMs = risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500);
+        const direction = modifiers.direction || this.settings.direction;
+        const omitsContinuousLoopRoot = isInfinite
+            && playbackRepeatGapMs === 0
+            && risingSemitones === 0
+            && (direction === 'both' || direction === 'down_and_up');
 
         const mergedContext = {
             ...context,
@@ -3647,7 +3653,7 @@ class ScalesController {
 
         await this.audio.playRenderedSequence({
             getDuration: () => this.getNoteDuration(modifiers),
-            getStepsForRepeat: repeatIndex => this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones),
+            getStepsForRepeat: repeatIndex => this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitsContinuousLoopRoot),
             onStep: step => {
                 this.highlightPianoKey(step.midi);
                 const noteDisplay = this.formatNoteStatus(step.midi, step.sourceIndex, { ...mergedContext, repeatIndex: step.repeatIndex });
@@ -3665,7 +3671,7 @@ class ScalesController {
                 this.updatePatternPreview(nextTranspose);
             },
             repeatCount: playTimes,
-            repeatGapMs: risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500)
+            repeatGapMs: playbackRepeatGapMs
         });
 
         this.clearPianoHighlights();
@@ -3679,16 +3685,21 @@ class ScalesController {
      * @param {number[]} notes
      * @param {number} repeatIndex
      * @param {number} risingSemitones
+     * @param {boolean} omitRepeatedStart
      * @returns {SequencePlaybackStep[]}
      */
-    buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones) {
+    buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitRepeatedStart = false) {
         const transpose = repeatIndex * risingSemitones;
-        return notes.map((midi, sourceIndex) => ({
-            midi: midi + transpose,
-            sourceIndex,
-            isSection: true,
-            repeatIndex
-        }));
+        const startIndex = omitRepeatedStart && repeatIndex > 0 ? 1 : 0;
+        return notes.slice(startIndex).map((midi, index) => {
+            const sourceIndex = index + startIndex;
+            return {
+                midi: midi + transpose,
+                sourceIndex,
+                isSection: true,
+                repeatIndex
+            };
+        });
     }
 
     getNoteDuration(modifiers = {}) {

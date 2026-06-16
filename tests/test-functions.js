@@ -90,22 +90,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const highlighted = [];
             const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
             const realHighlight = c.highlightPianoKey.bind(c);
+            const realSleep = c.audio.sleep;
             c.audio.piano.playMidi = (midi, duration) => { played.push(midi); };
             c.highlightPianoKey = midi => { highlighted.push(midi); };
             await c.playScale('C', 'major', { direction: 'both', repeat: 2, repeatGapMs: 0 });
+
+            const loopPlayed = [];
+            const loopHighlighted = [];
+            c.audio.piano.playMidi = (midi, duration) => {
+                loopPlayed.push(midi);
+                if (loopPlayed.length >= 29) c.audio.stop();
+            };
+            c.highlightPianoKey = midi => { loopHighlighted.push(midi); };
+            await c.playScale('C', 'major', { direction: 'both', repeat: Infinity, repeatGapMs: 0 });
+
             c.audio.piano.playMidi = realPlayMidi;
             c.highlightPianoKey = realHighlight;
+            c.audio.sleep = realSleep;
             return {
                 count: played.length,
                 highlightMatches: played.join(',') === highlighted.join(','),
                 first: played[0],
                 repeatFirst: played[15],
-                repeatSecond: played[16]
+                repeatSecond: played[16],
+                loopCount: loopPlayed.length,
+                loopHighlightMatches: loopPlayed.join(',') === loopHighlighted.join(','),
+                loopFirst: loopPlayed[0],
+                loopSeam: loopPlayed[15],
+                loopAfterSeam: loopPlayed[16]
             };
         });
-        report.check(`scales rendered repeat drives matching highlights (${renderedSequence.count} notes, repeat ${renderedSequence.repeatFirst}->${renderedSequence.repeatSecond})`,
+        report.check(`scales gapped rendered repeat restarts on root (${renderedSequence.count} notes, repeat ${renderedSequence.repeatFirst}->${renderedSequence.repeatSecond})`,
             renderedSequence.count === 30 && renderedSequence.highlightMatches
             && renderedSequence.first === 60 && renderedSequence.repeatFirst === 60 && renderedSequence.repeatSecond === 62);
+        report.check(`scales no-gap infinite up+down omits repeated root (${renderedSequence.loopCount} notes, seam ${renderedSequence.loopSeam}->${renderedSequence.loopAfterSeam})`,
+            renderedSequence.loopCount === 29 && renderedSequence.loopHighlightMatches
+            && renderedSequence.loopFirst === 60 && renderedSequence.loopSeam === 62 && renderedSequence.loopAfterSeam === 64);
         await tab.close();
     }
 
