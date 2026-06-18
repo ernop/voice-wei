@@ -23,21 +23,26 @@
         maxLength: 8,
         returnToInitial: true,
         returnToRoot: false,
-        outputMode: 'tones',
+        hearTones: true,
+        hearSpeech: false,
+        singNumbers: false,
         noteLengthMs: 300,
         gapMs: 0,
         showNoteNames: true,
+        showStaff: true,
         reflected: false,
         loopCurrent: false,
-        breakdownAutoAdvance: true
+        breakdownEnabled: false,
+        autoStep: false,
+        playOnStep: false
     };
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames',
-        'reflected', 'loopCurrent', 'breakdownAutoAdvance'
+        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNoteNames', 'showStaff',
+        'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
@@ -46,9 +51,8 @@
     // chromaticRuns, minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REPLAY_KEYS = new Set(['outputMode', 'noteLengthMs', 'gapMs', 'fillMode']);
-    const REDRAW_KEYS = new Set(['showNoteNames']);
-    const BREAKDOWN_PASS_PAUSE_MS = 700;
+    const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs', 'fillMode']);
+    const REDRAW_KEYS = new Set(['showNoteNames', 'showStaff', 'hearTones', 'hearSpeech', 'singNumbers']);
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
@@ -74,10 +78,11 @@
     let playToken = 0;
     let isPointerToggling = false;
     let pointerToggleValue = true;
-    let breakdownActive = false;
-    /** @type {number[][]} */
-    let breakdownPasses = [];
     let breakdownPassIndex = 0;
+
+    function hasHearOutput() {
+        return state.hearTones || state.hearSpeech || state.singNumbers;
+    }
 
     const getEl = PracticeControls.getEl;
 
@@ -87,6 +92,8 @@
 
     /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
     let testPanel = null;
+    /** @type {ReturnType<typeof StaffView.create> | null} */
+    let staffView = null;
 
     function cancelCurrentSound() {
         if (piano) piano.stopAll();
@@ -95,12 +102,16 @@
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
 
-    function stopPlayback() {
+    /** @type {number[][]} */
+    let breakdownPasses = [];
+
+    function stopTransport() {
         playToken++;
-        state.loopCurrent = false;
-        syncRepeatButton();
-        setBreakdownActive(false);
         cancelCurrentSound();
+    }
+
+    function stopPlayback() {
+        stopTransport();
     }
 
     const sleep = PianoCore.sleep;
@@ -298,8 +309,28 @@
         onOpenChange: open => syncTestButton(open),
         progressTool: 'phrases-test'
     });
+    staffView = StaffView.create({
+        hostId: 'phraseStaff',
+        key: () => ({
+            rootMidi: rootMidi() ?? 60,
+            rootLabel: `${state.root}${state.octave}`,
+            scaleType: state.scaleType
+        }),
+        notes: buildTakePlan
+    });
 
     function drawPhraseTest() { testPanel.draw(); }
+
+    function drawPhraseStaff() {
+        const host = getEl('phraseStaff');
+        if (!staffView || !host) return;
+        if (!state.showStaff || !buildTakePlan().length) {
+            host.textContent = '';
+            host.classList.add('phrase-staff-empty');
+            return;
+        }
+        staffView.draw();
+    }
 
     /**
      * The test panel's action row pins below the sticky transport+stage;
@@ -322,10 +353,14 @@
             degreesEl.textContent = '--';
             degreesEl.classList.remove('phrase-degrees-many');
             notesEl.textContent = '';
+            drawPhraseStaff();
+            drawPhraseTest();
+            updateStickyOffset();
             return;
         }
         renderPhraseUnits(plan);
         notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
+        drawPhraseStaff();
         drawPhraseTest();
         updateStickyOffset();
     }
@@ -338,44 +373,65 @@
         return currentPhrase;
     }
 
+    function resetBreakdownForPhrase() {
+        if (!takeNotes.length) {
+            breakdownPasses = [];
+            breakdownPassIndex = 0;
+            return;
+        }
+        breakdownPasses = buildBreakdownPasses();
+        breakdownPassIndex = 0;
+        if (state.breakdownEnabled) {
+            applyNoteMask(breakdownPasses[0]);
+        } else {
+            updatePhraseDisplay();
+        }
+    }
+
     /**
      * Seed the authoritative take notes from a phrase (all enabled).
      * @param {Phrase} phrase
      */
     function setTakeFromPhrase(phrase) {
         takeNotes = phrase.notes.map(note => ({ offset: note.offset, enabled: true }));
-        updatePhraseDisplay();
+        resetBreakdownForPhrase();
     }
 
     async function playPhraseOnce(token) {
         updatePhraseDisplay();
-        if (state.outputMode === 'none' || state.outputMode === 'display') return;
-        if (state.outputMode === 'speak') {
-            await VoiceOutput.speak(spokenLine());
-            return;
-        }
-        if (state.outputMode === 'speak_tones') {
+        if (!hasHearOutput()) return;
+        if (state.hearSpeech) {
             await VoiceOutput.speak(spokenLine());
             if (token !== playToken) return;
-            await playToneSequence(token);
-            return;
         }
-        if (state.outputMode === 'sing_numbers') {
+        if (state.singNumbers) {
             await playSingNumberSequence(token);
-            return;
+            if (token !== playToken) return;
         }
-        await playToneSequence(token);
+        if (state.hearTones) {
+            await playToneSequence(token);
+        }
+    }
+
+    function maybeAdvanceBreakdownPass() {
+        if (!state.autoStep || !state.breakdownEnabled || !breakdownPasses.length) return false;
+        if (breakdownPassIndex >= breakdownPasses.length - 1) return false;
+        breakdownPassIndex++;
+        applyNoteMask(breakdownPasses[breakdownPassIndex]);
+        syncBreakdownControls();
+        return true;
     }
 
     async function playPhrase() {
         if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
-        setBreakdownActive(false);
         cancelCurrentSound();
         const token = ++playToken;
         do {
             await playPhraseOnce(token);
-            if (token !== playToken || !state.loopCurrent) break;
+            if (token !== playToken) break;
+            maybeAdvanceBreakdownPass();
+            if (!state.loopCurrent) break;
             await sleep(650);
         } while (token === playToken && state.loopCurrent);
     }
@@ -392,17 +448,51 @@
 
     /**
      * Tone playback may add invisible fill notes; display, speech, and
-     * pitch-test targets remain the visible take plan.
+     * pitch-test targets remain the visible take plan. Fill only connects
+     * consecutive enabled notes within the phrase — never across breakdown
+     * gaps (anchor at start + anchor at end would otherwise get bridged).
      * @returns {SequenceNote[]}
      */
     function buildTonePlaybackPlan() {
-        const visible = buildTakePlan().filter(note => note.enabled);
+        const plan = buildTakePlan();
+        const visible = plan.filter(note => note.enabled);
         if (state.fillMode === 'none' || visible.length < 2) return visible;
         const root = rootMidi();
         if (root === null) return visible;
 
-        const offsets = fillPlaybackOffsets(visible.map(note => note.offset));
+        /** @type {number[]} */
+        const offsets = [];
+        for (const run of enabledPhraseRuns(plan)) {
+            if (run.length === 1) {
+                offsets.push(run[0].offset);
+                continue;
+            }
+            offsets.push(...fillPlaybackOffsets(run.map(note => note.offset)));
+        }
         return PatternPracticeCore.buildSequenceNotes(offsets, root, state.scaleType);
+    }
+
+    /**
+     * Contiguous enabled notes in phrase order. Breakdown masks leave gaps;
+     * fill must not bridge across them.
+     * @param {PhrasePlanNote[]} plan
+     * @returns {PhrasePlanNote[][]}
+     */
+    function enabledPhraseRuns(plan) {
+        /** @type {PhrasePlanNote[][]} */
+        const runs = [];
+        /** @type {PhrasePlanNote[]} */
+        let run = [];
+        for (const note of plan) {
+            if (note.enabled) {
+                run.push(note);
+            } else if (run.length) {
+                runs.push(run);
+                run = [];
+            }
+        }
+        if (run.length) runs.push(run);
+        return runs;
     }
 
     /** @param {number[]} offsets */
@@ -480,21 +570,15 @@
     async function playNext() {
         await MediaSessionCore.activate();
         testPanel.close();
-        state.loopCurrent = false;
-        syncRepeatButton();
+        stopTransport();
         generatePhrase();
         await playPhrase();
     }
 
-    async function toggleRepeatLoop() {
-        if (!currentPhrase) generatePhrase();
+    function toggleRepeatLoop() {
         state.loopCurrent = !state.loopCurrent;
         syncRepeatButton();
-        if (state.loopCurrent) {
-            await playPhrase();
-        } else {
-            stopPlayback();
-        }
+        saveSettings();
     }
 
     function syncRepeatButton() {
@@ -520,21 +604,7 @@
     /** @param {boolean} active */
     function setAllNotes(active) {
         takeNotes.forEach(note => { note.enabled = active; });
-        renderPhraseUnits(buildTakePlan());
-        drawPhraseTest();
-    }
-
-    /** @param {boolean} active */
-    function setBreakdownActive(active) {
-        breakdownActive = active;
-        syncBreakdownControls();
-    }
-
-    function syncBreakdownButton() {
-        const btn = getEl('breakdownBtn');
-        if (!btn) return;
-        btn.classList.toggle('selected', breakdownActive);
-        btn.setAttribute('aria-pressed', String(breakdownActive));
+        updatePhraseDisplay();
     }
 
     /**
@@ -599,112 +669,70 @@
         updatePhraseDisplay();
     }
 
-    async function prepareBreakdownRun() {
-        await MediaSessionCore.activate();
-        if (!currentPhrase) generatePhrase();
-        if (!takeNotes.length) return false;
-        testPanel.close();
-        state.loopCurrent = false;
-        syncRepeatButton();
-        await PianoCore.ensureStarted();
-        cancelCurrentSound();
-        breakdownPasses = buildBreakdownPasses();
-        breakdownPassIndex = 0;
-        applyNoteMask(breakdownPasses[breakdownPassIndex]);
-        return true;
-    }
-
-    async function runBreakdown() {
-        if (breakdownActive) {
-            stopPlayback();
-            return;
-        }
-        if (!(await prepareBreakdownRun())) return;
-        if (state.breakdownAutoAdvance) {
-            await runAutoBreakdown();
+    function toggleBreakdownEnabled() {
+        state.breakdownEnabled = !state.breakdownEnabled;
+        saveSettings();
+        if (!currentPhrase && state.breakdownEnabled) generatePhrase();
+        if (state.breakdownEnabled) {
+            resetBreakdownForPhrase();
         } else {
-            startManualBreakdownLoop();
+            breakdownPassIndex = 0;
+            setAllNotes(true);
         }
-    }
-
-    async function runAutoBreakdown() {
-        const token = ++playToken;
-        setBreakdownActive(true);
-        try {
-            for (let passIndex = 0; passIndex < breakdownPasses.length; passIndex++) {
-                if (token !== playToken) return;
-                breakdownPassIndex = passIndex;
-                syncBreakdownControls();
-                applyNoteMask(breakdownPasses[passIndex]);
-                if (passIndex > 0) {
-                    await sleep(BREAKDOWN_PASS_PAUSE_MS);
-                    if (token !== playToken) return;
-                }
-                await playPhraseOnce(token);
-                if (token !== playToken) return;
-            }
-        } finally {
-            if (token === playToken) setBreakdownActive(false);
-        }
-    }
-
-    function startManualBreakdownLoop() {
-        const token = ++playToken;
-        setBreakdownActive(true);
         syncBreakdownControls();
-        repeatManualBreakdown(token);
     }
 
-    /** @param {number} token */
-    async function repeatManualBreakdown(token) {
-        try {
-            while (token === playToken && breakdownActive) {
-                applyNoteMask(breakdownPasses[breakdownPassIndex]);
-                await playPhraseOnce(token);
-                if (token !== playToken || !breakdownActive) return;
-                await sleep(BREAKDOWN_PASS_PAUSE_MS);
-            }
-        } finally {
-            if (token === playToken) setBreakdownActive(false);
-        }
+    function toggleAutoStep() {
+        state.autoStep = !state.autoStep;
+        saveSettings();
+        syncBreakdownControls();
+    }
+
+    function togglePlayOnStep() {
+        state.playOnStep = !state.playOnStep;
+        saveSettings();
+        syncBreakdownControls();
     }
 
     async function advanceBreakdownNote() {
-        if (state.breakdownAutoAdvance) return;
-        if (!breakdownActive) {
-            if (!(await prepareBreakdownRun())) return;
-            startManualBreakdownLoop();
-            return;
-        }
+        if (!state.breakdownEnabled) return;
+        if (!currentPhrase) generatePhrase();
+        if (!breakdownPasses.length) resetBreakdownForPhrase();
         if (breakdownPassIndex >= breakdownPasses.length - 1) return;
-        const token = ++playToken;
-        breakdownPassIndex++;
-        cancelCurrentSound();
-        applyNoteMask(breakdownPasses[breakdownPassIndex]);
-        setBreakdownActive(true);
-        syncBreakdownControls();
-        repeatManualBreakdown(token);
-    }
 
-    function toggleBreakdownAutoAdvance() {
-        const next = !state.breakdownAutoAdvance;
-        if (breakdownActive) stopPlayback();
-        state.breakdownAutoAdvance = next;
+        stopTransport();
+
+        breakdownPassIndex++;
+        applyNoteMask(breakdownPasses[breakdownPassIndex]);
         syncBreakdownControls();
+
+        if (state.playOnStep) {
+            await playPhrase();
+        }
     }
 
     function syncBreakdownControls() {
-        const autoBtn = getEl('autoAdvanceBtn');
+        const breakdownBtn = getEl('breakdownBtn');
+        if (breakdownBtn) {
+            breakdownBtn.classList.toggle('selected', state.breakdownEnabled);
+            breakdownBtn.setAttribute('aria-pressed', String(state.breakdownEnabled));
+        }
+        const autoBtn = getEl('autoStepBtn');
         if (autoBtn) {
-            autoBtn.classList.toggle('selected', state.breakdownAutoAdvance);
-            autoBtn.setAttribute('aria-pressed', String(state.breakdownAutoAdvance));
+            autoBtn.classList.toggle('selected', state.autoStep);
+            autoBtn.setAttribute('aria-pressed', String(state.autoStep));
+        }
+        const playOnStepBtn = getEl('playOnStepBtn');
+        if (playOnStepBtn) {
+            playOnStepBtn.classList.toggle('selected', state.playOnStep);
+            playOnStepBtn.setAttribute('aria-pressed', String(state.playOnStep));
         }
         const addBtn = getEl('addNoteBtn');
         if (addBtn instanceof HTMLButtonElement) {
-            addBtn.hidden = state.breakdownAutoAdvance;
-            addBtn.disabled = breakdownActive && breakdownPassIndex >= breakdownPasses.length - 1;
+            addBtn.hidden = !state.breakdownEnabled;
+            addBtn.disabled = !state.breakdownEnabled
+                || breakdownPassIndex >= breakdownPasses.length - 1;
         }
-        syncBreakdownButton();
     }
 
     /** @param {boolean} open */
@@ -801,7 +829,7 @@
         saveSettings();
         if (REGENERATE_KEYS.has(key)) {
             if (currentPhrase) {
-                stopPlayback();
+                stopTransport();
                 generatePhrase();
             }
             return;
@@ -877,11 +905,20 @@
         onSettingChanged('fillMode');
     }
 
+    function wireHearToggle(id, stateKey) {
+        PracticeControls.wireToggle(id, state[stateKey], checked => {
+            state[stateKey] = checked;
+            onSettingChanged(stateKey);
+        });
+    }
+
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
         wireSetting('data-range', 'rangeMode', String);
-        wireSetting('data-output', 'outputMode', String);
+        wireHearToggle('hearTonesToggle', 'hearTones');
+        wireHearToggle('hearSpeechToggle', 'hearSpeech');
+        wireHearToggle('singNumbersToggle', 'singNumbers');
         PracticeControls.wireSingleSelect('data-start-anchor', value => value === 'one', state.startAtOne, value => {
             state.startAtOne = value;
             syncReturnAnchorLabel();
@@ -896,6 +933,10 @@
             state.showNoteNames = checked;
             onSettingChanged('showNoteNames');
         });
+        PracticeControls.wireToggle('showStaffToggle', state.showStaff, checked => {
+            state.showStaff = checked;
+            onSettingChanged('showStaff');
+        });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
         getEl('testBtn')?.addEventListener('click', togglePhraseTest);
@@ -908,9 +949,10 @@
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
         getEl('fillFullBtn')?.addEventListener('click', () => toggleFillMode('full'));
         getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
-        getEl('breakdownBtn')?.addEventListener('click', runBreakdown);
-        getEl('autoAdvanceBtn')?.addEventListener('click', toggleBreakdownAutoAdvance);
-        getEl('addNoteBtn')?.addEventListener('click', advanceBreakdownNote);
+        getEl('breakdownBtn')?.addEventListener('click', toggleBreakdownEnabled);
+        getEl('autoStepBtn')?.addEventListener('click', toggleAutoStep);
+        getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
+        getEl('addNoteBtn')?.addEventListener('click', () => { advanceBreakdownNote(); });
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',
@@ -934,8 +976,23 @@
         MediaSessionCore.primeOnUserGesture();
     }
 
+    function migrateLoadedSettings() {
+        const saved = SettingsStore.peekData(STORAGE_KEY);
+        if (!saved || typeof saved !== 'object') return;
+        if ('outputMode' in saved && !('hearTones' in saved)) {
+            const mode = saved.outputMode;
+            state.hearTones = mode === 'tones' || mode === 'speak_tones';
+            state.hearSpeech = mode === 'speak' || mode === 'speak_tones';
+            state.singNumbers = mode === 'sing_numbers';
+        }
+        if ('breakdownAutoAdvance' in saved && !('autoStep' in saved)) {
+            state.autoStep = Boolean(saved.breakdownAutoAdvance);
+        }
+    }
+
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        migrateLoadedSettings();
         if (state.chromaticRuns && !state.accidentalRate) state.accidentalRate = 0.35;
         if (!['none', 'full', 'chord'].includes(state.fillMode)) state.fillMode = 'none';
         try {
@@ -955,6 +1012,17 @@
             tonePlaybackPlan: buildTonePlaybackPlan,
             testTargets: buildPhraseTestTargets,
             breakdownPasses: buildBreakdownPasses,
+            breakdownPassIndex: () => breakdownPassIndex,
+            settings: () => ({
+                breakdownEnabled: state.breakdownEnabled,
+                autoStep: state.autoStep,
+                playOnStep: state.playOnStep,
+                loopCurrent: state.loopCurrent,
+                hearTones: state.hearTones,
+                hearSpeech: state.hearSpeech,
+                singNumbers: state.singNumbers,
+                showStaff: state.showStaff
+            }),
             panel: testPanel
         };
     }

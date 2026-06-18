@@ -284,58 +284,77 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 leftDelta: actions.left - stage.left,
                 buttonHeight: breakdownBtn.height,
-                autoPressed: document.getElementById('autoAdvanceBtn').getAttribute('aria-pressed'),
+                autoStep: document.getElementById('autoStepBtn').getAttribute('aria-pressed'),
                 addHidden: document.getElementById('addNoteBtn').hidden
             };
         });
         report.check(`phrases breakdown controls are left/tall (left=${breakdownControls.leftDelta.toFixed(0)}, h=${breakdownControls.buttonHeight.toFixed(0)})`,
             breakdownControls.leftDelta <= 16 && breakdownControls.buttonHeight >= 44
-            && breakdownControls.autoPressed === 'true' && breakdownControls.addHidden === true);
+            && breakdownControls.autoStep === 'false' && breakdownControls.addHidden === true);
 
-        await tab.click('[data-output="display"]');
+        await tab.evaluate(() => {
+            const tones = document.getElementById('hearTonesToggle');
+            if (tones instanceof HTMLInputElement && tones.checked) tones.click();
+        });
         await tab.waitForTimeout(300);
         await tab.click('#stopBtn');
         const sBefore = await tab.evaluate(() => window.__voiceStarts);
         await tab.click('#playBtn');
         await tab.waitForTimeout(800);
         const sAfter = await tab.evaluate(() => window.__voiceStarts);
-        report.check('phrases display mode is silent', sBefore === sAfter);
+        report.check('phrases silent when all hear toggles off', sBefore === sAfter);
 
         await tab.click('#breakdownBtn');
-        await tab.waitForTimeout(breakdownPlan.passCount * 850 + 500);
-        const breakdownComplete = await tab.evaluate(() => ({
-            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+        await tab.waitForTimeout(200);
+        const breakdownOn = await tab.evaluate(() => ({
             enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
-            total: window.phrasesDebug.takePlan().length
+            total: window.phrasesDebug.takePlan().length,
+            addHidden: document.getElementById('addNoteBtn').hidden,
+            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed')
         }));
-        report.check(`phrases breakdown button restores full phrase (${breakdownComplete.enabled}/${breakdownComplete.total})`,
-            breakdownComplete.active === 'false' && breakdownComplete.enabled === breakdownComplete.total);
+        report.check(`phrases breakdown mode reveals partial phrase (${breakdownOn.enabled}/${breakdownOn.total})`,
+            breakdownOn.pressed === 'true' && breakdownOn.addHidden === false
+            && breakdownOn.enabled < breakdownOn.total);
 
-        await tab.click('#autoAdvanceBtn');
-        await tab.waitForTimeout(150);
         await tab.click('#breakdownBtn');
-        await tab.waitForTimeout(300);
+        await tab.waitForTimeout(200);
+        const breakdownOff = await tab.evaluate(() => ({
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length,
+            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed')
+        }));
+        report.check(`phrases breakdown off restores full phrase (${breakdownOff.enabled}/${breakdownOff.total})`,
+            breakdownOff.pressed === 'false' && breakdownOff.enabled === breakdownOff.total);
+
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(200);
         const manualBefore = await tab.evaluate(() => ({
-            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
-            auto: document.getElementById('autoAdvanceBtn').getAttribute('aria-pressed'),
+            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            playOnStep: document.getElementById('playOnStepBtn').getAttribute('aria-pressed'),
             addHidden: document.getElementById('addNoteBtn').hidden,
             enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
-            total: window.phrasesDebug.takePlan().length
+            total: window.phrasesDebug.takePlan().length,
+            voices: window.__voiceStarts
         }));
         await tab.click('#addNoteBtn');
         await tab.waitForTimeout(300);
         const manualAfter = await tab.evaluate(() => ({
-            active: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
-            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length
+            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            voices: window.__voiceStarts
         }));
-        report.check(`phrases manual breakdown add note advances one step (${manualBefore.enabled}->${manualAfter.enabled})`,
-            manualBefore.active === 'true' && manualBefore.auto === 'false' && manualBefore.addHidden === false
-            && manualAfter.active === 'true'
-            && manualAfter.enabled === Math.min(manualBefore.total, manualBefore.enabled + 1));
+        report.check(`phrases add note advances silently without play on step (${manualBefore.enabled}->${manualAfter.enabled})`,
+            manualBefore.pressed === 'true' && manualBefore.playOnStep === 'false' && manualBefore.addHidden === false
+            && manualAfter.pressed === 'true'
+            && manualAfter.enabled === Math.min(manualBefore.total, manualBefore.enabled + 1)
+            && manualAfter.voices === manualBefore.voices);
         await tab.click('#stopBtn');
         await tab.waitForTimeout(200);
 
-        await tab.click('[data-output="tones"]');
+        await tab.evaluate(() => {
+            const tones = document.getElementById('hearTonesToggle');
+            if (tones instanceof HTMLInputElement && !tones.checked) tones.click();
+        });
         await tab.waitForTimeout(200);
         await tab.click('#stopBtn');
 
@@ -460,6 +479,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check('phrases extended degrees label above/below, not raw 9 or 6d', extendedLabels);
 
+        const staffSpelling = await tab.evaluate(() => {
+            return NotationSpelling.vexKeySignature('D#', 'major') === 'Eb'
+                && NotationSpelling.vexKeySignature('A', 'minor') === 'Am'
+                && NotationSpelling.midiToVexKey(51) === 'd#/3'
+                && NotationSpelling.clefForPhrase(51, [51, 53, 55]) === 'bass'
+                && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';
+        });
+        report.check('phrases staff spelling helpers', staffSpelling);
+
+        const staffRendered = await tab.evaluate(() => {
+            const host = document.getElementById('phraseStaff');
+            return Boolean(host && !host.classList.contains('phrase-staff-empty') && host.querySelector('svg'));
+        });
+        report.check('phrases staff renders svg for current phrase', staffRendered);
+
         const fillPlans = await tab.evaluate(() => {
             const before = {
                 take: window.phrasesDebug.takePlan().length,
@@ -494,6 +528,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && fillPlans.chord.tone >= fillPlans.before.tone
             && fillPlans.chord.fullPressed === 'false'
             && fillPlans.chord.chordPressed === 'true');
+
+        const fillBreakdownGap = await tab.evaluate(() => {
+            const tokens = [...document.querySelectorAll('.phrase-degree-token')];
+            if (tokens.length < 8) return { ok: false, reason: 'short phrase' };
+            if (document.getElementById('fillChordBtn').getAttribute('aria-pressed') !== 'true') {
+                document.getElementById('fillChordBtn').click();
+            }
+            tokens.forEach(token => {
+                if (!token.classList.contains('inactive')) token.click();
+            });
+            [0, 1, tokens.length - 2, tokens.length - 1].forEach(index => {
+                const token = tokens[index];
+                if (token.classList.contains('inactive')) token.click();
+            });
+            const enabled = window.phrasesDebug.takePlan().filter(note => note.enabled).length;
+            const tone = window.phrasesDebug.tonePlaybackPlan().length;
+            return { ok: tone === enabled, enabled, tone };
+        });
+        report.check(`phrases chord fill does not bridge breakdown gaps (${fillBreakdownGap.enabled} enabled, ${fillBreakdownGap.tone} tones)`,
+            fillBreakdownGap.ok === true);
 
         // The take plan is one explicit timeline: with the FIRST note
         // muted, the first enabled target starts at 0 and disabled notes

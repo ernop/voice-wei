@@ -62,10 +62,17 @@ chooses a question range, not a root) and keeps its own range.
 | maxLength | 8 | 3..50 list | bounds-next |
 | returnToInitial | true | return to 1 / no return | regenerate |
 | returnToRoot | false | (not in UI) | regenerate |
-| outputMode | tones | display, speak, tones, speak_tones, sing_numbers, none | replay |
+| hearTones | true | toggle | redraw |
+| hearSpeech | false | toggle | redraw |
+| singNumbers | false | toggle | redraw |
+| showStaff | true | toggle | redraw |
+| breakdownEnabled | false | toggle | immediate (mask only) |
+| autoStep | false | toggle | immediate (preference) |
+| playOnStep | false | toggle | immediate (preference) |
 | noteLengthMs | 300 | shared note-length list | replay |
 | gapMs | 0 | shared gap list | replay |
 | showNoteNames | true | toggle | redraw |
+| loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
 
 Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
 past each end (down to 6 of the octave below, up to 3 of the octave above
@@ -82,11 +89,12 @@ No generator emits the same note twice in a row - immediate repetition reads
 as a stutter; repeats only come from deliberate anchors.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
-octave), Repeat loop, per-note on/off mask. The mask is `immediate`: tone and
-sing playback read it live, right before each note starts, so toggling an
-upcoming note during a playthrough changes what will be played without
-restarting and without touching the note currently sounding. Spoken output
-is one utterance and reads the mask once, when it starts.
+octave), per-note on/off mask, add note (advance breakdown pass). The mask is
+`immediate` for display; tone and sing playback read it live. Spoken output
+reads the mask once when a play cycle starts. Repeat is a preference only:
+toggling it does not start or stop audio. Play on step controls whether add
+note (or auto step after a cycle) triggers playback. Fill notes are audible
+only between adjacent enabled phrase notes, never across breakdown gaps.
 
 ## Trace (`trace-settings`)
 

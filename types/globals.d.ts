@@ -55,6 +55,24 @@ interface Window {
     PitchTestPanel?: any;
     ProgressStore?: any;
     HistoryList?: any;
+    NotationSpelling?: {
+        vexKeySignature: (root: string, scaleType: string) => string;
+        midiToVexKey: (midi: number) => string;
+        clefForPhrase: (rootMidi: number, midis: number[]) => 'treble' | 'bass';
+        passingAccidental: (
+            offset: number,
+            dp: number,
+            index: number,
+            offsets: number[]
+        ) => '#' | 'b' | null;
+    };
+    StaffView?: {
+        create: (config: {
+            hostId: string;
+            key: () => KeyContext;
+            notes: () => PhrasePlanNote[];
+        }) => { draw: () => void };
+    };
 
     // Named state inspection for the test suite (phrases take plan)
     phrasesDebug?: {
@@ -62,6 +80,17 @@ interface Window {
         tonePlaybackPlan: () => SequenceNote[];
         testTargets: () => TargetSpan[];
         breakdownPasses: () => number[][];
+        breakdownPassIndex: () => number;
+        settings: () => {
+            breakdownEnabled: boolean;
+            autoStep: boolean;
+            playOnStep: boolean;
+            loopCurrent: boolean;
+            hearTones: boolean;
+            hearSpeech: boolean;
+            singNumbers: boolean;
+            showStaff: boolean;
+        };
         panel: any;
     };
     intervalsDebug?: { panel: any };
@@ -75,6 +104,7 @@ interface Window {
 // -----------------------------------------------------------------------
 
 declare const Tone: typeof import('tone');
+declare const Vex: { Flow: any };
 
 declare function normalizeNoteName(spoken: string | null | undefined): string | null;
 declare function normalizeModifier(spoken: string | null | undefined): string | null;

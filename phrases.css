@@ -24,6 +24,40 @@
     }
 }
 
+.phrase-staff {
+    width: 100%;
+    min-height: 0;
+}
+
+.phrase-staff-empty {
+    display: none;
+}
+
+.phrase-staff-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    background: rgba(248, 250, 252, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.phrase-staff-surface {
+    min-width: 100%;
+}
+
+.phrase-staff-surface svg {
+    display: block;
+    height: auto;
+}
+
+.phrase-hear-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
 .phrase-stage-meta {
     display: flex;
     align-items: center;
