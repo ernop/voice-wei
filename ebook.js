@@ -651,23 +651,18 @@ class BooksController {
             const readPercent = this.getBookReadPercent(book);
             const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} segments`;
             return `
-                <div class="saved-book-item${selectedClass}">
-                    <div class="saved-book-title">${this.escapeHtml(book.title)}</div>
-                    <div class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</div>
-                    <div class="saved-book-meta">
-                        ${this.escapeHtml(book.format.toUpperCase())} · ${this.formatFileSize(book.fileSize)} · ${this.formatDuration(book.estimatedDurationSec)} est · ${generatedText}
+                <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
+                    <div class="saved-book-main">
+                        <div class="saved-book-title">${this.escapeHtml(book.title)}</div>
+                        <div class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</div>
                     </div>
-                    <div class="saved-book-progress" title="Reading progress">
-                        <div class="saved-book-progress-fill" style="width: ${readPercent}%"></div>
+                    <div class="saved-book-side">
+                        <div class="saved-book-meta">${this.escapeHtml(book.format.toUpperCase())} · ${this.formatDuration(book.estimatedDurationSec)} · ${generatedText}</div>
+                        <div class="saved-book-progress" title="Reading progress">
+                            <div class="saved-book-progress-fill" style="width: ${readPercent}%"></div>
+                        </div>
                     </div>
-                    <div class="saved-book-actions">
-                        <button class="small-action-btn" type="button" data-action="open" data-id="${this.escapeHtml(book.id)}">Open</button>
-                        <button class="small-action-btn" type="button" data-action="original" data-id="${this.escapeHtml(book.id)}">Original</button>
-                        <button class="small-action-btn" type="button" data-action="combined" data-id="${this.escapeHtml(book.id)}">MP3</button>
-                        <button class="small-action-btn danger" type="button" data-action="delete-audio" data-id="${this.escapeHtml(book.id)}">Delete MP3s</button>
-                        <button class="small-action-btn" type="button" data-action="delete" data-id="${this.escapeHtml(book.id)}">Delete</button>
-                    </div>
-                </div>
+                </button>
             `;
         }).join('');
     }
@@ -675,16 +670,9 @@ class BooksController {
     /** @param {Event} event */
     async handleLibraryAction(event) {
         const target = event.target instanceof HTMLElement ? event.target : null;
-        const button = /** @type {HTMLButtonElement | null} */ (target?.closest('button[data-action]') || null);
-        if (!button) return;
-        const id = button.getAttribute('data-id');
-        const action = button.getAttribute('data-action');
-        if (!id || !action) return;
-        if (action === 'open') await this.openBook(id);
-        if (action === 'original') await this.downloadOriginalById(id);
-        if (action === 'combined') await this.downloadCombinedById(id);
-        if (action === 'delete-audio') await this.deleteBookAudio(id);
-        if (action === 'delete') await this.deleteBook(id);
+        const row = /** @type {HTMLButtonElement | null} */ (target?.closest('.saved-book-item[data-book-id]') || null);
+        const id = row?.getAttribute('data-book-id');
+        if (id) await this.openBook(id);
     }
 
     /** @param {File} file */

@@ -6,7 +6,6 @@
 .generator-actions,
 .player-actions,
 .storage-line,
-.saved-book-actions,
 .reader-toolbar,
 .panel-heading {
     display: flex;
@@ -183,10 +182,23 @@
 }
 
 .saved-book-item {
-    padding: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 9px 10px;
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid rgba(74, 222, 128, 0.12);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.saved-book-item:hover {
+    border-color: rgba(74, 222, 128, 0.34);
+    background: rgba(74, 222, 128, 0.06);
 }
 
 .saved-book-item.selected {
@@ -194,21 +206,35 @@
     background: rgba(74, 222, 128, 0.08);
 }
 
+.saved-book-main {
+    min-width: 0;
+}
+
 .saved-book-title {
     color: #e8f5e9;
     font-weight: 800;
-    margin-bottom: 4px;
     line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .saved-book-author {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 0.86rem;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-book-side {
+    width: 96px;
+    min-width: 96px;
 }
 
 .saved-book-progress {
     height: 6px;
-    margin: 8px 0;
+    margin-top: 5px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.12);
     overflow: hidden;
@@ -218,11 +244,6 @@
     height: 100%;
     width: 0;
     background: #4ade80;
-}
-
-.saved-book-actions {
-    flex-wrap: wrap;
-    margin-top: 8px;
 }
 
 .book-workspace {
@@ -598,7 +619,6 @@
     .workspace-actions,
     .generator-actions,
     .player-actions,
-    .saved-book-actions,
     .storage-line,
     .reader-toolbar {
         flex-direction: column;
