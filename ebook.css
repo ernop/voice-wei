@@ -378,6 +378,64 @@
     color: rgba(232, 245, 233, 0.92);
 }
 
+.reader-fullscreen-mode {
+    overflow: hidden;
+}
+
+.reader-fullscreen-mode .site-header,
+.reader-fullscreen-mode .books-library-panel,
+.reader-fullscreen-mode .workspace-header,
+.reader-fullscreen-mode .book-progress-card,
+.reader-fullscreen-mode .spine-panel,
+.reader-fullscreen-mode .listen-panel,
+.reader-fullscreen-mode .page-footer {
+    display: none;
+}
+
+.reader-fullscreen-mode .container,
+.reader-fullscreen-mode main,
+.reader-fullscreen-mode .books-shell,
+.reader-fullscreen-mode .book-workspace,
+.reader-fullscreen-mode .workspace-grid,
+.reader-fullscreen-mode .reader-panel {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.reader-fullscreen-mode .reader-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    padding: 12px;
+    background: #07140d;
+}
+
+.reader-fullscreen-mode .reader-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1201;
+    padding: 8px;
+    margin: 0 0 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.78);
+}
+
+.reader-fullscreen-mode .reader-view {
+    max-height: calc(100vh - 76px);
+    min-height: calc(100vh - 76px);
+    max-width: 860px;
+    margin: 0 auto;
+    padding: clamp(18px, 4vw, 44px);
+    font-size: clamp(1.08rem, 2.2vw, 1.35rem);
+    line-height: 1.82;
+    background: rgba(0, 0, 0, 0.24);
+}
+
 .reader-section {
     margin-bottom: 28px;
 }

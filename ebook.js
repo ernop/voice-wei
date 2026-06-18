@@ -518,6 +518,7 @@ class BooksController {
         const readerView = document.getElementById('readerView');
         const readerSearch = /** @type {HTMLInputElement | null} */ (document.getElementById('readerSearch'));
         const readerSearchClearBtn = document.getElementById('readerSearchClearBtn');
+        const readerFullscreenBtn = document.getElementById('readerFullscreenBtn');
         const autoToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoGenerateAheadToggle'));
         if (spineList) spineList.addEventListener('click', e => this.handleSpineClick(e));
         if (readerView) readerView.addEventListener('click', e => this.handleReaderClick(e));
@@ -534,6 +535,14 @@ class BooksController {
                 this.renderReader();
             });
         }
+        if (readerFullscreenBtn) {
+            readerFullscreenBtn.addEventListener('click', () => this.toggleReaderFullscreen());
+        }
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.body.classList.contains('reader-fullscreen-mode')) {
+                this.setReaderFullscreen(false);
+            }
+        });
         if (autoToggle) {
             autoToggle.addEventListener('change', () => {
                 this.autoGenerateAhead = autoToggle.checked;
@@ -552,6 +561,18 @@ class BooksController {
         this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
         this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
         this.bindButton('clearLogBtn', () => this.clearLog());
+    }
+
+    toggleReaderFullscreen() {
+        this.setReaderFullscreen(!document.body.classList.contains('reader-fullscreen-mode'));
+    }
+
+    /** @param {boolean} enabled */
+    setReaderFullscreen(enabled) {
+        document.body.classList.toggle('reader-fullscreen-mode', enabled);
+        const button = document.getElementById('readerFullscreenBtn');
+        if (button) button.textContent = enabled ? 'Exit fullscreen' : 'Fullscreen';
+        if (enabled) this.scrollCurrentSegmentIntoView(false);
     }
 
     setupPlayerUI() {
