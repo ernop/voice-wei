@@ -9,28 +9,23 @@
 const ProgressStore = (function () {
     'use strict';
 
-    const STORAGE_KEY = 'practice-progress';
+    const STORAGE_KEY = StorageKeys.PRACTICE_PROGRESS;
     const MAX_ENTRIES = 1000;
 
     /**
      * @typedef {{ at: string, tool: string, context: string, total: number,
      *             hit: number, avgCents: number | null,
      *             notes?: ProgressNoteResult[] }} ProgressEntry
-     * Entries recorded before per-note tracking have no `notes` field;
-     * every reader must treat that explicitly as "no note data".
      */
 
     /** @returns {ProgressEntry[]} */
     function load() {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        let parsed;
-        try {
-            parsed = JSON.parse(raw);
-        } catch (err) {
-            return [];
-        }
-        return Array.isArray(parsed) ? parsed : [];
+        const data = SettingsStore.loadJson(
+            STORAGE_KEY,
+            [],
+            value => Array.isArray(value)
+        );
+        return /** @type {ProgressEntry[]} */ (data);
     }
 
     /**
@@ -49,7 +44,7 @@ const ProgressStore = (function () {
             notes: entry.notes ?? []
         });
         while (entries.length > MAX_ENTRIES) entries.shift();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+        SettingsStore.saveJson(STORAGE_KEY, entries);
     }
 
     /**
@@ -71,10 +66,8 @@ const ProgressStore = (function () {
     }
 
     /**
-     * Per-local-day aggregates for a tool, newest day first.
      * @param {string} tool
-     * @param {number} [days] - max number of days with data to return
-     * @returns {Array<{ day: string, takes: number, hitRate: number, avgCents: number | null }>}
+     * @param {number} [days]
      */
     function dailySummary(tool, days = 7) {
         /** @type {Map<string, { takes: number, hit: number, total: number, centsSum: number, centsCount: number }>} */
@@ -103,12 +96,7 @@ const ProgressStore = (function () {
             }));
     }
 
-    /**
-     * One-line trend for display: "Today 62% (5 takes) - Jun 9 48% (3)".
-     * Empty string when there is no data yet.
-     * @param {string} tool
-     * @param {number} [days]
-     */
+    /** @param {string} tool @param {number} [days] */
     function trendLine(tool, days = 4) {
         const today = localDay(new Date().toISOString());
         const parts = dailySummary(tool, days).map(summary => {
@@ -121,16 +109,7 @@ const ProgressStore = (function () {
         return parts.length ? `Progress: ${parts.join(' \u00b7 ')}` : '';
     }
 
-    /**
-     * Aggregate per-note outcomes by label over recent takes: how often
-     * each target was missed and which way the singing leaned. This is
-     * the degree-level view the training goal needs ("control in the
-     * lower range - overshoot around 6-7-8").
-     * @param {string} tool
-     * @param {number} [takes] - how many recent takes to aggregate
-     * @returns {Array<{ label: string, attempts: number, missRate: number,
-     *                   biasCents: number | null }>} worst first
-     */
+    /** @param {string} tool @param {number} [takes] */
     function weakSpots(tool, takes = 20) {
         /** @type {Map<string, { attempts: number, missed: number, biasSum: number, biasCount: number }>} */
         const byLabel = new Map();
@@ -161,12 +140,7 @@ const ProgressStore = (function () {
             });
     }
 
-    /**
-     * One-line weak-spot readout: worst labels with miss rate and lean.
-     * Only labels with enough attempts and a real problem are shown.
-     * @param {string} tool
-     * @param {number} [maxSpots]
-     */
+    /** @param {string} tool @param {number} [maxSpots] */
     function weakSpotLine(tool, maxSpots = 3) {
         const spots = weakSpots(tool)
             .filter(spot => spot.attempts >= 3

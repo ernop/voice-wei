@@ -7,6 +7,7 @@ set -e
 
 VERSION_FILE="VERSION"
 HEADER_FILE="shared-header.js"
+APP_VERSION_FILE="app-version.js"
 CURRENT=$(tr -d '[:space:]' < "$VERSION_FILE")
 
 if [ -n "$1" ]; then
@@ -20,8 +21,13 @@ echo "Bumping version: v$CURRENT -> v$NEW"
 echo "$NEW" > "$VERSION_FILE"
 
 if [ -f "$HEADER_FILE" ]; then
-    sed -i "s/const APP_VERSION = \"[0-9.]*\";/const APP_VERSION = \"$NEW\";/g" "$HEADER_FILE"
-    echo "  Updated $HEADER_FILE"
+    sed -i "s/: '[0-9.]*';$/: '$NEW';/" "$HEADER_FILE"
+    echo "  Updated $HEADER_FILE fallback"
+fi
+
+if [ -f "$APP_VERSION_FILE" ]; then
+    sed -i "s/current: '[0-9.]*'/current: '$NEW'/g" "$APP_VERSION_FILE"
+    echo "  Updated $APP_VERSION_FILE"
 fi
 
 for file in *.html; do

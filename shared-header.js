@@ -1,4 +1,4 @@
-const APP_VERSION = "124";
+const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '124';
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
@@ -7,8 +7,7 @@ const HEADER_PAGES = [
     { id: "trace", href: "trace.html", label: "Trace" },
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
     { id: "music", href: "player.html", label: "Music" },
-    { id: "books", href: "ebook.html", label: "Books" },
-    { id: "ears", href: "ears.html", label: "Ears" }
+    { id: "books", href: "ebook.html", label: "Books" }
 ];
 
 function renderSharedHeader() {

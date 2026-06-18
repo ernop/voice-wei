@@ -1,0 +1,34 @@
+# Persistence
+
+All user-facing state in the browser must go through the shared persistence
+modules. Page code must not call `localStorage` directly.
+
+## Required modules
+
+| Data | Module | Keys |
+|------|--------|------|
+| Settings objects (typed field lists) | `settings-store.js` `load` / `save` | `StorageKeys.*` |
+| JSON blobs (arrays, maps, playlist) | `settings-store.js` `loadJson` / `saveJson` | `StorageKeys.*` |
+| API keys | `api-keys-store.js` | `StorageKeys.API_CLAUDE`, `API_OPENAI` |
+| Scored take history | `progress-store.js` | `StorageKeys.PRACTICE_PROGRESS` |
+
+Key names live only in `storage-keys.js`. Legacy keys migrate automatically.
+
+## Envelope
+
+Persisted JSON uses `{ v: AppVersion.current, data: ... }`. API keys are
+the exception: plain strings.
+
+## Version mismatch policy
+
+- Older saved version: best-effort restore, log gaps.
+- Same saved version, load failure: show the serious error banner (user-visible); log details. This indicates a bug to fix, not stale data.
+
+## Adding new persisted fields
+
+1. Add the field to the page state with a sensible default.
+2. Add the key name to the page's `PERSISTED_KEYS` array (or use `loadJson` for non-settings blobs).
+3. Wire save on every user change.
+4. If the key is new to the registry, add it to `storage-keys.js`.
+
+Never create ad-hoc localStorage keys outside this system.

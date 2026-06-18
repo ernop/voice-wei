@@ -31,6 +31,15 @@ interface Window {
     PitchTraceView?: any;
     PracticeControls?: any;
     SettingsStore?: any;
+    StorageKeys?: any;
+    LegacyStorageKeys?: any;
+    ApiKeysStore?: any;
+    AppVersion?: { current: string };
+    PracticeAudio?: any;
+    ScalesPlayback?: { AudioCoordinator: new () => any };
+    ScalesVoiceMaps?: any;
+    PlayerStorage?: any;
+    PlayerApiKeys?: any;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
     ProgressStore?: any;

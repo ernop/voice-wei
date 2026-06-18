@@ -1804,3 +1804,15 @@ h1 {
     color: rgba(255, 255, 255, 0.8);
     text-decoration: underline;
 }
+
+.persistence-serious-error {
+    position: sticky;
+    top: 0;
+    z-index: 10000;
+    padding: 14px 18px;
+    background: #7f1d1d;
+    border-bottom: 2px solid #fca5a5;
+    color: #fef2f2;
+    font-weight: 700;
+    text-align: center;
+}
