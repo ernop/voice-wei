@@ -442,19 +442,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return saved && saved.phraseStyle === 'barbershop' && saved.phraseLesson === 'barber_dominant';
         });
         report.check('phrases style and lesson persist', savedLesson);
-        const lessonPresetState = await tab.evaluate(() => {
-            const saved = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS);
-            return {
-                fillMode: saved?.fillMode,
-                lockedFill: saved?.lessonLockedKeys?.includes('fillMode') === true,
-                lockedMarker: document.getElementById('fillChordBtn').classList.contains('lesson-locked')
-            };
-        });
-        report.check('phrases lesson preset applies defaults and marks locked controls',
-            lessonPresetState.fillMode === 'chord' && lessonPresetState.lockedFill && lessonPresetState.lockedMarker);
         await tab.click('#fillChordBtn');
         await tab.waitForTimeout(200);
-        const lessonUnlockState = await tab.evaluate(() => {
+        await tab.click('[data-phrase-lesson="barber_tonic"]');
+        await tab.waitForTimeout(200);
+        const lessonFillState = await tab.evaluate(() => {
             const saved = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS);
             return {
                 fillMode: saved?.fillMode,
@@ -462,8 +454,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lockedMarker: document.getElementById('fillChordBtn').classList.contains('lesson-locked')
             };
         });
-        report.check('phrases clicking lesson-owned control unlocks user override',
-            lessonUnlockState.fillMode === 'none' && !lessonUnlockState.lockedFill && !lessonUnlockState.lockedMarker);
+        report.check('phrases lesson presets leave fill modes user-controlled',
+            lessonFillState.fillMode === 'chord' && !lessonFillState.lockedFill && !lessonFillState.lockedMarker);
 
         const genreLesson = await tab.evaluate(() => {
             const phrase = PatternPracticeCore.generatePhraseOffsets({

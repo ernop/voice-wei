@@ -75,7 +75,8 @@ gap, play tones, return to degree 1.
 - Choosing a style or lesson applies its preset defaults and marks the
   affected controls as lesson-owned. Clicking one of those marked controls
   unlocks just that control and keeps the new combination; choosing a style
-  or lesson again reapplies the preset.
+  or lesson again reapplies the preset. Fill modes stay independent and are
+  never turned on by a style.
 - **Per-note on/off markers** under the degrees isolate phrase sections by
   click or drag without losing the phrase.
 - **Breakdown** starts from first/last plus one random interior note, then

@@ -103,6 +103,9 @@ setting names in `lessonLockedKeys`. The lock is soft: it marks which controls
 the lesson currently owns, but clicking one of those controls removes that key
 from the lock list and keeps the user's override. Choosing any high-level
 style or lesson again reapplies that preset and resets the relevant locks.
+Fill modes are intentionally outside lesson presets: styles never turn on or
+lock `full fill` / `1358 fill`, because those are playback modifiers rather
+than genre or pedagogy choices.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
 octave), per-note on/off mask, add note (advance breakdown pass). The mask is
