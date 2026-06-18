@@ -118,6 +118,130 @@
     opacity: 0.7;
 }
 
+/* Saved Library */
+.library-section {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(74, 222, 128, 0.16);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 20px 0;
+}
+
+.library-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.library-header h3 {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    color: #a7f3d0;
+}
+
+.library-note {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.library-storage {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.62);
+    text-align: right;
+}
+
+.library-storage-btn {
+    padding: 6px 10px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 6px;
+    background: rgba(74, 222, 128, 0.12);
+    color: #86efac;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+
+.library-storage-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.saved-book-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.library-empty {
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.9rem;
+}
+
+.saved-book-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(74, 222, 128, 0.12);
+}
+
+.saved-book-title {
+    font-weight: 700;
+    color: #e8f5e9;
+    margin-bottom: 4px;
+}
+
+.saved-book-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.58);
+}
+
+.saved-book-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.saved-book-action {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(74, 222, 128, 0.16);
+    color: #86efac;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.saved-book-action:hover {
+    background: rgba(74, 222, 128, 0.25);
+}
+
+.saved-book-action.danger {
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+}
+
+.saved-book-action.danger:hover {
+    background: rgba(239, 68, 68, 0.24);
+}
+
 /* Book Info Section */
 .book-info {
     background: rgba(0, 0, 0, 0.3);
@@ -598,6 +722,17 @@
 
     .book-actions {
         flex-direction: column;
+    }
+
+    .library-header,
+    .saved-book-item {
+        flex-direction: column;
+    }
+
+    .library-storage,
+    .saved-book-actions {
+        align-items: stretch;
+        width: 100%;
     }
 
     .convert-btn {

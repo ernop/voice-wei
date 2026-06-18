@@ -8,6 +8,9 @@ if (typeof pdfjsLib !== 'undefined') {
 
 // OpenAI TTS limits: 4096 characters per request
 const TTS_CHUNK_SIZE = 4000;
+const EBOOK_DB_NAME = 'voice-wei-books';
+const EBOOK_DB_VERSION = 1;
+const EBOOK_STORE_NAME = 'books';
 
 // Voice descriptions for UI
 const VOICE_DESCRIPTIONS = {
@@ -43,11 +46,109 @@ const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how 
  */
 
 /**
+ * @typedef {Object} StoredBookRecord
+ * @property {string} id
+ * @property {string} title
+ * @property {string} author
+ * @property {string} format
+ * @property {string} fileName
+ * @property {string} fileType
+ * @property {number} fileSize
+ * @property {number} textLength
+ * @property {number} wordCount
+ * @property {number} chunkCount
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {Blob} rawFile
+ * @property {Blob | null} audioBlob
+ * @property {number} audioSize
+ * @property {string} convertedAt
+ * @property {Settings | null} audioSettings
+ */
+
+/**
  * @typedef {Object} Settings
  * @property {string} voice
  * @property {string} model
  * @property {number} speed
  */
+
+class EbookStorage {
+    constructor() {
+        /** @type {IDBDatabase | null} */
+        this.db = null;
+    }
+
+    async open() {
+        if (this.db) return;
+
+        await new Promise((resolve, reject) => {
+            const request = indexedDB.open(EBOOK_DB_NAME, EBOOK_DB_VERSION);
+
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(EBOOK_STORE_NAME)) {
+                    const store = db.createObjectStore(EBOOK_STORE_NAME, { keyPath: 'id' });
+                    store.createIndex('updatedAt', 'updatedAt');
+                    store.createIndex('title', 'title');
+                }
+            };
+
+            request.onsuccess = () => {
+                this.db = request.result;
+                resolve(undefined);
+            };
+
+            request.onerror = () => reject(request.error || new Error('Could not open ebook storage'));
+        });
+    }
+
+    /** @param {'readonly' | 'readwrite'} mode */
+    store(mode) {
+        if (!this.db) {
+            throw new Error('Ebook storage is not open');
+        }
+        return this.db.transaction(EBOOK_STORE_NAME, mode).objectStore(EBOOK_STORE_NAME);
+    }
+
+    /** @param {StoredBookRecord} record */
+    async put(record) {
+        await new Promise((resolve, reject) => {
+            const request = this.store('readwrite').put(record);
+            request.onsuccess = () => resolve(undefined);
+            request.onerror = () => reject(request.error || new Error('Could not save book'));
+        });
+    }
+
+    /** @param {string} id */
+    async get(id) {
+        return /** @type {Promise<StoredBookRecord | null>} */ (new Promise((resolve, reject) => {
+            const request = this.store('readonly').get(id);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error || new Error('Could not load book'));
+        }));
+    }
+
+    async getAll() {
+        const records = await /** @type {Promise<StoredBookRecord[]>} */ (new Promise((resolve, reject) => {
+            const request = this.store('readonly').getAll();
+            request.onsuccess = () => resolve(request.result || []);
+            request.onerror = () => reject(request.error || new Error('Could not list saved books'));
+        }));
+
+        records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        return records;
+    }
+
+    /** @param {string} id */
+    async delete(id) {
+        await new Promise((resolve, reject) => {
+            const request = this.store('readwrite').delete(id);
+            request.onsuccess = () => resolve(undefined);
+            request.onerror = () => reject(request.error || new Error('Could not delete saved book'));
+        });
+    }
+}
 
 class EbookController {
     constructor() {
@@ -61,8 +162,18 @@ class EbookController {
             model: 'tts-1',
             speed: 1.0
         };
+        /** @type {EbookStorage | null} */
+        this.storage = null;
+        /** @type {StoredBookRecord[]} */
+        this.savedBooks = [];
+        /** @type {string | null} */
+        this.currentBookStorageId = null;
+        /** @type {File | null} */
+        this.currentRawFile = null;
         /** @type {Blob | null} */
         this.audioBlob = null;
+        /** @type {string | null} */
+        this.audioObjectUrl = null;
         /** @type {boolean} */
         this.isConverting = false;
         /** @type {AbortController | null} */
@@ -76,6 +187,28 @@ class EbookController {
         this.loadSettings();
         this.setupUI();
         this.setupDragAndDrop();
+        await this.setupStorage();
+    }
+
+    async setupStorage() {
+        if (!('indexedDB' in window)) {
+            this.log('warn', 'Browser storage unavailable: IndexedDB is required for saved books');
+            this.updateStorageEstimate();
+            return;
+        }
+
+        this.storage = new EbookStorage();
+        try {
+            await this.storage.open();
+            await this.refreshSavedBooks();
+            await this.updateStorageEstimate();
+            this.log('info', 'Saved books storage ready');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.storage = null;
+            this.log('error', `Saved books storage unavailable: ${message}`);
+            this.updateStorageEstimate();
+        }
     }
 
     // API Key Management
@@ -334,6 +467,17 @@ class EbookController {
             });
         }
 
+        // Saved library actions
+        const savedBookList = document.getElementById('savedBookList');
+        if (savedBookList) {
+            savedBookList.addEventListener('click', (e) => this.handleSavedBookAction(e));
+        }
+
+        const persistentStorageBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('requestPersistentStorageBtn'));
+        if (persistentStorageBtn) {
+            persistentStorageBtn.addEventListener('click', () => this.requestPersistentStorage());
+        }
+
         // Convert button
         const convertBtn = document.getElementById('convertBtn');
         if (convertBtn) {
@@ -495,73 +639,333 @@ class EbookController {
         });
     }
 
+    /** @param {Event} event */
+    async handleSavedBookAction(event) {
+        const target = /** @type {HTMLElement | null} */ (event.target instanceof HTMLElement ? event.target : null);
+        const button = /** @type {HTMLButtonElement | null} */ (target?.closest('button[data-action]') || null);
+        if (!button) return;
+
+        const id = button.getAttribute('data-id');
+        const action = button.getAttribute('data-action');
+        if (!id || !action) return;
+
+        try {
+            if (action === 'load') {
+                await this.loadStoredBook(id);
+            } else if (action === 'download-raw') {
+                await this.downloadStoredRaw(id);
+            } else if (action === 'download-audio') {
+                await this.downloadStoredAudio(id);
+            } else if (action === 'delete') {
+                await this.deleteStoredBook(id);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('error', `Saved book action failed: ${message}`);
+        }
+    }
+
+    async requestPersistentStorage() {
+        if (!navigator.storage?.persist) {
+            this.log('warn', 'Persistent storage requests are not supported in this browser');
+            return;
+        }
+
+        const persisted = await navigator.storage.persist();
+        this.log(persisted ? 'info' : 'warn', persisted ? 'Browser granted persistent storage' : 'Browser did not grant persistent storage');
+        await this.updateStorageEstimate();
+    }
+
+    async refreshSavedBooks() {
+        const listEl = document.getElementById('savedBookList');
+        if (!listEl) return;
+
+        if (!this.storage) {
+            listEl.innerHTML = '<div class="library-empty">Saved books are unavailable in this browser.</div>';
+            return;
+        }
+
+        this.savedBooks = await this.storage.getAll();
+
+        if (this.savedBooks.length === 0) {
+            listEl.innerHTML = '<div class="library-empty">No saved books yet.</div>';
+            return;
+        }
+
+        listEl.innerHTML = this.savedBooks.map(record => {
+            const audioMeta = record.audioBlob
+                ? `MP3 ${this.formatFileSize(record.audioSize)}`
+                : 'No MP3 yet';
+            const convertedMeta = record.convertedAt
+                ? `Converted ${this.formatDateTime(record.convertedAt)}`
+                : 'Not converted';
+            const canDownloadAudio = record.audioBlob
+                ? `<button class="saved-book-action" type="button" data-action="download-audio" data-id="${this.escapeHtml(record.id)}">Download MP3</button>`
+                : '';
+
+            return `
+                <div class="saved-book-item">
+                    <div class="saved-book-summary">
+                        <div class="saved-book-title">${this.escapeHtml(record.title)}</div>
+                        <div class="saved-book-meta">
+                            <span>${this.escapeHtml(record.format.toUpperCase())}</span>
+                            <span>Original ${this.formatFileSize(record.fileSize)}</span>
+                            <span>${this.formatNumber(record.wordCount)} words</span>
+                            <span>${audioMeta}</span>
+                            <span>${convertedMeta}</span>
+                        </div>
+                    </div>
+                    <div class="saved-book-actions">
+                        <button class="saved-book-action" type="button" data-action="load" data-id="${this.escapeHtml(record.id)}">Load</button>
+                        <button class="saved-book-action" type="button" data-action="download-raw" data-id="${this.escapeHtml(record.id)}">Download original</button>
+                        ${canDownloadAudio}
+                        <button class="saved-book-action danger" type="button" data-action="delete" data-id="${this.escapeHtml(record.id)}">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async updateStorageEstimate() {
+        const estimateEl = document.getElementById('storageEstimate');
+        const persistBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('requestPersistentStorageBtn'));
+        if (!estimateEl) return;
+
+        if (!navigator.storage?.estimate) {
+            estimateEl.textContent = 'Storage quota unavailable';
+            if (persistBtn) persistBtn.disabled = true;
+            return;
+        }
+
+        const estimate = await navigator.storage.estimate();
+        const usage = estimate.usage || 0;
+        const quota = estimate.quota || 0;
+        const quotaText = quota > 0 ? ` / ${this.formatFileSize(quota)}` : '';
+        estimateEl.textContent = `Storage used: ${this.formatFileSize(usage)}${quotaText}`;
+
+        if (persistBtn && navigator.storage?.persisted) {
+            const persisted = await navigator.storage.persisted();
+            persistBtn.disabled = persisted;
+            persistBtn.textContent = persisted ? 'Persistent' : 'Keep storage';
+        }
+    }
+
+    /** @param {File} file */
+    async saveCurrentBookToLibrary(file) {
+        if (!this.storage || !this.bookData) return;
+
+        const record = this.buildStoredBookRecord(file);
+        try {
+            await this.storage.put(record);
+            this.currentBookStorageId = record.id;
+            this.log('info', `Saved original upload in browser storage (${this.formatFileSize(file.size)})`);
+            await this.refreshSavedBooks();
+            await this.updateStorageEstimate();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('error', `Could not save original upload: ${message}`);
+        }
+    }
+
+    /** @param {File} file */
+    buildStoredBookRecord(file) {
+        if (!this.bookData) {
+            throw new Error('No book loaded');
+        }
+
+        const now = new Date().toISOString();
+        const wordCount = this.countWords(this.bookData.text);
+        return {
+            id: `book-${Date.now()}-${Math.round(Math.random() * 1000000000)}`,
+            title: this.bookData.title,
+            author: this.bookData.author,
+            format: this.bookData.format,
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+            textLength: this.bookData.text.length,
+            wordCount,
+            chunkCount: Math.ceil(this.bookData.text.length / TTS_CHUNK_SIZE),
+            createdAt: now,
+            updatedAt: now,
+            rawFile: file,
+            audioBlob: null,
+            audioSize: 0,
+            convertedAt: '',
+            audioSettings: null
+        };
+    }
+
+    async saveCurrentAudioToLibrary() {
+        if (!this.storage || !this.currentBookStorageId || !this.audioBlob) return;
+
+        try {
+            const record = await this.storage.get(this.currentBookStorageId);
+            if (!record) return;
+
+            record.audioBlob = this.audioBlob;
+            record.audioSize = this.audioBlob.size;
+            record.convertedAt = new Date().toISOString();
+            record.updatedAt = record.convertedAt;
+            record.audioSettings = { ...this.settings };
+
+            await this.storage.put(record);
+            this.log('info', `Saved MP3 in browser storage (${this.formatFileSize(this.audioBlob.size)})`);
+            await this.refreshSavedBooks();
+            await this.updateStorageEstimate();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('error', `Could not save MP3 in browser storage: ${message}`);
+        }
+    }
+
+    /** @param {string} id */
+    async loadStoredBook(id) {
+        if (!this.storage) return;
+
+        const record = await this.storage.get(id);
+        if (!record) {
+            throw new Error('Saved book not found');
+        }
+
+        const file = new File([record.rawFile], record.fileName, {
+            type: record.fileType,
+            lastModified: Date.parse(record.updatedAt)
+        });
+        await this.loadBookFromFile(file, false, record);
+        this.log('info', `Loaded saved book: ${record.title}`);
+    }
+
+    /** @param {string} id */
+    async downloadStoredRaw(id) {
+        if (!this.storage) return;
+
+        const record = await this.storage.get(id);
+        if (!record) {
+            throw new Error('Saved book not found');
+        }
+
+        this.downloadBlob(record.rawFile, record.fileName);
+        this.log('info', `Downloaded original: ${record.fileName}`);
+    }
+
+    /** @param {string} id */
+    async downloadStoredAudio(id) {
+        if (!this.storage) return;
+
+        const record = await this.storage.get(id);
+        if (!record || !record.audioBlob) {
+            throw new Error('Saved MP3 not found');
+        }
+
+        const filename = `${record.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
+        this.downloadBlob(record.audioBlob, filename);
+        this.log('info', `Downloaded saved MP3: ${filename}`);
+    }
+
+    /** @param {string} id */
+    async deleteStoredBook(id) {
+        if (!this.storage) return;
+
+        await this.storage.delete(id);
+        if (this.currentBookStorageId === id) {
+            this.currentBookStorageId = null;
+        }
+        this.log('info', 'Deleted saved book from browser storage');
+        await this.refreshSavedBooks();
+        await this.updateStorageEstimate();
+    }
+
     /** @param {File} file */
     async handleFile(file) {
+        await this.loadBookFromFile(file, true, null);
+    }
+
+    /**
+     * @param {File} file
+     * @param {boolean} saveToLibrary
+     * @param {StoredBookRecord | null} storedRecord
+     */
+    async loadBookFromFile(file, saveToLibrary, storedRecord) {
         const extension = file.name.split('.').pop()?.toLowerCase();
         this.log('info', `Processing file: ${file.name} (${this.formatFileSize(file.size)})`);
         this.updateStatus('Processing file...');
 
         try {
-            let text = '';
-            let title = file.name.replace(/\.[^.]+$/, '');
-            let author = '';
-            /** @type {string[]} */
-            let chapters = [];
-            /** @type {ImageAsset[]} */
-            let images = [];
-
-            switch (extension) {
-                case 'txt':
-                    text = await this.readTextFile(file);
-                    break;
-                case 'epub':
-                    const epubData = await this.parseEpub(file);
-                    text = epubData.text;
-                    title = epubData.title || title;
-                    author = epubData.author || '';
-                    chapters = epubData.chapters || [];
-                    images = epubData.images || [];
-                    break;
-                case 'pdf':
-                    const pdfData = await this.parsePdf(file);
-                    text = pdfData.text;
-                    images = pdfData.images || [];
-                    break;
-                case 'html':
-                case 'htm':
-                    text = await this.parseHtml(file);
-                    break;
-                default:
-                    throw new Error(`Unsupported file format: ${extension}`);
-            }
-
-            if (!text || text.trim().length === 0) {
-                throw new Error('No text content found in file');
-            }
-
-            // Clean up text
-            text = this.cleanText(text);
-
-            this.bookData = {
-                title,
-                author,
-                text,
-                chapters,
-                format: extension || 'unknown',
-                images
-            };
+            this.releaseBookResources();
+            this.bookData = await this.parseBookFile(file);
+            this.currentRawFile = file;
+            this.currentBookStorageId = storedRecord?.id || null;
+            this.audioBlob = storedRecord?.audioBlob || null;
 
             this.displayBook();
+            this.showAudioBlob(this.audioBlob);
             this.updateStatus('Book loaded successfully');
-            
-            const imageInfo = images.length > 0 ? `, ${images.length} images` : '';
-            this.log('info', `Loaded "${title}" - ${this.formatCharCount(text.length)}${imageInfo}`);
+
+            if (saveToLibrary) {
+                await this.saveCurrentBookToLibrary(file);
+            }
+
+            const imageInfo = this.bookData.images.length > 0 ? `, ${this.bookData.images.length} images` : '';
+            this.log('info', `Loaded "${this.bookData.title}" - ${this.formatCharCount(this.bookData.text.length)}${imageInfo}`);
 
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.log('error', `Failed to process file: ${message}`);
             this.updateStatus('Error processing file');
         }
+    }
+
+    /** @param {File} file */
+    async parseBookFile(file) {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        let text = '';
+        let title = file.name.replace(/\.[^.]+$/, '');
+        let author = '';
+        /** @type {string[]} */
+        let chapters = [];
+        /** @type {ImageAsset[]} */
+        let images = [];
+
+        switch (extension) {
+            case 'txt':
+                text = await this.readTextFile(file);
+                break;
+            case 'epub':
+                const epubData = await this.parseEpub(file);
+                text = epubData.text;
+                title = epubData.title || title;
+                author = epubData.author || '';
+                chapters = epubData.chapters || [];
+                images = epubData.images || [];
+                break;
+            case 'pdf':
+                const pdfData = await this.parsePdf(file);
+                text = pdfData.text;
+                images = pdfData.images || [];
+                break;
+            case 'html':
+            case 'htm':
+                text = await this.parseHtml(file);
+                break;
+            default:
+                throw new Error(`Unsupported file format: ${extension}`);
+        }
+
+        if (!text || text.trim().length === 0) {
+            throw new Error('No text content found in file');
+        }
+
+        text = this.cleanText(text);
+
+        return {
+            title,
+            author,
+            text,
+            chapters,
+            format: extension || 'unknown',
+            images
+        };
     }
 
     /** @param {File} file */
@@ -856,7 +1260,7 @@ class EbookController {
         if (titleEl) titleEl.textContent = this.bookData.title;
         if (authorEl) authorEl.textContent = this.bookData.author ? `by ${this.bookData.author}` : '';
 
-        const wordCount = this.bookData.text.split(/\s+/).filter(w => w.length > 0).length;
+        const wordCount = this.countWords(this.bookData.text);
         const charCount = this.bookData.text.length;
         const chunkCount = Math.ceil(charCount / TTS_CHUNK_SIZE);
 
@@ -870,15 +1274,18 @@ class EbookController {
         }
 
         // Show chapters if available
+        const chapterNav = document.getElementById('chapterNav');
+        const chapterList = document.getElementById('chapterList');
         if (this.bookData.chapters.length > 0) {
-            const chapterNav = document.getElementById('chapterNav');
-            const chapterList = document.getElementById('chapterList');
             if (chapterNav) chapterNav.style.display = 'block';
             if (chapterList) {
                 chapterList.innerHTML = this.bookData.chapters
                     .map((ch, i) => `<div class="chapter-item">${i + 1}. ${this.escapeHtml(ch)}</div>`)
                     .join('');
             }
+        } else {
+            if (chapterNav) chapterNav.style.display = 'none';
+            if (chapterList) chapterList.innerHTML = '';
         }
 
         // Show images if available
@@ -919,6 +1326,39 @@ class EbookController {
                 this.showImageFullscreen(index);
             });
         });
+    }
+
+    releaseBookResources() {
+        if (this.bookData?.images) {
+            for (const img of this.bookData.images) {
+                URL.revokeObjectURL(img.src);
+            }
+        }
+
+        if (this.audioObjectUrl) {
+            URL.revokeObjectURL(this.audioObjectUrl);
+            this.audioObjectUrl = null;
+        }
+    }
+
+    /** @param {Blob | null} blob */
+    showAudioBlob(blob) {
+        const audioSection = document.getElementById('audioSection');
+        const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+
+        if (!blob) {
+            if (audioSection) audioSection.style.display = 'none';
+            if (audioPlayer) audioPlayer.src = '';
+            return;
+        }
+
+        if (this.audioObjectUrl) {
+            URL.revokeObjectURL(this.audioObjectUrl);
+        }
+
+        this.audioObjectUrl = URL.createObjectURL(blob);
+        if (audioSection) audioSection.style.display = 'block';
+        if (audioPlayer) audioPlayer.src = this.audioObjectUrl;
     }
 
     /** @param {number} index */
@@ -967,14 +1407,10 @@ class EbookController {
     }
 
     clearBook() {
-        // Revoke image URLs to free memory
-        if (this.bookData?.images) {
-            for (const img of this.bookData.images) {
-                URL.revokeObjectURL(img.src);
-            }
-        }
-        
+        this.releaseBookResources();
         this.bookData = null;
+        this.currentRawFile = null;
+        this.currentBookStorageId = null;
         this.audioBlob = null;
 
         // Hide sections
@@ -1051,13 +1487,9 @@ class EbookController {
             this.audioBlob = await this.combineAudioChunks(audioChunks);
 
             // Show audio player
-            if (audioSection) audioSection.style.display = 'block';
             if (conversionProgress) conversionProgress.style.display = 'none';
-
-            const audioPlayer = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-            if (audioPlayer && this.audioBlob) {
-                audioPlayer.src = URL.createObjectURL(this.audioBlob);
-            }
+            this.showAudioBlob(this.audioBlob);
+            await this.saveCurrentAudioToLibrary();
 
             this.updateStatus('Conversion complete!');
             this.log('info', `Conversion complete - ${this.formatFileSize(this.audioBlob.size)}`);
@@ -1200,14 +1632,7 @@ class EbookController {
         }
 
         const filename = `${this.bookData.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
-        const url = URL.createObjectURL(this.audioBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        this.downloadBlob(this.audioBlob, filename);
 
         this.log('info', `Downloaded: ${filename}`);
     }
@@ -1291,12 +1716,43 @@ class EbookController {
         return num.toLocaleString();
     }
 
+    /** @param {string} isoDate */
+    formatDateTime(isoDate) {
+        if (!isoDate) return 'never';
+        return new Date(isoDate).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
     /** @param {number} seconds */
     formatDuration(seconds) {
         if (seconds < 60) return `${Math.round(seconds)}s`;
         const mins = Math.floor(seconds / 60);
         const secs = Math.round(seconds % 60);
         return `${mins}m ${secs}s`;
+    }
+
+    /** @param {string} text */
+    countWords(text) {
+        return text.split(/\s+/).filter(w => w.length > 0).length;
+    }
+
+    /**
+     * @param {Blob} blob
+     * @param {string} filename
+     */
+    downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     /** @param {string} text */

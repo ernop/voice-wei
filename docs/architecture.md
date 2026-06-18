@@ -143,12 +143,19 @@ panel) or session (pitch meter) appends to the `practice-progress` list
 (capped at 1000 entries) via `progress-store.js`, which renders per-day
 trend lines.
 
-Books is intentionally more local and less stateful than the practice pages:
-it stores only the OpenAI key (`openaiApiKey`) and TTS settings
-(`ebookSettings`) in localStorage. Uploaded file contents, extracted images,
-generated MP3 blobs, and the visible Log panel are in-memory/DOM state only and
-are lost on refresh/navigation. There is no account identity, analytics sink,
-server-side audit trail, or durable "who did what" event history for Books.
+Books keeps large user files in browser IndexedDB (`voice-wei-books`, `books`
+object store), not localStorage. Each saved record stores the original upload
+Blob plus metadata; when conversion succeeds, the generated MP3 Blob is saved
+onto the same record. This is browser-local library storage: there is still no
+account identity, analytics sink, server-side audit trail, or durable "who did
+what" event history. The OpenAI key (`openaiApiKey`) and TTS settings
+(`ebookSettings`) remain in localStorage because they are small scalar values.
+The visible Log panel is DOM state only and is lost on refresh/navigation.
+
+localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
+string-only and commonly capped around 5-10 MB. IndexedDB quota is
+browser/device dependent; Books displays `navigator.storage.estimate()` and can
+request persistent storage where supported.
 
 ## Data representation law
 

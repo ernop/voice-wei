@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=114">
-    <link rel="stylesheet" href="ebook.css?v=114">
+    <link rel="stylesheet" href="style.css?v=115">
+    <link rel="stylesheet" href="ebook.css?v=115">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -99,6 +99,23 @@
                     <div class="upload-icon">&#128214;</div>
                     <p class="upload-text">Drop ebook here or click to upload</p>
                     <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML</p>
+                </div>
+            </div>
+
+            <!-- Saved Library Section -->
+            <div class="library-section" id="librarySection">
+                <div class="library-header">
+                    <div>
+                        <h3>Saved Books</h3>
+                        <p class="library-note">Original uploads and converted MP3s are stored in this browser.</p>
+                    </div>
+                    <div class="library-storage">
+                        <span id="storageEstimate">Checking storage...</span>
+                        <button id="requestPersistentStorageBtn" class="library-storage-btn" type="button">Keep storage</button>
+                    </div>
+                </div>
+                <div class="saved-book-list" id="savedBookList">
+                    <div class="library-empty">No saved books yet.</div>
                 </div>
             </div>
 
@@ -207,8 +224,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- JSZip for EPUB parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="shared-header.js?v=114"></script>
-    <script src="ebook.js?v=114"></script>
+    <script src="shared-header.js?v=115"></script>
+    <script src="ebook.js?v=115"></script>
 </body>
 
 </html>

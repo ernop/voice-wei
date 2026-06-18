@@ -124,8 +124,9 @@ above; nothing here is a commitment.
   segments, and extracted images/tables for synchronized listen-and-see
   playback (audio-only / synchronized / browse modes). Current Books already
   extracts EPUB images and low-text PDF page renders into a browseable gallery;
-  remaining work is synchronization, richer PDF/table extraction, HTML image
-  extraction, and figure-reference detection.
+  saves original uploads and converted MP3s in a browser-local library; remaining
+  work is synchronization, richer PDF/table extraction, HTML image extraction,
+  figure-reference detection, and a true read/listen progress model.
 - Voice-cloned or higher-quality narration options
 
 ### Platform

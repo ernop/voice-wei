@@ -173,11 +173,14 @@ The play loop reads settings when it generates each pattern.
 
 Drone test: note stepper (C3-C5) applies on Start.
 
-## Books (`ebookSettings`, API key in `openaiApiKey`)
+## Books (`ebookSettings`, API key in `openaiApiKey`, files in IndexedDB)
 
-Books persists only TTS preferences and the OpenAI API key in browser
-localStorage. Loaded book text, extracted images, generated audio, and the Log
-panel are not persisted.
+Books persists TTS preferences and the OpenAI API key in browser localStorage.
+Large book data is stored in IndexedDB (`voice-wei-books`): original upload
+Blobs are saved when a file is loaded, and generated MP3 Blobs are saved back
+to the same record when conversion completes. Parsed text, extracted image
+object URLs, and the visible Log panel are page-session state and are rebuilt
+or cleared on reload.
 
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
@@ -185,9 +188,12 @@ panel are not persisted.
 | model | tts-1 | tts-1, tts-1-hd | immediate for the next preview/conversion request |
 | speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
 
-Actions (not persisted): file upload/drop, Clear, Convert to MP3, Cancel,
-Download MP3, Select All, Copy, image fullscreen/navigation, clear Log. The
-visible Log is page-local DOM state only; it is not a durable usage record.
+Actions: file upload/drop creates a saved-library record; Convert to MP3
+updates that record with audio when it succeeds; Load re-parses a saved
+original; Download original / Download MP3 export saved blobs; Delete removes
+the browser-local record. Clear, Cancel, Select All, Copy, image
+fullscreen/navigation, and clear Log are not persisted. The visible Log is
+page-local DOM state only; it is not a durable usage record.
 
 ## Pitch test panel (shared component)
 

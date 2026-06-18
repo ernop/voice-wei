@@ -187,6 +187,8 @@ the page settings and stored in this browser's localStorage as `openaiApiKey`;
 requests go directly from the browser to OpenAI.
 
 - Formats: TXT, EPUB, PDF, HTML
+- Uploads are saved in this browser's IndexedDB library as the original raw
+  file, so the same EPUB/PDF/TXT/HTML can be loaded again later.
 - Six voices (Alloy, Echo, Fable, Onyx, Nova, Shimmer), TTS-1 or TTS-1-HD,
   speed 0.25x-4x
 - Uploading parses the text, shows title/author when available, word/character
@@ -196,12 +198,21 @@ requests go directly from the browser to OpenAI.
   navigation. PDFs render low-text pages as images; HTML currently extracts
   text only.
 - Text is split into ~4000-character chunks, converted with progress shown and
-  cancellable, then concatenated into one downloadable MP3.
+  cancellable, then concatenated into one downloadable MP3. Completed MP3s are
+  saved back onto the same IndexedDB library record as the original upload.
+- The Saved Books section can load a saved original, download the original,
+  download the saved MP3 when one exists, or delete the browser-local saved
+  copy. It also shows `navigator.storage.estimate()` usage/quota and can
+  request persistent storage where the browser supports it.
 - The visible Log panel is local and ephemeral: it records page events such as
   key configured/missing, file loaded, PDF page count, chunk completion,
   cancellation, errors, and download. It is DOM-only, can be cleared, and is
   lost on refresh/navigation. There is no user identity, server-side audit log,
   analytics, or durable "who did what" history for Books.
+- localStorage is intentionally used only for small settings/secrets. Browser
+  localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
+  belong in IndexedDB. IndexedDB quota is browser/device dependent and the page
+  displays the current estimate.
 - Cost ballpark: a 10k-word book is roughly $0.90 (TTS-1) / $1.80 (HD)
 
 ## Pitch test panel (shared)
