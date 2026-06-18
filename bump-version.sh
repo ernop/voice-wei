@@ -1,5 +1,12 @@
 #!/bin/bash
 # Bump version number across all pages and shared assets.
+#
+# Workflow (see .cursor/rules/10-deploy-workflow.mdc):
+#   1. After every push to master — bump (start dev cycle at new ?v=)
+#   2. Work and commit without bumping
+#   3. Push — deploys that version
+#   4. After push succeeds — bump again (prep next dev cycle)
+#
 # Usage: ./bump-version.sh [new_version]
 # If no version provided, increments current version by 1.
 

@@ -351,6 +351,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.click('#stopBtn');
         await tab.waitForTimeout(200);
 
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(200);
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(400);
+        const nextClearsBreakdown = await tab.evaluate(() => ({
+            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length,
+            breakdownEnabled: window.phrasesDebug.settings().breakdownEnabled
+        }));
+        report.check(`phrases next exits breakdown and shows full new phrase (${nextClearsBreakdown.enabled}/${nextClearsBreakdown.total})`,
+            nextClearsBreakdown.pressed === 'false'
+            && nextClearsBreakdown.breakdownEnabled === false
+            && nextClearsBreakdown.enabled === nextClearsBreakdown.total);
+
         await tab.evaluate(() => {
             const tones = document.getElementById('hearTonesToggle');
             if (tones instanceof HTMLInputElement && !tones.checked) tones.click();

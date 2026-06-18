@@ -72,6 +72,7 @@ chooses a question range, not a root) and keeps its own range.
 | noteLengthMs | 300 | shared note-length list | replay |
 | gapMs | 0 | shared gap list | replay |
 | showNoteNames | true | toggle | redraw |
+| fillMode | none | off / full fill / 1358 fill | redraw |
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
 
 Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees

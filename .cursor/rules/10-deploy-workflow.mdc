@@ -23,3 +23,25 @@ If mei have already committed to a feature branch before seeing this rule, merge
 
 - If yui explicitly ask for a PR or branch, do that instead.
 - If mei are genuinely uncertain about a change, ask before pushing to master.
+
+## Version bump cycle
+
+Cache-bust version (`VERSION`, `?v=` on assets, `app-version.js`) follows the
+**push boundary**, not the commit boundary.
+
+**After every push to `master`:** run `./bump-version.sh` immediately. That
+opens the next dev cycle — all subsequent work uses the new version in HTML.
+
+**While working:** do not bump mid-session. Commits may pile up at the same
+version until the next push.
+
+**When ready to deploy:** push to `master` (deploy pipeline ships what is
+committed). **Right after the push succeeds,** run `./bump-version.sh` again
+so local is already on the version for the *next* batch of work.
+
+```
+push v127 live  →  bump → v128  →  work, commit, commit…  →  push v128 live  →  bump → v129  →  …
+```
+
+Never bump immediately before a push as the old habit was; the post-push bump
+is what separates live from in-progress cache keys.

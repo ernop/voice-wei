@@ -33,6 +33,10 @@ const StaffView = (function () {
         function ensureDom() {
             host = document.getElementById(config.hostId);
             if (!host) return false;
+            if (scroll && !host.contains(scroll)) {
+                scroll = null;
+                surface = null;
+            }
             if (!scroll) {
                 host.textContent = '';
                 scroll = document.createElement('div');
@@ -123,6 +127,10 @@ const StaffView = (function () {
                     return;
                 }
                 render(plan, keyContext);
+            },
+            clear() {
+                if (!ensureDom()) return;
+                clearSurface();
             }
         };
     }

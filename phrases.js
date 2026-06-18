@@ -51,8 +51,8 @@
     // chromaticRuns, minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs', 'fillMode']);
-    const REDRAW_KEYS = new Set(['showNoteNames', 'showStaff', 'hearTones', 'hearSpeech', 'singNumbers']);
+    const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs']);
+    const REDRAW_KEYS = new Set(['showNoteNames', 'showStaff', 'hearTones', 'hearSpeech', 'singNumbers', 'fillMode']);
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
@@ -325,8 +325,8 @@
         const host = getEl('phraseStaff');
         if (!staffView || !host) return;
         if (!state.showStaff || !buildTakePlan().length) {
-            host.textContent = '';
             host.classList.add('phrase-staff-empty');
+            staffView.clear();
             return;
         }
         staffView.draw();
@@ -567,10 +567,20 @@
         await playPhrase();
     }
 
+    function exitBreakdownMode() {
+        if (!state.breakdownEnabled) return;
+        state.breakdownEnabled = false;
+        breakdownPassIndex = 0;
+        breakdownPasses = [];
+        saveSettings();
+        syncBreakdownControls();
+    }
+
     async function playNext() {
         await MediaSessionCore.activate();
         testPanel.close();
         stopTransport();
+        exitBreakdownMode();
         generatePhrase();
         await playPhrase();
     }

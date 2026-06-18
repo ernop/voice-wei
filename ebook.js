@@ -746,6 +746,16 @@ class BooksController {
     /** @param {File} file */
     async importFile(file) {
         if (!this.storage) return;
+
+        const books = await this.storage.getBooks();
+        const existing = books.find(b => b.fileName === file.name && b.fileSize === file.size);
+        if (existing?.rawFile?.size > 0) {
+            this.log('info', `Skipping import; ${file.name} is already saved`);
+            this.updateStatus(`Already saved: ${existing.title}`);
+            await this.openBook(existing.id);
+            return;
+        }
+
         this.updateStatus('Importing book...');
         this.log('info', `Importing ${file.name} (${this.formatFileSize(file.size)})`);
         const imported = await this.parseFile(file, this.createId('book'));
