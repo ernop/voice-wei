@@ -122,8 +122,10 @@ above; nothing here is a commitment.
 
 - Multimedia ebook mode: a content manifest linking text chunks, audio
   segments, and extracted images/tables for synchronized listen-and-see
-  playback (audio-only / synchronized / browse modes); image extraction
-  from EPUB/PDF/HTML; figure-reference detection
+  playback (audio-only / synchronized / browse modes). Current Books already
+  extracts EPUB images and low-text PDF page renders into a browseable gallery;
+  remaining work is synchronization, richer PDF/table extraction, HTML image
+  extraction, and figure-reference detection.
 - Voice-cloned or higher-quality narration options
 
 ### Platform

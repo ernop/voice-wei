@@ -182,13 +182,26 @@ again while the response is read aloud.
 
 ## Books
 
-Ebook to audiobook conversion using OpenAI TTS (key in localStorage).
+Ebook to audiobook conversion using OpenAI TTS. The OpenAI key is entered in
+the page settings and stored in this browser's localStorage as `openaiApiKey`;
+requests go directly from the browser to OpenAI.
 
 - Formats: TXT, EPUB, PDF, HTML
 - Six voices (Alloy, Echo, Fable, Onyx, Nova, Shimmer), TTS-1 or TTS-1-HD,
   speed 0.25x-4x
-- Text is split into ~4000-char chunks, converted with progress shown and
-  cancellable, then combined into one downloadable MP3
+- Uploading parses the text, shows title/author when available, word/character
+  counts, chunk count, and a full text preview with Select All / Copy actions.
+- EPUB chapters are listed when headings are found.
+- EPUB images are extracted into an Images & Figures gallery with fullscreen
+  navigation. PDFs render low-text pages as images; HTML currently extracts
+  text only.
+- Text is split into ~4000-character chunks, converted with progress shown and
+  cancellable, then concatenated into one downloadable MP3.
+- The visible Log panel is local and ephemeral: it records page events such as
+  key configured/missing, file loaded, PDF page count, chunk completion,
+  cancellation, errors, and download. It is DOM-only, can be cleared, and is
+  lost on refresh/navigation. There is no user identity, server-side audit log,
+  analytics, or durable "who did what" history for Books.
 - Cost ballpark: a 10k-word book is roughly $0.90 (TTS-1) / $1.80 (HD)
 
 ## Pitch test panel (shared)

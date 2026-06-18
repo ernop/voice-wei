@@ -143,6 +143,13 @@ panel) or session (pitch meter) appends to the `practice-progress` list
 (capped at 1000 entries) via `progress-store.js`, which renders per-day
 trend lines.
 
+Books is intentionally more local and less stateful than the practice pages:
+it stores only the OpenAI key (`openaiApiKey`) and TTS settings
+(`ebookSettings`) in localStorage. Uploaded file contents, extracted images,
+generated MP3 blobs, and the visible Log panel are in-memory/DOM state only and
+are lost on refresh/navigation. There is no account identity, analytics sink,
+server-side audit trail, or durable "who did what" event history for Books.
+
 ## Data representation law
 
 One representation per concept, conversions in one place:
@@ -261,8 +268,10 @@ One picker kind per value kind, everywhere:
 - **Multi-select** (Ears interval grid): vf multi-select chips - the only
   multi-value picker, and deliberately distinct.
 
-The only remaining `<select>` is the Scales TTS voice list (dynamic,
-OS-dependent, dozens of entries - a genuinely different picker).
+The only remaining `<select>` on the practice pages is the Scales TTS voice
+list (dynamic, OS-dependent, dozens of entries - a genuinely different
+picker). Books is a deliberately distinct non-practice tool and keeps its own
+selects for OpenAI TTS voice/model choices.
 
 ### Grouping rule (visual separability)
 

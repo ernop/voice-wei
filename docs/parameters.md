@@ -173,6 +173,22 @@ The play loop reads settings when it generates each pattern.
 
 Drone test: note stepper (C3-C5) applies on Start.
 
+## Books (`ebookSettings`, API key in `openaiApiKey`)
+
+Books persists only TTS preferences and the OpenAI API key in browser
+localStorage. Loaded book text, extracted images, generated audio, and the Log
+panel are not persisted.
+
+| Setting | Default | Values | Behavior |
+|---------|---------|--------|----------|
+| voice | alloy | alloy, echo, fable, onyx, nova, shimmer | immediate for the next preview/conversion request |
+| model | tts-1 | tts-1, tts-1-hd | immediate for the next preview/conversion request |
+| speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
+
+Actions (not persisted): file upload/drop, Clear, Convert to MP3, Cancel,
+Download MP3, Select All, Copy, image fullscreen/navigation, clear Log. The
+visible Log is page-local DOM state only; it is not a durable usage record.
+
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,

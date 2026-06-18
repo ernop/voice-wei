@@ -83,8 +83,7 @@ class EbookController {
         const storedKey = localStorage.getItem('openaiApiKey');
         if (storedKey && storedKey.length > 10) {
             this.apiKey = storedKey;
-            const keyPreview = storedKey.substring(0, 10) + '...';
-            this.log('info', `OpenAI API Key loaded (${keyPreview})`);
+            this.log('info', 'OpenAI API Key loaded');
             this.updateApiKeyUI(true);
         } else {
             this.log('warn', 'OpenAI API Key not configured');
@@ -103,8 +102,7 @@ class EbookController {
         localStorage.setItem('openaiApiKey', apiKey);
         this.apiKey = apiKey;
 
-        const keyPreview = apiKey.substring(0, 10) + '...';
-        this.log('info', `API Key saved (${keyPreview})`);
+        this.log('info', 'API Key saved');
         this.updateStatus('API key saved');
         this.hideApiKeyOverlay();
         this.updateApiKeyUI(true);
