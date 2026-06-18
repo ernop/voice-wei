@@ -22,7 +22,7 @@
         expandRange: false
     };
 
-    const STORAGE_KEY = 'trace-settings';
+    const STORAGE_KEY = StorageKeys.TRACE_SETTINGS;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'guideIntervalMs', 'guideSound',
         'patternText', 'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow',

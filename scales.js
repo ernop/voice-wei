@@ -5,326 +5,7 @@
 // Uses Tone.js for piano sound synthesis
 //-----------------------------------------------------------------------
 
-//-------AUDIO COORDINATOR-------
-// Single authority for all audio playback - prevents overlapping sounds
-
-/**
- * @typedef {Object} PlaySequenceOptions
- * @property {(() => NoteTiming)} [getDuration]
- * @property {((midi: number, index: number, repeatIndex: number) => void)} [onNote]
- * @property {((message: string) => void)} [onStatus]
- * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
- * @property {number} [repeatCount]
- * @property {number} [repeatGapMs]
- * @property {((repeatIndex: number) => number[])} [getNotesForRepeat]
- */
-
-/**
- * @typedef {Object} SequencePlaybackStep
- * @property {number} midi
- * @property {number} sourceIndex
- * @property {boolean} isSection
- * @property {number} repeatIndex
- */
-
-/**
- * @typedef {Object} PlayRenderedSequenceOptions
- * @property {(() => NoteTiming)} [getDuration]
- * @property {((step: SequencePlaybackStep) => void)} [onStep]
- * @property {((message: string) => void)} [onStatus]
- * @property {((nextRepeatIndex: number) => void)} [onRepeatEnd]
- * @property {number} [repeatCount]
- * @property {number} [repeatGapMs]
- * @property {((repeatIndex: number) => SequencePlaybackStep[])} getStepsForRepeat
- */
-
-/**
- * @typedef {Object} PlayChordSequenceOptions
- * @property {number} [repeatCount]
- * @property {((message: string) => void)} [onStatus]
- * @property {number} [gapMs]
- */
-
-class AudioCoordinator {
-    constructor() {
-        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
-        this.piano = null;
-        /** @type {boolean} */
-        this.isPlaying = false;
-        /** @type {number} */
-        this.playbackId = 0;  // Monotonic ID to detect stale/superseded playback
-        /** @type {((note: string, index: number) => void) | null} */
-        this.onNoteCallback = null;
-        /** @type {((message: string) => void) | null} */
-        this.onStatusCallback = null;
-        /** @type {(() => void) | null} */
-        this.onCompleteCallback = null;
-    }
-
-    async init() {
-        this.piano = await PianoCore.createPiano();
-    }
-
-    // Ensure Tone.js audio context is running (requires user interaction)
-    async ensureStarted() {
-        await PianoCore.ensureStarted();
-    }
-
-    /**
-     * Play a single note (does not affect sequence playback state)
-     * @param {number} midi - MIDI note number
-     * @param {ToneDuration} [duration]
-     */
-    playNote(midi, duration = '8n') {
-        this.piano.playMidi(midi, duration);
-    }
-
-    /**
-     * Play a chord (multiple notes simultaneously)
-     * @param {number[]} midiNotes - Array of MIDI note numbers
-     * @param {ToneDuration} [duration]
-     */
-    playChord(midiNotes, duration = '2n') {
-        this.piano.playMidiChord(midiNotes, duration);
-    }
-
-    // Request to start a sequence - stops any existing playback first.
-    // Returns playbackId for the caller to check if still valid.
-    requestSequencePlayback() {
-        this.stop();  // Stop any existing playback
-        this.playbackId++;
-        this.isPlaying = true;
-        return this.playbackId;
-    }
-
-    /**
-     * Check if a playback session is still the current one
-     * @param {number} id
-     */
-    isPlaybackValid(id) {
-        return this.isPlaying && id === this.playbackId;
-    }
-
-    /**
-     * Play a sequence of MIDI notes with full control
-     * @param {number[]} notes - Array of MIDI note numbers
-     * @param {PlaySequenceOptions} [options]
-     */
-    async playSequence(notes, options = {}) {
-        const {
-            getDuration,
-            onNote,
-            onStatus,
-            onRepeatEnd,
-            repeatCount = 1,
-            repeatGapMs = 1500,
-            getNotesForRepeat = null
-        } = options;
-
-        const playId = this.requestSequencePlayback();
-        const isInfinite = repeatCount === Infinity;
-        const playTimes = repeatCount === 0 ? 1 : (isInfinite ? Infinity : repeatCount);
-        let r = 0;
-
-        try {
-            while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                const notesForRepeat = getNotesForRepeat ? getNotesForRepeat(r) : notes;
-
-                for (let i = 0; i < notesForRepeat.length; i++) {
-                    if (!this.isPlaybackValid(playId)) break;
-
-                    const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
-
-                    if (onNote) onNote(notesForRepeat[i], i, r);
-                    this.piano.playMidi(notesForRepeat[i], duration.tone);
-
-                    await this.sleep(duration.ms + duration.gap);
-                }
-
-                r++;
-
-                const hasMore = isInfinite || r < playTimes;
-                if (hasMore && this.isPlaybackValid(playId)) {
-                    if (onRepeatEnd) onRepeatEnd(r);
-
-                    if (repeatGapMs > 0) {
-                        if (onStatus) {
-                            if (isInfinite) {
-                                onStatus(`Loop ${r + 1}... (say "stop" to end)`);
-                            } else {
-                                onStatus(`Repeat ${r + 1} of ${playTimes}...`);
-                            }
-                        }
-                        await this.sleep(repeatGapMs);
-                    }
-                }
-            }
-        } finally {
-            if (this.playbackId === playId) {
-                this.isPlaying = false;
-            }
-        }
-    }
-
-    /**
-     * Play caller-rendered sequence steps. The caller owns note order,
-     * repeat transposition, seam notes, and display metadata; this method
-     * only schedules exactly those steps.
-     * @param {PlayRenderedSequenceOptions} options
-     */
-    async playRenderedSequence(options) {
-        const {
-            getDuration,
-            onStep,
-            onStatus,
-            onRepeatEnd,
-            repeatCount = 1,
-            repeatGapMs = 1500,
-            getStepsForRepeat
-        } = options;
-
-        const playId = this.requestSequencePlayback();
-        const isInfinite = repeatCount === Infinity;
-        const playTimes = repeatCount === 0 ? 1 : (isInfinite ? Infinity : repeatCount);
-        let r = 0;
-
-        try {
-            while (this.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                const steps = getStepsForRepeat(r);
-                for (const step of steps) {
-                    if (!this.isPlaybackValid(playId)) break;
-                    const duration = getDuration ? getDuration() : { ms: 500, tone: 0.5, gap: 0 };
-                    if (onStep) onStep(step);
-                    this.piano.playMidi(step.midi, duration.tone);
-                    await this.sleep(duration.ms + duration.gap);
-                }
-
-                r++;
-
-                const hasMore = isInfinite || r < playTimes;
-                if (hasMore && this.isPlaybackValid(playId)) {
-                    if (onRepeatEnd) onRepeatEnd(r);
-
-                    if (repeatGapMs > 0) {
-                        if (onStatus) {
-                            if (isInfinite) {
-                                onStatus(`Loop ${r + 1}... (say "stop" to end)`);
-                            } else {
-                                onStatus(`Repeat ${r + 1} of ${playTimes}...`);
-                            }
-                        }
-                        await this.sleep(repeatGapMs);
-                    }
-                }
-            }
-        } finally {
-            if (this.playbackId === playId) {
-                this.isPlaying = false;
-            }
-        }
-    }
-
-    /**
-     * Play a chord with repeat support
-     * @param {number[]} midiNotes - Array of MIDI note numbers
-     * @param {PlayChordSequenceOptions} [options]
-     */
-    async playChordRepeated(midiNotes, options = {}) {
-        const {
-            repeatCount = 1,
-            onStatus,
-            gapMs = 2000
-        } = options;
-
-        const playId = this.requestSequencePlayback();
-        const isInfinite = repeatCount === Infinity;
-        let r = 0;
-
-        try {
-            while (this.isPlaybackValid(playId) && (isInfinite || r < repeatCount)) {
-                this.piano.playMidiChord(midiNotes, '2n');
-                r++;
-
-                const hasMore = isInfinite || r < repeatCount;
-                if (hasMore && this.isPlaybackValid(playId)) {
-                    if (onStatus && isInfinite) {
-                        onStatus(`Chord loop ${r + 1}... (say "stop")`);
-                    }
-                    await this.sleep(gapMs);
-                }
-            }
-        } finally {
-            if (this.playbackId === playId) {
-                this.isPlaying = false;
-            }
-        }
-    }
-
-    // Stop all playback immediately: kills the actual voices
-    stop() {
-        this.isPlaying = false;
-        this.playbackId++;  // Invalidate any in-flight playback
-        if (this.piano) this.piano.stopAll();
-    }
-
-    /** @param {number} ms */
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-}
-
-//-------MUSICAL CONSTANTS-------
-// NOTE_NAMES, NOTE_NAMES_FLAT, SCALE_PATTERNS, and utility functions
-// are provided by music-constants.js
-
-/** @type {Record<string, string>} */
-const NOTE_PHONETIC_MAP = {
-    // C variants
-    'see': 'C', 'sea': 'C', 'si': 'C', 'cee': 'C',
-    // D variants  
-    'dee': 'D', 'the': 'D',
-    // E variants
-    'ee': 'E', 'he': 'E',
-    // F variants
-    'eff': 'F', 'ef': 'F', 'half': 'F',
-    // G variants
-    'gee': 'G', 'jee': 'G', 'ji': 'G',
-    // A variants
-    'ay': 'A', 'hey': 'A', 'eh': 'A', 'eight': 'A',
-    // B variants
-    'bee': 'B', 'be': 'B', 'bea': 'B',
-    // Standard names (for completeness)
-    'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F', 'g': 'G', 'a': 'A', 'b': 'B'
-};
-
-/** @type {Record<string, string>} */
-const MODIFIER_PHONETIC_MAP = {
-    'sharp': 'sharp', 'shop': 'sharp', 'sharpe': 'sharp', 'shark': 'sharp',
-    'flat': 'flat', 'flap': 'flat', 'flight': 'flat',
-    '#': 'sharp', 'b': 'flat'
-};
-
-/**
- * Normalize a spoken note name to standard form
- * @param {string | null | undefined} spoken
- * @returns {string | null}
- */
-function normalizeNoteName(spoken) {
-    if (!spoken) return null;
-    const lower = spoken.toLowerCase().trim();
-    return NOTE_PHONETIC_MAP[lower] || (lower.length === 1 && lower.match(/[a-g]/i) ? lower.toUpperCase() : null);
-}
-
-/**
- * Normalize sharp/flat modifier
- * @param {string | null | undefined} spoken
- * @returns {string | null}
- */
-function normalizeModifier(spoken) {
-    if (!spoken) return null;
-    const lower = spoken.toLowerCase().trim();
-    return MODIFIER_PHONETIC_MAP[lower] || null;
-}
+// Playback coordinator lives in scales-playback.js; voice maps in scales-voice-maps.js
 
 // Default octave for scales
 const DEFAULT_OCTAVE = 4;
@@ -334,17 +15,19 @@ const FOREVER_SECTION_GAP_MS = 1000; // 1s gap between sections when looping ("f
 
 const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
 
-const SCALES_PRESETS_STORAGE_KEY = 'scales-presets-v1';
+const SCALES_PRESETS_STORAGE_KEY = StorageKeys.SCALES_PRESETS;
 
 // Stepper value lists (the former chip-row options)
 const SCALES_VOICE_RATE_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
 const SCALES_VOICE_PITCH_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5];
 
-const SCALES_SETTINGS_STORAGE_KEY = 'scales-settings';
+const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
 const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
     'repeatGapMs', 'risingSemitones', 'movementStyle', 'scaleType', 'root',
-    'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps'
+    'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps',
+    'showSequence', 'useAbbrev', 'instructionDismissed',
+    'voiceRate', 'voicePitch', 'voiceName', 'echoCommands'
 ];
 
 //-------SCALES CONTROLLER-------
@@ -432,8 +115,8 @@ class ScalesController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
-        /** @type {AudioCoordinator} */
-        this.audio = new AudioCoordinator();  // Single authority for all audio
+        /** @type {InstanceType<typeof ScalesPlayback.AudioCoordinator>} */
+        this.audio = new ScalesPlayback.AudioCoordinator();
         /** @type {HTMLElement | null} */
         this.pianoNotificationCommandEl = null;
         /** @type {HTMLElement[]} */
@@ -460,7 +143,14 @@ class ScalesController {
             octaveSpan: 1,      // 1 or 2: how many octaves to span
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
-            shiftingSteps: 0  // 0=off, 1=shift up 1 scale degree each repeat, etc.
+            shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
+            showSequence: false,
+            useAbbrev: false,
+            instructionDismissed: false,
+            voiceRate: 1.0,
+            voicePitch: 1.0,
+            voiceName: null,
+            echoCommands: false
         };
 
         // Default settings for reset (and for voice commands which reset first)
@@ -479,7 +169,14 @@ class ScalesController {
             octaveSpan: 1,
             sectionLength: '1o',
             exercise: 'none',
-            shiftingSteps: 0
+            shiftingSteps: 0,
+            showSequence: false,
+            useAbbrev: false,
+            instructionDismissed: false,
+            voiceRate: 1.0,
+            voicePitch: 1.0,
+            voiceName: null,
+            echoCommands: false
         };
 
         // Exercise pattern templates use scale degree offsets from starting note.
@@ -568,7 +265,7 @@ class ScalesController {
             idPrefix: 'scalesSing',
             title: 'Sing Test',
             subtitle: 'Sing the current scale and watch your pitch against the target notes.',
-            storageKey: 'scales-sing-panel',
+            storageKey: StorageKeys.PANEL_SCALES_SING,
             legendTargetLabel: 'target notes',
             key: () => ({
                 rootMidi: noteNameToMidi(this.settings.root, this.settings.octave) ?? 60,
@@ -672,13 +369,53 @@ class ScalesController {
         const snapshot = { ...this.settings };
         SettingsStore.load(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
         if (snapshot.repeatCount === -1) snapshot.repeatCount = Infinity;
+
+        // One-time migration from legacy ad-hoc keys
+        const legacyShow = localStorage.getItem('scales-show-sequence');
+        if (legacyShow !== null) {
+            snapshot.showSequence = legacyShow === 'true';
+            localStorage.removeItem('scales-show-sequence');
+        }
+        const legacyAbbr = localStorage.getItem('scales-use-abbrev');
+        if (legacyAbbr !== null) {
+            snapshot.useAbbrev = legacyAbbr === 'true';
+            localStorage.removeItem('scales-use-abbrev');
+        }
+        const legacyInstruction = localStorage.getItem('scales-instruction-dismissed');
+        if (legacyInstruction !== null) {
+            snapshot.instructionDismissed = legacyInstruction === 'true';
+            localStorage.removeItem('scales-instruction-dismissed');
+        }
+
         Object.assign(this.settings, snapshot);
+        this.pendingVoiceSettings = {
+            voiceRate: snapshot.voiceRate,
+            voicePitch: snapshot.voicePitch,
+            voiceName: snapshot.voiceName,
+            echoCommands: snapshot.echoCommands
+        };
     }
 
     saveSettings() {
         const snapshot = { ...this.settings };
         if (snapshot.repeatCount === Infinity) snapshot.repeatCount = -1;
+        if (this.voiceCore) {
+            snapshot.voiceRate = this.voiceCore.settings.voiceRate;
+            snapshot.voicePitch = this.voiceCore.settings.voicePitch;
+            snapshot.voiceName = this.voiceCore.settings.voiceName;
+            snapshot.echoCommands = this.voiceCore.settings.echoCommands;
+        }
         SettingsStore.save(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
+    }
+
+    applyPersistedVoiceSettings() {
+        if (!this.voiceCore || !this.pendingVoiceSettings) return;
+        const v = this.pendingVoiceSettings;
+        if (typeof v.voiceRate === 'number') this.voiceCore.setVoiceRate(v.voiceRate);
+        if (typeof v.voicePitch === 'number') this.voiceCore.setVoicePitch(v.voicePitch);
+        if (v.voiceName) this.voiceCore.setVoice(v.voiceName);
+        if (typeof v.echoCommands === 'boolean') this.voiceCore.echoCommands = v.echoCommands;
+        this.pendingVoiceSettings = null;
     }
 
     setupMediaSession() {
@@ -724,6 +461,8 @@ class ScalesController {
         });
 
         this.voiceCore.init();
+        this.applyPersistedVoiceSettings();
+        this.syncVoiceSteppers();
     }
 
     // Reset to defaults without updating status (used before voice commands)
@@ -771,6 +510,7 @@ class ScalesController {
             if (next !== null) {
                 this.voiceCore.setVoiceRate(next);
                 this.syncVoiceSteppers();
+                this.saveSettings();
             }
             return;
         }
@@ -779,6 +519,7 @@ class ScalesController {
             if (next !== null) {
                 this.voiceCore.setVoicePitch(next);
                 this.syncVoiceSteppers();
+                this.saveSettings();
             }
             return;
         }
@@ -906,29 +647,18 @@ class ScalesController {
     }
 
     loadPresetsFromStorage() {
-        const raw = localStorage.getItem(SCALES_PRESETS_STORAGE_KEY);
-        if (!raw) {
-            this.presets = [];
-            this.selectedPresetId = null;
-            return;
-        }
-
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) {
-            this.presets = [];
-            this.selectedPresetId = null;
-            return;
-        }
-
-        this.presets = parsed;
-        // Keep selection if possible
+        this.presets = SettingsStore.loadJson(
+            SCALES_PRESETS_STORAGE_KEY,
+            [],
+            value => Array.isArray(value)
+        );
         if (this.selectedPresetId && !this.presets.some(p => p.id === this.selectedPresetId)) {
             this.selectedPresetId = null;
         }
     }
 
     savePresetsToStorage() {
-        localStorage.setItem(SCALES_PRESETS_STORAGE_KEY, JSON.stringify(this.presets));
+        SettingsStore.saveJson(SCALES_PRESETS_STORAGE_KEY, this.presets);
     }
 
     getCurrentConfigSnapshot() {
@@ -1213,6 +943,7 @@ class ScalesController {
             voiceSelect.addEventListener('input', (e) => {
                 const target = /** @type {HTMLSelectElement} */ (e.target);
                 this.voiceCore.setVoice(target.value || null);
+                this.saveSettings();
             });
         }
 
@@ -1569,46 +1300,39 @@ class ScalesController {
         const instruction = document.getElementById('vfInstruction');
         const dismissBtn = document.getElementById('dismissInstruction');
         if (instruction && dismissBtn) {
-            // Show only if NOT previously dismissed
-            if (localStorage.getItem('scales-instruction-dismissed') !== 'true') {
+            if (!this.settings.instructionDismissed) {
                 instruction.style.display = '';
             }
             dismissBtn.addEventListener('click', () => {
                 instruction.style.display = 'none';
-                localStorage.setItem('scales-instruction-dismissed', 'true');
+                this.settings.instructionDismissed = true;
+                this.saveSettings();
             });
         }
 
-        // Show sequence toggle (off by default)
         const showSeqToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('showSequenceToggle'));
         const seqGridContainer = document.getElementById('sequenceGridContainer');
         if (showSeqToggle) {
-            // Restore from localStorage, default to hidden
-            const savedShowSeq = localStorage.getItem('scales-show-sequence');
-            const show = savedShowSeq === 'true';
-            showSeqToggle.checked = show;
-            if (seqGridContainer) seqGridContainer.style.display = show ? 'grid' : 'none';
+            showSeqToggle.checked = this.settings.showSequence;
+            if (seqGridContainer) seqGridContainer.style.display = this.settings.showSequence ? 'grid' : 'none';
 
             showSeqToggle.addEventListener('change', () => {
-                const showNow = showSeqToggle.checked;
-                localStorage.setItem('scales-show-sequence', String(showNow));
-                if (seqGridContainer) seqGridContainer.style.display = showNow ? 'grid' : 'none';
+                this.settings.showSequence = showSeqToggle.checked;
+                if (seqGridContainer) {
+                    seqGridContainer.style.display = this.settings.showSequence ? 'grid' : 'none';
+                }
+                this.saveSettings();
             });
         }
 
-        // Use abbreviations toggle
         const abbrToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('useAbbrevToggle'));
         if (abbrToggle) {
-            // Restore from localStorage
-            const savedAbbr = localStorage.getItem('scales-use-abbrev');
-            if (savedAbbr === 'true') {
-                abbrToggle.checked = true;
-                this.applyAbbreviations(true);
-            }
+            abbrToggle.checked = this.settings.useAbbrev;
+            if (this.settings.useAbbrev) this.applyAbbreviations(true);
             abbrToggle.addEventListener('change', () => {
-                const useAbbr = abbrToggle.checked;
-                localStorage.setItem('scales-use-abbrev', String(useAbbr));
-                this.applyAbbreviations(useAbbr);
+                this.settings.useAbbrev = abbrToggle.checked;
+                this.applyAbbreviations(this.settings.useAbbrev);
+                this.saveSettings();
             });
         }
 

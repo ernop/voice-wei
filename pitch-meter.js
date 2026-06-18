@@ -24,7 +24,7 @@ const INSTRUMENT_PRESETS = Object.freeze({
  */
 
 class PitchMeterController {
-    static STORAGE_KEY = 'pitch-meter-settings';
+    static STORAGE_KEY = StorageKeys.PITCH_METER_SETTINGS;
     static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
     static RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5];
 
@@ -82,11 +82,9 @@ class PitchMeterController {
         /** @type {boolean} One progress entry per session */
         this.sessionRecorded = false;
 
-        // Canvas
-        /** @type {HTMLCanvasElement | null} */
-        this.canvas = null;
-        /** @type {CanvasRenderingContext2D | null} */
-        this.ctx = null;
+        // Canvas handled by pitch-trace-view.js
+        /** @type {ReturnType<typeof PitchTraceView.create>} */
+        this.traceView = null;
 
         // DOM elements
         /** @type {HTMLElement | null} */
@@ -100,6 +98,26 @@ class PitchMeterController {
         /** @type {HTMLElement | null} */
         this.centsMarkerEl = null;
 
+        this.traceView = PitchTraceView.create({
+            canvasId: 'pitchChart',
+            defaultHeightPx: 300,
+            rails: () => this.targetNotes.map(note => ({
+                midi: note.midi,
+                label: note.name,
+                emphasized: true
+            })),
+            targets: () => [],
+            history: () => this.session.history,
+            clockMs: () => this.session.clockMs(),
+            windowMs: () => {
+                const history = this.session.history;
+                if (history.length < 2) return 5000;
+                return Math.max(history[history.length - 1].time, 5000);
+            },
+            fixedWindow: () => false,
+            showPlayhead: () => this.isListening
+        });
+
         this.init();
     }
 
@@ -110,11 +128,9 @@ class PitchMeterController {
         this.currentCentsEl = document.getElementById('currentCents');
         this.currentFreqEl = document.getElementById('currentFreq');
         this.centsMarkerEl = document.getElementById('centsMarker');
-        this.canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('pitchChart'));
-        this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
 
-        this.resizeCanvas();
-        window.addEventListener('resize', () => this.resizeCanvas());
+        this.traceView.resize();
+        window.addEventListener('resize', () => this.traceView.resize());
 
         // Set up controls
         const listenBtn = document.getElementById('listenBtn');
@@ -149,7 +165,7 @@ class PitchMeterController {
 
         this.updateTargetNotes();
         this.updateModeUI();
-        this.drawChart();
+        this.traceView.draw();
     }
 
     saveSettings() {
@@ -233,17 +249,11 @@ class PitchMeterController {
     }
 
     resizeCanvas() {
-        const container = this.canvas.parentElement;
-        const dpr = window.devicePixelRatio || 1;
-        const rect = container.getBoundingClientRect();
+        this.traceView.resize();
+    }
 
-        this.canvas.width = rect.width * dpr;
-        this.canvas.height = 300 * dpr;
-        this.canvas.style.width = rect.width + 'px';
-        this.canvas.style.height = '300px';
-
-        this.ctx.scale(dpr, dpr);
-        this.drawChart();
+    drawChart() {
+        this.traceView.draw();
     }
 
     applyInstrumentPreset() {
@@ -679,105 +689,6 @@ class PitchMeterController {
         this.isPlayingScale = false;
         if (!this.isListening) {
             this.updateModeUI();
-        }
-    }
-
-    //-------CHART DRAWING-------
-
-    drawChart() {
-        const width = this.canvas.width / (window.devicePixelRatio || 1);
-        const height = this.canvas.height / (window.devicePixelRatio || 1);
-
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        this.ctx.fillRect(0, 0, width, height);
-
-        if (this.targetNotes.length === 0) return;
-
-        const minMidi = this.targetNotes[0].midi - 2;
-        const maxMidi = this.targetNotes[this.targetNotes.length - 1].midi + 2;
-        const midiRange = maxMidi - minMidi;
-
-        /** @param {number} midi */
-        const midiToY = (midi) => {
-            return height - ((midi - minMidi) / midiRange) * (height - 40) - 20;
-        };
-
-        // Draw horizontal lines for target notes
-        this.ctx.font = '12px system-ui';
-        this.targetNotes.forEach((note) => {
-            const y = midiToY(note.midi);
-
-            this.ctx.strokeStyle = 'rgba(74, 222, 128, 0.4)';
-            this.ctx.lineWidth = 1;
-            this.ctx.setLineDash([5, 5]);
-            this.ctx.beginPath();
-            this.ctx.moveTo(50, y);
-            this.ctx.lineTo(width - 10, y);
-            this.ctx.stroke();
-            this.ctx.setLineDash([]);
-
-            this.ctx.fillStyle = 'rgba(74, 222, 128, 0.9)';
-            this.ctx.textAlign = 'right';
-            this.ctx.fillText(note.name, 45, y + 4);
-        });
-
-        // Draw pitch history trace
-        if (this.session.history.length > 1) {
-            const maxTime = this.session.history[this.session.history.length - 1].time;
-            const timeWindow = Math.max(maxTime, 5000);
-
-            this.ctx.lineWidth = 2;
-            this.ctx.lineCap = 'round';
-            this.ctx.lineJoin = 'round';
-
-            this.ctx.beginPath();
-            let started = false;
-
-            for (let i = 0; i < this.session.history.length; i++) {
-                const point = this.session.history[i];
-                const x = 50 + (point.time / timeWindow) * (width - 60);
-                const y = midiToY(point.midi);
-
-                const absDeviation = Math.abs(point.cents);
-                if (absDeviation < 10) {
-                    this.ctx.strokeStyle = '#4ade80';
-                } else if (absDeviation < 25) {
-                    this.ctx.strokeStyle = '#facc15';
-                } else {
-                    this.ctx.strokeStyle = '#f87171';
-                }
-
-                if (!started) {
-                    this.ctx.moveTo(x, y);
-                    started = true;
-                } else {
-                    this.ctx.lineTo(x, y);
-                    this.ctx.stroke();
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(x, y);
-                }
-            }
-            this.ctx.stroke();
-
-            // Draw dots at each point
-            for (let i = 0; i < this.session.history.length; i += 3) {
-                const point = this.session.history[i];
-                const x = 50 + (point.time / timeWindow) * (width - 60);
-                const y = midiToY(point.midi);
-
-                const absDeviation = Math.abs(point.cents);
-                if (absDeviation < 10) {
-                    this.ctx.fillStyle = '#4ade80';
-                } else if (absDeviation < 25) {
-                    this.ctx.fillStyle = '#facc15';
-                } else {
-                    this.ctx.fillStyle = '#f87171';
-                }
-
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, 3, 0, Math.PI * 2);
-                this.ctx.fill();
-            }
         }
     }
 

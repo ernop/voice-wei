@@ -18,7 +18,7 @@ intervals.html/js/css    # Interval drills
 phrases.html/js/css      # Phrase practice
 trace.html/js/css        # Free pitch trace
 pitch-meter.html/js/css  # Scored pitch practice
-ears.html/js/css         # Interval ear training
+ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html + player.js  # AI music player
 ebook.html/js/css        # Ebook to audiobook
 ```
@@ -48,7 +48,13 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `pitch-trace-view.js` | Pitch-trace canvas rendering (rails/targets/trace/playhead) | - |
 | `pitch-test-panel.js` | The embeddable listen panel (renders markup, owns mic session + options) | - |
 | `practice-controls.js` | Steppers, segmented option groups, toggles wiring | - |
-| `settings-store.js` | Per-tab settings persistence (typed-merge restore) | - |
+| `settings-store.js` | Versioned persistence (typed merge, legacy migration) | - |
+| `storage-keys.js` | Namespaced localStorage key registry | - |
+| `api-keys-store.js` | Claude/OpenAI API key read/write/remove | - |
+| `app-version.js` | Runtime release version label | - |
+| `practice-audio.js` | Thin shared piano playback wrapper | - |
+| `scales-playback.js` | Scales sequence playback coordinator | - |
+| `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | Hardware media keys (silent-WAV trick + action maps) | - |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
@@ -130,18 +136,63 @@ octave placeholder (`five_note`, `octave_jump`, `arpeggio_return`,
 
 ## Persistence
 
-Every practice page persists its full settings under one localStorage key
-(`scales-settings`, `intervals-settings`, `phrases-settings`,
-`trace-settings`, `pitch-meter-settings`, `ears-settings` + `ears-stats`,
-panel options under `*-test-panel` / `*-sing-panel`). `settings-store.js`
-restores only keys whose stored type matches the default, so stale entries
-cannot corrupt state. JSON cannot store Infinity: scales' repeat-forever
-round-trips as -1.
+All user-facing browser state goes through `settings-store.js` and the
+key names in `storage-keys.js`. Do not call `localStorage` directly from
+page code except inside those modules (and `api-keys-store.js` for API
+keys, which remain plain strings).
 
-Scored practice persists separately: every completed take (pitch test
-panel) or session (pitch meter) appends to the `practice-progress` list
-(capped at 1000 entries) via `progress-store.js`, which renders per-day
-trend lines.
+### Envelope format
+
+Every persisted blob uses:
+
+```json
+{ "v": "<app version from app-version.js>", "data": { ... } }
+```
+
+`app-version.js` is the runtime source; `bump-version.sh` updates it
+together with `VERSION`, `shared-header.js`, and all `?v=` cache busters.
+
+### Load policy
+
+| Situation | Behavior |
+|-----------|----------|
+| Missing key | Keep defaults |
+| Legacy flat JSON (no envelope) | Typed merge, then re-save in envelope form |
+| Older version envelope | Best-effort typed merge; log partial restore |
+| Same version, parse/structure failure | **Serious visible error banner** (likely a bug) |
+
+Failures always log to the console as `[voice-wei persistence] ...`.
+
+### Key registry (`storage-keys.js`)
+
+| Key constant | Purpose |
+|--------------|---------|
+| `SCALES_SETTINGS` | Scales page settings (includes UI toggles and voice TTS prefs) |
+| `SCALES_PRESETS` | Saved scale configs |
+| `INTERVALS_SETTINGS` | Intervals patterns + ear-training mode settings |
+| `INTERVALS_EAR_STATS` | Lifetime per-interval identification stats |
+| `PHRASES_SETTINGS` | Phrases page settings |
+| `TRACE_SETTINGS` | Trace page settings |
+| `PITCH_METER_SETTINGS` | Pitch tool settings |
+| `PLAYER_SETTINGS` | Music player voice/settings |
+| `PLAYER_PLAYLIST` | Music playlist + current index |
+| `PLAYER_FAVORITES` | Favorited tracks |
+| `PLAYER_LYRICS_CACHE` | Resolved lyrics records |
+| `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
+| `EBOOK_SETTINGS` | Books TTS settings |
+| `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
+| `API_CLAUDE` / `API_OPENAI` | API keys (plain strings via `api-keys-store.js`) |
+| `PANEL_*` | Pitch test panel options per page |
+
+Legacy unprefixed keys are listed in `LegacyStorageKeys` and migrated on
+first read.
+
+### Other storage
+
+Books large files: IndexedDB (`voice-wei-books`), not localStorage.
+Log panel contents: DOM-only, not persisted.
+
+Scored practice persists via `progress-store.js` → `PRACTICE_PROGRESS`.
 
 Books keeps large user files in browser IndexedDB (`voice-wei-books`), not
 localStorage. The current schema uses three object stores:
@@ -159,9 +210,9 @@ This makes Books a browser-local reader/player/generator rather than a
 one-shot converter: generation can stop after some segments, preserve completed
 MP3s, and resume next session. There is still no account identity, analytics
 sink, or server-side audit trail. The durable history is browser-local and
-serves navigation/progress UI. The OpenAI key (`openaiApiKey`) and TTS settings
-(`ebookSettings`) remain in localStorage because they are small scalar values.
-The visible Log panel is DOM state only and is lost on refresh/navigation.
+serves navigation/progress UI. The OpenAI key and TTS settings use
+`api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The visible Log panel is
+DOM state only and is lost on refresh/navigation.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
 string-only and commonly capped around 5-10 MB. IndexedDB quota is

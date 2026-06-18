@@ -32,11 +32,12 @@
         breakdownAutoAdvance: true
     };
 
-    const STORAGE_KEY = 'phrases-settings';
+    const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames'
+        'outputMode', 'noteLengthMs', 'gapMs', 'showNoteNames',
+        'reflected', 'loopCurrent', 'breakdownAutoAdvance'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
@@ -281,7 +282,7 @@
         idPrefix: 'phraseTest',
         title: 'Phrase Test',
         subtitle: 'Sing the phrase. Time starts only when your voice is detected.',
-        storageKey: 'phrases-test-panel',
+        storageKey: StorageKeys.PANEL_PHRASES_TEST,
         legendTargetLabel: 'target phrase',
         emptyMessage: () => (takeNotes.length ? null : 'Generate a phrase, then press Test.'),
         key: () => ({
