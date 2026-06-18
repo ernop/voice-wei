@@ -63,6 +63,16 @@
     background: rgba(74, 222, 128, 0.23);
 }
 
+.small-action-btn.danger {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.28);
+}
+
+.small-action-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
 .small-action-btn:disabled,
 .primary-action-btn:disabled,
 .danger-action-btn:disabled {
@@ -407,6 +417,30 @@
     background: rgba(251, 191, 36, 0.55);
     color: #0d2818;
     border-radius: 3px;
+}
+
+.epub-section-html {
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.epub-section-html p,
+.epub-section-html blockquote,
+.epub-section-html ul,
+.epub-section-html ol {
+    margin: 0.75em 0;
+}
+
+.epub-section-html img {
+    max-width: 100%;
+    height: auto;
+}
+
+.reader-audio-segments {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .generator-card,

@@ -148,7 +148,9 @@ localStorage. The current schema uses three object stores:
 
 - `books`: original upload Blob, title/author/format metadata, estimated
   duration, read/listen progress, generated coverage.
-- `sections`: parsed spine/text sections keyed by book.
+- `sections`: parsed spine/text sections keyed by book; EPUB/HTML sections also
+  keep sanitized reader markup, with EPUB package images embedded as data URLs
+  where possible.
 - `segments`: TTS-sized text ranges with per-segment status and MP3 Blob.
 
 This makes Books a browser-local reader/player/generator rather than a
@@ -161,8 +163,8 @@ state only and is lost on refresh/navigation.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
 string-only and commonly capped around 5-10 MB. IndexedDB quota is
-browser/device dependent; Books displays `navigator.storage.estimate()` and can
-request persistent storage where supported.
+browser/device dependent; Books displays `navigator.storage.estimate()` and
+requests persistent storage by default where supported.
 
 ## Data representation law
 

@@ -69,6 +69,7 @@ const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how 
  * @property {number} spineIndex
  * @property {string} title
  * @property {string} text
+ * @property {string} html
  * @property {number} charStart
  * @property {number} charEnd
  * @property {number} wordCount
@@ -300,6 +301,7 @@ class BooksController {
         }
         this.storage = new BooksStorage();
         await this.storage.open();
+        await this.keepStorageByDefault();
         await this.migrateLegacyBooks();
         await this.refreshLibrary();
         await this.updateStorageEstimate();
@@ -494,7 +496,6 @@ class BooksController {
         const fileInput = /** @type {HTMLInputElement | null} */ (document.getElementById('fileInput'));
         const savedBookList = document.getElementById('savedBookList');
         const librarySearch = /** @type {HTMLInputElement | null} */ (document.getElementById('librarySearch'));
-        const persistentStorageBtn = document.getElementById('requestPersistentStorageBtn');
         if (uploadButton && fileInput) uploadButton.addEventListener('click', () => fileInput.click());
         if (fileInput) {
             fileInput.addEventListener('change', e => {
@@ -510,7 +511,6 @@ class BooksController {
                 this.renderLibrary();
             });
         }
-        if (persistentStorageBtn) persistentStorageBtn.addEventListener('click', () => this.requestPersistentStorage());
     }
 
     setupWorkspaceUI() {
@@ -549,6 +549,8 @@ class BooksController {
         this.bindButton('downloadCurrentSegmentBtn', () => this.downloadCurrentSegment());
         this.bindButton('downloadAllSegmentsBtn', () => this.downloadAllSegments());
         this.bindButton('downloadCombinedBtn', () => this.downloadCombinedSegments());
+        this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
+        this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
         this.bindButton('clearLogBtn', () => this.clearLog());
     }
 
@@ -641,6 +643,7 @@ class BooksController {
                         <button class="small-action-btn" type="button" data-action="open" data-id="${this.escapeHtml(book.id)}">Open</button>
                         <button class="small-action-btn" type="button" data-action="original" data-id="${this.escapeHtml(book.id)}">Original</button>
                         <button class="small-action-btn" type="button" data-action="combined" data-id="${this.escapeHtml(book.id)}">MP3</button>
+                        <button class="small-action-btn danger" type="button" data-action="delete-audio" data-id="${this.escapeHtml(book.id)}">Delete MP3s</button>
                         <button class="small-action-btn" type="button" data-action="delete" data-id="${this.escapeHtml(book.id)}">Delete</button>
                     </div>
                 </div>
@@ -659,6 +662,7 @@ class BooksController {
         if (action === 'open') await this.openBook(id);
         if (action === 'original') await this.downloadOriginalById(id);
         if (action === 'combined') await this.downloadCombinedById(id);
+        if (action === 'delete-audio') await this.deleteBookAudio(id);
         if (action === 'delete') await this.deleteBook(id);
     }
 
@@ -719,7 +723,7 @@ class BooksController {
         const extension = file.name.split('.').pop()?.toLowerCase() || 'txt';
         let title = file.name.replace(/\.[^.]+$/, '');
         let author = '';
-        /** @type {{ title: string, text: string }[]} */
+        /** @type {{ title: string, text: string, html?: string }[]} */
         let rawSections = [];
         if (extension === 'epub') {
             const epub = await this.parseEpub(file);
@@ -738,7 +742,8 @@ class BooksController {
         rawSections = rawSections
             .map((section, index) => ({
                 title: section.title || `Section ${index + 1}`,
-                text: this.cleanText(section.text || '')
+                text: this.cleanText(section.text || ''),
+                html: section.html ? this.sanitizeReaderHtml(section.html) : ''
             }))
             .filter(section => section.text.length > 0);
         if (rawSections.length === 0) throw new Error('No readable text found');
@@ -761,6 +766,7 @@ class BooksController {
                 spineIndex: i,
                 title: raw.title,
                 text: raw.text,
+                html: raw.html || '',
                 charStart: charCursor,
                 charEnd: charCursor + raw.text.length,
                 wordCount
@@ -844,12 +850,17 @@ class BooksController {
         const author = opfDoc.querySelector('metadata creator, dc\\:creator')?.textContent?.trim() || '';
         const basePath = rootfilePath.substring(0, rootfilePath.lastIndexOf('/') + 1);
         const manifest = new Map();
+        const mediaTypes = new Map();
         opfDoc.querySelectorAll('manifest item').forEach(item => {
             const id = item.getAttribute('id');
             const href = item.getAttribute('href');
-            if (id && href) manifest.set(id, href);
+            const mediaType = item.getAttribute('media-type') || '';
+            if (id && href) {
+                manifest.set(id, href);
+                mediaTypes.set(this.normalizePath(basePath + href), mediaType);
+            }
         });
-        /** @type {{ title: string, text: string }[]} */
+        /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
         const spineItems = Array.from(opfDoc.querySelectorAll('spine itemref'));
         for (let i = 0; i < spineItems.length; i++) {
@@ -860,9 +871,24 @@ class BooksController {
             if (!content) continue;
             const doc = parser.parseFromString(content, 'text/html');
             doc.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
+            const filePath = this.normalizePath(basePath + href);
+            const fileDir = filePath.substring(0, filePath.lastIndexOf('/') + 1);
+            const images = Array.from(doc.querySelectorAll('img, image'));
+            for (const img of images) {
+                const rawSrc = img.getAttribute('src') || img.getAttribute('xlink:href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                if (!rawSrc || rawSrc.startsWith('data:')) continue;
+                const resolved = this.normalizePath(rawSrc.startsWith('/') ? rawSrc.substring(1) : fileDir + rawSrc);
+                const imgFile = zip.file(resolved);
+                if (!imgFile) continue;
+                const blob = await imgFile.async('blob');
+                const typedBlob = new Blob([blob], { type: mediaTypes.get(resolved) || this.getMimeTypeFromFilename(resolved) });
+                const dataUrl = await this.blobToDataUrl(typedBlob);
+                img.setAttribute('src', dataUrl);
+                img.removeAttribute('xlink:href');
+            }
             const heading = doc.querySelector('h1, h2, h3')?.textContent?.trim();
             const text = doc.body?.textContent || '';
-            sections.push({ title: heading || `Chapter ${sections.length + 1}`, text });
+            sections.push({ title: heading || `Chapter ${sections.length + 1}`, text, html: doc.body?.innerHTML || '' });
         }
         return { title, author, sections };
     }
@@ -872,7 +898,7 @@ class BooksController {
         if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js library not loaded');
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        /** @type {{ title: string, text: string }[]} */
+        /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
@@ -892,19 +918,22 @@ class BooksController {
         doc.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
         const headings = Array.from(doc.body?.querySelectorAll('h1, h2') || []);
         if (headings.length === 0) {
-            return [{ title: doc.querySelector('title')?.textContent?.trim() || 'HTML document', text: doc.body?.textContent || '' }];
+            return [{ title: doc.querySelector('title')?.textContent?.trim() || 'HTML document', text: doc.body?.textContent || '', html: doc.body?.innerHTML || '' }];
         }
-        /** @type {{ title: string, text: string }[]} */
+        /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
         for (let i = 0; i < headings.length; i++) {
             const heading = headings[i];
             let text = heading.textContent || '';
+            let html = heading.outerHTML;
             let node = heading.nextSibling;
             while (node && node !== headings[i + 1]) {
                 text += `\n${node.textContent || ''}`;
+                if (node instanceof Element) html += node.outerHTML;
+                else html += this.escapeHtml(node.textContent || '');
                 node = node.nextSibling;
             }
-            sections.push({ title: heading.textContent?.trim() || `Section ${i + 1}`, text });
+            sections.push({ title: heading.textContent?.trim() || `Section ${i + 1}`, text, html });
         }
         return sections;
     }
@@ -913,7 +942,7 @@ class BooksController {
     sectionsFromText(text) {
         const clean = this.cleanText(text);
         const maxSectionChars = 12000;
-        /** @type {{ title: string, text: string }[]} */
+        /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
         let cursor = 0;
         while (cursor < clean.length) {
@@ -1036,12 +1065,20 @@ class BooksController {
         const query = this.readerQuery;
         reader.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
+            const readerBody = section.html
+                ? `<div class="epub-section-html">${this.highlightSanitizedHtml(section.html, query)}</div>`
+                : sectionSegments.map(segment => {
+                    const statusClass = segment.status === 'done' ? ' generated' : segment.status === 'generating' ? ' generating' : '';
+                    const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
+                    return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
+                }).join('');
             const segmentHtml = sectionSegments.map(segment => {
                 const statusClass = segment.status === 'done' ? ' generated' : segment.status === 'generating' ? ' generating' : '';
                 const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
                 return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
             }).join('');
-            return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(section.title)}</h3>${segmentHtml}</section>`;
+            const audioMap = section.html ? `<div class="reader-audio-segments">${segmentHtml}</div>` : '';
+            return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(section.title)}</h3>${readerBody}${audioMap}</section>`;
         }).join('');
         this.scrollCurrentSegmentIntoView(false);
     }
@@ -1368,6 +1405,65 @@ class BooksController {
         this.downloadBlob(new Blob(blobs, { type: 'audio/mpeg' }), `${this.safeFilename(book.title)}-generated.mp3`);
     }
 
+    async deleteCurrentSegmentAudio() {
+        if (!this.currentBook || !this.currentSegmentId) return;
+        const segment = this.getSegmentById(this.currentSegmentId);
+        if (!segment) return;
+        await this.clearSegmentAudio(segment);
+        await this.recalculateBookGeneration();
+        this.renderWorkspace();
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+        this.updateStatus('Deleted current segment MP3');
+    }
+
+    async deleteCurrentBookAudio() {
+        if (this.currentBook) await this.deleteBookAudio(this.currentBook.id);
+    }
+
+    /** @param {string} id */
+    async deleteBookAudio(id) {
+        if (!this.storage) return;
+        const segments = await this.storage.getSegments(id);
+        for (const segment of segments) {
+            if (segment.status === 'done' || segment.blob) await this.clearSegmentAudio(segment);
+        }
+        const book = await this.storage.getBook(id);
+        if (book) {
+            book.generatedSegmentCount = 0;
+            book.generatedDurationSec = 0;
+            book.updatedAt = new Date().toISOString();
+            book.legacyAudioBlob = null;
+            book.legacyAudioSize = 0;
+            await this.storage.putBook(book);
+            if (this.currentBook?.id === id) this.currentBook = book;
+        }
+        if (this.currentBook?.id === id) {
+            this.segments = await this.storage.getSegments(id);
+            this.releaseAudioUrls();
+            const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+            if (audio) audio.removeAttribute('src');
+            this.renderWorkspace();
+        }
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+        this.updateStatus('Deleted generated MP3s for this book');
+    }
+
+    /** @param {AudioSegment} segment */
+    async clearSegmentAudio(segment) {
+        if (!this.storage) return;
+        segment.status = 'pending';
+        segment.blob = null;
+        segment.audioSize = 0;
+        segment.durationSec = 0;
+        segment.generatedAt = '';
+        segment.audioSettings = null;
+        segment.error = '';
+        await this.storage.putSegment(segment);
+        this.replaceSegment(segment);
+    }
+
     /** @param {string} id */
     async deleteBook(id) {
         if (!this.storage) return;
@@ -1385,33 +1481,34 @@ class BooksController {
         this.updateStatus('Deleted saved book from this device');
     }
 
-    async requestPersistentStorage() {
+    async keepStorageByDefault() {
+        const statusEl = document.getElementById('storagePersistenceStatus');
         if (!navigator.storage?.persist) {
-            this.updateStatus('Persistent storage requests are not supported here');
+            if (statusEl) statusEl.textContent = 'Browser manages retention';
             return;
         }
-        const persisted = await navigator.storage.persist();
-        this.updateStatus(persisted ? 'Browser granted persistent storage' : 'Browser did not grant persistent storage');
+        const persistedBefore = await navigator.storage.persisted?.();
+        const persisted = persistedBefore || await navigator.storage.persist();
+        if (statusEl) statusEl.textContent = persisted ? 'Persistent storage on' : 'Persistent storage requested';
+        this.log(persisted ? 'info' : 'warn', persisted ? 'Persistent storage is enabled' : 'Browser did not grant persistent storage yet');
         await this.updateStorageEstimate();
     }
 
     async updateStorageEstimate() {
         const estimateEl = document.getElementById('storageEstimate');
-        const persistBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('requestPersistentStorageBtn'));
+        const persistStatus = document.getElementById('storagePersistenceStatus');
         if (!estimateEl) return;
         if (!navigator.storage?.estimate) {
             estimateEl.textContent = 'Storage quota unavailable';
-            if (persistBtn) persistBtn.disabled = true;
             return;
         }
         const estimate = await navigator.storage.estimate();
         const usage = estimate.usage || 0;
         const quota = estimate.quota || 0;
         estimateEl.textContent = `Storage: ${this.formatFileSize(usage)}${quota ? ` / ${this.formatFileSize(quota)}` : ''}`;
-        if (persistBtn && navigator.storage?.persisted) {
+        if (persistStatus && navigator.storage?.persisted) {
             const persisted = await navigator.storage.persisted();
-            persistBtn.disabled = persisted;
-            persistBtn.textContent = persisted ? 'Persistent' : 'Keep storage';
+            persistStatus.textContent = persisted ? 'Persistent storage on' : 'Best-effort storage';
         }
     }
 
@@ -1556,6 +1653,108 @@ class BooksController {
             .map(line => line.trim())
             .join('\n')
             .trim();
+    }
+
+    /** @param {string} html */
+    sanitizeReaderHtml(html) {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const allowedTags = new Set([
+            'A', 'ABBR', 'B', 'BLOCKQUOTE', 'BR', 'CITE', 'CODE', 'DIV', 'EM',
+            'FIGCAPTION', 'FIGURE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
+            'I', 'IMG', 'LI', 'OL', 'P', 'PRE', 'SECTION', 'SMALL', 'SPAN',
+            'STRONG', 'SUB', 'SUP', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD',
+            'TR', 'U', 'UL'
+        ]);
+        const allowedAttrs = new Set(['alt', 'colspan', 'href', 'rowspan', 'src', 'title']);
+        const elements = Array.from(template.content.querySelectorAll('*'));
+        for (const el of elements) {
+            if (!allowedTags.has(el.tagName)) {
+                el.replaceWith(document.createTextNode(el.textContent || ''));
+                continue;
+            }
+            for (const attr of Array.from(el.attributes)) {
+                const name = attr.name.toLowerCase();
+                const value = attr.value || '';
+                const allowed = allowedAttrs.has(name) || name.startsWith('aria-');
+                const safeUrl = !['href', 'src'].includes(name) || value.startsWith('data:') || value.startsWith('#') || value.startsWith('http://') || value.startsWith('https://');
+                if (!allowed || !safeUrl) el.removeAttribute(attr.name);
+            }
+            if (el.tagName === 'A') {
+                el.setAttribute('target', '_blank');
+                el.setAttribute('rel', 'noopener');
+            }
+        }
+        return template.innerHTML;
+    }
+
+    /**
+     * @param {string} sanitizedHtml
+     * @param {string} query
+     */
+    highlightSanitizedHtml(sanitizedHtml, query) {
+        if (!query) return sanitizedHtml;
+        const template = document.createElement('template');
+        template.innerHTML = sanitizedHtml;
+        const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+        /** @type {Text[]} */
+        const textNodes = [];
+        while (walker.nextNode()) textNodes.push(/** @type {Text} */ (walker.currentNode));
+        const regex = new RegExp(this.escapeRegExp(query), 'gi');
+        for (const textNode of textNodes) {
+            const value = textNode.nodeValue || '';
+            if (!regex.test(value)) continue;
+            regex.lastIndex = 0;
+            const fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+            let match;
+            while ((match = regex.exec(value))) {
+                fragment.appendChild(document.createTextNode(value.slice(lastIndex, match.index)));
+                const mark = document.createElement('mark');
+                mark.textContent = match[0];
+                fragment.appendChild(mark);
+                lastIndex = match.index + match[0].length;
+            }
+            fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
+            textNode.replaceWith(fragment);
+        }
+        return template.innerHTML;
+    }
+
+    /** @param {string} path */
+    normalizePath(path) {
+        const parts = path.split('/').filter(part => part && part !== '.');
+        /** @type {string[]} */
+        const result = [];
+        for (const part of parts) {
+            if (part === '..') result.pop();
+            else result.push(part);
+        }
+        return result.join('/');
+    }
+
+    /** @param {string} filename */
+    getMimeTypeFromFilename(filename) {
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes = {
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            png: 'image/png',
+            gif: 'image/gif',
+            svg: 'image/svg+xml',
+            webp: 'image/webp'
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
+    }
+
+    /** @param {Blob} blob */
+    async blobToDataUrl(blob) {
+        return /** @type {Promise<string>} */ (new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Could not read EPUB image'));
+            reader.readAsDataURL(blob);
+        }));
     }
 
     /** @param {string} text */

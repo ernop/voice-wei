@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=116">
-    <link rel="stylesheet" href="ebook.css?v=116">
+    <link rel="stylesheet" href="style.css?v=117">
+    <link rel="stylesheet" href="ebook.css?v=117">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -100,7 +100,7 @@
                         <input type="search" id="librarySearch" class="library-search" placeholder="Search saved books" />
                         <div class="storage-line">
                             <span id="storageEstimate">Checking storage...</span>
-                            <button id="requestPersistentStorageBtn" class="small-action-btn" type="button">Keep storage</button>
+                            <span id="storagePersistenceStatus">Keeping storage by default</span>
                         </div>
                     </div>
 
@@ -121,6 +121,8 @@
                             <button id="downloadCurrentSegmentBtn" class="small-action-btn" type="button">Segment MP3</button>
                             <button id="downloadAllSegmentsBtn" class="small-action-btn" type="button">All MP3s</button>
                             <button id="downloadCombinedBtn" class="small-action-btn" type="button">Combined MP3</button>
+                            <button id="deleteCurrentSegmentAudioBtn" class="small-action-btn danger" type="button">Delete segment MP3</button>
+                            <button id="deleteAllAudioBtn" class="small-action-btn danger" type="button">Delete all MP3s</button>
                         </div>
                     </header>
 
@@ -210,8 +212,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="shared-header.js?v=116"></script>
-    <script src="ebook.js?v=116"></script>
+    <script src="shared-header.js?v=117"></script>
+    <script src="ebook.js?v=117"></script>
 </body>
 
 </html>

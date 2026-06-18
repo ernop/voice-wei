@@ -177,9 +177,10 @@ Drone test: note stepper (C3-C5) applies on Start.
 
 Books persists TTS preferences and the OpenAI API key in browser localStorage.
 Large book data is stored in IndexedDB (`voice-wei-books`): original upload
-Blobs, parsed section/spine records, planned TTS text segments, generated MP3
-segment Blobs, and read/listen progress. The visible Log panel is page-session
-state and is cleared on reload.
+Blobs, parsed section/spine records, sanitized EPUB/HTML reader markup, planned
+TTS text segments, generated MP3 segment Blobs, and read/listen progress. The
+visible Log panel is page-session state and is cleared on reload. Books requests
+persistent browser storage automatically where supported.
 
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
@@ -193,8 +194,10 @@ segment records as each MP3 finishes; Cancel preserves completed segments and
 leaves the rest pending/error; Play updates listening and reading progress;
 auto-generate-ahead can generate more pending segments while listening.
 Download original / current segment / all segment MP3s / combined MP3 export
-saved blobs; Delete removes the browser-local book, sections, and segments.
-The visible Log is page-local DOM state only; it is not a durable usage record.
+saved blobs; Delete segment MP3 / Delete all MP3s clear generated audio without
+removing the original; Delete book removes the browser-local book, sections,
+and segments. The visible Log is page-local DOM state only; it is not a durable
+usage record.
 
 ## Pitch test panel (shared component)
 
