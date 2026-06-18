@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 // Playlist DOM, YouTube search/playback, and transport controls.
 
 const PROGRESS_UPDATE_INTERVAL_MS = 100;

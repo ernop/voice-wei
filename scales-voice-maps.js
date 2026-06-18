@@ -45,6 +45,8 @@ function normalizeScaleModifier(spoken) {
 }
 
 window.ScalesVoiceMaps = {
+    NOTE_PHONETIC_MAP: SCALES_NOTE_PHONETIC_MAP,
+    MODIFIER_PHONETIC_MAP: SCALES_MODIFIER_PHONETIC_MAP,
     normalizeScaleNoteName,
     normalizeScaleModifier
 };

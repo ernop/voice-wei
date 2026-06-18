@@ -5,21 +5,23 @@
 // localStorage in player modules).
 //-----------------------------------------------------------------------
 
-const PLAYER_SETTINGS_KEYS = Object.freeze([
+/** @type {string[]} */
+const PLAYER_SETTINGS_KEYS = [
     'readClaudeResponse',
     'autoSubmitMode',
     'claudeModel',
     'openaiModel',
     'aiProvider'
-]);
+];
 
-const LYRICS_VIEW_DEFAULTS = Object.freeze({
+/** @type {LyricsViewSettings} */
+const LYRICS_VIEW_DEFAULTS = {
     fontScale: 1,
     widthMode: 'wide',
     align: 'center',
     spacing: 'roomy',
     backdrop: 'dim'
-});
+};
 
 /** @param {unknown} value */
 function isPlainObject(value) {
@@ -36,14 +38,14 @@ function isLyricsCacheRecord(value) {
     return isPlainObject(value);
 }
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is Partial<LyricsViewSettings>} */
 function isLyricsViewSettings(value) {
     return isPlainObject(value);
 }
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is { items: PlaylistItem[], currentPlaylistIndex: number }} */
 function isPlaylistEnvelope(value) {
-    return isPlainObject(value) && Array.isArray(value.items);
+    return isPlainObject(value) && Array.isArray(/** @type {{ items?: unknown }} */ (value).items);
 }
 
 const PlayerStorage = (function () {
@@ -76,14 +78,14 @@ const PlayerStorage = (function () {
         return { ...LYRICS_VIEW_DEFAULTS, ...saved };
     }
 
-    /** @param {typeof LYRICS_VIEW_DEFAULTS & Record<string, string | number>} settings */
+    /** @param {LyricsViewSettings} settings */
     function saveLyricsViewSettings(settings) {
         SettingsStore.saveJson(StorageKeys.PLAYER_LYRICS_VIEW, settings);
     }
 
     /**
-     * @param {Record<string, unknown>} defaults
-     * @returns {Record<string, unknown>}
+     * @param {PlayerAppSettings} defaults
+     * @returns {PlayerAppSettings}
      */
     function loadSettings(defaults) {
         const state = { ...defaults };
@@ -91,7 +93,7 @@ const PlayerStorage = (function () {
         return state;
     }
 
-    /** @param {Record<string, unknown>} settings */
+    /** @param {PlayerAppSettings} settings */
     function saveSettings(settings) {
         SettingsStore.save(StorageKeys.PLAYER_SETTINGS, settings, PLAYER_SETTINGS_KEYS);
     }

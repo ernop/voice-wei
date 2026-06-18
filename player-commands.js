@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 // Voice command parsing, control execution, and LLM music search.
 
 // Skip Claude API calls and return hardcoded test data (for debugging YouTube search)

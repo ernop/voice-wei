@@ -84,6 +84,8 @@
             } },
     ];
 
+    const INTERVAL_ORDER = ['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'];
+
     // ---- STATE ----
     const state = {
         root: 'C',
@@ -119,7 +121,6 @@
 
     const STORAGE_KEY = StorageKeys.INTERVALS_SETTINGS;
     const EAR_STATS_KEY = StorageKeys.INTERVALS_EAR_STATS;
-    const INTERVAL_ORDER = ['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'];
     const PERSISTED_KEYS = [
         'root', 'octave', 'scale', 'lengthMs', 'gapMs', 'speakNumbers',
         'playNotes', 'showNoteNames', 'expandRange', 'reverse', 'repeat',
@@ -140,7 +141,7 @@
     let singPanel = null;
     /** @type {ReturnType<typeof HistoryList.create> | null} */
     let history = null;
-    /** @type {ReturnType<typeof EarTraining.create> | null} */
+    /** @type {ReturnType<NonNullable<typeof window.EarTraining>['create']> | null} */
     let earTraining = null;
 
     const sleep = PianoCore.sleep;
@@ -226,9 +227,13 @@
         return stats;
     }
 
+    /** @param {unknown} data @returns {data is Record<string, { correct: number; total: number }>} */
+    function isEarStatsRecord(data) {
+        return data !== null && typeof data === 'object' && !Array.isArray(data);
+    }
+
     function loadEarStats() {
-        return SettingsStore.loadJson(EAR_STATS_KEY, defaultEarStats(), data =>
-            data !== null && typeof data === 'object' && !Array.isArray(data));
+        return SettingsStore.loadJson(EAR_STATS_KEY, defaultEarStats(), isEarStatsRecord);
     }
 
     function saveEarStats(stats) {
@@ -236,7 +241,7 @@
     }
 
     async function setupEarTraining() {
-        earTraining = EarTraining.create({
+        earTraining = window.EarTraining.create({
             settings: state,
             saveSettings,
             loadStats: loadEarStats,

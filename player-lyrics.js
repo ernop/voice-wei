@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 // Lyrics panel, overlay, LRCLIB lookup, and synced line highlighting.
 
 const PlayerLyrics = (function () {

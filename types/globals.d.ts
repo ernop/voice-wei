@@ -34,12 +34,23 @@ interface Window {
     StorageKeys?: any;
     LegacyStorageKeys?: any;
     ApiKeysStore?: any;
+    PlayerApiKeys?: any;
     AppVersion?: { current: string };
     PracticeAudio?: any;
     ScalesPlayback?: { AudioCoordinator: new () => any };
-    ScalesVoiceMaps?: any;
+    ScalesVoiceMaps?: {
+        normalizeScaleNoteName: (spoken: string | null | undefined) => string | null;
+        normalizeScaleModifier: (spoken: string | null | undefined) => string | null;
+        NOTE_PHONETIC_MAP: Record<string, string>;
+        MODIFIER_PHONETIC_MAP: Record<string, string>;
+    };
+    EarTraining?: {
+        create: (options: any) => any;
+    };
+    PlayerCommands?: typeof PlayerCommands;
+    PlayerPlaylist?: typeof PlayerPlaylist;
+    PlayerLyrics?: typeof PlayerLyrics;
     PlayerStorage?: any;
-    PlayerApiKeys?: any;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
     ProgressStore?: any;
@@ -54,6 +65,9 @@ interface Window {
         panel: any;
     };
     intervalsDebug?: { panel: any };
+
+    normalizeNoteName?: (spoken: string | null | undefined) => string | null;
+    normalizeModifier?: (spoken: string | null | undefined) => string | null;
 }
 
 // -----------------------------------------------------------------------
@@ -61,6 +75,9 @@ interface Window {
 // -----------------------------------------------------------------------
 
 declare const Tone: typeof import('tone');
+
+declare function normalizeNoteName(spoken: string | null | undefined): string | null;
+declare function normalizeModifier(spoken: string | null | undefined): string | null;
 
 // -----------------------------------------------------------------------
 // Ebook page CDN libraries (pdf.js, JSZip)

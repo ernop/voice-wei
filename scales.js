@@ -115,8 +115,8 @@ class ScalesController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
-        /** @type {InstanceType<typeof ScalesPlayback.AudioCoordinator>} */
-        this.audio = new ScalesPlayback.AudioCoordinator();
+        /** @type {InstanceType<typeof window.ScalesPlayback.AudioCoordinator>} */
+        this.audio = new window.ScalesPlayback.AudioCoordinator();
         /** @type {HTMLElement | null} */
         this.pianoNotificationCommandEl = null;
         /** @type {HTMLElement[]} */
@@ -1842,8 +1842,8 @@ class ScalesController {
 
         // Single note: "play C", "note D", "C sharp", "B flat"
         // Also handles phonetic variants: "see" for C, "bee" for B, etc.
-        const phoneticNotes = Object.keys(NOTE_PHONETIC_MAP).join('|');
-        const phoneticMods = Object.keys(MODIFIER_PHONETIC_MAP).join('|');
+        const phoneticNotes = Object.keys(ScalesVoiceMaps.NOTE_PHONETIC_MAP).join('|');
+        const phoneticMods = Object.keys(ScalesVoiceMaps.MODIFIER_PHONETIC_MAP).join('|');
         const noteRegex = new RegExp(`^(play\\s+|note\\s+)?(${phoneticNotes})\\s*(${phoneticMods})?(\\s*\\d)?$`, 'i');
         const noteMatch = lower.match(noteRegex);
         if (noteMatch) {
@@ -1874,8 +1874,8 @@ class ScalesController {
         ].join('|');
 
         // Build phonetic note pattern for regex
-        const notePattern = Object.keys(NOTE_PHONETIC_MAP).join('|');
-        const modPattern = Object.keys(MODIFIER_PHONETIC_MAP).join('|');
+        const notePattern = Object.keys(ScalesVoiceMaps.NOTE_PHONETIC_MAP).join('|');
+        const modPattern = Object.keys(ScalesVoiceMaps.MODIFIER_PHONETIC_MAP).join('|');
 
         // Try multiple patterns
         let scaleMatch = null;
