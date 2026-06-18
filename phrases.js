@@ -812,13 +812,7 @@
         });
     }
 
-    function syncReturnAnchorLabel() {
-        const btn = getEl('returnAnchorOnBtn');
-        if (btn) btn.textContent = state.startAtOne ? 'return to 1' : 'return to start';
-    }
-
     function syncAnchorControls() {
-        syncReturnAnchorLabel();
         syncFillButtons();
     }
 
@@ -931,7 +925,6 @@
         wireHearToggle('singNumbersToggle', 'singNumbers');
         PracticeControls.wireSingleSelect('data-start-anchor', value => value === 'one', state.startAtOne, value => {
             state.startAtOne = value;
-            syncReturnAnchorLabel();
             onSettingChanged('startAtOne');
         });
         PracticeControls.wireSingleSelect('data-return-anchor', value => value === 'on', state.returnToInitial, value => {

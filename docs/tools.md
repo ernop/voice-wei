@@ -57,7 +57,7 @@ phrases with selectable note-picking algorithms, shows the full degree
 sequence, and replays it until the shape is internalized.
 
 **Defaults**: D#3, major, arch algorithm, 5-8 note phrases, 0.3s notes, no
-gap, play tones, return to the initial note.
+gap, play tones, return to degree 1.
 
 - **Play** plays the current phrase (creating one if needed), **Repeat**
   loops it, **Next** generates a new one, **Stop** stops everything.

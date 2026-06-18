@@ -232,12 +232,12 @@ const PatternPracticeCore = (function () {
 
     /**
      * @param {number[]} offsets
-     * @param {{ returnToInitial: boolean, returnToRoot: boolean }} options
-     * @param {number} initial
+     * @param {{ scaleType: string, returnToInitial: boolean, returnToRoot: boolean, accidentalRate?: number }} options
      */
-    function addPhraseAnchors(offsets, options, initial) {
-        if (options.returnToInitial && offsets[offsets.length - 1] !== initial) {
-            offsets.push(initial);
+    function addPhraseAnchors(offsets, options) {
+        offsets = applyChromaticPassingChoices(offsets, options);
+        if (options.returnToInitial && offsets[offsets.length - 1] !== 0) {
+            offsets.push(0);
         }
         if (options.returnToRoot && offsets[offsets.length - 1] !== 0) {
             offsets.push(0);
@@ -342,7 +342,7 @@ const PatternPracticeCore = (function () {
             offsets.push(current);
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -364,7 +364,7 @@ const PatternPracticeCore = (function () {
             offsets.push(randomIntExcluding(minOffset, maxOffset, offsets[offsets.length - 1]));
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -390,7 +390,7 @@ const PatternPracticeCore = (function () {
             offsets.push(current);
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -425,7 +425,7 @@ const PatternPracticeCore = (function () {
             offsets.push(current);
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -462,7 +462,7 @@ const PatternPracticeCore = (function () {
             offsets.push(current);
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -520,7 +520,7 @@ const PatternPracticeCore = (function () {
             statement++;
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -559,7 +559,7 @@ const PatternPracticeCore = (function () {
             }
         }
 
-        return addPhraseAnchors(offsets, options, initial);
+        return addPhraseAnchors(offsets, options);
     }
 
     /**
@@ -617,33 +617,33 @@ const PatternPracticeCore = (function () {
     }
 
     /**
-     * Chromatic runs (an opt-in difficulty layer): wherever two
-     * consecutive notes are adjacent degrees a whole step apart,
-     * sometimes insert the chromatic note between them - 4 #4 5 going
-     * up, 6 b6 5 coming down. Inserts only where such a note exists and
-     * never past the phrase length cap.
+     * Chromatic choices (an opt-in difficulty layer): wherever the normal
+     * next note is an adjacent scale degree a whole step away, sometimes
+     * use the chromatic passing tone for that slot instead. This keeps
+     * phrase length exact: Acc changes which notes are chosen, never how
+     * many notes there are.
      * @param {number[]} offsets
-     * @param {{ scaleType: string, maxLength: number, accidentalRate?: number }} options
+     * @param {{ scaleType: string, accidentalRate?: number }} options
      * @returns {number[]}
      */
     const DEFAULT_CHROMATIC_PASSING_CHANCE = 0.35;
-    function addChromaticPassingTones(offsets, options) {
+    function applyChromaticPassingChoices(offsets, options) {
         const chance = typeof options.accidentalRate === 'number'
             ? clamp(options.accidentalRate, 0, 1)
             : DEFAULT_CHROMATIC_PASSING_CHANCE;
-        const out = [offsets[0]];
+        if (chance <= 0) return offsets.slice();
+        const out = offsets.slice();
         for (let i = 1; i < offsets.length; i++) {
             const passing = chromaticBetween(options.scaleType, offsets[i - 1], offsets[i]);
-            const remaining = offsets.length - i;
             if (passing !== null
-                && out.length + remaining < options.maxLength
                 && Math.random() < chance) {
-                out.push(passing);
+                out[i] = passing;
             }
-            out.push(offsets[i]);
         }
         return out;
     }
+
+    const addChromaticPassingTones = applyChromaticPassingChoices;
 
     /**
      * @param {{
@@ -691,11 +691,10 @@ const PatternPracticeCore = (function () {
         const rootMidi = noteNameToMidi(options.root, options.octave);
         if (rootMidi === null) return null;
 
-        let offsets = generatePhraseOffsets(options);
         const accidentalRate = typeof options.accidentalRate === 'number'
             ? options.accidentalRate
             : (options.chromaticRuns ? DEFAULT_CHROMATIC_PASSING_CHANCE : 0);
-        if (accidentalRate > 0) offsets = addChromaticPassingTones(offsets, { ...options, accidentalRate });
+        const offsets = generatePhraseOffsets({ ...options, accidentalRate });
 
         return {
             notes: buildSequenceNotes(offsets, rootMidi, options.scaleType),
@@ -722,6 +721,7 @@ const PatternPracticeCore = (function () {
         offsetsToSpoken,
         chromaticBetween,
         addChromaticPassingTones,
+        applyChromaticPassingChoices,
         buildSequenceNotes,
         midiToSpeechPitch,
         generatePhraseOffsets,

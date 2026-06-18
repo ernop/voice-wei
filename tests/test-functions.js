@@ -453,32 +453,48 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check(`phrases alto gaps emphasizes 3/4 and 7/8 pairs (${altoGaps} direct touches)`, altoGaps >= 8);
 
-        // Chromatic runs: passing tones appear only between whole-step
-        // degrees and always sit strictly between their neighbors' pitches.
+        const returnToOne = await tab.evaluate(() => {
+            for (let i = 0; i < 200; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseAlgo: 'arch', startAtOne: false, rangeMode: 'within',
+                    minLength: 5, maxLength: 8, returnToInitial: true, returnToRoot: false
+                });
+                if (offsets[offsets.length - 1] !== 0) return false;
+            }
+            return true;
+        });
+        report.check('phrases return to 1 ends on degree 1 even with random start', returnToOne);
+
+        // Chromatic choices: Acc replaces normal note slots with passing
+        // tones, never lengthening the phrase beyond Min/Max.
         const chromatic = await tab.evaluate(() => {
             let decorated = 0;
             let invalid = 0;
-            for (let i = 0; i < 10; i++) {
+            let wrongLength = 0;
+            for (let i = 0; i < 100; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'over', minLength: 6, maxLength: 12,
+                    rangeMode: 'over', minLength: 16, maxLength: 16,
                     returnToInitial: false, returnToRoot: false,
                     phraseAlgo: 'stepwise', accidentalRate: 1
                 });
+                if (phrase.notes.length !== 16) wrongLength++;
                 phrase.notes.forEach((note, idx) => {
                     if (Number.isInteger(note.offset)) return;
                     decorated++;
-                    const m = phrase.notes.map(n => n.midi);
-                    const between = (m[idx - 1] < m[idx] && m[idx] < m[idx + 1])
-                        || (m[idx - 1] > m[idx] && m[idx] > m[idx + 1]);
                     const label = note.degree;
-                    if (!between || !(label.endsWith('#') || label.endsWith('b'))) invalid++;
+                    const validSlot = PatternPracticeCore.chromaticBetween(
+                        'major',
+                        Math.floor(note.offset),
+                        Math.ceil(note.offset)
+                    ) !== null;
+                    if (!validSlot || !(label.endsWith('#') || label.endsWith('b'))) invalid++;
                 });
             }
-            return { decorated, invalid };
+            return { decorated, invalid, wrongLength };
         });
-        report.check(`phrases accidental rate inserts valid passing tones (${chromatic.decorated} inserted, ${chromatic.invalid} invalid)`,
-            chromatic.decorated > 0 && chromatic.invalid === 0);
+        report.check(`phrases accidental rate selects valid passing tones without changing length (${chromatic.decorated} chosen, ${chromatic.invalid} invalid)`,
+            chromatic.decorated > 0 && chromatic.invalid === 0 && chromatic.wrongLength === 0);
         await tab.click('[data-step-key="accidentalRate"][data-step-delta="1"]');
         await tab.waitForTimeout(200);
         const savedAccidental = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.accidentalRate);

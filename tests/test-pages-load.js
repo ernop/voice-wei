@@ -21,6 +21,11 @@ const SETTLE_MS = Number(process.env.TEST_SETTLE_MS || (process.env.TEST_PROFILE
         try {
             await tab.goto(`${BASE_URL}/${page}`, { waitUntil: 'networkidle', timeout: 30000 });
             await tab.waitForTimeout(SETTLE_MS);
+            const monitoredErrors = await tab.evaluate(() => window.__voiceWeiErrors || []);
+            monitoredErrors.forEach(err => {
+                const source = err.source ? ` (${err.source})` : '';
+                pageErrors.push(`${page} monitor: ${err.type}: ${err.message}${source}`);
+            });
         } catch (err) {
             pageErrors.push(`${page} navigation: ${err.message}`);
         }

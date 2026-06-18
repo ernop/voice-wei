@@ -10,9 +10,11 @@ const StaffView = (function () {
 
     const NOTE_WIDTH = 42;
     const STAVE_X = 12;
-    const STAVE_Y = 18;
-    const STAVE_HEIGHT = 120;
+    const STAVE_Y = 8;
     const MIN_WIDTH = 220;
+    const SVG_PAD_X = 6;
+    const SVG_PAD_Y = 2;
+    const LEDGER_PAD = 5;
 
     /**
      * @typedef {Object} StaffViewConfig
@@ -68,7 +70,7 @@ const StaffView = (function () {
             const rootName = /** @type {string} */ (midiToNoteName(keyContext.rootMidi).name);
             const keySig = NotationSpelling.vexKeySignature(rootName, keyContext.scaleType);
             const width = Math.max(MIN_WIDTH, STAVE_X * 2 + plan.length * NOTE_WIDTH + 80);
-            const height = STAVE_HEIGHT + STAVE_Y + 24;
+            const height = 72;
 
             surface.textContent = '';
             host.classList.remove('phrase-staff-empty');
@@ -87,8 +89,10 @@ const StaffView = (function () {
                 const staveNote = new VF.StaveNote({
                     keys: [NotationSpelling.midiToVexKey(note.midi)],
                     duration: 'w',
-                    clef
+                    clef,
+                    stem_direction: VF.Stem.UP
                 });
+                staveNote.setStemDirection(VF.Stem.UP);
                 const accidental = NotationSpelling.passingAccidental(
                     note.offset,
                     PatternPracticeCore.degreesPerOctave(keyContext.scaleType),
@@ -115,6 +119,54 @@ const StaffView = (function () {
             VF.Accidental.applyAccidentals([voice], keySig);
             new VF.Formatter().joinVoices([voice]).format([voice], width - STAVE_X * 2 - 40);
             voice.draw(context, stave);
+            trimSvgSurface(surface, stave, tickables, SVG_PAD_X, SVG_PAD_Y);
+        }
+
+        /**
+         * Crop to stave lines plus note ink. svg.getBBox() includes VexFlow
+         * voice layout padding even when no notes reach those extremes.
+         * @param {HTMLElement} root
+         * @param {any} stave
+         * @param {any[]} tickables
+         * @param {number} padX
+         * @param {number} padY
+         */
+        function trimSvgSurface(root, stave, tickables, padX, padY) {
+            const svg = root.querySelector('svg');
+            if (!(svg instanceof SVGSVGElement)) return;
+
+            let xMin = stave.getX();
+            let xMax = stave.getX() + stave.getWidth();
+            const staffTop = stave.getYForLine(0);
+            const staffBottom = stave.getYForLine(4);
+            let yMin = staffTop - LEDGER_PAD;
+            let yMax = staffBottom + LEDGER_PAD;
+
+            for (const tickable of tickables) {
+                if (typeof tickable.getBoundingBox !== 'function') continue;
+                const box = tickable.getBoundingBox();
+                if (!box) continue;
+                xMin = Math.min(xMin, box.getX());
+                xMax = Math.max(xMax, box.getX() + box.getW());
+                const top = box.getY();
+                const bottom = box.getY() + box.getH();
+                if (top < staffTop) yMin = Math.min(yMin, top - padY);
+                if (bottom > staffBottom) yMax = Math.max(yMax, bottom + padY);
+            }
+
+            // Clef/key sit slightly left of the first staff line x.
+            xMin -= LEDGER_PAD;
+            xMax += padX;
+
+            const w = xMax - xMin;
+            const h = yMax - yMin;
+            if (w <= 0 || h <= 0) return;
+
+            svg.setAttribute('viewBox', `${xMin} ${yMin} ${w} ${h}`);
+            svg.setAttribute('width', String(Math.ceil(w)));
+            svg.setAttribute('height', String(Math.ceil(h)));
+            svg.style.width = `${Math.ceil(w)}px`;
+            svg.style.height = `${Math.ceil(h)}px`;
         }
 
         return {

@@ -15,6 +15,9 @@ interface Window {
     // Legacy AudioContext prefix
     webkitAudioContext: typeof AudioContext;
 
+    // Early frontend error monitor
+    __voiceWeiErrors?: Array<{ type: string; message: string; source?: string }>;
+
     // YouTube API callback queue
     youtubeApiReady?: (() => void)[];
     onYouTubeIframeAPIReady?: () => void;
