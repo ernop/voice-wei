@@ -133,13 +133,16 @@ main {
 
 header {
     margin-bottom: 8px;
-    padding: 12px 12px 0;
+    padding: 10px 12px 8px;
 }
 
 .site-header {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
+    background: rgba(5, 18, 11, 0.82);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.22);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 .header-top {
@@ -195,37 +198,45 @@ header {
 /* Page Navigation Tabs - shared across all pages */
 .nav-tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(74, 222, 128, 0.5) rgba(0, 0, 0, 0.25);
 }
 
 .nav-tab {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(232, 245, 233, 0.92);
     text-decoration: none;
-    padding: 8px 14px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 8px 13px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(167, 243, 208, 0.26);
     border-radius: 999px;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 750;
+    white-space: nowrap;
+    flex: 0 0 auto;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .nav-tab:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(74, 222, 128, 0.16);
+    border-color: rgba(167, 243, 208, 0.44);
     color: #fff;
 }
 
 .nav-tab.active {
-    background: rgba(74, 222, 128, 0.24);
-    border-color: rgba(74, 222, 128, 0.5);
-    color: #a7f3d0;
+    background: #4ade80;
+    border-color: #86efac;
+    color: #062510;
+    box-shadow: 0 2px 10px rgba(74, 222, 128, 0.25);
 }
 
 .nav-tab.active:hover {
-    background: rgba(74, 222, 128, 0.3);
+    background: #86efac;
 }
 
 /* Legacy nav-link (kept for compatibility) */
