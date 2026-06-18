@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=121">
-    <link rel="stylesheet" href="ebook.css?v=121">
+    <link rel="stylesheet" href="style.css?v=122">
+    <link rel="stylesheet" href="ebook.css?v=122">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -145,6 +145,16 @@
                         <aside class="listen-panel">
                             <div class="generator-card">
                                 <h3>Generate</h3>
+                                <div class="mp3-status-card">
+                                    <div class="mp3-status-header">
+                                        <span>MP3 conversion</span>
+                                        <strong id="generationStatus">Idle</strong>
+                                    </div>
+                                    <div class="progress-bar-track">
+                                        <div class="progress-bar-fill" id="generationProgressFill"></div>
+                                    </div>
+                                    <div class="mp3-status-detail" id="generationDetail">No conversion running</div>
+                                </div>
                                 <div class="generator-actions">
                                     <button id="generateNext15Btn" class="primary-action-btn" type="button">Next 15 min</button>
                                     <button id="generateNextHourBtn" class="primary-action-btn" type="button">Next hour</button>
@@ -156,12 +166,6 @@
                                     <input type="checkbox" id="autoGenerateAheadToggle" />
                                     <span>Keep about 1 hour generated ahead while listening</span>
                                 </label>
-                                <div class="generation-progress" id="generationProgress">
-                                    <div id="generationStatus">Idle</div>
-                                    <div class="progress-bar-track">
-                                        <div class="progress-bar-fill" id="generationProgressFill"></div>
-                                    </div>
-                                </div>
                             </div>
 
                             <div class="player-card">
@@ -169,10 +173,11 @@
                                 <div class="player-now" id="playerNow">No segment selected</div>
                                 <audio id="audioPlayer" controls class="audio-player"></audio>
                                 <div class="player-actions">
+                                    <button id="previousSegmentBtn" class="small-action-btn transport-step-btn" type="button">&lt; Prev</button>
                                     <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
-                                    <button id="previousSegmentBtn" class="small-action-btn" type="button">Previous</button>
-                                    <button id="nextSegmentBtn" class="small-action-btn" type="button">Next</button>
+                                    <button id="nextSegmentBtn" class="small-action-btn transport-step-btn" type="button">Next &gt;</button>
                                 </div>
+                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 segments.</div>
                             </div>
 
                             <div class="log-container compact-log" id="logContainer">
@@ -205,8 +210,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="shared-header.js?v=121"></script>
-    <script src="ebook.js?v=121"></script>
+    <script src="shared-header.js?v=122"></script>
+    <script src="ebook.js?v=122"></script>
 </body>
 
 </html>

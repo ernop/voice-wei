@@ -540,6 +540,10 @@ class BooksController {
             if (e.key === 'Escape' && document.body.classList.contains('reader-fullscreen-mode')) {
                 this.setReaderFullscreen(false);
             }
+            if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && this.shouldHandleSegmentArrow(e)) {
+                e.preventDefault();
+                this.playAdjacentGenerated(e.key === 'ArrowRight' ? 1 : -1);
+            }
         });
         if (autoToggle) {
             autoToggle.addEventListener('change', () => {
@@ -589,6 +593,16 @@ class BooksController {
     bindButton(id, handler) {
         const button = document.getElementById(id);
         if (button) button.addEventListener('click', handler);
+    }
+
+    /** @param {KeyboardEvent} event */
+    shouldHandleSegmentArrow(event) {
+        if (!this.currentBook || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (!target) return true;
+        const tagName = target.tagName.toLowerCase();
+        if (target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return false;
+        return this.segments.some(segment => segment.status === 'done');
     }
 
     async previewVoice() {
@@ -1031,6 +1045,7 @@ class BooksController {
         this.renderProgress();
         this.renderReader();
         this.renderPlayerNow();
+        if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
     }
 
     renderProgress() {
@@ -1523,8 +1538,17 @@ class BooksController {
     updateGenerationProgress(done, total, message) {
         const status = document.getElementById('generationStatus');
         const fill = document.getElementById('generationProgressFill');
+        const detail = document.getElementById('generationDetail');
+        const percent = total ? Math.round(done / total * 100) : 0;
         if (status) status.textContent = message;
-        if (fill) fill.style.width = total ? `${Math.round(done / total * 100)}%` : '0%';
+        if (fill) fill.style.width = `${percent}%`;
+        if (detail) {
+            const generated = this.segments.filter(segment => segment.status === 'done').length;
+            const remainingInJob = Math.max(0, total - done);
+            detail.textContent = total
+                ? `${done}/${total} in this job (${percent}%) · ${remainingInJob} remaining · ${generated}/${this.segments.length} total MP3 segments ready`
+                : `${generated}/${this.segments.length} total MP3 segments ready`;
+        }
     }
 
     preloadNextGenerated() {

@@ -499,10 +499,34 @@
     text-align: left;
 }
 
-.generation-progress {
-    margin-top: 10px;
+.mp3-status-card {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.mp3-status-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.72);
     font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.68);
+}
+
+.mp3-status-header strong {
+    color: #a7f3d0;
+    text-align: right;
+}
+
+.mp3-status-detail,
+.player-key-hint {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.76rem;
+    text-align: left;
 }
 
 .progress-bar-track {
@@ -537,8 +561,20 @@
 }
 
 .player-actions {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(70px, 0.8fr) minmax(130px, 1.4fr) minmax(70px, 0.8fr);
+    gap: 6px;
     margin-top: 10px;
+}
+
+.player-actions .primary-action-btn,
+.player-actions .small-action-btn {
+    width: 100%;
+    min-height: 40px;
+}
+
+.transport-step-btn {
+    font-size: 0.86rem;
 }
 
 .compact-log {
