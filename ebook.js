@@ -354,7 +354,7 @@ class BooksController {
     }
 
     loadApiKey() {
-        const storedKey = localStorage.getItem('openaiApiKey');
+        const storedKey = ApiKeysStore.get('openai');
         if (storedKey && storedKey.length > 10) {
             this.apiKey = storedKey;
             this.updateApiKeyUI(true);
@@ -369,7 +369,7 @@ class BooksController {
             this.updateStatus('Invalid API key');
             return false;
         }
-        localStorage.setItem('openaiApiKey', apiKey);
+        ApiKeysStore.set('openai', apiKey);
         this.apiKey = apiKey;
         this.updateApiKeyUI(true);
         this.hideApiKeyOverlay();
@@ -383,7 +383,7 @@ class BooksController {
     }
 
     removeApiKey() {
-        localStorage.removeItem('openaiApiKey');
+        ApiKeysStore.remove('openai');
         this.apiKey = null;
         this.updateApiKeyUI(false);
         this.updateStatus('API key removed');
@@ -397,7 +397,7 @@ class BooksController {
         const actionsRow = document.getElementById('apiKeyActions');
         if (!statusEl || !inputRow || !actionsRow) return;
         if (hasKey) {
-            const storedKey = localStorage.getItem('openaiApiKey') || '';
+            const storedKey = ApiKeysStore.get('openai');
             statusEl.textContent = `Configured: ${storedKey.substring(0, 7)}...${storedKey.substring(storedKey.length - 4)}`;
             statusEl.className = 'api-key-status configured';
             inputRow.style.display = 'none';
@@ -421,8 +421,9 @@ class BooksController {
     }
 
     loadSettings() {
-        const saved = localStorage.getItem('ebookSettings');
-        if (saved) this.settings = { ...this.settings, ...JSON.parse(saved) };
+        const snapshot = { ...this.settings };
+        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed']);
+        this.settings = snapshot;
         const voiceEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsVoice'));
         const modelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsModel'));
         const speedEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ttsSpeed'));
@@ -435,7 +436,7 @@ class BooksController {
     }
 
     saveSettings() {
-        localStorage.setItem('ebookSettings', JSON.stringify(this.settings));
+        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed']);
     }
 
     updateVoiceDescription() {
@@ -484,7 +485,7 @@ class BooksController {
         }
         if (showBtn) {
             showBtn.addEventListener('click', () => {
-                const storedKey = localStorage.getItem('openaiApiKey') || '';
+                const storedKey = ApiKeysStore.get('openai');
                 const statusEl = document.getElementById('apiKeyStatus');
                 if (!statusEl) return;
                 if (showBtn.textContent === 'Show') {

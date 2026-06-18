@@ -1,34 +1,6 @@
 // @ts-check
-//-------DEBUG FLAGS-------
-// Skip Claude API calls and return hardcoded test data (for debugging YouTube search)
-const SKIP_CLAUDE = false;
-
-//-------TIMING CONSTANTS-------
-// Note: RECOGNITION_RESTART_DELAY_MS and TRANSCRIPT_AUTO_HIDE_MS come from voice-command-core.js
-
-// How often to update the progress bar during playback
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
-
-// Seek jump amount for rewind/fast-forward commands
-const SEEK_JUMP_SECONDS = 10;
-
-// Brief delay for DOM to settle before creating YouTube player
-const DOM_SETTLE_DELAY_MS = 50;
-
-// How long to poll for YouTube API before giving up
-const YOUTUBE_API_TIMEOUT_MS = 10000;
-
-// Polling interval for YouTube API readiness check
-const YOUTUBE_API_POLL_INTERVAL_MS = 100;
-
-// localStorage key for resolved lyrics records
-const LYRICS_CACHE_STORAGE_KEY = 'voiceMusicLyricsCache';
-
-// localStorage key for lyrics overlay display preferences
-const LYRICS_VIEW_SETTINGS_STORAGE_KEY = 'voiceMusicLyricsViewSettings';
-
-//-------TRANSCRIPT MANAGER-------
-// TranscriptManager class is provided by voice-command-core.js
+// Voice music controller — composes player-storage, player-api-keys,
+// player-commands, player-playlist, and player-lyrics modules.
 
 /**
  * @typedef {Object} PlaylistItem
@@ -93,6 +65,7 @@ const LYRICS_VIEW_SETTINGS_STORAGE_KEY = 'voiceMusicLyricsViewSettings';
  * @property {string} [openaiApiKey]
  */
 
+
 class VoiceMusicController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
@@ -116,14 +89,13 @@ class VoiceMusicController {
         /** @type {boolean} */
         this.wasPlayingBeforeListening = false;
         /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string }} */
-        this.settings = {
+        this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-5-20251101',
             openaiModel: 'gpt-4o',
             aiProvider: 'claude'
-        };
-        // TTS handled by VoiceOutput library
+        });
         /** @type {ReturnType<typeof setInterval> | null} */
         this.progressUpdateInterval = null;
         /** @type {boolean} */
@@ -131,12 +103,12 @@ class VoiceMusicController {
         /** @type {number} */
         this.suppressAutoAdvanceUntil = 0;
         /** @type {Record<string, FavoriteData>} */
-        this.favorites = this.loadFavorites();
+        this.favorites = PlayerStorage.loadFavorites();
         /** @type {LyricsCacheStore} */
-        this.lyricsCache = this.loadLyricsCache();
+        this.lyricsCache = PlayerStorage.loadLyricsCache();
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
-        this.lyricsViewSettings = this.loadLyricsViewSettings();
+        this.lyricsViewSettings = PlayerStorage.loadLyricsViewSettings();
         /** @type {boolean} */
         this.lyricsPanelVisible = false;
         /** @type {boolean} */
@@ -149,165 +121,28 @@ class VoiceMusicController {
         this.isProcessingCommand = false;
         /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */
         this.transcript = null;
+
+        PlayerCommands.install(this);
+        PlayerPlaylist.install(this);
+        PlayerLyrics.install(this);
+
         this.init();
     }
 
-    loadFavorites() {
-        const saved = localStorage.getItem('voiceMusicFavorites');
-        if (!saved) return {};
-
-        const parsed = JSON.parse(saved);
-
-        // Handle old format (array of videoIds) - minimal migration
-        if (Array.isArray(parsed)) {
-            // Old format: just an array of video IDs - abandon it, return empty
-            return {};
-        }
-
-        // New format: object with full song data keyed by videoId
-        return parsed || {};
-    }
-
     saveFavorites() {
-        localStorage.setItem('voiceMusicFavorites', JSON.stringify(this.favorites));
-    }
-
-    loadLyricsCache() {
-        const saved = localStorage.getItem(LYRICS_CACHE_STORAGE_KEY);
-        if (!saved) return {};
-        try {
-            const parsed = JSON.parse(saved);
-            return parsed && typeof parsed === 'object' ? parsed : {};
-        } catch (error) {
-            console.warn('Could not parse lyrics cache:', error);
-            return {};
-        }
+        PlayerStorage.saveFavorites(this.favorites);
     }
 
     saveLyricsCache() {
-        localStorage.setItem(LYRICS_CACHE_STORAGE_KEY, JSON.stringify(this.lyricsCache));
-    }
-
-    loadLyricsViewSettings() {
-        const defaults = {
-            fontScale: 1,
-            widthMode: 'wide',
-            align: 'center',
-            spacing: 'roomy',
-            backdrop: 'dim'
-        };
-        const saved = localStorage.getItem(LYRICS_VIEW_SETTINGS_STORAGE_KEY);
-        if (!saved) return defaults;
-        try {
-            const parsed = JSON.parse(saved);
-            return {
-                ...defaults,
-                ...(parsed && typeof parsed === 'object' ? parsed : {})
-            };
-        } catch (error) {
-            console.warn('Could not parse lyrics view settings:', error);
-            return defaults;
-        }
+        PlayerStorage.saveLyricsCache(this.lyricsCache);
     }
 
     saveLyricsViewSettings() {
-        localStorage.setItem(LYRICS_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify(this.lyricsViewSettings));
+        PlayerStorage.saveLyricsViewSettings(this.lyricsViewSettings);
     }
 
-    /**
-     * @param {string} videoId
-     * @param {Partial<PlaylistItem> | null} [songData]
-     * @returns {boolean}
-     */
-    toggleFavorite(videoId, songData = null) {
-        if (this.favorites[videoId]) {
-            // Already favorited - remove it
-            delete this.favorites[videoId];
-            this.saveFavorites();
-            return false;
-        } else if (songData) {
-            // Add to favorites with full song data
-            this.favorites[videoId] = {
-                videoId: songData.videoId,
-                name: songData.name || songData.title || '',
-                artist: songData.artist || songData.channelTitle || '',
-                year: songData.year || '',
-                album: songData.album || '',
-                title: songData.title || '',
-                channelTitle: songData.channelTitle || '',
-                duration: songData.duration || '',
-                durationSeconds: songData.durationSeconds || this.parseDurationToSeconds(songData.duration || ''),
-                comment: songData.comment || '',
-                searchTerm: songData.searchTerm || '',
-                favoritedAt: Date.now()
-            };
-            this.saveFavorites();
-            return true;
-        }
-        return false;
-    }
-
-    /** @param {string} videoId */
-    isFavorite(videoId) {
-        return !!this.favorites[videoId];
-    }
-
-    loadFavoritesToPlaylist() {
-        const favoritesList = Object.values(this.favorites);
-        if (favoritesList.length === 0) {
-            this.updateStatus('No favorites saved');
-            return;
-        }
-
-        document.getElementById('playlistContainer').style.display = 'block';
-        document.getElementById('centralPlayer').style.display = 'block';
-        this.showTransportBar();
-
-        let addedCount = 0;
-        for (const favData of favoritesList) {
-            // Minimal fallback: try to get at least artist and name
-            const artistName = favData.artist || favData.channelTitle || 'Unknown';
-            const songName = favData.name || favData.title || 'Unknown';
-
-            // Skip if we don't have a videoId
-            if (!favData.videoId) continue;
-            if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
-
-            /** @type {PlaylistItem} */
-            const playlistItem = {
-                videoId: favData.videoId,
-                name: songName,
-                artist: artistName,
-                year: favData.year || '',
-                album: favData.album || '',
-                title: favData.title || songName,
-                channelTitle: favData.channelTitle || artistName,
-                duration: favData.duration || '--:--',
-                durationSeconds: favData.durationSeconds || this.parseDurationToSeconds(favData.duration || ''),
-                comment: favData.comment || '',
-                searchTerm: favData.searchTerm || '',
-                id: Date.now() + Math.random(),
-                lyricsStatus: 'idle',
-                lyricsData: null
-            };
-            this.hydrateItemLyricsFromCache(playlistItem);
-
-            this.playlist.unshift(playlistItem);
-            if (this.currentPlaylistIndex >= 0) {
-                this.currentPlaylistIndex++;
-            }
-            this.addPlaylistItemToDOM(playlistItem);
-            addedCount++;
-
-            // Eagerly fetch lyrics for favorites too
-            if (playlistItem.lyricsStatus === 'idle') {
-                void this.ensureLyricsForItem(playlistItem);
-            }
-        }
-
-        this.updatePlaylistLabel();
-        this.updateStatus(`Loaded ${addedCount} favorite${addedCount !== 1 ? 's' : ''}`);
-        this.addMessage('user', 'Favorites', `Loaded ${addedCount} favorite songs`);
+    get isListening() {
+        return this.voiceCore ? this.voiceCore.isListening : false;
     }
 
     async init() {
@@ -316,6 +151,7 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
+            this.restoreSavedPlaylist();
             this.loadDemoSongIfRequested();
         } catch (error) {
             this.logError('Initialization error', error);
@@ -343,11 +179,6 @@ class VoiceMusicController {
         });
     }
 
-    /**
-     * @param {string} type
-     * @param {string} label
-     * @param {string} text
-     */
     addMessage(type, label, text) {
         const logContent = document.getElementById('logContent');
         if (!logContent) return;
@@ -366,20 +197,14 @@ class VoiceMusicController {
         logContent.scrollTop = logContent.scrollHeight;
     }
 
-    /** @param {string} text */
     logUserMessage(text) {
         this.addMessage('user', 'You:', text);
     }
 
-    /** @param {string} text */
     logClaudeMessage(text) {
         this.addMessage('claude', 'Claude:', text);
     }
 
-    /**
-     * @param {string} label
-     * @param {unknown} error
-     */
     logError(label, error) {
         let errorText = '';
         if (error instanceof Error) {
@@ -465,33 +290,23 @@ class VoiceMusicController {
     }
 
     async loadConfig() {
-        // Initialize config object
-        this.config = {};
+        this.config = PlayerApiKeys.loadConfig();
 
-        // Load Claude API key from localStorage
-        const storedClaudeKey = localStorage.getItem('claudeApiKey');
-        if (storedClaudeKey && storedClaudeKey.length > 10) {
-            this.config.claudeApiKey = storedClaudeKey;
-            const keyPreview = storedClaudeKey.substring(0, 10) + '...';
+        if (this.config.claudeApiKey) {
+            const keyPreview = this.config.claudeApiKey.substring(0, 10) + '...';
             this.addMessage('claude', 'Claude API Key', `Loaded (${keyPreview})`);
         }
-
-        // Load OpenAI API key from localStorage
-        const storedOpenaiKey = localStorage.getItem('openaiApiKey');
-        if (storedOpenaiKey && storedOpenaiKey.length > 10) {
-            this.config.openaiApiKey = storedOpenaiKey;
-            const keyPreview = storedOpenaiKey.substring(0, 10) + '...';
+        if (this.config.openaiApiKey) {
+            const keyPreview = this.config.openaiApiKey.substring(0, 10) + '...';
             this.addMessage('claude', 'OpenAI API Key', `Loaded (${keyPreview})`);
         }
 
-        // Check if we have at least one API key
         const hasAnyKey = this.config.claudeApiKey || this.config.openaiApiKey;
 
         if (hasAnyKey) {
             this.updateStatus('Ready');
             this.hideApiKeyOverlay();
 
-            // Auto-select provider based on available keys
             if (!this.config.claudeApiKey && this.config.openaiApiKey) {
                 this.settings.aiProvider = 'openai';
             }
@@ -502,11 +317,7 @@ class VoiceMusicController {
         }
 
         this.updateAllApiKeyUI();
-
-        // YouTube search via server-side proxy (no API key needed, no quota limits)
         this.addMessage('claude', 'YouTube Search', `Using server-side proxy (proxy.php) - no API key needed`);
-
-        // Test proxy availability
         this.testProxy();
     }
 
@@ -533,10 +344,6 @@ class VoiceMusicController {
         this.updateProviderVisibility();
     }
 
-    /**
-     * @param {string} provider
-     * @param {boolean} hasKey
-     */
     updateApiKeyUIForProvider(provider, hasKey) {
         const statusEl = document.getElementById(`${provider}ApiKeyStatus`);
         const inputRow = document.getElementById(`${provider}ApiKeyInputRow`);
@@ -545,9 +352,7 @@ class VoiceMusicController {
         if (!statusEl || !inputRow || !actionsRow) return;
 
         if (hasKey) {
-            const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
-            const storedKey = localStorage.getItem(storageKey) || '';
-            const preview = storedKey.substring(0, 10) + '...' + storedKey.substring(storedKey.length - 4);
+            const preview = PlayerApiKeys.preview(provider);
             statusEl.textContent = `Configured: ${preview}`;
             statusEl.className = 'api-key-status configured';
             inputRow.style.display = 'none';
@@ -575,18 +380,13 @@ class VoiceMusicController {
         if (openaiModelSection) openaiModelSection.style.display = provider === 'openai' ? 'block' : 'none';
     }
 
-    /**
-     * @param {string} provider
-     * @param {string} apiKey
-     */
     saveApiKeyForProvider(provider, apiKey) {
         if (!apiKey || apiKey.length < 10) {
             this.updateStatus('Invalid API key');
             return false;
         }
 
-        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
-        localStorage.setItem(storageKey, apiKey);
+        PlayerApiKeys.set(provider, apiKey);
 
         if (provider === 'claude') {
             this.config.claudeApiKey = apiKey;
@@ -612,10 +412,8 @@ class VoiceMusicController {
         return true;
     }
 
-    /** @param {string} provider */
     removeApiKeyForProvider(provider) {
-        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
-        localStorage.removeItem(storageKey);
+        PlayerApiKeys.remove(provider);
 
         if (provider === 'claude') {
             delete this.config.claudeApiKey;
@@ -639,13 +437,10 @@ class VoiceMusicController {
         }
     }
 
-    // Legacy compatibility methods
-    /** @param {boolean} hasKey */
     updateApiKeyUI(hasKey) {
         this.updateApiKeyUIForProvider('claude', hasKey);
     }
 
-    /** @param {string} apiKey */
     saveApiKey(apiKey) {
         return this.saveApiKeyForProvider('claude', apiKey);
     }
@@ -715,10 +510,8 @@ class VoiceMusicController {
         this.updateProviderVisibility();
     }
 
-    /** @param {string} provider */
     setupProviderApiKeyUI(provider) {
         const prefix = provider === 'claude' ? 'Claude' : 'Openai';
-        const storageKey = provider === 'claude' ? 'claudeApiKey' : 'openaiApiKey';
 
         const saveBtn = document.getElementById(`save${prefix}ApiKeyBtn`);
         const showBtn = document.getElementById(`show${prefix}ApiKeyBtn`);
@@ -741,7 +534,7 @@ class VoiceMusicController {
 
         if (showBtn) {
             showBtn.addEventListener('click', () => {
-                const storedKey = localStorage.getItem(storageKey) || '';
+                const storedKey = PlayerApiKeys.get(provider);
                 if (showBtn.textContent === 'Show') {
                     const statusEl = document.getElementById(`${provider}ApiKeyStatus`);
                     if (statusEl) statusEl.textContent = storedKey;
@@ -829,12 +622,6 @@ class VoiceMusicController {
         closeSettingsBtn.addEventListener('click', () => {
             settingsPanel.style.display = 'none';
         });
-
-        // Load saved settings
-        const savedSettings = localStorage.getItem('voiceMusicSettings');
-        if (savedSettings) {
-            this.settings = { ...this.settings, ...JSON.parse(savedSettings) };
-        }
 
         // Update UI with saved settings
         const readClaudeEl = /** @type {HTMLInputElement | null} */ (document.getElementById('readClaudeResponse'));
@@ -1107,167 +894,10 @@ class VoiceMusicController {
         this.updateLyricsButtonLabels();
     }
 
-    setupProgressBar() {
-        const progressTrack = document.getElementById('progressBarTrack');
-        if (!progressTrack) return;
-
-        /** @param {MouseEvent | TouchEvent} e */
-        const handleSeek = (e) => {
-            const rect = progressTrack.getBoundingClientRect();
-            const clientX = 'clientX' in e ? e.clientX : (e.touches && e.touches[0]?.clientX) || 0;
-            const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-            this.seekToPercentage(percentage);
-        };
-
-        // Mouse events
-        progressTrack.addEventListener('mousedown', (e) => {
-            this.isDraggingProgress = true;
-            progressTrack.classList.add('dragging');
-            handleSeek(e);
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (this.isDraggingProgress) {
-                handleSeek(e);
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (this.isDraggingProgress) {
-                this.isDraggingProgress = false;
-                const progressTrack = document.getElementById('progressBarTrack');
-                if (progressTrack) progressTrack.classList.remove('dragging');
-            }
-        });
-
-        // Touch events
-        progressTrack.addEventListener('touchstart', (e) => {
-            this.isDraggingProgress = true;
-            progressTrack.classList.add('dragging');
-            handleSeek(e);
-        });
-
-        progressTrack.addEventListener('touchmove', (e) => {
-            if (this.isDraggingProgress) {
-                e.preventDefault();
-                handleSeek(e);
-            }
-        });
-
-        progressTrack.addEventListener('touchend', () => {
-            this.isDraggingProgress = false;
-            progressTrack.classList.remove('dragging');
-        });
-
-        // Click to seek
-        progressTrack.addEventListener('click', handleSeek);
-    }
-
-    /** @param {number} percentage */
-    seekToPercentage(percentage) {
-        if (!this.currentPlayingId) return;
-
-        const player = this.players.get(this.currentPlayingId);
-        if (player && typeof player.getDuration === 'function' && typeof player.seekTo === 'function') {
-            const duration = player.getDuration();
-            if (duration && duration > 0) {
-                const seekTime = duration * percentage;
-                player.seekTo(seekTime, true);
-                this.updateProgressBar(seekTime, duration);
-            }
-        }
-    }
-
-    startProgressUpdates() {
-        this.stopProgressUpdates();
-        this.progressUpdateInterval = setInterval(() => {
-            this.updateCurrentProgress();
-        }, PROGRESS_UPDATE_INTERVAL_MS);
-    }
-
-    stopProgressUpdates() {
-        if (this.progressUpdateInterval) {
-            clearInterval(this.progressUpdateInterval);
-            this.progressUpdateInterval = null;
-        }
-    }
-
-    updateCurrentProgress() {
-        if (!this.currentPlayingId || this.isDraggingProgress) return;
-
-        const player = this.players.get(this.currentPlayingId);
-        if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
-            const currentTime = player.getCurrentTime();
-            const duration = player.getDuration();
-            if (duration && duration > 0) {
-                this.updateProgressBar(currentTime, duration);
-            }
-        }
-    }
-
-    /**
-     * @param {number} currentTime
-     * @param {number} duration
-     */
-    updateProgressBar(currentTime, duration) {
-        const fill = document.getElementById('progressBarFill');
-        const handle = document.getElementById('progressBarHandle');
-        const currentTimeEl = document.getElementById('currentTime');
-        const totalTimeEl = document.getElementById('totalTime');
-
-        if (fill && handle && currentTimeEl && totalTimeEl) {
-            const percentage = (currentTime / duration) * 100;
-            fill.style.width = `${percentage}%`;
-            handle.style.left = `${percentage}%`;
-            currentTimeEl.textContent = this.formatTime(currentTime);
-            totalTimeEl.textContent = this.formatTime(duration);
-        }
-
-        this.updateSyncedLyricsPosition(currentTime);
-    }
-
-    /** @param {number} seconds */
-    formatTime(seconds) {
-        if (!seconds || isNaN(seconds)) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-
-    setupYouTubeAPI() {
-        if (typeof YT === 'undefined') {
-            window.onYouTubeIframeAPIReady = () => {
-                this.playerReady();
-            };
-        } else {
-            this.playerReady();
-        }
-    }
-
-    playerReady() {
-        console.log('YouTube API ready');
-
-        // Run any pending player creation functions
-        if (window.youtubeApiReady && Array.isArray(window.youtubeApiReady)) {
-            window.youtubeApiReady.forEach(fn => {
-                if (typeof fn === 'function') {
-                    fn();
-                }
-            });
-            window.youtubeApiReady = [];
-        }
-    }
-
-    get isListening() {
-        return this.voiceCore ? this.voiceCore.isListening : false;
-    }
-
     stopListening() {
         this.voiceCore?.stopListening();
     }
 
-    /** @param {boolean} enabled */
     setAutoSubmitMode(enabled) {
         this.settings.autoSubmitMode = enabled;
         this.saveSettings();
@@ -1276,7 +906,6 @@ class VoiceMusicController {
         this.voiceCore?.setAutoSubmitMode(enabled);
     }
 
-    /** @param {boolean} show */
     updateSubmitButton(show) {
         this.voiceCore?.updateSubmitButton(show);
     }
@@ -1298,7 +927,7 @@ class VoiceMusicController {
     }
 
     saveSettings() {
-        localStorage.setItem('voiceMusicSettings', JSON.stringify(this.settings));
+        PlayerStorage.saveSettings(this.settings);
     }
 
     async submitTypedCommand() {
@@ -1322,7 +951,6 @@ class VoiceMusicController {
         typedCommandInput.focus();
     }
 
-    /** @param {string} message */
     updateStatus(message) {
         const statusEl = document.getElementById('status');
         if (statusEl) {
@@ -1330,7 +958,6 @@ class VoiceMusicController {
         }
     }
 
-    /** @param {string} transcript */
     async processMusicSearch(transcript) {
         const requestText = transcript.trim();
         if (!requestText) {
@@ -1392,7 +1019,6 @@ class VoiceMusicController {
         }
     }
 
-    /** @param {boolean} busy */
     updateTypedCommandUI(busy) {
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
         const typedCommandSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandSubmitBtn'));
@@ -1405,13 +1031,10 @@ class VoiceMusicController {
         }
     }
 
-    // Text-to-speech via centralized VoiceOutput library
-    /** @param {string} text */
     speakText(text) {
         return this.speakTextAsync(text);
     }
 
-    /** @param {string} text */
     speakTextAsync(text) {
         if (typeof VoiceOutput !== 'undefined') {
             return VoiceOutput.speak(text);
@@ -1420,1772 +1043,38 @@ class VoiceMusicController {
         return Promise.resolve();
     }
 
-    /** @param {string} transcript */
-    parseControlCommand(transcript) {
-        const lower = transcript.toLowerCase().trim();
-
-        // Help command
-        if (lower.match(/^(help|commands|what can (i|you) (say|do))/)) {
-            return 'help';
-        }
-
-        // What's playing command
-        if (lower.match(/^(what('s| is) playing|current song|now playing|what song)/)) {
-            return 'whatsplaying';
-        }
-
-        // Clear playlist commands
-        if (lower.match(/^(clear|empty|delete)(\s+(the\s+)?playlist)?$/)) {
-            return 'clear';
-        }
-
-        // Randomize/shuffle commands
-        if (lower.match(/^(shuffle|randomize|random)(\s+(the\s+)?playlist)?$/)) {
-            return 'shuffle';
-        }
-
-        // Play commands
-        if (lower.match(/^(play|start|resume|continue)(\s+(the\s+)?playlist)?$/)) {
-            return 'play';
-        }
-
-        // Pause commands
-        if (lower.match(/^(pause|halt)(\s+(the\s+)?playback)?$/)) {
-            return 'pause';
-        }
-
-        // Stop commands
-        if (lower.match(/^(stop)(\s+(the\s+)?playback)?$/)) {
-            return 'stop';
-        }
-
-        // Next commands
-        if (lower.match(/^(next|skip|forward)(\s+(song|track))?$/)) {
-            return 'next';
-        }
-
-        // Previous commands
-        if (lower.match(/^(previous|prev|back|last)(\s+(song|track))?$/)) {
-            return 'previous';
-        }
-
-        // Fast forward
-        if (lower.match(/^(fast\s+forward|ff|advance|jump\s+forward)/)) {
-            return 'forward';
-        }
-
-        // Rewind
-        if (lower.match(/^(rewind|backward|jump\s+back)/)) {
-            return 'rewind';
-        }
-
-        return null;
-    }
-
-    /** @param {string} command */
-    executeControlCommand(command) {
-        switch (command) {
-            case 'help':
-                this.showHelp();
-                break;
-            case 'whatsplaying':
-                this.announceCurrentSong();
-                break;
-            case 'clear':
-                if (this.playlist.length === 0) {
-                    this.updateStatus('Playlist is already empty');
-                    this.speakText('Playlist is already empty');
-                } else {
-                    const count = this.playlist.length;
-                    this.clearPlaylist();
-                    this.updateStatus('Playlist cleared');
-                    this.speakText(`Cleared ${count} song${count > 1 ? 's' : ''} from playlist`);
-                }
-                break;
-            case 'shuffle':
-                if (this.playlist.length < 2) {
-                    this.updateStatus('Need at least 2 songs to shuffle');
-                    this.speakText('Need at least 2 songs to shuffle');
-                } else {
-                    this.shufflePlaylist();
-                    this.updateStatus('Playlist shuffled');
-                    this.speakText('Playlist shuffled');
-                }
-                break;
-            case 'play':
-                if (this.playlist.length === 0) {
-                    this.updateStatus('Playlist is empty - add some songs first');
-                    this.speakText('Playlist is empty. Say something like "play some jazz" to add songs.');
-                } else {
-                    this.playPlaylist();
-                    this.updateStatus('Playing');
-                }
-                break;
-            case 'pause':
-                if (!this.isPlaying) {
-                    this.updateStatus('Nothing is playing');
-                } else {
-                    this.pausePlayback();
-                    this.updateStatus('Paused');
-                }
-                break;
-            case 'stop':
-                this.stopPlayback();
-                this.updateStatus('Stopped');
-                break;
-            case 'next':
-                if (this.playlist.length === 0) {
-                    this.updateStatus('Playlist is empty');
-                } else {
-                    this.playNext();
-                    this.updateStatus('Next song');
-                }
-                break;
-            case 'previous':
-                if (this.playlist.length === 0) {
-                    this.updateStatus('Playlist is empty');
-                } else {
-                    this.playPrevious();
-                    this.updateStatus('Previous song');
-                }
-                break;
-            case 'forward':
-                if (!this.currentPlayingId) {
-                    this.updateStatus('Nothing is playing');
-                } else {
-                    this.fastForward();
-                    this.updateStatus('Skipped forward 10 seconds');
-                }
-                break;
-            case 'rewind':
-                if (!this.currentPlayingId) {
-                    this.updateStatus('Nothing is playing');
-                } else {
-                    this.rewind();
-                    this.updateStatus('Rewound 10 seconds');
-                }
-                break;
-        }
-    }
-
-    showHelp() {
-        const helpText = `Voice Commands: play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, what's playing`;
-
-        this.updateStatus(helpText);
-        this.addMessage('user', 'Help:', 'play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, what\'s playing');
-        this.speakText('Voice commands: play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, and what\'s playing.');
-    }
-
-    announceCurrentSong() {
-        if (!this.currentPlayingId) {
-            this.updateStatus('Nothing is playing');
-            this.speakText('Nothing is currently playing');
-            return;
-        }
-
-        const currentItem = this.playlist.find(item => item.id === this.currentPlayingId);
-        if (currentItem) {
-            const announcement = `Now playing: ${currentItem.title} by ${currentItem.channelTitle || 'Unknown Artist'}`;
-            this.updateStatus(announcement);
-            this.speakText(announcement);
-        }
-    }
-
-    shufflePlaylist() {
-        if (this.playlist.length === 0) return;
-        const currentPlayingId = this.currentPlayingId;
-
-        // Fisher-Yates shuffle
-        for (let i = this.playlist.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
-        }
-
-        // Re-render playlist table body
-        const playlistBody = document.getElementById('playlistBody');
-        playlistBody.innerHTML = '';
-
-        // Remove old player divs
-        const container = document.getElementById('playlistContainer');
-        const playerDivs = container.querySelectorAll('.youtube-player');
-        playerDivs.forEach(div => div.remove());
-
-        // Re-add items
-        for (let i = this.playlist.length - 1; i >= 0; i--) {
-            this.addPlaylistItemToDOM(this.playlist[i]);
-        }
-
-        // Rebind current index to the currently playing item after shuffle
-        if (currentPlayingId != null) {
-            this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentPlayingId);
-            const currentItem = this.playlist[this.currentPlaylistIndex];
-            if (currentItem) {
-                this.updateCentralPlayer(currentItem);
-                const row = document.querySelector(`[data-item-id="${currentItem.id}"]`);
-                if (row) row.classList.add('playing');
-            }
-        }
-    }
-
-    /** @param {string} transcript */
-    async processCommandWithLLM(transcript) {
-        // Debug mode: skip API and return hardcoded test data
-        if (SKIP_CLAUDE) {
-            this.addMessage('claude', 'DEBUG', 'Skipping API - using hardcoded Cecilia');
-            const testSongList = [{
-                name: "Cecilia",
-                artist: "Simon & Garfunkel",
-                year: "1970",
-                album: "Bridge Over Troubled Water",
-                comment: "DEBUG: Hardcoded test song",
-                searchTerm: "Simon & Garfunkel Cecilia"
-            }];
-            return { songList: testSongList, prompt: '[DEBUG MODE - API skipped]' };
-        }
-
-        // Use configured provider
-        const provider = this.settings.aiProvider;
-
-        if (provider === 'openai') {
-            return this.processCommandWithOpenAI(transcript);
-        } else {
-            return this.processCommandWithClaude(transcript);
-        }
-    }
-
-    /** @param {string} transcript */
-    async processCommandWithClaude(transcript) {
-        if (!this.config || !this.config.claudeApiKey) {
-            throw new Error('Claude API key not configured');
-        }
-
-        const prompt = this.getMusicSearchPrompt(transcript);
-
-        try {
-            const requestBody = {
-                model: this.settings.claudeModel,
-                max_tokens: 4000,
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }]
+    toggleFavorite(videoId, songData = null) {
+        if (this.favorites[videoId]) {
+            // Already favorited - remove it
+            delete this.favorites[videoId];
+            this.saveFavorites();
+            return false;
+        } else if (songData) {
+            // Add to favorites with full song data
+            this.favorites[videoId] = {
+                videoId: songData.videoId,
+                name: songData.name || songData.title || '',
+                artist: songData.artist || songData.channelTitle || '',
+                year: songData.year || '',
+                album: songData.album || '',
+                title: songData.title || '',
+                channelTitle: songData.channelTitle || '',
+                duration: songData.duration || '',
+                durationSeconds: songData.durationSeconds || this.parseDurationToSeconds(songData.duration || ''),
+                comment: songData.comment || '',
+                searchTerm: songData.searchTerm || '',
+                favoritedAt: Date.now()
             };
-
-            this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel})`);
-
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': this.config.claudeApiKey,
-                    'anthropic-version': '2023-06-01',
-                    'anthropic-dangerous-direct-browser-access': 'true'
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error?.message || 'Claude API request failed');
-            }
-
-            const data = await response.json();
-            const responseText = data.content[0].text.trim();
-
-            return this.parseAIResponse(responseText, prompt);
-        } catch (error) {
-            console.error('Claude API error:', error);
-            this.logError('Claude API Error', error);
-            throw error;
-        }
-    }
-
-    /** @param {string} transcript */
-    async processCommandWithOpenAI(transcript) {
-        if (!this.config || !this.config.openaiApiKey) {
-            throw new Error('OpenAI API key not configured');
-        }
-
-        const prompt = this.getMusicSearchPrompt(transcript);
-
-        try {
-            const requestBody = {
-                model: this.settings.openaiModel,
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }],
-                max_tokens: 4000
-            };
-
-            this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel})`);
-
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.config.openaiApiKey}`
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error?.message || 'OpenAI API request failed');
-            }
-
-            const data = await response.json();
-            const responseText = data.choices[0].message.content.trim();
-
-            return this.parseAIResponse(responseText, prompt);
-        } catch (error) {
-            console.error('OpenAI API error:', error);
-            this.logError('OpenAI API Error', error);
-            throw error;
-        }
-    }
-
-    /** @param {string} transcript */
-    getMusicSearchPrompt(transcript) {
-        return `A user is requesting music. They might also ask for comments on each song.
-
-User's request: "${transcript}"
-
-Return a JSON array of songs that match this request. Include as many songs as appropriate for the request - a specific song request might be 1-2 songs, while a genre or mood request could be 5-15 songs or more.
-
-Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
-[{
-  "name": "Song Title",
-  "artist": "Artist Name",
-  "year": "Release year (if known, otherwise empty string)",
-  "album": "Album name (if known, otherwise empty string)",
-  "comment": "Brief comment about why this song fits the request",
-  "searchTerm": "Artist Name Song Title"
-}]
-
-If the request is not about music, return an empty array [].`;
-    }
-
-    /**
-     * @param {string} responseText
-     * @param {string} prompt
-     */
-    parseAIResponse(responseText, prompt) {
-        this.logClaudeMessage(`Response:\n${responseText}`);
-
-        // Extract JSON array from response
-        let jsonText = responseText;
-        const firstBracket = responseText.indexOf('[');
-        const lastBracket = responseText.lastIndexOf(']');
-
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-            jsonText = responseText.substring(firstBracket, lastBracket + 1);
-        }
-
-        this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
-
-        const songList = JSON.parse(jsonText);
-        this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
-
-        if (!Array.isArray(songList) || songList.length === 0) {
-            throw new Error('No songs found or invalid response');
-        }
-
-        return { songList, prompt };
-    }
-
-    /** @param {Array<{ searchTerm?: string, name?: string, artist?: string, year?: string, album?: string, comment?: string }>} songList */
-    async searchAndAddToPlaylist(songList) {
-        const playlistContainer = document.getElementById('playlistContainer');
-
-        playlistContainer.style.display = 'block';
-        this.showTransportBar();
-
-        if (songList.length > 0) {
-            document.getElementById('centralPlayer').style.display = 'block';
-        }
-
-        this.addMessage('claude', 'Processing', `Searching ${songList.length} songs in parallel...`);
-
-        const validSongs = songList
-            .map((song, i) => ({ song, index: i }))
-            .filter(({ song, index }) => {
-                if (!song.searchTerm) {
-                    this.addMessage('error', 'Missing searchTerm', `Song ${index + 1}: ${JSON.stringify(song).substring(0, 100)}`);
-                    return false;
-                }
-                return true;
-            });
-
-        // Fire all YouTube searches in parallel
-        const searchPromises = validSongs.map(({ song, index }) => {
-            this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
-            return this.searchYouTube(song.searchTerm)
-                .then(videoData => ({ song, index, videoData, error: null }))
-                .catch(error => ({ song, index, videoData: null, error }));
-        });
-
-        const results = await Promise.all(searchPromises);
-
-        // Add to playlist in original order (reversed so unshift preserves order)
-        let addedCount = 0;
-        for (const { song, index, videoData, error } of results) {
-            if (error) {
-                console.error(`Error searching for "${song.searchTerm}":`, error);
-                this.addMessage('error', `Song ${index + 1}`, `Error: ${error.message}`);
-                continue;
-            }
-            if (!videoData) {
-                this.addMessage('error', `Song ${index + 1}`, `No YouTube results for: ${song.searchTerm}`);
-                continue;
-            }
-
-            this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
-
-            const playlistItem = {
-                name: song.name ? this.decodeHtml(song.name) : '',
-                artist: song.artist ? this.decodeHtml(song.artist) : '',
-                year: song.year || '',
-                album: song.album ? this.decodeHtml(song.album) : '',
-                comment: song.comment ? this.decodeHtml(song.comment) : '',
-                searchTerm: song.searchTerm,
-                ...videoData,
-                id: Date.now() + Math.random(),
-                lyricsStatus: 'idle',
-                lyricsData: null
-            };
-            this.hydrateItemLyricsFromCache(playlistItem);
-            this.playlist.unshift(playlistItem);
-            if (this.currentPlaylistIndex >= 0) {
-                this.currentPlaylistIndex++;
-            }
-            this.addPlaylistItemToDOM(playlistItem);
-            addedCount++;
-
-            if (playlistItem.lyricsStatus === 'idle') {
-                void this.ensureLyricsForItem(playlistItem);
-            }
-        }
-
-        this.updatePlaylistLabel();
-        this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);
-
-        if (addedCount === 0 && songList.length > 0) {
-            this.speakText('Could not find any of those songs on YouTube');
-        }
-    }
-
-    updatePlaylistLabel() {
-        const label = document.getElementById('playlistLabel');
-        if (label) {
-            const count = this.playlist.length;
-            label.textContent = `Playlist (${count})`;
-        }
-    }
-
-    /** @param {string} query */
-    async searchYouTube(query) {
-        // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
-        // Server-side avoids CORS issues and doesn't need third-party CORS proxies
-        const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
-
-        this.addMessage('claude', 'Search', `Searching for: ${query}`);
-
-        const response = await fetch(proxyUrl);
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const errorMsg = errorData.error || `HTTP ${response.status}`;
-            this.addMessage('error', 'Search Failed', errorMsg);
-            throw new Error(`Search failed: ${errorMsg}`);
-        }
-
-        const data = await response.json();
-
-        // Check for error response
-        if (data.error) {
-            this.addMessage('error', 'Search Error', data.error);
-            throw new Error(data.error);
-        }
-
-        // Get results from our standardized proxy response
-        const results = data.results || [];
-
-        if (results.length > 0) {
-            const video = results[0];
-            this.addMessage('claude', 'Found', `${video.title} (via ${data.source || 'proxy'})`);
-            return {
-                videoId: video.videoId,
-                title: video.title || 'Unknown',
-                channelTitle: video.channelTitle || 'Unknown Artist',
-                duration: this.formatSeconds(video.duration),
-                durationSeconds: Number(video.duration) || 0
-            };
-        }
-
-        this.addMessage('error', 'No Results', `No videos found for: ${query}`);
-        return null;
-    }
-
-    /** @param {number} totalSeconds */
-    formatSeconds(totalSeconds) {
-        if (!totalSeconds || isNaN(totalSeconds)) return '--:--';
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }
-
-    /** @param {PlaylistItem} item */
-    addPlaylistItemToDOM(item) {
-        const playlistBody = document.getElementById('playlistBody');
-        const row = document.createElement('tr');
-        row.dataset.itemId = String(item.id);
-        row.dataset.videoId = item.videoId;
-
-        const isFav = this.isFavorite(item.videoId);
-        const artistName = item.artist || item.channelTitle || 'Unknown';
-        const songName = item.name || item.title || 'Unknown';
-        const yearText = item.year || '';
-        const albumText = item.album || '';
-        const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-        const lyricsLoading = item.lyricsStatus === 'loading';
-        const lyricsLabel = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
-
-        row.innerHTML = `
-            <td>
-                <div class="playlist-actions-cell">
-                    <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                    <button class="lyrics-row-btn ${lyricsReady ? 'ready' : ''}" data-item-id="${item.id}" aria-label="${lyricsReady ? 'Show cached lyrics' : 'Get lyrics'}">${lyricsLabel}</button>
-                </div>
-            </td>
-            <td>${this.escapeHtml(artistName)}</td>
-            <td>${this.escapeHtml(songName)}</td>
-            <td>${yearText}</td>
-            <td>${this.escapeHtml(albumText)}</td>
-            <td>${item.duration || '--:--'}</td>
-        `;
-
-        // Favorite button click - pass full song data
-        const favBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.favorite-btn'));
-        if (favBtn) {
-            favBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const videoId = favBtn.dataset.videoId || '';
-                const isNowFavorited = this.toggleFavorite(videoId, item);
-                favBtn.classList.toggle('favorited', isNowFavorited);
-                favBtn.textContent = isNowFavorited ? '\u2605' : '\u2606';
-            });
-        }
-
-        const lyricsBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.lyrics-row-btn'));
-        if (lyricsBtn) {
-            lyricsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                void this.showLyricsForItem(item);
-            });
-        }
-
-        // Tap/click to play (on the row, not the favorite button)
-        row.addEventListener('click', (e) => {
-            const target = /** @type {HTMLElement} */ (e.target);
-            if (target.closest('.favorite-btn') || target.closest('.lyrics-row-btn')) return;
-            this.playVideo(item);
-        });
-
-        // Insert newest items at the top
-        playlistBody.insertBefore(row, playlistBody.firstChild);
-
-        // Create hidden player container outside the table
-        const playlistContainer = document.getElementById('playlistContainer');
-        const playerDiv = document.createElement('div');
-        playerDiv.id = `player-${item.id}`;
-        playerDiv.className = 'youtube-player';
-        playerDiv.style.display = 'none';
-        playlistContainer.appendChild(playerDiv);
-
-        // Create readiness promise before player construction
-        const playerId = `player-${item.id}`;
-        let readyResolve;
-        const readyPromise = new Promise(resolve => { readyResolve = resolve; });
-        this.playerReadyPromises.set(item.id, { promise: readyPromise, resolve: readyResolve });
-
-        const createPlayer = () => {
-            if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
-                console.error('YouTube API not loaded yet');
-                return;
-            }
-
-            const playerElement = document.getElementById(playerId);
-            if (!playerElement) {
-                console.error('Player element not found:', playerId);
-                return;
-            }
-
-            try {
-                const player = new YT.Player(playerId, {
-                    height: '200',
-                    width: '100%',
-                    videoId: item.videoId,
-                    playerVars: {
-                        autoplay: 0,
-                        controls: 1,
-                        modestbranding: 1,
-                        rel: 0
-                    },
-                    events: {
-                        onReady: (event) => {
-                            console.log('Player ready for:', item.videoId);
-                            this.players.set(item.id, event.target);
-                            const entry = this.playerReadyPromises.get(item.id);
-                            if (entry) entry.resolve(event.target);
-                        },
-                        onStateChange: (event) => {
-                            // Auto-advance to next when video ends
-                            if (event.data === YT.PlayerState.ENDED) {
-                                if (Date.now() < this.suppressAutoAdvanceUntil) {
-                                    return;
-                                }
-                                this.playNext();
-                            }
-                        },
-                        onError: (event) => {
-                            console.error('Player error:', event.data);
-                            this.updateStatus('Error loading video');
-                        }
-                    }
-                });
-
-                // Store player immediately (methods may not be available until onReady)
-                this.players.set(item.id, player);
-            } catch (error) {
-                console.error('Error creating YouTube player:', error);
-            }
-        };
-
-        // Wait a tick for DOM to settle, then create player
-        setTimeout(() => {
-            if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
-                createPlayer();
-            } else {
-                // YouTube API not ready - use two strategies for robustness:
-                // 1. Push to callback queue (if onYouTubeIframeAPIReady fires later)
-                // 2. Poll for API (handles race conditions and late script loads)
-                if (!window.youtubeApiReady) {
-                    window.youtubeApiReady = [];
-                }
-                window.youtubeApiReady.push(createPlayer);
-
-                const checkApi = setInterval(() => {
-                    // Stop polling if element was removed (e.g., playlist cleared)
-                    if (!document.getElementById(playerId)) {
-                        clearInterval(checkApi);
-                        return;
-                    }
-                    if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
-                        clearInterval(checkApi);
-                        createPlayer();
-                    }
-                }, YOUTUBE_API_POLL_INTERVAL_MS);
-
-                // Give up after timeout
-                setTimeout(() => clearInterval(checkApi), YOUTUBE_API_TIMEOUT_MS);
-            }
-        }, DOM_SETTLE_DELAY_MS);
-    }
-
-    /** @param {PlaylistItem} item */
-    async playVideo(item) {
-        // Stop currently playing video
-        if (this.currentPlayingId && this.currentPlayingId !== item.id) {
-            const currentPlayer = this.players.get(this.currentPlayingId);
-            if (currentPlayer && typeof currentPlayer.pauseVideo === 'function') {
-                try {
-                    currentPlayer.pauseVideo();
-                } catch (e) {
-                    console.error('Error pausing video:', e);
-                }
-            }
-            // Remove playing class from all rows
-            document.querySelectorAll('#playlistBody tr').forEach(el => {
-                el.classList.remove('playing');
-            });
-        }
-
-        // Play new video
-        const player = this.players.get(item.id);
-        if (player && typeof player.playVideo === 'function') {
-            try {
-                player.playVideo();
-                this.currentPlayingId = item.id;
-                this.isPlaying = true;
-                this.isPaused = false;
-
-                // Update playlist index
-                this.currentPlaylistIndex = this.playlist.findIndex(song => song.id === item.id);
-
-                // Update central player display
-                this.updateCentralPlayer(item);
-
-                this.currentLyricsItemId = item.id;
-                this.currentLyricsLineIndex = -1;
-                if (!this.lyricsPanelDismissed) {
-                    this.setLyricsPanelVisible(true);
-                } else {
-                    this.renderLyricsStateForItem(item);
-                }
-                void this.ensureLyricsForItem(item);
-
-                // Update UI to show which is playing in playlist
-                const itemEl = document.querySelector(`[data-item-id="${item.id}"]`);
-                if (itemEl) {
-                    itemEl.classList.add('playing');
-                }
-
-                // Update play/pause button
-                this.updatePlayPauseButton();
-
-                // Start progress bar updates
-                this.startProgressUpdates();
-
-                // Log the play action
-                const songTitle = item.name || item.title || 'Unknown';
-                this.addMessage('user', 'Now Playing', `${songTitle}`);
-            } catch (e) {
-                console.error('Error playing video:', e);
-                this.logError('Playback Error', e);
-                this.updateStatus('Error playing video. Try again.');
-            }
-        } else {
-            this.updateStatus('Player loading...');
-            const entry = this.playerReadyPromises.get(item.id);
-            if (entry) {
-                await entry.promise;
-                this.playVideo(item);
-            }
-        }
-    }
-
-    /** @param {PlaylistItem | null} item */
-    updateCentralPlayer(item) {
-        const titleEl = document.getElementById('playerSongTitle');
-        const artistEl = document.getElementById('playerSongArtist');
-        const transportInfo = document.getElementById('transportBarInfo');
-
-        if (item) {
-            const songTitle = item.name || item.title || '';
-            const artistName = item.artist || item.channelTitle || '';
-            titleEl.textContent = songTitle;
-            artistEl.textContent = artistName;
-            if (transportInfo) {
-                transportInfo.textContent = artistName ? `${artistName} - ${songTitle}` : songTitle;
-            }
-        } else {
-            titleEl.textContent = '';
-            artistEl.textContent = '';
-            if (transportInfo) transportInfo.textContent = 'No song playing';
-        }
-        this.updateBigLyricsAvailability();
-    }
-
-    stopPlayback() {
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.stopVideo === 'function') {
-                try {
-                    this.suppressAutoAdvanceUntil = Date.now() + 1500;
-                    player.stopVideo();
-                    this.isPlaying = false;
-                    this.isPaused = false;
-                    this.updatePlayPauseButton();
-                    this.stopProgressUpdates();
-                    this.updateProgressBar(0, 1);
-                } catch (e) {
-                    console.error('Error stopping video:', e);
-                }
-            }
-        }
-    }
-
-    playPlaylist() {
-        if (this.playlist.length === 0) {
-            this.updateStatus('Playlist is empty');
-            return;
-        }
-
-        if (this.isPaused && this.currentPlayingId) {
-            // Resume current
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.playVideo === 'function') {
-                const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
-                player.playVideo();
-                this.isPlaying = true;
-                this.isPaused = false;
-                this.updatePlayPauseButton();
-                this.startProgressUpdates();
-                if (currentItem) {
-                    this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentItem.id);
-                    this.currentLyricsItemId = currentItem.id;
-                    this.renderLyricsStateForItem(currentItem);
-                    void this.ensureLyricsForItem(currentItem);
-                }
-            }
-        } else if (this.currentPlaylistIndex >= 0 && this.currentPlaylistIndex < this.playlist.length) {
-            // Continue from current position
-            this.playVideo(this.playlist[this.currentPlaylistIndex]);
-        } else {
-            // Start from beginning
-            this.currentPlaylistIndex = 0;
-            this.playVideo(this.playlist[0]);
-        }
-    }
-
-    pausePlayback() {
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.pauseVideo === 'function') {
-                player.pauseVideo();
-                this.isPlaying = false;
-                this.isPaused = true;
-                this.updatePlayPauseButton();
-                this.stopProgressUpdates();
-            }
-        }
-    }
-
-    togglePlayPause() {
-        if (this.isPlaying && !this.isPaused) {
-            this.pausePlayback();
-        } else {
-            this.playPlaylist();
-        }
-    }
-
-    playNext() {
-        if (this.playlist.length === 0) return;
-
-        let nextIndex = this.currentPlaylistIndex + 1;
-        if (nextIndex >= this.playlist.length) {
-            nextIndex = 0; // Loop to beginning
-        }
-
-        this.currentPlaylistIndex = nextIndex;
-        this.playVideo(this.playlist[nextIndex]);
-    }
-
-    playPrevious() {
-        if (this.playlist.length === 0) return;
-
-        let prevIndex = this.currentPlaylistIndex - 1;
-        if (prevIndex < 0) {
-            prevIndex = this.playlist.length - 1; // Loop to end
-        }
-
-        this.currentPlaylistIndex = prevIndex;
-        this.playVideo(this.playlist[prevIndex]);
-    }
-
-    fastForward() {
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                try {
-                    const currentTime = player.getCurrentTime();
-                    player.seekTo(currentTime + SEEK_JUMP_SECONDS, true);
-                } catch (e) {
-                    console.error('Error fast forwarding:', e);
-                }
-            }
-        }
-    }
-
-    rewind() {
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                try {
-                    const currentTime = player.getCurrentTime();
-                    player.seekTo(Math.max(0, currentTime - SEEK_JUMP_SECONDS), true);
-                } catch (e) {
-                    console.error('Error rewinding:', e);
-                }
-            }
-        }
-    }
-
-    updateTransportPauseLabel() {
-        const btn = document.getElementById('lyricsTransportPause');
-        if (btn) btn.innerHTML = (this.isPlaying && !this.isPaused) ? '&#9208;' : '&#9654;';
-    }
-
-    restartCurrentTrack() {
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.seekTo === 'function') {
-                player.seekTo(0, true);
-            }
-        }
-    }
-
-    updatePlayPauseButton() {
-        const btn = document.getElementById('playPauseBtn');
-        const transportBtn = document.getElementById('lyricsTransportPause');
-        const barBtn = document.getElementById('transportPlayPauseBtn');
-        if (this.isPlaying && !this.isPaused) {
-            btn.textContent = '⏸';
-            btn.setAttribute('aria-label', 'Pause');
-            if (transportBtn) transportBtn.innerHTML = '&#9208;';
-            if (barBtn) { barBtn.innerHTML = '&#9208;'; barBtn.setAttribute('aria-label', 'Pause'); }
-        } else {
-            btn.textContent = '▶';
-            btn.setAttribute('aria-label', 'Play');
-            if (transportBtn) transportBtn.innerHTML = '&#9654;';
-            if (barBtn) { barBtn.innerHTML = '&#9654;'; barBtn.setAttribute('aria-label', 'Play'); }
-        }
-    }
-
-    clearPlaylist() {
-        // Stop any playing video
-        if (this.currentPlayingId) {
-            const player = this.players.get(this.currentPlayingId);
-            if (player && typeof player.stopVideo === 'function') {
-                try {
-                    this.suppressAutoAdvanceUntil = Date.now() + 1500;
-                    player.stopVideo();
-                } catch (e) {
-                    // Ignore
-                }
-            }
-        }
-
-        this.stopProgressUpdates();
-        this.playlist = [];
-        this.currentPlaylistIndex = -1;
-        this.isPlaying = false;
-        this.isPaused = false;
-        document.getElementById('playlistBody').innerHTML = '';
-
-        // Remove any player divs that were appended to the container
-        const container = document.getElementById('playlistContainer');
-        const playerDivs = container.querySelectorAll('.youtube-player');
-        playerDivs.forEach(div => div.remove());
-
-        document.getElementById('playlistContainer').style.display = 'none';
-        document.getElementById('centralPlayer').style.display = 'none';
-        this.hideTransportBar();
-        this.players.forEach(player => {
-            try {
-                player.destroy();
-            } catch (e) {
-                // Ignore errors
-            }
-        });
-        this.players.clear();
-        this.playerReadyPromises.clear();
-        this.currentPlayingId = null;
-        this.updatePlayPauseButton();
-        this.updateCentralPlayer(null);
-        this.updatePlaylistLabel();
-        this.currentLyricsItemId = null;
-        this.currentLyricsLineIndex = -1;
-        this.setLyricsPanelVisible(false);
-        this.lyricsPanelDismissed = false;
-        this.closeLyricsOverlay();
-        this.renderLyricsStateForItem(null);
-
-        // Also hide transcript/response containers
-        this.hideClaudeResponse();
-        this.hidePrompt();
-        const transcriptContainer = document.getElementById('transcriptContainer');
-        if (transcriptContainer) {
-            transcriptContainer.style.display = 'none';
-        }
-    }
-
-    /** @param {string} text */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /** @param {string} text */
-    decodeHtml(text) {
-        // YouTube API returns HTML-encoded titles (e.g., &amp; instead of &)
-        // Decode them before storing to avoid double-encoding when displayed
-        const div = document.createElement('div');
-        div.innerHTML = text;
-        return div.textContent;
-    }
-
-    currentPlaylistItem() {
-        if (this.currentPlaylistIndex < 0 || this.currentPlaylistIndex >= this.playlist.length) {
-            return null;
-        }
-        return this.playlist[this.currentPlaylistIndex];
-    }
-
-    currentLyricsItem() {
-        if (this.currentLyricsItemId == null) {
-            return null;
-        }
-        return this.playlist.find(item => item.id === this.currentLyricsItemId) || null;
-    }
-
-    toggleLyricsPanel() {
-        const nextVisible = !this.lyricsPanelVisible;
-        this.setLyricsPanelVisible(nextVisible);
-        if (nextVisible) {
-            const currentItem = this.currentLyricsItem() || this.currentPlaylistItem();
-            if (currentItem) {
-                this.renderLyricsStateForItem(currentItem);
-                void this.ensureLyricsForItem(currentItem);
-            }
-        }
-    }
-
-    /** @param {boolean} visible */
-    setLyricsPanelVisible(visible) {
-        this.lyricsPanelVisible = visible;
-        this.lyricsPanelDismissed = !visible;
-        const lyricsPanel = document.getElementById('lyricsPanel');
-        if (lyricsPanel) {
-            lyricsPanel.style.display = visible ? 'block' : 'none';
-        }
-        this.updateLyricsButtonLabels();
-    }
-
-    openLyricsOverlay() {
-        const overlay = document.getElementById('lyricsOverlay');
-        if (!overlay) return;
-        this.closeLyricsConfig();
-        const currentItem = this.currentLyricsItem() || this.currentPlaylistItem();
-        if (currentItem) {
-            this.renderLyricsStateForItem(currentItem);
-            void this.ensureLyricsForItem(currentItem);
-        } else {
-            this.renderLyricsStateForItem(null);
-        }
-        overlay.style.display = 'block';
-        overlay.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('lyrics-overlay-open');
-        this.updateTransportPauseLabel();
-        requestAnimationFrame(() => {
-            this.applyActiveLyricsLine(this.currentLyricsLineIndex, true);
-        });
-    }
-
-    closeLyricsOverlay() {
-        this.closeLyricsConfig();
-        const overlay = document.getElementById('lyricsOverlay');
-        if (!overlay) return;
-        overlay.style.display = 'none';
-        overlay.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('lyrics-overlay-open');
-    }
-
-    toggleLyricsConfig() {
-        const config = document.getElementById('lyricsOverlayConfig');
-        if (!config) return;
-        const isOpen = config.style.display !== 'none';
-        config.style.display = isOpen ? 'none' : 'flex';
-    }
-
-    closeLyricsConfig() {
-        const config = document.getElementById('lyricsOverlayConfig');
-        if (config) config.style.display = 'none';
-    }
-
-    updateLyricsButtonLabels() {
-        const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
-        if (lyricsPanelBtn) {
-            lyricsPanelBtn.textContent = this.lyricsPanelVisible ? 'Hide Lyrics' : 'Lyrics';
-        }
-    }
-
-    updateBigLyricsAvailability() {
-        const btn = document.getElementById('lyricsOverlayBtn');
-        if (!btn) return;
-        const currentItem = this.currentLyricsItem() || this.currentPlaylistItem();
-        btn.classList.remove('lyrics-available', 'lyrics-unavailable', 'lyrics-loading');
-        if (!currentItem) {
-            btn.classList.add('lyrics-unavailable');
-            btn.textContent = 'Big Lyrics';
-        } else if (currentItem.lyricsStatus === 'loading') {
-            btn.classList.add('lyrics-loading');
-            btn.textContent = 'Big Lyrics ...';
-        } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
-            btn.classList.add('lyrics-available');
-            const synced = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
-            btn.textContent = synced ? 'Big Lyrics (synced)' : 'Big Lyrics (plain)';
-        } else {
-            btn.classList.add('lyrics-unavailable');
-            btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No Lyrics' : 'Big Lyrics';
-        }
-    }
-
-    showTransportBar() {
-        const bar = document.getElementById('playlistTransportBar');
-        if (bar) bar.style.display = 'flex';
-    }
-
-    hideTransportBar() {
-        const bar = document.getElementById('playlistTransportBar');
-        if (bar) bar.style.display = 'none';
-    }
-
-    adjustLyricsFontScale(delta) {
-        const next = Math.max(0.72, Math.min(1.9, this.lyricsViewSettings.fontScale + delta));
-        this.lyricsViewSettings.fontScale = Number(next.toFixed(2));
-        this.applyLyricsViewSettings();
-    }
-
-    applyLyricsViewSettings() {
-        const overlay = document.getElementById('lyricsOverlay');
-        if (overlay) {
-            const fontRem = (2.2 * this.lyricsViewSettings.fontScale).toFixed(2);
-            const maxVw = this.lyricsViewSettings.widthMode === 'wide' ? '96vw' : '74vw';
-            const maxPx = this.lyricsViewSettings.widthMode === 'wide' ? '1200px' : '760px';
-            const textAlign = this.lyricsViewSettings.align === 'left' ? 'left' : 'center';
-            const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.05' : '1.15';
-            const backdrop = this.lyricsViewSettings.backdrop === 'blackout'
-                ? 'rgba(0, 0, 0, 0.985)'
-                : 'rgba(3, 8, 6, 0.96)';
-
-            overlay.style.setProperty('--lyrics-overlay-font-size', `clamp(${fontRem}rem, ${fontRem}rem + 2vw, ${(3.8 * this.lyricsViewSettings.fontScale).toFixed(2)}rem)`);
-            overlay.style.setProperty('--lyrics-overlay-max-width', `min(${maxVw}, ${maxPx})`);
-            overlay.style.setProperty('--lyrics-overlay-text-align', textAlign);
-            overlay.style.setProperty('--lyrics-overlay-line-height', lineHeight);
-            overlay.style.setProperty('--lyrics-overlay-bg', backdrop);
-        }
-
-        const widthBtn = document.getElementById('lyricsWidthToggleBtn');
-        if (widthBtn) widthBtn.textContent = this.lyricsViewSettings.widthMode === 'wide' ? 'Wide' : 'Focus';
-        const alignBtn = document.getElementById('lyricsAlignToggleBtn');
-        if (alignBtn) alignBtn.textContent = this.lyricsViewSettings.align === 'center' ? 'Center' : 'Left';
-        const spacingBtn = document.getElementById('lyricsSpacingToggleBtn');
-        if (spacingBtn) spacingBtn.textContent = this.lyricsViewSettings.spacing === 'roomy' ? 'Roomy' : 'Tight';
-        const backdropBtn = document.getElementById('lyricsBackdropToggleBtn');
-        if (backdropBtn) backdropBtn.textContent = this.lyricsViewSettings.backdrop === 'dim' ? 'Dim' : 'Black';
-
-        this.saveLyricsViewSettings();
-    }
-
-    /**
-     * @param {PlaylistItem | null} item
-     * @param {string} message
-     * @param {boolean} [isError]
-     */
-    updateLyricsStatus(item, message, isError = false) {
-        const ids = ['lyricsStatus', 'lyricsOverlayStatus'];
-        for (const id of ids) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            el.textContent = message;
-            el.classList.toggle('is-error', isError);
-        }
-
-        this.updateLyricsTitles(item);
-    }
-
-    /** @param {PlaylistItem | null} item */
-    updateLyricsTitles(item) {
-        const lyricsSongTitleEl = document.getElementById('lyricsSongTitle');
-        const lyricsOverlayTitleEl = document.getElementById('lyricsOverlayTitle');
-        const songTitle = item ? (item.name || item.title || '') : '';
-        const artistName = item ? (item.artist || item.channelTitle || '') : '';
-        const combinedTitle = [songTitle, artistName].filter(Boolean).join(' - ');
-        if (lyricsSongTitleEl) lyricsSongTitleEl.textContent = combinedTitle || 'No song selected';
-        if (lyricsOverlayTitleEl) lyricsOverlayTitleEl.textContent = combinedTitle || 'No song selected';
-    }
-
-    /** @param {PlaylistItem | null} item */
-    renderLyricsStateForItem(item) {
-        if (!item) {
-            this.updateLyricsStatus(null, 'Play a song to load lyrics.');
-            this.renderLyricsLines([]);
-            return;
-        }
-
-        if (item.lyricsStatus === 'loading') {
-            this.updateLyricsStatus(item, 'Finding lyrics on LRCLIB...');
-            this.renderLyricsLines([]);
-            return;
-        }
-
-        if (item.lyricsStatus === 'error') {
-            this.updateLyricsStatus(item, 'Could not load lyrics right now.', true);
-            this.renderLyricsLines([]);
-            return;
-        }
-
-        if (item.lyricsStatus === 'not_found') {
-            this.updateLyricsStatus(item, 'No lyrics found for this track.');
-            this.renderLyricsLines([]);
-            return;
-        }
-
-        if (item.lyricsStatus === 'ready' && item.lyricsData) {
-            const lyricsData = item.lyricsData;
-            const isSynced = lyricsData.syncedLines.length > 0;
-            if (lyricsData.instrumental) {
-                this.updateLyricsStatus(item, 'Track appears to be instrumental.');
-            } else if (isSynced) {
-                this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName} (synced)`);
-            } else {
-                this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName}`);
-            }
-            this.renderLyricsLines(this.getRenderableLyricsLines(lyricsData));
-            const overlay = document.getElementById('lyricsOverlay');
-            if (overlay) overlay.classList.toggle('has-synced-lyrics', isSynced);
-            return;
-        }
-
-        this.updateLyricsStatus(item, 'Play a song to load lyrics.');
-        this.renderLyricsLines([]);
-    }
-
-    /** @param {LyricsResult} lyricsData */
-    getRenderableLyricsLines(lyricsData) {
-        if (lyricsData.syncedLines.length > 0) {
-            return lyricsData.syncedLines.map(line => line.text);
-        }
-        return lyricsData.plainLyrics.split(/\r?\n/);
-    }
-
-    /**
-     * @param {string[]} lines
-     */
-    renderLyricsLines(lines) {
-        if (lines.length === 0) {
-            const overlay = document.getElementById('lyricsOverlay');
-            if (overlay) overlay.classList.remove('has-synced-lyrics');
-        }
-        const containerIds = ['lyricsContent', 'lyricsOverlayContent'];
-        for (const containerId of containerIds) {
-            const container = document.getElementById(containerId);
-            if (!container) continue;
-            container.innerHTML = '';
-
-            const fragment = document.createDocumentFragment();
-            lines.forEach((line, index) => {
-                const el = document.createElement('div');
-                el.className = 'lyrics-line';
-                if (!line.trim()) {
-                    el.classList.add('is-blank');
-                    el.innerHTML = '&nbsp;';
-                } else {
-                    el.textContent = line;
-                }
-                el.dataset.lyricsLineIndex = String(index);
-                fragment.appendChild(el);
-            });
-            container.appendChild(fragment);
-        }
-        this.applyActiveLyricsLine(this.currentLyricsLineIndex, true);
-    }
-
-    /** @param {PlaylistItem} item */
-    async ensureLyricsForItem(item) {
-        if (this.hydrateItemLyricsFromCache(item)) {
-            this.refreshLyricsRowButton(item);
-            if (this.currentLyricsItemId === item.id) {
-                this.renderLyricsStateForItem(item);
-            }
-            return item.lyricsData;
-        }
-
-        if (item.lyricsStatus === 'ready') {
-            if (this.currentLyricsItemId === item.id) {
-                this.renderLyricsStateForItem(item);
-            }
-            return item.lyricsData;
-        }
-
-        if (item.lyricsStatus === 'loading') {
-            return item.lyricsData || null;
-        }
-
-        item.lyricsStatus = 'loading';
-        this.refreshLyricsRowButton(item);
-        if (this.currentLyricsItemId === item.id) {
-            this.renderLyricsStateForItem(item);
-        }
-
-        try {
-            const lyricsData = await this.lookupLyrics(item);
-            item.lyricsData = lyricsData;
-            item.lyricsStatus = lyricsData ? 'ready' : 'not_found';
-            if (lyricsData) {
-                this.persistLyricsForItem(item, lyricsData);
-            }
-        } catch (error) {
-            console.error('Lyrics lookup failed:', error);
-            item.lyricsData = null;
-            item.lyricsStatus = 'error';
-        }
-
-        this.refreshLyricsRowButton(item);
-
-        if (this.currentLyricsItemId === item.id) {
-            this.currentLyricsLineIndex = -1;
-            this.renderLyricsStateForItem(item);
-            this.updateSyncedLyricsPosition(this.currentPlaybackTime());
-        }
-
-        return item.lyricsData;
-    }
-
-    /** @param {PlaylistItem} item */
-    async showLyricsForItem(item) {
-        this.currentLyricsItemId = item.id;
-        this.currentLyricsLineIndex = -1;
-        this.setLyricsPanelVisible(true);
-        this.renderLyricsStateForItem(item);
-        await this.ensureLyricsForItem(item);
-    }
-
-    /** @param {PlaylistItem} item */
-    async lookupLyrics(item) {
-        const candidates = this.buildLyricsLookupCandidates(item);
-        const expectedDuration = item.durationSeconds || this.parseDurationToSeconds(item.duration || '');
-        /** @type {{ score: number, record: any } | null} */
-        let bestMatch = null;
-
-        // Search all candidates in parallel
-        const allResults = await Promise.all(
-            candidates.map(candidate =>
-                this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '')
-                    .then(results => ({ candidate, results: results || [] }))
-                    .catch(() => ({ candidate, results: [] }))
-            )
-        );
-
-        for (const { candidate, results } of allResults) {
-            for (const record of results) {
-                const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
-                if (!bestMatch || score > bestMatch.score) {
-                    bestMatch = { score, record };
-                }
-            }
-        }
-
-        if (!bestMatch || bestMatch.score < 0.58) {
-            return null;
-        }
-
-        const record = bestMatch.record;
-        return {
-            provider: 'LRCLIB',
-            trackName: record.trackName || record.name || '',
-            artistName: record.artistName || '',
-            albumName: record.albumName || '',
-            duration: Number(record.duration) || 0,
-            instrumental: !!record.instrumental,
-            plainLyrics: (record.plainLyrics || '').trim(),
-            syncedLyrics: typeof record.syncedLyrics === 'string' && record.syncedLyrics.trim() ? record.syncedLyrics : null,
-            syncedLines: this.parseSyncedLyrics(record.syncedLyrics || '')
-        };
-    }
-
-    /**
-     * @param {string} title
-     * @param {string} artist
-     * @param {string} album
-     */
-    async searchLyricsProvider(title, artist, album) {
-        const key = `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}|${this.normalizeComparisonText(album)}`;
-        if (this.lyricsLookupCache.has(key)) {
-            return this.lyricsLookupCache.get(key) || [];
-        }
-
-        const params = new URLSearchParams();
-        if (title) params.set('track_name', title);
-        if (artist) params.set('artist_name', artist);
-        if (album) params.set('album_name', album);
-        if (!title) {
-            params.set('q', [artist, album].filter(Boolean).join(' '));
-        }
-
-        const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
-        if (!response.ok) {
-            throw new Error(`Lyrics search failed: HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        const results = Array.isArray(data) ? data : [];
-        this.lyricsLookupCache.set(key, results);
-        return results;
-    }
-
-    /** @param {PlaylistItem} item */
-    buildLyricsLookupCandidates(item) {
-        /** @type {Array<{ artist: string, title: string }>} */
-        const candidates = [];
-        const parsed = this.extractArtistTitleFromVideoTitle(item.title || '');
-        const primaryArtist = this.cleanArtistName(item.artist || parsed.artist || item.channelTitle || '');
-        const primaryTitle = this.cleanSongTitle(item.name || parsed.title || item.title || '');
-        this.addLyricsCandidate(candidates, primaryArtist, primaryTitle);
-
-        if (parsed.artist || parsed.title) {
-            this.addLyricsCandidate(candidates, this.cleanArtistName(parsed.artist), this.cleanSongTitle(parsed.title));
-        }
-
-        if (item.channelTitle) {
-            this.addLyricsCandidate(candidates, this.cleanArtistName(item.channelTitle), primaryTitle);
-        }
-
-        if (!candidates.length) {
-            this.addLyricsCandidate(candidates, '', this.cleanSongTitle(item.title || item.name || ''));
-        }
-
-        return candidates;
-    }
-
-    /**
-     * @param {Array<{ artist: string, title: string }>} candidates
-     * @param {string} artist
-     * @param {string} title
-     */
-    addLyricsCandidate(candidates, artist, title) {
-        const cleanedArtist = this.cleanArtistName(artist);
-        const cleanedTitle = this.cleanSongTitle(title);
-        if (!cleanedTitle) return;
-        const key = `${this.normalizeComparisonText(cleanedArtist)}|${this.normalizeComparisonText(cleanedTitle)}`;
-        if (candidates.some(candidate => `${this.normalizeComparisonText(candidate.artist)}|${this.normalizeComparisonText(candidate.title)}` === key)) {
-            return;
-        }
-        candidates.push({ artist: cleanedArtist, title: cleanedTitle });
-    }
-
-    /** @param {string} title */
-    extractArtistTitleFromVideoTitle(title) {
-        const separators = [' - ', ' – ', ' — ', ': '];
-        for (const separator of separators) {
-            const parts = title.split(separator).map(part => part.trim()).filter(Boolean);
-            if (parts.length >= 2) {
-                return {
-                    artist: parts[0],
-                    title: parts.slice(1).join(separator)
-                };
-            }
-        }
-        return { artist: '', title: title.trim() };
-    }
-
-    /** @param {string} text */
-    cleanSongTitle(text) {
-        return this.normalizeWhitespace(text
-            .replace(/\[(official|lyrics?|audio|video|hd|4k)[^\]]*\]/gi, '')
-            .replace(/\((official|lyrics?|audio|video|hd|4k)[^)]*\)/gi, '')
-            .replace(/\bfeat\.?\b.*$/i, '')
-            .replace(/\bft\.?\b.*$/i, '')
-            .replace(/\s+\|\s+.*$/g, '')
-            .replace(/\s*\/\s*lyrics?$/i, '')
-        );
-    }
-
-    /** @param {string} text */
-    cleanArtistName(text) {
-        return this.normalizeWhitespace(text
-            .replace(/\b- topic\b/gi, '')
-            .replace(/\bofficial\b/gi, '')
-        );
-    }
-
-    /** @param {string} text */
-    normalizeWhitespace(text) {
-        return text.replace(/\s+/g, ' ').trim();
-    }
-
-    /** @param {string} value */
-    normalizeComparisonText(value) {
-        return this.normalizeWhitespace(value
-            .toLowerCase()
-            .replace(/&/g, ' and ')
-            .replace(/[^\w\s]/g, ' ')
-            .replace(/\b(feat|featuring|ft|official|video|audio|lyrics|topic|remaster(ed)?)\b/g, ' ')
-        );
-    }
-
-    /**
-     * @param {string} a
-     * @param {string} b
-     */
-    tokenSimilarity(a, b) {
-        const normalizedA = this.normalizeComparisonText(a);
-        const normalizedB = this.normalizeComparisonText(b);
-        if (!normalizedA || !normalizedB) return 0;
-        if (normalizedA === normalizedB) return 1;
-        if (normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA)) return 0.9;
-
-        const tokensA = new Set(normalizedA.split(' ').filter(Boolean));
-        const tokensB = new Set(normalizedB.split(' ').filter(Boolean));
-        if (!tokensA.size || !tokensB.size) return 0;
-
-        let intersection = 0;
-        for (const token of tokensA) {
-            if (tokensB.has(token)) intersection++;
-        }
-
-        const union = new Set([...tokensA, ...tokensB]).size;
-        return union ? intersection / union : 0;
-    }
-
-    /**
-     * @param {any} record
-     * @param {string} artist
-     * @param {string} title
-     * @param {number} expectedDuration
-     */
-    scoreLyricsCandidate(record, artist, title, expectedDuration) {
-        const titleScore = this.tokenSimilarity(record.trackName || record.name || '', title);
-        const artistScore = artist ? this.tokenSimilarity(record.artistName || '', artist) : 0.55;
-        const duration = Number(record.duration) || 0;
-        let durationScore = 0.5;
-        if (expectedDuration > 0 && duration > 0) {
-            const diff = Math.abs(duration - expectedDuration);
-            durationScore = Math.max(0, 1 - (diff / 20));
-        }
-        return (titleScore * 0.6) + (artistScore * 0.25) + (durationScore * 0.15);
-    }
-
-    /** @param {string} syncedLyrics */
-    parseSyncedLyrics(syncedLyrics) {
-        /** @type {SyncedLyricLine[]} */
-        const lines = [];
-        const regex = /\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\](.*)/g;
-        let match = null;
-        while ((match = regex.exec(syncedLyrics)) !== null) {
-            const minutes = Number(match[1]) || 0;
-            const seconds = Number(match[2]) || 0;
-            const fraction = match[3] || '0';
-            const fractionMs = Number(fraction.padEnd(3, '0')) || 0;
-            const time = (minutes * 60) + seconds + (fractionMs / 1000);
-            lines.push({
-                time,
-                text: (match[4] || '').trim()
-            });
-        }
-        return lines;
-    }
-
-    /** @param {string} value */
-    parseDurationToSeconds(value) {
-        if (!value) return 0;
-        const parts = value.split(':').map(part => Number(part));
-        if (parts.some(Number.isNaN)) return 0;
-        if (parts.length === 3) {
-            return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-        }
-        if (parts.length === 2) {
-            return (parts[0] * 60) + parts[1];
-        }
-        return parts[0] || 0;
-    }
-
-    loadDemoSongIfRequested() {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('demoLyrics') !== '1' || this.playlist.length > 0) {
-            return;
-        }
-
-        /** @type {PlaylistItem} */
-        const demoItem = {
-            id: Date.now() + Math.random(),
-            videoId: 'dQw4w9WgXcQ',
-            name: 'Never Gonna Give You Up',
-            artist: 'Rick Astley',
-            year: '1987',
-            album: 'Whenever You Need Somebody',
-            title: 'Rick Astley - Never Gonna Give You Up',
-            channelTitle: 'Rick Astley',
-            duration: '3:34',
-            durationSeconds: 214,
-            comment: 'Demo lyrics item',
-            searchTerm: 'Rick Astley Never Gonna Give You Up',
-            lyricsStatus: 'idle',
-            lyricsData: null
-        };
-
-        this.hydrateItemLyricsFromCache(demoItem);
-        this.playlist.unshift(demoItem);
-        this.currentPlaylistIndex = 0;
-        document.getElementById('playlistContainer').style.display = 'block';
-        document.getElementById('centralPlayer').style.display = 'block';
-        this.showTransportBar();
-        this.addPlaylistItemToDOM(demoItem);
-        this.currentLyricsItemId = demoItem.id;
-        this.updateCentralPlayer(demoItem);
-        this.updatePlaylistLabel();
-        this.setLyricsPanelVisible(true);
-        this.renderLyricsStateForItem(demoItem);
-        void this.ensureLyricsForItem(demoItem);
-        this.updateStatus('Demo lyrics song loaded');
-    }
-
-    currentPlaybackTime() {
-        if (!this.currentPlayingId) return 0;
-        const player = this.players.get(this.currentPlayingId);
-        if (player && typeof player.getCurrentTime === 'function') {
-            try {
-                return player.getCurrentTime();
-            } catch (error) {
-                return 0;
-            }
-        }
-        return 0;
-    }
-
-    /** @param {number} currentTime */
-    updateSyncedLyricsPosition(currentTime) {
-        const currentItem = this.currentLyricsItem();
-        if (!currentItem || currentItem.id !== this.currentPlayingId || !currentItem.lyricsData || currentItem.lyricsData.syncedLines.length === 0) {
-            this.applyActiveLyricsLine(-1);
-            return;
-        }
-
-        const syncedLines = currentItem.lyricsData.syncedLines;
-        let activeIndex = -1;
-        for (let i = 0; i < syncedLines.length; i++) {
-            if (currentTime >= syncedLines[i].time) {
-                activeIndex = i;
-            } else {
-                break;
-            }
-        }
-        this.applyActiveLyricsLine(activeIndex);
-    }
-
-    /**
-     * @param {number} activeIndex
-     * @param {boolean} [force]
-     */
-    applyActiveLyricsLine(activeIndex, force = false) {
-        if (!force && this.currentLyricsLineIndex === activeIndex) return;
-        this.currentLyricsLineIndex = activeIndex;
-        const overlayOpen = document.body.classList.contains('lyrics-overlay-open');
-        const selectors = ['#lyricsContent .lyrics-line', '#lyricsOverlayContent .lyrics-line'];
-        for (const selector of selectors) {
-            const isOverlay = selector.includes('lyricsOverlayContent');
-            document.querySelectorAll(selector).forEach((element, index) => {
-                const htmlElement = /** @type {HTMLElement} */ (element);
-                const isActive = index === activeIndex && activeIndex >= 0;
-                htmlElement.classList.toggle('is-active', isActive);
-                if (isOverlay) {
-                    htmlElement.classList.toggle('is-next', activeIndex >= 0 && index === activeIndex + 1);
-                }
-                const shouldScroll = overlayOpen
-                    ? isOverlay
-                    : !isOverlay;
-                if (isActive && shouldScroll) {
-                    const container = htmlElement.closest('.lyrics-overlay-content, .lyrics-content');
-                    if (container) {
-                        const containerRect = container.getBoundingClientRect();
-                        const elRect = htmlElement.getBoundingClientRect();
-                        const offset = elRect.top - containerRect.top - (containerRect.height / 2) + (elRect.height / 2);
-                        container.scrollBy({ top: offset, behavior: force ? 'auto' : 'smooth' });
-                    }
-                }
-            });
-        }
-    }
-
-    /** @param {PlaylistItem} item */
-    hydrateItemLyricsFromCache(item) {
-        const cacheKeys = this.getLyricsCacheKeysForItem(item);
-        for (const key of cacheKeys) {
-            const cached = this.lyricsCache[key];
-            if (cached && this.cachedLyricsMatchesItem(cached, item)) {
-                item.lyricsData = cached;
-                item.lyricsStatus = 'ready';
-                return true;
-            }
+            this.saveFavorites();
+            return true;
         }
         return false;
     }
 
-    /**
-     * @param {LyricsResult} cached
-     * @param {PlaylistItem} item
-     */
-    cachedLyricsMatchesItem(cached, item) {
-        const candidates = this.buildLyricsLookupCandidates(item);
-        const expectedDuration = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-        const cachedDuration = Math.round(cached.duration || 0);
-        const durationMatches = expectedDuration === 0 || cachedDuration === 0 || Math.abs(expectedDuration - cachedDuration) <= 8;
-
-        return candidates.some(candidate => {
-            const titleScore = this.tokenSimilarity(cached.trackName || '', candidate.title);
-            const artistScore = candidate.artist ? this.tokenSimilarity(cached.artistName || '', candidate.artist) : 0.55;
-            return titleScore >= 0.72 && artistScore >= 0.5 && durationMatches;
-        });
+    isFavorite(videoId) {
+        return !!this.favorites[videoId];
     }
 
-    /**
-     * @param {PlaylistItem} item
-     * @param {LyricsResult} lyricsData
-     */
-    persistLyricsForItem(item, lyricsData) {
-        const durationSeconds = Math.round(lyricsData.duration || item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-        const keys = new Set(this.getLyricsCacheKeysForItem(item));
-        keys.add(this.buildLyricsCacheKey(lyricsData.artistName, lyricsData.trackName, durationSeconds));
-        for (const key of keys) {
-            this.lyricsCache[key] = lyricsData;
-        }
-        this.saveLyricsCache();
-    }
-
-    /** @param {PlaylistItem} item */
-    getLyricsCacheKeysForItem(item) {
-        const durationSeconds = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-        return this.buildLyricsLookupCandidates(item).map(candidate =>
-            this.buildLyricsCacheKey(candidate.artist, candidate.title, durationSeconds)
-        );
-    }
-
-    /**
-     * @param {string} artist
-     * @param {string} title
-     * @param {number} durationSeconds
-     */
-    buildLyricsCacheKey(artist, title, durationSeconds) {
-        return `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}|${Math.max(0, Math.round(durationSeconds || 0))}`;
-    }
-
-    /** @param {PlaylistItem} item */
-    refreshLyricsRowButton(item) {
-        const row = document.querySelector(`[data-item-id="${item.id}"]`);
-        const button = /** @type {HTMLButtonElement | null} */ (row?.querySelector('.lyrics-row-btn'));
-        if (!button) return;
-        const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-        const lyricsLoading = item.lyricsStatus === 'loading';
-        const lyricsNotFound = item.lyricsStatus === 'not_found';
-        const lyricsError = item.lyricsStatus === 'error';
-        button.classList.toggle('ready', lyricsReady);
-        button.classList.toggle('not-found', lyricsNotFound || lyricsError);
-        if (lyricsLoading) {
-            button.textContent = '...';
-        } else if (lyricsReady) {
-            button.textContent = 'L';
-        } else if (lyricsNotFound) {
-            button.textContent = '--';
-        } else if (lyricsError) {
-            button.textContent = '!';
-        } else {
-            button.textContent = 'Get';
-        }
-        button.setAttribute('aria-label', lyricsReady ? 'Show cached lyrics' : (lyricsNotFound ? 'Lyrics not found' : 'Get lyrics'));
-        if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
-            this.updateBigLyricsAvailability();
-        }
-    }
-
-    /** @param {string} text */
     showClaudeResponse(text) {
         // Log to messages panel instead of showing in main UI
         this.addMessage('claude', 'Claude Response:', text);
@@ -3195,7 +1084,6 @@ If the request is not about music, return an empty array [].`;
         // No-op, responses go to messages panel
     }
 
-    /** @param {string} promptText */
     showPrompt(promptText) {
         // Log to messages panel instead of showing in main UI
         this.addMessage('claude', 'Prompt:', promptText);
