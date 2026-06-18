@@ -1,11 +1,26 @@
 /* The stage is what you read while singing: it stays pinned under the
    transport row so scrolling the controls never hides the phrase. */
+body[data-page="phrases"] .voice-controls-row {
+    justify-content: flex-start;
+    min-height: 72px;
+    padding-left: 8px;
+}
+
+body[data-page="phrases"] .voice-controls-row .stop-button,
+body[data-page="phrases"] .voice-controls-row .play-button,
+body[data-page="phrases"] .voice-controls-row .next-button,
+body[data-page="phrases"] .voice-controls-row .repeat-button {
+    height: 72px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
 .phrase-stage {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
-    gap: 4px;
+    gap: 0;
     min-height: 0;
     margin: 6px 0 10px;
     padding: 8px 12px 6px;
@@ -73,10 +88,10 @@
 .phrase-degrees-large {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: var(--phrase-note-cell-width, 42px);
+    grid-auto-columns: var(--phrase-staff-note-step, var(--phrase-note-cell-width, 46px));
     align-items: stretch;
-    justify-content: safe center;
-    gap: clamp(3px, 0.9vw, 7px);
+    justify-content: start;
+    gap: 0;
     width: min(100%, 100vw - 24px);
     max-width: 100%;
     overflow-x: auto;
@@ -86,7 +101,7 @@
     font-size: clamp(1rem, 5vw, 2.9rem);
     font-weight: 800;
     line-height: 1.05;
-    padding: 1px 2px 4px;
+    padding: 1px 2px 0 var(--phrase-staff-grid-pad, 2px);
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
 }
@@ -97,20 +112,32 @@
 
 .phrase-note-column {
     display: grid;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: 31px 1.05em 1.1em;
     align-items: center;
     justify-items: center;
-    gap: 2px;
+    gap: 0;
     min-width: 0;
 }
 
-/* Each degree number is itself the mute toggle (tap or drag across). */
+.phrase-degrees-large:not(.phrase-degrees-show-names) .phrase-note-column {
+    grid-template-rows: 31px 1.05em;
+}
+
+.phrase-degrees-large:not(.phrase-degrees-show-play).phrase-degrees-show-names .phrase-note-column {
+    grid-template-rows: 1.05em 1.1em;
+}
+
+.phrase-degrees-large:not(.phrase-degrees-show-play):not(.phrase-degrees-show-names) .phrase-note-column {
+    grid-template-rows: 1.05em;
+}
+
 .phrase-degree-token {
-    width: 100%;
+    width: auto;
     min-width: 0;
-    padding: 0;
-    border: none;
-    background: none;
+    padding: 0 3px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
     color: inherit;
     font: inherit;
     text-align: center;
@@ -119,28 +146,36 @@
     cursor: pointer;
     user-select: none;
     touch-action: none;
+    transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.phrase-degree-token:hover {
+    background: rgba(134, 239, 172, 0.16);
+    color: #bbf7d0;
+}
+
+.phrase-degree-token:active {
+    transform: scale(0.94);
 }
 
 .phrase-note-play-token {
-    width: min(28px, 100%);
-    height: 22px;
+    width: min(38px, calc(100% - 4px));
+    height: 29px;
     padding: 0;
-    border: 1px solid rgba(134, 239, 172, 0.42);
-    border-radius: 999px;
-    background: rgba(22, 101, 52, 0.68);
+    border: 0;
+    border-radius: 11px;
+    background: rgba(22, 101, 52, 0.74);
     color: #dcfce7;
-    font-size: 0.65rem;
+    font-size: 0.82rem;
     line-height: 1;
     cursor: pointer;
+    transition: background-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 
 .phrase-note-play-token:hover {
-    border-color: rgba(187, 247, 208, 0.7);
     background: rgba(34, 197, 94, 0.78);
-}
-
-.phrase-note-play-token:active {
-    transform: scale(0.94);
+    box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.16);
+    transform: translateY(-1px);
 }
 
 .phrase-note-name-token {
@@ -172,7 +207,6 @@
 }
 
 .phrase-note-column.inactive .phrase-note-play-token {
-    border-color: rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -214,6 +248,23 @@
     background: transparent;
 }
 
+.phrase-control-card-shape {
+    order: 2;
+}
+
+.phrase-control-card-numbers {
+    order: 1;
+    flex-basis: 100%;
+}
+
+.phrase-control-card-output {
+    order: 3;
+}
+
+.phrase-lesson-row[hidden] {
+    display: none;
+}
+
 .phrase-pitch-step-field {
     margin-bottom: 0;
 }
@@ -224,16 +275,37 @@
 }
 
 .phrase-algo-row,
-.phrase-scale-row {
+.phrase-scale-row,
+.phrase-genre-row {
     max-width: min(100%, 430px);
 }
 
 .phrase-algo-row .vf-btn,
 .phrase-scale-row .vf-btn,
+.phrase-genre-row .vf-btn,
 .phrase-control-card-output .vf-btn {
     min-width: 64px;
     padding-left: 8px;
     padding-right: 8px;
+}
+
+.lesson-locked {
+    position: relative;
+    box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.46);
+}
+
+.lesson-locked::after {
+    content: "lesson";
+    position: absolute;
+    right: 4px;
+    top: -7px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: rgba(14, 116, 144, 0.92);
+    color: #cffafe;
+    font-size: 9px;
+    line-height: 13px;
+    pointer-events: none;
 }
 
 .phrase-control-card-output .segment-row {
@@ -297,17 +369,18 @@
     display: flex;
     justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 6px;
     width: 100%;
 }
 
 .phrase-stage-btn {
-    min-height: 48px;
-    padding: 12px 16px;
+    min-height: 34px;
+    padding: 7px 12px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    border-radius: 7px;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
+    font-size: 0.82rem;
     font-weight: 700;
     cursor: pointer;
 }

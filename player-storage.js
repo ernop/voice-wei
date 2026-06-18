@@ -38,6 +38,11 @@ function isLyricsCacheRecord(value) {
     return isPlainObject(value);
 }
 
+/** @param {unknown} value @returns {value is SongLibraryStore} */
+function isSongLibraryStore(value) {
+    return isPlainObject(value) && Array.isArray(/** @type {{ songs?: unknown }} */ (value).songs);
+}
+
 /** @param {unknown} value @returns {value is Partial<LyricsViewSettings>} */
 function isLyricsViewSettings(value) {
     return isPlainObject(value);
@@ -58,6 +63,15 @@ const PlayerStorage = (function () {
     /** @param {Record<string, FavoriteData>} favorites */
     function saveFavorites(favorites) {
         SettingsStore.saveJson(StorageKeys.PLAYER_FAVORITES, favorites);
+    }
+
+    function loadSongLibrary() {
+        return SettingsStore.loadJson(StorageKeys.PLAYER_SONG_LIBRARY, { songs: [] }, isSongLibraryStore);
+    }
+
+    /** @param {SongLibraryStore} library */
+    function saveSongLibrary(library) {
+        SettingsStore.saveJson(StorageKeys.PLAYER_SONG_LIBRARY, library);
     }
 
     function loadLyricsCache() {
@@ -121,6 +135,8 @@ const PlayerStorage = (function () {
     return {
         loadFavorites,
         saveFavorites,
+        loadSongLibrary,
+        saveSongLibrary,
         loadLyricsCache,
         saveLyricsCache,
         loadLyricsViewSettings,

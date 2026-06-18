@@ -63,14 +63,27 @@ gap, play tones, return to degree 1.
   loops it, **Next** generates a new one, **Stop** stops everything.
 - **Reflect** flips the current phrase around the octave (up-from-1
   becomes down-from-8). A view/playback transform, not a regeneration.
+- **Style + Lesson** selects the generator family: **free** keeps the older
+  motion algorithms, **staff read** drills beginner staff-reading shapes,
+  **sight sing** drills progressive scale-degree sets, and **barbershop**
+  drills chord-tone functions. **Genre** adds broader melodic studies such
+  as folk/hymn, pop hook, theatre, jazz, gospel, classical, fingerpicked
+  folk, Beatles-style compact hooks, Simon/Garfunkel-style folk contours,
+  modal folk, calypso, norteño, cantopop, klezmer, and modal/minor color.
+  The named song-adjacent lessons use abstract contour/arpeggio tendencies,
+  not copied melodies.
+- Choosing a style or lesson applies its preset defaults and marks the
+  affected controls as lesson-owned. Clicking one of those marked controls
+  unlocks just that control and keeps the new combination; choosing a style
+  or lesson again reapplies the preset.
 - **Per-note on/off markers** under the degrees isolate phrase sections by
   click or drag without losing the phrase.
 - **Breakdown** starts from first/last plus one random interior note, then
   adds one note from the largest remaining gap between automatic replays.
   Turn **auto-advance** off to repeat the current subset until **add note**
   advances to the next subset.
-- **Accidental rate** optionally inserts conventional chromatic passing
-  tones between whole-step scale degrees at a low controlled rate.
+- **Accidental rate** optionally chooses conventional chromatic passing
+  tones instead of normal scale-degree targets at a low controlled rate.
 - **Fill modes** add invisible tone-only notes during playback: **full
   fill** walks the scale between displayed notes, and **1358 fill** adds
   only root/third/fifth/octave path notes when they lie between them.

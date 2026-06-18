@@ -562,6 +562,47 @@ const PatternPracticeCore = (function () {
         return addPhraseAnchors(offsets, options);
     }
 
+    /** @param {number[]} values @param {number} min @param {number} max */
+    function boundedDegreeSet(values, min, max) {
+        const out = Array.from(new Set(values.map(value => clamp(value, min, max)))).sort((a, b) => a - b);
+        return out.length ? out : [min];
+    }
+
+    /**
+     * @param {number[]} allowed
+     * @param {number} current
+     */
+    function nearestAllowed(allowed, current) {
+        return allowed.reduce((best, value) =>
+            Math.abs(value - current) < Math.abs(best - current) ? value : best,
+        allowed[0]);
+    }
+
+    /**
+     * @param {number[]} allowed
+     * @param {number} current
+     * @param {'step' | 'skip' | 'mixed' | 'chord'} motion
+     */
+    function nextLessonOffset(allowed, current, motion) {
+        const index = Math.max(0, allowed.indexOf(current));
+        if (motion === 'step') {
+            const choices = [allowed[index - 1], allowed[index + 1]].filter(value => value !== undefined);
+            return choices.length ? randomChoice(choices) : current;
+        }
+        if (motion === 'skip') {
+            const skips = [allowed[index - 2], allowed[index + 2]].filter(value => value !== undefined);
+            if (skips.length && Math.random() < 0.82) return randomChoice(skips);
+            const steps = [allowed[index - 1], allowed[index + 1]].filter(value => value !== undefined);
+            return steps.length ? randomChoice(steps) : randomChoice(allowed);
+        }
+        if (motion === 'chord') {
+            const far = allowed.filter(value => Math.abs(value - current) >= 2);
+            return far.length ? randomChoice(far) : allowed[randomIntExcluding(0, allowed.length - 1, index)];
+        }
+        const near = allowed.filter(value => Math.abs(value - current) <= 2 && value !== current);
+        return (near.length && Math.random() < 0.76) ? randomChoice(near) : randomChoice(allowed);
+    }
+
     /**
      * @param {{
      *   scaleType: string,
@@ -571,11 +612,198 @@ const PatternPracticeCore = (function () {
      *   maxLength: number,
      *   returnToInitial: boolean,
      *   returnToRoot: boolean,
-     *   phraseAlgo?: string
+     *   phraseStyle?: string,
+     *   phraseLesson?: string
+     * }} options
+     * @param {number[]} allowedDegrees
+     * @param {'step' | 'skip' | 'mixed' | 'chord'} motion
+     */
+    function generateAllowedDegreeLesson(options, allowedDegrees, motion) {
+        const { minOffset, maxOffset, length, initial } = phraseSeed(options);
+        const allowed = boundedDegreeSet(allowedDegrees, minOffset, maxOffset);
+        const offsets = [nearestAllowed(allowed, initial)];
+        while (offsets.length < length) {
+            let next = nextLessonOffset(allowed, offsets[offsets.length - 1], motion);
+            if (next === offsets[offsets.length - 1] && allowed.length > 1) {
+                next = allowed[randomIntExcluding(0, allowed.length - 1, allowed.indexOf(next))];
+            }
+            offsets.push(next);
+        }
+        return addPhraseAnchors(offsets, options);
+    }
+
+    /** @param {number[]} pattern @param {number} length */
+    function repeatPattern(pattern, length) {
+        const out = [];
+        for (let i = 0; out.length < length; i++) out.push(pattern[i % pattern.length]);
+        return out;
+    }
+
+    /** @param {{ minLength: number, maxLength: number }} options */
+    function requestedLength(options) {
+        const minLength = clamp(Math.round(options.minLength), 1, 32);
+        const maxLength = clamp(Math.max(Math.round(options.maxLength), minLength), minLength, 64);
+        return randomInt(minLength, maxLength);
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseStyle?: string,
+     *   phraseLesson?: string
+     * }} options
+     */
+    function generateStaffReadingOffsets(options) {
+        const lesson = options.phraseLesson || 'staff_steps';
+        if (lesson === 'staff_skips') return generateAllowedDegreeLesson(options, [0, 2, 4, 6], 'skip');
+        if (lesson === 'staff_mixed') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5], 'mixed');
+        if (lesson === 'staff_landmarks') return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'mixed');
+        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'step');
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseLesson?: string
+     * }} options
+     */
+    function generateSightSingingOffsets(options) {
+        const lesson = options.phraseLesson || 'sight_pentachord';
+        if (lesson === 'sight_do_re') return generateAllowedDegreeLesson(options, [0, 1], 'step');
+        if (lesson === 'sight_triad') return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'chord');
+        if (lesson === 'sight_cadence') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 1, 2, 3, 4, 3, 2, 1],
+                [0, 2, 4, 3, 1],
+                [4, 3, 2, 1, 0],
+                [0, 3, 4, 2, 1]
+            ]), length), options);
+        }
+        if (lesson === 'sight_minor') return generateAllowedDegreeLesson({ ...options, scaleType: 'minor' }, [0, 1, 2, 3, 4, 5], 'mixed');
+        if (lesson === 'sight_altered') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'step');
+        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'mixed');
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseLesson?: string
+     * }} options
+     */
+    function generateBarbershopOffsets(options) {
+        const lesson = options.phraseLesson || 'barber_tonic';
+        if (lesson === 'barber_dominant') return generateAllowedDegreeLesson(options, [4, 6, 1, 3], 'chord');
+        if (lesson === 'barber_subdominant') return generateAllowedDegreeLesson(options, [3, 5, 0], 'chord');
+        if (lesson === 'barber_thirds') return generateAllowedDegreeLesson(options, [0, 2, 4, 2, 3, 2], 'mixed');
+        if (lesson === 'barber_sevenths') return generateAllowedDegreeLesson(options, [4, 6, 1, 3, 6], 'chord');
+        return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'chord');
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseLesson?: string
+     * }} options
+     */
+    function generateGenreOffsets(options) {
+        const lesson = options.phraseLesson || 'genre_folk_hymn';
+        if (lesson === 'genre_pop_hook') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5], 'mixed');
+        if (lesson === 'genre_theatre') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6, 7], 'mixed');
+        if (lesson === 'genre_jazz') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5, 6], 'chord');
+        if (lesson === 'genre_gospel') return generateAllowedDegreeLesson(options, [0, 2, 3, 4, 5, 6], 'mixed');
+        if (lesson === 'genre_classical') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 1, 2, 3, 1, 2, 3, 4],
+                [0, 2, 4, 1, 3, 5],
+                [4, 3, 2, 1, 3, 2, 1, 0]
+            ]), length), options);
+        }
+        if (lesson === 'genre_blackbird_folk') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 4, 1, 5, 2, 4, 1, 3],
+                [0, 2, 5, 4, 1, 3, 4, 2],
+                [2, 0, 4, 1, 5, 2, 4, 0]
+            ]), length), options);
+        }
+        if (lesson === 'genre_hello_pop') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 1, 2, 3, 4, 2, 1, 0],
+                [4, 5, 2, 0, 2, 4, 5, 4],
+                [0, 2, 4, 5, 2, 0, 1, 2]
+            ]), length), options);
+        }
+        if (lesson === 'genre_simon_folk') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 2, 4, 3, 1, 0, 2, 1],
+                [4, 3, 2, 0, 1, 2, 3, 1],
+                [0, 1, 3, 4, 3, 1, 2, 0]
+            ]), length), options);
+        }
+        if (lesson === 'genre_scarborough_modal') {
+            const length = requestedLength(options);
+            return addPhraseAnchors(repeatPattern(randomChoice([
+                [0, 1, 3, 4, 3, 1, 0, 1],
+                [3, 4, 5, 3, 1, 0, 1, 3],
+                [0, 3, 4, 3, 1, 0, 1, 0]
+            ]), length), options);
+        }
+        if (lesson === 'genre_calypso') return generateAllowedDegreeLesson(options, [0, 2, 4, 5, 7], 'mixed');
+        if (lesson === 'genre_norteno') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'skip');
+        if (lesson === 'genre_cantopop') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5], 'step');
+        if (lesson === 'genre_klezmer') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'mixed');
+        if (lesson === 'genre_modal') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'mixed');
+        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6, 7], 'mixed');
+    }
+
+    /**
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseAlgo?: string,
+     *   phraseStyle?: string,
+     *   phraseLesson?: string
      * }} options
      * @returns {number[]}
      */
     function generatePhraseOffsets(options) {
+        if (options.phraseStyle === 'staff') return generateStaffReadingOffsets(options);
+        if (options.phraseStyle === 'sight') return generateSightSingingOffsets(options);
+        if (options.phraseStyle === 'barbershop') return generateBarbershopOffsets(options);
+        if (options.phraseStyle === 'genre') return generateGenreOffsets(options);
         if (options.phraseAlgo === 'random') return generateRandomOffsets(options);
         if (options.phraseAlgo === 'stepwise') return generateStepwiseOffsets(options);
         if (options.phraseAlgo === 'leapy') return generateLeapyOffsets(options);
@@ -725,6 +953,10 @@ const PatternPracticeCore = (function () {
         buildSequenceNotes,
         midiToSpeechPitch,
         generatePhraseOffsets,
+        generateStaffReadingOffsets,
+        generateSightSingingOffsets,
+        generateBarbershopOffsets,
+        generateGenreOffsets,
         generateClusteredOffsets,
         reflectOffsets,
         generatePhrase

@@ -1,32 +1,36 @@
 // @ts-check
 // Shared helpers for the headless browser test suite.
 // Requires the dev server (tests/run-all.js starts one, or run
-// `python3 -m http.server 8000` yourself) and Chrome installed.
+// `python3 -m http.server 8000` yourself) and a supported browser installed.
 
-const { chromium } = require('playwright');
+const { chromium, firefox } = require('playwright');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:8000';
+const TEST_BROWSER = process.env.TEST_BROWSER || 'chrome';
 
 function launchOptions(extraArgs = []) {
     /** @type {import('playwright').LaunchOptions} */
-    const options = {
-        args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', ...extraArgs]
-    };
-    if (process.env.CHROME_PATH) {
-        options.executablePath = process.env.CHROME_PATH;
+    const options = {};
+    if (TEST_BROWSER === 'firefox') {
+        if (process.env.FIREFOX_PATH) options.executablePath = process.env.FIREFOX_PATH;
     } else {
-        options.channel = 'chrome';
+        options.args = ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', ...extraArgs];
+        if (process.env.CHROME_PATH) {
+            options.executablePath = process.env.CHROME_PATH;
+        } else {
+            options.channel = 'chrome';
+        }
     }
     return options;
 }
 
 function launch() {
-    return chromium.launch(launchOptions());
+    return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions());
 }
 
 // Fake microphone (emits a tone) for pages that listen.
 function launchWithMic() {
-    return chromium.launch(launchOptions([
+    return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions([
         '--use-fake-device-for-media-stream',
         '--use-fake-ui-for-media-stream'
     ]));

@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=129">
-    <link rel="stylesheet" href="practice-controls.css?v=129">
+    <link rel="stylesheet" href="style.css?v=131">
+    <link rel="stylesheet" href="practice-controls.css?v=131">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -134,6 +134,26 @@
                 <button id="loadFavoritesBtnMain" class="quick-action-btn">Load Favorites</button>
             </div>
 
+            <section class="song-library-panel" aria-labelledby="songLibraryTitle">
+                <div class="song-library-header">
+                    <div>
+                        <h2 id="songLibraryTitle">Local Song Library</h2>
+                        <p>Import MIDI or MusicXML melody files. Notes and lyrics stay saved in this browser.</p>
+                    </div>
+                    <div class="song-library-actions">
+                        <input id="songLibraryImportInput" type="file" accept=".mid,.midi,.musicxml,.xml" multiple hidden>
+                        <button id="songLibraryImportBtn" class="quick-action-btn" type="button">Load Songs</button>
+                        <button id="songLibraryStopBtn" class="quick-action-btn song-library-stop" type="button">Stop Melody</button>
+                    </div>
+                </div>
+                <div class="song-library-toolbar">
+                    <input type="search" id="songLibrarySearch" class="text-input song-library-search"
+                        placeholder="Search saved songs, filenames, lyrics, or format">
+                    <span id="songLibraryCount" class="song-library-count">0 saved</span>
+                </div>
+                <div id="songLibraryList" class="song-library-list"></div>
+            </section>
+
             <div class="playlist-container" id="playlistContainer" style="display: none;">
                 <div class="playlist-header">
                     <span class="playlist-label" id="playlistLabel">Playlist:</span>
@@ -228,21 +248,25 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="dev-error-monitor.js?v=129"></script>
-    <script src="app-version.js?v=129"></script>
-    <script src="storage-keys.js?v=129"></script>
-    <script src="shared-header.js?v=129"></script>
-    <script src="settings-store.js?v=129"></script>
-    <script src="api-keys-store.js?v=129"></script>
-    <script src="practice-controls.js?v=129"></script>
-    <script src="voice-output.js?v=129"></script>
-    <script src="voice-command-core.js?v=129"></script>
-    <script src="player-storage.js?v=129"></script>
-    <script src="player-api-keys.js?v=129"></script>
-    <script src="player-commands.js?v=129"></script>
-    <script src="player-playlist.js?v=129"></script>
-    <script src="player-lyrics.js?v=129"></script>
-    <script src="player.js?v=129"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="dev-error-monitor.js?v=131"></script>
+    <script src="app-version.js?v=131"></script>
+    <script src="storage-keys.js?v=131"></script>
+    <script src="shared-header.js?v=131"></script>
+    <script src="settings-store.js?v=131"></script>
+    <script src="music-constants.js?v=131"></script>
+    <script src="piano-core.js?v=131"></script>
+    <script src="api-keys-store.js?v=131"></script>
+    <script src="practice-controls.js?v=131"></script>
+    <script src="voice-output.js?v=131"></script>
+    <script src="voice-command-core.js?v=131"></script>
+    <script src="player-storage.js?v=131"></script>
+    <script src="player-api-keys.js?v=131"></script>
+    <script src="player-commands.js?v=131"></script>
+    <script src="player-playlist.js?v=131"></script>
+    <script src="player-lyrics.js?v=131"></script>
+    <script src="player-song-library.js?v=131"></script>
+    <script src="player.js?v=131"></script>
 </body>
 
 </html>

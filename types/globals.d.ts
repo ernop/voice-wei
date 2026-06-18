@@ -53,6 +53,7 @@ interface Window {
     PlayerCommands?: typeof PlayerCommands;
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerLyrics?: typeof PlayerLyrics;
+    PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
@@ -96,6 +97,7 @@ interface Window {
             showNoteNames: boolean;
             showPlayRow: boolean;
             showStaff: boolean;
+            lessonLockedKeys: string[];
         };
         panel: any;
     };

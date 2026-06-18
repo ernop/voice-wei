@@ -407,6 +407,96 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const savedAlgo = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.phraseAlgo);
         report.check('phrases algorithm persists', savedAlgo === 'arch');
 
+        const lessonFamilies = await tab.evaluate(() => {
+            const staff = PatternPracticeCore.generatePhraseOffsets({
+                scaleType: 'major', phraseStyle: 'staff', phraseLesson: 'staff_steps',
+                phraseAlgo: 'balanced', startAtOne: true, rangeMode: 'within',
+                minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                accidentalRate: 0
+            });
+            const sight = PatternPracticeCore.generatePhraseOffsets({
+                scaleType: 'major', phraseStyle: 'sight', phraseLesson: 'sight_pentachord',
+                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                accidentalRate: 0
+            });
+            const barber = PatternPracticeCore.generatePhraseOffsets({
+                scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_dominant',
+                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                accidentalRate: 0
+            });
+            const staffStepsOnly = staff.slice(1).every((offset, index) => Math.abs(offset - staff[index]) === 1);
+            const sightInPentachord = sight.every(offset => [0, 1, 2, 3, 4].includes(offset));
+            const barberDominant = barber.every(offset => [1, 3, 4, 6].includes(offset));
+            return { staffStepsOnly, sightInPentachord, barberDominant };
+        });
+        report.check('phrases style lessons constrain generated degrees',
+            lessonFamilies.staffStepsOnly && lessonFamilies.sightInPentachord && lessonFamilies.barberDominant);
+        await tab.click('[data-phrase-style="barbershop"]');
+        await tab.waitForTimeout(200);
+        await tab.click('[data-phrase-lesson="barber_dominant"]');
+        await tab.waitForTimeout(200);
+        const savedLesson = await tab.evaluate(() => {
+            const saved = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS);
+            return saved && saved.phraseStyle === 'barbershop' && saved.phraseLesson === 'barber_dominant';
+        });
+        report.check('phrases style and lesson persist', savedLesson);
+        const lessonPresetState = await tab.evaluate(() => {
+            const saved = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS);
+            return {
+                fillMode: saved?.fillMode,
+                lockedFill: saved?.lessonLockedKeys?.includes('fillMode') === true,
+                lockedMarker: document.getElementById('fillChordBtn').classList.contains('lesson-locked')
+            };
+        });
+        report.check('phrases lesson preset applies defaults and marks locked controls',
+            lessonPresetState.fillMode === 'chord' && lessonPresetState.lockedFill && lessonPresetState.lockedMarker);
+        await tab.click('#fillChordBtn');
+        await tab.waitForTimeout(200);
+        const lessonUnlockState = await tab.evaluate(() => {
+            const saved = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS);
+            return {
+                fillMode: saved?.fillMode,
+                lockedFill: saved?.lessonLockedKeys?.includes('fillMode') === true,
+                lockedMarker: document.getElementById('fillChordBtn').classList.contains('lesson-locked')
+            };
+        });
+        report.check('phrases clicking lesson-owned control unlocks user override',
+            lessonUnlockState.fillMode === 'none' && !lessonUnlockState.lockedFill && !lessonUnlockState.lockedMarker);
+
+        const genreLesson = await tab.evaluate(() => {
+            const phrase = PatternPracticeCore.generatePhraseOffsets({
+                scaleType: 'major', phraseStyle: 'genre', phraseLesson: 'genre_pop_hook',
+                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                accidentalRate: 0
+            });
+            return phrase.every(offset => [0, 1, 2, 3, 4, 5].includes(offset));
+        });
+        report.check('phrases genre lessons generate their own degree sets', genreLesson);
+
+        const songInspiredLessons = await tab.evaluate(() => {
+            const lessons = [
+                'genre_blackbird_folk',
+                'genre_hello_pop',
+                'genre_simon_folk',
+                'genre_scarborough_modal'
+            ];
+            return lessons.every(phraseLesson => {
+                const phrase = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseStyle: 'genre', phraseLesson,
+                    phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                    minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                    accidentalRate: 0
+                });
+                return phrase.length === 8
+                    && phrase.every(offset => offset >= 0 && offset <= 5)
+                    && phrase.slice(1).every((offset, index) => offset !== phrase[index]);
+            });
+        });
+        report.check('phrases song-inspired lessons stay abstract and bounded', songInspiredLessons);
+
         // Motif is a transposed shape, not a wandering walk: the leading
         // interval shape must be restated verbatim later in the phrase
         // (away from range edges, where bounding may distort it).
@@ -514,6 +604,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return NotationSpelling.vexKeySignature('D#', 'major') === 'Eb'
                 && NotationSpelling.vexKeySignature('A', 'minor') === 'Am'
                 && NotationSpelling.midiToVexKey(51) === 'd#/3'
+                && NotationSpelling.midiToVexKey(54, 'b') === 'gb/3'
                 && NotationSpelling.clefForPhrase(51, [51, 53, 55]) === 'bass'
                 && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';
         });

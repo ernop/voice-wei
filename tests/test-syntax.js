@@ -35,5 +35,17 @@ function collectJsFiles(dir, out) {
         }
     }
 
+    const staffView = fs.readFileSync(path.join(ROOT, 'staff-view.js'), 'utf8');
+    const manualAccidental = /addAccidental|new\s+VF\.Accidental/.test(staffView);
+    report.check('staff notation lets VexFlow own accidental glyph layout', !manualAccidental);
+    if (manualAccidental) {
+        report.errors.push('staff-view.js must not manually attach accidental glyphs; spell keys and use applyAccidentals once');
+    }
+    const usesQuarterNotes = /duration:\s*'q'/.test(staffView);
+    report.check('staff notation renders phrase pitches as quarter notes', usesQuarterNotes);
+    if (!usesQuarterNotes) {
+        report.errors.push('staff-view.js should use quarter-note glyphs for the phrase staff');
+    }
+
     report.finish();
 })();

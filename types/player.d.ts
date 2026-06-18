@@ -72,6 +72,41 @@ interface LyricsCacheStore {
     [cacheKey: string]: LyricsResult;
 }
 
+interface SongLibraryNote {
+    midi: number;
+    startMs: number;
+    endMs: number;
+    lyric?: string;
+    measure?: number;
+    beat?: number;
+    sourceTrack?: number;
+    sourceChannel?: number;
+}
+
+interface SongLibraryLyricLine {
+    timeMs: number;
+    text: string;
+}
+
+interface SongLibrarySong {
+    id: string;
+    title: string;
+    sourceType: 'midi' | 'musicxml';
+    sourceName: string;
+    importedAt: number;
+    favorite: boolean;
+    tempoBpm: number;
+    durationMs: number;
+    noteCount: number;
+    lyricsText: string;
+    lyricLines: SongLibraryLyricLine[];
+    notes: SongLibraryNote[];
+}
+
+interface SongLibraryStore {
+    songs: SongLibrarySong[];
+}
+
 interface AppConfig {
     claudeApiKey?: string;
     openaiApiKey?: string;
@@ -159,6 +194,14 @@ interface VoiceMusicController {
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];
     buildLyricsCacheKey(artist: string, title: string, durationSeconds: number): string;
     refreshLyricsRowButton(item: PlaylistItem): void;
+
+    songLibrary: SongLibraryStore;
+    setupSongLibraryUI(): void;
+    importSongLibraryFiles(files: FileList | File[]): Promise<void>;
+    renderSongLibrary(): void;
+    playLibrarySong(songId: string): Promise<void>;
+    stopLibrarySong(): void;
+    toggleLibrarySongFavorite(songId: string): void;
 }
 
 declare const PlayerCommands: {
@@ -170,6 +213,10 @@ declare const PlayerPlaylist: {
 };
 
 declare const PlayerLyrics: {
+    install(controller: VoiceMusicController): void;
+};
+
+declare const PlayerSongLibrary: {
     install(controller: VoiceMusicController): void;
 };
 

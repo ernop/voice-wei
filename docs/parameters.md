@@ -54,12 +54,14 @@ chooses a question range, not a root) and keeps its own range.
 | root | D# | C..B chromatic | reproject |
 | octave | 3 | via root stepper (shared C2-B5) | reproject |
 | scaleType | major | major, minor, chromatic, pentatonic, h minor, m minor | reproject |
+| phraseStyle | free | free, staff, sight, barbershop, genre | bounds-next |
+| phraseLesson | free_open | style-specific lesson buttons | bounds-next |
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
 | rangeMode | within | in octave / just over / out octave | bounds-next |
 | chromaticRuns | false | toggle - sometimes pass through the chromatic note between whole-step degrees (4 #4 5 up, 6 b6 5 down); only where such a note exists | bounds-next |
-| minLength | 5 | 2..16 list | bounds-next |
-| maxLength | 8 | 3..50 list | bounds-next |
+| minLength | 5 | 2..12, 14, 16 list | bounds-next |
+| maxLength | 8 | 3..12, 14, 16, then smaller long-phrase steps to 50 | bounds-next |
 | returnToInitial | true | return to 1 / no return | regenerate |
 | returnToRoot | false | (not in UI) | regenerate |
 | hearTones | true | toggle | redraw |
@@ -74,20 +76,33 @@ chooses a question range, not a root) and keeps its own range.
 | showNoteNames | true | toggle | redraw |
 | fillMode | none | off / full fill / 1358 fill | redraw |
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
+| lessonLockedKeys | [] | setting-key array | UI marker only |
 
 Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
 past each end (down to 6 of the octave below, up to 3 of the octave above
 for seven-note scales); "out octave" allows half an octave below to two
 octaves up.
 
-Algorithm modes choose the interior melodic behavior while start and return
-settings stay independent as anchors. "Arch" is the default because it gives
-new phrases a higher-level contour and midpoint climax; "balanced" is the
-original clustered random walk; "random" samples freely inside the range;
-"stepwise" emphasizes conjunct motion; "leapy" emphasizes disjunct motion with
-contrary-step compensation; "motif" repeats and varies a short contour cell.
-No generator emits the same note twice in a row - immediate repetition reads
-as a stutter; repeats only come from deliberate anchors.
+Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
+"staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);
+"sight" focuses on progressive vocal sight-singing degree sets; "barbershop"
+focuses on chord-tone functions; "genre" applies broader melodic studies such
+as folk/hymn, pop hook, theatre, jazz, gospel, classical sequence,
+fingerpicked folk, Beatles-style compact hooks, Simon/Garfunkel-style folk
+contours, modal folk, calypso, norteño, cantopop, klezmer, and modal/minor
+color. Algorithm modes still choose the interior melodic behavior in "free":
+"arch" gives a phrase-level contour and midpoint
+climax; "balanced" is the original clustered random walk; "random" samples
+freely; "stepwise" emphasizes conjunct motion; "leapy" emphasizes disjunct
+motion with contrary-step compensation; "motif" repeats and varies a short
+contour cell. No generator emits the same note twice in a row - immediate
+repetition reads as a stutter; repeats only come from deliberate anchors.
+
+Selecting a style or lesson applies its preset defaults and records those
+setting names in `lessonLockedKeys`. The lock is soft: it marks which controls
+the lesson currently owns, but clicking one of those controls removes that key
+from the lock list and keeps the user's override. Choosing any high-level
+style or lesson again reapplies that preset and resets the relevant locks.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
 octave), per-note on/off mask, add note (advance breakdown pass). The mask is

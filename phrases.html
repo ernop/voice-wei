@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Phrases - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=130">
-    <link rel="stylesheet" href="practice-controls.css?v=130">
-    <link rel="stylesheet" href="phrases.css?v=130">
+    <link rel="stylesheet" href="style.css?v=131">
+    <link rel="stylesheet" href="practice-controls.css?v=131">
+    <link rel="stylesheet" href="phrases.css?v=131">
 </head>
 
 <body data-page="phrases">
@@ -46,12 +46,12 @@
                 <div class="phrase-stage-meta">
                     <div class="phrase-notes-line" id="phraseNotes"></div>
                     <div class="phrase-stage-actions">
-                        <button id="reflectBtn" class="phrase-stage-btn" type="button" aria-pressed="false">Reflect Off</button>
                         <button id="allNotesBtn" class="phrase-stage-btn" type="button">All Notes</button>
+                        <button id="addNoteBtn" class="phrase-stage-btn" type="button" hidden>add note</button>
                         <button id="breakdownBtn" class="phrase-stage-btn" type="button" aria-pressed="false">breakdown</button>
                         <button id="autoStepBtn" class="phrase-stage-btn" type="button" aria-pressed="false">auto step</button>
                         <button id="playOnStepBtn" class="phrase-stage-btn" type="button" aria-pressed="false">play on step</button>
-                        <button id="addNoteBtn" class="phrase-stage-btn" type="button" hidden>add note</button>
+                        <button id="reflectBtn" class="phrase-stage-btn" type="button" aria-pressed="false">Reflect Off</button>
                     </div>
                 </div>
             </section>
@@ -107,25 +107,43 @@
                         <button class="vf-btn" data-phrase-style="staff" title="Beginner staff-reading patterns: steps, skips, and landmarks">staff read</button>
                         <button class="vf-btn" data-phrase-style="sight" title="Progressive vocal sight-singing degree sets">sight sing</button>
                         <button class="vf-btn" data-phrase-style="barbershop" title="Chord-tone and function drills for barbershop singing">barbershop</button>
+                        <button class="vf-btn" data-phrase-style="genre" title="Genre-flavored melodic studies">genre</button>
                     </div>
-                    <div class="segment-row phrase-lesson-row">
+                    <div class="segment-row phrase-lesson-row" data-lesson-family="staff">
                         <button class="vf-btn" data-phrase-lesson="staff_steps" title="Line-space stepwise staff reading">staff steps</button>
                         <button class="vf-btn" data-phrase-lesson="staff_skips" title="Line-line / space-space third motion">staff skips</button>
                         <button class="vf-btn" data-phrase-lesson="staff_mixed" title="Small staff-reading step and skip mix">staff mixed</button>
                         <button class="vf-btn" data-phrase-lesson="staff_landmarks" title="Landmark and chord-anchor note reading">landmarks</button>
                     </div>
-                    <div class="segment-row phrase-lesson-row">
+                    <div class="segment-row phrase-lesson-row" data-lesson-family="sight">
                         <button class="vf-btn" data-phrase-lesson="sight_do_re" title="Movable-do 1 and 2 only">1-2</button>
                         <button class="vf-btn" data-phrase-lesson="sight_pentachord" title="Degrees 1-5, mostly close motion">pentachord</button>
                         <button class="vf-btn" data-phrase-lesson="sight_triad" title="Tonic-triad sight singing">triad</button>
                         <button class="vf-btn" data-phrase-lesson="sight_cadence" title="Short phrase endings that pull back to 1">cadence</button>
                     </div>
-                    <div class="segment-row phrase-lesson-row">
+                    <div class="segment-row phrase-lesson-row" data-lesson-family="barbershop">
                         <button class="vf-btn" data-phrase-lesson="barber_tonic" title="Barbershop tonic chord tones: 1, 3, 5, 8">bs tonic</button>
                         <button class="vf-btn" data-phrase-lesson="barber_dominant" title="Dominant function: 5, 7, 2, 4">bs dominant</button>
                         <button class="vf-btn" data-phrase-lesson="barber_subdominant" title="Subdominant function: 4, 6, 1">bs subdom</button>
                         <button class="vf-btn" data-phrase-lesson="barber_thirds" title="Practice finding and returning to thirds">bs 3rds</button>
                         <button class="vf-btn" data-phrase-lesson="barber_sevenths" title="Practice dominant seventh chord members">bs 7ths</button>
+                    </div>
+                    <div class="segment-row phrase-lesson-row phrase-genre-row" data-lesson-family="genre">
+                        <button class="vf-btn" data-phrase-lesson="genre_folk_hymn" title="Stepwise folk/hymn-style diatonic lines">folk/hymn</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_pop_hook" title="Short pentatonic pop-hook shapes">pop hook</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_theatre" title="Wider musical-theatre-style phrase arcs">theatre</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_jazz" title="Chord-aware jazz-standard color tones">jazz</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_gospel" title="Pentatonic gospel/soul turns">gospel</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_classical" title="Small classical sequence patterns">classical</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_blackbird_folk" title="Abstract fingerpicked folk arpeggio contours, not a melody copy">blackbird-ish</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_hello_pop" title="Abstract compact Beatles-style call/answer hook contours">hello-ish</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_simon_folk" title="Abstract Simon/Garfunkel-style step-and-third folk contours">S&G folk</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_scarborough_modal" title="Abstract modal folk contour study">modal folk</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_calypso" title="Bright triad-and-sixth calypso shapes">calypso</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_norteno" title="Thirds-forward norteño-style motion">norteño</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_cantopop" title="Gentle pentatonic cantopop-style contours">cantopop</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_klezmer" title="Harmonic-minor klezmer color">klezmer</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_modal" title="Modal/minor color studies">modal</button>
                     </div>
                     <div class="segment-row phrase-anchor-row">
                         <button class="vf-btn" data-start-anchor="one">start at 1</button>
@@ -221,25 +239,25 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vexflow/3.0.9/vexflow-min.js"></script>
-    <script src="dev-error-monitor.js?v=130"></script>
-    <script src="app-version.js?v=130"></script>
-    <script src="storage-keys.js?v=130"></script>
-    <script src="shared-header.js?v=130"></script>
-    <script src="music-constants.js?v=130"></script>
-    <script src="voice-output.js?v=130"></script>
-    <script src="pattern-practice-core.js?v=130"></script>
-    <script src="piano-core.js?v=130"></script>
-    <script src="pitch-detect-core.js?v=130"></script>
-    <script src="pitch-trace-view.js?v=130"></script>
-    <script src="practice-controls.js?v=130"></script>
-    <script src="history-list.js?v=130"></script>
-    <script src="settings-store.js?v=130"></script>
-    <script src="progress-store.js?v=130"></script>
-    <script src="media-session-core.js?v=130"></script>
-    <script src="notation-spelling.js?v=130"></script>
-    <script src="staff-view.js?v=130"></script>
-    <script src="pitch-test-panel.js?v=130"></script>
-    <script src="phrases.js?v=130"></script>
+    <script src="dev-error-monitor.js?v=131"></script>
+    <script src="app-version.js?v=131"></script>
+    <script src="storage-keys.js?v=131"></script>
+    <script src="shared-header.js?v=131"></script>
+    <script src="music-constants.js?v=131"></script>
+    <script src="voice-output.js?v=131"></script>
+    <script src="pattern-practice-core.js?v=131"></script>
+    <script src="piano-core.js?v=131"></script>
+    <script src="pitch-detect-core.js?v=131"></script>
+    <script src="pitch-trace-view.js?v=131"></script>
+    <script src="practice-controls.js?v=131"></script>
+    <script src="history-list.js?v=131"></script>
+    <script src="settings-store.js?v=131"></script>
+    <script src="progress-store.js?v=131"></script>
+    <script src="media-session-core.js?v=131"></script>
+    <script src="notation-spelling.js?v=131"></script>
+    <script src="staff-view.js?v=131"></script>
+    <script src="pitch-test-panel.js?v=131"></script>
+    <script src="phrases.js?v=131"></script>
 </body>
 
 </html>

@@ -40,6 +40,8 @@ class VoiceMusicController {
         this.suppressAutoAdvanceUntil = 0;
         /** @type {Record<string, FavoriteData>} */
         this.favorites = PlayerStorage.loadFavorites();
+        /** @type {SongLibraryStore} */
+        this.songLibrary = PlayerStorage.loadSongLibrary();
         /** @type {LyricsCacheStore} */
         this.lyricsCache = PlayerStorage.loadLyricsCache();
         /** @type {Map<string, LyricsResult[] | null>} */
@@ -61,6 +63,7 @@ class VoiceMusicController {
         PlayerCommands.install(this);
         PlayerPlaylist.install(this);
         PlayerLyrics.install(this);
+        PlayerSongLibrary.install(this);
 
         this.init();
     }
@@ -706,6 +709,8 @@ class VoiceMusicController {
                 this.loadFavoritesToPlaylist();
             });
         }
+
+        this.setupSongLibraryUI();
 
         // Transport bar buttons (sticky playlist controls)
         const transportPrevBtn = document.getElementById('transportPrevBtn');

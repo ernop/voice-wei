@@ -14,7 +14,7 @@
         octave: 3,
         scaleType: 'major',
         phraseStyle: 'free',
-        phraseLesson: 'staff_steps',
+        phraseLesson: 'free_open',
         phraseAlgo: 'arch',
         startAtOne: true,
         rangeMode: 'within',
@@ -97,6 +97,10 @@
         genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15, fillMode: 'chord' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
         genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
         genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'full' }, locks: ['rangeMode', 'startAtOne', 'returnToInitial', 'fillMode'] },
+        genre_blackbird_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        genre_hello_pop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: false, returnToInitial: false, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'accidentalRate', 'fillMode'] },
+        genre_simon_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        genre_scarborough_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
         genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'accidentalRate', 'fillMode'] },
         genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
         genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
@@ -230,6 +234,8 @@
         degreesEl.textContent = '';
         degreesEl.classList.toggle('phrase-degrees-many', plan.length > 18);
         degreesEl.classList.toggle('phrase-degrees-empty', !state.showPlayRow && !state.showNumbers && !state.showNoteNames);
+        degreesEl.classList.toggle('phrase-degrees-show-play', state.showPlayRow);
+        degreesEl.classList.toggle('phrase-degrees-show-names', state.showNoteNames);
         degreesEl.style.setProperty('--phrase-note-count', String(plan.length));
         degreesEl.style.setProperty('--phrase-note-cell-width', plan.length > 18 ? '34px' : '42px');
         plan.forEach(note => {
@@ -253,14 +259,13 @@
             }
 
             if (state.showNumbers) {
-                // Degree numbers are still the mute toggle: tap to flip,
-                // drag across several to paint the same enabled state.
                 const token = document.createElement('button');
                 token.type = 'button';
                 token.className = 'phrase-degree-token';
                 token.dataset.index = String(note.index);
                 token.textContent = note.degree;
-                token.title = `${note.degree} ${note.noteName} - tap to mute/unmute`;
+                token.title = `${note.enabled ? 'Mute' : 'Unmute'} ${note.degree} ${note.noteName}`;
+                token.setAttribute('aria-label', `${note.enabled ? 'Mute' : 'Unmute'} ${note.noteName}`);
                 token.addEventListener('pointerdown', event => {
                     event.preventDefault();
                     isPointerToggling = true;
@@ -1027,6 +1032,10 @@
     function syncPhraseLessonControls() {
         PracticeControls.syncSingleSelect('data-phrase-style', state.phraseStyle);
         PracticeControls.syncSingleSelect('data-phrase-lesson', state.phraseLesson);
+        document.querySelectorAll('[data-lesson-family]').forEach(el => {
+            const row = /** @type {HTMLElement} */ (el);
+            row.hidden = row.dataset.lessonFamily !== state.phraseStyle;
+        });
     }
 
     /** @param {string} style */
@@ -1174,6 +1183,8 @@
         syncBreakdownControls();
         syncAnchorControls();
         syncAdjusterControls();
+        syncPhraseLessonControls();
+        syncLessonLocks();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],
             ['pause', () => { playCurrentOrNew(); }],
@@ -1196,6 +1207,7 @@
         if ('breakdownAutoAdvance' in saved && !('autoStep' in saved)) {
             state.autoStep = Boolean(saved.breakdownAutoAdvance);
         }
+        if (!Array.isArray(state.lessonLockedKeys)) state.lessonLockedKeys = [];
     }
 
     async function boot() {
@@ -1232,7 +1244,8 @@
                 showNumbers: state.showNumbers,
                 showNoteNames: state.showNoteNames,
                 showPlayRow: state.showPlayRow,
-                showStaff: state.showStaff
+                showStaff: state.showStaff,
+                lessonLockedKeys: state.lessonLockedKeys.slice()
             }),
             panel: testPanel
         };

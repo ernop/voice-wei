@@ -1,14 +1,14 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // STAFF VIEW
-// Renders a monophonic whole-note staff from a take plan + key context.
+// Renders a monophonic pitch staff from a take plan + key context.
 // Requires VexFlow 3 (CDN), music-constants.js, notation-spelling.js.
 //-----------------------------------------------------------------------
 
 const StaffView = (function () {
     'use strict';
 
-    const NOTE_WIDTH = 42;
+    const NOTE_WIDTH = 46;
     const STAVE_X = 12;
     const STAVE_Y = 8;
     const MIN_WIDTH = 220;
@@ -86,22 +86,19 @@ const StaffView = (function () {
 
             /** @type {any[]} */
             const tickables = plan.map((note, index) => {
-                const staveNote = new VF.StaveNote({
-                    keys: [NotationSpelling.midiToVexKey(note.midi)],
-                    duration: 'w',
-                    clef,
-                    stem_direction: VF.Stem.UP
-                });
-                staveNote.setStemDirection(VF.Stem.UP);
                 const accidental = NotationSpelling.passingAccidental(
                     note.offset,
                     PatternPracticeCore.degreesPerOctave(keyContext.scaleType),
                     index,
                     plan.map(entry => entry.offset)
                 );
-                if (accidental) {
-                    staveNote.addAccidental(0, new VF.Accidental(accidental));
-                }
+                const staveNote = new VF.StaveNote({
+                    keys: [NotationSpelling.midiToVexKey(note.midi, accidental)],
+                    duration: 'q',
+                    clef,
+                    stem_direction: VF.Stem.UP
+                });
+                staveNote.setStemDirection(VF.Stem.UP);
                 if (!note.enabled) {
                     staveNote.setStyle({
                         fillStyle: 'rgba(148, 163, 184, 0.55)',
@@ -111,7 +108,7 @@ const StaffView = (function () {
                 return staveNote;
             });
 
-            const beats = Math.max(4, plan.length * 4);
+            const beats = Math.max(4, plan.length);
             const voice = new VF.Voice({ num_beats: beats, beat_value: 4 });
             voice.setStrict(false);
             voice.addTickables(tickables);
@@ -141,6 +138,8 @@ const StaffView = (function () {
             const staffBottom = stave.getYForLine(4);
             let yMin = staffTop - LEDGER_PAD;
             let yMax = staffBottom + LEDGER_PAD;
+            /** @type {number[]} */
+            const noteCenters = [];
 
             for (const tickable of tickables) {
                 if (typeof tickable.getBoundingBox !== 'function') continue;
@@ -148,6 +147,7 @@ const StaffView = (function () {
                 if (!box) continue;
                 xMin = Math.min(xMin, box.getX());
                 xMax = Math.max(xMax, box.getX() + box.getW());
+                noteCenters.push(box.getX() + box.getW() / 2);
                 const top = box.getY();
                 const bottom = box.getY() + box.getH();
                 if (top < staffTop) yMin = Math.min(yMin, top - padY);
@@ -167,6 +167,28 @@ const StaffView = (function () {
             svg.setAttribute('height', String(Math.ceil(h)));
             svg.style.width = `${Math.ceil(w)}px`;
             svg.style.height = `${Math.ceil(h)}px`;
+            syncDegreeGridToStaff(root, noteCenters, xMin);
+        }
+
+        /**
+         * The phrase numbers live outside the SVG, so copy VexFlow's actual
+         * notehead centers into CSS variables on the shared stage.
+         * @param {HTMLElement} root
+         * @param {number[]} noteCenters
+         * @param {number} xMin
+         */
+        function syncDegreeGridToStaff(root, noteCenters, xMin) {
+            const stage = root.closest('.phrase-stage');
+            if (!(stage instanceof HTMLElement) || !noteCenters.length) return;
+            const displayedCenters = noteCenters.map(center => center - xMin);
+            const steps = displayedCenters.slice(1).map((center, index) => center - displayedCenters[index]);
+            const averageStep = steps.length
+                ? steps.reduce((sum, step) => sum + step, 0) / steps.length
+                : NOTE_WIDTH;
+            const cellWidth = Math.max(34, Math.min(70, averageStep || NOTE_WIDTH));
+            const pad = Math.max(0, displayedCenters[0] - cellWidth / 2);
+            stage.style.setProperty('--phrase-staff-note-step', `${cellWidth}px`);
+            stage.style.setProperty('--phrase-staff-grid-pad', `${pad}px`);
         }
 
         return {

@@ -32,14 +32,15 @@ const NotationSpelling = (function () {
 
     /**
      * @param {number} midi
+     * @param {'#' | 'b' | null=} accidentalPreference
      * @returns {string} VexFlow key, e.g. "f#/3"
      */
-    function midiToVexKey(midi) {
+    function midiToVexKey(midi, accidentalPreference = null) {
         const rounded = Math.round(midi);
-        const pitch = midiToPitchString(rounded);
-        const match = pitch.match(/^([A-Ga-g][#b]?)(-?\d+)$/);
-        if (!match) return 'c/4';
-        return `${match[1].toLowerCase()}/${match[2]}`;
+        const noteInfo = midiToNoteName(rounded);
+        const names = accidentalPreference === 'b' ? NOTE_NAMES_FLAT : NOTE_NAMES;
+        const name = names[midiPitchClass(rounded)] || noteInfo.name;
+        return `${name.toLowerCase()}/${noteInfo.octave}`;
     }
 
     /**
