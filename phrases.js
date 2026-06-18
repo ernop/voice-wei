@@ -789,7 +789,11 @@
         if (returnBtn) {
             returnBtn.classList.toggle('selected', state.returnToInitial);
             returnBtn.setAttribute('aria-pressed', String(state.returnToInitial));
-            returnBtn.textContent = state.returnToInitial ? 'return to 1' : 'no return';
+            if (state.returnToInitial) {
+                returnBtn.textContent = state.startAtOne ? 'return to 1' : 'return to start';
+            } else {
+                returnBtn.textContent = 'no return';
+            }
         }
 
         syncFillButtons();

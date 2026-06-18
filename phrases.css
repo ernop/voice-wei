@@ -146,6 +146,14 @@
     min-width: auto;
 }
 
+.phrase-anchor-row {
+    max-width: min(100%, 430px);
+}
+
+.phrase-anchor-row .phrase-toggle-btn {
+    flex: 1 1 0;
+}
+
 .phrase-toggle-btn[aria-pressed="true"] {
     background: rgba(74, 222, 128, 0.35);
     border-color: rgba(74, 222, 128, 0.6);

@@ -93,7 +93,10 @@
 
                 <!-- Option groups: every group sits in its own segment shell -->
                 <section class="phrase-control-card phrase-control-card-shape">
-                    <button id="startToggleBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">start at 1</button>
+                    <div class="segment-row phrase-anchor-row">
+                        <button id="startToggleBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">start at 1</button>
+                        <button id="returnInitialBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">return to 1</button>
+                    </div>
                     <div class="segment-row">
                         <button class="vf-btn" data-range="within">in octave</button>
                         <button class="vf-btn" data-range="over">just over</button>
@@ -108,7 +111,6 @@
                         <button class="vf-btn" data-phrase-algo="motif" title="One short interval shape restated from moving anchors">motif</button>
                         <button class="vf-btn" data-phrase-algo="alto_gaps" title="Alto gap work around 3-4 and 7-8">alto gaps</button>
                     </div>
-                    <button id="returnInitialBtn" class="vf-btn phrase-toggle-btn" type="button" aria-pressed="true">return to 1</button>
                     <div class="vf-options">
                         <label class="display-toggle">
                             <input type="checkbox" id="showNamesToggle" checked>
