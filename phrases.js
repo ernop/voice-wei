@@ -777,25 +777,13 @@
         });
     }
 
-    function syncBinaryControls() {
-        const startBtn = getEl('startToggleBtn');
-        if (startBtn) {
-            startBtn.classList.toggle('selected', state.startAtOne);
-            startBtn.setAttribute('aria-pressed', String(state.startAtOne));
-            startBtn.textContent = state.startAtOne ? 'start at 1' : 'random start';
-        }
+    function syncReturnAnchorLabel() {
+        const btn = getEl('returnAnchorOnBtn');
+        if (btn) btn.textContent = state.startAtOne ? 'return to 1' : 'return to start';
+    }
 
-        const returnBtn = getEl('returnInitialBtn');
-        if (returnBtn) {
-            returnBtn.classList.toggle('selected', state.returnToInitial);
-            returnBtn.setAttribute('aria-pressed', String(state.returnToInitial));
-            if (state.returnToInitial) {
-                returnBtn.textContent = state.startAtOne ? 'return to 1' : 'return to start';
-            } else {
-                returnBtn.textContent = 'no return';
-            }
-        }
-
+    function syncAnchorControls() {
+        syncReturnAnchorLabel();
         syncFillButtons();
     }
 
@@ -885,22 +873,10 @@
         if (currentPhrase) playCurrentOrNew();
     }
 
-    function toggleStartAtOne() {
-        state.startAtOne = !state.startAtOne;
-        syncBinaryControls();
-        onSettingChanged('startAtOne');
-    }
-
-    function toggleReturnInitial() {
-        state.returnToInitial = !state.returnToInitial;
-        syncBinaryControls();
-        onSettingChanged('returnToInitial');
-    }
-
     /** @param {'full' | 'chord'} mode */
     function toggleFillMode(mode) {
         state.fillMode = state.fillMode === mode ? 'none' : mode;
-        syncBinaryControls();
+        syncAnchorControls();
         onSettingChanged('fillMode');
     }
 
@@ -909,6 +885,15 @@
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
         wireSetting('data-range', 'rangeMode', String);
         wireSetting('data-output', 'outputMode', String);
+        PracticeControls.wireSingleSelect('data-start-anchor', value => value === 'one', state.startAtOne, value => {
+            state.startAtOne = value;
+            syncReturnAnchorLabel();
+            onSettingChanged('startAtOne');
+        });
+        PracticeControls.wireSingleSelect('data-return-anchor', value => value === 'on', state.returnToInitial, value => {
+            state.returnToInitial = value;
+            onSettingChanged('returnToInitial');
+        });
         PracticeControls.wireSteppers(stepAdjusterValue);
         PracticeControls.wireToggle('showNamesToggle', state.showNoteNames, checked => {
             state.showNoteNames = checked;
@@ -924,8 +909,6 @@
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
         getEl('allNotesBtn')?.addEventListener('click', () => setAllNotes(true));
-        getEl('startToggleBtn')?.addEventListener('click', toggleStartAtOne);
-        getEl('returnInitialBtn')?.addEventListener('click', toggleReturnInitial);
         getEl('fillFullBtn')?.addEventListener('click', () => toggleFillMode('full'));
         getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
         getEl('breakdownBtn')?.addEventListener('click', runBreakdown);
@@ -942,7 +925,7 @@
         updatePhraseDisplay();
         syncRepeatButton();
         syncBreakdownControls();
-        syncBinaryControls();
+        syncAnchorControls();
         syncAdjusterControls();
         MediaSessionCore.register('Phrases', [
             ['play', () => { playCurrentOrNew(); }],
