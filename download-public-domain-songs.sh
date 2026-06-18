@@ -106,6 +106,65 @@ clone_or_update_repo() {
     fi
 }
 
+download_mutopia_midi_from_site() {
+    local mutopia_repo="$DEST_DIR/mutopia"
+    local midi_dir="$DEST_DIR/mutopia-midi"
+
+    if [[ ! -d "$mutopia_repo/ftp" ]]; then
+        echo "Mutopia source repo not found; skipping website MIDI mirror."
+        return
+    fi
+
+    python3 - "$mutopia_repo/ftp" "$midi_dir" <<'PY'
+import concurrent.futures
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+source_root = Path(sys.argv[1])
+target_root = Path(sys.argv[2])
+base_url = "https://www.mutopiaproject.org/ftp"
+ly_files = sorted(source_root.glob("**/*.ly"))
+
+def download(path):
+    rel = path.relative_to(source_root).with_suffix(".mid")
+    output = target_root / rel
+    if output.exists() and output.stat().st_size > 0:
+        return "cached"
+
+    url = f"{base_url}/{rel.as_posix()}"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            if response.status != 200:
+                return "missing"
+            payload = response.read()
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return "missing"
+        return "error"
+    except Exception:
+        return "error"
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(payload)
+    return "downloaded"
+
+counts = {"cached": 0, "downloaded": 0, "missing": 0, "error": 0}
+with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+    for result in executor.map(download, ly_files):
+        counts[result] += 1
+
+print(
+    "Mutopia MIDI mirror: "
+    f"{counts['downloaded']} downloaded, "
+    f"{counts['cached']} cached, "
+    f"{counts['missing']} missing, "
+    f"{counts['error']} errors"
+)
+PY
+}
+
 convert_lieder_if_possible() {
     local conversion_file
     conversion_file="$(python3 - "$DEST_DIR/openscore-lieder" <<'PY'
@@ -169,6 +228,7 @@ download_zenodo_record "15450144" "$DEST_DIR/openscore-lieder"
 convert_lieder_if_possible
 
 clone_or_update_repo "https://github.com/MutopiaProject/MutopiaProject.git" "master" "$DEST_DIR/mutopia"
+download_mutopia_midi_from_site
 
 if [[ "$INCLUDE_PDMX" -eq 1 ]]; then
     download_zenodo_record "14648209" "$DEST_DIR/pdmx"
@@ -184,7 +244,7 @@ Local source root:
   $DEST_DIR
 
 Importable files to try first:
-  $DEST_DIR/mutopia/ftp/**/*.mid
+  $DEST_DIR/mutopia-midi/**/*.mid
   $DEST_DIR/openscore-lieder/**/**/*.mid
   $DEST_DIR/openscore-lieder/**/**/*.musicxml
 EOF
