@@ -30,6 +30,9 @@ jobs:
       - name: Lint (architecture guards)
         run: npm run lint
 
+      - name: Fast browser suite
+        run: npm test
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh

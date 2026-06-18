@@ -16,7 +16,8 @@ const ROOT = path.join(__dirname, '..');
 const FAST_SUITES = [
     'test-syntax.js',
     'test-css-ownership.js',
-    'test-pages-load.js'
+    'test-pages-load.js',
+    'test-books.js'
 ];
 
 const FULL_SUITES = [

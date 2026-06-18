@@ -280,21 +280,22 @@ in `types/`, required fields for required data, a throwing constructor.
 ## Testing
 
 `npm test` runs the fast headless profile in `tests/`: JavaScript syntax,
-CSS ownership, and page-load smoke. It is the default pre-push check for
-ordinary docs/CSS/small-JS work.
+CSS ownership, page-load smoke, and the fast Books workflow suite (local
+library, book mode, custom player, history). It is the default pre-push check
+for ordinary docs/CSS/small-JS work and is also a deploy gate.
 
 Use `node tests/run-all.js --suite <suite-file>` for targeted browser checks.
 Use `npm run test:full` for slower playback law, shared controls +
 persistence, per-tab functions, and fake-mic listening tests when touching
-those systems. `npm run lint` (ast-grep, including the ownership guards) and
-`npm run typecheck` (checkJs) must stay clean - **zero errors, no tolerated
-baseline**. Both run as gates in the deploy workflow; a type error or guard
-violation blocks the push from reaching the live site.
+those systems. `npm run lint` (ast-grep, including the ownership guards),
+`npm run typecheck` (checkJs), and `npm test` must stay clean - **zero errors,
+no tolerated baseline**. These run as gates in the deploy workflow; any failure
+blocks the push from reaching the live site.
 
 ## Deploy
 
-Push to master -> GitHub Actions runs the static gates (typecheck, lint)
-and then rsyncs to production (`--delete`; docs, tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
+Push to master -> GitHub Actions runs the gates (typecheck, lint, fast browser
+suite) and then rsyncs to production (`--delete`; docs, tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
 header label, and every `?v=` cache buster - run it whenever a release
 ships. Manual deploy: `./deploy.sh`.
 
