@@ -116,6 +116,14 @@
     align-items: start;
 }
 
+.books-shell.book-open {
+    grid-template-columns: 1fr;
+}
+
+.books-shell.book-open .books-library-panel {
+    display: none;
+}
+
 .books-library-panel,
 .book-workspace,
 .upload-card,
@@ -169,7 +177,7 @@
 
 .saved-book-list {
     display: grid;
-    gap: 8px;
+    gap: 5px;
 }
 
 .library-empty {
@@ -180,17 +188,20 @@
 
 .saved-book-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 138px);
+    gap: 8px;
     align-items: center;
     width: 100%;
-    padding: 9px 10px;
-    border-radius: 10px;
+    min-height: 34px;
+    padding: 5px 8px 7px;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid rgba(74, 222, 128, 0.12);
     color: inherit;
     text-align: left;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
 }
 
 .saved-book-item:hover {
@@ -205,12 +216,16 @@
 
 .saved-book-main {
     min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
 }
 
 .saved-book-title {
     color: #e8f5e9;
     font-weight: 800;
-    line-height: 1.2;
+    font-size: 0.84rem;
+    line-height: 1.05;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -218,21 +233,40 @@
 
 .saved-book-author {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
+    flex: 0 1 auto;
+    min-width: 34px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.saved-book-author::before {
+    content: "· ";
+    color: rgba(255, 255, 255, 0.32);
+}
+
 .saved-book-side {
-    width: 96px;
-    min-width: 96px;
+    min-width: 0;
+    text-align: right;
+}
+
+.saved-book-meta {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    line-height: 1.05;
 }
 
 .saved-book-progress {
-    height: 6px;
-    margin-top: 5px;
-    border-radius: 999px;
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 3px;
+    height: 3px;
+    border-radius: 99px;
     background: rgba(255, 255, 255, 0.12);
     overflow: hidden;
 }
@@ -246,6 +280,20 @@
 .book-workspace {
     padding: 10px;
     min-width: 0;
+}
+
+.back-library-btn {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 5px 8px;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    border-radius: 8px;
+    background: rgba(74, 222, 128, 0.12);
+    color: #86efac;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 750;
 }
 
 .workspace-header {

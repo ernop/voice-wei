@@ -562,6 +562,7 @@ class BooksController {
         this.bindButton('downloadCombinedBtn', () => this.downloadCombinedSegments());
         this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
         this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
+        this.bindButton('backToLibraryBtn', () => this.backToLibrary());
         this.bindButton('clearLogBtn', () => this.clearLog());
     }
 
@@ -661,19 +662,17 @@ class BooksController {
         list.innerHTML = books.map(book => {
             const selectedClass = this.currentBook?.id === book.id ? ' selected' : '';
             const readPercent = this.getBookReadPercent(book);
-            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} segments`;
+            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} mp3`;
             return `
                 <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
                     <div class="saved-book-main">
-                        <div class="saved-book-title">${this.escapeHtml(book.title)}</div>
-                        <div class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</div>
+                        <span class="saved-book-title">${this.escapeHtml(book.title)}</span>
+                        <span class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</span>
                     </div>
                     <div class="saved-book-side">
-                        <div class="saved-book-meta">${this.escapeHtml(book.format.toUpperCase())} · ${this.formatDuration(book.estimatedDurationSec)} · ${generatedText}</div>
-                        <div class="saved-book-progress" title="Reading progress">
-                            <div class="saved-book-progress-fill" style="width: ${readPercent}%"></div>
-                        </div>
+                        <span class="saved-book-meta">${this.escapeHtml(book.format.toUpperCase())} · ${this.formatDuration(book.estimatedDurationSec)} · ${generatedText}</span>
                     </div>
+                    <span class="saved-book-progress" title="Reading progress"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
                 </button>
             `;
         }).join('');
@@ -1032,6 +1031,16 @@ class BooksController {
     showWorkspace(show) {
         const workspace = document.getElementById('bookWorkspace');
         if (workspace) workspace.style.display = show ? 'block' : 'none';
+        const shell = document.querySelector('.books-shell');
+        if (shell) shell.classList.toggle('book-open', show);
+        document.body.classList.toggle('books-workspace-open', show);
+    }
+
+    backToLibrary() {
+        this.setReaderFullscreen(false);
+        this.showWorkspace(false);
+        this.updateStatus('Bookshelf');
+        this.renderLibrary();
     }
 
     renderWorkspace() {
