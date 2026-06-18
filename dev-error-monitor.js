@@ -21,6 +21,7 @@
 
     /** @param {{ type: string, message: string, source?: string }} entry */
     function sendToDevServer(entry) {
+        if (!canPostErrorReports()) return;
         const payload = JSON.stringify({
             ...entry,
             userAgent: navigator.userAgent
@@ -38,6 +39,11 @@
             // The plain static server cannot accept reports; the banner and
             // window.__voiceWeiErrors still make the failure visible.
         });
+    }
+
+    function canPostErrorReports() {
+        return (location.hostname === '127.0.0.1' || location.hostname === 'localhost')
+            && location.port === '8765';
     }
 
     function renderBanner() {
