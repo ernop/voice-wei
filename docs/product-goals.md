@@ -37,11 +37,10 @@ and deliver a weaker version of the requested change.
 | Tab | Goal | Done well when |
 |-----|------|----------------|
 | Scales | Speak a practice pattern, hear it played correctly | Any reasonable spoken command produces the right notes with the right timing; settings are also clickable and persist |
-| Intervals | Drill interval distances by level | Patterns generate endlessly at the chosen difficulty; hands-free Next/Stop |
+| Intervals | Drill interval distances by level; ear training for naming and singing intervals | Patterns generate endlessly; ear mode adapts to weak intervals; lifetime stats persist |
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
-| Ears | Name and sing intervals from sound alone | Adaptive weighting pushes weak intervals; lifetime stats persist |
 | Music | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
 | Books | Read ebooks and grow local generated audio over time | Originals, parsed text, MP3 segments, and progress persist locally; generation can resume where it stopped |
 

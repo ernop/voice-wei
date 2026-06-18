@@ -26,8 +26,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         ].join(', ');
         const expectations = [
             { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], input[type="range"]' },
-            { page: 'intervals', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
-            { page: 'ears', steppers: ['droneNote', 'rootRangeMid'], forbidden: 'select, input[type="range"]' },
+            { page: 'intervals', steppers: ['rootPitch', 'rootRangeMid', 'droneNote'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
             { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'trace', steppers: [], forbidden: 'select, input[type="range"]' },
@@ -65,7 +64,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.click('[data-step-key="noteLengthMs"][data-step-delta="1"]');
         await tab.waitForTimeout(400);
         const after = await tab.textContent('#noteLengthValue');
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('scales-settings')).noteLengthMs);
+        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.SCALES_SETTINGS)?.noteLengthMs);
         report.check(`scales noteLength stepper ${before}->${after}`, before !== after && typeof saved === 'number');
         await tab.reload({ waitUntil: 'networkidle' });
         await tab.waitForTimeout(2500);
@@ -84,7 +83,10 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.click('[data-step-key="lengthMs"][data-step-delta="-1"]');
         await tab.click('[data-step-key="gapMs"][data-step-delta="-1"]');
         await tab.waitForTimeout(300);
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('intervals-settings')));
+        const saved = await tab.evaluate(() => {
+            const data = SettingsStore.peekData(StorageKeys.INTERVALS_SETTINGS);
+            return data || {};
+        });
         report.check(`intervals steppers saved ${saved.lengthMs}/${saved.gapMs}`,
             saved.lengthMs === 500 && saved.gapMs === 1500);
 
@@ -115,7 +117,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.click('[data-scale="minor"]');
         await tab.waitForTimeout(400);
         const root = await tab.textContent('#rootPitchValue');
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('pitch-meter-settings')));
+        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PITCH_METER_SETTINGS));
         report.check(`pitch-meter controls root=${root}, saved mode=${saved.mode}`,
             root === 'C#4' && saved.mode === 'free' && saved.scaleType === 'minor');
         await tab.click('[data-instrument="bass"]');
@@ -140,7 +142,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         const pianoDefault = await tab.evaluate(() =>
             document.querySelector('[data-guide-sound="piano"]').classList.contains('selected'));
         await tab.click('[data-guide-sound="beep"]');
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('trace-settings')).guideSound);
+        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.TRACE_SETTINGS)?.guideSound);
         report.check(`trace guide sound default piano, persisted "${saved}"`, pianoDefault && saved === 'beep');
         await tab.click('#startBtn');
         await tab.waitForTimeout(1200);
@@ -149,17 +151,20 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
-    // EARS: toggle persists
+    // INTERVALS EAR MODE: toggle persists in unified settings
     {
         const ctx = await browser.newContext();
         const tab = await ctx.newPage();
-        collectErrors(tab, 'ears', report.errors);
-        await tab.goto(`${BASE_URL}/ears.html`, { waitUntil: 'networkidle' });
+        collectErrors(tab, 'intervals-ear', report.errors);
+        await tab.goto(`${BASE_URL}/intervals.html?mode=ear`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(2000);
         await tab.evaluate(() => document.getElementById('autoAdvanceToggle').click());
         await tab.waitForTimeout(300);
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-settings')).autoAdvance);
-        report.check('ears toggle persisted', saved === true);
+        const saved = await tab.evaluate(() => {
+            const data = SettingsStore.peekData(StorageKeys.INTERVALS_SETTINGS);
+            return data && data.autoAdvance;
+        });
+        report.check('intervals ear toggle persisted', saved === true);
         await ctx.close();
     }
 
@@ -214,7 +219,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.waitForTimeout(1200);
         const panelOpen = await tab.evaluate(() => !document.getElementById('phraseTestPanel').hidden);
         await tab.evaluate(() => document.getElementById('phraseTestWindowToggle').click());
-        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-test-panel')).fixedWindow);
+        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PANEL_PHRASES_TEST)?.fixedWindow);
         await tab.click('#phraseTestCloseBtn');
         const closed = await tab.evaluate(() => document.getElementById('phraseTestPanel').hidden);
         report.check('phrases test panel opens, persists options, closes', panelOpen && saved === true && closed);

@@ -129,9 +129,10 @@ Range presets (voice/violin/bass) set the octave; root+octave, scale, and
 match-time are shared steppers/segment rows. Results panel shows overall
 accuracy, average deviation, and per-note breakdown.
 
-## Ears
+## Ears (within Intervals tab)
 
-Interval ear training: identification and production.
+Ear training lives on the **Intervals** page under **Ear training** mode
+(`intervals.html?mode=ear`). The old `ears.html` URL redirects there.
 
 - **Identify**: hear an interval (ascending, descending, or harmonic),
   name it by button or voice ("major third", "tritone", aliases accepted).

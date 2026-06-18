@@ -185,7 +185,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // Verdicts re-evaluate on mic frames; the headless fake mic
             // sometimes fails to start, so drive the evaluation by name.
             window.intervalsDebug.panel.draw();
-            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             return entries.some(e => e.tool === 'intervals-sing');
         });
         report.check('intervals sing take recorded', recorded);
@@ -366,11 +366,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('phrases algos keep "just over" bounded to 6-below..3-above', overBounded);
         await tab.click('[data-range="over"]');
         await tab.waitForTimeout(200);
-        const savedRange = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).rangeMode);
+        const savedRange = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.rangeMode);
         report.check('phrases range mode persists', savedRange === 'over');
         await tab.click('[data-phrase-algo="arch"]');
         await tab.waitForTimeout(200);
-        const savedAlgo = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).phraseAlgo);
+        const savedAlgo = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.phraseAlgo);
         report.check('phrases algorithm persists', savedAlgo === 'arch');
 
         // Motif is a transposed shape, not a wandering walk: the leading
@@ -447,7 +447,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             chromatic.decorated > 0 && chromatic.invalid === 0);
         await tab.click('[data-step-key="accidentalRate"][data-step-delta="1"]');
         await tab.waitForTimeout(200);
-        const savedAccidental = await tab.evaluate(() => JSON.parse(localStorage.getItem('phrases-settings')).accidentalRate);
+        const savedAccidental = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.accidentalRate);
         report.check('phrases accidental rate stepper persists', savedAccidental === 0.05);
 
         const fillPlans = await tab.evaluate(() => {
@@ -549,7 +549,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // The recorded take carries per-note outcomes with signed bias -
         // the degree-level data the training goal needs.
         const noteRecord = await tab.evaluate(() => {
-            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             const mine = entries.filter(e => e.tool === 'phrases-test');
             const last = mine[mine.length - 1] || {};
             const notes = last.notes || [];
@@ -609,7 +609,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             samples > 10 && resultsShown === 'block' && /^\d+\/\d+$/.test(notesHit));
 
         const pmProgress = await tab.evaluate(() => {
-            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             return {
                 count: entries.filter(e => e.tool === 'pitch-meter').length,
                 line: document.getElementById('progressSummary').textContent
@@ -638,7 +638,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         // The completed take is recorded and the trend line appears
         const progress = await tab.evaluate(() => {
-            const entries = JSON.parse(localStorage.getItem('practice-progress') || '[]');
+            const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             return {
                 entry: entries.find(e => e.tool === 'scales-sing') || null,
                 line: document.getElementById('scalesSingProgress').textContent
@@ -649,27 +649,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
-    // ============ EARS: identify-answer-record + presets ============
+    // ============ INTERVALS EAR: identify-answer-record + presets ============
     {
         const ctx = await browser.newContext({ permissions: ['microphone'] });
         const tab = await ctx.newPage();
-        collectErrors(tab, 'ears', report.errors);
-        await tab.goto(`${BASE_URL}/ears.html`, { waitUntil: 'networkidle' });
+        collectErrors(tab, 'intervals-ear', report.errors);
+        await tab.goto(`${BASE_URL}/intervals.html?mode=ear`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(2500);
-        await tab.click('#nextBtn');
+        await tab.click('#earNextBtn');
         await tab.waitForTimeout(2500);
         await tab.click('.answer-btn[data-interval="P5"]');
         await tab.waitForTimeout(600);
         const feedback = await tab.textContent('#intervalFeedback');
-        const stats = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-stats')));
-        const total = Object.values(stats).reduce((sum, s) => sum + s.total, 0);
-        report.check('ears answer recorded with feedback', feedback.trim().length > 0 && total >= 1);
+        const stats = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.INTERVALS_EAR_STATS));
+        const total = Object.values(stats || {}).reduce((sum, s) => sum + s.total, 0);
+        report.check('intervals ear answer recorded with feedback', feedback.trim().length > 0 && total >= 1);
         await tab.click('.vf-btn[data-preset="perfect"]');
         await tab.waitForTimeout(300);
-        const enabled = await tab.evaluate(() => JSON.parse(localStorage.getItem('ears-settings')).enabledIntervals);
-        report.check('ears preset filters intervals', Array.isArray(enabled) && enabled.length === 3);
+        const enabled = await tab.evaluate(() => {
+            const data = SettingsStore.peekData(StorageKeys.INTERVALS_SETTINGS);
+            return data && data.enabledIntervals;
+        });
+        report.check('intervals ear preset filters intervals', Array.isArray(enabled) && enabled.length === 3);
         const mediaTitle = await tab.evaluate(() => navigator.mediaSession.metadata?.title || 'none');
-        report.check('ears media session registered', mediaTitle === 'Ears');
+        report.check('intervals ear media session registered', mediaTitle === 'Ear training');
         await ctx.close();
     }
 

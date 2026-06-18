@@ -99,6 +99,14 @@
         repeat: false,
         exerciseType: 'A',
         selectedLevel: 'a1',
+        trainingMode: 'patterns',
+        mode: 'identify',
+        direction: 'ascending',
+        enabledIntervals: [...INTERVAL_ORDER],
+        adaptiveMode: true,
+        drivingMode: false,
+        autoAdvance: false,
+        rootRangeMid: 60,
         running: false,
         stopRequested: false,
         nextRequested: false,
@@ -109,11 +117,19 @@
         gapMs: PracticeControls.GAP_VALUES
     };
 
-    const STORAGE_KEY = 'intervals-settings';
+    const STORAGE_KEY = StorageKeys.INTERVALS_SETTINGS;
+    const EAR_STATS_KEY = StorageKeys.INTERVALS_EAR_STATS;
+    const INTERVAL_ORDER = ['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'];
     const PERSISTED_KEYS = [
         'root', 'octave', 'scale', 'lengthMs', 'gapMs', 'speakNumbers',
         'playNotes', 'showNoteNames', 'expandRange', 'reverse', 'repeat',
-        'exerciseType', 'selectedLevel'
+        'exerciseType', 'selectedLevel', 'trainingMode',
+        'mode', 'direction', 'enabledIntervals', 'adaptiveMode', 'drivingMode',
+        'autoAdvance', 'rootRangeMid'
+    ];
+    const EAR_SETTING_KEYS = [
+        'mode', 'direction', 'enabledIntervals', 'adaptiveMode', 'drivingMode',
+        'autoAdvance', 'rootRangeMid'
     ];
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
@@ -124,6 +140,8 @@
     let singPanel = null;
     /** @type {ReturnType<typeof HistoryList.create> | null} */
     let history = null;
+    /** @type {ReturnType<typeof EarTraining.create> | null} */
+    let earTraining = null;
 
     const sleep = PianoCore.sleep;
 
@@ -135,6 +153,96 @@
 
     function saveSettings() {
         SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
+    }
+
+    function migrateLegacyEarsSettings() {
+        const legacyRaw = localStorage.getItem('ears-settings');
+        if (!legacyRaw) return;
+        try {
+            const legacy = JSON.parse(legacyRaw);
+            EAR_SETTING_KEYS.forEach(key => {
+                if (!(key in legacy)) return;
+                if (key === 'enabledIntervals' && Array.isArray(legacy[key])) {
+                    state.enabledIntervals = legacy[key];
+                    return;
+                }
+                if (typeof legacy[key] === typeof state[key]) {
+                    state[key] = legacy[key];
+                }
+            });
+            saveSettings();
+        } catch (err) {
+            console.error('Failed to migrate ears-settings:', err);
+        }
+    }
+
+    function readInitialTrainingMode() {
+        const params = new URLSearchParams(window.location.search);
+        const queryMode = params.get('mode');
+        if (queryMode === 'ear' || window.location.hash === '#ear') {
+            state.trainingMode = 'ear';
+        }
+    }
+
+    function syncTrainingModeUI() {
+        const patternsPanel = document.getElementById('patternsPanel');
+        const earPanel = document.getElementById('earTrainingPanel');
+        if (patternsPanel) patternsPanel.hidden = state.trainingMode !== 'patterns';
+        if (earPanel) earPanel.hidden = state.trainingMode !== 'ear';
+        document.querySelectorAll('[data-training-mode]').forEach(btn => {
+            btn.classList.toggle('selected', /** @type {HTMLElement} */ (btn).dataset.trainingMode === state.trainingMode);
+        });
+        if (state.trainingMode === 'ear' && earTraining) {
+            MediaSessionCore.register('Ear training', [
+                ['play', () => { earTraining.repeatCurrentInterval(); }],
+                ['pause', () => { earTraining.repeatCurrentInterval(); }],
+                ['nexttrack', () => { earTraining.playNextInterval(); }],
+                ['seekforward', () => { earTraining.playNextInterval(); }]
+            ]);
+        } else {
+            MediaSessionCore.register('Intervals', [
+                ['play', () => { runLoop(); }],
+                ['pause', () => { stopLoop(); }],
+                ['nexttrack', () => { requestNext(); }],
+                ['seekforward', () => { requestNext(); }]
+            ]);
+        }
+    }
+
+    function setupTrainingModeSwitch() {
+        PracticeControls.wireSingleSelect('data-training-mode', String, state.trainingMode, value => {
+            state.trainingMode = value === 'ear' ? 'ear' : 'patterns';
+            saveSettings();
+            syncTrainingModeUI();
+        });
+    }
+
+    function defaultEarStats() {
+        /** @type {Record<string, { correct: number, total: number }>} */
+        const stats = {};
+        INTERVAL_ORDER.forEach(interval => {
+            stats[interval] = { correct: 0, total: 0 };
+        });
+        return stats;
+    }
+
+    function loadEarStats() {
+        return SettingsStore.loadJson(EAR_STATS_KEY, defaultEarStats(), data =>
+            data !== null && typeof data === 'object' && !Array.isArray(data));
+    }
+
+    function saveEarStats(stats) {
+        SettingsStore.saveJson(EAR_STATS_KEY, stats);
+    }
+
+    async function setupEarTraining() {
+        earTraining = EarTraining.create({
+            settings: state,
+            saveSettings,
+            loadStats: loadEarStats,
+            saveStats: saveEarStats
+        });
+        await earTraining.init();
     }
 
     /** @param {number} midi */
@@ -392,7 +500,7 @@
             idPrefix: 'intervalsSing',
             title: 'Sing Test',
             subtitle: 'Sing the current pattern and watch your pitch against the targets. Turn Repeat on to hold one pattern.',
-            storageKey: 'intervals-sing-panel',
+            storageKey: StorageKeys.PANEL_INTERVALS_SING,
             legendTargetLabel: 'target notes',
             emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
             key: () => ({
@@ -537,19 +645,17 @@
         });
 
         setupSingPanel();
+        setupTrainingModeSwitch();
+        syncTrainingModeUI();
 
-        MediaSessionCore.register('Intervals', [
-            ['play', () => { runLoop(); }],
-            ['pause', () => { stopLoop(); }],
-            ['nexttrack', () => { requestNext(); }],
-            ['seekforward', () => { requestNext(); }]
-        ]);
         MediaSessionCore.primeOnUserGesture();
     }
 
     // ---- BOOT ----
     async function boot() {
+        readInitialTrainingMode();
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        migrateLegacyEarsSettings();
         try {
             piano = await PianoCore.createPiano();
         } catch (err) {
@@ -558,6 +664,8 @@
             if (display) display.textContent = 'Piano failed to load. Refresh to retry.';
         }
         initUI();
+        await setupEarTraining();
+        syncTrainingModeUI();
     }
     boot();
 })();

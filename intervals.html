@@ -17,6 +17,17 @@
         <header id="siteHeader"></header>
 
         <main>
+            <div class="intervals-mode-switch vf-row">
+                <span class="vf-label">Practice</span>
+                <div class="vf-options">
+                    <div class="segment-row">
+                        <button class="vf-btn selected" data-training-mode="patterns">Patterns</button>
+                        <button class="vf-btn" data-training-mode="ear">Ear training</button>
+                    </div>
+                </div>
+            </div>
+
+            <section id="patternsPanel">
             <!-- Transport controls -->
             <div class="voice-controls-row">
                 <button id="stopBtn" class="stop-button" aria-label="Stop">
@@ -156,6 +167,225 @@
                 </div>
             </div>
 
+            </section>
+
+            <section id="earTrainingPanel" hidden>
+            <div class="voice-controls-row">
+                <button id="earListenBtn" class="listen-button" aria-label="Start listening">
+                    <span class="button-text">Listen</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
+                <button id="earNextBtn" class="next-button" aria-label="Next interval">
+                    <span class="button-text">Next</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="earRepeatBtn" class="repeat-button" aria-label="Repeat interval">
+                    <span class="button-text">Repeat</span>
+                    <span class="button-icon">&#8634;</span>
+                </button>
+            </div>
+
+            <div class="transcript-container" id="transcriptContainer" style="display: none;">
+                <p class="transcript-label">You said:</p>
+                <p class="transcript" id="transcript"></p>
+            </div>
+
+            <div class="interval-display" id="intervalDisplay">
+                <div class="interval-prompt" id="intervalPrompt">
+                    Press <strong>Next</strong> to start
+                </div>
+                <div class="interval-notes" id="intervalNotes"></div>
+                <div class="interval-feedback" id="intervalFeedback"></div>
+            </div>
+
+            <div class="answer-grid" id="answerGrid">
+                <button class="answer-btn" data-interval="m2">m2<span class="answer-label">minor 2nd</span></button>
+                <button class="answer-btn" data-interval="M2">M2<span class="answer-label">Major 2nd</span></button>
+                <button class="answer-btn" data-interval="m3">m3<span class="answer-label">minor 3rd</span></button>
+                <button class="answer-btn" data-interval="M3">M3<span class="answer-label">Major 3rd</span></button>
+                <button class="answer-btn" data-interval="P4">P4<span class="answer-label">Perfect 4th</span></button>
+                <button class="answer-btn" data-interval="TT">TT<span class="answer-label">Tritone</span></button>
+                <button class="answer-btn" data-interval="P5">P5<span class="answer-label">Perfect 5th</span></button>
+                <button class="answer-btn" data-interval="m6">m6<span class="answer-label">minor 6th</span></button>
+                <button class="answer-btn" data-interval="M6">M6<span class="answer-label">Major 6th</span></button>
+                <button class="answer-btn" data-interval="m7">m7<span class="answer-label">minor 7th</span></button>
+                <button class="answer-btn" data-interval="M7">M7<span class="answer-label">Major 7th</span></button>
+                <button class="answer-btn" data-interval="P8">P8<span class="answer-label">Octave</span></button>
+            </div>
+
+            <div class="sing-target" id="singTarget" style="display: none;">
+                <div class="sing-prompt" id="singPrompt">Sing a <strong>perfect fifth</strong> above</div>
+                <div class="pitch-display">
+                    <div class="pitch-current" id="pitchCurrent">--</div>
+                    <div class="pitch-target" id="pitchTarget">Target: G4</div>
+                    <div class="pitch-accuracy" id="pitchAccuracy"></div>
+                </div>
+                <canvas id="pitchMeter" width="300" height="40"></canvas>
+                <div class="sing-controls">
+                    <button id="singRepeatBtn" class="secondary-btn">Replay Note</button>
+                    <button id="singSkipBtn" class="secondary-btn danger">Skip</button>
+                </div>
+            </div>
+
+            <div class="ear-settings voice-first-ui">
+                <div class="vf-row">
+                    <span class="vf-label">Mode</span>
+                    <div class="vf-options">
+                        <div class="segment-row">
+                            <button class="vf-btn selected" data-mode="identify">Identify</button>
+                            <button class="vf-btn" data-mode="sing">Sing</button>
+                            <button class="vf-btn" data-mode="both">Both</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Direction</span>
+                    <div class="vf-options">
+                        <div class="segment-row">
+                            <button class="vf-btn selected" data-direction="ascending">Ascending</button>
+                            <button class="vf-btn" data-direction="descending">Descending</button>
+                            <button class="vf-btn" data-direction="harmonic">Harmonic</button>
+                            <button class="vf-btn" data-direction="random">Random</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Intervals</span>
+                    <div class="vf-options interval-toggles">
+                        <button class="interval-toggle selected" data-interval="m2">m2</button>
+                        <button class="interval-toggle selected" data-interval="M2">M2</button>
+                        <button class="interval-toggle selected" data-interval="m3">m3</button>
+                        <button class="interval-toggle selected" data-interval="M3">M3</button>
+                        <button class="interval-toggle selected" data-interval="P4">P4</button>
+                        <button class="interval-toggle selected" data-interval="TT">TT</button>
+                        <button class="interval-toggle selected" data-interval="P5">P5</button>
+                        <button class="interval-toggle selected" data-interval="m6">m6</button>
+                        <button class="interval-toggle selected" data-interval="M6">M6</button>
+                        <button class="interval-toggle selected" data-interval="m7">m7</button>
+                        <button class="interval-toggle selected" data-interval="M7">M7</button>
+                        <button class="interval-toggle selected" data-interval="P8">P8</button>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Presets</span>
+                    <div class="vf-options">
+                        <button class="vf-btn" data-preset="all">All</button>
+                        <button class="vf-btn" data-preset="perfect">Perfect</button>
+                        <button class="vf-btn" data-preset="thirds">3rds/6ths</button>
+                        <button class="vf-btn" data-preset="seconds">2nds/7ths</button>
+                        <button class="vf-btn" data-preset="weak">Weakest</button>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Root Range</span>
+                    <div class="vf-options range-options">
+                        <span class="range-value" id="rangeMin">C3</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rootRangeMid" data-step-delta="-1" aria-label="Lower root range">-</button>
+                            <span class="step-value" id="rootRangeMidValue">C4</span>
+                            <button class="step-btn" type="button" data-step-key="rootRangeMid" data-step-delta="1" aria-label="Higher root range">+</button>
+                        </div>
+                        <span class="range-value" id="rangeMax">C5</span>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Adaptive</span>
+                    <div class="vf-options">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="adaptiveToggle" checked>
+                            <span>Weight toward weak intervals</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Driving</span>
+                    <div class="vf-options">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="drivingToggle">
+                            <span>Audio-only feedback (TTS)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="vf-row">
+                    <span class="vf-label">Auto</span>
+                    <div class="vf-options">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="autoAdvanceToggle">
+                            <span>Auto-advance after correct answer</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drone-panel" id="dronePanel">
+                <div class="drone-header">
+                    <h3>Drone Test</h3>
+                    <span class="drone-hint">(Use headphones for best results)</span>
+                </div>
+                <div class="drone-controls">
+                    <div class="step-field">
+                        <span class="step-label">Note</span>
+                        <button class="step-btn" type="button" data-step-key="droneNote" data-step-delta="-1" aria-label="Lower drone note">-</button>
+                        <span class="step-value" id="droneNoteValue">C4</span>
+                        <button class="step-btn" type="button" data-step-key="droneNote" data-step-delta="1" aria-label="Higher drone note">+</button>
+                    </div>
+                    <button id="droneStartBtn" class="drone-btn">Start Drone</button>
+                    <button id="droneStopBtn" class="drone-btn drone-stop-btn" style="display:none;">Stop</button>
+                </div>
+                <div class="drone-display" id="droneDisplay" style="display:none;">
+                    <div class="drone-target">Target: <span id="droneTargetNote">C4</span></div>
+                    <div class="drone-current">You: <span id="dronePitchCurrent">--</span></div>
+                    <div class="drone-cents" id="droneCents"></div>
+                    <canvas id="droneMeter" width="300" height="30"></canvas>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <div class="stats-header">
+                    <h3>Session Stats</h3>
+                    <button id="resetStatsBtn" class="panel-action-btn danger">Reset</button>
+                </div>
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <span class="stat-value" id="statCorrect">0</span>
+                        <span class="stat-label">Correct</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statTotal">0</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statPercent">--%</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statStreak">0</span>
+                        <span class="stat-label">Streak</span>
+                    </div>
+                </div>
+                <div class="stats-breakdown" id="statsBreakdown"></div>
+            </div>
+
+            <div class="history-panel" id="earHistoryPanel">
+                <div class="history-header">
+                    <h3>Recent</h3>
+                    <button id="earClearHistoryBtn" class="panel-action-btn danger">Clear</button>
+                </div>
+                <div class="history-list history-list-chips" id="earHistoryList">
+                    <p class="history-empty">No attempts yet</p>
+                </div>
+            </div>
+
+            <div class="voice-control-commands">
+                <span class="vcc-label">Voice:</span>
+                <code>next</code>
+                <code>repeat</code>
+                <code>skip</code>
+                <code>stats</code>
+                <code>[interval name]</code>
+            </div>
+            </section>
+
             <footer class="page-footer">
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
                 <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
@@ -164,19 +394,24 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="app-version.js?v=124"></script>
+    <script src="storage-keys.js?v=124"></script>
     <script src="shared-header.js?v=124"></script>
     <script src="music-constants.js?v=124"></script>
     <script src="voice-output.js?v=124"></script>
+    <script src="voice-command-core.js?v=124"></script>
     <script src="pattern-practice-core.js?v=124"></script>
     <script src="piano-core.js?v=124"></script>
     <script src="pitch-detect-core.js?v=124"></script>
     <script src="pitch-trace-view.js?v=124"></script>
+    <script src="practice-audio.js?v=124"></script>
     <script src="practice-controls.js?v=124"></script>
     <script src="history-list.js?v=124"></script>
     <script src="settings-store.js?v=124"></script>
     <script src="progress-store.js?v=124"></script>
     <script src="media-session-core.js?v=124"></script>
     <script src="pitch-test-panel.js?v=124"></script>
+    <script src="ear-training.js?v=124"></script>
     <script src="intervals.js?v=124"></script>
 </body>
 

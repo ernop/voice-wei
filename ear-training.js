@@ -1,10 +1,11 @@
 // @ts-check
 //-----------------------------------------------------------------------
-// EARS - Interval Ear Training
-// Identify Mode: Hear intervals, name them
-// Sing Mode: Hear reference, sing target interval
-// Uses piano-core for playback and pitch-detect-core for the microphone.
+// EAR TRAINING - Interval recognition and singing (Intervals page, ear mode)
+// Uses practice-audio, settings-store, and pitch-detect-core.
 //-----------------------------------------------------------------------
+
+(function () {
+    'use strict';
 
 //-------INTERVAL DEFINITIONS-------
 
@@ -36,76 +37,25 @@ const INTERVAL_PRESETS = Object.freeze({
     // 'weak' is computed dynamically
 });
 
-//-------AUDIO COORDINATOR (simplified for intervals)-------
-// Interval-specific playback on top of the shared piano-core sampler.
+//-------EAR TRAINING CONTROLLER-------
 
-class EarsAudioCoordinator {
-    constructor() {
-        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
-        this.piano = null;
-        /** @type {boolean} */
-        this.isReady = false;
-    }
-
-    async init() {
-        this.piano = await PianoCore.createPiano();
-        this.isReady = true;
-    }
-
-    async ensureStarted() {
-        await PianoCore.ensureStarted();
-    }
-
+class EarTrainingController {
     /**
-     * Play a melodic interval (two notes sequentially)
-     * @param {number} rootMidi - Root note MIDI number
-     * @param {number} semitones - Interval in semitones
-     * @param {'ascending' | 'descending'} direction
-     * @param {number} [noteLength] - Note duration in ms
-     * @param {number} [gap] - Gap between notes in ms
+     * @param {{
+     *   settings: Record<string, any>,
+     *   saveSettings: () => void,
+     *   loadStats: () => Record<string, { correct: number, total: number }>,
+     *   saveStats: (stats: Record<string, { correct: number, total: number }>) => void
+     * }} options
      */
-    async playMelodicInterval(rootMidi, semitones, direction, noteLength = 800, gap = 200) {
-        await this.ensureStarted();
-        if (!this.piano) return;
+    constructor(options) {
+        this.settingsRef = options.settings;
+        this.saveSettings = options.saveSettings;
+        this.loadStatsFromStore = options.loadStats;
+        this.saveStatsToStore = options.saveStats;
 
-        const targetMidi = direction === 'ascending' ? rootMidi + semitones : rootMidi - semitones;
-        const duration = noteLength / 1000;
-
-        this.piano.playMidi(rootMidi, duration);
-        await PianoCore.sleep(noteLength + gap);
-        this.piano.playMidi(targetMidi, duration);
-    }
-
-    /**
-     * Play a harmonic interval (two notes simultaneously)
-     * @param {number} rootMidi - Root note MIDI number
-     * @param {number} semitones - Interval in semitones
-     */
-    async playHarmonicInterval(rootMidi, semitones) {
-        await this.ensureStarted();
-        if (!this.piano) return;
-
-        this.piano.playMidiChord([rootMidi, rootMidi + semitones], '2n');
-    }
-
-    /**
-     * Play a single reference note (for sing mode)
-     * @param {number} midi
-     */
-    async playNote(midi) {
-        await this.ensureStarted();
-        if (!this.piano) return;
-
-        this.piano.playMidi(midi, '2n');
-    }
-}
-
-//-------EARS CONTROLLER-------
-
-class EarsController {
-    constructor() {
         // Audio
-        this.audio = new EarsAudioCoordinator();
+        this.audio = new PracticeAudio.Coordinator();
 
         // Pitch detection (shared core). Echo cancellation helps filter
         // out the piano/drone coming from the speakers.
@@ -121,21 +71,8 @@ class EarsController {
         /** @type {number | null} */
         this.pitchAnimationId = null;
 
-        // State
-        /** @type {'identify' | 'sing' | 'both'} */
-        this.mode = 'identify';
-        /** @type {'ascending' | 'descending' | 'harmonic' | 'random'} */
-        this.direction = 'ascending';
         /** @type {Set<string>} */
         this.enabledIntervals = new Set(INTERVAL_ORDER);
-        /** @type {number} */
-        this.rootRangeMid = 48; // C3 MIDI (range spans +/- one octave)
-        /** @type {boolean} */
-        this.adaptiveMode = true;
-        /** @type {boolean} */
-        this.drivingMode = false;
-        /** @type {boolean} */
-        this.autoAdvance = false;
 
         // Current interval
         /** @type {string | null} */
@@ -210,9 +147,22 @@ class EarsController {
         /** @type {HTMLElement | null} */
         this.intervalFeedback = null;
 
-        // Load saved stats
-        this.loadStats();
+        this.stats = this.loadStatsFromStore();
+        this.initStats();
     }
+
+    get mode() { return this.settingsRef.mode; }
+    set mode(v) { this.settingsRef.mode = v; }
+    get direction() { return this.settingsRef.direction; }
+    set direction(v) { this.settingsRef.direction = v; }
+    get rootRangeMid() { return this.settingsRef.rootRangeMid; }
+    set rootRangeMid(v) { this.settingsRef.rootRangeMid = v; }
+    get adaptiveMode() { return this.settingsRef.adaptiveMode; }
+    set adaptiveMode(v) { this.settingsRef.adaptiveMode = v; }
+    get drivingMode() { return this.settingsRef.drivingMode; }
+    set drivingMode(v) { this.settingsRef.drivingMode = v; }
+    get autoAdvance() { return this.settingsRef.autoAdvance; }
+    set autoAdvance(v) { this.settingsRef.autoAdvance = v; }
 
     initStats() {
         for (const interval of INTERVAL_ORDER) {
@@ -222,77 +172,30 @@ class EarsController {
         }
     }
 
-    loadStats() {
-        try {
-            const saved = localStorage.getItem('ears-stats');
-            if (saved) {
-                this.stats = JSON.parse(saved);
-                this.initStats(); // Ensure all intervals exist
-            }
-        } catch (e) {
-            console.error('Failed to load stats:', e);
-        }
-    }
-
     saveStats() {
-        try {
-            localStorage.setItem('ears-stats', JSON.stringify(this.stats));
-        } catch (e) {
-            console.error('Failed to save stats:', e);
-        }
+        this.saveStatsToStore(this.stats);
     }
 
-    loadSettings() {
-        try {
-            const saved = localStorage.getItem('ears-settings');
-            if (saved) {
-                const settings = JSON.parse(saved);
-                if (settings.mode) this.setMode(settings.mode);
-                if (settings.direction) this.setDirection(settings.direction);
-                if (settings.enabledIntervals) {
-                    this.enabledIntervals = new Set(settings.enabledIntervals);
-                    this.updateIntervalToggles();
-                }
-                if (typeof settings.adaptiveMode === 'boolean') {
-                    this.adaptiveMode = settings.adaptiveMode;
-                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('adaptiveToggle'));
-                    if (toggle) toggle.checked = this.adaptiveMode;
-                }
-                if (typeof settings.drivingMode === 'boolean') {
-                    this.drivingMode = settings.drivingMode;
-                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('drivingToggle'));
-                    if (toggle) toggle.checked = this.drivingMode;
-                }
-                if (typeof settings.autoAdvance === 'boolean') {
-                    this.autoAdvance = settings.autoAdvance;
-                    const toggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoAdvanceToggle'));
-                    if (toggle) toggle.checked = this.autoAdvance;
-                }
-                if (settings.rootRangeMid) {
-                    this.rootRangeMid = settings.rootRangeMid;
-                    this.updateRangeDisplay();
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load settings:', e);
+    syncSettingsToUI() {
+        this.setMode(this.mode);
+        this.setDirection(this.direction);
+        if (Array.isArray(this.settingsRef.enabledIntervals)) {
+            this.enabledIntervals = new Set(this.settingsRef.enabledIntervals);
         }
+        this.updateIntervalToggles();
+        const adaptiveToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('adaptiveToggle'));
+        if (adaptiveToggle) adaptiveToggle.checked = this.adaptiveMode;
+        const drivingToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('drivingToggle'));
+        if (drivingToggle) drivingToggle.checked = this.drivingMode;
+        const autoAdvanceToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoAdvanceToggle'));
+        if (autoAdvanceToggle) autoAdvanceToggle.checked = this.autoAdvance;
+        this.updateRangeDisplay();
+        this.syncSteppers();
     }
 
-    saveSettings() {
-        try {
-            const settings = {
-                mode: this.mode,
-                direction: this.direction,
-                enabledIntervals: [...this.enabledIntervals],
-                adaptiveMode: this.adaptiveMode,
-                drivingMode: this.drivingMode,
-                autoAdvance: this.autoAdvance,
-                rootRangeMid: this.rootRangeMid,
-            };
-            localStorage.setItem('ears-settings', JSON.stringify(settings));
-        } catch (e) {
-            console.error('Failed to save settings:', e);
-        }
+    persistSettings() {
+        this.settingsRef.enabledIntervals = [...this.enabledIntervals];
+        this.saveSettings();
     }
 
     async init() {
@@ -322,17 +225,10 @@ class EarsController {
         this.updateBreakdownDisplay();
         this.updateRangeDisplay();
 
-        // Load saved settings
-        this.loadSettings();
+        // Settings loaded by intervals.js before init
+        this.syncSettingsToUI();
 
-        // Hardware media keys for hands-free practice (driving):
-        // play/pause repeat the current interval, next plays a new one.
-        MediaSessionCore.register('Ears', [
-            ['play', () => { this.repeatCurrentInterval(); }],
-            ['pause', () => { this.repeatCurrentInterval(); }],
-            ['nexttrack', () => { this.playNextInterval(); }],
-            ['seekforward', () => { this.playNextInterval(); }]
-        ]);
+        // Hardware media keys registered by intervals.js when ear mode is active.
         MediaSessionCore.primeOnUserGesture();
     }
 
@@ -402,7 +298,7 @@ class EarsController {
      * @param {boolean} isListening
      */
     handleListeningChange(isListening) {
-        const listenBtn = document.getElementById('listenBtn');
+        const listenBtn = document.getElementById('earListenBtn');
         if (listenBtn) {
             listenBtn.classList.toggle('listening', isListening);
             const textSpan = listenBtn.querySelector('.button-text');
@@ -440,7 +336,7 @@ class EarsController {
 
     bindEvents() {
         // Listen button
-        document.getElementById('listenBtn')?.addEventListener('click', () => {
+        document.getElementById('earListenBtn')?.addEventListener('click', () => {
             if (this.voiceCore?.isListening) {
                 this.voiceCore.stopListening();
             } else {
@@ -449,12 +345,12 @@ class EarsController {
         });
 
         // Next button
-        document.getElementById('nextBtn')?.addEventListener('click', () => {
+        document.getElementById('earNextBtn')?.addEventListener('click', () => {
             this.playNextInterval();
         });
 
         // Repeat button
-        document.getElementById('repeatBtn')?.addEventListener('click', () => {
+        document.getElementById('earRepeatBtn')?.addEventListener('click', () => {
             this.repeatCurrentInterval();
         });
 
@@ -509,7 +405,7 @@ class EarsController {
             } else if (key === 'rootRangeMid') {
                 this.rootRangeMid = Math.max(36, Math.min(72, this.rootRangeMid + delta));
                 this.updateRangeDisplay();
-                this.saveSettings();
+                this.persistSettings();
             } else {
                 return;
             }
@@ -520,15 +416,15 @@ class EarsController {
         // Toggles (shared control wiring)
         PracticeControls.wireToggle('adaptiveToggle', this.adaptiveMode, checked => {
             this.adaptiveMode = checked;
-            this.saveSettings();
+            this.persistSettings();
         });
         PracticeControls.wireToggle('drivingToggle', this.drivingMode, checked => {
             this.drivingMode = checked;
-            this.saveSettings();
+            this.persistSettings();
         });
         PracticeControls.wireToggle('autoAdvanceToggle', this.autoAdvance, checked => {
             this.autoAdvance = checked;
-            this.saveSettings();
+            this.persistSettings();
         });
 
         // Reset stats
@@ -538,8 +434,8 @@ class EarsController {
 
         // History list (shared component owns rendering and the clear button)
         this.history = HistoryList.create({
-            listId: 'historyList',
-            clearBtnId: 'clearHistoryBtn',
+            listId: 'earHistoryList',
+            clearBtnId: 'earClearHistoryBtn',
             emptyText: 'No attempts yet',
             max: 20,
             renderItem: entry => this.renderHistoryItem(entry)
@@ -579,7 +475,7 @@ class EarsController {
         // The phase controls which is active during gameplay
         this.updateUIForPhase();
 
-        this.saveSettings();
+        this.persistSettings();
     }
 
     /**
@@ -615,7 +511,7 @@ class EarsController {
         document.querySelectorAll('[data-direction]').forEach(btn => {
             btn.classList.toggle('selected', /** @type {HTMLElement} */ (btn).dataset.direction === direction);
         });
-        this.saveSettings();
+        this.persistSettings();
     }
 
     /**
@@ -631,7 +527,7 @@ class EarsController {
             this.enabledIntervals.add(interval);
         }
         this.updateIntervalToggles();
-        this.saveSettings();
+        this.persistSettings();
     }
 
     updateIntervalToggles() {
@@ -660,7 +556,7 @@ class EarsController {
             this.enabledIntervals = new Set(INTERVAL_PRESETS[preset]);
         }
         this.updateIntervalToggles();
-        this.saveSettings();
+        this.persistSettings();
     }
 
     updateRangeDisplay() {
@@ -1416,11 +1312,12 @@ class EarsController {
     }
 }
 
-//-------INITIALIZATION-------
+//-------EXPORT-------
 
-let earsController;
-
-document.addEventListener('DOMContentLoaded', async () => {
-    earsController = new EarsController();
-    await earsController.init();
-});
+    window.EarTraining = {
+        /** @param {ConstructorParameters<typeof EarTrainingController>[0]} options */
+        create(options) {
+            return new EarTrainingController(options);
+        }
+    };
+})();
