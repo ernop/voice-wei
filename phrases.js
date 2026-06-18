@@ -13,6 +13,8 @@
         root: 'D#',
         octave: 3,
         scaleType: 'major',
+        phraseStyle: 'free',
+        phraseLesson: 'staff_steps',
         phraseAlgo: 'arch',
         startAtOne: true,
         rangeMode: 'within',
@@ -28,38 +30,79 @@
         singNumbers: false,
         noteLengthMs: 300,
         gapMs: 0,
+        showNumbers: true,
         showNoteNames: true,
         showStaff: true,
+        showPlayRow: true,
         reflected: false,
         loopCurrent: false,
         breakdownEnabled: false,
         autoStep: false,
-        playOnStep: false
+        playOnStep: false,
+        lessonLockedKeys: []
     };
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'phraseAlgo', 'startAtOne', 'rangeMode',
+        'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNoteNames', 'showStaff',
-        'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep'
+        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
+        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep',
+        'lessonLockedKeys'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
-    // affect the NEXT generated phrase (phraseAlgo, startAtOne, rangeMode,
-    // chromaticRuns, minLength, maxLength).
+    // affect the NEXT generated phrase (phraseStyle, phraseLesson,
+    // phraseAlgo, startAtOne, rangeMode, chromaticRuns, minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs']);
-    const REDRAW_KEYS = new Set(['showNoteNames', 'showStaff', 'hearTones', 'hearSpeech', 'singNumbers', 'fillMode']);
+    const REDRAW_KEYS = new Set([
+        'showNumbers', 'showNoteNames', 'showStaff', 'showPlayRow',
+        'hearTones', 'hearSpeech', 'singNumbers', 'fillMode'
+    ]);
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
         accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
-        minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16],
-        maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 32, 40, 50]
+        minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
+        maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 45, 50]
     };
+    const DEFAULT_LESSON_BY_STYLE = Object.freeze({
+        free: 'free_open',
+        staff: 'staff_steps',
+        sight: 'sight_pentachord',
+        barbershop: 'barber_tonic',
+        genre: 'genre_folk_hymn'
+    });
+    const LESSON_PRESETS = Object.freeze({
+        free_open: { style: 'free', defaults: { scaleType: 'major', phraseAlgo: 'arch', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: [] },
+        staff_steps: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'minLength', 'maxLength', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        staff_skips: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        staff_mixed: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        staff_landmarks: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        sight_do_re: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        sight_pentachord: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        sight_triad: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        sight_cadence: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        barber_tonic: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        barber_dominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        barber_subdominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        barber_thirds: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        barber_sevenths: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        genre_folk_hymn: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
+        genre_pop_hook: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: false, returnToInitial: false, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'accidentalRate', 'fillMode'] },
+        genre_theatre: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.05, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
+        genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15, fillMode: 'chord' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
+        genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] },
+        genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'full' }, locks: ['rangeMode', 'startAtOne', 'returnToInitial', 'fillMode'] },
+        genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'accidentalRate', 'fillMode'] },
+        genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0, fillMode: 'chord' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate', 'fillMode'] },
+        genre_klezmer: { style: 'genre', defaults: { scaleType: 'harmonic_minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.05, fillMode: 'none' }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'fillMode'] },
+        genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0, fillMode: 'none' }, locks: ['rangeMode', 'returnToInitial', 'fillMode'] }
+    });
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
     let piano = null;
@@ -130,6 +173,8 @@
             root: state.root,
             octave: state.octave,
             scaleType: state.scaleType,
+            phraseStyle: state.phraseStyle,
+            phraseLesson: state.phraseLesson,
             phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
             rangeMode: state.rangeMode,
@@ -184,28 +229,66 @@
         if (!degreesEl) return;
         degreesEl.textContent = '';
         degreesEl.classList.toggle('phrase-degrees-many', plan.length > 18);
+        degreesEl.classList.toggle('phrase-degrees-empty', !state.showPlayRow && !state.showNumbers && !state.showNoteNames);
+        degreesEl.style.setProperty('--phrase-note-count', String(plan.length));
+        degreesEl.style.setProperty('--phrase-note-cell-width', plan.length > 18 ? '34px' : '42px');
         plan.forEach(note => {
-            // The degree number is the mute toggle: tap to flip, drag
-            // across several to paint the same state. Keeps the stage to
-            // a single row (vertical space is precious on the phone).
-            const token = document.createElement('button');
-            token.type = 'button';
-            token.className = 'phrase-degree-token';
-            token.dataset.index = String(note.index);
-            token.textContent = note.degree;
-            token.title = `${note.degree} ${note.noteName} - tap to mute/unmute`;
-            token.classList.toggle('inactive', !note.enabled);
-            token.addEventListener('pointerdown', event => {
-                event.preventDefault();
-                isPointerToggling = true;
-                pointerToggleValue = !takeNotes[note.index].enabled;
-                setNoteActive(note.index, pointerToggleValue);
-            });
-            token.addEventListener('pointerenter', () => {
-                if (isPointerToggling) setNoteActive(note.index, pointerToggleValue);
-            });
-            degreesEl.appendChild(token);
+            const column = document.createElement('div');
+            column.className = 'phrase-note-column';
+            column.classList.toggle('inactive', !note.enabled);
+            column.dataset.index = String(note.index);
+
+            if (state.showPlayRow) {
+                const playToken = document.createElement('button');
+                playToken.type = 'button';
+                playToken.className = 'phrase-note-play-token';
+                playToken.textContent = '\u25b6';
+                playToken.title = `Play ${note.degree} ${note.noteName}`;
+                playToken.setAttribute('aria-label', `Play ${note.noteName}`);
+                playToken.addEventListener('click', event => {
+                    event.stopPropagation();
+                    playSingleNote(note.midi);
+                });
+                column.appendChild(playToken);
+            }
+
+            if (state.showNumbers) {
+                // Degree numbers are still the mute toggle: tap to flip,
+                // drag across several to paint the same enabled state.
+                const token = document.createElement('button');
+                token.type = 'button';
+                token.className = 'phrase-degree-token';
+                token.dataset.index = String(note.index);
+                token.textContent = note.degree;
+                token.title = `${note.degree} ${note.noteName} - tap to mute/unmute`;
+                token.addEventListener('pointerdown', event => {
+                    event.preventDefault();
+                    isPointerToggling = true;
+                    pointerToggleValue = !takeNotes[note.index].enabled;
+                    setNoteActive(note.index, pointerToggleValue);
+                });
+                token.addEventListener('pointerenter', () => {
+                    if (isPointerToggling) setNoteActive(note.index, pointerToggleValue);
+                });
+                column.appendChild(token);
+            }
+
+            if (state.showNoteNames) {
+                const name = document.createElement('div');
+                name.className = 'phrase-note-name-token';
+                name.textContent = note.noteName;
+                name.title = `${note.degree} ${note.noteName}`;
+                column.appendChild(name);
+            }
+
+            degreesEl.appendChild(column);
         });
+    }
+
+    /** @param {number} midi */
+    async function playSingleNote(midi) {
+        await PianoCore.ensureStarted();
+        playMidi(midi);
     }
 
     // Muted notes are simply not performed. Spoken output reads the plan
@@ -604,8 +687,9 @@
     function setNoteActive(index, active) {
         if (!takeNotes[index]) return;
         takeNotes[index].enabled = active;
-        const token = document.querySelector(`.phrase-degree-token[data-index="${index}"]`);
-        if (token) token.classList.toggle('inactive', !active);
+        document.querySelectorAll(`[data-index="${index}"]`).forEach(token => {
+            token.classList.toggle('inactive', !active);
+        });
         drawPhraseTest();
     }
 
@@ -829,6 +913,90 @@
         }
     }
 
+    function isLessonLocked(key) {
+        return Array.isArray(state.lessonLockedKeys) && state.lessonLockedKeys.includes(key);
+    }
+
+    function unlockLessonKey(key) {
+        if (!isLessonLocked(key)) return;
+        state.lessonLockedKeys = state.lessonLockedKeys.filter(lockedKey => lockedKey !== key);
+        syncLessonLocks();
+        saveSettings();
+    }
+
+    function syncToggleControl(id, checked) {
+        const input = getEl(id);
+        if (!(input instanceof HTMLInputElement)) return;
+        input.checked = checked;
+    }
+
+    function syncPresetControlledValues() {
+        PracticeControls.syncSingleSelect('data-scale', state.scaleType);
+        PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
+        PracticeControls.syncSingleSelect('data-range', state.rangeMode);
+        PracticeControls.syncSingleSelect('data-start-anchor', state.startAtOne ? 'one' : 'random');
+        PracticeControls.syncSingleSelect('data-return-anchor', state.returnToInitial ? 'on' : 'off');
+        syncToggleControl('hearTonesToggle', state.hearTones);
+        syncToggleControl('hearSpeechToggle', state.hearSpeech);
+        syncToggleControl('singNumbersToggle', state.singNumbers);
+        syncToggleControl('showNumbersToggle', state.showNumbers);
+        syncToggleControl('showNamesToggle', state.showNoteNames);
+        syncToggleControl('showStaffToggle', state.showStaff);
+        syncToggleControl('showPlayRowToggle', state.showPlayRow);
+        syncPhraseLessonControls();
+        syncAnchorControls();
+        syncAdjusterControls();
+    }
+
+    function syncLessonLocks() {
+        const selectorsByKey = {
+            scaleType: '[data-scale]',
+            phraseAlgo: '[data-phrase-algo]',
+            rangeMode: '[data-range]',
+            startAtOne: '[data-start-anchor]',
+            returnToInitial: '[data-return-anchor]',
+            fillMode: '#fillFullBtn, #fillChordBtn',
+            noteLengthMs: '[data-step-key="noteLengthMs"]',
+            gapMs: '[data-step-key="gapMs"]',
+            accidentalRate: '[data-step-key="accidentalRate"]',
+            minLength: '[data-step-key="minLength"]',
+            maxLength: '[data-step-key="maxLength"]',
+            hearTones: '#hearTonesToggle',
+            hearSpeech: '#hearSpeechToggle',
+            singNumbers: '#singNumbersToggle',
+            showNumbers: '#showNumbersToggle',
+            showNoteNames: '#showNamesToggle',
+            showStaff: '#showStaffToggle',
+            showPlayRow: '#showPlayRowToggle'
+        };
+        document.querySelectorAll('.lesson-locked').forEach(el => el.classList.remove('lesson-locked'));
+        Object.entries(selectorsByKey).forEach(([key, selector]) => {
+            if (!isLessonLocked(key)) return;
+            document.querySelectorAll(selector).forEach(el => {
+                const target = el.closest('.step-field, label') || el;
+                target.classList.add('lesson-locked');
+            });
+        });
+    }
+
+    /** @param {string} lesson */
+    function applyLessonPreset(lesson) {
+        const preset = LESSON_PRESETS[lesson];
+        if (!preset) {
+            setPhraseLesson(lesson);
+            return;
+        }
+        state.phraseStyle = preset.style;
+        state.phraseLesson = lesson;
+        Object.assign(state, preset.defaults);
+        normalizeLengthBounds('maxLength');
+        state.lessonLockedKeys = preset.locks.slice();
+        syncPresetControlledValues();
+        syncLessonLocks();
+        saveSettings();
+        if (REDRAW_KEYS.has('fillMode')) updatePhraseDisplay();
+    }
+
     function onSettingChanged(key) {
         saveSettings();
         if (REGENERATE_KEYS.has(key)) {
@@ -850,9 +1018,25 @@
 
     function wireSetting(attr, stateKey, parse) {
         PracticeControls.wireSingleSelect(attr, parse, state[stateKey], value => {
+            unlockLessonKey(stateKey);
             state[stateKey] = value;
             onSettingChanged(stateKey);
         });
+    }
+
+    function syncPhraseLessonControls() {
+        PracticeControls.syncSingleSelect('data-phrase-style', state.phraseStyle);
+        PracticeControls.syncSingleSelect('data-phrase-lesson', state.phraseLesson);
+    }
+
+    /** @param {string} style */
+    function setPhraseStyle(style) {
+        applyLessonPreset(DEFAULT_LESSON_BY_STYLE[style] || DEFAULT_LESSON_BY_STYLE.free);
+    }
+
+    /** @param {string} lesson */
+    function setPhraseLesson(lesson) {
+        applyLessonPreset(lesson);
     }
 
     function normalizeLengthBounds(key) {
@@ -863,6 +1047,7 @@
     }
 
     function setAdjusterValue(key, value) {
+        unlockLessonKey(key);
         state[key] = value;
         normalizeLengthBounds(key);
         syncAdjusterControls();
@@ -872,6 +1057,8 @@
     /** @param {number} midi */
     function setRootPitchFromMidi(midi) {
         const bounded = PracticeControls.clampRootMidi(midi);
+        unlockLessonKey('root');
+        unlockLessonKey('octave');
         const info = midiToNoteName(bounded);
         state.root = info.name;
         state.octave = info.octave;
@@ -904,6 +1091,7 @@
 
     /** @param {'full' | 'chord'} mode */
     function toggleFillMode(mode) {
+        unlockLessonKey('fillMode');
         state.fillMode = state.fillMode === mode ? 'none' : mode;
         syncAnchorControls();
         onSettingChanged('fillMode');
@@ -911,6 +1099,7 @@
 
     function wireHearToggle(id, stateKey) {
         PracticeControls.wireToggle(id, state[stateKey], checked => {
+            unlockLessonKey(stateKey);
             state[stateKey] = checked;
             onSettingChanged(stateKey);
         });
@@ -920,25 +1109,41 @@
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
         wireSetting('data-range', 'rangeMode', String);
+        PracticeControls.wireSingleSelect('data-phrase-style', String, state.phraseStyle, setPhraseStyle);
+        PracticeControls.wireSingleSelect('data-phrase-lesson', String, state.phraseLesson, setPhraseLesson);
         wireHearToggle('hearTonesToggle', 'hearTones');
         wireHearToggle('hearSpeechToggle', 'hearSpeech');
         wireHearToggle('singNumbersToggle', 'singNumbers');
         PracticeControls.wireSingleSelect('data-start-anchor', value => value === 'one', state.startAtOne, value => {
+            unlockLessonKey('startAtOne');
             state.startAtOne = value;
             onSettingChanged('startAtOne');
         });
         PracticeControls.wireSingleSelect('data-return-anchor', value => value === 'on', state.returnToInitial, value => {
+            unlockLessonKey('returnToInitial');
             state.returnToInitial = value;
             onSettingChanged('returnToInitial');
         });
         PracticeControls.wireSteppers(stepAdjusterValue);
+        PracticeControls.wireToggle('showNumbersToggle', state.showNumbers, checked => {
+            unlockLessonKey('showNumbers');
+            state.showNumbers = checked;
+            onSettingChanged('showNumbers');
+        });
         PracticeControls.wireToggle('showNamesToggle', state.showNoteNames, checked => {
+            unlockLessonKey('showNoteNames');
             state.showNoteNames = checked;
             onSettingChanged('showNoteNames');
         });
         PracticeControls.wireToggle('showStaffToggle', state.showStaff, checked => {
+            unlockLessonKey('showStaff');
             state.showStaff = checked;
             onSettingChanged('showStaff');
+        });
+        PracticeControls.wireToggle('showPlayRowToggle', state.showPlayRow, checked => {
+            unlockLessonKey('showPlayRow');
+            state.showPlayRow = checked;
+            onSettingChanged('showPlayRow');
         });
         getEl('playBtn')?.addEventListener('click', playCurrentOrNew);
         getEl('repeatBtn')?.addEventListener('click', toggleRepeatLoop);
@@ -1024,6 +1229,9 @@
                 hearTones: state.hearTones,
                 hearSpeech: state.hearSpeech,
                 singNumbers: state.singNumbers,
+                showNumbers: state.showNumbers,
+                showNoteNames: state.showNoteNames,
+                showPlayRow: state.showPlayRow,
                 showStaff: state.showStaff
             }),
             panel: testPanel

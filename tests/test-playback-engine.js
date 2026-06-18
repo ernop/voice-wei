@@ -18,8 +18,10 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.evaluate(instrumentVoices);
         await tab.click('#playBtn');
         await tab.waitForTimeout(700);
-        const degreesBefore = await tab.textContent('#phraseDegrees');
-        const notesBefore = await tab.textContent('#phraseNotes');
+        const degreesBefore = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        const notesBefore = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-note-name-token')).map(el => el.textContent).join(' '));
         const tChange = await tab.evaluate(() => performance.now());
         await tab.click('[data-step-key="rootPitch"][data-step-delta="1"]');
         await tab.waitForTimeout(1200);
@@ -30,19 +32,23 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         report.check(`phrases root+: ${kills.length} kills then ${newStarts.length} voices, kill-first`,
             kills.length > 0 && newStarts.length > 0 && kills[0].t <= newStarts[0].t);
 
-        const degreesAfter = await tab.textContent('#phraseDegrees');
-        const notesAfter = await tab.textContent('#phraseNotes');
+        const degreesAfter = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        const notesAfter = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-note-name-token')).map(el => el.textContent).join(' '));
         report.check('phrases root+ keeps degrees, transposes notes',
             degreesBefore === degreesAfter && notesBefore !== notesAfter);
 
         // min/max phrase length is bounds-next: never regenerates the current phrase
         await tab.click('#stopBtn');
         await tab.waitForTimeout(300);
-        const seqBefore = await tab.textContent('#phraseDegrees');
+        const seqBefore = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
         await tab.click('[data-step-key="maxLength"][data-step-delta="-1"]');
         await tab.click('[data-step-key="minLength"][data-step-delta="1"]');
         await tab.waitForTimeout(300);
-        const seqAfter = await tab.textContent('#phraseDegrees');
+        const seqAfter = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
         report.check('phrases min/max steppers keep current phrase', seqBefore === seqAfter);
 
         // show-names is redraw-only

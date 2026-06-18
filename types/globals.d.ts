@@ -60,7 +60,7 @@ interface Window {
     HistoryList?: any;
     NotationSpelling?: {
         vexKeySignature: (root: string, scaleType: string) => string;
-        midiToVexKey: (midi: number) => string;
+        midiToVexKey: (midi: number, accidentalPreference?: '#' | 'b' | null) => string;
         clefForPhrase: (rootMidi: number, midis: number[]) => 'treble' | 'bass';
         passingAccidental: (
             offset: number,
@@ -92,6 +92,9 @@ interface Window {
             hearTones: boolean;
             hearSpeech: boolean;
             singNumbers: boolean;
+            showNumbers: boolean;
+            showNoteNames: boolean;
+            showPlayRow: boolean;
             showStaff: boolean;
         };
         panel: any;

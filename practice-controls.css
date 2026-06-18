@@ -120,7 +120,7 @@
     padding: 3px;
     gap: 3px;
     border: 1px solid rgba(134, 239, 172, 0.38);
-    border-radius: 999px;
+    border-radius: 12px;
     background: rgba(0, 0, 0, 0.3);
 }
 
