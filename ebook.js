@@ -6,10 +6,11 @@ if (typeof pdfjsLib !== 'undefined') {
 }
 
 const EBOOK_DB_NAME = 'voice-wei-books';
-const EBOOK_DB_VERSION = 3;
+const EBOOK_DB_VERSION = 4;
 const BOOK_STORE = 'books';
 const SECTION_STORE = 'sections';
 const SEGMENT_STORE = 'segments';
+const HISTORY_STORE = 'history';
 const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
@@ -99,6 +100,24 @@ const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how 
  * @property {string} error
  */
 
+/**
+ * @typedef {Object} BookHistoryEntry
+ * @property {string} id
+ * @property {string} bookId
+ * @property {string} dateKey
+ * @property {string} timestamp
+ * @property {string} action
+ * @property {string} segmentId
+ * @property {string} sectionId
+ * @property {number} segmentIndex
+ * @property {number} positionSec
+ * @property {number} durationSec
+ * @property {number} listenedSec
+ * @property {number} readSec
+ * @property {number} readWords
+ * @property {string} detail
+ */
+
 class BooksStorage {
     constructor() {
         /** @type {IDBDatabase | null} */
@@ -127,6 +146,12 @@ class BooksStorage {
                     segments.createIndex('bookSegment', ['bookId', 'segmentIndex']);
                     segments.createIndex('bookSection', ['bookId', 'sectionId']);
                     segments.createIndex('bookStatus', ['bookId', 'status']);
+                }
+                if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+                    const history = db.createObjectStore(HISTORY_STORE, { keyPath: 'id' });
+                    history.createIndex('bookId', 'bookId');
+                    history.createIndex('bookDay', ['bookId', 'dateKey']);
+                    history.createIndex('timestamp', 'timestamp');
                 }
             };
             request.onsuccess = () => {
@@ -197,9 +222,23 @@ class BooksStorage {
     async deleteBookCascade(bookId) {
         const sections = await this.getSections(bookId);
         const segments = await this.getSegments(bookId);
+        const history = await this.getHistory(bookId);
         for (const section of sections) await this.delete(SECTION_STORE, section.key);
         for (const segment of segments) await this.delete(SEGMENT_STORE, segment.key);
+        for (const entry of history) await this.delete(HISTORY_STORE, entry.id);
         await this.delete(BOOK_STORE, bookId);
+    }
+
+    /** @param {BookHistoryEntry} entry */
+    async putHistory(entry) {
+        await this.put(HISTORY_STORE, entry);
+    }
+
+    /** @param {string} bookId */
+    async getHistory(bookId) {
+        const entries = await /** @type {Promise<BookHistoryEntry[]>} */ (this.getAllByIndex(HISTORY_STORE, 'bookId', bookId));
+        entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        return entries;
     }
 
     /** @param {string} storeName @param {any} value */
@@ -283,6 +322,12 @@ class BooksController {
         this.lastProgressSavedAt = 0;
         /** @type {HTMLAudioElement | null} */
         this.previewAudio = null;
+        /** @type {BookHistoryEntry[]} */
+        this.historyEntries = [];
+        this.lastListenHistoryAt = 0;
+        this.lastAudioTimeForHistory = 0;
+        this.lastReadHistoryAt = 0;
+        this.lastReadWordOffset = 0;
         this.init();
     }
 
@@ -582,12 +627,23 @@ class BooksController {
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audio) {
             audio.addEventListener('timeupdate', () => this.handleAudioTimeUpdate());
-            audio.addEventListener('ended', () => this.playNextGenerated(true));
+            audio.addEventListener('ended', () => this.handleAudioEnded());
             audio.addEventListener('loadedmetadata', () => this.restoreListeningOffset());
+            audio.addEventListener('play', () => this.handleAudioPlay());
+            audio.addEventListener('pause', () => this.handleAudioPause());
         }
         this.bindButton('playFromProgressBtn', () => this.playFromProgress());
         this.bindButton('previousSegmentBtn', () => this.playAdjacentGenerated(-1));
         this.bindButton('nextSegmentBtn', () => this.playAdjacentGenerated(1));
+        this.bindButton('playPauseBtn', () => this.togglePlayPause());
+        this.bindButton('back30Btn', () => this.seekRelative(-30, 'back-30'));
+        this.bindButton('forward30Btn', () => this.seekRelative(30, 'forward-30'));
+        this.bindButton('quadraticBackBtn', () => this.quadraticSeek(-1));
+        this.bindButton('quadraticForwardBtn', () => this.quadraticSeek(1));
+        const seekTrack = document.getElementById('playerSeekTrack');
+        if (seekTrack) seekTrack.addEventListener('click', e => this.handleSeekTrackClick(e));
+        this.bindButton('showHistoryBtn', () => this.showHistoryPanel(true));
+        this.bindButton('hideHistoryBtn', () => this.showHistoryPanel(false));
     }
 
     /** @param {string} id @param {() => void} handler */
@@ -1020,6 +1076,7 @@ class BooksController {
         await this.storage.putBook(this.currentBook);
         this.sections = await this.storage.getSections(bookId);
         this.segments = await this.storage.getSegments(bookId);
+        this.historyEntries = await this.storage.getHistory(bookId);
         this.currentSegmentId = this.currentBook.listeningSegmentId || this.segments[0]?.id || null;
         this.showWorkspace(true);
         this.renderWorkspace();
@@ -1248,6 +1305,7 @@ class BooksController {
             this.updateStatus('Generate audio before playing');
             return;
         }
+        this.recordHistory('play-from-progress', 'Play from saved listening position');
         this.playSegment(segment.id, true);
     }
 
@@ -1257,7 +1315,10 @@ class BooksController {
         const generated = this.segments.filter(segment => segment.status === 'done');
         const currentGeneratedIndex = generated.findIndex(segment => segment.segmentIndex === currentIndex);
         const next = generated[currentGeneratedIndex + direction] || (direction > 0 ? generated[0] : generated[generated.length - 1]);
-        if (next) this.playSegment(next.id, true, false);
+        if (next) {
+            this.recordHistory(direction > 0 ? 'next-segment' : 'previous-segment', `${direction > 0 ? 'Next' : 'Previous'} MP3 segment`);
+            this.playSegment(next.id, true, false);
+        }
     }
 
     /** @param {boolean} autoplay */
@@ -1279,7 +1340,7 @@ class BooksController {
             return;
         }
         this.currentSegmentId = segment.id;
-        this.markReadingProgress(segment);
+        this.markReadingProgress(segment, scrollReader ? 'reader-play-segment' : 'player-segment-change');
         this.loadSegmentIntoPlayer(segment, autoplay);
         if (scrollReader) {
             this.renderWorkspace();
@@ -1300,7 +1361,9 @@ class BooksController {
         audio.src = this.currentAudioUrl;
         audio.dataset.segmentId = segment.id;
         this.currentSegmentId = segment.id;
+        this.lastAudioTimeForHistory = 0;
         this.renderPlayerNow();
+        this.updatePlayerControls();
         this.preloadNextGenerated();
         if (autoplay) audio.play().catch(() => this.updateStatus('Tap play to start audio'));
     }
@@ -1311,6 +1374,7 @@ class BooksController {
         if (audio.dataset.segmentId === this.currentBook.listeningSegmentId && this.currentBook.listeningOffsetSec > 0 && this.currentBook.listeningOffsetSec < audio.duration - 1) {
             audio.currentTime = this.currentBook.listeningOffsetSec;
         }
+        this.updatePlayerControls();
     }
 
     handleAudioTimeUpdate() {
@@ -1319,6 +1383,7 @@ class BooksController {
         const segmentId = audio.dataset.segmentId || this.currentSegmentId || '';
         const segment = this.getSegmentById(segmentId);
         if (!segment) return;
+        this.updatePlayerControls();
         this.currentBook.listeningSegmentId = segment.id;
         this.currentBook.listeningOffsetSec = audio.currentTime || 0;
         const ratio = audio.duration ? Math.min(1, audio.currentTime / audio.duration) : 0;
@@ -1333,7 +1398,105 @@ class BooksController {
             this.storage.putBook(this.currentBook);
             this.renderLibrary();
         }
+        if (!audio.paused && now - this.lastListenHistoryAt > 10000) {
+            const delta = Math.max(0, (audio.currentTime || 0) - this.lastAudioTimeForHistory);
+            if (delta > 0) this.recordHistory('listen-progress', 'Listening progress sample', delta);
+            this.lastAudioTimeForHistory = audio.currentTime || 0;
+            this.lastListenHistoryAt = now;
+        }
         if (this.autoGenerateAhead && !this.isGenerating) this.ensureGeneratedAhead();
+    }
+
+    handleAudioPlay() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        this.lastAudioTimeForHistory = audio?.currentTime || 0;
+        this.lastListenHistoryAt = Date.now();
+        this.recordHistory('play', 'Playback started');
+        this.updatePlayerControls();
+    }
+
+    handleAudioPause() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audio) {
+            const delta = Math.max(0, (audio.currentTime || 0) - this.lastAudioTimeForHistory);
+            if (delta > 0) this.recordHistory('pause', 'Playback paused', delta);
+        } else {
+            this.recordHistory('pause', 'Playback paused');
+        }
+        this.updatePlayerControls();
+    }
+
+    handleAudioEnded() {
+        this.recordHistory('segment-ended', 'MP3 segment ended');
+        this.playNextGenerated(true);
+    }
+
+    togglePlayPause() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audio || !audio.src) {
+            this.playFromProgress();
+            return;
+        }
+        if (audio.paused) audio.play().catch(() => this.updateStatus('Tap play to start audio'));
+        else audio.pause();
+    }
+
+    /** @param {number} seconds @param {string} action */
+    seekRelative(seconds, action) {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audio || !Number.isFinite(audio.duration)) return;
+        this.seekTo(Math.max(0, Math.min(audio.duration, audio.currentTime + seconds)), action);
+    }
+
+    /** @param {number} direction */
+    quadraticSeek(direction) {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+        const current = audio.currentTime || 0;
+        let target;
+        if (direction < 0) {
+            target = current / 2;
+        } else {
+            target = current < audio.duration / 2
+                ? audio.duration - current
+                : current + (audio.duration - current) / 2;
+        }
+        this.seekTo(Math.max(0, Math.min(audio.duration, target)), direction < 0 ? 'quadratic-back' : 'quadratic-forward');
+    }
+
+    /** @param {MouseEvent} event */
+    handleSeekTrackClick(event) {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const track = /** @type {HTMLElement | null} */ (document.getElementById('playerSeekTrack'));
+        if (!audio || !track || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+        const rect = track.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        this.seekTo(ratio * audio.duration, 'seek-bar');
+    }
+
+    /** @param {number} target @param {string} action */
+    seekTo(target, action) {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audio) return;
+        const from = audio.currentTime || 0;
+        audio.currentTime = target;
+        this.lastAudioTimeForHistory = target;
+        this.recordHistory(action, `${this.formatClock(from)} -> ${this.formatClock(target)}`);
+        this.updatePlayerControls();
+    }
+
+    updatePlayerControls() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const playBtn = document.getElementById('playPauseBtn');
+        const currentEl = document.getElementById('playerCurrentTime');
+        const durationEl = document.getElementById('playerDuration');
+        const fill = /** @type {HTMLElement | null} */ (document.getElementById('playerProgressFill'));
+        const current = audio?.currentTime || 0;
+        const duration = Number.isFinite(audio?.duration) ? audio.duration : 0;
+        if (playBtn) playBtn.textContent = audio && !audio.paused ? 'Pause' : 'Play';
+        if (currentEl) currentEl.textContent = this.formatClock(current);
+        if (durationEl) durationEl.textContent = this.formatClock(duration);
+        if (fill) fill.style.width = duration ? `${Math.min(100, Math.max(0, current / duration * 100))}%` : '0%';
     }
 
     ensureGeneratedAhead() {
@@ -1514,14 +1677,23 @@ class BooksController {
         }
     }
 
-    /** @param {AudioSegment} segment */
-    markReadingProgress(segment) {
+    /** @param {AudioSegment} segment @param {string} action */
+    markReadingProgress(segment, action = 'read-position') {
         if (!this.currentBook || !this.storage) return;
         this.currentBook.readingSectionId = segment.sectionId;
         this.currentBook.readingCharOffset = segment.charStart;
         this.currentBook.listeningSegmentId = segment.id;
         this.currentBook.updatedAt = new Date().toISOString();
         this.storage.putBook(this.currentBook);
+        if (action.startsWith('reader') || action === 'read-position') {
+            const now = Date.now();
+            const wordOffset = this.estimateWordOffset(segment.charStart);
+            const readWords = Math.max(0, wordOffset - this.lastReadWordOffset);
+            const readSec = this.lastReadHistoryAt ? Math.max(0, (now - this.lastReadHistoryAt) / 1000) : 0;
+            this.lastReadWordOffset = wordOffset;
+            this.lastReadHistoryAt = now;
+            this.recordHistory(action, 'Reader position changed', 0, readSec, readWords);
+        }
     }
 
     renderPlayerNow() {
@@ -1637,6 +1809,12 @@ class BooksController {
     getBookReadPercent(book) {
         if (!book.charCount) return 0;
         return Math.max(0, Math.min(100, Math.round((book.readingCharOffset || 0) / book.charCount * 100)));
+    }
+
+    /** @param {number} charOffset */
+    estimateWordOffset(charOffset) {
+        if (!this.currentBook?.charCount || !this.currentBook.wordCount) return 0;
+        return Math.round(Math.max(0, Math.min(1, charOffset / this.currentBook.charCount)) * this.currentBook.wordCount);
     }
 
     /** @param {number} words */
@@ -1799,6 +1977,15 @@ class BooksController {
         return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
     }
 
+    /** @param {number} seconds */
+    formatClock(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+        const whole = Math.floor(seconds);
+        const mins = Math.floor(whole / 60);
+        const secs = whole % 60;
+        return `${mins}:${String(secs).padStart(2, '0')}`;
+    }
+
     /** @param {number} num */
     formatNumber(num) {
         return num.toLocaleString();
@@ -1861,6 +2048,80 @@ class BooksController {
         line.textContent = `[${timestamp}] ${message}`;
         logContent.appendChild(line);
         logContent.scrollTop = logContent.scrollHeight;
+    }
+
+    /**
+     * @param {string} action
+     * @param {string} detail
+     * @param {number} [listenedSec]
+     * @param {number} [readSec]
+     * @param {number} [readWords]
+     */
+    recordHistory(action, detail, listenedSec = 0, readSec = 0, readWords = 0) {
+        if (!this.storage || !this.currentBook) return;
+        const segment = this.getSegmentById(this.currentSegmentId || this.currentBook.listeningSegmentId || '');
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const now = new Date();
+        const entry = {
+            id: this.createId('history'),
+            bookId: this.currentBook.id,
+            dateKey: this.dateKey(now),
+            timestamp: now.toISOString(),
+            action,
+            segmentId: segment?.id || '',
+            sectionId: segment?.sectionId || this.currentBook.readingSectionId || '',
+            segmentIndex: segment?.segmentIndex ?? -1,
+            positionSec: audio?.currentTime || this.currentBook.listeningOffsetSec || 0,
+            durationSec: Number.isFinite(audio?.duration) ? audio.duration : segment?.durationSec || segment?.estimatedDurationSec || 0,
+            listenedSec,
+            readSec,
+            readWords,
+            detail
+        };
+        this.historyEntries.unshift(entry);
+        this.storage.putHistory(entry);
+        if (document.getElementById('historyPanel')?.style.display !== 'none') this.renderHistoryPanel();
+    }
+
+    /** @param {Date} date */
+    dateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    /** @param {boolean} show */
+    showHistoryPanel(show) {
+        const panel = document.getElementById('historyPanel');
+        if (panel) panel.style.display = show ? 'block' : 'none';
+        if (show) this.renderHistoryPanel();
+    }
+
+    renderHistoryPanel() {
+        const summaryEl = document.getElementById('historySummary');
+        const listEl = document.getElementById('historyList');
+        if (!summaryEl || !listEl) return;
+        const byDay = new Map();
+        for (const entry of this.historyEntries) {
+            if (!byDay.has(entry.dateKey)) byDay.set(entry.dateKey, { listened: 0, read: 0, words: 0, events: 0 });
+            const day = byDay.get(entry.dateKey);
+            day.listened += entry.listenedSec || 0;
+            day.read += entry.readSec || 0;
+            day.words += entry.readWords || 0;
+            day.events++;
+        }
+        const dayRows = Array.from(byDay.entries()).slice(0, 7).map(([day, totals]) => {
+            const wpm = totals.read > 30 && totals.words > 0 ? ` · read ~${Math.round(totals.words / (totals.read / 60))} wpm` : '';
+            return `<div>${this.escapeHtml(day)}: listened ${this.formatDuration(totals.listened)} · read ${this.formatDuration(totals.read)}${wpm} · ${totals.events} events</div>`;
+        });
+        summaryEl.innerHTML = dayRows.length ? dayRows.join('') : '<div>No history yet.</div>';
+        listEl.innerHTML = this.historyEntries.slice(0, 120).map(entry => {
+            const date = new Date(entry.timestamp);
+            const section = entry.sectionId ? this.getSectionTitle(entry.sectionId) : 'Book';
+            const segment = entry.segmentIndex >= 0 ? `seg ${entry.segmentIndex + 1}` : '';
+            return `<div class="history-item">${this.escapeHtml(date.toLocaleString())} · ${this.escapeHtml(entry.action)} · ${this.escapeHtml(section)} ${this.escapeHtml(segment)} · ${this.escapeHtml(entry.detail)}</div>`;
+        }).join('');
     }
 
     clearLog() {

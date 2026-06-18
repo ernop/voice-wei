@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=123">
-    <link rel="stylesheet" href="ebook.css?v=123">
+    <link rel="stylesheet" href="style.css?v=124">
+    <link rel="stylesheet" href="ebook.css?v=124">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -127,18 +127,9 @@
                     </header>
 
                     <div class="book-progress-card">
-                        <div>
-                            <span>Read</span>
-                            <strong id="readProgressText">0%</strong>
-                        </div>
-                        <div>
-                            <span>Generated</span>
-                            <strong id="generatedProgressText">0 min</strong>
-                        </div>
-                        <div>
-                            <span>Listening</span>
-                            <strong id="listeningProgressText">Start</strong>
-                        </div>
+                        <span>Read <strong id="readProgressText">0%</strong></span>
+                        <span>Generated <strong id="generatedProgressText">0 min</strong></span>
+                        <span>Listening <strong id="listeningProgressText">Start</strong></span>
                     </div>
 
                     <div class="workspace-stack">
@@ -160,8 +151,8 @@
                                     <button id="generateNextHourBtn" class="primary-action-btn" type="button">Next hour</button>
                                     <button id="generateSectionBtn" class="primary-action-btn" type="button">Current section</button>
                                     <button id="generateAllBtn" class="primary-action-btn" type="button">All remaining</button>
-                                    <button id="cancelGenerationBtn" class="danger-action-btn" type="button">Cancel</button>
                                 </div>
+                                <button id="cancelGenerationBtn" class="danger-action-btn generation-cancel-btn" type="button">Cancel MP3 conversion</button>
                                 <label class="ahead-toggle">
                                     <input type="checkbox" id="autoGenerateAheadToggle" />
                                     <span>Keep about 1 hour generated ahead while listening</span>
@@ -171,13 +162,38 @@
                             <div class="player-card">
                                 <h3>Listen</h3>
                                 <div class="player-now" id="playerNow">No segment selected</div>
-                                <audio id="audioPlayer" controls class="audio-player"></audio>
+                                <audio id="audioPlayer" class="audio-player"></audio>
+                                <div class="custom-player">
+                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current MP3 segment">
+                                        <span id="playerProgressFill" class="player-progress-fill"></span>
+                                    </button>
+                                    <div class="player-time-row">
+                                        <span id="playerCurrentTime">0:00</span>
+                                        <span id="playerDuration">0:00</span>
+                                    </div>
+                                    <div class="player-control-grid">
+                                        <button id="previousSegmentBtn" class="small-action-btn transport-step-btn" type="button">Prev</button>
+                                        <button id="quadraticBackBtn" class="small-action-btn transport-step-btn" type="button">Q Back</button>
+                                        <button id="back30Btn" class="small-action-btn transport-step-btn" type="button">-30s</button>
+                                        <button id="playPauseBtn" class="primary-action-btn" type="button">Play</button>
+                                        <button id="forward30Btn" class="small-action-btn transport-step-btn" type="button">+30s</button>
+                                        <button id="quadraticForwardBtn" class="small-action-btn transport-step-btn" type="button">Q Fwd</button>
+                                        <button id="nextSegmentBtn" class="small-action-btn transport-step-btn" type="button">Next</button>
+                                    </div>
+                                </div>
                                 <div class="player-actions">
-                                    <button id="previousSegmentBtn" class="small-action-btn transport-step-btn" type="button">&lt; Prev</button>
                                     <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
-                                    <button id="nextSegmentBtn" class="small-action-btn transport-step-btn" type="button">Next &gt;</button>
+                                    <button id="showHistoryBtn" class="small-action-btn" type="button">History</button>
                                 </div>
                                 <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 segments.</div>
+                                <div class="history-panel" id="historyPanel" style="display: none;">
+                                    <div class="history-header">
+                                        <strong>Listening history</strong>
+                                        <button id="hideHistoryBtn" class="small-action-btn" type="button">Hide</button>
+                                    </div>
+                                    <div id="historySummary" class="history-summary"></div>
+                                    <div id="historyList" class="history-list"></div>
+                                </div>
                             </div>
 
                             <div class="log-container compact-log" id="logContainer">
@@ -210,8 +226,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="shared-header.js?v=123"></script>
-    <script src="ebook.js?v=123"></script>
+    <script src="shared-header.js?v=124"></script>
+    <script src="ebook.js?v=124"></script>
 </body>
 
 </html>

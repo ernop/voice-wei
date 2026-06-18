@@ -122,10 +122,10 @@ above; nothing here is a commitment.
 
 - Richer multimedia ebook mode on top of the local Books library: current
   Books stores originals, parsed text sections, generated MP3 segments,
-  and read/listen progress in IndexedDB. Remaining work is image/table
-  extraction in the new section model, richer EPUB/HTML rendering, figure
-  reference detection, tighter text/audio synchronization, and better progress
-  visualization.
+  read/listen progress, and detailed local history in IndexedDB. Remaining work
+  is image/table extraction in the new section model, richer EPUB/HTML
+  rendering, figure reference detection, tighter text/audio synchronization, and
+  better progress visualization from the history data.
 - Voice-cloned or higher-quality narration options
 
 ### Platform

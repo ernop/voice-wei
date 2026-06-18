@@ -331,24 +331,17 @@
 }
 
 .book-progress-card {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    padding: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 7px 9px;
     margin-bottom: 8px;
 }
 
-.book-progress-card div {
-    padding: 6px 8px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.24);
-}
-
 .book-progress-card span {
-    display: block;
     color: rgba(255, 255, 255, 0.56);
     font-size: 0.78rem;
-    margin-bottom: 2px;
 }
 
 .book-progress-card strong {
@@ -475,27 +468,25 @@
 
 .reader-segment {
     display: block;
-    padding: 8px;
-    margin: 6px 0;
-    border-radius: 8px;
-    border-left: 3px solid rgba(255, 255, 255, 0.12);
+    padding: 0;
+    margin: 0 0 0.85em;
+    border-radius: 0;
+    border-left: none;
     cursor: pointer;
     white-space: pre-wrap;
 }
 
 .reader-segment.generated {
-    border-left-color: #4ade80;
-    background: rgba(74, 222, 128, 0.06);
+    color: rgba(232, 245, 233, 0.96);
 }
 
 .reader-segment.generating {
-    border-left-color: #fbbf24;
-    background: rgba(251, 191, 36, 0.06);
+    color: #fde68a;
 }
 
 .reader-segment.current {
-    outline: 2px solid rgba(74, 222, 128, 0.45);
-    background: rgba(74, 222, 128, 0.1);
+    outline: none;
+    background: rgba(255, 255, 255, 0.055);
 }
 
 .reader-segment mark {
@@ -534,8 +525,22 @@
 }
 
 .generator-actions {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
     margin: 10px 0;
+}
+
+.generator-actions .primary-action-btn {
+    padding: 8px 5px;
+    font-size: 0.76rem;
+    line-height: 1.1;
+}
+
+.generation-cancel-btn {
+    width: 100%;
+    padding: 8px;
+    font-size: 0.8rem;
 }
 
 .ahead-toggle {
@@ -605,12 +610,58 @@
 }
 
 .audio-player {
+    display: none;
+}
+
+.custom-player {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.player-seek-track {
+    position: relative;
     width: 100%;
+    height: 12px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.player-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background: #4ade80;
+}
+
+.player-time-row {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(255, 255, 255, 0.62);
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 0.74rem;
+}
+
+.player-control-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.player-control-grid .small-action-btn,
+.player-control-grid .primary-action-btn {
+    padding: 7px 4px;
+    min-height: 36px;
+    font-size: 0.72rem;
+    line-height: 1.05;
 }
 
 .player-actions {
     display: grid;
-    grid-template-columns: minmax(70px, 0.8fr) minmax(130px, 1.4fr) minmax(70px, 0.8fr);
+    grid-template-columns: 1fr auto;
     gap: 6px;
     margin-top: 10px;
 }
@@ -623,6 +674,47 @@
 
 .transport-step-btn {
     font-size: 0.86rem;
+}
+
+.history-panel {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(74, 222, 128, 0.18);
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    color: #a7f3d0;
+}
+
+.history-summary {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.78rem;
+    text-align: left;
+}
+
+.history-list {
+    display: grid;
+    gap: 4px;
+    max-height: 180px;
+    overflow: auto;
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 0.72rem;
+    text-align: left;
+}
+
+.history-item {
+    padding: 5px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .compact-log {
@@ -662,11 +754,17 @@
     }
 
     .workspace-actions,
-    .generator-actions,
-    .player-actions,
     .storage-line,
     .reader-toolbar {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .generator-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .player-control-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }

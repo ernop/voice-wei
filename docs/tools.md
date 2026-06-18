@@ -200,11 +200,18 @@ OpenAI.
 - Generated segments are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
   pending segment.
-- The player plays generated segments in book order, saves listening position,
-  and preloads the next generated segment. A toggle can keep about one hour of
-  audio generated ahead while listening.
+- The player is custom, not native browser chrome: previous/next segment,
+  play/pause, +/-30s, quadratic back/forward jumps, seek bar, keyboard
+  Left/Right segment navigation, saved listening position, and preloaded next
+  generated segment. A toggle can keep about one hour of audio generated ahead
+  while listening.
+- Books keeps local listening/reading history in IndexedDB: play/pause,
+  segment changes, jumps, position samples, dates, per-day listening/read
+  totals, and rough read-speed estimates. It is hidden by default and visible
+  from the player History button.
 - The reader shows parsed book sections and text/audio segments, tracks reading
-  progress, and can search/highlight text locally.
+  progress, and can search/highlight text locally. Audio segment markers should
+  not render as bulky colored boxes inside the reading text.
 - Downloads: original file, current segment MP3, all generated segment MP3s
   individually, or one concatenated MP3 made from all generated segments.
 - The library is a compact bookshelf: one row per book with title/author, read
@@ -215,9 +222,9 @@ OpenAI.
   localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
   belong in IndexedDB. Books requests persistent browser storage automatically
   and displays the current quota estimate.
-- There is no user identity, server-side audit log, analytics, or durable "who
-  did what" history for Books. The visible Log panel is page-local and can be
-  cleared.
+- There is no user identity, server-side audit log, or analytics. The visible
+  Log panel is page-local and can be cleared; the local history panel is
+  browser-local and exists to support user navigation/progress.
 
 ## Pitch test panel (shared)
 
