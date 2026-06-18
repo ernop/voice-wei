@@ -450,6 +450,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const savedAccidental = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.accidentalRate);
         report.check('phrases accidental rate stepper persists', savedAccidental === 0.05);
 
+        const extendedLabels = await tab.evaluate(() => {
+            const dp = PatternPracticeCore.degreesPerOctave('major');
+            return PatternPracticeCore.offsetToDegree(8, dp) === '2\u2191'
+                && PatternPracticeCore.offsetToDegree(-2, dp) === '6\u2193'
+                && PatternPracticeCore.offsetToDegree(7, dp) === '8'
+                && PatternPracticeCore.offsetToSpoken(8, dp) === '2 above'
+                && PatternPracticeCore.offsetToSpoken(-2, dp) === '6 below';
+        });
+        report.check('phrases extended degrees label above/below, not raw 9 or 6d', extendedLabels);
+
         const fillPlans = await tab.evaluate(() => {
             const before = {
                 take: window.phrasesDebug.takePlan().length,

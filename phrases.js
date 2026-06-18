@@ -219,17 +219,14 @@
      * @param {number} degreesPerOctave
      */
     function describeScaleOffset(offset, degreesPerOctave) {
-        if (offset < 0) {
-            const degree = PatternPracticeCore.positiveModulo(offset, degreesPerOctave) + 1;
-            return `${degree} below`;
+        if (!Number.isInteger(offset)) {
+            return PatternPracticeCore.offsetToDegree(Math.floor(offset), degreesPerOctave);
         }
-        if (offset === degreesPerOctave) return `${degreesPerOctave + 1} ${ordinalForDegree(degreesPerOctave + 1)}`;
-        if (offset > degreesPerOctave) {
-            const degree = PatternPracticeCore.positiveModulo(offset, degreesPerOctave) + 1;
-            return `${degree} above`;
+        if (offset >= 0 && offset <= degreesPerOctave) {
+            const degree = offset + 1;
+            return `${degree} ${ordinalForDegree(degree)}`;
         }
-        const degree = offset + 1;
-        return `${degree} ${ordinalForDegree(degree)}`;
+        return PatternPracticeCore.offsetToDegree(offset, degreesPerOctave);
     }
 
     /**

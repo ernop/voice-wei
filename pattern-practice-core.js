@@ -116,16 +116,35 @@ const PatternPracticeCore = (function () {
         return gap === 2 ? lower + 0.5 : null;
     }
 
-    /** @param {number} offset @param {number} dp */
+    /**
+     * Display label for a scale-degree offset. In-octave degrees stay 1..8
+     * (dp+1 for a 7-note scale). Beyond that: 2↑, 6↓ — not raw 9 or 6d.
+     * @param {number} offset @param {number} dp
+     */
     function offsetToDegree(offset, dp) {
-        if (offset >= 0) return String(offset + 1);
-        return `${positiveModulo(offset, dp) + 1}d`;
+        if (offset >= 0 && offset <= dp) return String(offset + 1);
+        const degree = positiveModulo(offset, dp) + 1;
+        if (offset > dp) {
+            const octavesAbove = Math.floor(offset / dp);
+            return `${degree}${'\u2191'.repeat(octavesAbove)}`;
+        }
+        const octavesBelow = Math.ceil(Math.abs(offset) / dp);
+        return `${degree}${'\u2193'.repeat(octavesBelow)}`;
     }
 
-    /** @param {number} offset @param {number} dp */
+    /**
+     * Spoken label for the same offset ("2 above", "6 below", or "5").
+     * @param {number} offset @param {number} dp
+     */
     function offsetToSpoken(offset, dp) {
-        if (offset >= 0) return String(offset + 1);
-        return `${positiveModulo(offset, dp) + 1} down`;
+        if (offset >= 0 && offset <= dp) return String(offset + 1);
+        const degree = positiveModulo(offset, dp) + 1;
+        if (offset > dp) {
+            const octavesAbove = Math.floor(offset / dp);
+            return octavesAbove === 1 ? `${degree} above` : `${degree} above ${octavesAbove}`;
+        }
+        const octavesBelow = Math.ceil(Math.abs(offset) / dp);
+        return octavesBelow === 1 ? `${degree} below` : `${degree} below ${octavesBelow}`;
     }
 
     /**
