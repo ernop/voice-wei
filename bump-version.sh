@@ -38,6 +38,3 @@ for file in *.html; do
 done
 
 echo "Done. Version is now v$NEW"
-echo ""
-echo "Next steps:"
-echo "  git add -A && git commit -m \"Set release to v$NEW\" && git push"
