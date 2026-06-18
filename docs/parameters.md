@@ -173,14 +173,13 @@ The play loop reads settings when it generates each pattern.
 
 Drone test: note stepper (C3-C5) applies on Start.
 
-## Books (`ebookSettings`, API key in `openaiApiKey`, files in IndexedDB)
+## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 
 Books persists TTS preferences and the OpenAI API key in browser localStorage.
 Large book data is stored in IndexedDB (`voice-wei-books`): original upload
-Blobs are saved when a file is loaded, and generated MP3 Blobs are saved back
-to the same record when conversion completes. Parsed text, extracted image
-object URLs, and the visible Log panel are page-session state and are rebuilt
-or cleared on reload.
+Blobs, parsed section/spine records, planned TTS text segments, generated MP3
+segment Blobs, and read/listen progress. The visible Log panel is page-session
+state and is cleared on reload.
 
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
@@ -188,12 +187,14 @@ or cleared on reload.
 | model | tts-1 | tts-1, tts-1-hd | immediate for the next preview/conversion request |
 | speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
 
-Actions: file upload/drop creates a saved-library record; Convert to MP3
-updates that record with audio when it succeeds; Load re-parses a saved
-original; Download original / Download MP3 export saved blobs; Delete removes
-the browser-local record. Clear, Cancel, Select All, Copy, image
-fullscreen/navigation, and clear Log are not persisted. The visible Log is
-page-local DOM state only; it is not a durable usage record.
+Actions: import creates a saved book plus section and segment records; Generate
+next 15 min / next hour / current section / all remaining updates individual
+segment records as each MP3 finishes; Cancel preserves completed segments and
+leaves the rest pending/error; Play updates listening and reading progress;
+auto-generate-ahead can generate more pending segments while listening.
+Download original / current segment / all segment MP3s / combined MP3 export
+saved blobs; Delete removes the browser-local book, sections, and segments.
+The visible Log is page-local DOM state only; it is not a durable usage record.
 
 ## Pitch test panel (shared component)
 

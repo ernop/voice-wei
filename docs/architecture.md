@@ -143,14 +143,21 @@ panel) or session (pitch meter) appends to the `practice-progress` list
 (capped at 1000 entries) via `progress-store.js`, which renders per-day
 trend lines.
 
-Books keeps large user files in browser IndexedDB (`voice-wei-books`, `books`
-object store), not localStorage. Each saved record stores the original upload
-Blob plus metadata; when conversion succeeds, the generated MP3 Blob is saved
-onto the same record. This is browser-local library storage: there is still no
-account identity, analytics sink, server-side audit trail, or durable "who did
-what" event history. The OpenAI key (`openaiApiKey`) and TTS settings
-(`ebookSettings`) remain in localStorage because they are small scalar values.
-The visible Log panel is DOM state only and is lost on refresh/navigation.
+Books keeps large user files in browser IndexedDB (`voice-wei-books`), not
+localStorage. The current schema uses three object stores:
+
+- `books`: original upload Blob, title/author/format metadata, estimated
+  duration, read/listen progress, generated coverage.
+- `sections`: parsed spine/text sections keyed by book.
+- `segments`: TTS-sized text ranges with per-segment status and MP3 Blob.
+
+This makes Books a browser-local reader/player/generator rather than a
+one-shot converter: generation can stop after some segments, preserve completed
+MP3s, and resume next session. There is still no account identity, analytics
+sink, server-side audit trail, or durable "who did what" event history. The
+OpenAI key (`openaiApiKey`) and TTS settings (`ebookSettings`) remain in
+localStorage because they are small scalar values. The visible Log panel is DOM
+state only and is lost on refresh/navigation.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
 string-only and commonly capped around 5-10 MB. IndexedDB quota is

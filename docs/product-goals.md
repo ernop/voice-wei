@@ -43,7 +43,7 @@ and deliver a weaker version of the requested change.
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Ears | Name and sing intervals from sound alone | Adaptive weighting pushes weak intervals; lifetime stats persist |
 | Music | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
-| Books | Turn ebooks into listenable audio | Conversion works on real files; output is downloadable |
+| Books | Read ebooks and grow local generated audio over time | Originals, spine/text, MP3 segments, and progress persist locally; generation can resume where it stopped |
 
 ## System invariants
 
@@ -120,13 +120,12 @@ above; nothing here is a commitment.
 
 ### Books
 
-- Multimedia ebook mode: a content manifest linking text chunks, audio
-  segments, and extracted images/tables for synchronized listen-and-see
-  playback (audio-only / synchronized / browse modes). Current Books already
-  extracts EPUB images and low-text PDF page renders into a browseable gallery;
-  saves original uploads and converted MP3s in a browser-local library; remaining
-  work is synchronization, richer PDF/table extraction, HTML image extraction,
-  figure-reference detection, and a true read/listen progress model.
+- Richer multimedia ebook mode on top of the local Books library: current
+  Books stores originals, parsed spine/text sections, generated MP3 segments,
+  and read/listen progress in IndexedDB. Remaining work is image/table
+  extraction in the new section model, richer EPUB/HTML rendering, figure
+  reference detection, tighter text/audio synchronization, and better progress
+  visualization.
 - Voice-cloned or higher-quality narration options
 
 ### Platform

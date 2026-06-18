@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Voice-Wei: Ebook to Audiobook converter using OpenAI TTS">
+    <meta name="description" content="Voice-Wei Books: local ebook reader, audiobook generator, and MP3 player">
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=115">
-    <link rel="stylesheet" href="ebook.css?v=115">
+    <link rel="stylesheet" href="style.css?v=116">
+    <link rel="stylesheet" href="ebook.css?v=116">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -46,7 +46,7 @@
                         <option value="nova">Nova - Female, warm</option>
                         <option value="shimmer">Shimmer - Soft female</option>
                     </select>
-                    <button id="previewVoiceBtn" class="preview-voice-btn" title="Preview voice">&#9654;</button>
+                    <button id="previewVoiceBtn" class="preview-voice-btn" type="button" title="Preview voice">Preview</button>
                 </div>
                 <p class="setting-description" id="voiceDescription">Neutral and balanced, good for most content.</p>
             </div>
@@ -66,152 +66,140 @@
                     <input type="range" id="ttsSpeed" min="0.25" max="4.0" step="0.25" value="1.0" class="speed-slider">
                     <span id="ttsSpeedValue">1.0x</span>
                 </div>
-                <p class="setting-description">0.25x (very slow) to 4.0x (very fast). Default 1.0x.</p>
+                <p class="setting-description">0.25x to 4.0x. Segment duration estimates assume normal narration speed.</p>
             </div>
 
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
-        <!-- API Key Setup Overlay (shown when no key is configured) -->
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
                 <h2>OpenAI API Key Required</h2>
-                <p>This app uses OpenAI's text-to-speech to convert ebooks to audio. You'll need your own API key from <a
-                        href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.
-                </p>
+                <p>Books uses OpenAI text-to-speech to generate local MP3 segments. Add your key from <a
+                        href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>
                 <div class="api-key-input-row">
-                    <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..."
-                        class="api-key-input" />
+                    <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..." class="api-key-input" />
                     <button id="saveApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
                 </div>
-                <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
-                    leaves your device except to call OpenAI's API directly.</p>
+                <p class="api-key-privacy-note">The key stays in this browser's localStorage and is sent only to OpenAI.</p>
             </div>
         </div>
 
         <main>
-            <div class="status" id="status">Upload an ebook to get started</div>
+            <div class="status" id="status">Load a saved book or import a new one.</div>
 
-            <!-- File Upload Section -->
-            <div class="upload-section">
-                <div class="upload-area" id="uploadArea">
-                    <input type="file" id="fileInput" accept=".txt,.epub,.pdf,.html,.htm" hidden />
-                    <div class="upload-icon">&#128214;</div>
-                    <p class="upload-text">Drop ebook here or click to upload</p>
-                    <p class="upload-formats">Supported: TXT, EPUB, PDF, HTML</p>
-                </div>
-            </div>
-
-            <!-- Saved Library Section -->
-            <div class="library-section" id="librarySection">
-                <div class="library-header">
-                    <div>
-                        <h3>Saved Books</h3>
-                        <p class="library-note">Original uploads and converted MP3s are stored in this browser.</p>
+            <section class="books-shell">
+                <aside class="books-library-panel">
+                    <div class="upload-card">
+                        <input type="file" id="fileInput" accept=".txt,.epub,.pdf,.html,.htm" hidden />
+                        <button id="uploadButton" class="upload-button" type="button">Import book</button>
+                        <p>TXT, EPUB, PDF, HTML. Originals stay on this device in IndexedDB.</p>
                     </div>
-                    <div class="library-storage">
-                        <span id="storageEstimate">Checking storage...</span>
-                        <button id="requestPersistentStorageBtn" class="library-storage-btn" type="button">Keep storage</button>
+
+                    <div class="library-toolbar">
+                        <input type="search" id="librarySearch" class="library-search" placeholder="Search saved books" />
+                        <div class="storage-line">
+                            <span id="storageEstimate">Checking storage...</span>
+                            <button id="requestPersistentStorageBtn" class="small-action-btn" type="button">Keep storage</button>
+                        </div>
                     </div>
-                </div>
-                <div class="saved-book-list" id="savedBookList">
-                    <div class="library-empty">No saved books yet.</div>
-                </div>
-            </div>
 
-            <!-- Book Info Section (shown after upload) -->
-            <div class="book-info" id="bookInfo" style="display: none;">
-                <div class="book-header">
-                    <h2 id="bookTitle">Book Title</h2>
-                    <div class="book-meta">
-                        <span id="bookAuthor"></span>
-                        <span id="bookStats"></span>
+                    <div class="saved-book-list" id="savedBookList">
+                        <div class="library-empty">No saved books yet.</div>
                     </div>
-                </div>
-                <div class="book-actions">
-                    <button id="convertBtn" class="convert-btn" disabled>
-                        <span class="btn-icon">&#127925;</span>
-                        <span class="btn-text">Convert to MP3</span>
-                    </button>
-                    <button id="clearBookBtn" class="clear-book-btn">Clear</button>
-                </div>
-            </div>
+                </aside>
 
-            <!-- Conversion Progress (shown during conversion) -->
-            <div class="conversion-progress" id="conversionProgress" style="display: none;">
-                <div class="progress-header">
-                    <span id="conversionStatus">Converting...</span>
-                    <button id="cancelConversionBtn" class="cancel-btn">Cancel</button>
-                </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="conversionProgressFill"></div>
+                <section class="book-workspace" id="bookWorkspace" style="display: none;">
+                    <header class="workspace-header">
+                        <div>
+                            <div class="workspace-kicker">Current book</div>
+                            <h2 id="workspaceTitle">Book Title</h2>
+                            <div class="workspace-meta" id="workspaceMeta"></div>
+                        </div>
+                        <div class="workspace-actions">
+                            <button id="downloadOriginalBtn" class="small-action-btn" type="button">Original</button>
+                            <button id="downloadCurrentSegmentBtn" class="small-action-btn" type="button">Segment MP3</button>
+                            <button id="downloadAllSegmentsBtn" class="small-action-btn" type="button">All MP3s</button>
+                            <button id="downloadCombinedBtn" class="small-action-btn" type="button">Combined MP3</button>
+                        </div>
+                    </header>
+
+                    <div class="book-progress-card">
+                        <div>
+                            <span>Read</span>
+                            <strong id="readProgressText">0%</strong>
+                        </div>
+                        <div>
+                            <span>Generated</span>
+                            <strong id="generatedProgressText">0 min</strong>
+                        </div>
+                        <div>
+                            <span>Listening</span>
+                            <strong id="listeningProgressText">Start</strong>
+                        </div>
                     </div>
-                </div>
-                <div class="progress-stats">
-                    <span id="progressChunks">0 / 0 chunks</span>
-                    <span id="progressTime">Estimated: --</span>
-                </div>
-            </div>
 
-            <!-- Audio Player (shown after conversion) -->
-            <div class="audio-section" id="audioSection" style="display: none;">
-                <div class="audio-header">
-                    <h3>Audiobook Ready</h3>
-                    <button id="downloadAudioBtn" class="download-btn">
-                        <span class="btn-icon">&#11015;</span>
-                        <span class="btn-text">Download MP3</span>
-                    </button>
-                </div>
-                <audio id="audioPlayer" controls class="audio-player"></audio>
-            </div>
+                    <div class="workspace-grid">
+                        <aside class="spine-panel">
+                            <div class="panel-heading">
+                                <h3>Spine</h3>
+                                <button id="collapseGeneratedBtn" class="small-action-btn" type="button">Generated</button>
+                            </div>
+                            <div id="spineList" class="spine-list"></div>
+                        </aside>
 
-            <!-- Chapter Navigation (for epub) -->
-            <div class="chapter-nav" id="chapterNav" style="display: none;">
-                <h3>Chapters</h3>
-                <div class="chapter-list" id="chapterList"></div>
-            </div>
+                        <section class="reader-panel">
+                            <div class="reader-toolbar">
+                                <input type="search" id="readerSearch" class="reader-search" placeholder="Search this book" />
+                                <button id="readerSearchClearBtn" class="small-action-btn" type="button">Clear</button>
+                            </div>
+                            <div id="readerView" class="reader-view"></div>
+                        </section>
 
-            <!-- Image Gallery Section -->
-            <div class="image-section" id="imageSection" style="display: none;">
-                <div class="image-section-header">
-                    <h3>Images &amp; Figures</h3>
-                    <span class="image-count" id="imageCount">0 images</span>
-                </div>
-                <div class="image-gallery" id="imageGallery"></div>
-            </div>
+                        <aside class="listen-panel">
+                            <div class="generator-card">
+                                <h3>Generate</h3>
+                                <div class="generator-actions">
+                                    <button id="generateNext15Btn" class="primary-action-btn" type="button">Next 15 min</button>
+                                    <button id="generateNextHourBtn" class="primary-action-btn" type="button">Next hour</button>
+                                    <button id="generateSectionBtn" class="primary-action-btn" type="button">Current section</button>
+                                    <button id="generateAllBtn" class="primary-action-btn" type="button">All remaining</button>
+                                    <button id="cancelGenerationBtn" class="danger-action-btn" type="button">Cancel</button>
+                                </div>
+                                <label class="ahead-toggle">
+                                    <input type="checkbox" id="autoGenerateAheadToggle" />
+                                    <span>Keep about 1 hour generated ahead while listening</span>
+                                </label>
+                                <div class="generation-progress" id="generationProgress">
+                                    <div id="generationStatus">Idle</div>
+                                    <div class="progress-bar-track">
+                                        <div class="progress-bar-fill" id="generationProgressFill"></div>
+                                    </div>
+                                </div>
+                            </div>
 
-            <!-- Image Fullscreen Overlay -->
-            <div class="image-overlay" id="imageOverlay" style="display: none;">
-                <button class="overlay-close" id="closeImageOverlay">&times;</button>
-                <button class="overlay-nav overlay-prev" id="prevImage">&#10094;</button>
-                <div class="overlay-content">
-                    <img id="fullscreenImage" src="" alt="" />
-                    <div class="overlay-caption" id="fullscreenCaption"></div>
-                </div>
-                <button class="overlay-nav overlay-next" id="nextImage">&#10095;</button>
-            </div>
+                            <div class="player-card">
+                                <h3>Listen</h3>
+                                <div class="player-now" id="playerNow">No segment selected</div>
+                                <audio id="audioPlayer" controls class="audio-player"></audio>
+                                <div class="player-actions">
+                                    <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
+                                    <button id="previousSegmentBtn" class="small-action-btn" type="button">Previous</button>
+                                    <button id="nextSegmentBtn" class="small-action-btn" type="button">Next</button>
+                                </div>
+                            </div>
 
-            <!-- Text Preview Section -->
-            <div class="text-preview-section" id="textPreviewSection" style="display: none;">
-                <div class="preview-header">
-                    <h3>Text Preview</h3>
-                    <div class="preview-actions">
-                        <button id="selectAllTextBtn" class="select-all-btn">Select All</button>
-                        <button id="copyTextBtn" class="copy-all-btn">Copy</button>
+                            <div class="log-container compact-log" id="logContainer">
+                                <div class="log-header">
+                                    <span class="log-label">Log</span>
+                                    <button id="clearLogBtn" class="clear-log-btn" type="button">Clear</button>
+                                </div>
+                                <div class="log-content" id="logContent"></div>
+                            </div>
+                        </aside>
                     </div>
-                </div>
-                <div class="text-preview" id="textPreview"></div>
-            </div>
-
-            <!-- Log Section -->
-            <div class="log-container" id="logContainer">
-                <div class="log-header">
-                    <span class="log-label">Log</span>
-                    <button id="clearLogBtn" class="clear-log-btn">Clear</button>
-                </div>
-                <div class="log-content" id="logContent"></div>
-            </div>
+                </section>
+            </section>
 
             <footer class="page-footer">
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
@@ -220,12 +208,10 @@
         </main>
     </div>
 
-    <!-- PDF.js for PDF parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- JSZip for EPUB parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="shared-header.js?v=115"></script>
-    <script src="ebook.js?v=115"></script>
+    <script src="shared-header.js?v=116"></script>
+    <script src="ebook.js?v=116"></script>
 </body>
 
 </html>

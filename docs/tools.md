@@ -182,38 +182,38 @@ again while the response is read aloud.
 
 ## Books
 
-Ebook to audiobook conversion using OpenAI TTS. The OpenAI key is entered in
-the page settings and stored in this browser's localStorage as `openaiApiKey`;
-requests go directly from the browser to OpenAI.
+Local ebook library, reader, audiobook generator, and MP3 player using OpenAI
+TTS. The OpenAI key is entered in settings and stored in this browser's
+localStorage as `openaiApiKey`; requests go directly from the browser to
+OpenAI.
 
-- Formats: TXT, EPUB, PDF, HTML
-- Uploads are saved in this browser's IndexedDB library as the original raw
-  file, so the same EPUB/PDF/TXT/HTML can be loaded again later.
-- Six voices (Alloy, Echo, Fable, Onyx, Nova, Shimmer), TTS-1 or TTS-1-HD,
-  speed 0.25x-4x
-- Uploading parses the text, shows title/author when available, word/character
-  counts, chunk count, and a full text preview with Select All / Copy actions.
-- EPUB chapters are listed when headings are found.
-- EPUB images are extracted into an Images & Figures gallery with fullscreen
-  navigation. PDFs render low-text pages as images; HTML currently extracts
-  text only.
-- Text is split into ~4000-character chunks, converted with progress shown and
-  cancellable, then concatenated into one downloadable MP3. Completed MP3s are
-  saved back onto the same IndexedDB library record as the original upload.
-- The Saved Books section can load a saved original, download the original,
-  download the saved MP3 when one exists, or delete the browser-local saved
-  copy. It also shows `navigator.storage.estimate()` usage/quota and can
-  request persistent storage where the browser supports it.
-- The visible Log panel is local and ephemeral: it records page events such as
-  key configured/missing, file loaded, PDF page count, chunk completion,
-  cancellation, errors, and download. It is DOM-only, can be cleared, and is
-  lost on refresh/navigation. There is no user identity, server-side audit log,
-  analytics, or durable "who did what" history for Books.
+- Formats: TXT, EPUB, PDF, HTML.
+- Imports are saved in this browser's IndexedDB library as the original raw
+  file plus a parsed section/spine manifest.
+- Each book is split into persistent TTS-sized audio segments. Generation can
+  cover the next 15 minutes, next hour, current section, or all remaining
+  segments. Finished segments are never regenerated unless deleted in a future
+  management flow.
+- Generated segments are saved immediately to IndexedDB, so cancelling midway
+  preserves the completed MP3s and reloading later can continue from the next
+  pending segment.
+- The player plays generated segments in book order, saves listening position,
+  and preloads the next generated segment. A toggle can keep about one hour of
+  audio generated ahead while listening.
+- The reader shows the parsed spine and text segments, tracks reading progress,
+  and can search/highlight text locally.
+- Downloads: original file, current segment MP3, all generated segment MP3s
+  individually, or one concatenated MP3 made from all generated segments.
+- The library shows compact title/author rows, read progress, generated segment
+  count, estimated duration, storage usage/quota, and delete/open/download
+  actions.
 - localStorage is intentionally used only for small settings/secrets. Browser
   localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
   belong in IndexedDB. IndexedDB quota is browser/device dependent and the page
   displays the current estimate.
-- Cost ballpark: a 10k-word book is roughly $0.90 (TTS-1) / $1.80 (HD)
+- There is no user identity, server-side audit log, analytics, or durable "who
+  did what" history for Books. The visible Log panel is page-local and can be
+  cleared.
 
 ## Pitch test panel (shared)
 

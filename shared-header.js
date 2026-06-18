@@ -1,4 +1,4 @@
-const APP_VERSION = "115";
+const APP_VERSION = "116";
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
