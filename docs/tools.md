@@ -189,7 +189,7 @@ OpenAI.
 
 - Formats: TXT, EPUB, PDF, HTML.
 - Imports are saved in this browser's IndexedDB library as the original raw
-  file plus a parsed section/spine manifest.
+  file plus parsed book sections.
 - EPUB and HTML imports preserve sanitized reader markup, including embedded
   EPUB images when they can be resolved from the package, so the book can be
   read locally instead of only previewed as flattened plain text.
@@ -203,13 +203,14 @@ OpenAI.
 - The player plays generated segments in book order, saves listening position,
   and preloads the next generated segment. A toggle can keep about one hour of
   audio generated ahead while listening.
-- The reader shows the parsed spine and text segments, tracks reading progress,
-  and can search/highlight text locally.
+- The reader shows parsed book sections and text/audio segments, tracks reading
+  progress, and can search/highlight text locally.
 - Downloads: original file, current segment MP3, all generated segment MP3s
   individually, or one concatenated MP3 made from all generated segments.
-- The library shows compact title/author rows, read progress, generated segment
-  count, estimated duration, storage usage/quota, and delete/open/download
-  actions. Generated MP3s can be deleted separately from the original book.
+- The library is a compact bookshelf: one row per book with title/author, read
+  progress, generated segment count, estimated duration, and storage
+  usage/quota. Opening a row reveals book actions inside the workspace.
+  Generated MP3s can be deleted separately from the original book.
 - localStorage is intentionally used only for small settings/secrets. Browser
   localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
   belong in IndexedDB. Books requests persistent browser storage automatically

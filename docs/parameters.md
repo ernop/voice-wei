@@ -177,7 +177,7 @@ Drone test: note stepper (C3-C5) applies on Start.
 
 Books persists TTS preferences and the OpenAI API key in browser localStorage.
 Large book data is stored in IndexedDB (`voice-wei-books`): original upload
-Blobs, parsed section/spine records, sanitized EPUB/HTML reader markup, planned
+Blobs, parsed book-section records, sanitized EPUB/HTML reader markup, planned
 TTS text segments, generated MP3 segment Blobs, and read/listen progress. The
 visible Log panel is page-session state and is cleared on reload. Books requests
 persistent browser storage automatically where supported.

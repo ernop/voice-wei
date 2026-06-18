@@ -514,13 +514,11 @@ class BooksController {
     }
 
     setupWorkspaceUI() {
-        const spineList = document.getElementById('spineList');
         const readerView = document.getElementById('readerView');
         const readerSearch = /** @type {HTMLInputElement | null} */ (document.getElementById('readerSearch'));
         const readerSearchClearBtn = document.getElementById('readerSearchClearBtn');
         const readerFullscreenBtn = document.getElementById('readerFullscreenBtn');
         const autoToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoGenerateAheadToggle'));
-        if (spineList) spineList.addEventListener('click', e => this.handleSpineClick(e));
         if (readerView) readerView.addEventListener('click', e => this.handleReaderClick(e));
         if (readerSearch) {
             readerSearch.addEventListener('input', () => {
@@ -1028,10 +1026,9 @@ class BooksController {
         const meta = document.getElementById('workspaceMeta');
         if (title) title.textContent = this.currentBook.title;
         if (meta) {
-            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} sections · ${this.currentBook.segmentCount} audio segments · ${this.formatDuration(this.currentBook.estimatedDurationSec)} estimated`;
+            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.format.toUpperCase()} · ${this.currentBook.sectionCount} sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3s · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
         }
         this.renderProgress();
-        this.renderSpine();
         this.renderReader();
         this.renderPlayerNow();
     }
@@ -1048,24 +1045,6 @@ class BooksController {
             const segment = this.getSegmentById(this.currentBook.listeningSegmentId);
             listeningEl.textContent = segment ? `${this.getSectionTitle(segment.sectionId)} · ${this.formatDuration(this.currentBook.listeningOffsetSec)}` : 'Start';
         }
-    }
-
-    renderSpine() {
-        const spineList = document.getElementById('spineList');
-        if (!spineList) return;
-        spineList.innerHTML = this.sections.map(section => {
-            const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
-            const generated = sectionSegments.filter(segment => segment.status === 'done').length;
-            const percent = sectionSegments.length ? Math.round(generated / sectionSegments.length * 100) : 0;
-            const current = this.getCurrentSectionId() === section.id ? ' current' : '';
-            return `
-                <div class="spine-item${current}" data-section-id="${this.escapeHtml(section.id)}">
-                    <div class="spine-title">${this.escapeHtml(section.title)}</div>
-                    <div class="spine-meta">${generated}/${sectionSegments.length} generated · ${this.formatNumber(section.wordCount)} words</div>
-                    <div class="spine-generated-bar"><div class="spine-generated-fill" style="width: ${percent}%"></div></div>
-                </div>
-            `;
-        }).join('');
     }
 
     renderReader() {
@@ -1089,22 +1068,6 @@ class BooksController {
             const audioMap = section.html ? `<div class="reader-audio-segments">${segmentHtml}</div>` : '';
             return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(section.title)}</h3>${readerBody}${audioMap}</section>`;
         }).join('');
-        this.scrollCurrentSegmentIntoView(false);
-    }
-
-    /** @param {Event} event */
-    handleSpineClick(event) {
-        const target = event.target instanceof HTMLElement ? event.target : null;
-        const item = target?.closest('.spine-item');
-        const sectionId = item?.getAttribute('data-section-id');
-        if (!sectionId) return;
-        const firstSegment = this.segments.find(segment => segment.sectionId === sectionId);
-        if (firstSegment) {
-            this.currentSegmentId = firstSegment.id;
-            this.markReadingProgress(firstSegment);
-            this.renderWorkspace();
-            document.getElementById(`reader-${sectionId}`)?.scrollIntoView({ block: 'start' });
-        }
     }
 
     /** @param {Event} event */
@@ -1270,7 +1233,7 @@ class BooksController {
         const generated = this.segments.filter(segment => segment.status === 'done');
         const currentGeneratedIndex = generated.findIndex(segment => segment.segmentIndex === currentIndex);
         const next = generated[currentGeneratedIndex + direction] || (direction > 0 ? generated[0] : generated[generated.length - 1]);
-        if (next) this.playSegment(next.id, true);
+        if (next) this.playSegment(next.id, true, false);
     }
 
     /** @param {boolean} autoplay */
@@ -1278,14 +1241,14 @@ class BooksController {
         const currentIndex = this.getCurrentSegmentIndex();
         const next = this.segments.find(segment => segment.segmentIndex > currentIndex && segment.status === 'done');
         if (next) {
-            this.playSegment(next.id, autoplay);
+            this.playSegment(next.id, autoplay, false);
         } else {
             this.updateStatus('End of generated audio');
         }
     }
 
-    /** @param {string} segmentId @param {boolean} autoplay */
-    playSegment(segmentId, autoplay) {
+    /** @param {string} segmentId @param {boolean} autoplay @param {boolean} [scrollReader] */
+    playSegment(segmentId, autoplay, scrollReader = true) {
         const segment = this.getSegmentById(segmentId);
         if (!segment || segment.status !== 'done' || !segment.blob) {
             this.updateStatus('That segment has not been generated yet');
@@ -1294,8 +1257,14 @@ class BooksController {
         this.currentSegmentId = segment.id;
         this.markReadingProgress(segment);
         this.loadSegmentIntoPlayer(segment, autoplay);
-        this.renderWorkspace();
-        this.scrollCurrentSegmentIntoView(true);
+        if (scrollReader) {
+            this.renderWorkspace();
+            this.scrollCurrentSegmentIntoView(true);
+        } else {
+            this.renderProgress();
+            this.renderPlayerNow();
+            this.updateCurrentSegmentClass();
+        }
     }
 
     /** @param {AudioSegment} segment @param {boolean} autoplay */
@@ -1592,6 +1561,13 @@ class BooksController {
         if (!this.currentSegmentId) return;
         const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(this.currentSegmentId)}"]`);
         if (node) node.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+    }
+
+    updateCurrentSegmentClass() {
+        document.querySelectorAll('.reader-segment.current').forEach(node => node.classList.remove('current'));
+        if (!this.currentSegmentId) return;
+        const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(this.currentSegmentId)}"]`);
+        if (node) node.classList.add('current');
     }
 
     /** @param {AudioSegment} segment */

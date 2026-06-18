@@ -148,7 +148,7 @@ localStorage. The current schema uses three object stores:
 
 - `books`: original upload Blob, title/author/format metadata, estimated
   duration, read/listen progress, generated coverage.
-- `sections`: parsed spine/text sections keyed by book; EPUB/HTML sections also
+- `sections`: parsed book text sections keyed by book; EPUB/HTML sections also
   keep sanitized reader markup, with EPUB package images embedded as data URLs
   where possible.
 - `segments`: TTS-sized text ranges with per-segment status and MP3 Blob.
