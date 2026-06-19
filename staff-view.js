@@ -8,8 +8,9 @@
 const StaffView = (function () {
     'use strict';
 
-    const NOTE_WIDTH = 46;
-    const STAVE_X = 12;
+    const NOTE_WIDTH = 34;
+    const MIN_NOTE_STEP = 28;
+    const STAVE_X = 8;
     const STAVE_Y = 8;
     const MIN_WIDTH = 220;
     const SVG_PAD_X = 6;
@@ -185,7 +186,7 @@ const StaffView = (function () {
             const averageStep = steps.length
                 ? steps.reduce((sum, step) => sum + step, 0) / steps.length
                 : NOTE_WIDTH;
-            const cellWidth = Math.max(34, Math.min(70, averageStep || NOTE_WIDTH));
+            const cellWidth = Math.max(MIN_NOTE_STEP, Math.min(70, averageStep || NOTE_WIDTH));
             const pad = Math.max(0, displayedCenters[0] - cellWidth / 2);
             stage.style.setProperty('--phrase-staff-note-step', `${cellWidth}px`);
             stage.style.setProperty('--phrase-staff-grid-pad', `${pad}px`);

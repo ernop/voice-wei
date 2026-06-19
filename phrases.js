@@ -237,7 +237,7 @@
         degreesEl.classList.toggle('phrase-degrees-show-play', state.showPlayRow);
         degreesEl.classList.toggle('phrase-degrees-show-names', state.showNoteNames);
         degreesEl.style.setProperty('--phrase-note-count', String(plan.length));
-        degreesEl.style.setProperty('--phrase-note-cell-width', plan.length > 18 ? '34px' : '42px');
+        degreesEl.style.setProperty('--phrase-note-cell-width', plan.length > 18 ? '28px' : '32px');
         plan.forEach(note => {
             const column = document.createElement('div');
             column.className = 'phrase-note-column';
