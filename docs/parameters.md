@@ -214,9 +214,22 @@ persistent browser storage automatically where supported.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | voice | alloy | alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse | immediate for the next preview/conversion request; legacy TTS models show their supported subset |
-| model | gpt-4o-mini-tts | gpt-4o-mini-tts, gpt-4o-mini-tts-2025-12-15, tts-1, tts-1-hd | immediate for the next preview/conversion request |
+| model | gpt-4o-mini-tts | gpt-4o-mini-tts, gpt-4o-mini-tts-2025-12-15, tts-1, tts-1-hd | immediate for the next preview/conversion request; UI displays current OpenAI reference pricing |
 | speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
 | instructions | empty | text | sent with GPT-4o mini TTS preview/conversion requests; disabled for legacy TTS models |
+
+Displayed reference pricing:
+
+- `gpt-4o-mini-tts` and `gpt-4o-mini-tts-2025-12-15`: $0.60 / 1M
+  text input tokens + $12 / 1M audio output tokens, roughly $0.015 per
+  generated minute.
+- `tts-1`: $15 / 1M characters ($0.015 / 1K characters).
+- `tts-1-hd`: $30 / 1M characters ($0.030 / 1K characters).
+
+The Generate card includes voice sample buttons for every voice available to
+the selected model. A sample uses the user's OpenAI key and the current model,
+speed, and narration instructions, but sends a short fixed sample text instead
+of book content.
 
 Actions: import creates a saved book plus section/chapter and chunk records;
 Generate selected/current/next chapter and Whole book use chapter-level TOC

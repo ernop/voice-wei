@@ -213,6 +213,10 @@ OpenAI.
   the selected/current/next chapter, whole book, +15 minutes, or a single
   backup chunk. Finished chunks are never regenerated unless deleted in a
   future management flow.
+- Narration options show OpenAI reference pricing for the selected model and
+  include per-voice sample buttons. Samples generate a short MP3 through the
+  same OpenAI speech endpoint, using the current model, speed, and narration
+  instructions.
 - Generated chunks are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
   pending chunk.

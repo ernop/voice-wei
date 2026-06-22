@@ -585,6 +585,76 @@
     grid-column: 1 / -1;
 }
 
+.model-pricing-line {
+    grid-column: 1 / -1;
+    margin: -2px 0 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.74rem;
+    text-align: left;
+}
+
+.voice-samples-card {
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.voice-samples-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 7px;
+    color: rgba(232, 245, 233, 0.9);
+    font-size: 0.8rem;
+}
+
+.voice-samples-header span,
+.voice-sample-status {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    text-align: right;
+}
+
+.voice-sample-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.voice-sample-btn {
+    padding: 7px 5px;
+    border-radius: 7px;
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    background: rgba(74, 222, 128, 0.1);
+    color: #bbf7d0;
+    font-size: 0.72rem;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.voice-sample-btn.selected {
+    border-color: rgba(74, 222, 128, 0.52);
+    background: rgba(74, 222, 128, 0.18);
+}
+
+.voice-sample-btn.playing {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.46);
+    color: #fde68a;
+}
+
+.voice-sample-btn:hover {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.voice-sample-status {
+    margin-top: 6px;
+    text-align: left;
+}
+
 .chapter-generator-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -823,6 +893,10 @@
     .conversion-options-grid {
         grid-template-columns: 1fr;
     }
+
+    .voice-sample-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 520px) {
@@ -843,6 +917,10 @@
 
     .chapter-generator-row {
         grid-template-columns: 1fr;
+    }
+
+    .voice-sample-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .player-control-grid {

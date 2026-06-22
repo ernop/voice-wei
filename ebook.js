@@ -16,10 +16,30 @@ const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
 
 const OPENAI_TTS_MODELS = [
-    { id: 'gpt-4o-mini-tts', label: 'GPT-4o mini TTS - Current', supportsInstructions: true },
-    { id: 'gpt-4o-mini-tts-2025-12-15', label: 'GPT-4o mini TTS 2025-12-15 - Pinned', supportsInstructions: true },
-    { id: 'tts-1', label: 'TTS-1 - Legacy fast', supportsInstructions: false },
-    { id: 'tts-1-hd', label: 'TTS-1-HD - Legacy high quality', supportsInstructions: false }
+    {
+        id: 'gpt-4o-mini-tts',
+        label: 'GPT-4o mini TTS - Current',
+        price: '$0.60 / 1M text input tokens + $12 / 1M audio output tokens (~$0.015/min)',
+        supportsInstructions: true
+    },
+    {
+        id: 'gpt-4o-mini-tts-2025-12-15',
+        label: 'GPT-4o mini TTS 2025-12-15 - Pinned',
+        price: '$0.60 / 1M text input tokens + $12 / 1M audio output tokens (~$0.015/min)',
+        supportsInstructions: true
+    },
+    {
+        id: 'tts-1',
+        label: 'TTS-1 - Legacy fast',
+        price: '$15 / 1M characters ($0.015 / 1K characters)',
+        supportsInstructions: false
+    },
+    {
+        id: 'tts-1-hd',
+        label: 'TTS-1-HD - Legacy high quality',
+        price: '$30 / 1M characters ($0.030 / 1K characters)',
+        supportsInstructions: false
+    }
 ];
 
 const OPENAI_TTS_VOICES = [
@@ -43,6 +63,7 @@ const VOICE_DESCRIPTIONS = {
 };
 
 const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how the narration will sound.';
+const VOICE_SAMPLE_TEXT = 'This is a short audiobook voice sample for comparing narration style.';
 
 /**
  * @typedef {Object} Settings
@@ -341,6 +362,12 @@ class BooksController {
         this.lastProgressSavedAt = 0;
         /** @type {HTMLAudioElement | null} */
         this.previewAudio = null;
+        /** @type {HTMLAudioElement | null} */
+        this.voiceSampleAudio = null;
+        /** @type {string | null} */
+        this.voiceSampleUrl = null;
+        /** @type {string | null} */
+        this.voiceSampleVoice = null;
         /** @type {BookHistoryEntry[]} */
         this.historyEntries = [];
         this.lastListenHistoryAt = 0;
@@ -469,7 +496,7 @@ class BooksController {
     populateTtsModelOptions() {
         for (const modelEl of this.getTtsModelSelects()) {
             modelEl.innerHTML = OPENAI_TTS_MODELS
-                .map(model => `<option value="${this.escapeHtml(model.id)}">${this.escapeHtml(model.label)}</option>`)
+                .map(model => `<option value="${this.escapeHtml(model.id)}">${this.escapeHtml(model.label)} · ${this.escapeHtml(model.price)}</option>`)
                 .join('');
         }
     }
@@ -495,7 +522,9 @@ class BooksController {
             instructionsEl.value = this.settings.instructions;
             instructionsEl.disabled = !this.ttsModelSupportsInstructions();
         }
+        this.updateModelPricing();
         this.updateVoiceDescription();
+        this.renderVoiceSampleButtons();
     }
 
     getTtsVoiceSelects() {
@@ -538,6 +567,18 @@ class BooksController {
         return OPENAI_TTS_MODELS.find(item => item.id === this.settings.model)?.supportsInstructions || false;
     }
 
+    getSelectedTtsModel() {
+        return OPENAI_TTS_MODELS.find(item => item.id === this.settings.model) || OPENAI_TTS_MODELS[0];
+    }
+
+    updateModelPricing() {
+        const model = this.getSelectedTtsModel();
+        const message = `${model.label}: ${model.price}. Prices are from OpenAI API pricing and may change.`;
+        for (const el of ['modelPricingDescription', 'generatorModelPricingDescription'].map(id => document.getElementById(id))) {
+            if (el) el.textContent = message;
+        }
+    }
+
     updateVoiceDescription() {
         const descEl = document.getElementById('voiceDescription');
         const generatorDescEl = document.getElementById('generatorVoiceDescription');
@@ -546,7 +587,26 @@ class BooksController {
             ? 'Narration instructions will be sent with conversion requests.'
             : 'Narration instructions are disabled for legacy TTS models.';
         if (descEl) descEl.textContent = description;
-        if (generatorDescEl) generatorDescEl.textContent = `${description} ${instructionNote}`;
+        if (generatorDescEl) generatorDescEl.textContent = `${description} ${instructionNote} Voice samples use the current model, speed, and instructions.`;
+    }
+
+    renderVoiceSampleButtons() {
+        const grid = document.getElementById('voiceSampleGrid');
+        if (!grid) return;
+        const voices = this.getVoicesForModel(this.settings.model);
+        grid.innerHTML = voices.map(voice => {
+            const selected = voice.id === this.settings.voice ? ' selected' : '';
+            const playing = voice.id === this.voiceSampleVoice && this.voiceSampleAudio && !this.voiceSampleAudio.paused ? ' playing' : '';
+            return `<button class="voice-sample-btn${selected}${playing}" type="button" data-voice-sample="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)}</button>`;
+        }).join('');
+    }
+
+    /** @param {Event} event */
+    handleVoiceSampleClick(event) {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const button = target?.closest('[data-voice-sample]');
+        const voice = button?.getAttribute('data-voice-sample');
+        if (voice) this.playVoiceSample(voice);
     }
 
     setupUI() {
@@ -679,6 +739,8 @@ class BooksController {
         const readerFullscreenBtn = document.getElementById('readerFullscreenBtn');
         const autoToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoGenerateAheadToggle'));
         if (readerView) readerView.addEventListener('click', e => this.handleReaderClick(e));
+        const voiceSampleGrid = document.getElementById('voiceSampleGrid');
+        if (voiceSampleGrid) voiceSampleGrid.addEventListener('click', e => this.handleVoiceSampleClick(e));
         if (readerSearch) {
             readerSearch.addEventListener('input', () => {
                 this.readerQuery = readerSearch.value.trim();
@@ -824,6 +886,57 @@ class BooksController {
             previewBtn.disabled = false;
             previewBtn.textContent = 'Preview';
         }
+    }
+
+    /** @param {string} voice */
+    async playVoiceSample(voice) {
+        if (!this.apiKey) {
+            this.showApiKeyOverlay();
+            this.updateStatus('API key required for voice samples');
+            return;
+        }
+        const statusEl = document.getElementById('voiceSampleStatus');
+        const voiceMeta = OPENAI_TTS_VOICES.find(item => item.id === voice);
+        if (!voiceMeta) return;
+        if (this.voiceSampleAudio && this.voiceSampleVoice === voice && !this.voiceSampleAudio.paused) {
+            this.voiceSampleAudio.pause();
+            this.clearVoiceSampleAudio();
+            if (statusEl) statusEl.textContent = 'Sample stopped.';
+            this.renderVoiceSampleButtons();
+            return;
+        }
+        this.clearVoiceSampleAudio();
+        if (statusEl) statusEl.textContent = `Loading ${voiceMeta.label} sample...`;
+        this.renderVoiceSampleButtons();
+        try {
+            const response = await this.fetchSpeech(VOICE_SAMPLE_TEXT, null, { voice });
+            const audioBlob = await response.blob();
+            this.voiceSampleUrl = URL.createObjectURL(audioBlob);
+            this.voiceSampleAudio = new Audio(this.voiceSampleUrl);
+            this.voiceSampleVoice = voice;
+            this.voiceSampleAudio.addEventListener('ended', () => {
+                if (statusEl) statusEl.textContent = `${voiceMeta.label} sample finished.`;
+                this.clearVoiceSampleAudio();
+                this.renderVoiceSampleButtons();
+            });
+            if (statusEl) statusEl.textContent = `Playing ${voiceMeta.label} sample.`;
+            this.renderVoiceSampleButtons();
+            await this.voiceSampleAudio.play();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.clearVoiceSampleAudio();
+            if (statusEl) statusEl.textContent = `Voice sample failed: ${message}`;
+            this.log('error', `Voice sample failed: ${message}`);
+            this.renderVoiceSampleButtons();
+        }
+    }
+
+    clearVoiceSampleAudio() {
+        if (this.voiceSampleAudio) this.voiceSampleAudio.pause();
+        if (this.voiceSampleUrl) URL.revokeObjectURL(this.voiceSampleUrl);
+        this.voiceSampleAudio = null;
+        this.voiceSampleUrl = null;
+        this.voiceSampleVoice = null;
     }
 
     async refreshLibrary() {
@@ -1576,13 +1689,17 @@ class BooksController {
         if (this.generationAbort) this.generationAbort.abort();
     }
 
-    /** @param {string} text @param {AbortSignal | null} signal */
-    async fetchSpeech(text, signal) {
+    /**
+     * @param {string} text
+     * @param {AbortSignal | null} signal
+     * @param {{ voice?: string }} [overrides]
+     */
+    async fetchSpeech(text, signal, overrides = {}) {
         if (!this.apiKey) throw new Error('API key not configured');
         const payload = {
             model: this.settings.model,
             input: text,
-            voice: this.settings.voice,
+            voice: overrides.voice || this.settings.voice,
             speed: this.settings.speed,
             response_format: 'mp3'
         };

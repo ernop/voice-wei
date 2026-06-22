@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=137">
-    <link rel="stylesheet" href="ebook.css?v=137">
+    <link rel="stylesheet" href="style.css?v=138">
+    <link rel="stylesheet" href="ebook.css?v=138">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -49,7 +49,7 @@
                 <label for="ttsModel">TTS Model:</label>
                 <select id="ttsModel" class="model-selector">
                 </select>
-                <p class="setting-description">GPT-4o mini TTS supports all current voices and narration instructions.</p>
+                <p class="setting-description" id="modelPricingDescription">GPT-4o mini TTS supports all current voices and narration instructions.</p>
             </div>
 
             <div class="setting-item">
@@ -148,6 +148,7 @@
                                             Model
                                             <select id="generatorTtsModel" class="model-selector"></select>
                                         </label>
+                                        <p class="conversion-options-wide model-pricing-line" id="generatorModelPricingDescription"></p>
                                         <label>
                                             Speed
                                             <div class="speed-control">
@@ -161,6 +162,14 @@
                                         </label>
                                     </div>
                                     <p class="mp3-status-detail" id="generatorVoiceDescription"></p>
+                                    <div class="voice-samples-card">
+                                        <div class="voice-samples-header">
+                                            <strong>Voice samples</strong>
+                                            <span>Generates a short MP3 through OpenAI</span>
+                                        </div>
+                                        <div class="voice-sample-grid" id="voiceSampleGrid"></div>
+                                        <div class="voice-sample-status" id="voiceSampleStatus">Choose a voice to hear a short sample.</div>
+                                    </div>
                                 </div>
                                 <div class="mp3-status-card">
                                     <div class="mp3-status-header">
@@ -258,13 +267,13 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=137"></script>
-    <script src="app-version.js?v=137"></script>
-    <script src="storage-keys.js?v=137"></script>
-    <script src="settings-store.js?v=137"></script>
-    <script src="api-keys-store.js?v=137"></script>
-    <script src="shared-header.js?v=137"></script>
-    <script src="ebook.js?v=137"></script>
+    <script src="dev-error-monitor.js?v=138"></script>
+    <script src="app-version.js?v=138"></script>
+    <script src="storage-keys.js?v=138"></script>
+    <script src="settings-store.js?v=138"></script>
+    <script src="api-keys-store.js?v=138"></script>
+    <script src="shared-header.js?v=138"></script>
+    <script src="ebook.js?v=138"></script>
 </body>
 
 </html>

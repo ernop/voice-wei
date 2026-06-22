@@ -153,6 +153,7 @@ async function seedGeneratedBook(page) {
     {
         const page = await browser.newPage();
         collectErrors(page, 'books-player', report.errors);
+        await page.addInitScript(() => localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite'));
         await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
         await clearBooksDb(page);
         await page.reload({ waitUntil: 'networkidle' });
@@ -181,7 +182,11 @@ async function seedGeneratedBook(page) {
             chapterOptions: Array.from(document.querySelectorAll('#generationChapterSelect option')).map(option => option.textContent.trim()),
             voiceOptions: Array.from(document.querySelectorAll('#generatorTtsVoice option')).map(option => option.value),
             modelOptions: Array.from(document.querySelectorAll('#generatorTtsModel option')).map(option => option.value),
+            modelLabels: Array.from(document.querySelectorAll('#generatorTtsModel option')).map(option => option.textContent.trim()),
+            pricingLine: document.querySelector('#generatorModelPricingDescription')?.textContent || '',
             hasInstructions: Boolean(document.querySelector('#generatorTtsInstructions')),
+            sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
+            sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
             controlCount: document.querySelectorAll('.player-control-grid button').length,
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
@@ -195,8 +200,34 @@ async function seedGeneratedBook(page) {
             && ['ash', 'ballad', 'cedar', 'coral', 'marin', 'sage', 'verse']
                 .every(voice => layout.voiceOptions.includes(voice))
             && layout.modelOptions.includes('gpt-4o-mini-tts') && layout.hasInstructions
+            && layout.modelLabels.some(label => label.includes('$0.60') && label.includes('$12'))
+            && layout.pricingLine.includes('~$0.015/min')
+            && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
+                .every(voice => layout.sampleButtons.includes(voice))
+            && layout.sampleStatus.includes('short sample')
             && layout.controlCount === 7 && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
+
+        await page.evaluate(() => {
+            window.__bookSpeechPayloads = [];
+            const originalFetch = window.fetch.bind(window);
+            window.fetch = async (input, init) => {
+                const url = typeof input === 'string' ? input : input.url;
+                if (url === 'https://api.openai.com/v1/audio/speech') {
+                    window.__bookSpeechPayloads.push(JSON.parse(String(init?.body || '{}')));
+                    return new Response(new Blob(['fake-sample'], { type: 'audio/mpeg' }), { status: 200 });
+                }
+                return originalFetch(input, init);
+            };
+        });
+        await page.click('[data-voice-sample="verse"]');
+        await page.waitForFunction(() => window.__bookSpeechPayloads?.length === 1);
+        const samplePayload = await page.evaluate(() => window.__bookSpeechPayloads[0]);
+        report.check('books voice sample uses selected speech settings with clicked voice',
+            samplePayload.model === 'gpt-4o-mini-tts'
+            && samplePayload.voice === 'verse'
+            && samplePayload.response_format === 'mp3'
+            && samplePayload.input.includes('voice sample'));
 
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
