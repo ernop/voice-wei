@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=139">
-    <link rel="stylesheet" href="ebook.css?v=139">
+    <link rel="stylesheet" href="style.css?v=140">
+    <link rel="stylesheet" href="ebook.css?v=140">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -55,10 +55,11 @@
             <div class="setting-item">
                 <label for="ttsSpeed">TTS Speed:</label>
                 <div class="speed-control">
-                    <input type="range" id="ttsSpeed" min="0.25" max="4.0" step="0.25" value="1.0" class="speed-slider">
-                    <span id="ttsSpeedValue">1.0x</span>
+                    <button class="speed-step-btn" type="button" data-tts-speed-step="-0.25" aria-label="Slow narration down">-</button>
+                    <span id="ttsSpeedValue" class="speed-value">1.0x</span>
+                    <button class="speed-step-btn" type="button" data-tts-speed-step="0.25" aria-label="Speed narration up">+</button>
                 </div>
-                <p class="setting-description">0.25x to 4.0x. Segment duration estimates assume normal narration speed.</p>
+                <p class="setting-description">Use the buttons to adjust from 0.25x to 4.0x in 0.25x steps. Chunk duration estimates use this speed.</p>
             </div>
 
             <div class="setting-item">
@@ -164,8 +165,9 @@
                                         <label>
                                             Speed
                                             <div class="speed-control">
-                                                <input type="range" id="generatorTtsSpeed" min="0.25" max="4.0" step="0.25" value="1.0" class="speed-slider">
-                                                <span id="generatorTtsSpeedValue">1.0x</span>
+                                                <button class="speed-step-btn" type="button" data-tts-speed-step="-0.25" aria-label="Slow narration down">-</button>
+                                                <span id="generatorTtsSpeedValue" class="speed-value">1.0x</span>
+                                                <button class="speed-step-btn" type="button" data-tts-speed-step="0.25" aria-label="Speed narration up">+</button>
                                             </div>
                                         </label>
                                         <label>
@@ -287,13 +289,13 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=139"></script>
-    <script src="app-version.js?v=139"></script>
-    <script src="storage-keys.js?v=139"></script>
-    <script src="settings-store.js?v=139"></script>
-    <script src="api-keys-store.js?v=139"></script>
-    <script src="shared-header.js?v=139"></script>
-    <script src="ebook.js?v=139"></script>
+    <script src="dev-error-monitor.js?v=140"></script>
+    <script src="app-version.js?v=140"></script>
+    <script src="storage-keys.js?v=140"></script>
+    <script src="settings-store.js?v=140"></script>
+    <script src="api-keys-store.js?v=140"></script>
+    <script src="shared-header.js?v=140"></script>
+    <script src="ebook.js?v=140"></script>
 </body>
 
 </html>

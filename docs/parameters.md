@@ -215,7 +215,7 @@ persistent browser storage automatically where supported.
 |---------|---------|--------|----------|
 | voice | alloy | alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse | immediate for the next preview/conversion request; legacy TTS models show their supported subset |
 | model | gpt-4o-mini-tts | gpt-4o-mini-tts, gpt-4o-mini-tts-2025-12-15, tts-1, tts-1-hd | immediate for the next preview/conversion request; UI displays current OpenAI reference pricing |
-| speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
+| speed | 1.0 | 0.25..4.0 in 0.25 button steps | immediate for the next preview/conversion request |
 | accent | default | default, American English, British English, Australian English, Irish English, Scottish English, Indian English, New York English, Southern US English | composed into GPT-4o mini TTS instructions; disabled for legacy TTS models |
 | style | audiobook | audiobook narrator, neutral, dramatic suspense, warm storyteller, documentary, calm bedtime, whisper | composed into GPT-4o mini TTS instructions; disabled for legacy TTS models |
 | instructions | empty | text | appended to accent/style instructions for GPT-4o mini TTS preview/conversion requests; disabled for legacy TTS models |

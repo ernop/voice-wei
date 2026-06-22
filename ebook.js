@@ -560,8 +560,11 @@ class BooksController {
         this.populateTtsStyleOptions();
         for (const voiceEl of this.getTtsVoiceSelects()) voiceEl.value = this.settings.voice;
         for (const modelEl of this.getTtsModelSelects()) modelEl.value = this.settings.model;
-        for (const speedEl of this.getTtsSpeedInputs()) speedEl.value = String(this.settings.speed);
         for (const speedValueEl of this.getTtsSpeedValueEls()) speedValueEl.textContent = `${this.settings.speed}x`;
+        for (const speedButton of this.getTtsSpeedButtons()) {
+            const step = parseFloat(speedButton.getAttribute('data-tts-speed-step') || '0');
+            speedButton.disabled = step < 0 ? this.settings.speed <= 0.25 : this.settings.speed >= 4;
+        }
         const supportsInstructions = this.ttsModelSupportsInstructions();
         for (const accentEl of this.getTtsAccentSelects()) {
             accentEl.value = this.settings.accent;
@@ -592,16 +595,15 @@ class BooksController {
             .filter(/** @returns {item is HTMLSelectElement} */ item => Boolean(item));
     }
 
-    getTtsSpeedInputs() {
-        return ['ttsSpeed', 'generatorTtsSpeed']
-            .map(id => /** @type {HTMLInputElement | null} */ (document.getElementById(id)))
-            .filter(/** @returns {item is HTMLInputElement} */ item => Boolean(item));
-    }
-
     getTtsSpeedValueEls() {
         return ['ttsSpeedValue', 'generatorTtsSpeedValue']
             .map(id => document.getElementById(id))
             .filter(/** @returns {item is HTMLElement} */ item => Boolean(item));
+    }
+
+    getTtsSpeedButtons() {
+        return Array.from(document.querySelectorAll('[data-tts-speed-step]'))
+            .filter(/** @returns {item is HTMLButtonElement} */ item => item instanceof HTMLButtonElement);
     }
 
     getTtsAccentSelects() {
@@ -755,11 +757,10 @@ class BooksController {
                 this.syncTtsControls();
             });
         }
-        for (const speedEl of this.getTtsSpeedInputs()) {
-            speedEl.addEventListener('input', () => {
-                this.settings.speed = parseFloat(speedEl.value);
-                this.saveSettings();
-                this.syncTtsControls();
+        for (const speedButton of this.getTtsSpeedButtons()) {
+            speedButton.addEventListener('click', () => {
+                const step = parseFloat(speedButton.getAttribute('data-tts-speed-step') || '0');
+                this.setTtsSpeed(this.settings.speed + step);
             });
         }
         for (const accentEl of this.getTtsAccentSelects()) {
@@ -787,6 +788,14 @@ class BooksController {
             });
         }
         if (previewBtn) previewBtn.addEventListener('click', () => this.previewVoice());
+    }
+
+    /** @param {number} speed */
+    setTtsSpeed(speed) {
+        const stepped = Math.round(speed * 4) / 4;
+        this.settings.speed = Math.max(0.25, Math.min(4, stepped));
+        this.saveSettings();
+        this.syncTtsControls();
     }
 
     setupLibraryUI() {

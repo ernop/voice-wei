@@ -111,16 +111,42 @@
 }
 
 .speed-control {
+    display: grid;
+    grid-template-columns: 44px minmax(68px, 1fr) 44px;
+    gap: 6px;
+    align-items: center;
     margin-top: 8px;
 }
 
-.speed-slider {
-    flex: 1;
+.speed-step-btn {
+    min-height: 38px;
+    border-radius: 8px;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    background: rgba(74, 222, 128, 0.13);
+    color: #bbf7d0;
+    font-size: 1rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.speed-step-btn:hover {
+    background: rgba(74, 222, 128, 0.24);
+}
+
+.speed-step-btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
 }
 
 #ttsSpeedValue,
 #generatorTtsSpeedValue {
-    min-width: 50px;
+    min-width: 68px;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.24);
     text-align: center;
     font-weight: 700;
     color: #86efac;

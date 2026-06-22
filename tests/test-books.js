@@ -186,6 +186,9 @@ async function seedGeneratedBook(page) {
             pricingLine: document.querySelector('#generatorModelPricingDescription')?.textContent || '',
             accentOptions: Array.from(document.querySelectorAll('#generatorTtsAccent option')).map(option => option.value),
             styleOptions: Array.from(document.querySelectorAll('#generatorTtsStyle option')).map(option => option.value),
+            speedSliderCount: document.querySelectorAll('.speed-slider, input[type="range"][id*="TtsSpeed"], input[type="range"][id*="ttsSpeed"]').length,
+            speedButtonCount: document.querySelectorAll('[data-tts-speed-step]').length,
+            generatorSpeedValue: document.querySelector('#generatorTtsSpeedValue')?.textContent || '',
             hasInstructions: Boolean(document.querySelector('#generatorTtsInstructions')),
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
@@ -208,6 +211,7 @@ async function seedGeneratedBook(page) {
                 .every(accent => layout.accentOptions.includes(accent))
             && ['audiobook', 'neutral', 'dramatic', 'warm', 'documentary', 'bedtime', 'whisper']
                 .every(style => layout.styleOptions.includes(style))
+            && layout.speedSliderCount === 0 && layout.speedButtonCount === 4 && layout.generatorSpeedValue === '1x'
             && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
                 .every(voice => layout.sampleButtons.includes(voice))
             && layout.sampleStatus.includes('short sample')
@@ -228,12 +232,14 @@ async function seedGeneratedBook(page) {
         });
         await page.selectOption('#generatorTtsAccent', 'british');
         await page.selectOption('#generatorTtsStyle', 'dramatic');
+        await page.click('#generatorTtsSpeedValue + [data-tts-speed-step="0.25"]');
         await page.click('[data-voice-sample="verse"]');
         await page.waitForFunction(() => window.__bookSpeechPayloads?.length === 1);
         const samplePayload = await page.evaluate(() => window.__bookSpeechPayloads[0]);
         report.check('books voice sample uses selected speech settings with clicked voice',
             samplePayload.model === 'gpt-4o-mini-tts'
             && samplePayload.voice === 'verse'
+            && samplePayload.speed === 1.25
             && samplePayload.response_format === 'mp3'
             && samplePayload.input.includes('Torrenthia')
             && samplePayload.instructions.includes('British English accent')
