@@ -252,14 +252,14 @@ const PitchTestPanel = (function () {
             // top of the panel - reachable without scrolling. The test
             // never auto-plays anything: Guide is an explicit button.
             host.innerHTML = `
+                <div class="pitch-test-actions">
+                    <button id="${prefix}RestartBtn" class="pitch-test-btn" type="button">Restart</button>
+                    <button id="${prefix}GuideBtn" class="pitch-test-btn" type="button">Play Guide</button>
+                    <button id="${prefix}ListenBtn" class="pitch-test-btn" type="button" aria-pressed="false">Listening Off</button>
+                    <button id="${prefix}TargetsBtn" class="pitch-test-btn" type="button" aria-pressed="true">Targets On</button>
+                    <button id="${prefix}CloseBtn" class="pitch-test-btn" type="button">Close</button>
+                </div>
                 <div class="pitch-test-header">
-                    <div class="pitch-test-actions">
-                        <button id="${prefix}RestartBtn" class="pitch-test-btn" type="button">Restart</button>
-                        <button id="${prefix}GuideBtn" class="pitch-test-btn" type="button">Play Guide</button>
-                        <button id="${prefix}ListenBtn" class="pitch-test-btn" type="button" aria-pressed="false">Listening Off</button>
-                        <button id="${prefix}TargetsBtn" class="pitch-test-btn" type="button" aria-pressed="true">Targets On</button>
-                        <button id="${prefix}CloseBtn" class="pitch-test-btn" type="button">Close</button>
-                    </div>
                     <div class="pitch-test-titles">
                         <h2>${config.title}</h2>
                         <p>${config.subtitle}</p>

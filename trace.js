@@ -63,7 +63,7 @@
             return {
                 degree: index + 1,
                 midi,
-                noteName: midiToPitchString(midi)
+                noteName: scaleIntervalToPitchString(state.root, state.octave, state.scaleType, interval)
             };
         });
     }
@@ -78,7 +78,12 @@
                 degree: index + 1,
                 midi,
                 octaveShift,
-                noteName: midiToPitchString(midi)
+                noteName: scaleIntervalToPitchString(
+                    state.root,
+                    state.octave,
+                    state.scaleType,
+                    octaveShift * 12 + interval
+                )
             };
         }));
     }

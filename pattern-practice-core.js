@@ -903,6 +903,7 @@ const PatternPracticeCore = (function () {
         const dp = degreesPerOctave(scaleType);
         const degrees = offsetsToDisplay(offsets, dp);
         const spokens = offsetsToSpoken(offsets, dp);
+        const rootInfo = midiToNoteName(rootMidi);
         return offsets.map((offset, i) => {
             const midi = scaleOffsetToMidi(rootMidi, scaleType, offset);
             return {
@@ -910,7 +911,7 @@ const PatternPracticeCore = (function () {
                 midi,
                 degree: degrees[i],
                 spoken: spokens[i],
-                noteName: midiToPitchString(midi)
+                noteName: scaleMidiToPitchString(rootInfo.name, rootInfo.octave, scaleType, midi)
             };
         });
     }

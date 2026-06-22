@@ -126,6 +126,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`scales no-gap infinite up+down omits repeated root (${renderedSequence.loopCount} notes, seam ${renderedSequence.loopSeam}->${renderedSequence.loopAfterSeam})`,
             renderedSequence.loopCount === 29 && renderedSequence.loopHighlightMatches
             && renderedSequence.loopFirst === 60 && renderedSequence.loopSeam === 62 && renderedSequence.loopAfterSeam === 64);
+
+        const scaleSpelling = await tab.evaluate(() => {
+            const cMajor = buildScaleFrequencies('C', 4, 'major').map(note => note.name).join(' ');
+            const fMajor = buildScaleFrequencies('F', 4, 'major').map(note => note.name).join(' ');
+            const cMinor = buildScaleFrequencies('C', 4, 'minor').map(note => note.name).join(' ');
+            return {
+                cMajor,
+                fMajor,
+                cMinor,
+                cPlain: !/[#b]/.test(cMajor),
+                fUsesBb: fMajor.includes('Bb4') && !fMajor.includes('A#4'),
+                cMinorFlats: cMinor.includes('Eb4') && cMinor.includes('Ab4') && cMinor.includes('Bb4')
+            };
+        });
+        report.check(`scale note spelling is key-aware (C=${scaleSpelling.cMajor}; F=${scaleSpelling.fMajor}; Cm=${scaleSpelling.cMinor})`,
+            scaleSpelling.cPlain && scaleSpelling.fUsesBb && scaleSpelling.cMinorFlats);
         await tab.close();
     }
 
@@ -597,6 +613,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 && NotationSpelling.vexKeySignature('A', 'minor') === 'Am'
                 && NotationSpelling.midiToVexKey(51) === 'd#/3'
                 && NotationSpelling.midiToVexKey(54, 'b') === 'gb/3'
+                && NotationSpelling.midiToVexKeyForScale(70, 65, 'major') === 'bb/4'
                 && NotationSpelling.clefForPhrase(51, [51, 53, 55]) === 'bass'
                 && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';
         });
@@ -609,25 +626,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('phrases staff renders svg for current phrase', staffRendered);
 
         const fillPlans = await tab.evaluate(() => {
+            const fullBtn = document.getElementById('fillFullBtn');
+            const chordBtn = document.getElementById('fillChordBtn');
+            if (fullBtn.getAttribute('aria-pressed') === 'true') fullBtn.click();
+            if (chordBtn.getAttribute('aria-pressed') === 'true') chordBtn.click();
             const before = {
                 take: window.phrasesDebug.takePlan().length,
                 tone: window.phrasesDebug.tonePlaybackPlan().length,
                 targets: window.phrasesDebug.testTargets().length
             };
-            document.getElementById('fillFullBtn').click();
+            fullBtn.click();
             const full = {
                 take: window.phrasesDebug.takePlan().length,
                 tone: window.phrasesDebug.tonePlaybackPlan().length,
                 targets: window.phrasesDebug.testTargets().length,
-                pressed: document.getElementById('fillFullBtn').getAttribute('aria-pressed')
+                pressed: fullBtn.getAttribute('aria-pressed')
             };
-            document.getElementById('fillChordBtn').click();
+            chordBtn.click();
             const chord = {
                 take: window.phrasesDebug.takePlan().length,
                 tone: window.phrasesDebug.tonePlaybackPlan().length,
                 targets: window.phrasesDebug.testTargets().length,
-                fullPressed: document.getElementById('fillFullBtn').getAttribute('aria-pressed'),
-                chordPressed: document.getElementById('fillChordBtn').getAttribute('aria-pressed')
+                fullPressed: fullBtn.getAttribute('aria-pressed'),
+                chordPressed: chordBtn.getAttribute('aria-pressed')
             };
             return { before, full, chord };
         });
@@ -645,19 +666,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const fillBreakdownGap = await tab.evaluate(() => {
             const tokens = [...document.querySelectorAll('.phrase-degree-token')];
-            if (tokens.length < 8) return { ok: false, reason: 'short phrase' };
+            if (tokens.length < 3) return { ok: false, reason: 'short phrase' };
             if (document.getElementById('fillChordBtn').getAttribute('aria-pressed') !== 'true') {
                 document.getElementById('fillChordBtn').click();
             }
-            tokens.forEach(token => {
-                if (!token.classList.contains('inactive')) token.click();
-            });
-            [0, 1, tokens.length - 2, tokens.length - 1].forEach(index => {
+            const setActive = (token, active) => {
+                if (token.classList.contains('inactive') === !active) return;
+                token.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+            };
+            tokens.forEach(token => setActive(token, false));
+            [0, tokens.length - 1].forEach(index => {
                 const token = tokens[index];
-                if (token.classList.contains('inactive')) token.click();
+                setActive(token, true);
             });
             const enabled = window.phrasesDebug.takePlan().filter(note => note.enabled).length;
             const tone = window.phrasesDebug.tonePlaybackPlan().length;
+            tokens.forEach(token => setActive(token, true));
             return { ok: tone === enabled, enabled, tone };
         });
         report.check(`phrases chord fill does not bridge breakdown gaps (${fillBreakdownGap.enabled} enabled, ${fillBreakdownGap.tone} tones)`,

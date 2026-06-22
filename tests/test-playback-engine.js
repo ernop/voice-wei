@@ -93,7 +93,11 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.evaluate(instrumentVoices);
         await tab.click('#nextBtn');
         await tab.waitForTimeout(1500);
-        await tab.click('.phrase-degree-token[data-index="6"]');
+        await tab.evaluate(() => {
+            const token = document.querySelector('.phrase-degree-token[data-index="6"]');
+            token.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        });
         await tab.waitForTimeout(8000);
         // 7 starts proves the muted note was skipped in place: a restart
         // would replay from the top (9+), no live read would play all 8.

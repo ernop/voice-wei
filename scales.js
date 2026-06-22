@@ -314,7 +314,12 @@ class ScalesController {
             const midi = rootMidi + interval;
             const pitchClass = ((interval % 12) + 12) % 12;
             const degreeIndex = basePattern.indexOf(pitchClass);
-            const noteName = midiToPitchString(midi);
+            const noteName = scaleIntervalToPitchString(
+                this.settings.root,
+                this.settings.octave,
+                this.settings.scaleType,
+                interval
+            );
             return {
                 midi,
                 label: degreeIndex >= 0 ? `${degreeIndex + 1} ${noteName}` : noteName,
@@ -352,7 +357,7 @@ class ScalesController {
             midi,
             startMs: index * stepMs,
             endMs: index * stepMs + ms,
-            label: NOTE_NAMES[midiPitchClass(midi)],
+            label: scaleMidiToNoteName(this.settings.root, this.settings.octave, this.settings.scaleType, midi),
             active: true
         }));
     }
@@ -833,7 +838,7 @@ class ScalesController {
         for (let i = 0; i < this.pianoNotificationNoteCells.length; i++) {
             const midi = midiNotes?.[i];
             const cell = this.pianoNotificationNoteCells[i];
-            cell.textContent = midi !== undefined ? midiToPitchString(midi) : '';
+            cell.textContent = midi !== undefined ? this.formatPitchStringForCurrentScale(midi) : '';
             cell.classList.toggle('empty', midi === undefined);
         }
     }
@@ -2890,6 +2895,29 @@ class ScalesController {
         return names[index] || `${index + 1}`;
     }
 
+    /** @param {number} midi */
+    formatPitchStringForCurrentScale(midi) {
+        return scaleMidiToPitchString(
+            this.settings.root,
+            this.settings.octave,
+            this.settings.scaleType,
+            midi
+        );
+    }
+
+    /**
+     * @param {number} midi
+     * @param {{ root?: string, scaleType?: string } | null} context
+     */
+    formatPitchStringForContext(midi, context = null) {
+        return scaleMidiToPitchString(
+            context?.root || this.settings.root,
+            this.settings.octave,
+            context?.scaleType || this.settings.scaleType,
+            midi
+        );
+    }
+
     /**
      * Format the status display for current note (MIDI).
      * Shows: "command set | current note [interval]"
@@ -2898,7 +2926,7 @@ class ScalesController {
      * @param {Object} context
      */
     formatNoteStatus(midi, index, context) {
-        const pitchStr = midiToPitchString(midi);
+        const pitchStr = this.formatPitchStringForContext(midi, context);
 
         const commandSet = this.formatCurrentCommand();
 
@@ -3109,9 +3137,10 @@ class ScalesController {
 
                     if (isChord) {
                         const chordMidi = transpose > 0 ? groupMidi.map(m => m + transpose) : groupMidi;
+                        const chordDisplay = chordMidi.map(m => this.formatPitchStringForContext(m, context)).join('+');
 
                         this.highlightPianoKeys(chordMidi);
-                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${chordMidi.map(midiToPitchString).join('+')}`);
+                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${chordDisplay}`);
                         this.setPianoNotificationActiveNotes(chordMidi);
                         this.appendActuallyPlayedChord(chordMidi);
 
@@ -3125,7 +3154,7 @@ class ScalesController {
                             const isSection = (i === sectionIndex);
 
                             this.highlightPianoKey(midi);
-                            this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${midiToPitchString(midi)}`);
+                            this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${this.formatPitchStringForContext(midi, context)}`);
                             this.setPianoNotificationActiveNotes([midi]);
                             this.appendActuallyPlayed(midi, isSection);
 
@@ -3235,7 +3264,7 @@ class ScalesController {
 
                     this.highlightPianoKey(midi);
                     const shiftLabel = shiftingSteps > 0 ? ` (shift ${r + 1})` : '';
-                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${midiToPitchString(midi)}`);
+                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${this.formatPitchStringForContext(midi, { root, scaleType })}`);
                     this.setPianoNotificationActiveNotes([midi]);
                     this.appendActuallyPlayed(midi, true);
 
@@ -3790,7 +3819,12 @@ class ScalesController {
      * @returns {string}
      */
     formatMidiDisplay(midi, isSection, defaultOctave = 4) {
-        const noteName = NOTE_NAMES[midiPitchClass(midi)];
+        const noteName = scaleMidiToNoteName(
+            this.settings.root,
+            this.settings.octave,
+            this.settings.scaleType,
+            midi
+        );
         const octave = midiOctave(midi);
         const name = isSection ? noteName : noteName.toLowerCase();
         return octave === defaultOctave ? name : name + octave;
@@ -3882,7 +3916,12 @@ class ScalesController {
     formatGroupsForPreview(groups, transposeSemitones = 0) {
         const groupStrings = groups.map(group => {
             const midiNotes = group.notes.map(m => m + transposeSemitones);
-            return midiNotes.map(m => NOTE_NAMES[midiPitchClass(m)]).join(' ');
+            return midiNotes.map(m => scaleMidiToNoteName(
+                this.settings.root,
+                this.settings.octave,
+                this.settings.scaleType,
+                m
+            )).join(' ');
         });
         return groupStrings.join(' | ');
     }

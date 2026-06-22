@@ -237,7 +237,8 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.waitForTimeout(1000);
         const layout = await tab.evaluate(() => {
             const controls = document.querySelector('.phrase-control-grid').getBoundingClientRect();
-            const buttons = Array.from(document.querySelectorAll('.phrase-control-grid .vf-btn, .phrase-control-grid .step-field'));
+            const buttons = Array.from(document.querySelectorAll('.phrase-control-grid .vf-btn, .phrase-control-grid .step-field'))
+                .filter(el => el.getClientRects().length > 0);
             const rects = buttons.map(el => el.getBoundingClientRect());
             let overlaps = 0;
             let overflow = 0;

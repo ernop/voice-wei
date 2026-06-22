@@ -8,8 +8,8 @@
 const StaffView = (function () {
     'use strict';
 
-    const NOTE_WIDTH = 34;
-    const MIN_NOTE_STEP = 28;
+    const NOTE_WIDTH = 42;
+    const MIN_NOTE_STEP = 42;
     const STAVE_X = 8;
     const STAVE_Y = 8;
     const MIN_WIDTH = 220;
@@ -94,7 +94,12 @@ const StaffView = (function () {
                     plan.map(entry => entry.offset)
                 );
                 const staveNote = new VF.StaveNote({
-                    keys: [NotationSpelling.midiToVexKey(note.midi, accidental)],
+                    keys: [NotationSpelling.midiToVexKeyForScale(
+                        note.midi,
+                        keyContext.rootMidi,
+                        keyContext.scaleType,
+                        accidental
+                    )],
                     duration: 'q',
                     clef,
                     stem_direction: VF.Stem.UP

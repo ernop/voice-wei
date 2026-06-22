@@ -8,13 +8,6 @@
 const NotationSpelling = (function () {
     'use strict';
 
-    /** @type {Readonly<Record<string, string>>} */
-    const VEX_FLAT_KEYS = Object.freeze({
-        'D#': 'Eb',
-        'G#': 'Ab',
-        'A#': 'Bb'
-    });
-
     /**
      * VexFlow key signature string for the current key frame.
      * @param {string} root
@@ -23,7 +16,7 @@ const NotationSpelling = (function () {
     function vexKeySignature(root, scaleType) {
         const canonical = normalizePitchClassName(root);
         if (!canonical) return 'C';
-        const vexRoot = VEX_FLAT_KEYS[canonical] || canonical;
+        const vexRoot = preferredScaleRootName(canonical) || canonical;
         if (scaleType === 'minor' || scaleType === 'harmonic_minor' || scaleType === 'm_minor') {
             return `${vexRoot}m`;
         }
@@ -41,6 +34,30 @@ const NotationSpelling = (function () {
         const names = accidentalPreference === 'b' ? NOTE_NAMES_FLAT : NOTE_NAMES;
         const name = names[midiPitchClass(rounded)] || noteInfo.name;
         return `${name.toLowerCase()}/${noteInfo.octave}`;
+    }
+
+    /**
+     * @param {string} pitch
+     * @returns {string | null}
+     */
+    function pitchStringToVexKey(pitch) {
+        const match = pitch.match(/^([A-G](?:#{1,2}|b{1,2})?)(-?\d+)$/);
+        if (!match) return null;
+        return `${match[1].toLowerCase()}/${match[2]}`;
+    }
+
+    /**
+     * Spell staff notes in the current scale/key before handing them to VexFlow.
+     * @param {number} midi
+     * @param {number} rootMidi
+     * @param {string} scaleType
+     * @param {'#' | 'b' | null=} accidentalPreference
+     * @returns {string}
+     */
+    function midiToVexKeyForScale(midi, rootMidi, scaleType, accidentalPreference = null) {
+        const root = midiToNoteName(rootMidi);
+        const pitch = scaleMidiToPitchString(root.name, root.octave, scaleType, midi, accidentalPreference);
+        return pitchStringToVexKey(pitch) || midiToVexKey(midi, accidentalPreference);
     }
 
     /**
@@ -73,6 +90,7 @@ const NotationSpelling = (function () {
     return {
         vexKeySignature,
         midiToVexKey,
+        midiToVexKeyForScale,
         clefForPhrase,
         passingAccidental
     };

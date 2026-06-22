@@ -19,6 +19,27 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 /** @type {readonly string[]} Note names with flats */
 const NOTE_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+/** @type {readonly string[]} Musical letters in staff order */
+const NOTE_LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+/** @type {Readonly<Record<string, number>>} Natural pitch classes by letter */
+const NATURAL_PITCH_CLASSES = Object.freeze({
+    C: 0,
+    D: 2,
+    E: 4,
+    F: 5,
+    G: 7,
+    A: 9,
+    B: 11
+});
+
+/** @type {Readonly<Record<string, string>>} */
+const PREFERRED_FLAT_ROOT_NAMES = Object.freeze({
+    'D#': 'Eb',
+    'G#': 'Ab',
+    'A#': 'Bb'
+});
+
 /** @type {Readonly<Record<string, readonly number[]>>} Scale patterns - semitones from root */
 const SCALE_PATTERNS = Object.freeze({
     // Basic scales
@@ -50,6 +71,29 @@ const SCALE_PATTERNS = Object.freeze({
     whole_tone: [0, 2, 4, 6, 8, 10, 12],
     diminished: [0, 2, 3, 5, 6, 8, 9, 11, 12],   // Half-whole diminished
     augmented: [0, 3, 4, 7, 8, 11, 12]
+});
+
+const DIATONIC_LETTER_STEPS = Object.freeze([0, 1, 2, 3, 4, 5, 6, 7]);
+
+/** @type {Readonly<Record<string, readonly number[]>>} Letter steps for scale-degree spelling. */
+const SCALE_LETTER_STEPS = Object.freeze({
+    major: DIATONIC_LETTER_STEPS,
+    minor: DIATONIC_LETTER_STEPS,
+    dorian: DIATONIC_LETTER_STEPS,
+    phrygian: DIATONIC_LETTER_STEPS,
+    lydian: DIATONIC_LETTER_STEPS,
+    mixolydian: DIATONIC_LETTER_STEPS,
+    locrian: DIATONIC_LETTER_STEPS,
+    harmonic_minor: DIATONIC_LETTER_STEPS,
+    harmonic_major: DIATONIC_LETTER_STEPS,
+    double_harmonic: DIATONIC_LETTER_STEPS,
+    melodic_minor: DIATONIC_LETTER_STEPS,
+    pentatonic: [0, 1, 2, 4, 5, 7],
+    minor_pentatonic: [0, 2, 3, 4, 6, 7],
+    blues: [0, 2, 3, 4, 4, 6, 7],
+    whole_tone: [0, 1, 2, 3, 4, 5, 7],
+    diminished: [0, 1, 2, 3, 4, 5, 5, 6, 7],
+    augmented: [0, 2, 2, 4, 4, 6, 7]
 });
 
 // A4 reference frequency and MIDI number
@@ -105,6 +149,18 @@ function midiToPitchString(midi) {
 }
 
 /**
+ * Convert MIDI integer to pitch string using a simple sharp/flat preference.
+ * @param {number} midi
+ * @param {'#' | 'b' | null=} accidentalPreference
+ * @returns {string}
+ */
+function midiToPitchStringWithPreference(midi, accidentalPreference = null) {
+    const rounded = Math.round(midi);
+    const names = accidentalPreference === 'b' ? NOTE_NAMES_FLAT : NOTE_NAMES;
+    return `${names[midiPitchClass(rounded)]}${midiOctave(rounded)}`;
+}
+
+/**
  * Extract pitch class index (0-11) from MIDI note number.
  * @param {number} midi
  * @returns {number} 0=C, 1=C#, 2=D, ... 11=B
@@ -135,6 +191,17 @@ function normalizePitchClassName(name) {
 }
 
 /**
+ * Choose the readable root spelling for scale/staff display.
+ * @param {string} root
+ * @returns {string | null}
+ */
+function preferredScaleRootName(root) {
+    const canonical = normalizePitchClassName(root);
+    if (!canonical) return null;
+    return PREFERRED_FLAT_ROOT_NAMES[canonical] || canonical;
+}
+
+/**
  * Convert note name and octave to MIDI note number.
  * Accepts sharp and flat spellings ('F#' and 'Gb').
  * @param {string} noteName - Note name (e.g., 'C', 'F#', 'Bb')
@@ -145,6 +212,107 @@ function noteNameToMidi(noteName, octave) {
     const canonical = normalizePitchClassName(noteName);
     if (canonical === null) return null;
     return (octave + 1) * 12 + NOTE_NAMES.indexOf(canonical);
+}
+
+/**
+ * @param {number} value
+ * @param {number} modulo
+ */
+function positiveModulo(value, modulo) {
+    return ((value % modulo) + modulo) % modulo;
+}
+
+/**
+ * @param {string} scaleType
+ * @param {number} interval
+ * @returns {number}
+ */
+function scaleDegreeIndexForInterval(scaleType, interval) {
+    const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+    const pitchClass = positiveModulo(interval, 12);
+    const last = pattern.length - 1;
+    for (let index = 0; index < pattern.length; index++) {
+        if (index === last && pattern[index] === 12) continue;
+        if (positiveModulo(pattern[index], 12) === pitchClass) return index;
+    }
+    return -1;
+}
+
+/**
+ * @param {string} letter
+ * @param {number} pitchClass
+ */
+function spellPitchClassWithLetter(letter, pitchClass) {
+    const natural = NATURAL_PITCH_CLASSES[letter];
+    if (natural === undefined) return NOTE_NAMES[pitchClass] || letter;
+    let delta = positiveModulo(pitchClass - natural, 12);
+    if (delta > 6) delta -= 12;
+    if (delta === 0) return letter;
+    if (delta === 1) return `${letter}#`;
+    if (delta === -1) return `${letter}b`;
+    if (delta === 2) return `${letter}##`;
+    if (delta === -2) return `${letter}bb`;
+    return NOTE_NAMES[pitchClass] || letter;
+}
+
+/**
+ * Spell a note in the selected scale/key instead of using canonical sharps.
+ * @param {string} root
+ * @param {number} octave
+ * @param {string} scaleType
+ * @param {number} interval
+ * @param {'#' | 'b' | null=} accidentalPreference
+ * @returns {string}
+ */
+function scaleIntervalToPitchString(root, octave, scaleType, interval, accidentalPreference = null) {
+    const rootMidi = noteNameToMidi(root, octave);
+    if (rootMidi === null || !Number.isInteger(interval)) {
+        return midiToPitchStringWithPreference(rootMidi === null ? 60 : rootMidi + interval, accidentalPreference);
+    }
+
+    const midi = rootMidi + interval;
+    const steps = SCALE_LETTER_STEPS[scaleType];
+    const degreeIndex = scaleDegreeIndexForInterval(scaleType, interval);
+    if (!steps || degreeIndex < 0 || degreeIndex >= steps.length) {
+        return midiToPitchStringWithPreference(midi, accidentalPreference);
+    }
+
+    const displayRoot = preferredScaleRootName(root);
+    if (!displayRoot) return midiToPitchStringWithPreference(midi, accidentalPreference);
+    const rootLetterIndex = NOTE_LETTERS.indexOf(displayRoot.charAt(0));
+    if (rootLetterIndex < 0) return midiToPitchStringWithPreference(midi, accidentalPreference);
+
+    const letter = NOTE_LETTERS[(rootLetterIndex + steps[degreeIndex]) % NOTE_LETTERS.length];
+    const name = spellPitchClassWithLetter(letter, midiPitchClass(midi));
+    return `${name}${midiOctave(midi)}`;
+}
+
+/**
+ * Spell MIDI in the selected scale/key instead of using canonical sharps.
+ * @param {string} root
+ * @param {number} octave
+ * @param {string} scaleType
+ * @param {number} midi
+ * @param {'#' | 'b' | null=} accidentalPreference
+ * @returns {string}
+ */
+function scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPreference = null) {
+    const rootMidi = noteNameToMidi(root, octave);
+    if (rootMidi === null) return midiToPitchStringWithPreference(midi, accidentalPreference);
+    return scaleIntervalToPitchString(root, octave, scaleType, Math.round(midi) - rootMidi, accidentalPreference);
+}
+
+/**
+ * Scale-aware note name without octave.
+ * @param {string} root
+ * @param {number} octave
+ * @param {string} scaleType
+ * @param {number} midi
+ * @param {'#' | 'b' | null=} accidentalPreference
+ * @returns {string}
+ */
+function scaleMidiToNoteName(root, octave, scaleType, midi, accidentalPreference = null) {
+    return scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPreference).replace(/-?\d+$/, '');
 }
 
 /**
@@ -172,13 +340,14 @@ function buildScaleFrequencies(rootNote, octave, scaleType) {
 
     return pattern.map(interval => {
         const midi = rootMidi + interval;
-        const noteInfo = midiToNoteName(midi);
+        const pitch = scaleIntervalToPitchString(rootNote, octave, scaleType, interval);
+        const noteName = pitch.replace(/-?\d+$/, '');
         return {
             midi,
             freq: midiToFreq(midi),
-            name: noteInfo.full,
-            noteName: noteInfo.name,
-            octave: noteInfo.octave
+            name: pitch,
+            noteName,
+            octave: midiOctave(midi)
         };
     });
 }

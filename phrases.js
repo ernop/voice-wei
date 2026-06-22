@@ -237,7 +237,7 @@
         degreesEl.classList.toggle('phrase-degrees-show-play', state.showPlayRow);
         degreesEl.classList.toggle('phrase-degrees-show-names', state.showNoteNames);
         degreesEl.style.setProperty('--phrase-note-count', String(plan.length));
-        degreesEl.style.setProperty('--phrase-note-cell-width', plan.length > 18 ? '28px' : '32px');
+        degreesEl.style.setProperty('--phrase-note-cell-width', '42px');
         plan.forEach(note => {
             const column = document.createElement('div');
             column.className = 'phrase-note-column';
@@ -342,13 +342,14 @@
         const extraRange = expandRange ? degreesPerOctave : 0;
         const lowerOffset = Math.min(-1, ...planOffsets) - 1 - extraRange;
         const upperOffset = Math.max(degreesPerOctave + 1, ...planOffsets) + 1 + extraRange;
+        const rootInfo = midiToNoteName(root);
         for (let offset = Math.floor(lowerOffset); offset <= Math.ceil(upperOffset); offset++) {
             const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
             lines.push({
                 offset,
                 midi,
                 label: describeScaleOffset(offset, degreesPerOctave),
-                noteName: midiToPitchString(midi)
+                noteName: scaleMidiToPitchString(rootInfo.name, rootInfo.octave, state.scaleType, midi)
             });
         }
         return lines;
@@ -527,6 +528,17 @@
     // Tone output may include invisible fill notes; the visible take plan
     // remains the only source for display, speech, and pitch-test targets.
     async function playToneSequence(token) {
+        if (state.fillMode === 'none') {
+            for (let index = 0; index < takeNotes.length; index++) {
+                if (token !== playToken) return;
+                const note = buildTakePlan()[index];
+                if (!note || !takeNotes[index].enabled) continue; // live read
+                playMidi(note.midi);
+                await sleep(state.noteLengthMs + effectiveGapMs());
+            }
+            return;
+        }
+
         for (const note of buildTonePlaybackPlan()) {
             if (token !== playToken) return;
             playMidi(note.midi);
