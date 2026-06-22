@@ -284,6 +284,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.click('#stopBtn');
         const degrees = await tab.evaluate(() =>
             Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        const phraseTitle = await tab.evaluate(() => document.title);
+        report.check(`phrases document title follows generated sequence ("${phraseTitle}")`,
+            phraseTitle === degrees && phraseTitle.length > 0 && !phraseTitle.includes('Phrases'));
 
         await tab.click('#reflectBtn');
         await tab.waitForTimeout(300);

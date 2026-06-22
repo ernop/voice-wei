@@ -43,6 +43,7 @@
     };
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
+    const DEFAULT_DOCUMENT_TITLE = document.title;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
@@ -225,6 +226,13 @@
                 endMs: startMs !== null ? startMs + state.noteLengthMs : null
             };
         });
+    }
+
+    /** @param {PhrasePlanNote[]} plan */
+    function syncDocumentTitle(plan) {
+        document.title = plan.length
+            ? plan.map(note => note.degree).join(' ')
+            : DEFAULT_DOCUMENT_TITLE;
     }
 
     /** @param {PhrasePlanNote[]} plan */
@@ -439,6 +447,7 @@
         if (!degreesEl || !notesEl) return;
         const plan = buildTakePlan();
         if (!plan.length) {
+            syncDocumentTitle(plan);
             degreesEl.textContent = '--';
             degreesEl.classList.remove('phrase-degrees-many');
             notesEl.textContent = '';
@@ -447,6 +456,7 @@
             updateStickyOffset();
             return;
         }
+        syncDocumentTitle(plan);
         renderPhraseUnits(plan);
         notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
         drawPhraseStaff();
