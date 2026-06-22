@@ -230,13 +230,22 @@ One representation per concept, conversions in one place:
   Note names ("D#", "Bb") and pitch strings ("D#3") exist only at the
   edges: voice input, persisted settings, display. Every conversion goes
   through `music-constants.js` (`noteNameToMidi`, `midiToPitchString`,
-  `midiToNoteName`, `normalizePitchClassName`, `midiToFreq`/`freqToMidi`).
-  Sharps are the canonical spelling; flats are accepted on input and
-  normalized. An ast-grep guard forbids `Tone.Frequency` outside
-  piano-core so no parallel conversion path can reappear.
+  `midiToNoteName`, scale-aware spelling helpers, `normalizePitchClassName`,
+  `midiToFreq`/`freqToMidi`). Stored roots may be canonicalized to sharp
+  pitch classes for simple equality and stepping, but scale/key displays
+  use conventional musical spelling (`D#` major is shown as `Eb` major).
+  An ast-grep guard forbids `Tone.Frequency` outside piano-core so no
+  parallel conversion path can reappear.
 - **Scales are `SCALE_PATTERNS` ids** ('major', 'harmonic_minor'...),
   one frozen registry in music-constants.js; degree/offset math lives in
   `pattern-practice-core.js` (offset 0 = degree 1).
+- **Scale degrees are explicit objects at UI boundaries.** Scale rails,
+  previews, pitch-meter targets, and interval-pattern rails consume
+  `ScaleDegreeNote` objects from `scaleDegreeNotesInRange()` rather than
+  recomputing labels from pitch classes. The object carries interval,
+  degree number, octave shift, MIDI, and the correctly spelled pitch
+  name. That prevents octave notes from wrapping back to degree 1 and
+  prevents key signatures from disagreeing with note labels.
 - **A sequence of notes is a list of note objects** (`SequenceNote[]`,
   zipped once by `buildSequenceNotes`), never parallel arrays indexed by
   position. Every consumer-side re-zip is a chance to misalign - the
@@ -252,7 +261,7 @@ One representation per concept, conversions in one place:
 ## Typed contracts (static guarantees first)
 
 The shared musical vocabulary lives in `types/music.d.ts` as global
-ambient types: `KeyContext`, `TargetSpan`, `RailLine`,
+ambient types: `KeyContext`, `ScaleDegreeNote`, `TargetSpan`, `RailLine`,
 `PitchTestPanelConfig`. Rules:
 
 1. **Data the component cannot work without is required in its config
@@ -272,8 +281,8 @@ ambient types: `KeyContext`, `TargetSpan`, `RailLine`,
    startMs/endMs) and display, playback, and the test panel all read
    it. Disabled notes own no time; the timeline starts at 0 with the
    first ENABLED note - never "assume the first item is zero".
-4. **Shared state is reified, not implicit.** The key is data the panel
-   holds and displays ("Key: D#3 major" in the readout), not something
+5. **Shared state is reified, not implicit.** The key is data the panel
+   holds and displays ("Key: Eb3 major" in the readout), not something
    smeared across closures.
 
 New shared components follow the same pattern: a named `...Config` type

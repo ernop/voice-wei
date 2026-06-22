@@ -301,31 +301,15 @@ class ScalesController {
 
     /** @param {boolean} expandRange */
     buildSingRails(expandRange) {
-        const basePattern = SCALE_PATTERNS[this.settings.scaleType] || SCALE_PATTERNS.major;
-        const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
-        if (rootMidi === null) return [];
-
         const { min, max } = this.getSectionRange(this.settings.sectionLength || '1o');
         const lower = expandRange ? min - 12 : min;
         const upper = expandRange ? max + 12 : max;
-        const intervals = this.getScaleDegreesInRange(basePattern, lower, upper);
-
-        return intervals.map(interval => {
-            const midi = rootMidi + interval;
-            const pitchClass = ((interval % 12) + 12) % 12;
-            const degreeIndex = basePattern.indexOf(pitchClass);
-            const noteName = scaleIntervalToPitchString(
-                this.settings.root,
-                this.settings.octave,
-                this.settings.scaleType,
-                interval
-            );
-            return {
-                midi,
-                label: degreeIndex >= 0 ? `${degreeIndex + 1} ${noteName}` : noteName,
-                emphasized: interval >= 0 && interval <= 12
-            };
-        });
+        return scaleDegreeNotesInRange(this.settings.root, this.settings.octave, this.settings.scaleType, lower, upper)
+            .map(note => ({
+                midi: note.midi,
+                label: `${note.degree} ${note.name}`,
+                emphasized: note.interval >= 0 && note.interval <= 12
+            }));
     }
 
     buildSingPlan() {
@@ -2724,8 +2708,8 @@ class ScalesController {
             }
         } else if (style === 'chords') {
             for (const midi of sectionNotes) {
-                const third = this.getDiatonicInterval(midi, 'third', scaleType);
-                const fifth = this.getDiatonicInterval(midi, 'fifth', scaleType);
+                const third = this.getDiatonicInterval(rootMidi, midi, 'third', scaleType);
+                const fifth = this.getDiatonicInterval(rootMidi, midi, 'fifth', scaleType);
                 const chordNotes = [midi];
                 if (third !== null) chordNotes.push(third);
                 if (fifth !== null) chordNotes.push(fifth);
@@ -2828,29 +2812,27 @@ class ScalesController {
     }
 
     /**
-     * Get a diatonic interval (3rd or 5th) above a MIDI note.
+     * Get a diatonic interval (3rd or 5th) above a MIDI note in the selected scale.
+     * @param {number} rootMidi
      * @param {number} midi
      * @param {string} intervalName - 'third' or 'fifth'
      * @param {string} scaleType
      * @returns {number | null} MIDI note, or null if invalid interval name
      */
-    getDiatonicInterval(midi, intervalName, scaleType) {
-        let semitones;
+    getDiatonicInterval(rootMidi, midi, intervalName, scaleType) {
+        let degreeSteps;
         if (intervalName === 'third') {
-            if (scaleType === 'minor' || scaleType === 'natural_minor' ||
-                scaleType === 'harmonic_minor' || scaleType === 'melodic_minor' ||
-                scaleType === 'dorian' || scaleType === 'phrygian' || scaleType === 'aeolian') {
-                semitones = 3;
-            } else {
-                semitones = 4;
-            }
+            degreeSteps = 2;
         } else if (intervalName === 'fifth') {
-            semitones = 7;
+            degreeSteps = 4;
         } else {
             return null;
         }
-
-        return midi + semitones;
+        const interval = midi - rootMidi;
+        const scale = scaleIntervalsInRange(scaleType, interval - 48, interval + 72);
+        const index = scale.indexOf(interval);
+        const target = scale[index + degreeSteps];
+        return target === undefined ? null : rootMidi + target;
     }
 
     /**
@@ -2993,29 +2975,6 @@ class ScalesController {
     }
 
     /**
-     * Get all scale degrees that fall within a semitone range
-     * @param {readonly number[]} basePattern - Scale pattern (e.g., [0,2,4,5,7,9,11,12] for major)
-     * @param {number} minSemitone - Minimum semitone (can be negative)
-     * @param {number} maxSemitone - Maximum semitone
-     * @returns {number[]} - Sorted array of semitone intervals within range
-     */
-    getScaleDegreesInRange(basePattern, minSemitone, maxSemitone) {
-        const degrees = new Set();
-
-        // Extend pattern across multiple octaves and filter to range
-        for (let octaveShift = -2; octaveShift <= 3; octaveShift++) {
-            for (const interval of basePattern) {
-                const shifted = interval + (octaveShift * 12);
-                if (shifted >= minSemitone && shifted <= maxSemitone) {
-                    degrees.add(shifted);
-                }
-            }
-        }
-
-        return Array.from(degrees).sort((a, b) => a - b);
-    }
-
-    /**
      * @param {string} root
      * @param {string} scaleType
      * @param {ScaleModifiers} [modifiers]
@@ -3028,10 +2987,9 @@ class ScalesController {
         // onSettingChanged, so persist whatever is about to play.
         this.saveSettings();
 
-        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const sectionLength = this.settings.sectionLength || '1o';
         const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength);
-        const fullPattern = this.getScaleDegreesInRange(basePattern, minSemitone, maxSemitone);
+        const fullPattern = scaleIntervalsInRange(scaleType, minSemitone, maxSemitone);
         const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
 
         const movementStyle = modifiers.movementStyle ?? this.settings.movementStyle;
@@ -3845,12 +3803,11 @@ class ScalesController {
      * @returns {{ degreesAscAll: number[], rootMidi: number, pattern: number[] } | null}
      */
     buildScaleDegreesAscAll({ root, scaleType, sectionLength }) {
-        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
         const rootMidi = noteNameToMidi(root, this.settings.octave);
         if (rootMidi === null) return null;
 
         const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength || '1o');
-        const fullPattern = this.getScaleDegreesInRange(basePattern, minSemitone, maxSemitone);
+        const fullPattern = scaleIntervalsInRange(scaleType, minSemitone, maxSemitone);
 
         const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
 

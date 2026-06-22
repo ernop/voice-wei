@@ -17,7 +17,7 @@ const NotationSpelling = (function () {
         const canonical = normalizePitchClassName(root);
         if (!canonical) return 'C';
         const vexRoot = preferredScaleRootName(canonical) || canonical;
-        if (scaleType === 'minor' || scaleType === 'harmonic_minor' || scaleType === 'm_minor') {
+        if (scaleType === 'minor' || scaleType === 'harmonic_minor' || scaleType === 'melodic_minor') {
             return `${vexRoot}m`;
         }
         return vexRoot;

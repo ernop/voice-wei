@@ -473,17 +473,16 @@
         if (!currentInstance) return [];
         const scale = buildExtendedScale();
         if (!scale.length) return [];
-        const dpOct = degreesPerOctave();
         const midis = currentInstance.notes.map(note => note.midi);
         const minMidi = Math.min(...midis);
         const maxMidi = Math.max(...midis);
         const pad = expandRange ? 12 : 4;
         return scale
-            .map((note, index) => ({ note, index }))
+            .map(note => ({ note }))
             .filter(({ note }) => note.midi >= minMidi - pad && note.midi <= maxMidi + pad)
-            .map(({ note, index }) => ({
+            .map(({ note }) => ({
                 midi: note.midi,
-                label: `${(index % dpOct) + 1} ${note.name}`,
+                label: `${note.degree} ${note.name}`,
                 emphasized: midis.includes(note.midi)
             }));
     }
@@ -510,7 +509,7 @@
             emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
             key: () => ({
                 rootMidi: noteNameToMidi(state.root, state.octave) ?? 60,
-                rootLabel: `${state.root}${state.octave}`,
+                rootLabel: scaleRootPitchString(state.root, state.octave),
                 scaleType: state.scale
             }),
             rails: ({ expandRange }) => buildSingRails(expandRange),
@@ -547,7 +546,7 @@
 
     // ---- UI ----
     function syncSteppers() {
-        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('lengthValue', PracticeControls.formatSeconds(state.lengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
         PracticeControls.syncStepperDisabled((key, delta) => {

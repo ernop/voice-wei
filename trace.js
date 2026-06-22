@@ -51,41 +51,14 @@
         return noteNameToMidi(state.root, state.octave);
     }
 
-    function scaleIntervals() {
-        return (SCALE_PATTERNS[state.scaleType] || SCALE_PATTERNS.major).slice();
-    }
-
     function scaleNotes() {
-        const root = rootMidi();
-        if (root === null) return [];
-        return scaleIntervals().map((interval, index) => {
-            const midi = root + interval;
-            return {
-                degree: index + 1,
-                midi,
-                noteName: scaleIntervalToPitchString(state.root, state.octave, state.scaleType, interval)
-            };
-        });
+        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, 0, 12);
     }
 
     function chartScaleNotes() {
-        const root = rootMidi();
-        if (root === null) return [];
-        const shifts = state.expandRange ? [-1, 0, 1] : [0];
-        return shifts.flatMap(octaveShift => scaleIntervals().map((interval, index) => {
-            const midi = root + octaveShift * 12 + interval;
-            return {
-                degree: index + 1,
-                midi,
-                octaveShift,
-                noteName: scaleIntervalToPitchString(
-                    state.root,
-                    state.octave,
-                    state.scaleType,
-                    octaveShift * 12 + interval
-                )
-            };
-        }));
+        return state.expandRange
+            ? scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, -12, 24)
+            : scaleNotes();
     }
 
     /** @param {number} midi */
@@ -168,8 +141,8 @@
         defaultHeightPx: 430,
         rails: () => chartScaleNotes().map(note => ({
             midi: note.midi,
-            label: `${note.degree} ${note.noteName}`,
-            emphasized: note.octaveShift === 0
+            label: `${note.degree} ${note.name}`,
+            emphasized: note.interval >= 0 && note.interval <= 12
         })),
         targets: buildGuideTargets,
         history: () => session.history,

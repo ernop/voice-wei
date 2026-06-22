@@ -55,7 +55,7 @@ const PatternPracticeCore = (function () {
 
     /**
      * @param {{ root: string, octave: number, scaleType: string, lowerOctaves?: number, upperOctaves?: number }} options
-     * @returns {Array<{ midi: number, name: string, noteName: string, octave: number, offset: number }>}
+     * @returns {Array<{ midi: number, name: string, noteName: string, octave: number, offset: number, degree: string }>}
      */
     function buildExtendedScale(options) {
         const { root, octave, scaleType, lowerOctaves = 0, upperOctaves = 3 } = options;
@@ -70,8 +70,15 @@ const PatternPracticeCore = (function () {
             for (let degreeIndex = 0; degreeIndex < baseIntervals.length; degreeIndex++) {
                 const offset = octaveShift * dp + degreeIndex;
                 const midi = rootMidi + octaveShift * 12 + baseIntervals[degreeIndex];
-                const info = midiToNoteName(midi);
-                notes.push({ midi, name: info.full, noteName: info.name, octave: info.octave, offset });
+                const name = scaleMidiToPitchString(root, octave, scaleType, midi);
+                notes.push({
+                    midi,
+                    name,
+                    noteName: name.replace(/-?\d+$/, ''),
+                    octave: midiOctave(midi),
+                    offset,
+                    degree: offsetToDegree(offset, dp)
+                });
             }
         }
 

@@ -132,20 +132,28 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const fMajor = buildScaleFrequencies('F', 4, 'major').map(note => note.name).join(' ');
             const cMinor = buildScaleFrequencies('C', 4, 'minor').map(note => note.name).join(' ');
             const ebMajorFromStoredSharp = buildScaleFrequencies('D#', 3, 'major').map(note => note.name).join(' ');
+            const ebMajorDegrees = scaleDegreeNotesInRange('D#', 3, 'major', 0, 14)
+                .map(note => `${note.degree}:${note.name}`).join(' ');
+            const c = window.scalesController;
             return {
                 cMajor,
                 fMajor,
                 cMinor,
                 ebMajorFromStoredSharp,
+                ebMajorDegrees,
+                locrianFifth: c.getDiatonicInterval(60, 60, 'fifth', 'locrian'),
+                dorianThird: c.getDiatonicInterval(60, 60, 'third', 'dorian'),
                 cPlain: !/[#b]/.test(cMajor),
                 fUsesBb: fMajor.includes('Bb4') && !fMajor.includes('A#4'),
                 cMinorFlats: cMinor.includes('Eb4') && cMinor.includes('Ab4') && cMinor.includes('Bb4'),
-                storedDSharpMajorSpellsAsEb: ebMajorFromStoredSharp === 'Eb3 F3 G3 Ab3 Bb3 C4 D4 Eb4'
+                storedDSharpMajorSpellsAsEb: ebMajorFromStoredSharp === 'Eb3 F3 G3 Ab3 Bb3 C4 D4 Eb4',
+                octaveDegreeIsEight: ebMajorDegrees.includes('8:Eb4') && ebMajorDegrees.includes('2:F4')
             };
         });
-        report.check(`scale note spelling is key-aware (C=${scaleSpelling.cMajor}; F=${scaleSpelling.fMajor}; Cm=${scaleSpelling.cMinor}; D#=${scaleSpelling.ebMajorFromStoredSharp})`,
+        report.check(`scale note spelling is key-aware (C=${scaleSpelling.cMajor}; F=${scaleSpelling.fMajor}; Cm=${scaleSpelling.cMinor}; D#=${scaleSpelling.ebMajorFromStoredSharp}; degrees=${scaleSpelling.ebMajorDegrees})`,
             scaleSpelling.cPlain && scaleSpelling.fUsesBb && scaleSpelling.cMinorFlats
-            && scaleSpelling.storedDSharpMajorSpellsAsEb);
+            && scaleSpelling.storedDSharpMajorSpellsAsEb && scaleSpelling.octaveDegreeIsEight
+            && scaleSpelling.locrianFifth === 66 && scaleSpelling.dorianThird === 63);
         await tab.close();
     }
 
@@ -224,6 +232,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         }));
         report.check(`intervals Sing opens with a pattern ("${opened.pattern}")`,
             opened.open && opened.pattern.length > 0);
+        const intervalScaleModel = await tab.evaluate(() => {
+            const scale = PatternPracticeCore.buildExtendedScale({
+                root: 'D#',
+                octave: 3,
+                scaleType: 'major',
+                lowerOctaves: 0,
+                upperOctaves: 2
+            });
+            const labels = scale.slice(0, 10).map(note => `${note.degree}:${note.name}`).join(' ');
+            return {
+                labels,
+                spellsEb: labels.startsWith('1:Eb3 2:F3 3:G3 4:Ab3 5:Bb3 6:C4 7:D4 8:Eb4 2↑:F4'),
+                noSharpLeak: !labels.includes('#')
+            };
+        });
+        report.check(`intervals extended scale uses standard degree objects (${intervalScaleModel.labels})`,
+            intervalScaleModel.spellsEb && intervalScaleModel.noSharpLeak);
         // Wall-clock mode so the windows pass; take should be recorded.
         // Sing deterministically through the explicit sample seam (the
         // fake mic's beeps are not reliable enough to count on).
@@ -649,6 +674,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const staffSpelling = await tab.evaluate(() => {
             return NotationSpelling.vexKeySignature('D#', 'major') === 'Eb'
                 && NotationSpelling.vexKeySignature('A', 'minor') === 'Am'
+                && NotationSpelling.vexKeySignature('A', 'melodic_minor') === 'Am'
                 && NotationSpelling.midiToVexKey(51) === 'd#/3'
                 && NotationSpelling.midiToVexKey(54, 'b') === 'gb/3'
                 && NotationSpelling.midiToVexKeyForScale(51, 51, 'major') === 'eb/3'

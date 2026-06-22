@@ -62,6 +62,12 @@ interface Window {
     NotationSpelling?: {
         vexKeySignature: (root: string, scaleType: string) => string;
         midiToVexKey: (midi: number, accidentalPreference?: '#' | 'b' | null) => string;
+        midiToVexKeyForScale: (
+            midi: number,
+            rootMidi: number,
+            scaleType: string,
+            accidentalPreference?: '#' | 'b' | null
+        ) => string;
         clefForPhrase: (rootMidi: number, midis: number[]) => 'treble' | 'bass';
         passingAccidental: (
             offset: number,
@@ -75,7 +81,7 @@ interface Window {
             hostId: string;
             key: () => KeyContext;
             notes: () => PhrasePlanNote[];
-        }) => { draw: () => void };
+        }) => { draw: () => void; clear: () => void };
     };
 
     // Named state inspection for the test suite (phrases take plan)

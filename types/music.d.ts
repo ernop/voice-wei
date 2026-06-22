@@ -88,6 +88,30 @@ interface NoteTiming {
 }
 
 /**
+ * One scale degree in a concrete key. This is the standard data shape for
+ * scale rails, scale previews, and scale-note displays: pages should not
+ * reconstruct degree numbers or note spellings from raw pitch classes.
+ */
+interface ScaleDegreeNote {
+    /** Semitone interval from the root, e.g. 12 = octave */
+    interval: number;
+    /** 1-based degree inside the scale pattern, e.g. 8 for the octave in major */
+    degree: number;
+    /** 0-based degree index inside the scale pattern */
+    degreeIndex: number;
+    /** Octave displacement of this degree occurrence relative to the root frame */
+    octaveShift: number;
+    /** MIDI note number */
+    midi: number;
+    /** Spelled pitch with octave, e.g. "Bb4" */
+    name: string;
+    /** Spelled pitch class, e.g. "Bb" */
+    noteName: string;
+    /** Scientific pitch octave */
+    octave: number;
+}
+
+/**
  * One note of a generated sequence, fully zipped at construction.
  * Sequences of notes are ALWAYS lists of these objects - parallel
  * arrays over note positions are forbidden at module boundaries

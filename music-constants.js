@@ -212,6 +212,14 @@ function scaleRootPitchString(root, octave) {
 }
 
 /**
+ * @param {string} scaleType
+ * @returns {readonly number[]}
+ */
+function scalePattern(scaleType) {
+    return SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+}
+
+/**
  * Convert note name and octave to MIDI note number.
  * Accepts sharp and flat spellings ('F#' and 'Gb').
  * @param {string} noteName - Note name (e.g., 'C', 'F#', 'Bb')
@@ -235,17 +243,85 @@ function positiveModulo(value, modulo) {
 /**
  * @param {string} scaleType
  * @param {number} interval
+ * @returns {{ degreeIndex: number, degree: number, octaveShift: number, interval: number } | null}
+ */
+function scaleDegreeForInterval(scaleType, interval) {
+    const pattern = scalePattern(scaleType);
+    /** @type {{ degreeIndex: number, degree: number, octaveShift: number, interval: number } | null} */
+    let best = null;
+    for (let octaveShift = -8; octaveShift <= 8; octaveShift++) {
+        for (let degreeIndex = 0; degreeIndex < pattern.length; degreeIndex++) {
+            const candidate = pattern[degreeIndex] + octaveShift * 12;
+            if (candidate !== interval) continue;
+            const item = { degreeIndex, degree: degreeIndex + 1, octaveShift, interval };
+            if (!best || Math.abs(item.octaveShift) < Math.abs(best.octaveShift)) {
+                best = item;
+            }
+        }
+    }
+    return best;
+}
+
+/**
+ * @param {string} scaleType
+ * @param {number} interval
  * @returns {number}
  */
 function scaleDegreeIndexForInterval(scaleType, interval) {
-    const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-    const pitchClass = positiveModulo(interval, 12);
-    const last = pattern.length - 1;
-    for (let index = 0; index < pattern.length; index++) {
-        if (index === last && pattern[index] === 12) continue;
-        if (positiveModulo(pattern[index], 12) === pitchClass) return index;
+    const degree = scaleDegreeForInterval(scaleType, interval);
+    return degree ? degree.degreeIndex : -1;
+}
+
+/**
+ * @param {string} scaleType
+ * @param {number} minSemitone
+ * @param {number} maxSemitone
+ * @returns {number[]}
+ */
+function scaleIntervalsInRange(scaleType, minSemitone, maxSemitone) {
+    const intervals = new Set();
+    const pattern = scalePattern(scaleType);
+    for (let octaveShift = -8; octaveShift <= 8; octaveShift++) {
+        for (const interval of pattern) {
+            const shifted = interval + octaveShift * 12;
+            if (shifted >= minSemitone && shifted <= maxSemitone) {
+                intervals.add(shifted);
+            }
+        }
     }
-    return -1;
+    return Array.from(intervals).sort((a, b) => a - b);
+}
+
+/**
+ * @param {string} root
+ * @param {number} octave
+ * @param {string} scaleType
+ * @param {number} minSemitone
+ * @param {number} maxSemitone
+ * @returns {ScaleDegreeNote[]}
+ */
+function scaleDegreeNotesInRange(root, octave, scaleType, minSemitone, maxSemitone) {
+    const rootMidi = noteNameToMidi(root, octave);
+    if (rootMidi === null) return [];
+    /** @type {ScaleDegreeNote[]} */
+    const notes = [];
+    for (const interval of scaleIntervalsInRange(scaleType, minSemitone, maxSemitone)) {
+        const degree = scaleDegreeForInterval(scaleType, interval);
+        if (!degree) continue;
+        const midi = rootMidi + interval;
+        const name = scaleIntervalToPitchString(root, octave, scaleType, interval);
+        notes.push({
+            interval,
+            degree: degree.degree,
+            degreeIndex: degree.degreeIndex,
+            octaveShift: degree.octaveShift,
+            midi,
+            name,
+            noteName: name.replace(/-?\d+$/, ''),
+            octave: midiOctave(midi)
+        });
+    }
+    return notes;
 }
 
 /**
@@ -344,20 +420,15 @@ function getCentsDeviation(freq) {
  * @returns {Array<{ midi: number, freq: number, name: string, noteName: string, octave: number }>}
  */
 function buildScaleFrequencies(rootNote, octave, scaleType) {
-    const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
-    const rootMidi = noteNameToMidi(rootNote, octave);
-    if (rootMidi === null) return [];
-
-    return pattern.map(interval => {
-        const midi = rootMidi + interval;
-        const pitch = scaleIntervalToPitchString(rootNote, octave, scaleType, interval);
-        const noteName = pitch.replace(/-?\d+$/, '');
+    return scaleDegreeNotesInRange(rootNote, octave, scaleType, 0, 12).map(note => {
         return {
-            midi,
-            freq: midiToFreq(midi),
-            name: pitch,
-            noteName,
-            octave: midiOctave(midi)
+            midi: note.midi,
+            freq: midiToFreq(note.midi),
+            name: note.name,
+            noteName: note.noteName,
+            octave: note.octave,
+            degree: note.degree,
+            interval: note.interval
         };
     });
 }
