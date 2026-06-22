@@ -871,6 +871,7 @@
             return;
         }
         if (!currentPhrase) generatePhrase();
+        stopTransport();
         await testPanel.open();
     }
 

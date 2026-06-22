@@ -778,6 +778,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`phrases take plan: muted first note owns no time, timeline starts at 0 (${plan.targetCount}/${plan.total} targets)`,
             plan.firstDisabled && plan.firstTargetAtZero && plan.targetCount === plan.enabledCount && plan.allActive);
 
+        // Test is a mode switch into singing: it stops any active phrase
+        // playback and never lets the page keep playing under the test.
+        await tab.click('#stopBtn');
+        await tab.waitForTimeout(300);
+        await tab.evaluate(() => {
+            const tones = document.getElementById('hearTonesToggle');
+            if (tones instanceof HTMLInputElement && !tones.checked) tones.click();
+        });
+        await tab.click('#playBtn');
+        await tab.waitForTimeout(450);
+        const voicesAtTestTap = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
+        await tab.click('#testBtn');
+        await tab.waitForTimeout(1600);
+        const testInterrupt = await tab.evaluate(() => ({
+            open: !document.getElementById('phraseTestPanel').hidden,
+            voicesAfter: window.__trace.filter(e => e.type === 'voice-start').length
+        }));
+        report.check(`phrases Test stops active playback (${voicesAtTestTap}->${testInterrupt.voicesAfter} voices)`,
+            testInterrupt.open && testInterrupt.voicesAfter === voicesAtTestTap);
+
         // Opening the test never auto-plays: the user is there to sing.
         // Quiesce any playback still running from earlier checks first.
         await tab.click('#stopBtn');
