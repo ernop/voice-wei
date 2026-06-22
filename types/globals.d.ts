@@ -91,6 +91,8 @@ interface Window {
         testTargets: () => TargetSpan[];
         breakdownPasses: () => number[][];
         breakdownPassIndex: () => number;
+        mediaPlay: () => void;
+        mediaNext: () => void;
         settings: () => {
             breakdownEnabled: boolean;
             autoStep: boolean;

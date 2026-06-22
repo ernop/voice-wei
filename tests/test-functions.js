@@ -808,6 +808,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const voicesAfter = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         report.check(`phrases test open is silent (${voicesAfter - voicesBefore} voices started)`,
             voicesAfter === voicesBefore);
+        await tab.evaluate(() => {
+            window.phrasesDebug.mediaPlay();
+            window.phrasesDebug.mediaNext();
+        });
+        await tab.waitForTimeout(900);
+        const voicesAfterMediaActions = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
+        report.check(`phrases media actions stay silent during Test (${voicesAfter}->${voicesAfterMediaActions} voices)`,
+            voicesAfterMediaActions === voicesAfter);
 
         // The Guide button is the explicit way to hear the targets.
         await tab.evaluate(() => document.getElementById('phraseTestGuideBtn').click());

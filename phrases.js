@@ -677,6 +677,30 @@
         await playPhrase();
     }
 
+    function phraseTestIsOpen() {
+        return Boolean(testPanel && testPanel.isOpen);
+    }
+
+    function handleMediaPlay() {
+        if (phraseTestIsOpen()) {
+            stopTransport();
+            return;
+        }
+        playCurrentOrNew();
+    }
+
+    function handleMediaPause() {
+        stopTransport();
+    }
+
+    function handleMediaNext() {
+        if (phraseTestIsOpen()) {
+            stopTransport();
+            return;
+        }
+        playNext();
+    }
+
     function exitBreakdownMode() {
         if (!state.breakdownEnabled) return;
         state.breakdownEnabled = false;
@@ -1209,11 +1233,11 @@
         syncPhraseLessonControls();
         syncLessonLocks();
         MediaSessionCore.register('Phrases', [
-            ['play', () => { playCurrentOrNew(); }],
-            ['pause', () => { playCurrentOrNew(); }],
-            ['nexttrack', () => { playNext(); }],
-            ['seekforward', () => { playNext(); }],
-            ['seekto', () => { playNext(); }]
+            ['play', handleMediaPlay],
+            ['pause', handleMediaPause],
+            ['nexttrack', handleMediaNext],
+            ['seekforward', handleMediaNext],
+            ['seekto', handleMediaNext]
         ]);
         MediaSessionCore.primeOnUserGesture();
     }
@@ -1256,6 +1280,8 @@
             testTargets: buildPhraseTestTargets,
             breakdownPasses: buildBreakdownPasses,
             breakdownPassIndex: () => breakdownPassIndex,
+            mediaPlay: handleMediaPlay,
+            mediaNext: handleMediaNext,
             settings: () => ({
                 breakdownEnabled: state.breakdownEnabled,
                 autoStep: state.autoStep,
