@@ -269,7 +269,7 @@ class ScalesController {
             legendTargetLabel: 'target notes',
             key: () => ({
                 rootMidi: noteNameToMidi(this.settings.root, this.settings.octave) ?? 60,
-                rootLabel: `${this.settings.root}${this.settings.octave}`,
+                rootLabel: scaleRootPitchString(this.settings.root, this.settings.octave),
                 scaleType: this.settings.scaleType
             }),
             rails: ({ expandRange }) => this.buildSingRails(expandRange),
@@ -1041,7 +1041,7 @@ class ScalesController {
         });
 
         // Root pitch / note length / gap / voice steppers (shared control)
-        PracticeControls.setValueText('rootPitchValue', `${this.settings.root}${this.settings.octave}`);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(this.settings.root, this.settings.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(this.settings.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(this.settings.gapMs));
         this.syncVoiceSteppers();

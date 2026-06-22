@@ -131,17 +131,55 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const cMajor = buildScaleFrequencies('C', 4, 'major').map(note => note.name).join(' ');
             const fMajor = buildScaleFrequencies('F', 4, 'major').map(note => note.name).join(' ');
             const cMinor = buildScaleFrequencies('C', 4, 'minor').map(note => note.name).join(' ');
+            const ebMajorFromStoredSharp = buildScaleFrequencies('D#', 3, 'major').map(note => note.name).join(' ');
             return {
                 cMajor,
                 fMajor,
                 cMinor,
+                ebMajorFromStoredSharp,
                 cPlain: !/[#b]/.test(cMajor),
                 fUsesBb: fMajor.includes('Bb4') && !fMajor.includes('A#4'),
-                cMinorFlats: cMinor.includes('Eb4') && cMinor.includes('Ab4') && cMinor.includes('Bb4')
+                cMinorFlats: cMinor.includes('Eb4') && cMinor.includes('Ab4') && cMinor.includes('Bb4'),
+                storedDSharpMajorSpellsAsEb: ebMajorFromStoredSharp === 'Eb3 F3 G3 Ab3 Bb3 C4 D4 Eb4'
             };
         });
-        report.check(`scale note spelling is key-aware (C=${scaleSpelling.cMajor}; F=${scaleSpelling.fMajor}; Cm=${scaleSpelling.cMinor})`,
-            scaleSpelling.cPlain && scaleSpelling.fUsesBb && scaleSpelling.cMinorFlats);
+        report.check(`scale note spelling is key-aware (C=${scaleSpelling.cMajor}; F=${scaleSpelling.fMajor}; Cm=${scaleSpelling.cMinor}; D#=${scaleSpelling.ebMajorFromStoredSharp})`,
+            scaleSpelling.cPlain && scaleSpelling.fUsesBb && scaleSpelling.cMinorFlats
+            && scaleSpelling.storedDSharpMajorSpellsAsEb);
+        await tab.close();
+    }
+
+    // ============ PHRASES: stored sharp root displays as conventional flat key ============
+    {
+        const tab = await browser.newPage();
+        collectErrors(tab, 'phrases-eb-display', report.errors);
+        await tab.goto(`${BASE_URL}/phrases.html`, { waitUntil: 'networkidle' });
+        await tab.evaluate(() => {
+            localStorage.setItem('phrases-settings', JSON.stringify({
+                root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
+                startAtOne: false, rangeMode: 'within', minLength: 9, maxLength: 9,
+                returnToInitial: true, returnToRoot: false,
+                hearTones: false, hearSpeech: false, singNumbers: false,
+                noteLengthMs: 500, gapMs: 0, showNumbers: true, showNoteNames: true,
+                showStaff: true, showPlayRow: true, accidentalRate: 0
+            }));
+        });
+        await tab.reload({ waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1000);
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(500);
+        const ebDisplay = await tab.evaluate(() => {
+            const root = document.getElementById('rootPitchValue')?.textContent || '';
+            const notes = [...document.querySelectorAll('.phrase-note-name-token')].map(el => el.textContent || '');
+            return {
+                root,
+                notes,
+                noSharpSpellings: notes.every(note => !note.includes('#')),
+                noCanonicalEnharmonics: notes.every(note => !['D#3', 'G#3', 'A#3', 'D#4', 'G#4', 'A#4'].includes(note))
+            };
+        });
+        report.check(`phrases stored D# major displays as Eb key (root=${ebDisplay.root}, notes=${ebDisplay.notes.join(' ')})`,
+            ebDisplay.root === 'Eb3' && ebDisplay.noSharpSpellings && ebDisplay.noCanonicalEnharmonics);
         await tab.close();
     }
 
@@ -613,6 +651,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 && NotationSpelling.vexKeySignature('A', 'minor') === 'Am'
                 && NotationSpelling.midiToVexKey(51) === 'd#/3'
                 && NotationSpelling.midiToVexKey(54, 'b') === 'gb/3'
+                && NotationSpelling.midiToVexKeyForScale(51, 51, 'major') === 'eb/3'
+                && NotationSpelling.midiToVexKeyForScale(56, 51, 'major') === 'ab/3'
                 && NotationSpelling.midiToVexKeyForScale(70, 65, 'major') === 'bb/4'
                 && NotationSpelling.clefForPhrase(51, [51, 53, 55]) === 'bass'
                 && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';

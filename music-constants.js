@@ -202,6 +202,16 @@ function preferredScaleRootName(root) {
 }
 
 /**
+ * Display a root pitch using the same spelling preference as scale notes.
+ * @param {string} root
+ * @param {number} octave
+ * @returns {string}
+ */
+function scaleRootPitchString(root, octave) {
+    return `${preferredScaleRootName(root) || root}${octave}`;
+}
+
+/**
  * Convert note name and octave to MIDI note number.
  * Accepts sharp and flat spellings ('F#' and 'Gb').
  * @param {string} noteName - Note name (e.g., 'C', 'F#', 'Bb')

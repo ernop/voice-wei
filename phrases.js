@@ -384,7 +384,7 @@
         emptyMessage: () => (takeNotes.length ? null : 'Generate a phrase, then press Test.'),
         key: () => ({
             rootMidi: rootMidi() ?? 60,
-            rootLabel: `${state.root}${state.octave}`,
+            rootLabel: scaleRootPitchString(state.root, state.octave),
             scaleType: state.scaleType
         }),
         rails: ({ expandRange }) => buildPhraseTestScaleLines(expandRange).map(line => ({
@@ -402,7 +402,7 @@
         hostId: 'phraseStaff',
         key: () => ({
             rootMidi: rootMidi() ?? 60,
-            rootLabel: `${state.root}${state.octave}`,
+            rootLabel: scaleRootPitchString(state.root, state.octave),
             scaleType: state.scaleType
         }),
         notes: buildTakePlan
@@ -898,7 +898,7 @@
     }
 
     function syncAdjusterControls() {
-        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
         PracticeControls.setValueText('accidentalRateValue', `${Math.round(state.accidentalRate * 100)}%`);

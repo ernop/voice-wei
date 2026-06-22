@@ -197,7 +197,7 @@ class PitchMeterController {
         PracticeControls.syncSingleSelect('data-mode', this.mode);
         PracticeControls.syncSingleSelect('data-instrument', this.instrument);
         PracticeControls.syncSingleSelect('data-scale', this.scaleType);
-        PracticeControls.setValueText('rootPitchValue', `${this.rootNote}${this.octave}`);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(this.rootNote, this.octave));
         PracticeControls.setValueText('responseTimeValue', `${this.responseTime}s`);
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'responseTime') {

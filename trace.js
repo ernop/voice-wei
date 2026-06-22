@@ -262,7 +262,7 @@
             startBtn.textContent = session.listening ? 'Stop' : 'Start';
             startBtn.classList.toggle('listening', session.listening);
         }
-        PracticeControls.setValueText('rootPitchValue', `${state.root}${state.octave}`);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('guideIntervalValue', PracticeControls.formatSeconds(state.guideIntervalMs));
         PracticeControls.syncToggle('pauseOnSilenceToggle', state.pauseOnSilence);
         PracticeControls.syncToggle('fixedWindowToggle', state.fixedWindow);

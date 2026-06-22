@@ -1,4 +1,4 @@
-const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '141';
+const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '142';
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
