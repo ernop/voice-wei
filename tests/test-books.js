@@ -184,6 +184,8 @@ async function seedGeneratedBook(page) {
             modelOptions: Array.from(document.querySelectorAll('#generatorTtsModel option')).map(option => option.value),
             modelLabels: Array.from(document.querySelectorAll('#generatorTtsModel option')).map(option => option.textContent.trim()),
             pricingLine: document.querySelector('#generatorModelPricingDescription')?.textContent || '',
+            accentOptions: Array.from(document.querySelectorAll('#generatorTtsAccent option')).map(option => option.value),
+            styleOptions: Array.from(document.querySelectorAll('#generatorTtsStyle option')).map(option => option.value),
             hasInstructions: Boolean(document.querySelector('#generatorTtsInstructions')),
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
@@ -202,6 +204,10 @@ async function seedGeneratedBook(page) {
             && layout.modelOptions.includes('gpt-4o-mini-tts') && layout.hasInstructions
             && layout.modelLabels.some(label => label.includes('$0.60') && label.includes('$12'))
             && layout.pricingLine.includes('~$0.015/min')
+            && ['default', 'american', 'british', 'australian', 'irish', 'scottish', 'indian', 'new-york', 'southern-us']
+                .every(accent => layout.accentOptions.includes(accent))
+            && ['audiobook', 'neutral', 'dramatic', 'warm', 'documentary', 'bedtime', 'whisper']
+                .every(style => layout.styleOptions.includes(style))
             && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
                 .every(voice => layout.sampleButtons.includes(voice))
             && layout.sampleStatus.includes('short sample')
@@ -220,6 +226,8 @@ async function seedGeneratedBook(page) {
                 return originalFetch(input, init);
             };
         });
+        await page.selectOption('#generatorTtsAccent', 'british');
+        await page.selectOption('#generatorTtsStyle', 'dramatic');
         await page.click('[data-voice-sample="verse"]');
         await page.waitForFunction(() => window.__bookSpeechPayloads?.length === 1);
         const samplePayload = await page.evaluate(() => window.__bookSpeechPayloads[0]);
@@ -227,7 +235,9 @@ async function seedGeneratedBook(page) {
             samplePayload.model === 'gpt-4o-mini-tts'
             && samplePayload.voice === 'verse'
             && samplePayload.response_format === 'mp3'
-            && samplePayload.input.includes('voice sample'));
+            && samplePayload.input.includes('Torrenthia')
+            && samplePayload.instructions.includes('British English accent')
+            && samplePayload.instructions.includes('dramatic suspense'));
 
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');

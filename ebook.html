@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=138">
-    <link rel="stylesheet" href="ebook.css?v=138">
+    <link rel="stylesheet" href="style.css?v=139">
+    <link rel="stylesheet" href="ebook.css?v=139">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -62,7 +62,19 @@
             </div>
 
             <div class="setting-item">
-                <label for="ttsInstructions">Narration Instructions:</label>
+                <label for="ttsAccent">TTS Accent:</label>
+                <select id="ttsAccent" class="model-selector"></select>
+                <p class="setting-description">Accent is sent as GPT-4o mini TTS narration instructions. Legacy TTS models ignore this field.</p>
+            </div>
+
+            <div class="setting-item">
+                <label for="ttsStyle">Narration Style:</label>
+                <select id="ttsStyle" class="model-selector"></select>
+                <p class="setting-description">Style controls tone, pacing, emotion, and delivery for GPT-4o mini TTS.</p>
+            </div>
+
+            <div class="setting-item">
+                <label for="ttsInstructions">Extra Narration Instructions:</label>
                 <textarea id="ttsInstructions" class="tts-instructions-input" rows="3" placeholder="Example: Read warmly, with measured pacing and subtle character distinction."></textarea>
                 <p class="setting-description">Sent to GPT-4o mini TTS for tone, accent, emotion, pacing, and style. Legacy TTS models ignore this field.</p>
             </div>
@@ -156,8 +168,16 @@
                                                 <span id="generatorTtsSpeedValue">1.0x</span>
                                             </div>
                                         </label>
+                                        <label>
+                                            Accent
+                                            <select id="generatorTtsAccent" class="model-selector"></select>
+                                        </label>
+                                        <label>
+                                            Style
+                                            <select id="generatorTtsStyle" class="model-selector"></select>
+                                        </label>
                                         <label class="conversion-options-wide">
-                                            Instructions
+                                            Extra instructions
                                             <textarea id="generatorTtsInstructions" class="tts-instructions-input" rows="3" placeholder="Example: Read like an attentive audiobook narrator."></textarea>
                                         </label>
                                     </div>
@@ -267,13 +287,13 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=138"></script>
-    <script src="app-version.js?v=138"></script>
-    <script src="storage-keys.js?v=138"></script>
-    <script src="settings-store.js?v=138"></script>
-    <script src="api-keys-store.js?v=138"></script>
-    <script src="shared-header.js?v=138"></script>
-    <script src="ebook.js?v=138"></script>
+    <script src="dev-error-monitor.js?v=139"></script>
+    <script src="app-version.js?v=139"></script>
+    <script src="storage-keys.js?v=139"></script>
+    <script src="settings-store.js?v=139"></script>
+    <script src="api-keys-store.js?v=139"></script>
+    <script src="shared-header.js?v=139"></script>
+    <script src="ebook.js?v=139"></script>
 </body>
 
 </html>

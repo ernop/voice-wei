@@ -214,9 +214,12 @@ OpenAI.
   backup chunk. Finished chunks are never regenerated unless deleted in a
   future management flow.
 - Narration options show OpenAI reference pricing for the selected model and
-  include per-voice sample buttons. Samples generate a short MP3 through the
-  same OpenAI speech endpoint, using the current model, speed, and narration
-  instructions.
+  include per-voice sample buttons. GPT-4o mini TTS exposes accent and
+  narration-style presets as structured `instructions`; legacy TTS models
+  disable those controls because the speech endpoint does not support
+  instructions there. Samples generate a short MP3 through the same OpenAI
+  speech endpoint, using the current model, speed, accent, style, and extra
+  narration instructions.
 - Generated chunks are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
   pending chunk.

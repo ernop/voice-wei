@@ -58,18 +58,42 @@ const OPENAI_TTS_VOICES = [
     { id: 'verse', label: 'Verse', description: 'Lyrical and expressive.', legacy: false }
 ];
 
+const OPENAI_TTS_ACCENTS = [
+    { id: 'default', label: 'Default', instruction: '' },
+    { id: 'american', label: 'American English', instruction: 'Use a natural American English accent.' },
+    { id: 'british', label: 'British English', instruction: 'Use a natural British English accent.' },
+    { id: 'australian', label: 'Australian English', instruction: 'Use a natural Australian English accent.' },
+    { id: 'irish', label: 'Irish English', instruction: 'Use a natural Irish English accent.' },
+    { id: 'scottish', label: 'Scottish English', instruction: 'Use a natural Scottish English accent.' },
+    { id: 'indian', label: 'Indian English', instruction: 'Use a natural Indian English accent.' },
+    { id: 'new-york', label: 'New York English', instruction: 'Use a light New York English accent.' },
+    { id: 'southern-us', label: 'Southern US English', instruction: 'Use a light Southern US English accent.' }
+];
+
+const OPENAI_TTS_STYLES = [
+    { id: 'audiobook', label: 'Audiobook narrator', instruction: 'Read like an attentive audiobook narrator with clear pacing.' },
+    { id: 'neutral', label: 'Neutral', instruction: 'Read in a neutral, natural style.' },
+    { id: 'dramatic', label: 'Dramatic suspense', instruction: 'Read with dramatic suspense, careful pauses, and rising tension.' },
+    { id: 'warm', label: 'Warm storyteller', instruction: 'Read warmly, like a close storyteller.' },
+    { id: 'documentary', label: 'Documentary', instruction: 'Read with a calm documentary narration style.' },
+    { id: 'bedtime', label: 'Calm bedtime', instruction: 'Read softly and calmly, suitable for relaxed listening.' },
+    { id: 'whisper', label: 'Whisper', instruction: 'Read in a quiet whisper while remaining intelligible.' }
+];
+
 const VOICE_DESCRIPTIONS = {
     ...Object.fromEntries(OPENAI_TTS_VOICES.map(voice => [voice.id, voice.description]))
 };
 
-const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how the narration will sound.';
-const VOICE_SAMPLE_TEXT = 'This is a short audiobook voice sample for comparing narration style.';
+const VOICE_PREVIEW_TEXT = 'it was a dark and stormy night. The datacenter was centrally located in the data plains of Torrenthia, humming along as usual, blotting out the sound of scraping from beneath.';
+const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
 
 /**
  * @typedef {Object} Settings
  * @property {string} voice
  * @property {string} model
  * @property {number} speed
+ * @property {string} accent
+ * @property {string} style
  * @property {string} instructions
  */
 
@@ -340,7 +364,7 @@ class BooksController {
         /** @type {AudioSegment[]} */
         this.segments = [];
         /** @type {Settings} */
-        this.settings = { voice: 'alloy', model: 'gpt-4o-mini-tts', speed: 1, instructions: '' };
+        this.settings = { voice: 'alloy', model: 'gpt-4o-mini-tts', speed: 1, accent: 'default', style: 'audiobook', instructions: '' };
         /** @type {string | null} */
         this.apiKey = null;
         /** @type {AbortController | null} */
@@ -468,7 +492,7 @@ class BooksController {
 
     loadSettings() {
         const snapshot = { ...this.settings };
-        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'instructions']);
+        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'accent', 'style', 'instructions']);
         this.settings = this.normalizeTtsSettings(snapshot);
         this.populateTtsModelOptions();
         this.populateTtsVoiceOptions();
@@ -476,7 +500,7 @@ class BooksController {
     }
 
     saveSettings() {
-        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'instructions']);
+        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'accent', 'style', 'instructions']);
     }
 
     /** @param {Settings} settings */
@@ -489,6 +513,8 @@ class BooksController {
             voice,
             model,
             speed,
+            accent: OPENAI_TTS_ACCENTS.some(item => item.id === settings.accent) ? settings.accent : 'default',
+            style: OPENAI_TTS_STYLES.some(item => item.id === settings.style) ? settings.style : 'audiobook',
             instructions: typeof settings.instructions === 'string' ? settings.instructions : ''
         };
     }
@@ -510,17 +536,44 @@ class BooksController {
         }
     }
 
+    populateTtsAccentOptions() {
+        for (const accentEl of this.getTtsAccentSelects()) {
+            accentEl.innerHTML = OPENAI_TTS_ACCENTS
+                .map(accent => `<option value="${this.escapeHtml(accent.id)}">${this.escapeHtml(accent.label)}</option>`)
+                .join('');
+        }
+    }
+
+    populateTtsStyleOptions() {
+        for (const styleEl of this.getTtsStyleSelects()) {
+            styleEl.innerHTML = OPENAI_TTS_STYLES
+                .map(style => `<option value="${this.escapeHtml(style.id)}">${this.escapeHtml(style.label)}</option>`)
+                .join('');
+        }
+    }
+
     syncTtsControls() {
         this.settings = this.normalizeTtsSettings(this.settings);
         this.populateTtsModelOptions();
         this.populateTtsVoiceOptions();
+        this.populateTtsAccentOptions();
+        this.populateTtsStyleOptions();
         for (const voiceEl of this.getTtsVoiceSelects()) voiceEl.value = this.settings.voice;
         for (const modelEl of this.getTtsModelSelects()) modelEl.value = this.settings.model;
         for (const speedEl of this.getTtsSpeedInputs()) speedEl.value = String(this.settings.speed);
         for (const speedValueEl of this.getTtsSpeedValueEls()) speedValueEl.textContent = `${this.settings.speed}x`;
+        const supportsInstructions = this.ttsModelSupportsInstructions();
+        for (const accentEl of this.getTtsAccentSelects()) {
+            accentEl.value = this.settings.accent;
+            accentEl.disabled = !supportsInstructions;
+        }
+        for (const styleEl of this.getTtsStyleSelects()) {
+            styleEl.value = this.settings.style;
+            styleEl.disabled = !supportsInstructions;
+        }
         for (const instructionsEl of this.getTtsInstructionEls()) {
             instructionsEl.value = this.settings.instructions;
-            instructionsEl.disabled = !this.ttsModelSupportsInstructions();
+            instructionsEl.disabled = !supportsInstructions;
         }
         this.updateModelPricing();
         this.updateVoiceDescription();
@@ -549,6 +602,18 @@ class BooksController {
         return ['ttsSpeedValue', 'generatorTtsSpeedValue']
             .map(id => document.getElementById(id))
             .filter(/** @returns {item is HTMLElement} */ item => Boolean(item));
+    }
+
+    getTtsAccentSelects() {
+        return ['ttsAccent', 'generatorTtsAccent']
+            .map(id => /** @type {HTMLSelectElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLSelectElement} */ item => Boolean(item));
+    }
+
+    getTtsStyleSelects() {
+        return ['ttsStyle', 'generatorTtsStyle']
+            .map(id => /** @type {HTMLSelectElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLSelectElement} */ item => Boolean(item));
     }
 
     getTtsInstructionEls() {
@@ -693,6 +758,20 @@ class BooksController {
         for (const speedEl of this.getTtsSpeedInputs()) {
             speedEl.addEventListener('input', () => {
                 this.settings.speed = parseFloat(speedEl.value);
+                this.saveSettings();
+                this.syncTtsControls();
+            });
+        }
+        for (const accentEl of this.getTtsAccentSelects()) {
+            accentEl.addEventListener('change', () => {
+                this.settings.accent = accentEl.value;
+                this.saveSettings();
+                this.syncTtsControls();
+            });
+        }
+        for (const styleEl of this.getTtsStyleSelects()) {
+            styleEl.addEventListener('change', () => {
+                this.settings.style = styleEl.value;
                 this.saveSettings();
                 this.syncTtsControls();
             });
@@ -1703,7 +1782,7 @@ class BooksController {
             speed: this.settings.speed,
             response_format: 'mp3'
         };
-        const instructions = this.settings.instructions.trim();
+        const instructions = this.composeNarrationInstructions();
         if (instructions && this.ttsModelSupportsInstructions()) {
             /** @type {any} */ (payload).instructions = instructions;
         }
@@ -1721,6 +1800,13 @@ class BooksController {
             throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
         }
         return response;
+    }
+
+    composeNarrationInstructions() {
+        const accent = OPENAI_TTS_ACCENTS.find(item => item.id === this.settings.accent)?.instruction || '';
+        const style = OPENAI_TTS_STYLES.find(item => item.id === this.settings.style)?.instruction || '';
+        const custom = this.settings.instructions.trim();
+        return [accent, style, custom].filter(Boolean).join(' ');
     }
 
     async recalculateBookGeneration() {
