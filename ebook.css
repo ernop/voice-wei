@@ -582,6 +582,55 @@
     text-align: left;
 }
 
+.playback-speed-card {
+    margin-top: 10px;
+    padding: 9px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(74, 222, 128, 0.16);
+}
+
+.playback-speed-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.8rem;
+}
+
+.playback-speed-header strong {
+    color: #a7f3d0;
+}
+
+.playback-speed-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.playback-speed-choice {
+    padding: 7px 4px;
+    border-radius: 999px;
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    background: rgba(74, 222, 128, 0.1);
+    color: #bbf7d0;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 750;
+}
+
+.playback-speed-choice:hover {
+    background: rgba(74, 222, 128, 0.18);
+}
+
+.playback-speed-choice.active {
+    background: #4ade80;
+    color: #0d2818;
+    border-color: #86efac;
+}
+
 .progress-bar-track {
     width: 100%;
     height: 8px;

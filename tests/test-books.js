@@ -177,13 +177,40 @@ async function seedGeneratedBook(page) {
             progressRow: Array.from(document.querySelectorAll('.book-progress-card span')).map(el => el.textContent.trim()).join(' | '),
             generationColumns: getComputedStyle(document.querySelector('.generator-actions')).gridTemplateColumns.split(' ').length,
             controlCount: document.querySelectorAll('.player-control-grid button').length,
+            speedChoiceCount: document.querySelectorAll('.playback-speed-choice').length,
+            activeSpeed: document.querySelector('.playback-speed-choice.active')?.textContent || '',
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
         report.check('books compact progress/generation/custom player layout',
             layout.progressRow.includes('Read') && layout.generationColumns === 4
-            && layout.controlCount === 7 && layout.nativeAudioDisplay === 'none'
+            && layout.controlCount === 7 && layout.speedChoiceCount === 11 && layout.activeSpeed === '1.0x'
+            && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
+
+        await page.click('#playbackSpeedChoices button[data-speed="1.4"]');
+        await page.waitForFunction(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 4);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const book = await new Promise((resolve, reject) => {
+                const tx = db.transaction('books', 'readonly');
+                const req = tx.objectStore('books').get('book-suite-generated');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            return book?.playbackSpeed === 1.4;
+        });
+        const speed = await page.evaluate(() => ({
+            rate: document.querySelector('#audioPlayer')?.playbackRate,
+            value: document.querySelector('#playbackSpeedValue')?.textContent || '',
+            active: document.querySelector('.playback-speed-choice.active')?.getAttribute('data-speed') || ''
+        }));
+        report.check('books playback speed choice persists on the book',
+            Math.abs(speed.rate - 1.4) < 0.001 && speed.value === '1.4x' && speed.active === '1.4');
 
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
@@ -218,6 +245,7 @@ async function seedGeneratedBook(page) {
             db.close();
             return {
                 segmentId: document.querySelector('#audioPlayer')?.dataset.segmentId,
+                playbackRate: document.querySelector('#audioPlayer')?.playbackRate,
                 playCalls: window.__bookPlayCalls,
                 actions: entries.map(entry => entry.action),
                 historyVisible: document.querySelector('#historyPanel')?.style.display === 'block'
@@ -226,6 +254,7 @@ async function seedGeneratedBook(page) {
         report.check(`books custom player jumps/history (qf=${qForward}, qb=${qBack}, +30=${plus30})`,
             Math.abs(qForward - 300) <= 0.5 && Math.abs(qBack - 30) <= 0.5
             && Math.abs(plus30 - 60) <= 0.5 && player.segmentId === 'seg-1'
+            && Math.abs(player.playbackRate - 1.4) < 0.001
             && player.playCalls.includes('seg-1') && player.historyVisible
             && ['quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
                 .every(action => player.actions.includes(action)));

@@ -14,6 +14,7 @@ const HISTORY_STORE = 'history';
 const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
+const PLAYBACK_SPEED_OPTIONS = Object.freeze([1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]);
 
 const VOICE_DESCRIPTIONS = {
     alloy: 'Neutral and balanced, good for most content.',
@@ -58,6 +59,7 @@ const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how 
  * @property {number} readingCharOffset
  * @property {string} listeningSegmentId
  * @property {number} listeningOffsetSec
+ * @property {number} playbackSpeed
  * @property {Blob | null | undefined} legacyAudioBlob
  * @property {number | undefined} legacyAudioSize
  */
@@ -643,6 +645,8 @@ class BooksController {
         this.bindButton('quadraticForwardBtn', () => this.quadraticSeek(1));
         const seekTrack = document.getElementById('playerSeekTrack');
         if (seekTrack) seekTrack.addEventListener('click', e => this.handleSeekTrackClick(e));
+        const speedChoices = document.getElementById('playbackSpeedChoices');
+        if (speedChoices) speedChoices.addEventListener('click', e => this.handlePlaybackSpeedChoice(e));
         this.bindButton('showHistoryBtn', () => this.showHistoryPanel(true));
         this.bindButton('hideHistoryBtn', () => this.showHistoryPanel(false));
     }
@@ -651,6 +655,60 @@ class BooksController {
     bindButton(id, handler) {
         const button = document.getElementById(id);
         if (button) button.addEventListener('click', handler);
+    }
+
+    /** @param {Event} event */
+    handlePlaybackSpeedChoice(event) {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const button = /** @type {HTMLElement | null} */ (target?.closest('.playback-speed-choice[data-speed]') || null);
+        const speed = Number(button?.dataset.speed);
+        if (button) this.setPlaybackSpeed(speed);
+    }
+
+    /** @param {number} speed */
+    async setPlaybackSpeed(speed) {
+        if (!this.currentBook || !this.storage) return;
+        const playbackSpeed = this.normalizePlaybackSpeed(speed);
+        this.currentBook.playbackSpeed = playbackSpeed;
+        this.currentBook.updatedAt = new Date().toISOString();
+        this.applyPlaybackSpeed();
+        this.renderPlaybackSpeedChoices();
+        await this.storage.putBook(this.currentBook);
+        this.updateStatus(`Playback speed ${this.formatPlaybackSpeed(playbackSpeed)} for ${this.currentBook.title}`);
+    }
+
+    renderPlaybackSpeedChoices() {
+        const choices = document.getElementById('playbackSpeedChoices');
+        const value = document.getElementById('playbackSpeedValue');
+        const current = this.getCurrentPlaybackSpeed();
+        if (value) value.textContent = this.formatPlaybackSpeed(current);
+        if (!choices) return;
+        choices.innerHTML = PLAYBACK_SPEED_OPTIONS.map(speed => {
+            const active = speed === current;
+            return `<button class="playback-speed-choice${active ? ' active' : ''}" type="button" data-speed="${speed.toFixed(1)}" aria-pressed="${active ? 'true' : 'false'}">${this.formatPlaybackSpeed(speed)}</button>`;
+        }).join('');
+    }
+
+    applyPlaybackSpeed() {
+        const speed = this.getCurrentPlaybackSpeed();
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audio) audio.playbackRate = speed;
+        if (this.preloadAudio) this.preloadAudio.playbackRate = speed;
+    }
+
+    getCurrentPlaybackSpeed() {
+        return this.normalizePlaybackSpeed(this.currentBook?.playbackSpeed);
+    }
+
+    /** @param {unknown} value */
+    normalizePlaybackSpeed(value) {
+        const speed = Number(value);
+        return PLAYBACK_SPEED_OPTIONS.find(option => Math.abs(option - speed) < 0.001) || 1;
+    }
+
+    /** @param {number} speed */
+    formatPlaybackSpeed(speed) {
+        return `${speed.toFixed(1)}x`;
     }
 
     /** @param {KeyboardEvent} event */
@@ -914,6 +972,7 @@ class BooksController {
             readingCharOffset: 0,
             listeningSegmentId: segments[0]?.id || '',
             listeningOffsetSec: 0,
+            playbackSpeed: 1,
             legacyAudioBlob: null,
             legacyAudioSize: 0
         };
@@ -1083,6 +1142,7 @@ class BooksController {
         const book = await this.storage.getBook(bookId);
         if (!book) throw new Error('Book not found');
         this.currentBook = book;
+        this.currentBook.playbackSpeed = this.normalizePlaybackSpeed(this.currentBook.playbackSpeed);
         this.currentBook.lastOpenedAt = new Date().toISOString();
         await this.storage.putBook(this.currentBook);
         this.sections = await this.storage.getSections(bookId);
@@ -1091,6 +1151,7 @@ class BooksController {
         this.currentSegmentId = this.currentBook.listeningSegmentId || this.segments[0]?.id || null;
         this.showWorkspace(true);
         this.renderWorkspace();
+        this.applyPlaybackSpeed();
         this.renderLibrary();
         this.updateStatus(`Opened ${book.title}`);
     }
@@ -1122,6 +1183,7 @@ class BooksController {
         this.renderProgress();
         this.renderReader();
         this.renderPlayerNow();
+        this.renderPlaybackSpeedChoices();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
     }
 
@@ -1373,6 +1435,7 @@ class BooksController {
         audio.dataset.segmentId = segment.id;
         this.currentSegmentId = segment.id;
         this.lastAudioTimeForHistory = 0;
+        this.applyPlaybackSpeed();
         this.renderPlayerNow();
         this.updatePlayerControls();
         this.preloadNextGenerated();
@@ -1752,6 +1815,7 @@ class BooksController {
         this.preloadSegmentId = next.id;
         this.preloadAudio = new Audio(this.preloadUrl);
         this.preloadAudio.preload = 'auto';
+        this.preloadAudio.playbackRate = this.getCurrentPlaybackSpeed();
     }
 
     /** @param {string} segmentId */
