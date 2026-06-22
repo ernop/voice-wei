@@ -208,29 +208,30 @@ OpenAI.
 - EPUB and HTML imports preserve sanitized reader markup, including embedded
   EPUB images when they can be resolved from the package, so the book can be
   read locally instead of only previewed as flattened plain text.
-- Each book is split into persistent TTS-sized audio segments. Generation can
-  cover the next 15 minutes, next hour, current section, or all remaining
-  segments. Finished segments are never regenerated unless deleted in a future
-  management flow.
-- Generated segments are saved immediately to IndexedDB, so cancelling midway
+- Each book is split into persistent TTS-sized audio chunks, while conversion
+  controls use the book's chapter/TOC boundaries first. Generation can cover
+  the selected/current/next chapter, whole book, +15 minutes, or a single
+  backup chunk. Finished chunks are never regenerated unless deleted in a
+  future management flow.
+- Generated chunks are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
-  pending segment.
-- The player is custom, not native browser chrome: previous/next segment,
+  pending chunk.
+- The player is custom, not native browser chrome: previous/next chunk,
   play/pause, +/-30s, quadratic back/forward jumps, seek bar, keyboard
-  Left/Right segment navigation, saved listening position, and preloaded next
-  generated segment. A toggle can keep about one hour of audio generated ahead
+  Left/Right chunk navigation, saved listening position, and preloaded next
+  generated chunk. A toggle can keep about one hour of audio generated ahead
   while listening.
 - Books keeps local listening/reading history in IndexedDB: play/pause,
-  segment changes, jumps, position samples, dates, per-day listening/read
+  chunk changes, jumps, position samples, dates, per-day listening/read
   totals, and rough read-speed estimates. It is hidden by default and visible
   from the player History button.
-- The reader shows parsed book sections and text/audio segments, tracks reading
-  progress, and can search/highlight text locally. Audio segment markers should
+- The reader shows parsed book sections and text/audio chunks, tracks reading
+  progress, and can search/highlight text locally. Audio chunk markers should
   not render as bulky colored boxes inside the reading text.
-- Downloads: original file, current segment MP3, all generated segment MP3s
-  individually, or one concatenated MP3 made from all generated segments.
+- Downloads: original file, current chunk MP3, all generated chunk MP3s
+  individually, or one concatenated MP3 made from all generated chunks.
 - The library is a compact bookshelf: one row per book with title/author, read
-  progress, generated segment count, estimated duration, and storage
+  progress, generated chunk count, estimated duration, and storage
   usage/quota. Opening a row reveals book actions inside the workspace.
   Generated MP3s can be deleted separately from the original book.
 - localStorage is intentionally used only for small settings/secrets. Browser

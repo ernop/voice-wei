@@ -42,7 +42,7 @@ and deliver a weaker version of the requested change.
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Music | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
-| Books | Read ebooks and grow local generated audio over time | Originals, parsed text, MP3 segments, and progress persist locally; generation can resume where it stopped |
+| Books | Read ebooks and grow local generated audio over time | Originals, parsed text, MP3 chunks, and progress persist locally; generation can resume where it stopped |
 
 ## System invariants
 
@@ -120,7 +120,7 @@ above; nothing here is a commitment.
 ### Books
 
 - Richer multimedia ebook mode on top of the local Books library: current
-  Books stores originals, parsed text sections, generated MP3 segments,
+  Books stores originals, parsed text sections, generated MP3 chunks,
   read/listen progress, and detailed local history in IndexedDB. Remaining work
   is image/table extraction in the new section model, richer EPUB/HTML
   rendering, figure reference detection, tighter text/audio synchronization, and

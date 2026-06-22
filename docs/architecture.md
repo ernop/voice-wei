@@ -202,17 +202,19 @@ localStorage. The current schema uses three object stores:
 - `sections`: parsed book text sections keyed by book; EPUB/HTML sections also
   keep sanitized reader markup, with EPUB package images embedded as data URLs
   where possible.
-- `segments`: TTS-sized text ranges with per-segment status and MP3 Blob.
+- `segments`: TTS-sized text chunks with per-chunk status and MP3 Blob.
 - `history`: local read/listen events (play/pause, segment transitions, jumps,
   samples, per-day aggregation inputs).
 
 This makes Books a browser-local reader/player/generator rather than a
-one-shot converter: generation can stop after some segments, preserve completed
-MP3s, and resume next session. There is still no account identity, analytics
-sink, or server-side audit trail. The durable history is browser-local and
-serves navigation/progress UI. The OpenAI key and TTS settings use
-`api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The visible Log panel is
-DOM state only and is lost on refresh/navigation.
+one-shot converter: generation can stop after some chunks, preserve completed
+MP3s, and resume next session. EPUB imports prefer official `nav`/NCX table of
+contents labels, and PDF imports use outline entries when available, so
+chapter-level controls can sit above the chunk storage model. There is still no
+account identity, analytics sink, or server-side audit trail. The durable
+history is browser-local and serves navigation/progress UI. The OpenAI key and
+TTS settings use `api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The
+visible Log panel is DOM state only and is lost on refresh/navigation.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
 string-only and commonly capped around 5-10 MB. IndexedDB quota is

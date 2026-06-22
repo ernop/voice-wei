@@ -15,13 +15,31 @@ const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
 
+const OPENAI_TTS_MODELS = [
+    { id: 'gpt-4o-mini-tts', label: 'GPT-4o mini TTS - Current', supportsInstructions: true },
+    { id: 'gpt-4o-mini-tts-2025-12-15', label: 'GPT-4o mini TTS 2025-12-15 - Pinned', supportsInstructions: true },
+    { id: 'tts-1', label: 'TTS-1 - Legacy fast', supportsInstructions: false },
+    { id: 'tts-1-hd', label: 'TTS-1-HD - Legacy high quality', supportsInstructions: false }
+];
+
+const OPENAI_TTS_VOICES = [
+    { id: 'alloy', label: 'Alloy', description: 'Neutral and balanced, good for most content.', legacy: true },
+    { id: 'ash', label: 'Ash', description: 'Clear, calm, and grounded.', legacy: true },
+    { id: 'ballad', label: 'Ballad', description: 'Expressive and narrative, suited to long-form reading.', legacy: false },
+    { id: 'cedar', label: 'Cedar', description: 'Warm and steady for extended listening.', legacy: false },
+    { id: 'coral', label: 'Coral', description: 'Bright and conversational.', legacy: true },
+    { id: 'echo', label: 'Echo', description: 'Male voice, clear and articulate. Good for non-fiction.', legacy: true },
+    { id: 'fable', label: 'Fable', description: 'British accent, warm and expressive. Great for fiction.', legacy: true },
+    { id: 'marin', label: 'Marin', description: 'Natural and relaxed for audiobook narration.', legacy: false },
+    { id: 'nova', label: 'Nova', description: 'Female voice, warm and conversational. Good for stories.', legacy: true },
+    { id: 'onyx', label: 'Onyx', description: 'Deep male voice, authoritative. Good for dramatic content.', legacy: true },
+    { id: 'sage', label: 'Sage', description: 'Measured and thoughtful.', legacy: true },
+    { id: 'shimmer', label: 'Shimmer', description: 'Soft female voice, gentle and calm. Good for relaxing content.', legacy: true },
+    { id: 'verse', label: 'Verse', description: 'Lyrical and expressive.', legacy: false }
+];
+
 const VOICE_DESCRIPTIONS = {
-    alloy: 'Neutral and balanced, good for most content.',
-    echo: 'Male voice, clear and articulate. Good for non-fiction.',
-    fable: 'British accent, warm and expressive. Great for fiction.',
-    onyx: 'Deep male voice, authoritative. Good for dramatic content.',
-    nova: 'Female voice, warm and conversational. Good for stories.',
-    shimmer: 'Soft female voice, gentle and calm. Good for relaxing content.'
+    ...Object.fromEntries(OPENAI_TTS_VOICES.map(voice => [voice.id, voice.description]))
 };
 
 const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how the narration will sound.';
@@ -31,6 +49,7 @@ const VOICE_PREVIEW_TEXT = 'Welcome to your audiobook. This is a preview of how 
  * @property {string} voice
  * @property {string} model
  * @property {number} speed
+ * @property {string} instructions
  */
 
 /**
@@ -300,7 +319,7 @@ class BooksController {
         /** @type {AudioSegment[]} */
         this.segments = [];
         /** @type {Settings} */
-        this.settings = { voice: 'alloy', model: 'tts-1', speed: 1 };
+        this.settings = { voice: 'alloy', model: 'gpt-4o-mini-tts', speed: 1, instructions: '' };
         /** @type {string | null} */
         this.apiKey = null;
         /** @type {AbortController | null} */
@@ -422,26 +441,112 @@ class BooksController {
 
     loadSettings() {
         const snapshot = { ...this.settings };
-        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed']);
-        this.settings = snapshot;
-        const voiceEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsVoice'));
-        const modelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsModel'));
-        const speedEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ttsSpeed'));
-        const speedValueEl = document.getElementById('ttsSpeedValue');
-        if (voiceEl) voiceEl.value = this.settings.voice;
-        if (modelEl) modelEl.value = this.settings.model;
-        if (speedEl) speedEl.value = String(this.settings.speed);
-        if (speedValueEl) speedValueEl.textContent = `${this.settings.speed}x`;
-        this.updateVoiceDescription();
+        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'instructions']);
+        this.settings = this.normalizeTtsSettings(snapshot);
+        this.populateTtsModelOptions();
+        this.populateTtsVoiceOptions();
+        this.syncTtsControls();
     }
 
     saveSettings() {
-        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed']);
+        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'instructions']);
+    }
+
+    /** @param {Settings} settings */
+    normalizeTtsSettings(settings) {
+        const model = OPENAI_TTS_MODELS.some(item => item.id === settings.model) ? settings.model : 'gpt-4o-mini-tts';
+        const speed = Number.isFinite(settings.speed) ? Math.max(0.25, Math.min(4, settings.speed)) : 1;
+        const voices = this.getVoicesForModel(model);
+        const voice = voices.some(item => item.id === settings.voice) ? settings.voice : 'alloy';
+        return {
+            voice,
+            model,
+            speed,
+            instructions: typeof settings.instructions === 'string' ? settings.instructions : ''
+        };
+    }
+
+    populateTtsModelOptions() {
+        for (const modelEl of this.getTtsModelSelects()) {
+            modelEl.innerHTML = OPENAI_TTS_MODELS
+                .map(model => `<option value="${this.escapeHtml(model.id)}">${this.escapeHtml(model.label)}</option>`)
+                .join('');
+        }
+    }
+
+    populateTtsVoiceOptions() {
+        const voices = this.getVoicesForModel(this.settings.model);
+        for (const voiceEl of this.getTtsVoiceSelects()) {
+            voiceEl.innerHTML = voices
+                .map(voice => `<option value="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)} - ${this.escapeHtml(voice.description)}</option>`)
+                .join('');
+        }
+    }
+
+    syncTtsControls() {
+        this.settings = this.normalizeTtsSettings(this.settings);
+        this.populateTtsModelOptions();
+        this.populateTtsVoiceOptions();
+        for (const voiceEl of this.getTtsVoiceSelects()) voiceEl.value = this.settings.voice;
+        for (const modelEl of this.getTtsModelSelects()) modelEl.value = this.settings.model;
+        for (const speedEl of this.getTtsSpeedInputs()) speedEl.value = String(this.settings.speed);
+        for (const speedValueEl of this.getTtsSpeedValueEls()) speedValueEl.textContent = `${this.settings.speed}x`;
+        for (const instructionsEl of this.getTtsInstructionEls()) {
+            instructionsEl.value = this.settings.instructions;
+            instructionsEl.disabled = !this.ttsModelSupportsInstructions();
+        }
+        this.updateVoiceDescription();
+    }
+
+    getTtsVoiceSelects() {
+        return ['ttsVoice', 'generatorTtsVoice']
+            .map(id => /** @type {HTMLSelectElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLSelectElement} */ item => Boolean(item));
+    }
+
+    getTtsModelSelects() {
+        return ['ttsModel', 'generatorTtsModel']
+            .map(id => /** @type {HTMLSelectElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLSelectElement} */ item => Boolean(item));
+    }
+
+    getTtsSpeedInputs() {
+        return ['ttsSpeed', 'generatorTtsSpeed']
+            .map(id => /** @type {HTMLInputElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLInputElement} */ item => Boolean(item));
+    }
+
+    getTtsSpeedValueEls() {
+        return ['ttsSpeedValue', 'generatorTtsSpeedValue']
+            .map(id => document.getElementById(id))
+            .filter(/** @returns {item is HTMLElement} */ item => Boolean(item));
+    }
+
+    getTtsInstructionEls() {
+        return ['ttsInstructions', 'generatorTtsInstructions']
+            .map(id => /** @type {HTMLTextAreaElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {item is HTMLTextAreaElement} */ item => Boolean(item));
+    }
+
+    /** @param {string} model */
+    getVoicesForModel(model) {
+        if (model.startsWith('gpt-4o-mini-tts')) return OPENAI_TTS_VOICES;
+        return OPENAI_TTS_VOICES.filter(voice => voice.legacy);
+    }
+
+    ttsModelSupportsInstructions() {
+        return OPENAI_TTS_MODELS.find(item => item.id === this.settings.model)?.supportsInstructions || false;
     }
 
     updateVoiceDescription() {
         const descEl = document.getElementById('voiceDescription');
-        if (descEl) descEl.textContent = VOICE_DESCRIPTIONS[this.settings.voice] || '';
+        const generatorDescEl = document.getElementById('generatorVoiceDescription');
+        const description = VOICE_DESCRIPTIONS[this.settings.voice] || '';
+        const instructionNote = this.ttsModelSupportsInstructions()
+            ? 'Narration instructions will be sent with conversion requests.'
+            : 'Narration instructions are disabled for legacy TTS models.';
+        if (descEl) descEl.textContent = description;
+        if (generatorDescEl) generatorDescEl.textContent = `${description} ${instructionNote}`;
     }
 
     setupUI() {
@@ -509,29 +614,37 @@ class BooksController {
     }
 
     setupSettingsUI() {
-        const voiceEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsVoice'));
-        const modelEl = /** @type {HTMLSelectElement | null} */ (document.getElementById('ttsModel'));
-        const speedEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ttsSpeed'));
-        const speedValueEl = document.getElementById('ttsSpeedValue');
         const previewBtn = document.getElementById('previewVoiceBtn');
-        if (voiceEl) {
+        for (const voiceEl of this.getTtsVoiceSelects()) {
             voiceEl.addEventListener('change', () => {
                 this.settings.voice = voiceEl.value;
                 this.saveSettings();
-                this.updateVoiceDescription();
+                this.syncTtsControls();
             });
         }
-        if (modelEl) {
+        for (const modelEl of this.getTtsModelSelects()) {
             modelEl.addEventListener('change', () => {
                 this.settings.model = modelEl.value;
+                this.settings = this.normalizeTtsSettings(this.settings);
                 this.saveSettings();
+                this.syncTtsControls();
             });
         }
-        if (speedEl && speedValueEl) {
+        for (const speedEl of this.getTtsSpeedInputs()) {
             speedEl.addEventListener('input', () => {
                 this.settings.speed = parseFloat(speedEl.value);
-                speedValueEl.textContent = `${this.settings.speed}x`;
                 this.saveSettings();
+                this.syncTtsControls();
+            });
+        }
+        for (const instructionsEl of this.getTtsInstructionEls()) {
+            instructionsEl.addEventListener('input', () => {
+                this.settings.instructions = instructionsEl.value;
+                this.saveSettings();
+                for (const peerEl of this.getTtsInstructionEls()) {
+                    if (peerEl !== instructionsEl) peerEl.value = this.settings.instructions;
+                }
+                this.updateVoiceDescription();
             });
         }
         if (previewBtn) previewBtn.addEventListener('click', () => this.previewVoice());
@@ -597,9 +710,23 @@ class BooksController {
                 if (this.autoGenerateAhead) this.ensureGeneratedAhead();
             });
         }
+        const chapterSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
+        if (chapterSelect) {
+            chapterSelect.addEventListener('change', () => {
+                const sectionId = chapterSelect.value;
+                const segment = this.segments.find(item => item.sectionId === sectionId);
+                if (!segment) return;
+                this.currentSegmentId = segment.id;
+                this.markReadingProgress(segment);
+                this.renderWorkspace();
+                this.scrollCurrentSegmentIntoView(true);
+            });
+        }
         this.bindButton('generateNext15Btn', () => this.generateNextDuration(15 * 60, false));
-        this.bindButton('generateNextHourBtn', () => this.generateNextDuration(60 * 60, false));
-        this.bindButton('generateSectionBtn', () => this.generateCurrentSection());
+        this.bindButton('generateCurrentChapterBtn', () => this.generateCurrentChapter());
+        this.bindButton('generateNextChapterBtn', () => this.generateNextChapter());
+        this.bindButton('generateSelectedChapterBtn', () => this.generateSelectedChapter());
+        this.bindButton('generateCurrentChunkBtn', () => this.generateCurrentChunk());
         this.bindButton('generateAllBtn', () => this.generateAllRemaining());
         this.bindButton('cancelGenerationBtn', () => this.cancelGeneration());
         this.bindButton('downloadOriginalBtn', () => this.downloadCurrentOriginal());
@@ -719,7 +846,7 @@ class BooksController {
         list.innerHTML = books.map(book => {
             const selectedClass = this.currentBook?.id === book.id ? ' selected' : '';
             const readPercent = this.getBookReadPercent(book);
-            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} mp3`;
+            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} chunks`;
             return `
                 <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
                     <div class="saved-book-main">
@@ -766,7 +893,7 @@ class BooksController {
         await this.updateStorageEstimate();
         await this.openBook(imported.book.id);
         this.updateStatus('Book imported and saved on this device');
-        this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} sections, ${imported.segments.length} audio segments planned`);
+        this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} chapters/sections, ${imported.segments.length} audio chunks planned`);
     }
 
     async migrateLegacyBooks() {
@@ -937,16 +1064,21 @@ class BooksController {
         const author = opfDoc.querySelector('metadata creator, dc\\:creator')?.textContent?.trim() || '';
         const basePath = rootfilePath.substring(0, rootfilePath.lastIndexOf('/') + 1);
         const manifest = new Map();
+        const manifestItems = new Map();
         const mediaTypes = new Map();
         opfDoc.querySelectorAll('manifest item').forEach(item => {
             const id = item.getAttribute('id');
             const href = item.getAttribute('href');
             const mediaType = item.getAttribute('media-type') || '';
             if (id && href) {
+                const path = this.normalizePath(basePath + href);
+                const properties = item.getAttribute('properties') || '';
                 manifest.set(id, href);
-                mediaTypes.set(this.normalizePath(basePath + href), mediaType);
+                manifestItems.set(id, { href, path, mediaType, properties });
+                mediaTypes.set(path, mediaType);
             }
         });
+        const tocTitles = await this.parseEpubToc(zip, opfDoc, manifestItems);
         /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
         const spineItems = Array.from(opfDoc.querySelectorAll('spine itemref'));
@@ -975,9 +1107,79 @@ class BooksController {
             }
             const heading = doc.querySelector('h1, h2, h3')?.textContent?.trim();
             const text = doc.body?.textContent || '';
-            sections.push({ title: heading || `Chapter ${sections.length + 1}`, text, html: doc.body?.innerHTML || '' });
+            sections.push({ title: tocTitles.get(filePath) || heading || `Chapter ${sections.length + 1}`, text, html: doc.body?.innerHTML || '' });
         }
         return { title, author, sections };
+    }
+
+    /**
+     * @param {any} zip
+     * @param {Document} opfDoc
+     * @param {Map<string, { href: string, path: string, mediaType: string, properties: string }>} manifestItems
+     */
+    async parseEpubToc(zip, opfDoc, manifestItems) {
+        const titles = new Map();
+        const navItem = Array.from(manifestItems.values())
+            .find(item => item.properties.split(/\s+/).includes('nav'));
+        if (navItem) {
+            const navContent = await zip.file(navItem.path)?.async('text');
+            if (navContent) this.addEpubNavTitles(titles, navContent, navItem.path);
+        }
+        const ncxId = opfDoc.querySelector('spine')?.getAttribute('toc') || '';
+        const ncxItem = ncxId ? manifestItems.get(ncxId) : null;
+        if (ncxItem && titles.size === 0) {
+            const ncxContent = await zip.file(ncxItem.path)?.async('text');
+            if (ncxContent) this.addEpubNcxTitles(titles, ncxContent, ncxItem.path);
+        }
+        return titles;
+    }
+
+    /**
+     * @param {Map<string, string>} titles
+     * @param {string} navContent
+     * @param {string} navPath
+     */
+    addEpubNavTitles(titles, navContent, navPath) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(navContent, 'text/html');
+        const navs = Array.from(doc.querySelectorAll('nav'));
+        const tocNav = navs.find(nav => /\btoc\b/i.test(nav.getAttribute('epub:type') || nav.getAttribute('type') || nav.getAttribute('role') || '')) || navs[0];
+        if (!tocNav) return;
+        const navDir = navPath.substring(0, navPath.lastIndexOf('/') + 1);
+        for (const link of Array.from(tocNav.querySelectorAll('a[href]'))) {
+            const label = this.cleanText(link.textContent || '');
+            const href = link.getAttribute('href') || '';
+            if (!label || !href) continue;
+            const path = this.resolveEpubHref(navDir, href);
+            if (!path) continue;
+            if (!titles.has(path)) titles.set(path, label);
+        }
+    }
+
+    /**
+     * @param {Map<string, string>} titles
+     * @param {string} ncxContent
+     * @param {string} ncxPath
+     */
+    addEpubNcxTitles(titles, ncxContent, ncxPath) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(ncxContent, 'text/xml');
+        const ncxDir = ncxPath.substring(0, ncxPath.lastIndexOf('/') + 1);
+        for (const navPoint of Array.from(doc.querySelectorAll('navPoint'))) {
+            const label = this.cleanText(navPoint.querySelector('navLabel text')?.textContent || '');
+            const src = navPoint.querySelector('content')?.getAttribute('src') || '';
+            if (!label || !src) continue;
+            const path = this.resolveEpubHref(ncxDir, src);
+            if (!path) continue;
+            if (!titles.has(path)) titles.set(path, label);
+        }
+    }
+
+    /** @param {string} directory @param {string} href */
+    resolveEpubHref(directory, href) {
+        if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return '';
+        const withoutFragment = href.split('#')[0];
+        return this.normalizePath(withoutFragment.startsWith('/') ? withoutFragment.substring(1) : directory + withoutFragment);
     }
 
     /** @param {File} file */
@@ -985,16 +1187,69 @@ class BooksController {
         if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js library not loaded');
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        const sections = [];
+        /** @type {string[]} */
+        const pageTexts = [];
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
             const text = textContent.items.map((/** @type {any} */ item) => item.str).join(' ');
-            sections.push({ title: `Page ${i}`, text });
+            pageTexts.push(text);
             if (pdf.numPages > 20 && i % 10 === 0) this.updateStatus(`Reading PDF ${Math.round(i / pdf.numPages * 100)}%`);
         }
-        return sections;
+        const outline = await pdf.getOutline();
+        const outlineSections = outline ? await this.sectionsFromPdfOutline(pdf, outline, pageTexts) : [];
+        if (outlineSections.length > 0) return outlineSections;
+        return pageTexts.map((text, index) => ({ title: `Page ${index + 1}`, text }));
+    }
+
+    /**
+     * @param {any} pdf
+     * @param {any[]} outline
+     * @param {string[]} pageTexts
+     */
+    async sectionsFromPdfOutline(pdf, outline, pageTexts) {
+        const flat = this.flattenPdfOutline(outline);
+        /** @type {{ title: string, page: number }[]} */
+        const entries = [];
+        for (const item of flat) {
+            const page = await this.resolvePdfOutlinePage(pdf, item.dest);
+            if (page >= 1 && page <= pageTexts.length) entries.push({ title: item.title, page });
+        }
+        const unique = entries
+            .filter((entry, index, list) => list.findIndex(item => item.page === entry.page) === index)
+            .sort((a, b) => a.page - b.page);
+        if (unique.length === 0) return [];
+        return unique.map((entry, index) => {
+            const nextPage = unique[index + 1]?.page || pageTexts.length + 1;
+            return {
+                title: entry.title || `Page ${entry.page}`,
+                text: pageTexts.slice(entry.page - 1, nextPage - 1).join('\n\n')
+            };
+        }).filter(section => section.text.trim().length > 0);
+    }
+
+    /** @param {any[]} items */
+    flattenPdfOutline(items) {
+        /** @type {{ title: string, dest: any }[]} */
+        const flat = [];
+        for (const item of items) {
+            flat.push({ title: this.cleanText(item.title || ''), dest: item.dest });
+            if (item.items?.length) flat.push(...this.flattenPdfOutline(item.items));
+        }
+        return flat;
+    }
+
+    /** @param {any} pdf @param {any} dest */
+    async resolvePdfOutlinePage(pdf, dest) {
+        if (!dest) return -1;
+        try {
+            const explicitDest = typeof dest === 'string' ? await pdf.getDestination(dest) : dest;
+            const ref = Array.isArray(explicitDest) ? explicitDest[0] : null;
+            if (!ref) return -1;
+            return await pdf.getPageIndex(ref) + 1;
+        } catch (error) {
+            return -1;
+        }
     }
 
     /** @param {File} file */
@@ -1117,9 +1372,10 @@ class BooksController {
         const meta = document.getElementById('workspaceMeta');
         if (title) title.textContent = this.currentBook.title;
         if (meta) {
-            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.format.toUpperCase()} · ${this.currentBook.sectionCount} sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3s · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
+            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.format.toUpperCase()} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3 chunks · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
         }
         this.renderProgress();
+        this.renderChapterSelect();
         this.renderReader();
         this.renderPlayerNow();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
@@ -1158,8 +1414,21 @@ class BooksController {
                 return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
             }).join('');
             const audioMap = section.html ? `<div class="reader-audio-segments">${segmentHtml}</div>` : '';
-            return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(section.title)}</h3>${readerBody}${audioMap}</section>`;
+            return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(this.getChapterLabel(section))}</h3>${readerBody}${audioMap}</section>`;
         }).join('');
+    }
+
+    renderChapterSelect() {
+        const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
+        if (!select) return;
+        select.innerHTML = this.sections.map(section => {
+            const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
+            const ready = sectionSegments.filter(segment => segment.status === 'done').length;
+            const label = `${this.getChapterLabel(section)} (${ready}/${sectionSegments.length} chunks ready)`;
+            return `<option value="${this.escapeHtml(section.id)}">${this.escapeHtml(label)}</option>`;
+        }).join('');
+        const currentSectionId = this.getCurrentSectionId();
+        if (currentSectionId) select.value = currentSectionId;
     }
 
     /** @param {Event} event */
@@ -1176,10 +1445,41 @@ class BooksController {
         if (segment.status === 'done') this.playSegment(segment.id, false);
     }
 
-    async generateCurrentSection() {
+    async generateCurrentChapter() {
         const sectionId = this.getCurrentSectionId();
         if (!sectionId) return;
         await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && segment.status !== 'done'), false);
+    }
+
+    async generateSelectedChapter() {
+        const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
+        const sectionId = select?.value || this.getCurrentSectionId();
+        if (!sectionId) return;
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && segment.status !== 'done'), false);
+    }
+
+    async generateNextChapter() {
+        const currentSectionId = this.getCurrentSectionId();
+        const currentIndex = Math.max(0, this.sections.findIndex(section => section.id === currentSectionId));
+        const next = this.sections.slice(currentIndex + 1)
+            .find(section => this.segments.some(segment => segment.sectionId === section.id && segment.status !== 'done'));
+        if (!next) {
+            this.updateStatus('No pending chapter after the current chapter');
+            return;
+        }
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === next.id && segment.status !== 'done'), false);
+    }
+
+    async generateCurrentChunk() {
+        const current = this.getSegmentById(this.currentSegmentId || '');
+        const segment = current && current.status !== 'done'
+            ? current
+            : this.segments.find(item => item.status !== 'done');
+        if (!segment) {
+            this.updateStatus('No pending chunks to generate');
+            return;
+        }
+        await this.generateSegments([segment], false);
     }
 
     async generateAllRemaining() {
@@ -1209,7 +1509,7 @@ class BooksController {
     /** @param {AudioSegment[]} selected @param {boolean} automatic */
     async generateSegments(selected, automatic) {
         if (selected.length === 0) {
-            if (!automatic) this.updateStatus('No pending segments to generate');
+            if (!automatic) this.updateStatus('No pending chunks to generate');
             return;
         }
         if (!this.apiKey) {
@@ -1221,7 +1521,7 @@ class BooksController {
         this.isGenerating = true;
         this.generationAbort = new AbortController();
         let completed = 0;
-        this.updateGenerationProgress(0, selected.length, `Generating ${selected.length} segment${selected.length === 1 ? '' : 's'}...`);
+        this.updateGenerationProgress(0, selected.length, `Generating ${selected.length} chunk${selected.length === 1 ? '' : 's'}...`);
         try {
             for (const segment of selected) {
                 if (this.generationAbort.signal.aborted) throw new Error('Generation cancelled');
@@ -1246,7 +1546,7 @@ class BooksController {
                 this.replaceSegment(segment);
                 await this.recalculateBookGeneration();
                 completed++;
-                this.updateGenerationProgress(completed, selected.length, `Generated ${completed}/${selected.length}`);
+                this.updateGenerationProgress(completed, selected.length, `Generated ${completed}/${selected.length} chunks`);
                 this.renderWorkspace();
                 if (!this.getCurrentGeneratedSegment() && segment.id === this.currentSegmentId) this.loadSegmentIntoPlayer(segment, false);
             }
@@ -1279,19 +1579,24 @@ class BooksController {
     /** @param {string} text @param {AbortSignal | null} signal */
     async fetchSpeech(text, signal) {
         if (!this.apiKey) throw new Error('API key not configured');
+        const payload = {
+            model: this.settings.model,
+            input: text,
+            voice: this.settings.voice,
+            speed: this.settings.speed,
+            response_format: 'mp3'
+        };
+        const instructions = this.settings.instructions.trim();
+        if (instructions && this.ttsModelSupportsInstructions()) {
+            /** @type {any} */ (payload).instructions = instructions;
+        }
         const response = await fetch('https://api.openai.com/v1/audio/speech', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.apiKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: this.settings.model,
-                input: text,
-                voice: this.settings.voice,
-                speed: this.settings.speed,
-                response_format: 'mp3'
-            }),
+            body: JSON.stringify(payload),
             signal: signal || undefined
         });
         if (!response.ok) {
@@ -1540,7 +1845,7 @@ class BooksController {
     async downloadCurrentSegment() {
         const segment = this.getSegmentById(this.currentSegmentId || '');
         if (!segment || !segment.blob || !this.currentBook) {
-            this.updateStatus('Current segment has no MP3 yet');
+            this.updateStatus('Current chunk has no MP3 yet');
             return;
         }
         this.downloadBlob(segment.blob, this.segmentFilename(this.currentBook, segment));
@@ -1550,7 +1855,7 @@ class BooksController {
         if (!this.currentBook) return;
         const done = this.segments.filter(segment => segment.status === 'done' && segment.blob);
         if (done.length === 0) {
-            this.updateStatus('No generated MP3 segments to download');
+            this.updateStatus('No generated MP3 chunks to download');
             return;
         }
         for (const segment of done) {
@@ -1590,7 +1895,7 @@ class BooksController {
         this.renderWorkspace();
         await this.refreshLibrary();
         await this.updateStorageEstimate();
-        this.updateStatus('Deleted current segment MP3');
+        this.updateStatus('Deleted current chunk MP3');
     }
 
     async deleteCurrentBookAudio() {
@@ -1623,7 +1928,7 @@ class BooksController {
         }
         await this.refreshLibrary();
         await this.updateStorageEstimate();
-        this.updateStatus('Deleted generated MP3s for this book');
+        this.updateStatus('Deleted generated MP3 chunks for this book');
     }
 
     /** @param {AudioSegment} segment */
@@ -1712,10 +2017,10 @@ class BooksController {
         if (!el) return;
         const segment = this.getSegmentById(this.currentSegmentId || '');
         if (!segment) {
-            el.textContent = 'No segment selected';
+            el.textContent = 'No chunk selected';
             return;
         }
-        el.textContent = `${this.getSectionTitle(segment.sectionId)} · segment ${segment.segmentIndex + 1}/${this.segments.length} · ${segment.status === 'done' ? 'ready' : segment.status}`;
+        el.textContent = `${this.getSectionTitle(segment.sectionId)} · chunk ${segment.sectionSegmentIndex + 1} · ${segment.status === 'done' ? 'ready' : segment.status}`;
     }
 
     /** @param {AudioSegment} segment */
@@ -1738,8 +2043,8 @@ class BooksController {
             const generated = this.segments.filter(segment => segment.status === 'done').length;
             const remainingInJob = Math.max(0, total - done);
             detail.textContent = total
-                ? `${done}/${total} in this job (${percent}%) · ${remainingInJob} remaining · ${generated}/${this.segments.length} total MP3 segments ready`
-                : `${generated}/${this.segments.length} total MP3 segments ready`;
+                ? `${done}/${total} in this job (${percent}%) · ${remainingInJob} remaining · ${generated}/${this.segments.length} total MP3 chunks ready`
+                : `${generated}/${this.segments.length} total MP3 chunks ready`;
         }
     }
 
@@ -1814,6 +2119,15 @@ class BooksController {
     /** @param {string} sectionId */
     getSectionTitle(sectionId) {
         return this.sections.find(section => section.id === sectionId)?.title || 'Section';
+    }
+
+    /** @param {BookSection} section */
+    getChapterLabel(section) {
+        const title = (section.title || '').trim();
+        const numbered = /^(chapter|part|book|section|page|prologue|epilogue)\b/i.test(title);
+        if (!title) return `Chapter ${section.spineIndex + 1}`;
+        if (numbered) return title;
+        return `Chapter ${section.spineIndex + 1}: ${title}`;
     }
 
     /** @param {BookRecord} book */
@@ -2016,7 +2330,11 @@ class BooksController {
 
     /** @param {BookRecord} book @param {AudioSegment} segment */
     segmentFilename(book, segment) {
-        return `${this.safeFilename(book.title)}-${String(segment.segmentIndex + 1).padStart(4, '0')}.mp3`;
+        const section = this.sections.find(item => item.id === segment.sectionId);
+        const chapterPart = section
+            ? `${String(section.spineIndex + 1).padStart(3, '0')}-${this.safeFilename(section.title).slice(0, 48)}`
+            : String(segment.segmentIndex + 1).padStart(4, '0');
+        return `${this.safeFilename(book.title)}-${chapterPart}-chunk-${String(segment.sectionSegmentIndex + 1).padStart(2, '0')}.mp3`;
     }
 
     /** @param {string} value */

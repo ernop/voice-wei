@@ -4,6 +4,7 @@
 .speed-control,
 .workspace-actions,
 .generator-actions,
+.chapter-generator-row,
 .player-actions,
 .storage-line,
 .reader-toolbar {
@@ -14,7 +15,9 @@
 
 .model-selector,
 .library-search,
-.reader-search {
+.reader-search,
+.chapter-selector,
+.tts-instructions-input {
     width: 100%;
     padding: 10px;
     font-size: 0.95rem;
@@ -24,16 +27,29 @@
     color: #e8f5e9;
 }
 
-.model-selector option {
+.model-selector option,
+.chapter-selector option {
     background: #1a3a2e;
     color: #e8f5e9;
 }
 
 .model-selector:focus,
 .library-search:focus,
-.reader-search:focus {
+.reader-search:focus,
+.chapter-selector:focus,
+.tts-instructions-input:focus {
     outline: none;
     border-color: rgba(74, 222, 128, 0.62);
+}
+
+.tts-instructions-input {
+    min-height: 68px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.tts-instructions-input:disabled {
+    opacity: 0.58;
 }
 
 .preview-voice-btn,
@@ -102,7 +118,8 @@
     flex: 1;
 }
 
-#ttsSpeedValue {
+#ttsSpeedValue,
+#generatorTtsSpeedValue {
     min-width: 50px;
     text-align: center;
     font-weight: 700;
@@ -524,9 +541,65 @@
     padding: 12px;
 }
 
+.conversion-options-card {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(74, 222, 128, 0.18);
+}
+
+.conversion-options-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 8px;
+    color: #a7f3d0;
+    font-size: 0.84rem;
+}
+
+.conversion-options-header span {
+    color: rgba(255, 255, 255, 0.56);
+    font-size: 0.72rem;
+    text-align: right;
+}
+
+.conversion-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.conversion-options-grid label,
+.chapter-generator-row label {
+    display: grid;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.conversion-options-wide {
+    grid-column: 1 / -1;
+}
+
+.chapter-generator-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: end;
+    margin: 10px 0;
+}
+
+.chapter-generator-row label {
+    min-width: 0;
+}
+
 .generator-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 5px;
     margin: 10px 0;
 }
@@ -746,6 +819,10 @@
     .workspace-actions {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+
+    .conversion-options-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 520px) {
@@ -762,6 +839,10 @@
 
     .generator-actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .chapter-generator-row {
+        grid-template-columns: 1fr;
     }
 
     .player-control-grid {

@@ -205,28 +205,31 @@ Drone test: note stepper (C3-C5) applies on Start.
 Books persists TTS preferences and the OpenAI API key in browser localStorage.
 Large book data is stored in IndexedDB (`voice-wei-books`): original upload
 Blobs, parsed book-section records, sanitized EPUB/HTML reader markup, planned
-TTS text segments, generated MP3 segment Blobs, read/listen progress, and local
-history events. The visible Log panel is page-session state and is cleared on
-reload. Books requests persistent browser storage automatically where
-supported.
+TTS text chunks, generated MP3 chunk Blobs, read/listen progress, and local
+history events. EPUB imports prefer the official `nav`/NCX table of contents
+for chapter names; PDF imports use outline entries when available. The visible
+Log panel is page-session state and is cleared on reload. Books requests
+persistent browser storage automatically where supported.
 
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
-| voice | alloy | alloy, echo, fable, onyx, nova, shimmer | immediate for the next preview/conversion request |
-| model | tts-1 | tts-1, tts-1-hd | immediate for the next preview/conversion request |
+| voice | alloy | alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse | immediate for the next preview/conversion request; legacy TTS models show their supported subset |
+| model | gpt-4o-mini-tts | gpt-4o-mini-tts, gpt-4o-mini-tts-2025-12-15, tts-1, tts-1-hd | immediate for the next preview/conversion request |
 | speed | 1.0 | 0.25..4.0 in 0.25 steps | immediate for the next preview/conversion request |
+| instructions | empty | text | sent with GPT-4o mini TTS preview/conversion requests; disabled for legacy TTS models |
 
-Actions: import creates a saved book plus section and segment records; Generate
-next 15 min / next hour / current section / all remaining updates individual
-segment records as each MP3 finishes; Cancel preserves completed segments and
-leaves the rest pending/error; custom playback controls update listening and
-reading progress and write local history events for play/pause, segment
-changes, jumps, and position samples; auto-generate-ahead can generate more
-pending segments while listening.
-Download original / current segment / all segment MP3s / combined MP3 export
-saved blobs; Delete segment MP3 / Delete all MP3s clear generated audio without
+Actions: import creates a saved book plus section/chapter and chunk records;
+Generate selected/current/next chapter and Whole book use chapter-level TOC
+boundaries, while +Chunk remains available for the underlying TTS chunk unit.
+Each chunk record updates as its MP3 finishes; Cancel preserves completed
+chunks and leaves the rest pending/error; custom playback controls update
+listening and reading progress and write local history events for play/pause,
+chunk changes, jumps, and position samples; auto-generate-ahead can generate
+more pending chunks while listening.
+Download original / current chunk / all chunk MP3s / combined MP3 export saved
+blobs; Delete chunk MP3 / Delete all MP3s clear generated audio without
 removing the original; Delete book removes the browser-local book, sections,
-and segments. The visible Log is page-local DOM state only; it is not a durable
+and chunks. The visible Log is page-local DOM state only; it is not a durable
 usage record.
 
 ## Pitch test panel (shared component)

@@ -176,12 +176,25 @@ async function seedGeneratedBook(page) {
         const layout = await page.evaluate(() => ({
             progressRow: Array.from(document.querySelectorAll('.book-progress-card span')).map(el => el.textContent.trim()).join(' | '),
             generationColumns: getComputedStyle(document.querySelector('.generator-actions')).gridTemplateColumns.split(' ').length,
+            generationButtons: Array.from(document.querySelectorAll('.generator-actions button')).map(button => button.textContent.trim()),
+            selectedChapterButton: document.querySelector('#generateSelectedChapterBtn')?.textContent || '',
+            chapterOptions: Array.from(document.querySelectorAll('#generationChapterSelect option')).map(option => option.textContent.trim()),
+            voiceOptions: Array.from(document.querySelectorAll('#generatorTtsVoice option')).map(option => option.value),
+            modelOptions: Array.from(document.querySelectorAll('#generatorTtsModel option')).map(option => option.value),
+            hasInstructions: Boolean(document.querySelector('#generatorTtsInstructions')),
             controlCount: document.querySelectorAll('.player-control-grid button').length,
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
-        report.check('books compact progress/generation/custom player layout',
-            layout.progressRow.includes('Read') && layout.generationColumns === 4
+        report.check('books chapter-first generation and TTS option layout',
+            layout.progressRow.includes('Read') && layout.generationColumns === 5
+            && ['Current chapter', 'Next chapter', 'Whole book', '+Chunk', '+15 min']
+                .every(label => layout.generationButtons.includes(label))
+            && layout.selectedChapterButton.includes('Selected chapter')
+            && layout.chapterOptions.some(label => label.includes('Section') && label.includes('chunks ready'))
+            && ['ash', 'ballad', 'cedar', 'coral', 'marin', 'sage', 'verse']
+                .every(voice => layout.voiceOptions.includes(voice))
+            && layout.modelOptions.includes('gpt-4o-mini-tts') && layout.hasInstructions
             && layout.controlCount === 7 && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
 

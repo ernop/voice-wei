@@ -39,12 +39,6 @@
                 <label for="ttsVoice">TTS Voice:</label>
                 <div class="voice-selector-row">
                     <select id="ttsVoice" class="model-selector">
-                        <option value="alloy">Alloy - Neutral, balanced</option>
-                        <option value="echo">Echo - Male, clear</option>
-                        <option value="fable">Fable - British accent</option>
-                        <option value="onyx">Onyx - Deep male</option>
-                        <option value="nova">Nova - Female, warm</option>
-                        <option value="shimmer">Shimmer - Soft female</option>
                     </select>
                     <button id="previewVoiceBtn" class="preview-voice-btn" type="button" title="Preview voice">Preview</button>
                 </div>
@@ -54,10 +48,8 @@
             <div class="setting-item">
                 <label for="ttsModel">TTS Model:</label>
                 <select id="ttsModel" class="model-selector">
-                    <option value="tts-1">TTS-1 - Fast ($0.015/1K chars)</option>
-                    <option value="tts-1-hd">TTS-1-HD - High Quality ($0.030/1K chars)</option>
                 </select>
-                <p class="setting-description">HD model has clearer pronunciation and better intonation.</p>
+                <p class="setting-description">GPT-4o mini TTS supports all current voices and narration instructions.</p>
             </div>
 
             <div class="setting-item">
@@ -69,13 +61,19 @@
                 <p class="setting-description">0.25x to 4.0x. Segment duration estimates assume normal narration speed.</p>
             </div>
 
+            <div class="setting-item">
+                <label for="ttsInstructions">Narration Instructions:</label>
+                <textarea id="ttsInstructions" class="tts-instructions-input" rows="3" placeholder="Example: Read warmly, with measured pacing and subtle character distinction."></textarea>
+                <p class="setting-description">Sent to GPT-4o mini TTS for tone, accent, emotion, pacing, and style. Legacy TTS models ignore this field.</p>
+            </div>
+
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
                 <h2>OpenAI API Key Required</h2>
-                <p>Books uses OpenAI text-to-speech to generate local MP3 segments. Add your key from <a
+                <p>Books uses OpenAI text-to-speech to generate local MP3 chunks by chapter. Add your key from <a
                         href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..." class="api-key-input" />
@@ -118,10 +116,10 @@
                         </div>
                         <div class="workspace-actions">
                             <button id="downloadOriginalBtn" class="small-action-btn" type="button">Original</button>
-                            <button id="downloadCurrentSegmentBtn" class="small-action-btn" type="button">Segment MP3</button>
+                            <button id="downloadCurrentSegmentBtn" class="small-action-btn" type="button">Chunk MP3</button>
                             <button id="downloadAllSegmentsBtn" class="small-action-btn" type="button">All MP3s</button>
                             <button id="downloadCombinedBtn" class="small-action-btn" type="button">Combined MP3</button>
-                            <button id="deleteCurrentSegmentAudioBtn" class="small-action-btn danger" type="button">Delete segment MP3</button>
+                            <button id="deleteCurrentSegmentAudioBtn" class="small-action-btn danger" type="button">Delete chunk MP3</button>
                             <button id="deleteAllAudioBtn" class="small-action-btn danger" type="button">Delete all MP3s</button>
                         </div>
                     </header>
@@ -136,6 +134,34 @@
                         <aside class="listen-panel">
                             <div class="generator-card">
                                 <h3>Generate</h3>
+                                <div class="conversion-options-card">
+                                    <div class="conversion-options-header">
+                                        <strong>Narration options</strong>
+                                        <span>Used for the next MP3 conversion</span>
+                                    </div>
+                                    <div class="conversion-options-grid">
+                                        <label>
+                                            Voice
+                                            <select id="generatorTtsVoice" class="model-selector"></select>
+                                        </label>
+                                        <label>
+                                            Model
+                                            <select id="generatorTtsModel" class="model-selector"></select>
+                                        </label>
+                                        <label>
+                                            Speed
+                                            <div class="speed-control">
+                                                <input type="range" id="generatorTtsSpeed" min="0.25" max="4.0" step="0.25" value="1.0" class="speed-slider">
+                                                <span id="generatorTtsSpeedValue">1.0x</span>
+                                            </div>
+                                        </label>
+                                        <label class="conversion-options-wide">
+                                            Instructions
+                                            <textarea id="generatorTtsInstructions" class="tts-instructions-input" rows="3" placeholder="Example: Read like an attentive audiobook narrator."></textarea>
+                                        </label>
+                                    </div>
+                                    <p class="mp3-status-detail" id="generatorVoiceDescription"></p>
+                                </div>
                                 <div class="mp3-status-card">
                                     <div class="mp3-status-header">
                                         <span>MP3 conversion</span>
@@ -146,11 +172,17 @@
                                     </div>
                                     <div class="mp3-status-detail" id="generationDetail">No conversion running</div>
                                 </div>
+                                <div class="chapter-generator-row">
+                                    <label for="generationChapterSelect">Book TOC</label>
+                                    <select id="generationChapterSelect" class="chapter-selector"></select>
+                                    <button id="generateSelectedChapterBtn" class="primary-action-btn" type="button">Selected chapter</button>
+                                </div>
                                 <div class="generator-actions">
-                                    <button id="generateNext15Btn" class="primary-action-btn" type="button">Next 15 min</button>
-                                    <button id="generateNextHourBtn" class="primary-action-btn" type="button">Next hour</button>
-                                    <button id="generateSectionBtn" class="primary-action-btn" type="button">Current section</button>
-                                    <button id="generateAllBtn" class="primary-action-btn" type="button">All remaining</button>
+                                    <button id="generateCurrentChapterBtn" class="primary-action-btn" type="button">Current chapter</button>
+                                    <button id="generateNextChapterBtn" class="primary-action-btn" type="button">Next chapter</button>
+                                    <button id="generateAllBtn" class="primary-action-btn" type="button">Whole book</button>
+                                    <button id="generateCurrentChunkBtn" class="primary-action-btn" type="button">+Chunk</button>
+                                    <button id="generateNext15Btn" class="primary-action-btn" type="button">+15 min</button>
                                 </div>
                                 <button id="cancelGenerationBtn" class="danger-action-btn generation-cancel-btn" type="button">Cancel MP3 conversion</button>
                                 <label class="ahead-toggle">
@@ -161,10 +193,10 @@
 
                             <div class="player-card">
                                 <h3>Listen</h3>
-                                <div class="player-now" id="playerNow">No segment selected</div>
+                                <div class="player-now" id="playerNow">No chunk selected</div>
                                 <audio id="audioPlayer" class="audio-player"></audio>
                                 <div class="custom-player">
-                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current MP3 segment">
+                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current MP3 chunk">
                                         <span id="playerProgressFill" class="player-progress-fill"></span>
                                     </button>
                                     <div class="player-time-row">
@@ -185,7 +217,7 @@
                                     <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
                                     <button id="showHistoryBtn" class="small-action-btn" type="button">History</button>
                                 </div>
-                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 segments.</div>
+                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 chunks.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
                                     <div class="history-header">
                                         <strong>Listening history</strong>
