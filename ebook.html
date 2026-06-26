@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=149">
-    <link rel="stylesheet" href="ebook.css?v=149">
+    <link rel="stylesheet" href="style.css?v=150">
+    <link rel="stylesheet" href="ebook.css?v=150">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -41,7 +41,7 @@
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
                 <h2>OpenAI API Key Required</h2>
-                <p>Books uses OpenAI text-to-speech to generate local MP3 chunks by chapter. Add your key from <a
+                <p>Books uses OpenAI text-to-speech to generate local MP3s by chapter. Add your key from <a
                         href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..." class="api-key-input" />
@@ -184,8 +184,9 @@
                                     <button id="generateSelectedChapterBtn" class="primary-action-btn" type="button">Selected chapter</button>
                                 </div>
                                 <div class="generator-actions">
+                                    <button id="generatePreviousChapterBtn" class="primary-action-btn" type="button">-Chapter</button>
                                     <button id="generateCurrentChapterBtn" class="primary-action-btn" type="button">Current chapter</button>
-                                    <button id="generateNextChapterBtn" class="primary-action-btn" type="button">Next chapter</button>
+                                    <button id="generateNextChapterBtn" class="primary-action-btn" type="button">+Chapter</button>
                                     <button id="generateAllBtn" class="primary-action-btn" type="button">Whole book</button>
                                     <button id="generateCurrentChunkBtn" class="primary-action-btn" type="button">+Chunk</button>
                                     <button id="generateNext15Btn" class="primary-action-btn" type="button">+15 min</button>
@@ -199,7 +200,7 @@
 
                             <div class="player-card">
                                 <h3>Listen</h3>
-                                <div class="player-now" id="playerNow">No chunk selected</div>
+                                <div class="player-now" id="playerNow">No MP3 selected</div>
                                 <audio id="audioPlayer" class="audio-player"></audio>
                                 <div class="custom-player">
                                     <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current MP3 chunk">
@@ -223,7 +224,7 @@
                                     <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
                                     <button id="showHistoryBtn" class="small-action-btn" type="button">History</button>
                                 </div>
-                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 chunks. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
+                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3s. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
                                     <div class="history-header">
                                         <strong>Listening history</strong>
@@ -264,13 +265,13 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=149"></script>
-    <script src="app-version.js?v=149"></script>
-    <script src="storage-keys.js?v=149"></script>
-    <script src="settings-store.js?v=149"></script>
-    <script src="api-keys-store.js?v=149"></script>
-    <script src="shared-header.js?v=149"></script>
-    <script src="ebook.js?v=149"></script>
+    <script src="dev-error-monitor.js?v=150"></script>
+    <script src="app-version.js?v=150"></script>
+    <script src="storage-keys.js?v=150"></script>
+    <script src="settings-store.js?v=150"></script>
+    <script src="api-keys-store.js?v=150"></script>
+    <script src="shared-header.js?v=150"></script>
+    <script src="ebook.js?v=150"></script>
 </body>
 
 </html>

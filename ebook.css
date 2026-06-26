@@ -775,7 +775,7 @@
 
 .generator-actions {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
     gap: 5px;
     margin: 10px 0;
 }

@@ -154,10 +154,13 @@ async function seedGeneratedBook(page) {
             libraryHidden: getComputedStyle(document.querySelector('.books-library-panel')).display === 'none',
             workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
             backText: document.querySelector('#backToLibraryBtn')?.textContent || '',
-            hasSpinePanel: Boolean(document.querySelector('.spine-panel, #spineList'))
+            hasSpinePanel: Boolean(document.querySelector('.spine-panel, #spineList')),
+            chunkFallbackVisible: getComputedStyle(document.querySelector('#generateCurrentChunkBtn')).display !== 'none',
+            chapterOptionText: document.querySelector('#generationChapterSelect option')?.textContent || ''
         }));
         report.check('books open into book-only mode with no interior spine panel',
-            opened.libraryHidden && opened.workspaceVisible && opened.backText.includes('Bookshelf') && !opened.hasSpinePanel);
+            opened.libraryHidden && opened.workspaceVisible && opened.backText.includes('Bookshelf') && !opened.hasSpinePanel
+            && !opened.chunkFallbackVisible && opened.chapterOptionText.includes('chapter') && !opened.chapterOptionText.includes('chunk'));
         await page.click('#toggleArchiveCurrentBookBtn');
         await page.click('#backToLibraryBtn');
         await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
@@ -244,8 +247,8 @@ async function seedGeneratedBook(page) {
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
         report.check('books chapter-first generation and TTS option layout',
-            layout.progressRow.includes('Read') && layout.generationColumns === 5
-            && ['Current chapter', 'Next chapter', 'Whole book', '+Chunk', '+15 min']
+            layout.progressRow.includes('Read') && layout.generationColumns >= 5
+            && ['-Chapter', 'Current chapter', '+Chapter', 'Whole book', '+Chunk', '+15 min']
                 .every(label => layout.generationButtons.includes(label))
             && layout.selectedChapterButton.includes('Selected chapter')
             && layout.chapterOptions.some(label => label.includes('Section') && label.includes('chunks ready'))

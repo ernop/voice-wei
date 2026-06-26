@@ -899,6 +899,7 @@ class BooksController {
             });
         }
         this.bindButton('generateNext15Btn', () => this.generateNextDuration(15 * 60, false));
+        this.bindButton('generatePreviousChapterBtn', () => this.generatePreviousChapter());
         this.bindButton('generateCurrentChapterBtn', () => this.generateCurrentChapter());
         this.bindButton('generateNextChapterBtn', () => this.generateNextChapter());
         this.bindButton('generateSelectedChapterBtn', () => this.generateSelectedChapter());
@@ -1079,7 +1080,7 @@ class BooksController {
             const selectedClass = this.currentBook?.id === book.id ? ' selected' : '';
             const readPercent = this.getBookReadPercent(book);
             const mp3Percent = this.getBookGeneratedPercent(book);
-            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} chunks`;
+            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} MP3`;
             return `
                 <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
                     <div class="saved-book-main">
@@ -1654,12 +1655,13 @@ class BooksController {
         const meta = document.getElementById('workspaceMeta');
         if (title) title.textContent = this.currentBook.title;
         if (meta) {
-            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3 chunks · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
+            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3s · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
         }
         this.renderProgress();
         this.renderChapterSelect();
         this.renderConversionSummary();
         this.renderChapterStatusList();
+        this.syncGenerationUnitControls();
         this.renderReader();
         this.renderPlayerNow();
         this.syncCurrentBookArchiveButton();
@@ -1723,14 +1725,26 @@ class BooksController {
     renderChapterSelect() {
         const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
         if (!select) return;
+        const terms = this.getAudioUnitTerms();
         select.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
             const ready = sectionSegments.filter(segment => segment.status === 'done').length;
-            const label = `${this.getChapterLabel(section)} (${ready}/${sectionSegments.length} chunks ready)`;
+            const label = `${this.getChapterLabel(section)} (${ready}/${sectionSegments.length} ${ready === 1 ? terms.singular : terms.plural} ready)`;
             return `<option value="${this.escapeHtml(section.id)}">${this.escapeHtml(label)}</option>`;
         }).join('');
         const currentSectionId = this.getCurrentSectionId();
         if (currentSectionId) select.value = currentSectionId;
+    }
+
+    syncGenerationUnitControls() {
+        const currentChunkBtn = document.getElementById('generateCurrentChunkBtn');
+        const hint = document.querySelector('.player-key-hint');
+        const splitChapters = this.hasSplitChapters();
+        if (currentChunkBtn) currentChunkBtn.style.display = splitChapters ? '' : 'none';
+        if (hint) {
+            const terms = this.getAudioUnitTerms();
+            hint.textContent = `Keyboard: Left/Right moves between generated MP3 ${terms.plural}. Read-along highlight is estimated from MP3 time because the provider does not return word timings.`;
+        }
     }
 
     renderConversionSummary() {
@@ -1747,6 +1761,7 @@ class BooksController {
             list.innerHTML = '<div class="chapter-status-empty">No chapters loaded.</div>';
             return;
         }
+        const terms = this.getAudioUnitTerms();
         list.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
             const ready = sectionSegments.filter(segment => segment.status === 'done').length;
@@ -1758,14 +1773,14 @@ class BooksController {
                     segment.status === 'done' ? 'done' : segment.status === 'generating' ? 'generating' : segment.status === 'error' ? 'error' : 'pending',
                     segment.id === this.currentSegmentId ? 'current' : ''
                 ].filter(Boolean).join(' ');
-                const label = `Chunk ${segment.sectionSegmentIndex + 1}: ${segment.status}`;
+                const label = `${terms.singular === 'chapter' ? 'Chapter MP3' : `Chunk ${segment.sectionSegmentIndex + 1}`}: ${segment.status}`;
                 return `<button class="${classes}" type="button" data-segment-id="${this.escapeHtml(segment.id)}" title="${this.escapeHtml(label)}">${segment.sectionSegmentIndex + 1}</button>`;
             }).join('');
             return `
                 <div class="chapter-status-item">
                     <div class="chapter-status-top">
                         <strong>${this.escapeHtml(this.getChapterLabel(section))}</strong>
-                        <span>${ready}/${sectionSegments.length} chunks · ${percent}%</span>
+                        <span>${ready}/${sectionSegments.length} ${ready === 1 ? terms.singular : terms.plural} · ${percent}%</span>
                     </div>
                     <div class="chapter-status-track"><span style="width: ${percent}%"></span></div>
                     <div class="chunk-dot-row">${chunks}</div>
@@ -1804,6 +1819,18 @@ class BooksController {
         const sectionId = select?.value || this.getCurrentSectionId();
         if (!sectionId) return;
         await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && segment.status !== 'done'), false);
+    }
+
+    async generatePreviousChapter() {
+        const currentSectionId = this.getCurrentSectionId();
+        const currentIndex = Math.max(0, this.sections.findIndex(section => section.id === currentSectionId));
+        const previous = this.sections.slice(0, currentIndex).reverse()
+            .find(section => this.segments.some(segment => segment.sectionId === section.id && segment.status !== 'done'));
+        if (!previous) {
+            this.updateStatus('No pending chapter before the current chapter');
+            return;
+        }
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === previous.id && segment.status !== 'done'), false);
     }
 
     async generateNextChapter() {
@@ -1856,8 +1883,9 @@ class BooksController {
 
     /** @param {AudioSegment[]} selected @param {boolean} automatic */
     async generateSegments(selected, automatic) {
+        const terms = this.getAudioUnitTerms();
         if (selected.length === 0) {
-            if (!automatic) this.updateStatus('No pending chunks to generate');
+            if (!automatic) this.updateStatus(`No pending ${terms.plural} to generate`);
             return;
         }
         if (!this.apiKey) {
@@ -1869,7 +1897,7 @@ class BooksController {
         this.isGenerating = true;
         this.generationAbort = new AbortController();
         let completed = 0;
-        this.updateGenerationProgress(0, selected.length, `Generating ${selected.length} chunk${selected.length === 1 ? '' : 's'}...`);
+        this.updateGenerationProgress(0, selected.length, `Generating ${selected.length} ${selected.length === 1 ? terms.singular : terms.plural}...`);
         try {
             for (const segment of selected) {
                 if (this.generationAbort.signal.aborted) throw new Error('Generation cancelled');
@@ -1894,7 +1922,7 @@ class BooksController {
                 this.replaceSegment(segment);
                 await this.recalculateBookGeneration();
                 completed++;
-                this.updateGenerationProgress(completed, selected.length, `Generated ${completed}/${selected.length} chunks`);
+                this.updateGenerationProgress(completed, selected.length, `Generated ${completed}/${selected.length} ${selected.length === 1 ? terms.singular : terms.plural}`);
                 this.renderWorkspace();
                 if (!this.getCurrentGeneratedSegment() && segment.id === this.currentSegmentId) this.loadSegmentIntoPlayer(segment, false);
             }
@@ -2205,7 +2233,7 @@ class BooksController {
     async downloadCurrentSegment() {
         const segment = this.getSegmentById(this.currentSegmentId || '');
         if (!segment || !segment.blob || !this.currentBook) {
-            this.updateStatus('Current chunk has no MP3 yet');
+            this.updateStatus(`Current ${this.getAudioUnitTerms().singular} has no MP3 yet`);
             return;
         }
         this.downloadBlob(segment.blob, this.segmentFilename(this.currentBook, segment));
@@ -2215,7 +2243,7 @@ class BooksController {
         if (!this.currentBook) return;
         const done = this.segments.filter(segment => segment.status === 'done' && segment.blob);
         if (done.length === 0) {
-            this.updateStatus('No generated MP3 chunks to download');
+            this.updateStatus(`No generated MP3 ${this.getAudioUnitTerms().plural} to download`);
             return;
         }
         for (const segment of done) {
@@ -2255,7 +2283,7 @@ class BooksController {
         this.renderWorkspace();
         await this.refreshLibrary();
         await this.updateStorageEstimate();
-        this.updateStatus('Deleted current chunk MP3');
+        this.updateStatus(`Deleted current ${this.getAudioUnitTerms().singular} MP3`);
     }
 
     async deleteCurrentBookAudio() {
@@ -2288,7 +2316,7 @@ class BooksController {
         }
         await this.refreshLibrary();
         await this.updateStorageEstimate();
-        this.updateStatus('Deleted generated MP3 chunks for this book');
+        this.updateStatus('Deleted generated MP3s for this book');
     }
 
     /** @param {AudioSegment} segment */
@@ -2377,13 +2405,15 @@ class BooksController {
         if (!el) return;
         const segment = this.getSegmentById(this.currentSegmentId || '');
         if (!segment) {
-            el.textContent = 'No chunk selected';
+            el.textContent = 'No MP3 selected';
             return;
         }
+        const terms = this.getAudioUnitTerms();
+        const unitLabel = terms.singular === 'chapter' ? 'chapter' : `chunk ${segment.sectionSegmentIndex + 1}`;
         const voice = segment.status === 'done'
             ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}`
             : '';
-        el.textContent = `${this.getSectionTitle(segment.sectionId)} · chunk ${segment.sectionSegmentIndex + 1} · ${segment.status === 'done' ? 'ready' : segment.status}${voice}`;
+        el.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unitLabel} · ${segment.status === 'done' ? 'ready' : segment.status}${voice}`;
     }
 
     /** @param {AudioSegment} segment */
@@ -2405,9 +2435,10 @@ class BooksController {
         if (detail) {
             const generated = this.segments.filter(segment => segment.status === 'done').length;
             const remainingInJob = Math.max(0, total - done);
+            const terms = this.getAudioUnitTerms();
             detail.textContent = total
-                ? `${done}/${total} in this job (${percent}%) · ${remainingInJob} remaining · ${generated}/${this.segments.length} total MP3 chunks ready`
-                : `${generated}/${this.segments.length} total MP3 chunks ready`;
+                ? `${done}/${total} in this job (${percent}%) · ${remainingInJob} remaining · ${generated}/${this.segments.length} total MP3 ${terms.plural} ready`
+                : `${generated}/${this.segments.length} total MP3 ${terms.plural} ready`;
         }
     }
 
@@ -2484,6 +2515,16 @@ class BooksController {
     getCurrentSectionId() {
         const segment = this.getSegmentById(this.currentSegmentId || '');
         return segment?.sectionId || this.currentBook?.readingSectionId || this.sections[0]?.id || '';
+    }
+
+    hasSplitChapters() {
+        return this.sections.some(section => this.segments.filter(segment => segment.sectionId === section.id).length > 1);
+    }
+
+    getAudioUnitTerms() {
+        return this.hasSplitChapters()
+            ? { singular: 'chunk', plural: 'chunks' }
+            : { singular: 'chapter', plural: 'chapters' };
     }
 
     getCurrentGeneratedSegment() {
