@@ -2543,11 +2543,75 @@ class BooksController {
 
     /** @param {BookSection} section */
     getChapterLabel(section) {
+        const inferred = this.getInferredChapterLabels().get(section.id);
+        if (inferred) return inferred;
         const title = (section.title || '').trim();
         const numbered = /^(chapter|part|book|section|page|prologue|epilogue)\b/i.test(title);
         if (!title) return `Chapter ${section.spineIndex + 1}`;
         if (numbered) return title;
         return `Chapter ${section.spineIndex + 1}: ${title}`;
+    }
+
+    getInferredChapterLabels() {
+        const labels = new Map();
+        const parsed = this.sections.map(section => this.parseChapterLikeTitle(section.title));
+        let bestStart = -1;
+        let bestLength = 0;
+        for (let i = 0; i < parsed.length; i++) {
+            if (parsed[i]?.number !== 1) continue;
+            let length = 1;
+            for (let j = i + 1; j < parsed.length; j++) {
+                if (parsed[j]?.number !== length + 1) break;
+                length++;
+            }
+            if (length > bestLength) {
+                bestStart = i;
+                bestLength = length;
+            }
+        }
+        if (bestStart <= 0 || bestLength < 2) return labels;
+
+        for (let i = 0; i < bestStart; i++) {
+            const title = (this.sections[i].title || '').trim();
+            const parsedTitle = parsed[i];
+            const suffix = title && !parsedTitle?.number ? `: ${title}` : '';
+            labels.set(this.sections[i].id, `Front matter ${i + 1}${suffix}`);
+        }
+
+        for (let i = bestStart; i < bestStart + bestLength; i++) {
+            const parsedTitle = parsed[i];
+            if (!parsedTitle) continue;
+            const suffix = parsedTitle.suffix ? `: ${parsedTitle.suffix}` : '';
+            labels.set(this.sections[i].id, `Chapter ${parsedTitle.number}${suffix}`);
+        }
+
+        for (let i = bestStart + bestLength; i < this.sections.length; i++) {
+            const title = (this.sections[i].title || '').trim();
+            const parsedTitle = parsed[i];
+            if (parsedTitle) {
+                const suffix = parsedTitle.suffix ? `: ${parsedTitle.suffix}` : '';
+                labels.set(this.sections[i].id, `Chapter ${parsedTitle.number}${suffix}`);
+            } else if (title) {
+                labels.set(this.sections[i].id, title);
+            }
+        }
+
+        return labels;
+    }
+
+    /** @param {string} title */
+    parseChapterLikeTitle(title) {
+        const clean = (title || '').trim();
+        if (!clean) return null;
+        const chapterMatch = clean.match(/^chapter\s+(\d+)\b\s*[:.\-]?\s*(.*)$/i);
+        if (chapterMatch) {
+            return { number: Number(chapterMatch[1]), suffix: chapterMatch[2].trim() };
+        }
+        const numericMatch = clean.match(/^(\d+)\b\s*[:.\-]?\s*(.*)$/);
+        if (numericMatch) {
+            return { number: Number(numericMatch[1]), suffix: numericMatch[2].trim() };
+        }
+        return null;
     }
 
     /** @param {Settings | null | undefined} settings */

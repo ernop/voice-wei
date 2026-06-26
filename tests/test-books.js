@@ -97,6 +97,89 @@ async function seedGeneratedBook(page) {
     });
 }
 
+async function seedFrontMatterBook(page) {
+    await page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 4);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const put = (store, value) => new Promise((resolve, reject) => {
+            const tx = db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).put(value);
+            req.onsuccess = () => resolve(undefined);
+            req.onerror = () => reject(req.error);
+        });
+        const now = new Date().toISOString();
+        const book = {
+            id: 'book-suite-front-matter',
+            schemaVersion: 3,
+            title: 'Front Matter Suite Book',
+            author: 'Suite',
+            format: 'txt',
+            fileName: 'front-matter-suite.txt',
+            fileType: 'text/plain',
+            fileSize: 20,
+            rawFile: new Blob(['suite'], { type: 'text/plain' }),
+            sectionCount: 6,
+            segmentCount: 6,
+            generatedSegmentCount: 0,
+            wordCount: 60,
+            charCount: 600,
+            estimatedDurationSec: 360,
+            generatedDurationSec: 0,
+            createdAt: now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            archivedAt: '',
+            readingSectionId: 'sec-0',
+            readingCharOffset: 0,
+            listeningSegmentId: 'seg-0',
+            listeningOffsetSec: 0,
+            legacyAudioBlob: null,
+            legacyAudioSize: 0
+        };
+        const titles = ['Chapter 2', 'Contents', '1', '2', '3', "Author's Note"];
+        await put('books', book);
+        for (let index = 0; index < titles.length; index++) {
+            const sectionId = `sec-${index}`;
+            await put('sections', {
+                key: `book-suite-front-matter:${sectionId}`,
+                bookId: book.id,
+                id: sectionId,
+                spineIndex: index,
+                title: titles[index],
+                text: `${titles[index]} text.`,
+                html: '',
+                charStart: index * 100,
+                charEnd: index * 100 + 99,
+                wordCount: 10
+            });
+            await put('segments', {
+                key: `book-suite-front-matter:seg-${index}`,
+                bookId: book.id,
+                id: `seg-${index}`,
+                sectionId,
+                segmentIndex: index,
+                sectionSegmentIndex: 0,
+                charStart: index * 100,
+                charEnd: index * 100 + 99,
+                text: `${titles[index]} text.`,
+                wordCount: 10,
+                estimatedDurationSec: 60,
+                status: 'pending',
+                blob: null,
+                audioSize: 0,
+                durationSec: 0,
+                generatedAt: '',
+                audioSettings: null,
+                error: ''
+            });
+        }
+        db.close();
+    });
+}
+
 (async () => {
     const report = createReporter('books');
     const browser = await launch();
@@ -349,6 +432,27 @@ async function seedGeneratedBook(page) {
             && player.playCalls.includes('seg-1') && player.historyVisible
             && ['quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
                 .every(action => player.actions.includes(action)));
+        await page.close();
+    }
+
+    {
+        const page = await browser.newPage();
+        collectErrors(page, 'books-front-matter', report.errors);
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await clearBooksDb(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        await seedFrontMatterBook(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.click('.saved-book-item[data-book-id="book-suite-front-matter"]');
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        const labels = await page.evaluate(() => Array.from(document.querySelectorAll('#generationChapterSelect option')).map(option => option.textContent.trim()));
+        report.check('books infer front matter before numeric chapter run',
+            labels[0].startsWith('Front matter 1')
+            && labels[1].startsWith('Front matter 2: Contents')
+            && labels[2].startsWith('Chapter 1')
+            && labels[3].startsWith('Chapter 2')
+            && labels[4].startsWith('Chapter 3')
+            && labels[5].startsWith("Author's Note"));
         await page.close();
     }
 
