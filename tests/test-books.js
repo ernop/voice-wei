@@ -129,6 +129,8 @@ async function seedGeneratedBook(page) {
                 rowHeight: rect.height,
                 titleNowrap: getComputedStyle(first.querySelector('.saved-book-title')).whiteSpace,
                 metaNowrap: getComputedStyle(first.querySelector('.saved-book-meta')).whiteSpace,
+                metaText: first.querySelector('.saved-book-meta')?.textContent || '',
+                durationColumns: first.querySelectorAll('.duration-value .duration-number').length,
                 inlineButtons: first.querySelectorAll('button, [data-action]').length,
                 libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display,
                 workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
@@ -138,6 +140,7 @@ async function seedGeneratedBook(page) {
         report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
             shelf.rowCount === 2 && shelf.rowHeight <= 42
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
+            && !shelf.metaText.includes('TXT') && shelf.durationColumns === 2
             && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
             && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books'));
 

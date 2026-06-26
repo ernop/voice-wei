@@ -311,12 +311,33 @@
 }
 
 .saved-book-meta {
-    display: block;
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    align-items: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.7rem;
     line-height: 1.05;
+}
+
+.duration-value {
+    display: inline-grid;
+    grid-template-columns: 2ch 1.1ch 2ch 1.1ch;
+    gap: 0.08ch;
+    justify-content: end;
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    white-space: nowrap;
+}
+
+.duration-number {
+    text-align: right;
+}
+
+.numeric-placeholder {
+    visibility: hidden;
 }
 
 .saved-book-progress {

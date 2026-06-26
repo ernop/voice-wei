@@ -1079,7 +1079,7 @@ class BooksController {
                         <span class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</span>
                     </div>
                     <div class="saved-book-side">
-                        <span class="saved-book-meta">${this.escapeHtml(book.format.toUpperCase())} · ${this.formatDuration(book.estimatedDurationSec)} · ${generatedText}</span>
+                        <span class="saved-book-meta">${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
                     </div>
                     <span class="saved-book-progress" title="Reading progress"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
                 </button>
@@ -1104,7 +1104,7 @@ class BooksController {
         const generatedPercent = totalSegments ? Math.round(generatedSegments / totalSegments * 100) : 0;
         summary.innerHTML = `
             <strong>Overall progress</strong>
-            <span>${this.books.length} book${this.books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDuration(generatedDuration)} / ${this.formatDuration(totalDuration)} generated</span>
+            <span>${this.books.length} book${this.books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDurationHtml(generatedDuration)} / ${this.formatDurationHtml(totalDuration)} generated</span>
         `;
     }
 
@@ -1624,7 +1624,7 @@ class BooksController {
         const meta = document.getElementById('workspaceMeta');
         if (title) title.textContent = this.currentBook.title;
         if (meta) {
-            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.format.toUpperCase()} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3 chunks · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
+            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3 chunks · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
         }
         this.renderProgress();
         this.renderChapterSelect();
@@ -2655,6 +2655,29 @@ class BooksController {
         const hours = Math.floor(minutes / 60);
         const remainingMinutes = minutes % 60;
         return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+    }
+
+    /** @param {number} seconds */
+    formatDurationHtml(seconds) {
+        const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+        const totalMinutes = Math.max(0, Math.round(safeSeconds / 60));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const label = this.formatDuration(seconds);
+        return `
+            <span class="duration-value" aria-label="${this.escapeHtml(label)}">
+                <span class="duration-number">${this.formatPaddedNumberHtml(hours, 2)}</span><span class="duration-unit">h</span>
+                <span class="duration-number">${this.formatPaddedNumberHtml(minutes, 2)}</span><span class="duration-unit">m</span>
+            </span>
+        `;
+    }
+
+    /** @param {number} value @param {number} width */
+    formatPaddedNumberHtml(value, width) {
+        const text = String(Math.max(0, Math.floor(value)));
+        const padLength = Math.max(0, width - text.length);
+        const pad = Array.from({ length: padLength }, () => '<span class="numeric-placeholder">0</span>').join('');
+        return `${pad}${this.escapeHtml(text)}`;
     }
 
     /** @param {number} value */
