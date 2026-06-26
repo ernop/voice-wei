@@ -371,6 +371,7 @@ class BooksController {
         this.generationAbort = null;
         this.isGenerating = false;
         this.autoGenerateAhead = false;
+        this.voiceConfigOpen = false;
         this.libraryQuery = '';
         this.readerQuery = '';
         /** @type {string | null} */
@@ -560,7 +561,7 @@ class BooksController {
         this.populateTtsStyleOptions();
         for (const voiceEl of this.getTtsVoiceSelects()) voiceEl.value = this.settings.voice;
         for (const modelEl of this.getTtsModelSelects()) modelEl.value = this.settings.model;
-        for (const speedValueEl of this.getTtsSpeedValueEls()) speedValueEl.textContent = `${this.settings.speed}x`;
+        for (const speedValueEl of this.getTtsSpeedValueEls()) speedValueEl.textContent = `${this.formatSpeed(this.settings.speed)}x`;
         for (const speedButton of this.getTtsSpeedButtons()) {
             const step = parseFloat(speedButton.getAttribute('data-tts-speed-step') || '0');
             speedButton.disabled = step < 0 ? this.settings.speed <= 0.25 : this.settings.speed >= 4;
@@ -580,7 +581,9 @@ class BooksController {
         }
         this.updateModelPricing();
         this.updateVoiceDescription();
+        this.updateCurrentVoiceSummary();
         this.renderVoiceSampleButtons();
+        this.syncVoiceConfigPanel();
     }
 
     getTtsVoiceSelects() {
@@ -655,6 +658,11 @@ class BooksController {
             : 'Narration instructions are disabled for legacy TTS models.';
         if (descEl) descEl.textContent = description;
         if (generatorDescEl) generatorDescEl.textContent = `${description} ${instructionNote} Voice samples use the current model, speed, and instructions.`;
+    }
+
+    updateCurrentVoiceSummary() {
+        const summaryEl = document.getElementById('currentVoiceSummary');
+        if (summaryEl) summaryEl.textContent = this.settingsSummary(this.settings);
     }
 
     renderVoiceSampleButtons() {
@@ -792,10 +800,22 @@ class BooksController {
 
     /** @param {number} speed */
     setTtsSpeed(speed) {
-        const stepped = Math.round(speed * 4) / 4;
+        const stepped = Math.round(speed * 10) / 10;
         this.settings.speed = Math.max(0.25, Math.min(4, stepped));
         this.saveSettings();
         this.syncTtsControls();
+    }
+
+    toggleVoiceConfigPanel() {
+        this.voiceConfigOpen = !this.voiceConfigOpen;
+        this.syncVoiceConfigPanel();
+    }
+
+    syncVoiceConfigPanel() {
+        const panel = document.getElementById('voiceConfigPanel');
+        const button = document.getElementById('toggleVoiceConfigBtn');
+        if (panel) panel.style.display = this.voiceConfigOpen ? 'block' : 'none';
+        if (button) button.textContent = this.voiceConfigOpen ? 'Hide voice config' : 'Configure voice';
     }
 
     setupLibraryUI() {
@@ -826,7 +846,10 @@ class BooksController {
         const readerSearchClearBtn = document.getElementById('readerSearchClearBtn');
         const readerFullscreenBtn = document.getElementById('readerFullscreenBtn');
         const autoToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('autoGenerateAheadToggle'));
+        this.bindButton('toggleVoiceConfigBtn', () => this.toggleVoiceConfigPanel());
         if (readerView) readerView.addEventListener('click', e => this.handleReaderClick(e));
+        const chapterStatusList = document.getElementById('chapterStatusList');
+        if (chapterStatusList) chapterStatusList.addEventListener('click', e => this.handleSegmentTargetClick(e));
         const voiceSampleGrid = document.getElementById('voiceSampleGrid');
         if (voiceSampleGrid) voiceSampleGrid.addEventListener('click', e => this.handleVoiceSampleClick(e));
         if (readerSearch) {
@@ -1036,6 +1059,7 @@ class BooksController {
     renderLibrary() {
         const list = document.getElementById('savedBookList');
         if (!list) return;
+        this.renderLibraryProgressSummary();
         const books = this.books.filter(book => {
             if (!this.libraryQuery) return true;
             return `${book.title} ${book.author} ${book.fileName}`.toLowerCase().includes(this.libraryQuery);
@@ -1063,6 +1087,27 @@ class BooksController {
         }).join('');
     }
 
+    renderLibraryProgressSummary() {
+        const summary = document.getElementById('libraryProgressSummary');
+        if (!summary) return;
+        if (this.books.length === 0) {
+            summary.innerHTML = '<strong>Overall progress</strong><span>No books imported yet.</span>';
+            return;
+        }
+        const totalChars = this.books.reduce((sum, book) => sum + (book.charCount || 0), 0);
+        const readChars = this.books.reduce((sum, book) => sum + Math.max(0, Math.min(book.charCount || 0, book.readingCharOffset || 0)), 0);
+        const totalSegments = this.books.reduce((sum, book) => sum + (book.segmentCount || 0), 0);
+        const generatedSegments = this.books.reduce((sum, book) => sum + (book.generatedSegmentCount || 0), 0);
+        const totalDuration = this.books.reduce((sum, book) => sum + (book.estimatedDurationSec || 0), 0);
+        const generatedDuration = this.books.reduce((sum, book) => sum + (book.generatedDurationSec || 0), 0);
+        const readPercent = totalChars ? Math.round(readChars / totalChars * 100) : 0;
+        const generatedPercent = totalSegments ? Math.round(generatedSegments / totalSegments * 100) : 0;
+        summary.innerHTML = `
+            <strong>Overall progress</strong>
+            <span>${this.books.length} book${this.books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDuration(generatedDuration)} / ${this.formatDuration(totalDuration)} generated</span>
+        `;
+    }
+
     /** @param {Event} event */
     async handleLibraryAction(event) {
         const target = event.target instanceof HTMLElement ? event.target : null;
@@ -1080,7 +1125,8 @@ class BooksController {
         if (existing?.rawFile?.size > 0) {
             this.log('info', `Skipping import; ${file.name} is already saved`);
             this.updateStatus(`Already saved: ${existing.title}`);
-            await this.openBook(existing.id);
+            this.showWorkspace(false);
+            await this.refreshLibrary();
             return;
         }
 
@@ -1092,8 +1138,13 @@ class BooksController {
         await this.storage.putSegments(imported.segments);
         await this.refreshLibrary();
         await this.updateStorageEstimate();
-        await this.openBook(imported.book.id);
-        this.updateStatus('Book imported and saved on this device');
+        this.showWorkspace(false);
+        this.currentBook = null;
+        this.sections = [];
+        this.segments = [];
+        this.currentSegmentId = null;
+        this.renderLibrary();
+        this.updateStatus(`Imported ${imported.book.title} and added it to the bookshelf`);
         this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} chapters/sections, ${imported.segments.length} audio chunks planned`);
     }
 
@@ -1577,6 +1628,8 @@ class BooksController {
         }
         this.renderProgress();
         this.renderChapterSelect();
+        this.renderConversionSummary();
+        this.renderChapterStatusList();
         this.renderReader();
         this.renderPlayerNow();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
@@ -1632,10 +1685,56 @@ class BooksController {
         if (currentSectionId) select.value = currentSectionId;
     }
 
+    renderConversionSummary() {
+        const costEl = document.getElementById('conversionCostText');
+        if (!costEl) return;
+        const done = this.segments.filter(segment => segment.status === 'done');
+        costEl.textContent = `${this.formatCurrency(this.estimateConversionCost(done))} est`;
+    }
+
+    renderChapterStatusList() {
+        const list = document.getElementById('chapterStatusList');
+        if (!list) return;
+        if (this.sections.length === 0) {
+            list.innerHTML = '<div class="chapter-status-empty">No chapters loaded.</div>';
+            return;
+        }
+        list.innerHTML = this.sections.map(section => {
+            const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
+            const ready = sectionSegments.filter(segment => segment.status === 'done').length;
+            const total = sectionSegments.length || 1;
+            const percent = Math.round(ready / total * 100);
+            const chunks = sectionSegments.map(segment => {
+                const classes = [
+                    'chunk-dot',
+                    segment.status === 'done' ? 'done' : segment.status === 'generating' ? 'generating' : segment.status === 'error' ? 'error' : 'pending',
+                    segment.id === this.currentSegmentId ? 'current' : ''
+                ].filter(Boolean).join(' ');
+                const label = `Chunk ${segment.sectionSegmentIndex + 1}: ${segment.status}`;
+                return `<button class="${classes}" type="button" data-segment-id="${this.escapeHtml(segment.id)}" title="${this.escapeHtml(label)}">${segment.sectionSegmentIndex + 1}</button>`;
+            }).join('');
+            return `
+                <div class="chapter-status-item">
+                    <div class="chapter-status-top">
+                        <strong>${this.escapeHtml(this.getChapterLabel(section))}</strong>
+                        <span>${ready}/${sectionSegments.length} chunks · ${percent}%</span>
+                    </div>
+                    <div class="chapter-status-track"><span style="width: ${percent}%"></span></div>
+                    <div class="chunk-dot-row">${chunks}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
     /** @param {Event} event */
     handleReaderClick(event) {
+        this.handleSegmentTargetClick(event);
+    }
+
+    /** @param {Event} event */
+    handleSegmentTargetClick(event) {
         const target = event.target instanceof HTMLElement ? event.target : null;
-        const item = target?.closest('.reader-segment');
+        const item = target?.closest('[data-segment-id]');
         const segmentId = item?.getAttribute('data-segment-id');
         if (!segmentId) return;
         const segment = this.getSegmentById(segmentId);
@@ -1917,6 +2016,7 @@ class BooksController {
         const ratio = audio.duration ? Math.min(1, audio.currentTime / audio.duration) : 0;
         this.currentBook.readingSectionId = segment.sectionId;
         this.currentBook.readingCharOffset = Math.round(segment.charStart + (segment.charEnd - segment.charStart) * ratio);
+        this.updateReadAlongProgress(segment, ratio);
         this.renderProgress();
         this.preloadNextGenerated();
         const now = Date.now();
@@ -2232,7 +2332,10 @@ class BooksController {
             el.textContent = 'No chunk selected';
             return;
         }
-        el.textContent = `${this.getSectionTitle(segment.sectionId)} · chunk ${segment.sectionSegmentIndex + 1} · ${segment.status === 'done' ? 'ready' : segment.status}`;
+        const voice = segment.status === 'done'
+            ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}`
+            : '';
+        el.textContent = `${this.getSectionTitle(segment.sectionId)} · chunk ${segment.sectionSegmentIndex + 1} · ${segment.status === 'done' ? 'ready' : segment.status}${voice}`;
     }
 
     /** @param {AudioSegment} segment */
@@ -2301,6 +2404,22 @@ class BooksController {
         if (!this.currentSegmentId) return;
         const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(this.currentSegmentId)}"]`);
         if (node) node.classList.add('current');
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const segment = this.getSegmentById(this.currentSegmentId);
+        const ratio = audio && Number.isFinite(audio.duration) && audio.duration > 0 ? (audio.currentTime || 0) / audio.duration : 0;
+        if (segment) this.updateReadAlongProgress(segment, ratio);
+    }
+
+    /** @param {AudioSegment} segment @param {number} ratio */
+    updateReadAlongProgress(segment, ratio) {
+        document.querySelectorAll('.reader-segment').forEach(node => {
+            if (node instanceof HTMLElement) node.style.setProperty('--read-progress', '0%');
+        });
+        const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(segment.id)}"]`);
+        if (node instanceof HTMLElement) {
+            const percent = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+            node.style.setProperty('--read-progress', percent);
+        }
     }
 
     /** @param {AudioSegment} segment */
@@ -2340,6 +2459,30 @@ class BooksController {
         if (!title) return `Chapter ${section.spineIndex + 1}`;
         if (numbered) return title;
         return `Chapter ${section.spineIndex + 1}: ${title}`;
+    }
+
+    /** @param {Settings | null | undefined} settings */
+    settingsSummary(settings) {
+        if (!settings) return 'Unknown voice settings';
+        const voice = OPENAI_TTS_VOICES.find(item => item.id === settings.voice)?.label || settings.voice || 'Unknown voice';
+        const model = OPENAI_TTS_MODELS.find(item => item.id === settings.model)?.label || settings.model || 'Unknown model';
+        const accent = OPENAI_TTS_ACCENTS.find(item => item.id === settings.accent)?.label || 'Default';
+        const style = OPENAI_TTS_STYLES.find(item => item.id === settings.style)?.label || 'Audiobook narrator';
+        return `${voice} · ${model} · ${this.formatSpeed(settings.speed || 1)}x · ${accent} · ${style}`;
+    }
+
+    /** @param {AudioSegment[]} segments */
+    estimateConversionCost(segments) {
+        return segments.reduce((sum, segment) => sum + this.estimateSegmentCost(segment), 0);
+    }
+
+    /** @param {AudioSegment} segment */
+    estimateSegmentCost(segment) {
+        const model = segment.audioSettings?.model || this.settings.model;
+        if (model === 'tts-1') return segment.text.length * 15 / 1000000;
+        if (model === 'tts-1-hd') return segment.text.length * 30 / 1000000;
+        const seconds = segment.durationSec || segment.estimatedDurationSec || 0;
+        return seconds / 60 * 0.015;
     }
 
     /** @param {BookRecord} book */
@@ -2512,6 +2655,17 @@ class BooksController {
         const hours = Math.floor(minutes / 60);
         const remainingMinutes = minutes % 60;
         return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+    }
+
+    /** @param {number} value */
+    formatSpeed(value) {
+        return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+    }
+
+    /** @param {number} value */
+    formatCurrency(value) {
+        if (value < 0.01) return `$${value.toFixed(4)}`;
+        return `$${value.toFixed(2)}`;
     }
 
     /** @param {number} seconds */

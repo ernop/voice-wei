@@ -172,6 +172,8 @@
 .upload-card,
 .generator-card,
 .player-card,
+.library-progress-summary,
+.conversion-status-card,
 .book-progress-card,
 .reader-panel {
     background: rgba(0, 0, 0, 0.24);
@@ -211,6 +213,20 @@
     display: grid;
     gap: 8px;
     margin-bottom: 12px;
+}
+
+.library-progress-summary {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.library-progress-summary strong {
+    color: #a7f3d0;
 }
 
 .storage-line {
@@ -529,7 +545,13 @@
 
 .reader-segment.current {
     outline: none;
-    background: rgba(255, 255, 255, 0.055);
+    background: linear-gradient(
+        90deg,
+        rgba(74, 222, 128, 0.2) 0,
+        rgba(74, 222, 128, 0.2) var(--read-progress, 0%),
+        rgba(255, 255, 255, 0.055) var(--read-progress, 0%),
+        rgba(255, 255, 255, 0.055) 100%
+    );
 }
 
 .reader-segment mark {
@@ -573,6 +595,32 @@
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid rgba(74, 222, 128, 0.18);
+}
+
+.voice-config-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(74, 222, 128, 0.18);
+    text-align: left;
+}
+
+.voice-config-summary strong {
+    display: block;
+    color: #a7f3d0;
+    font-size: 0.82rem;
+}
+
+.voice-config-summary span {
+    display: block;
+    margin-top: 3px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.76rem;
 }
 
 .conversion-options-header {
@@ -729,6 +777,95 @@
     border: 1px solid rgba(74, 222, 128, 0.2);
 }
 
+.conversion-status-card {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.conversion-cost-row,
+.chapter-status-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.78rem;
+}
+
+.conversion-cost-row strong,
+.chapter-status-top strong {
+    color: #a7f3d0;
+}
+
+.chapter-status-list {
+    display: grid;
+    gap: 8px;
+    max-height: 240px;
+    overflow: auto;
+}
+
+.chapter-status-item {
+    display: grid;
+    gap: 5px;
+    padding: 7px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.chapter-status-track {
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.chapter-status-track span {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: #4ade80;
+}
+
+.chunk-dot-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.chunk-dot {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0 5px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.68rem;
+    cursor: pointer;
+}
+
+.chunk-dot.done {
+    border-color: rgba(74, 222, 128, 0.46);
+    background: rgba(74, 222, 128, 0.18);
+    color: #bbf7d0;
+}
+
+.chunk-dot.generating {
+    border-color: rgba(251, 191, 36, 0.5);
+    color: #fde68a;
+}
+
+.chunk-dot.error {
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+}
+
+.chunk-dot.current {
+    outline: 2px solid rgba(167, 243, 208, 0.72);
+}
+
 .mp3-status-header {
     display: flex;
     justify-content: space-between;
@@ -826,6 +963,7 @@
     min-height: 36px;
     font-size: 0.72rem;
     line-height: 1.05;
+    border-radius: 8px;
 }
 
 .player-actions {
@@ -917,6 +1055,10 @@
     }
 
     .conversion-options-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .voice-config-summary {
         grid-template-columns: 1fr;
     }
 

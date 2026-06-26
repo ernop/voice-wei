@@ -35,51 +35,6 @@
                     leaves your device except to call OpenAI's API directly.</p>
             </div>
 
-            <div class="setting-item">
-                <label for="ttsVoice">TTS Voice:</label>
-                <div class="voice-selector-row">
-                    <select id="ttsVoice" class="model-selector">
-                    </select>
-                    <button id="previewVoiceBtn" class="preview-voice-btn" type="button" title="Preview voice">Preview</button>
-                </div>
-                <p class="setting-description" id="voiceDescription">Neutral and balanced, good for most content.</p>
-            </div>
-
-            <div class="setting-item">
-                <label for="ttsModel">TTS Model:</label>
-                <select id="ttsModel" class="model-selector">
-                </select>
-                <p class="setting-description" id="modelPricingDescription">GPT-4o mini TTS supports all current voices and narration instructions.</p>
-            </div>
-
-            <div class="setting-item">
-                <label for="ttsSpeed">TTS Speed:</label>
-                <div class="speed-control">
-                    <button class="speed-step-btn" type="button" data-tts-speed-step="-0.25" aria-label="Slow narration down">-</button>
-                    <span id="ttsSpeedValue" class="speed-value">1.0x</span>
-                    <button class="speed-step-btn" type="button" data-tts-speed-step="0.25" aria-label="Speed narration up">+</button>
-                </div>
-                <p class="setting-description">Use the buttons to adjust from 0.25x to 4.0x in 0.25x steps. Chunk duration estimates use this speed.</p>
-            </div>
-
-            <div class="setting-item">
-                <label for="ttsAccent">TTS Accent:</label>
-                <select id="ttsAccent" class="model-selector"></select>
-                <p class="setting-description">Accent is sent as GPT-4o mini TTS narration instructions. Legacy TTS models ignore this field.</p>
-            </div>
-
-            <div class="setting-item">
-                <label for="ttsStyle">Narration Style:</label>
-                <select id="ttsStyle" class="model-selector"></select>
-                <p class="setting-description">Style controls tone, pacing, emotion, and delivery for GPT-4o mini TTS.</p>
-            </div>
-
-            <div class="setting-item">
-                <label for="ttsInstructions">Extra Narration Instructions:</label>
-                <textarea id="ttsInstructions" class="tts-instructions-input" rows="3" placeholder="Example: Read warmly, with measured pacing and subtle character distinction."></textarea>
-                <p class="setting-description">Sent to GPT-4o mini TTS for tone, accent, emotion, pacing, and style. Legacy TTS models ignore this field.</p>
-            </div>
-
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
@@ -114,6 +69,10 @@
                             <span id="storagePersistenceStatus">Keeping storage by default</span>
                         </div>
                     </div>
+                    <div class="library-progress-summary" id="libraryProgressSummary">
+                        <strong>Overall progress</strong>
+                        <span>No books imported yet.</span>
+                    </div>
 
                     <div class="saved-book-list" id="savedBookList">
                         <div class="library-empty">No saved books yet.</div>
@@ -146,10 +105,17 @@
                     <div class="workspace-stack">
                         <aside class="listen-panel">
                             <div class="generator-card">
-                                <h3>Generate</h3>
-                                <div class="conversion-options-card">
+                                <h3>Convert to MP3</h3>
+                                <div class="voice-config-summary">
+                                    <div>
+                                        <strong>Current voice and settings</strong>
+                                        <span id="currentVoiceSummary">Loading voice settings...</span>
+                                    </div>
+                                    <button id="toggleVoiceConfigBtn" class="small-action-btn" type="button">Configure voice</button>
+                                </div>
+                                <div class="conversion-options-card" id="voiceConfigPanel" style="display: none;">
                                     <div class="conversion-options-header">
-                                        <strong>Narration options</strong>
+                                        <strong>Voice configuration</strong>
                                         <span>Used for the next MP3 conversion</span>
                                     </div>
                                     <div class="conversion-options-grid">
@@ -165,9 +131,9 @@
                                         <label>
                                             Speed
                                             <div class="speed-control">
-                                                <button class="speed-step-btn" type="button" data-tts-speed-step="-0.25" aria-label="Slow narration down">-</button>
+                                                <button class="speed-step-btn" type="button" data-tts-speed-step="-0.1" aria-label="Slow narration down">-</button>
                                                 <span id="generatorTtsSpeedValue" class="speed-value">1.0x</span>
-                                                <button class="speed-step-btn" type="button" data-tts-speed-step="0.25" aria-label="Speed narration up">+</button>
+                                                <button class="speed-step-btn" type="button" data-tts-speed-step="0.1" aria-label="Speed narration up">+</button>
                                             </div>
                                         </label>
                                         <label>
@@ -203,6 +169,13 @@
                                     </div>
                                     <div class="mp3-status-detail" id="generationDetail">No conversion running</div>
                                 </div>
+                                <div class="conversion-status-card">
+                                    <div class="conversion-cost-row">
+                                        <span>Total conversion cost so far</span>
+                                        <strong id="conversionCostText">$0.00 est</strong>
+                                    </div>
+                                    <div id="chapterStatusList" class="chapter-status-list"></div>
+                                </div>
                                 <div class="chapter-generator-row">
                                     <label for="generationChapterSelect">Book TOC</label>
                                     <select id="generationChapterSelect" class="chapter-selector"></select>
@@ -236,11 +209,11 @@
                                     </div>
                                     <div class="player-control-grid">
                                         <button id="previousSegmentBtn" class="small-action-btn transport-step-btn" type="button">Prev</button>
-                                        <button id="quadraticBackBtn" class="small-action-btn transport-step-btn" type="button">Q Back</button>
                                         <button id="back30Btn" class="small-action-btn transport-step-btn" type="button">-30s</button>
+                                        <button id="quadraticBackBtn" class="small-action-btn transport-step-btn" type="button">Half back</button>
                                         <button id="playPauseBtn" class="primary-action-btn" type="button">Play</button>
+                                        <button id="quadraticForwardBtn" class="small-action-btn transport-step-btn" type="button">Half fwd</button>
                                         <button id="forward30Btn" class="small-action-btn transport-step-btn" type="button">+30s</button>
-                                        <button id="quadraticForwardBtn" class="small-action-btn transport-step-btn" type="button">Q Fwd</button>
                                         <button id="nextSegmentBtn" class="small-action-btn transport-step-btn" type="button">Next</button>
                                     </div>
                                 </div>
@@ -248,7 +221,7 @@
                                     <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
                                     <button id="showHistoryBtn" class="small-action-btn" type="button">History</button>
                                 </div>
-                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 chunks.</div>
+                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3 chunks. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
                                     <div class="history-header">
                                         <strong>Listening history</strong>

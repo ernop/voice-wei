@@ -108,15 +108,16 @@ async function seedGeneratedBook(page) {
         await clearBooksDb(page);
         await page.reload({ waitUntil: 'networkidle' });
 
-        for (const name of ['one', 'two']) {
+        for (const [index, name] of ['one', 'two'].entries()) {
             await page.setInputFiles('#fileInput', {
                 name: `${name}.txt`,
                 mimeType: 'text/plain',
                 buffer: Buffer.from(`${name} text `.repeat(120))
             });
-            await page.waitForSelector('#backToLibraryBtn', { timeout: 10000 });
-            await page.click('#backToLibraryBtn');
-            await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
+            await page.waitForFunction(expectedCount => {
+                return document.querySelectorAll('.saved-book-item').length === expectedCount
+                    && !document.querySelector('.books-shell')?.classList.contains('book-open');
+            }, index + 1);
         }
 
         const shelf = await page.evaluate(() => {
@@ -129,13 +130,16 @@ async function seedGeneratedBook(page) {
                 titleNowrap: getComputedStyle(first.querySelector('.saved-book-title')).whiteSpace,
                 metaNowrap: getComputedStyle(first.querySelector('.saved-book-meta')).whiteSpace,
                 inlineButtons: first.querySelectorAll('button, [data-action]').length,
-                libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display
+                libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display,
+                workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
+                summaryText: document.querySelector('#libraryProgressSummary')?.textContent || ''
             };
         });
-        report.check(`books shelf is dense rows (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
+        report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
             shelf.rowCount === 2 && shelf.rowHeight <= 42
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
-            && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none');
+            && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
+            && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books'));
 
         await page.click('.saved-book-item[data-book-id]');
         await page.waitForFunction(() => document.querySelector('.books-shell')?.classList.contains('book-open'));
@@ -190,9 +194,16 @@ async function seedGeneratedBook(page) {
             speedButtonCount: document.querySelectorAll('[data-tts-speed-step]').length,
             generatorSpeedValue: document.querySelector('#generatorTtsSpeedValue')?.textContent || '',
             hasInstructions: Boolean(document.querySelector('#generatorTtsInstructions')),
+            voiceConfigDisplay: getComputedStyle(document.querySelector('#voiceConfigPanel')).display,
+            voiceSummary: document.querySelector('#currentVoiceSummary')?.textContent || '',
+            conversionCost: document.querySelector('#conversionCostText')?.textContent || '',
+            chapterStatusCount: document.querySelectorAll('.chapter-status-item').length,
+            chunkDotCount: document.querySelectorAll('.chunk-dot').length,
+            playerNow: document.querySelector('#playerNow')?.textContent || '',
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
             controlCount: document.querySelectorAll('.player-control-grid button').length,
+            controlLabels: Array.from(document.querySelectorAll('.player-control-grid button')).map(button => button.textContent.trim()),
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
@@ -211,11 +222,16 @@ async function seedGeneratedBook(page) {
                 .every(accent => layout.accentOptions.includes(accent))
             && ['audiobook', 'neutral', 'dramatic', 'warm', 'documentary', 'bedtime', 'whisper']
                 .every(style => layout.styleOptions.includes(style))
-            && layout.speedSliderCount === 0 && layout.speedButtonCount === 4 && layout.generatorSpeedValue === '1x'
+            && layout.speedSliderCount === 0 && layout.speedButtonCount === 2 && layout.generatorSpeedValue === '1x'
+            && layout.voiceConfigDisplay === 'none' && layout.voiceSummary.includes('Alloy')
+            && layout.conversionCost.includes('$') && layout.chapterStatusCount === 1 && layout.chunkDotCount === 2
             && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
                 .every(voice => layout.sampleButtons.includes(voice))
             && layout.sampleStatus.includes('short sample')
-            && layout.controlCount === 7 && layout.nativeAudioDisplay === 'none'
+            && layout.controlCount === 7
+            && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
+                .every((label, index) => layout.controlLabels[index] === label)
+            && layout.playerNow.includes('Voice:') && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
 
         await page.evaluate(() => {
@@ -230,16 +246,18 @@ async function seedGeneratedBook(page) {
                 return originalFetch(input, init);
             };
         });
+        await page.click('#toggleVoiceConfigBtn');
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('#voiceConfigPanel')).display !== 'none');
         await page.selectOption('#generatorTtsAccent', 'british');
         await page.selectOption('#generatorTtsStyle', 'dramatic');
-        await page.click('#generatorTtsSpeedValue + [data-tts-speed-step="0.25"]');
+        await page.click('#generatorTtsSpeedValue + [data-tts-speed-step="0.1"]');
         await page.click('[data-voice-sample="verse"]');
         await page.waitForFunction(() => window.__bookSpeechPayloads?.length === 1);
         const samplePayload = await page.evaluate(() => window.__bookSpeechPayloads[0]);
         report.check('books voice sample uses selected speech settings with clicked voice',
             samplePayload.model === 'gpt-4o-mini-tts'
             && samplePayload.voice === 'verse'
-            && samplePayload.speed === 1.25
+            && samplePayload.speed === 1.1
             && samplePayload.response_format === 'mp3'
             && samplePayload.input.includes('Torrenthia')
             && samplePayload.instructions.includes('British English accent')
@@ -252,6 +270,7 @@ async function seedGeneratedBook(page) {
             audio.currentTime = 60;
             audio.dispatchEvent(new Event('timeupdate'));
         });
+        const readAlong = await page.evaluate(() => getComputedStyle(document.querySelector('.reader-segment.current')).getPropertyValue('--read-progress').trim());
         await page.click('#quadraticForwardBtn');
         const qForward = await page.evaluate(() => document.querySelector('#audioPlayer').currentTime);
         await page.evaluate(() => { document.querySelector('#audioPlayer').currentTime = 60; });
@@ -286,6 +305,7 @@ async function seedGeneratedBook(page) {
         report.check(`books custom player jumps/history (qf=${qForward}, qb=${qBack}, +30=${plus30})`,
             Math.abs(qForward - 300) <= 0.5 && Math.abs(qBack - 30) <= 0.5
             && Math.abs(plus30 - 60) <= 0.5 && player.segmentId === 'seg-1'
+            && readAlong !== '' && readAlong !== '0%'
             && player.playCalls.includes('seg-1') && player.historyVisible
             && ['quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
                 .every(action => player.actions.includes(action)));
