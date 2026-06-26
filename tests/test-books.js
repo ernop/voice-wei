@@ -132,6 +132,7 @@ async function seedGeneratedBook(page) {
                 metaText: first.querySelector('.saved-book-meta')?.textContent || '',
                 durationColumns: first.querySelectorAll('.duration-value .duration-number').length,
                 inlineButtons: first.querySelectorAll('button, [data-action]').length,
+                archiveToggleText: document.querySelector('#toggleArchiveViewBtn')?.textContent || '',
                 libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display,
                 workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
                 summaryText: document.querySelector('#libraryProgressSummary')?.textContent || '',
@@ -141,7 +142,8 @@ async function seedGeneratedBook(page) {
         report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
             shelf.rowCount === 2 && shelf.rowHeight <= 42
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
-            && !shelf.metaText.includes('TXT') && shelf.durationColumns === 2
+            && !shelf.metaText.includes('TXT') && shelf.metaText.includes('Read') && shelf.metaText.includes('MP3')
+            && shelf.durationColumns === 2 && shelf.archiveToggleText === 'Show archive'
             && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
             && shelf.librarySearchPlaceholder.includes('titles, authors, and filenames')
             && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books'));
@@ -156,6 +158,34 @@ async function seedGeneratedBook(page) {
         }));
         report.check('books open into book-only mode with no interior spine panel',
             opened.libraryHidden && opened.workspaceVisible && opened.backText.includes('Bookshelf') && !opened.hasSpinePanel);
+        await page.click('#toggleArchiveCurrentBookBtn');
+        await page.click('#backToLibraryBtn');
+        await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
+        const archivedMain = await page.evaluate(() => ({
+            rowCount: document.querySelectorAll('.saved-book-item').length,
+            status: document.querySelector('#status')?.textContent || ''
+        }));
+        await page.click('#toggleArchiveViewBtn');
+        await page.waitForFunction(() => document.querySelector('#toggleArchiveViewBtn')?.textContent === 'Show main list');
+        const archivedView = await page.evaluate(() => ({
+            rowCount: document.querySelectorAll('.saved-book-item').length,
+            summary: document.querySelector('#libraryProgressSummary')?.textContent || ''
+        }));
+        await page.click('.saved-book-item[data-book-id]');
+        await page.waitForFunction(() => document.querySelector('.books-shell')?.classList.contains('book-open'));
+        const restoreText = await page.evaluate(() => document.querySelector('#toggleArchiveCurrentBookBtn')?.textContent || '');
+        await page.click('#toggleArchiveCurrentBookBtn');
+        await page.click('#backToLibraryBtn');
+        await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
+        const restoredArchiveRows = await page.evaluate(() => document.querySelectorAll('.saved-book-item').length);
+        await page.click('#toggleArchiveViewBtn');
+        await page.waitForFunction(() => document.querySelector('#toggleArchiveViewBtn')?.textContent === 'Show archive');
+        const restoredMainRows = await page.evaluate(() => document.querySelectorAll('.saved-book-item').length);
+        report.check('books can move a book to archive and view archived shelf',
+            archivedMain.rowCount === 1 && archivedMain.status.includes('Bookshelf')
+            && archivedView.rowCount === 1 && archivedView.summary.includes('Archive progress')
+            && restoreText === 'Restore to main list'
+            && restoredArchiveRows === 0 && restoredMainRows === 2);
         await page.close();
     }
 

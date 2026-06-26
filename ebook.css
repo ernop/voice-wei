@@ -211,6 +211,7 @@
 
 .library-toolbar {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     margin-bottom: 12px;
 }
@@ -247,7 +248,7 @@
 
 .saved-book-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(112px, 138px);
+    grid-template-columns: minmax(0, 1fr) minmax(190px, 230px);
     gap: 8px;
     align-items: center;
     width: 100%;
@@ -340,15 +341,25 @@
     visibility: hidden;
 }
 
-.saved-book-progress {
+.saved-book-progress-bars {
     position: absolute;
     left: 8px;
     right: 8px;
     bottom: 3px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.saved-book-progress {
     height: 3px;
     border-radius: 99px;
     background: rgba(255, 255, 255, 0.12);
     overflow: hidden;
+}
+
+.saved-book-progress.mp3 .saved-book-progress-fill {
+    background: #fbbf24;
 }
 
 .saved-book-progress-fill {
@@ -1065,6 +1076,10 @@
     .books-library-panel {
         position: static;
         max-height: none;
+    }
+
+    .library-toolbar {
+        grid-template-columns: 1fr;
     }
 
     .workspace-header {

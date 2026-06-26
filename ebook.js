@@ -118,6 +118,7 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @property {string} createdAt
  * @property {string} updatedAt
  * @property {string} lastOpenedAt
+ * @property {string} [archivedAt]
  * @property {string} readingSectionId
  * @property {number} readingCharOffset
  * @property {string} listeningSegmentId
@@ -372,6 +373,7 @@ class BooksController {
         this.isGenerating = false;
         this.autoGenerateAhead = false;
         this.voiceConfigOpen = false;
+        this.showArchivedBooks = false;
         this.libraryQuery = '';
         this.readerQuery = '';
         /** @type {string | null} */
@@ -823,6 +825,7 @@ class BooksController {
         const fileInput = /** @type {HTMLInputElement | null} */ (document.getElementById('fileInput'));
         const savedBookList = document.getElementById('savedBookList');
         const librarySearch = /** @type {HTMLInputElement | null} */ (document.getElementById('librarySearch'));
+        this.bindButton('toggleArchiveViewBtn', () => this.toggleArchiveView());
         if (uploadButton && fileInput) uploadButton.addEventListener('click', () => fileInput.click());
         if (fileInput) {
             fileInput.addEventListener('change', e => {
@@ -906,6 +909,7 @@ class BooksController {
         this.bindButton('downloadCurrentSegmentBtn', () => this.downloadCurrentSegment());
         this.bindButton('downloadAllSegmentsBtn', () => this.downloadAllSegments());
         this.bindButton('downloadCombinedBtn', () => this.downloadCombinedSegments());
+        this.bindButton('toggleArchiveCurrentBookBtn', () => this.toggleCurrentBookArchive());
         this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
         this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
         this.bindButton('backToLibraryBtn', () => this.backToLibrary());
@@ -1059,18 +1063,22 @@ class BooksController {
     renderLibrary() {
         const list = document.getElementById('savedBookList');
         if (!list) return;
-        this.renderLibraryProgressSummary();
-        const books = this.books.filter(book => {
+        this.syncArchiveViewButton();
+        const scopedBooks = this.books.filter(book => this.isBookArchived(book) === this.showArchivedBooks);
+        this.renderLibraryProgressSummary(scopedBooks);
+        const books = scopedBooks.filter(book => {
             if (!this.libraryQuery) return true;
             return `${book.title} ${book.author} ${book.fileName}`.toLowerCase().includes(this.libraryQuery);
         });
         if (books.length === 0) {
-            list.innerHTML = '<div class="library-empty">No matching saved books.</div>';
+            const label = this.showArchivedBooks ? 'archived books' : 'active books';
+            list.innerHTML = `<div class="library-empty">No matching ${label}.</div>`;
             return;
         }
         list.innerHTML = books.map(book => {
             const selectedClass = this.currentBook?.id === book.id ? ' selected' : '';
             const readPercent = this.getBookReadPercent(book);
+            const mp3Percent = this.getBookGeneratedPercent(book);
             const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} chunks`;
             return `
                 <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
@@ -1079,33 +1087,54 @@ class BooksController {
                         <span class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</span>
                     </div>
                     <div class="saved-book-side">
-                        <span class="saved-book-meta">${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
+                        <span class="saved-book-meta"><span>Read ${readPercent}%</span><span>MP3 ${mp3Percent}%</span>${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
                     </div>
-                    <span class="saved-book-progress" title="Reading progress"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
+                    <span class="saved-book-progress-bars" title="Read ${readPercent}%, MP3 ${mp3Percent}%">
+                        <span class="saved-book-progress read"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
+                        <span class="saved-book-progress mp3"><span class="saved-book-progress-fill" style="width: ${mp3Percent}%"></span></span>
+                    </span>
                 </button>
             `;
         }).join('');
     }
 
-    renderLibraryProgressSummary() {
+    /** @param {BookRecord[]} books */
+    renderLibraryProgressSummary(books = this.books) {
         const summary = document.getElementById('libraryProgressSummary');
         if (!summary) return;
-        if (this.books.length === 0) {
-            summary.innerHTML = '<strong>Overall progress</strong><span>No books imported yet.</span>';
+        const scope = this.showArchivedBooks ? 'Archive progress' : 'Overall progress';
+        if (books.length === 0) {
+            summary.innerHTML = `<strong>${scope}</strong><span>${this.showArchivedBooks ? 'No archived books yet.' : 'No books imported yet.'}</span>`;
             return;
         }
-        const totalChars = this.books.reduce((sum, book) => sum + (book.charCount || 0), 0);
-        const readChars = this.books.reduce((sum, book) => sum + Math.max(0, Math.min(book.charCount || 0, book.readingCharOffset || 0)), 0);
-        const totalSegments = this.books.reduce((sum, book) => sum + (book.segmentCount || 0), 0);
-        const generatedSegments = this.books.reduce((sum, book) => sum + (book.generatedSegmentCount || 0), 0);
-        const totalDuration = this.books.reduce((sum, book) => sum + (book.estimatedDurationSec || 0), 0);
-        const generatedDuration = this.books.reduce((sum, book) => sum + (book.generatedDurationSec || 0), 0);
+        const totalChars = books.reduce((sum, book) => sum + (book.charCount || 0), 0);
+        const readChars = books.reduce((sum, book) => sum + Math.max(0, Math.min(book.charCount || 0, book.readingCharOffset || 0)), 0);
+        const totalSegments = books.reduce((sum, book) => sum + (book.segmentCount || 0), 0);
+        const generatedSegments = books.reduce((sum, book) => sum + (book.generatedSegmentCount || 0), 0);
+        const totalDuration = books.reduce((sum, book) => sum + (book.estimatedDurationSec || 0), 0);
+        const generatedDuration = books.reduce((sum, book) => sum + (book.generatedDurationSec || 0), 0);
         const readPercent = totalChars ? Math.round(readChars / totalChars * 100) : 0;
         const generatedPercent = totalSegments ? Math.round(generatedSegments / totalSegments * 100) : 0;
         summary.innerHTML = `
-            <strong>Overall progress</strong>
-            <span>${this.books.length} book${this.books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDurationHtml(generatedDuration)} / ${this.formatDurationHtml(totalDuration)} generated</span>
+            <strong>${scope}</strong>
+            <span>${books.length} book${books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDurationHtml(generatedDuration)} / ${this.formatDurationHtml(totalDuration)} generated</span>
         `;
+    }
+
+    syncArchiveViewButton() {
+        const button = document.getElementById('toggleArchiveViewBtn');
+        if (button) button.textContent = this.showArchivedBooks ? 'Show main list' : 'Show archive';
+    }
+
+    toggleArchiveView() {
+        this.showArchivedBooks = !this.showArchivedBooks;
+        this.showWorkspace(false);
+        this.currentBook = null;
+        this.sections = [];
+        this.segments = [];
+        this.currentSegmentId = null;
+        this.updateStatus(this.showArchivedBooks ? 'Archive' : 'Bookshelf');
+        this.renderLibrary();
     }
 
     /** @param {Event} event */
@@ -1289,6 +1318,7 @@ class BooksController {
             createdAt: now,
             updatedAt: now,
             lastOpenedAt: now,
+            archivedAt: '',
             readingSectionId: sections[0]?.id || '',
             readingCharOffset: 0,
             listeningSegmentId: segments[0]?.id || '',
@@ -1632,6 +1662,7 @@ class BooksController {
         this.renderChapterStatusList();
         this.renderReader();
         this.renderPlayerNow();
+        this.syncCurrentBookArchiveButton();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
     }
 
@@ -1647,6 +1678,23 @@ class BooksController {
             const segment = this.getSegmentById(this.currentBook.listeningSegmentId);
             listeningEl.textContent = segment ? `${this.getSectionTitle(segment.sectionId)} · ${this.formatDuration(this.currentBook.listeningOffsetSec)}` : 'Start';
         }
+    }
+
+    syncCurrentBookArchiveButton() {
+        const button = document.getElementById('toggleArchiveCurrentBookBtn');
+        if (!button || !this.currentBook) return;
+        button.textContent = this.isBookArchived(this.currentBook) ? 'Restore to main list' : 'Move to archive';
+    }
+
+    async toggleCurrentBookArchive() {
+        if (!this.currentBook || !this.storage) return;
+        const archived = this.isBookArchived(this.currentBook);
+        this.currentBook.archivedAt = archived ? '' : new Date().toISOString();
+        this.currentBook.updatedAt = new Date().toISOString();
+        await this.storage.putBook(this.currentBook);
+        await this.refreshLibrary();
+        this.syncCurrentBookArchiveButton();
+        this.updateStatus(archived ? 'Restored to main book list' : 'Moved to archive');
     }
 
     renderReader() {
@@ -2489,6 +2537,17 @@ class BooksController {
     getBookReadPercent(book) {
         if (!book.charCount) return 0;
         return Math.max(0, Math.min(100, Math.round((book.readingCharOffset || 0) / book.charCount * 100)));
+    }
+
+    /** @param {BookRecord} book */
+    getBookGeneratedPercent(book) {
+        if (!book.segmentCount) return 0;
+        return Math.max(0, Math.min(100, Math.round((book.generatedSegmentCount || 0) / book.segmentCount * 100)));
+    }
+
+    /** @param {BookRecord} book */
+    isBookArchived(book) {
+        return Boolean(book.archivedAt);
     }
 
     /** @param {number} charOffset */
