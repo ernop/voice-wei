@@ -134,7 +134,8 @@ async function seedGeneratedBook(page) {
                 inlineButtons: first.querySelectorAll('button, [data-action]').length,
                 libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display,
                 workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
-                summaryText: document.querySelector('#libraryProgressSummary')?.textContent || ''
+                summaryText: document.querySelector('#libraryProgressSummary')?.textContent || '',
+                librarySearchPlaceholder: document.querySelector('#librarySearch')?.getAttribute('placeholder') || ''
             };
         });
         report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
@@ -142,6 +143,7 @@ async function seedGeneratedBook(page) {
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
             && !shelf.metaText.includes('TXT') && shelf.durationColumns === 2
             && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
+            && shelf.librarySearchPlaceholder.includes('titles, authors, and filenames')
             && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books'));
 
         await page.click('.saved-book-item[data-book-id]');
@@ -207,6 +209,7 @@ async function seedGeneratedBook(page) {
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
             controlCount: document.querySelectorAll('.player-control-grid button').length,
             controlLabels: Array.from(document.querySelectorAll('.player-control-grid button')).map(button => button.textContent.trim()),
+            readerSearchPlaceholder: document.querySelector('#readerSearch')?.getAttribute('placeholder') || '',
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
@@ -234,6 +237,7 @@ async function seedGeneratedBook(page) {
             && layout.controlCount === 7
             && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
                 .every((label, index) => layout.controlLabels[index] === label)
+            && layout.readerSearchPlaceholder.includes("book's contents")
             && layout.playerNow.includes('Voice:') && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
 
