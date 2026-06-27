@@ -81,7 +81,7 @@ async function seedGeneratedBook(page) {
             text: `Segment ${index}`,
             wordCount: 10,
             estimatedDurationSec: 360,
-            status: 'done',
+            status: index === 1 ? 'pending' : 'done',
             blob: new Blob([`fake-${id}`], { type: 'audio/mpeg' }),
             audioSize: 10,
             durationSec: 360,
@@ -326,6 +326,12 @@ async function seedFrontMatterBook(page) {
             controlCount: document.querySelectorAll('.player-control-grid button').length,
             controlLabels: Array.from(document.querySelectorAll('.player-control-grid button')).map(button => button.textContent.trim()),
             readerSearchPlaceholder: document.querySelector('#readerSearch')?.getAttribute('placeholder') || '',
+            sectionOrder: {
+                listen: document.querySelector('.player-card')?.getBoundingClientRect().top || 0,
+                convert: document.querySelector('.generator-card')?.getBoundingClientRect().top || 0,
+                reader: document.querySelector('.reader-panel')?.getBoundingClientRect().top || 0,
+                log: document.querySelector('#logContainer')?.getBoundingClientRect().top || 0
+            },
             nativeAudioDisplay: getComputedStyle(document.querySelector('#audioPlayer')).display,
             readerBoxed: getComputedStyle(document.querySelector('.reader-segment')).borderLeftStyle !== 'none'
         }));
@@ -354,6 +360,9 @@ async function seedFrontMatterBook(page) {
             && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
                 .every((label, index) => layout.controlLabels[index] === label)
             && layout.readerSearchPlaceholder.includes("book's contents")
+            && layout.sectionOrder.listen < layout.sectionOrder.convert
+            && layout.sectionOrder.convert < layout.sectionOrder.reader
+            && layout.sectionOrder.reader < layout.sectionOrder.log
             && layout.playerNow.includes('Voice:') && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false);
 

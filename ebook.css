@@ -458,7 +458,7 @@
 
 .listen-panel {
     display: grid;
-    grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(190px, 260px);
+    grid-template-columns: 1fr;
     gap: 8px;
     min-width: 0;
 }
@@ -488,6 +488,7 @@
 .reader-fullscreen-mode .workspace-header,
 .reader-fullscreen-mode .book-progress-card,
 .reader-fullscreen-mode .listen-panel,
+.reader-fullscreen-mode .compact-log,
 .reader-fullscreen-mode .page-footer {
     display: none;
 }
@@ -619,6 +620,14 @@
 .generator-card,
 .player-card {
     padding: 12px;
+}
+
+.player-card {
+    order: 1;
+}
+
+.generator-card {
+    order: 2;
 }
 
 .conversion-options-card {

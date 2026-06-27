@@ -965,7 +965,7 @@ class BooksController {
         if (!target) return true;
         const tagName = target.tagName.toLowerCase();
         if (target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return false;
-        return this.segments.some(segment => segment.status === 'done');
+        return this.segments.some(segment => this.isSegmentPlayable(segment));
     }
 
     async previewVoice() {
@@ -1708,12 +1708,12 @@ class BooksController {
             const readerBody = section.html
                 ? `<div class="epub-section-html">${this.highlightSanitizedHtml(section.html, query)}</div>`
                 : sectionSegments.map(segment => {
-                    const statusClass = segment.status === 'done' ? ' generated' : segment.status === 'generating' ? ' generating' : '';
+                    const statusClass = this.isSegmentPlayable(segment) ? ' generated' : segment.status === 'generating' ? ' generating' : '';
                     const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
                     return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
                 }).join('');
             const segmentHtml = sectionSegments.map(segment => {
-                const statusClass = segment.status === 'done' ? ' generated' : segment.status === 'generating' ? ' generating' : '';
+                const statusClass = this.isSegmentPlayable(segment) ? ' generated' : segment.status === 'generating' ? ' generating' : '';
                 const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
                 return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
             }).join('');
@@ -1728,7 +1728,7 @@ class BooksController {
         const terms = this.getAudioUnitTerms();
         select.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
-            const ready = sectionSegments.filter(segment => segment.status === 'done').length;
+            const ready = sectionSegments.filter(segment => this.isSegmentPlayable(segment)).length;
             const label = `${this.getChapterLabel(section)} (${ready}/${sectionSegments.length} ${ready === 1 ? terms.singular : terms.plural} ready)`;
             return `<option value="${this.escapeHtml(section.id)}">${this.escapeHtml(label)}</option>`;
         }).join('');
@@ -1750,7 +1750,7 @@ class BooksController {
     renderConversionSummary() {
         const costEl = document.getElementById('conversionCostText');
         if (!costEl) return;
-        const done = this.segments.filter(segment => segment.status === 'done');
+        const done = this.segments.filter(segment => this.isSegmentPlayable(segment));
         costEl.textContent = `${this.formatCurrency(this.estimateConversionCost(done))} est`;
     }
 
@@ -1764,13 +1764,13 @@ class BooksController {
         const terms = this.getAudioUnitTerms();
         list.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
-            const ready = sectionSegments.filter(segment => segment.status === 'done').length;
+            const ready = sectionSegments.filter(segment => this.isSegmentPlayable(segment)).length;
             const total = sectionSegments.length || 1;
             const percent = Math.round(ready / total * 100);
             const chunks = sectionSegments.map(segment => {
                 const classes = [
                     'chunk-dot',
-                    segment.status === 'done' ? 'done' : segment.status === 'generating' ? 'generating' : segment.status === 'error' ? 'error' : 'pending',
+                    this.isSegmentPlayable(segment) ? 'done' : segment.status === 'generating' ? 'generating' : segment.status === 'error' ? 'error' : 'pending',
                     segment.id === this.currentSegmentId ? 'current' : ''
                 ].filter(Boolean).join(' ');
                 const label = `${terms.singular === 'chapter' ? 'Chapter MP3' : `Chunk ${segment.sectionSegmentIndex + 1}`}: ${segment.status}`;
@@ -1805,51 +1805,51 @@ class BooksController {
         this.currentSegmentId = segment.id;
         this.markReadingProgress(segment);
         this.renderWorkspace();
-        if (segment.status === 'done') this.playSegment(segment.id, false);
+        if (this.isSegmentPlayable(segment)) this.playSegment(segment.id, false);
     }
 
     async generateCurrentChapter() {
         const sectionId = this.getCurrentSectionId();
         if (!sectionId) return;
-        await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && segment.status !== 'done'), false);
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && this.isSegmentPending(segment)), false);
     }
 
     async generateSelectedChapter() {
         const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
         const sectionId = select?.value || this.getCurrentSectionId();
         if (!sectionId) return;
-        await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && segment.status !== 'done'), false);
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === sectionId && this.isSegmentPending(segment)), false);
     }
 
     async generatePreviousChapter() {
         const currentSectionId = this.getCurrentSectionId();
         const currentIndex = Math.max(0, this.sections.findIndex(section => section.id === currentSectionId));
         const previous = this.sections.slice(0, currentIndex).reverse()
-            .find(section => this.segments.some(segment => segment.sectionId === section.id && segment.status !== 'done'));
+            .find(section => this.segments.some(segment => segment.sectionId === section.id && this.isSegmentPending(segment)));
         if (!previous) {
             this.updateStatus('No pending chapter before the current chapter');
             return;
         }
-        await this.generateSegments(this.segments.filter(segment => segment.sectionId === previous.id && segment.status !== 'done'), false);
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === previous.id && this.isSegmentPending(segment)), false);
     }
 
     async generateNextChapter() {
         const currentSectionId = this.getCurrentSectionId();
         const currentIndex = Math.max(0, this.sections.findIndex(section => section.id === currentSectionId));
         const next = this.sections.slice(currentIndex + 1)
-            .find(section => this.segments.some(segment => segment.sectionId === section.id && segment.status !== 'done'));
+            .find(section => this.segments.some(segment => segment.sectionId === section.id && this.isSegmentPending(segment)));
         if (!next) {
             this.updateStatus('No pending chapter after the current chapter');
             return;
         }
-        await this.generateSegments(this.segments.filter(segment => segment.sectionId === next.id && segment.status !== 'done'), false);
+        await this.generateSegments(this.segments.filter(segment => segment.sectionId === next.id && this.isSegmentPending(segment)), false);
     }
 
     async generateCurrentChunk() {
         const current = this.getSegmentById(this.currentSegmentId || '');
-        const segment = current && current.status !== 'done'
+        const segment = current && this.isSegmentPending(current)
             ? current
-            : this.segments.find(item => item.status !== 'done');
+            : this.segments.find(item => this.isSegmentPending(item));
         if (!segment) {
             this.updateStatus('No pending chunks to generate');
             return;
@@ -1858,7 +1858,7 @@ class BooksController {
     }
 
     async generateAllRemaining() {
-        await this.generateSegments(this.segments.filter(segment => segment.status !== 'done'), false);
+        await this.generateSegments(this.segments.filter(segment => this.isSegmentPending(segment)), false);
     }
 
     /** @param {number} seconds @param {boolean} automatic */
@@ -1869,13 +1869,13 @@ class BooksController {
         const selected = [];
         for (let i = startIndex; i < this.segments.length; i++) {
             const segment = this.segments[i];
-            if (segment.status === 'done') continue;
+            if (!this.isSegmentPending(segment)) continue;
             selected.push(segment);
             total += segment.estimatedDurationSec;
             if (total >= seconds) break;
         }
         if (selected.length === 0) {
-            const firstPending = this.segments.find(segment => segment.status !== 'done');
+            const firstPending = this.segments.find(segment => this.isSegmentPending(segment));
             if (firstPending) selected.push(firstPending);
         }
         await this.generateSegments(selected, automatic);
@@ -1901,7 +1901,8 @@ class BooksController {
         try {
             for (const segment of selected) {
                 if (this.generationAbort.signal.aborted) throw new Error('Generation cancelled');
-                if (segment.status === 'done') {
+                if (this.isSegmentPlayable(segment)) {
+                    await this.repairPlayableSegmentMetadata(segment);
                     completed++;
                     continue;
                 }
@@ -1995,7 +1996,7 @@ class BooksController {
 
     async recalculateBookGeneration() {
         if (!this.storage || !this.currentBook) return;
-        const done = this.segments.filter(segment => segment.status === 'done');
+        const done = this.segments.filter(segment => this.isSegmentPlayable(segment));
         this.currentBook.generatedSegmentCount = done.length;
         this.currentBook.generatedDurationSec = done.reduce((sum, segment) => sum + (segment.durationSec || segment.estimatedDurationSec), 0);
         this.currentBook.updatedAt = new Date().toISOString();
@@ -2003,7 +2004,8 @@ class BooksController {
     }
 
     playFromProgress() {
-        const segment = this.getSegmentById(this.currentBook?.listeningSegmentId || '') || this.segments.find(item => item.status === 'done');
+        const saved = this.getSegmentById(this.currentBook?.listeningSegmentId || '');
+        const segment = saved && this.isSegmentPlayable(saved) ? saved : this.segments.find(item => this.isSegmentPlayable(item));
         if (!segment) {
             this.updateStatus('Generate audio before playing');
             return;
@@ -2015,9 +2017,15 @@ class BooksController {
     /** @param {number} direction */
     playAdjacentGenerated(direction) {
         const currentIndex = this.getCurrentSegmentIndex();
-        const generated = this.segments.filter(segment => segment.status === 'done');
+        const generated = this.segments.filter(segment => this.isSegmentPlayable(segment));
         const currentGeneratedIndex = generated.findIndex(segment => segment.segmentIndex === currentIndex);
-        const next = generated[currentGeneratedIndex + direction] || (direction > 0 ? generated[0] : generated[generated.length - 1]);
+        let next = generated[currentGeneratedIndex + direction];
+        if (!next && currentGeneratedIndex === -1) {
+            next = direction > 0
+                ? generated.find(segment => segment.segmentIndex > currentIndex) || generated[0]
+                : Array.from(generated).reverse().find(segment => segment.segmentIndex < currentIndex) || generated[generated.length - 1];
+        }
+        next = next || (direction > 0 ? generated[0] : generated[generated.length - 1]);
         if (next) {
             this.recordHistory(direction > 0 ? 'next-segment' : 'previous-segment', `${direction > 0 ? 'Next' : 'Previous'} MP3 segment`);
             this.playSegment(next.id, true, false);
@@ -2027,7 +2035,7 @@ class BooksController {
     /** @param {boolean} autoplay */
     playNextGenerated(autoplay) {
         const currentIndex = this.getCurrentSegmentIndex();
-        const next = this.segments.find(segment => segment.segmentIndex > currentIndex && segment.status === 'done');
+        const next = this.segments.find(segment => segment.segmentIndex > currentIndex && this.isSegmentPlayable(segment));
         if (next) {
             this.playSegment(next.id, autoplay, false);
         } else {
@@ -2038,10 +2046,14 @@ class BooksController {
     /** @param {string} segmentId @param {boolean} autoplay @param {boolean} [scrollReader] */
     playSegment(segmentId, autoplay, scrollReader = true) {
         const segment = this.getSegmentById(segmentId);
-        if (!segment || segment.status !== 'done' || !segment.blob) {
+        if (!segment || !this.isSegmentPlayable(segment)) {
             this.updateStatus('That segment has not been generated yet');
             return;
         }
+        this.repairPlayableSegmentMetadata(segment).catch(error => {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('warn', `Could not repair MP3 metadata: ${message}`);
+        });
         this.currentSegmentId = segment.id;
         this.markReadingProgress(segment, scrollReader ? 'reader-play-segment' : 'player-segment-change');
         this.loadSegmentIntoPlayer(segment, autoplay);
@@ -2214,7 +2226,7 @@ class BooksController {
         let total = 0;
         for (let i = startIndex; i < this.segments.length; i++) {
             const segment = this.segments[i];
-            if (segment.status !== 'done') break;
+            if (!this.isSegmentPlayable(segment)) break;
             total += segment.durationSec || segment.estimatedDurationSec;
         }
         return total;
@@ -2241,7 +2253,7 @@ class BooksController {
 
     async downloadAllSegments() {
         if (!this.currentBook) return;
-        const done = this.segments.filter(segment => segment.status === 'done' && segment.blob);
+        const done = this.segments.filter(segment => this.isSegmentPlayable(segment));
         if (done.length === 0) {
             this.updateStatus(`No generated MP3 ${this.getAudioUnitTerms().plural} to download`);
             return;
@@ -2261,7 +2273,7 @@ class BooksController {
         const book = await this.storage.getBook(id);
         if (!book) return;
         const segments = await this.storage.getSegments(id);
-        const done = segments.filter(segment => segment.status === 'done' && segment.blob);
+        const done = segments.filter(segment => this.isSegmentPlayable(segment));
         if (done.length === 0 && book.legacyAudioBlob) {
             this.downloadBlob(book.legacyAudioBlob, `${this.safeFilename(book.title)}.mp3`);
             return;
@@ -2410,17 +2422,15 @@ class BooksController {
         }
         const terms = this.getAudioUnitTerms();
         const unitLabel = terms.singular === 'chapter' ? 'chapter' : `chunk ${segment.sectionSegmentIndex + 1}`;
-        const voice = segment.status === 'done'
-            ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}`
-            : '';
-        el.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unitLabel} · ${segment.status === 'done' ? 'ready' : segment.status}${voice}`;
+        const ready = this.isSegmentPlayable(segment);
+        el.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unitLabel} · ${ready ? 'ready' : segment.status}${ready ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}` : ''}`;
     }
 
     /** @param {AudioSegment} segment */
     renderSegmentStatus(segment) {
         const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(segment.id)}"]`);
         if (!node) return;
-        node.classList.toggle('generated', segment.status === 'done');
+        node.classList.toggle('generated', this.isSegmentPlayable(segment));
         node.classList.toggle('generating', segment.status === 'generating');
     }
 
@@ -2433,7 +2443,7 @@ class BooksController {
         if (status) status.textContent = message;
         if (fill) fill.style.width = `${percent}%`;
         if (detail) {
-            const generated = this.segments.filter(segment => segment.status === 'done').length;
+            const generated = this.segments.filter(segment => this.isSegmentPlayable(segment)).length;
             const remainingInJob = Math.max(0, total - done);
             const terms = this.getAudioUnitTerms();
             detail.textContent = total
@@ -2444,7 +2454,7 @@ class BooksController {
 
     preloadNextGenerated() {
         const currentIndex = this.getCurrentSegmentIndex();
-        const next = this.segments.find(segment => segment.segmentIndex > currentIndex && segment.status === 'done' && segment.blob);
+        const next = this.segments.find(segment => segment.segmentIndex > currentIndex && this.isSegmentPlayable(segment));
         if (!next || next.id === this.preloadSegmentId || !next.blob) return;
         if (this.preloadUrl) URL.revokeObjectURL(this.preloadUrl);
         this.preloadUrl = URL.createObjectURL(next.blob);
@@ -2528,7 +2538,8 @@ class BooksController {
     }
 
     getCurrentGeneratedSegment() {
-        return this.getSegmentById(this.currentSegmentId || '')?.status === 'done' ? this.getSegmentById(this.currentSegmentId || '') : null;
+        const segment = this.getSegmentById(this.currentSegmentId || '');
+        return this.isSegmentPlayable(segment) ? segment : null;
     }
 
     /** @param {string} id */
@@ -2653,6 +2664,43 @@ class BooksController {
     /** @param {BookRecord} book */
     isBookArchived(book) {
         return Boolean(book.archivedAt);
+    }
+
+    /** @param {AudioSegment | null | undefined} segment */
+    isSegmentPlayable(segment) {
+        return Boolean(segment?.blob);
+    }
+
+    /** @param {AudioSegment} segment */
+    isSegmentPending(segment) {
+        return !this.isSegmentPlayable(segment);
+    }
+
+    /** @param {AudioSegment} segment */
+    async repairPlayableSegmentMetadata(segment) {
+        if (!this.isSegmentPlayable(segment)) return;
+        let changed = false;
+        if (segment.status !== 'done') {
+            segment.status = 'done';
+            segment.error = '';
+            changed = true;
+        }
+        if (!segment.audioSize && segment.blob) {
+            segment.audioSize = segment.blob.size;
+            changed = true;
+        }
+        if (!segment.generatedAt) {
+            segment.generatedAt = new Date().toISOString();
+            changed = true;
+        }
+        if (!segment.durationSec) {
+            segment.durationSec = segment.estimatedDurationSec;
+            changed = true;
+        }
+        if (changed && this.storage) {
+            await this.storage.putSegment(segment);
+            this.replaceSegment(segment);
+        }
     }
 
     /** @param {number} charOffset */
