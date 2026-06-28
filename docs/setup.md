@@ -1,4 +1,35 @@
-# Deployment Setup
+# Environment and Deployment Setup
+
+## Cloud Agent / Fresh Linux VM Setup
+
+Run the repo setup script before verification in a new Cursor cloud agent or
+fresh Linux VM:
+
+```bash
+./setup-cloud-agent.sh
+```
+
+It installs the missing OS tools this repo's checks need when they are absent:
+
+- `php-cli` for `php -l proxy.php`
+- `python3-pip` for Python tooling availability
+- npm dev dependencies from `package.json` without creating a lockfile
+
+The browser tests use Playwright with the installed Chrome. If an image does
+not include Chrome, install Chrome in the base image or set `CHROME_PATH` to a
+compatible Chromium/Chrome binary.
+
+Cursor environment setup agent prompt:
+
+```text
+For the Voice-Wei repo, update the cloud-agent environment so fresh agents can
+run verification without manual setup. Install OS packages php-cli and
+python3-pip in the image or startup script. Ensure Chrome is available for
+Playwright tests, or set CHROME_PATH to the installed Chromium/Chrome binary.
+On startup in the repo, run ./setup-cloud-agent.sh, which installs npm
+dependencies with npm install --no-audit --no-fund --no-package-lock and checks
+node, npm, python3, pip3, and php.
+```
 
 This project uses GitHub Actions for automatic deployment to production.
 
@@ -42,7 +73,7 @@ wsl cat ~/.ssh/id_rsa > $env:TEMP\key.txt
 (Get-Content $env:TEMP\key.txt -Raw) -replace "`r`n", "`n" | gh secret set DEPLOY_SSH_KEY --repo OWNER/REPO
 
 gh secret set DEPLOY_HOST --repo OWNER/REPO
-gh secret set DEPLOY_USER --repo OWNER/REPO  
+gh secret set DEPLOY_USER --repo OWNER/REPO
 gh secret set DEPLOY_PATH --repo OWNER/REPO
 ```
 
@@ -71,11 +102,12 @@ This reads credentials from `config.json` (see `config.example.json` for format)
 
 ## Version Management
 
-All pages share a single version number in the `VERSION` file. Before deploying changes:
+All pages share a single version number in the `VERSION` file. The active
+workflow is post-push bumping:
 
 ```bash
-./bump-version.sh        # Increment version by 1
-./bump-version.sh 31     # Or set a specific version
+git push origin master   # deploys the committed version
+./bump-version.sh        # opens the next dev/cache-bust cycle
 ```
 
 This updates:
@@ -83,8 +115,6 @@ This updates:
 - `shared-header.js` version label (v30)
 - Cache-busting query strings (?v=30)
 
-The version appears in the top-right of each page and ensures browsers fetch updated CSS/JS files.
-
-Release rule:
-- Any significant feature should include a global version bump.
-- Any significant feature should be pushed after commit so GitHub Actions deploys it.
+The version appears in the top-right of each page and ensures browsers fetch
+updated CSS/JS files. Work after the bump should include the bumped cache keys
+in the next deploy commit; after that push succeeds, bump again.
