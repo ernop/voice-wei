@@ -211,6 +211,7 @@ const PlayerCommands = (function () {
 
                 const request = await this.prepareMusicSearchRequest(transcript);
                 const prompt = this.getMusicSearchPrompt(request);
+                let responseText = '';
 
                 try {
                     const requestBody = {
@@ -241,14 +242,14 @@ const PlayerCommands = (function () {
                     }
 
                     const data = await response.json();
-                    const responseText = data.content[0].text.trim();
-
-                    return this.parseAIResponse(responseText, prompt);
+                    responseText = data.content[0].text.trim();
                 } catch (error) {
                     console.error('Claude API error:', error);
                     this.logError('Claude API Error', error);
                     throw error;
                 }
+
+                return this.parseAIResponse(responseText, prompt);
             },
 
             async processCommandWithOpenAI(transcript) {
@@ -258,6 +259,7 @@ const PlayerCommands = (function () {
 
                 const request = await this.prepareMusicSearchRequest(transcript);
                 const prompt = this.getMusicSearchPrompt(request);
+                let responseText = '';
 
                 try {
                     const requestBody = {
@@ -286,14 +288,14 @@ const PlayerCommands = (function () {
                     }
 
                     const data = await response.json();
-                    const responseText = data.choices[0].message.content.trim();
-
-                    return this.parseAIResponse(responseText, prompt);
+                    responseText = data.choices[0].message.content.trim();
                 } catch (error) {
                     console.error('OpenAI API error:', error);
                     this.logError('OpenAI API Error', error);
                     throw error;
                 }
+
+                return this.parseAIResponse(responseText, prompt);
             },
 
             extractUrlsFromTranscript(transcript) {
@@ -384,7 +386,9 @@ If the request is not about music, return an empty array [].`;
                 this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
 
                 if (songList.length === 0) {
-                    throw new Error('No songs found or invalid response');
+                    const error = new Error('No songs found in the AI response');
+                    error.name = 'NoSongsFoundError';
+                    throw error;
                 }
 
                 return { songList, prompt };

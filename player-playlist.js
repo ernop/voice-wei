@@ -125,7 +125,7 @@ const PlayerPlaylist = (function () {
                     .map((song, i) => ({ song, index: i }))
                     .filter(({ song, index }) => {
                         if (!song.searchTerm) {
-                            this.addMessage('error', 'Missing searchTerm', `Song ${index + 1}: ${JSON.stringify(song).substring(0, 100)}`);
+                            this.addMessage('claude', 'Skipped search item', `Song ${index + 1} had no search term: ${JSON.stringify(song).substring(0, 100)}`);
                             return false;
                         }
                         return true;
@@ -143,14 +143,17 @@ const PlayerPlaylist = (function () {
 
                 // Add to playlist in original order (reversed so unshift preserves order)
                 let addedCount = 0;
+                let skippedCount = songList.length - validSongs.length;
                 for (const { song, index, videoData, error } of results) {
                     if (error) {
                         console.error(`Error searching for "${song.searchTerm}":`, error);
-                        this.addMessage('error', `Song ${index + 1}`, `Error: ${error.message}`);
+                        skippedCount++;
+                        this.addMessage('claude', `Song ${index + 1} not added`, `${song.searchTerm}: ${error.message}`);
                         continue;
                     }
                     if (!videoData) {
-                        this.addMessage('error', `Song ${index + 1}`, `No YouTube results for: ${song.searchTerm}`);
+                        skippedCount++;
+                        this.addMessage('claude', `Song ${index + 1} not added`, `No YouTube results for: ${song.searchTerm}`);
                         continue;
                     }
 
@@ -188,6 +191,7 @@ const PlayerPlaylist = (function () {
                     this.speakText('Could not find any of those songs on YouTube');
                 }
                 this.persistPlaylist();
+                return { addedCount, skippedCount, requestedCount: songList.length };
             },
 
             updatePlaylistLabel() {
@@ -237,7 +241,7 @@ const PlayerPlaylist = (function () {
                     };
                 }
 
-                this.addMessage('error', 'No Results', `No videos found for: ${query}`);
+                this.addMessage('claude', 'No Results', `No videos found for: ${query}`);
                 return null;
             },
 
