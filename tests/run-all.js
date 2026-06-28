@@ -57,18 +57,40 @@ async function main() {
 
     let failures = 0;
     console.log(`Running ${profile} test profile (${suites.join(', ')})`);
-    for (const suite of suites) {
-        console.log(`\n========== ${suite} ==========`);
-        const result = spawnSync('node', [path.join(__dirname, suite)], {
-            stdio: 'inherit',
-            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
-        });
-        if (result.status !== 0) failures++;
+    if (profile === 'fast') {
+        const results = await Promise.all(suites.map(suite => runSuite(suite, profile)));
+        failures = results.filter(status => status !== 0).length;
+    } else {
+        for (const suite of suites) {
+            const status = spawnSuite(suite, profile);
+            if (status !== 0) failures++;
+        }
     }
 
     if (server) server.kill();
     console.log(failures ? `\n${failures} suite(s) FAILED` : '\nAll suites passed');
     process.exit(failures ? 1 : 0);
+}
+
+function spawnSuite(suite, profile) {
+    console.log(`\n========== ${suite} ==========`);
+    const result = spawnSync('node', [path.join(__dirname, suite)], {
+        stdio: 'inherit',
+        env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
+    });
+    return result.status || 0;
+}
+
+function runSuite(suite, profile) {
+    return new Promise(resolve => {
+        console.log(`\n========== ${suite} ==========`);
+        const child = spawn('node', [path.join(__dirname, suite)], {
+            stdio: 'inherit',
+            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
+        });
+        child.on('close', code => resolve(code || 0));
+        child.on('error', () => resolve(1));
+    });
 }
 
 main();

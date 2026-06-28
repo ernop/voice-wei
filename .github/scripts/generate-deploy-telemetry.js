@@ -11,6 +11,7 @@ const maxPages = Number(process.env.DEPLOY_TELEMETRY_PAGES || 5);
 const perPage = 100;
 const outputPath = process.env.DEPLOY_TELEMETRY_OUTPUT || 'deploy-telemetry.json';
 const currentRunId = Number(process.env.GITHUB_RUN_ID || 0);
+const existingTelemetryUrl = process.env.DEPLOY_TELEMETRY_EXISTING_URL || 'https://fuseki.net/music8899b/deploy-telemetry.json';
 
 function headers() {
     return {
@@ -31,6 +32,17 @@ async function fetchText(url) {
     const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     if (!response.ok) return '';
     return (await response.text()).trim();
+}
+
+async function fetchExistingTelemetry() {
+    try {
+        const response = await fetch(existingTelemetryUrl, { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return Array.isArray(data.runs) ? data.runs : [];
+    } catch (_error) {
+        return [];
+    }
 }
 
 function secondsBetween(start, end) {
@@ -59,10 +71,12 @@ async function versionForRun(run) {
 
 async function main() {
     const generatedAt = new Date().toISOString();
-    const runs = await listRuns();
+    const [runs, existingRuns] = await Promise.all([listRuns(), fetchExistingTelemetry()]);
+    const existingById = new Map(existingRuns.map(run => [Number(run.id), run]));
     const telemetryRuns = await Promise.all(runs.map(async run => {
-        const version = await versionForRun(run);
         const isCurrentRun = currentRunId && Number(run.id) === currentRunId;
+        const existing = existingById.get(Number(run.id));
+        const version = existing?.version || await versionForRun(run);
         const startedAt = run.run_started_at || run.created_at;
         const completedAt = isCurrentRun ? generatedAt : (run.updated_at || generatedAt);
         return {
@@ -82,13 +96,19 @@ async function main() {
         };
     }));
 
+    const seenIds = new Set(telemetryRuns.map(run => Number(run.id)));
+    const mergedRuns = [
+        ...telemetryRuns,
+        ...existingRuns.filter(run => !seenIds.has(Number(run.id)))
+    ];
+
     const payload = {
         schemaVersion: 1,
         generatedAt,
         repository: `${owner}/${repo}`,
         workflow,
         source: 'github-actions',
-        runs: telemetryRuns
+        runs: mergedRuns
             .filter(run => run.version)
             .sort((a, b) => Number(a.version) - Number(b.version))
     };
