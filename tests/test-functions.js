@@ -1043,20 +1043,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }), 'prompt');
 
             const realFetch = window.fetch;
-            window.fetch = async url => new Response(JSON.stringify({
-                url: 'https://example.test/page',
-                title: 'Regional riffs',
-                text: 'The page mentions The Clash, London Calling, and The Ventures.',
-                charCount: 67
-            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            const fetchUrls = [];
+            window.fetch = async url => {
+                fetchUrls.push(String(url));
+                return new Response(JSON.stringify({
+                    url: 'https://example.test/page',
+                    requestedUrl: 'https://example.test/page',
+                    title: 'Regional riffs',
+                    text: 'The page mentions The Clash, London Calling, and The Ventures.',
+                    charCount: 67
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            };
             const prepared = await harness.prepareMusicSearchRequest('all songs in https://example.test/page please');
+            const inferred = await harness.prepareMusicSearchRequest('get the songs bands and search terms from the tvtropes regional riffs page');
             window.fetch = realFetch;
 
             return {
                 urls: harness.extractUrlsFromTranscript('read https://example.test/page, thanks'),
+                inferredUrls: harness.inferKnownPageUrls('get tvtropes regional riffs'),
+                fetchUrls,
                 count: wrapped.songList.length,
                 terms: wrapped.songList.map(song => song.searchTerm),
                 linkedTitle: prepared.linkedPages[0]?.title || '',
+                inferredTitle: inferred.linkedPages[0]?.title || '',
                 status: harness.statuses[0] || ''
             };
         });
@@ -1069,6 +1078,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             aiParsing.urls[0] === 'https://example.test/page'
             && aiParsing.linkedTitle === 'Regional riffs'
             && aiParsing.status.includes('Reading 1 linked page'));
+        report.check('player infers TV Tropes Regional Riff page without pasted URL',
+            aiParsing.inferredUrls[0] === 'https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'
+            && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))
+            && aiParsing.inferredTitle === 'Regional riffs');
 
         // Auto mode: spoken control command executes locally
         await tab.click('#listenBtn');

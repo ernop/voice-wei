@@ -302,8 +302,16 @@ const PlayerCommands = (function () {
                 return [...new Set(urls)];
             },
 
+            inferKnownPageUrls(transcript) {
+                if (/(tv\s*tropes|tvtropes)/i.test(transcript) && /regional\s+riffs?/i.test(transcript)) {
+                    return ['https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'];
+                }
+                return [];
+            },
+
             async prepareMusicSearchRequest(transcript) {
-                const urls = this.extractUrlsFromTranscript(transcript);
+                const explicitUrls = this.extractUrlsFromTranscript(transcript);
+                const urls = explicitUrls.length > 0 ? explicitUrls : this.inferKnownPageUrls(transcript);
                 if (urls.length === 0) {
                     return { transcript, linkedPages: [] };
                 }

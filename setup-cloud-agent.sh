@@ -14,6 +14,9 @@ install_apt_packages() {
     if ! command -v php >/dev/null 2>&1; then
         packages+=("php-cli")
     fi
+    if ! command -v php >/dev/null 2>&1 || ! php -r 'exit(extension_loaded("curl") ? 0 : 1);'; then
+        packages+=("php-curl")
+    fi
     if ! command -v pip3 >/dev/null 2>&1; then
         packages+=("python3-pip")
     fi

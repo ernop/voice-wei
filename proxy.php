@@ -42,6 +42,22 @@ function isPublicHttpUrl($url) {
     return true;
 }
 
+function resolveReadablePageUrl($url) {
+    $parts = parse_url($url);
+    if (!$parts || !isset($parts['host']) || !isset($parts['path'])) {
+        return $url;
+    }
+
+    $host = strtolower($parts['host']);
+    $path = $parts['path'];
+    if (($host === 'tvtropes.org' || $host === 'www.tvtropes.org')
+        && preg_match('/\/RegionalRiffs?$/i', $path)) {
+        return 'https://allthetropes.org/wiki/Regional_Riff';
+    }
+
+    return $url;
+}
+
 function makePageRequest($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -81,7 +97,14 @@ function extractPageTitle($html) {
 }
 
 function extractReadableText($body) {
-    $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $body);
+    $source = $body;
+    if (preg_match('/<div[^>]+id=["\']mw-content-text["\'][^>]*>(.*?)(?:<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>)/is', $body, $matches)) {
+        $source = $matches[1];
+    } elseif (preg_match('/<main\b[^>]*>(.*?)(?:<\/main>|<\/body>)/is', $body, $matches)) {
+        $source = $matches[1];
+    }
+
+    $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
     $text = preg_replace('/<!--.*?-->/s', ' ', $text);
     $text = strip_tags($text);
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -91,7 +114,8 @@ function extractReadableText($body) {
 
 // Page-read mode: proxy.php?readUrl=https://example.com/page
 if (isset($_GET['readUrl'])) {
-    $url = trim($_GET['readUrl']);
+    $requestedUrl = trim($_GET['readUrl']);
+    $url = resolveReadablePageUrl($requestedUrl);
     if (!isPublicHttpUrl($url)) {
         http_response_code(400);
         echo json_encode(['error' => 'Only public http(s) page URLs can be read']);
@@ -121,6 +145,7 @@ if (isset($_GET['readUrl'])) {
 
     echo json_encode([
         'url' => $url,
+        'requestedUrl' => $requestedUrl,
         'title' => $title,
         'text' => $text,
         'charCount' => strlen($text),
