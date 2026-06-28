@@ -53,6 +53,7 @@ Full usage details per tool: [docs/tools.md](docs/tools.md).
 ## Quick start
 
 ```bash
+./setup-cloud-agent.sh   # Cursor/cloud agent or fresh Linux VM
 python3 -m http.server 8000
 # Visit http://localhost:8000/scales.html
 ```
@@ -62,7 +63,7 @@ HTTPS is required for microphone access when deployed.
 ## Testing
 
 ```bash
-npm install   # once; installs playwright (uses your installed Chrome)
+./setup-cloud-agent.sh   # once per fresh cloud VM; installs npm deps + PHP/pip tooling
 npm test      # fast suite: JS syntax, CSS ownership, page-load smoke, Books flow
 npm run test:full  # slower playback/mic/control/tab end-to-end suite
 ```
@@ -74,8 +75,8 @@ fast default plus any targeted suite (`node tests/run-all.js --suite
 test-controls.js`). The deploy workflow gates on typecheck, lint, and the fast
 browser suite before rsync. Use `npm run test:full` when touching playback, mic,
 progress recording, media session behavior, or cross-tab flows. Also:
-`npm run lint` (ast-grep, including the shared-library ownership guards) and
-`npm run typecheck`.
+`npm run lint` (ast-grep, including the shared-library ownership guards),
+`npm run typecheck`, and `php -l proxy.php` when touching the PHP proxy.
 
 ## Version system
 

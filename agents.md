@@ -90,7 +90,9 @@ tools (user-visible behavior).
    - `npm test` is intentionally fast: JS syntax, CSS ownership, page-load smoke.
    - Add `node tests/run-all.js --suite <suite-file>` or `npm run test:full`
      when the touched code needs deeper playback/mic/control coverage.
-2. `./bump-version.sh` (updates VERSION, header label, all `?v=` cache busters)
-3. Commit in small logical steps, push `master` - this deploys to production.
+   - Run `php -l proxy.php` when touching the PHP proxy.
+2. Commit in small logical steps, push `master` - this deploys to production.
+3. Immediately after a successful push, run `./bump-version.sh` locally to open
+   the next dev/cache-bust cycle. Do not bump immediately before pushing.
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
