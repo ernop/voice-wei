@@ -12,6 +12,7 @@ fresh Linux VM:
 It installs the missing OS tools this repo's checks need when they are absent:
 
 - `php-cli` for `php -l proxy.php`
+- `php-curl` for local `proxy.php` page/search endpoint checks
 - `python3-pip` for Python tooling availability
 - npm dev dependencies from `package.json` without creating a lockfile
 
