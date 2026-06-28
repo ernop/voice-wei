@@ -111,6 +111,8 @@ interface PlaylistSearchResult {
     addedCount: number;
     skippedCount: number;
     requestedCount: number;
+    attemptedTerms: string[];
+    skippedTerms: string[];
 }
 
 interface AppConfig {

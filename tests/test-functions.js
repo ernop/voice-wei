@@ -1137,6 +1137,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('player partial YouTube misses return counts without error logs',
             partialPlaylist.result.addedCount === 1
             && partialPlaylist.result.skippedCount === 1
+            && partialPlaylist.result.attemptedTerms.join('|') === 'found song|missing song'
+            && partialPlaylist.result.skippedTerms.join('|') === 'missing song'
             && partialPlaylist.playlistLength === 1
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
