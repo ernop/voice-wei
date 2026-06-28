@@ -1109,6 +1109,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const partialPlaylist = await tab.evaluate(async () => {
             const harness = {
                 playlist: [],
+                youtubeAlternateResults: new Map(),
                 currentPlaylistIndex: -1,
                 messages: [],
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
@@ -1134,7 +1135,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                         title: 'Found Song',
                         channelTitle: 'Found Artist',
                         duration: '3:00',
-                        durationSeconds: 180
+                        durationSeconds: 180,
+                        alternateVideos: [{
+                            videoId: 'alternate-found',
+                            title: 'Found Alternate',
+                            channelTitle: 'Found Artist',
+                            duration: '3:10',
+                            durationSeconds: 190
+                        }]
                     });
                 }
                 return Promise.resolve(null);
@@ -1146,6 +1154,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 result,
                 playlistLength: harness.playlist.length,
+                playlistHasAlternates: Array.isArray(harness.playlist[0]?.alternateVideos),
+                cachedAlternate: harness.youtubeAlternateResults.get(harness.playlist[0]?.id)?.[0]?.videoId || '',
                 hasErrorLog: harness.messages.some(message => message.kind === 'error'),
                 hasNotAddedLog: harness.messages.some(message => message.label.includes('not added'))
             };
@@ -1156,6 +1166,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.result.attemptedTerms.join('|') === 'found song|missing song'
             && partialPlaylist.result.skippedTerms.join('|') === 'missing song'
             && partialPlaylist.playlistLength === 1
+            && partialPlaylist.playlistHasAlternates === false
+            && partialPlaylist.cachedAlternate === 'alternate-found'
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
 
@@ -1325,6 +1337,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const harness = {
                 players: new Map(),
                 playerReadyPromises: new Map(),
+                youtubeAlternateResults: new Map(),
                 messages: [],
                 status: '',
                 settings: { readClaudeResponse: false },
@@ -1351,19 +1364,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 duration: '1:40',
                 durationSeconds: 100,
                 searchTerm: 'Retry Artist Retry Song',
-                alternateVideos: [{
-                    videoId: 'good-video',
-                    title: 'Good Result',
-                    channelTitle: 'Good Channel',
-                    duration: '2:00',
-                    durationSeconds: 120
-                }]
+                lyricsStatus: 'idle',
+                lyricsData: null
             };
+            harness.youtubeAlternateResults.set(item.id, [{
+                videoId: 'good-video',
+                title: 'Good Result',
+                channelTitle: 'Good Channel',
+                duration: '2:00',
+                durationSeconds: 120
+            }]);
             harness.reportPlayerLoadFailure(item, 'YouTube player error 150');
             return {
                 videoId: item.videoId,
                 title: item.title,
-                remaining: item.alternateVideos.length,
+                remaining: harness.youtubeAlternateResults.get(item.id)?.length || 0,
                 recreatedVideoId,
                 playedVideoId,
                 persisted,
@@ -1386,6 +1401,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const nonVideoSpecificNoRetry = await tab.evaluate(async () => {
             const harness = {
                 playerReadyPromises: new Map(),
+                youtubeAlternateResults: new Map(),
                 messages: [],
                 status: '',
                 settings: { readClaudeResponse: false },
@@ -1409,14 +1425,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 title: 'Slow Song',
                 channelTitle: 'Slow Artist',
                 searchTerm: 'Slow Artist Slow Song',
-                alternateVideos: [{
-                    videoId: 'other-video',
-                    title: 'Other Result',
-                    channelTitle: 'Other Channel',
-                    duration: '2:00',
-                    durationSeconds: 120
-                }]
+                lyricsStatus: 'idle',
+                lyricsData: null
             };
+            harness.youtubeAlternateResults.set(item.id, [{
+                videoId: 'other-video',
+                title: 'Other Result',
+                channelTitle: 'Other Channel',
+                duration: '2:00',
+                durationSeconds: 120
+            }]);
             harness.reportPlayerLoadFailure(item, 'Player did not become ready within 8s');
             return {
                 videoId: item.videoId,

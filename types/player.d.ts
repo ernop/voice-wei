@@ -40,7 +40,6 @@ interface PlaylistItem {
     durationSeconds?: number;
     comment: string;
     searchTerm: string;
-    alternateVideos?: YouTubeVideoCandidate[];
     lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
     lyricsData?: LyricsResult | null;
 }

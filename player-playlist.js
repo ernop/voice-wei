@@ -152,6 +152,10 @@ const PlayerPlaylist = (function () {
 
                     this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
 
+                    const itemId = Date.now() + Math.random();
+                    const alternateVideos = videoData.alternateVideos || [];
+                    const primaryVideoData = { ...videoData };
+                    delete primaryVideoData.alternateVideos;
                     const playlistItem = {
                         name: song.name ? this.decodeHtml(song.name) : '',
                         artist: song.artist ? this.decodeHtml(song.artist) : '',
@@ -159,11 +163,14 @@ const PlayerPlaylist = (function () {
                         album: song.album ? this.decodeHtml(song.album) : '',
                         comment: song.comment ? this.decodeHtml(song.comment) : '',
                         searchTerm: song.searchTerm,
-                        ...videoData,
-                        id: Date.now() + Math.random(),
+                        ...primaryVideoData,
+                        id: itemId,
                         lyricsStatus: 'idle',
                         lyricsData: null
                     };
+                    if (alternateVideos.length > 0) {
+                        this.youtubeAlternateResults.set(itemId, alternateVideos);
+                    }
                     this.hydrateItemLyricsFromCache(playlistItem);
                     this.playlist.unshift(playlistItem);
                     if (this.currentPlaylistIndex >= 0) {
@@ -596,9 +603,13 @@ const PlayerPlaylist = (function () {
                     return false;
                 }
 
-                const nextVideo = item.alternateVideos && item.alternateVideos.shift();
+                const alternates = this.youtubeAlternateResults.get(item.id) || [];
+                const nextVideo = alternates.shift();
                 if (!nextVideo) {
                     return false;
+                }
+                if (alternates.length === 0) {
+                    this.youtubeAlternateResults.delete(item.id);
                 }
 
                 const previousVideoId = item.videoId;
@@ -985,6 +996,7 @@ const PlayerPlaylist = (function () {
                 });
                 this.players.clear();
                 this.playerReadyPromises.clear();
+                this.youtubeAlternateResults.clear();
                 this.activeYoutubePlayer = null;
                 this.activeYoutubePlayerReady = false;
                 this.activeYoutubePlayerVideoId = '';
