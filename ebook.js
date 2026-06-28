@@ -1620,6 +1620,7 @@ class BooksController {
         if (!this.storage) return;
         const book = await this.storage.getBook(bookId);
         if (!book) throw new Error('Book not found');
+        this.resetAudioPlayerForBookSwitch();
         this.currentBook = book;
         this.currentBook.lastOpenedAt = new Date().toISOString();
         await this.storage.putBook(this.currentBook);
@@ -1644,6 +1645,7 @@ class BooksController {
 
     backToLibrary() {
         this.setReaderFullscreen(false);
+        this.resetAudioPlayerForBookSwitch();
         this.showWorkspace(false);
         this.updateStatus('Bookshelf');
         this.renderLibrary();
@@ -2480,6 +2482,19 @@ class BooksController {
         this.preloadUrl = null;
         this.preloadSegmentId = null;
         this.preloadAudio = null;
+    }
+
+    resetAudioPlayerForBookSwitch() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audio) {
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.removeAttribute('data-segment-id');
+            audio.load();
+        }
+        this.releaseAudioUrls();
+        this.lastAudioTimeForHistory = 0;
+        this.updatePlayerControls();
     }
 
     scrollCurrentSegmentIntoView(smooth) {

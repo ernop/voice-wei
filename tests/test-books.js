@@ -97,6 +97,85 @@ async function seedGeneratedBook(page) {
     });
 }
 
+async function seedSecondGeneratedBook(page) {
+    await page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 4);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const put = (store, value) => new Promise((resolve, reject) => {
+            const tx = db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).put(value);
+            req.onsuccess = () => resolve(undefined);
+            req.onerror = () => reject(req.error);
+        });
+        const now = new Date().toISOString();
+        const book = {
+            id: 'book-suite-generated-two',
+            schemaVersion: 3,
+            title: 'Generated Suite Book Two',
+            author: 'Suite',
+            format: 'txt',
+            fileName: 'generated-suite-two.txt',
+            fileType: 'text/plain',
+            fileSize: 20,
+            rawFile: new Blob(['suite two'], { type: 'text/plain' }),
+            sectionCount: 1,
+            segmentCount: 1,
+            generatedSegmentCount: 1,
+            wordCount: 10,
+            charCount: 100,
+            estimatedDurationSec: 360,
+            generatedDurationSec: 360,
+            createdAt: now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            archivedAt: '',
+            readingSectionId: 'sec-b',
+            readingCharOffset: 0,
+            listeningSegmentId: 'seg-b0',
+            listeningOffsetSec: 0,
+            legacyAudioBlob: null,
+            legacyAudioSize: 0
+        };
+        await put('books', book);
+        await put('sections', {
+            key: 'book-suite-generated-two:sec-b',
+            bookId: book.id,
+            id: 'sec-b',
+            spineIndex: 0,
+            title: 'Section Two',
+            text: 'Only segment.',
+            html: '',
+            charStart: 0,
+            charEnd: 100,
+            wordCount: 10
+        });
+        await put('segments', {
+            key: 'book-suite-generated-two:seg-b0',
+            bookId: book.id,
+            id: 'seg-b0',
+            sectionId: 'sec-b',
+            segmentIndex: 0,
+            sectionSegmentIndex: 0,
+            charStart: 0,
+            charEnd: 100,
+            text: 'Only segment.',
+            wordCount: 10,
+            estimatedDurationSec: 360,
+            status: 'done',
+            blob: new Blob(['fake-second-book'], { type: 'audio/mpeg' }),
+            audioSize: 10,
+            durationSec: 360,
+            generatedAt: now,
+            audioSettings: { voice: 'verse', model: 'gpt-4o-mini-tts', speed: 1 },
+            error: ''
+        });
+        db.close();
+    });
+}
+
 async function seedFrontMatterBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
@@ -283,6 +362,7 @@ async function seedFrontMatterBook(page) {
         await clearBooksDb(page);
         await page.reload({ waitUntil: 'networkidle' });
         await seedGeneratedBook(page);
+        await seedSecondGeneratedBook(page);
         await page.reload({ waitUntil: 'networkidle' });
         await page.click('.saved-book-item[data-book-id="book-suite-generated"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
@@ -441,6 +521,24 @@ async function seedFrontMatterBook(page) {
             && player.playCalls.includes('seg-1') && player.historyVisible
             && ['quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
                 .every(action => player.actions.includes(action)));
+
+        await page.click('#backToLibraryBtn');
+        await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
+        await page.click('.saved-book-item[data-book-id="book-suite-generated-two"]');
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        const clearedBeforeSecondPlay = await page.evaluate(() => {
+            const audio = document.querySelector('#audioPlayer');
+            return !audio?.getAttribute('src') && !audio?.dataset.segmentId;
+        });
+        await page.click('#playFromProgressBtn');
+        await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-b0');
+        const switchedBook = await page.evaluate(() => ({
+            segmentId: document.querySelector('#audioPlayer')?.dataset.segmentId,
+            playCalls: window.__bookPlayCalls
+        }));
+        report.check('books clear stale MP3 when switching books',
+            clearedBeforeSecondPlay && switchedBook.segmentId === 'seg-b0'
+            && switchedBook.playCalls.includes('seg-b0'));
         await page.close();
     }
 
