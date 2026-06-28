@@ -331,7 +331,9 @@ const PlayerPlaylist = (function () {
                 // Insert newest items at the top
                 playlistBody.insertBefore(row, playlistBody.firstChild);
 
-                this.createPlaylistPlayer(item);
+                // YouTube iframes are created on first play. Creating one for
+                // every playlist row up front is expensive on mobile and can
+                // leave hidden players stuck before onReady fires.
             },
 
             createPlaylistPlayer(item) {
@@ -377,7 +379,11 @@ const PlayerPlaylist = (function () {
                             playerVars: {
                                 autoplay: 0,
                                 controls: 1,
+                                enablejsapi: 1,
                                 modestbranding: 1,
+                                origin: window.location.origin,
+                                playsinline: 1,
+                                widget_referrer: window.location.origin,
                                 rel: 0
                             },
                             events: {
@@ -448,6 +454,13 @@ const PlayerPlaylist = (function () {
                         }, YOUTUBE_API_TIMEOUT_MS);
                     }
                 }, DOM_SETTLE_DELAY_MS);
+            },
+
+            ensurePlaylistPlayer(item) {
+                if (this.players.has(item.id) || this.playerReadyPromises.has(item.id)) {
+                    return;
+                }
+                this.createPlaylistPlayer(item);
             },
 
             recreatePlaylistPlayer(item) {
@@ -605,6 +618,8 @@ const PlayerPlaylist = (function () {
             },
 
             async playVideo(item) {
+                this.ensurePlaylistPlayer(item);
+
                 // Stop currently playing video
                 if (this.currentPlayingId && this.currentPlayingId !== item.id) {
                     const currentPlayer = this.players.get(this.currentPlayingId);

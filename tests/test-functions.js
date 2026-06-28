@@ -1170,6 +1170,105 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateSearchResult.alternate === 'good-video'
             && alternateSearchResult.message.includes('Bad Result'));
 
+        const lazyPlayerCreation = await tab.evaluate(async () => {
+            const harness = {
+                players: new Map(),
+                playerReadyPromises: new Map(),
+                playlist: [],
+                favorites: {},
+                messages: [],
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {},
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
+            };
+            PlayerPlaylist.install(harness);
+            const item = {
+                id: 4001,
+                videoId: 'lazy-video-id',
+                name: 'Lazy Song',
+                artist: 'Lazy Artist',
+                year: '',
+                album: '',
+                title: 'Lazy Song',
+                channelTitle: 'Lazy Artist',
+                duration: '2:00',
+                comment: '',
+                searchTerm: 'Lazy Artist Lazy Song'
+            };
+            const realYT = window.YT;
+            window.YT = undefined;
+            harness.addPlaylistItemToDOM(item);
+            const beforeEnsure = {
+                hasEntry: harness.playerReadyPromises.has(item.id),
+                hasPlayerDiv: !!document.getElementById(`player-${item.id}`)
+            };
+            harness.ensurePlaylistPlayer(item);
+            const afterEnsure = {
+                hasEntry: harness.playerReadyPromises.has(item.id),
+                hasPlayerDiv: !!document.getElementById(`player-${item.id}`)
+            };
+            await new Promise(resolve => setTimeout(resolve, 80));
+            window.youtubeApiReady = [];
+            document.querySelector(`[data-item-id="${item.id}"]`)?.remove();
+            document.getElementById(`player-${item.id}`)?.remove();
+            window.YT = realYT;
+            return { beforeEnsure, afterEnsure };
+        });
+        report.check('player creates YouTube iframe lazily on first play',
+            lazyPlayerCreation.beforeEnsure.hasEntry === false
+            && lazyPlayerCreation.beforeEnsure.hasPlayerDiv === false
+            && lazyPlayerCreation.afterEnsure.hasEntry === true
+            && lazyPlayerCreation.afterEnsure.hasPlayerDiv === true);
+
+        const playerVarsIdentity = await tab.evaluate(() => {
+            const calls = [];
+            const harness = {
+                players: new Map(),
+                playerReadyPromises: new Map(),
+                addMessage() {}
+            };
+            PlayerPlaylist.install(harness);
+            const realYT = window.YT;
+            window.YT = {
+                PlayerState: { ENDED: 0 },
+                Player: function (id, config) {
+                    calls.push({ id, playerVars: config.playerVars });
+                    return { destroy() {} };
+                }
+            };
+            const container = document.createElement('div');
+            container.id = 'player-identity-container';
+            document.getElementById('playlistContainer').appendChild(container);
+            const item = {
+                id: 4002,
+                videoId: 'identity-id',
+                name: 'Identity Song',
+                artist: 'Identity Artist',
+                searchTerm: 'Identity Artist Identity Song'
+            };
+            harness.createPlaylistPlayer(item);
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    document.getElementById(`player-${item.id}`)?.remove();
+                    container.remove();
+                    window.YT = realYT;
+                    const playerVars = calls[0]?.playerVars || {};
+                    resolve({
+                        enablejsapi: playerVars.enablejsapi,
+                        playsinline: playerVars.playsinline,
+                        originMatches: playerVars.origin === window.location.origin,
+                        widgetReferrerMatches: playerVars.widget_referrer === window.location.origin
+                    });
+                }, 100);
+            });
+        });
+        report.check('player sends YouTube origin and referrer identity',
+            playerVarsIdentity.enablejsapi === 1
+            && playerVarsIdentity.playsinline === 1
+            && playerVarsIdentity.originMatches
+            && playerVarsIdentity.widgetReferrerMatches);
+
         const alternateRetry = await tab.evaluate(async () => {
             const harness = {
                 players: new Map(),
