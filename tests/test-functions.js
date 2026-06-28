@@ -1143,6 +1143,93 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
 
+        const alternateSearchResult = await tab.evaluate(async () => {
+            const harness = {
+                messages: [],
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
+            };
+            PlayerPlaylist.install(harness);
+            const realFetch = window.fetch;
+            window.fetch = async () => new Response(JSON.stringify({
+                results: [
+                    { videoId: 'bad-video', title: 'Bad Result', channelTitle: 'Bad Channel', duration: 100 },
+                    { videoId: 'good-video', title: 'Good Result', channelTitle: 'Good Channel', duration: 120 }
+                ],
+                source: 'test'
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            const result = await harness.searchYouTube('retry song');
+            window.fetch = realFetch;
+            return {
+                first: result.videoId,
+                alternate: result.alternateVideos[0]?.videoId || '',
+                message: harness.messages.find(message => message.label === 'Found')?.text || ''
+            };
+        });
+        report.check('player stores alternate YouTube results for retry',
+            alternateSearchResult.first === 'bad-video'
+            && alternateSearchResult.alternate === 'good-video'
+            && alternateSearchResult.message.includes('Bad Result'));
+
+        const alternateRetry = await tab.evaluate(async () => {
+            const harness = {
+                players: new Map(),
+                playerReadyPromises: new Map(),
+                messages: [],
+                status: '',
+                settings: { readClaudeResponse: false },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.status = message; },
+                truncateForStatus(text) { return String(text || ''); },
+                speakText() {}
+            };
+            PlayerPlaylist.install(harness);
+            let recreatedVideoId = '';
+            let playedVideoId = '';
+            let persisted = false;
+            harness.recreatePlaylistPlayer = item => { recreatedVideoId = item.videoId; };
+            harness.refreshPlaylistRowVideo = () => {};
+            harness.persistPlaylist = () => { persisted = true; };
+            harness.playVideo = item => { playedVideoId = item.videoId; return Promise.resolve(); };
+            const item = {
+                id: 45,
+                videoId: 'bad-video',
+                name: 'Retry Song',
+                artist: 'Retry Artist',
+                title: 'Bad Result',
+                channelTitle: 'Bad Channel',
+                duration: '1:40',
+                durationSeconds: 100,
+                searchTerm: 'Retry Artist Retry Song',
+                alternateVideos: [{
+                    videoId: 'good-video',
+                    title: 'Good Result',
+                    channelTitle: 'Good Channel',
+                    duration: '2:00',
+                    durationSeconds: 120
+                }]
+            };
+            harness.reportPlayerLoadFailure(item, 'YouTube player error 150');
+            return {
+                videoId: item.videoId,
+                title: item.title,
+                remaining: item.alternateVideos.length,
+                recreatedVideoId,
+                playedVideoId,
+                persisted,
+                hasRetryLog: harness.messages.some(message => message.label === 'Retrying video result'),
+                hasFailureLog: harness.messages.some(message => message.label === 'Player load failed')
+            };
+        });
+        report.check('player retries alternate video before final load failure',
+            alternateRetry.videoId === 'good-video'
+            && alternateRetry.title === 'Good Result'
+            && alternateRetry.remaining === 0
+            && alternateRetry.recreatedVideoId === 'good-video'
+            && alternateRetry.playedVideoId === 'good-video'
+            && alternateRetry.persisted
+            && alternateRetry.hasRetryLog
+            && !alternateRetry.hasFailureLog);
+
         const playerLoadTimeout = await tab.evaluate(async () => {
             const harness = {
                 playerReadyPromises: new Map(),

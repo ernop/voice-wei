@@ -19,6 +19,14 @@ interface LyricsViewSettings {
     backdrop: 'blackout' | 'dim';
 }
 
+interface YouTubeVideoCandidate {
+    videoId: string;
+    title: string;
+    channelTitle: string;
+    duration: string;
+    durationSeconds?: number;
+}
+
 interface PlaylistItem {
     id: number;
     videoId: string;
@@ -32,6 +40,7 @@ interface PlaylistItem {
     durationSeconds?: number;
     comment: string;
     searchTerm: string;
+    alternateVideos?: YouTubeVideoCandidate[];
     lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
     lyricsData?: LyricsResult | null;
 }

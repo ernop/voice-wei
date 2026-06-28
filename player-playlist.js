@@ -234,20 +234,30 @@ const PlayerPlaylist = (function () {
                 // Get results from our standardized proxy response
                 const results = data.results || [];
 
-                if (results.length > 0) {
-                    const video = results[0];
-                    this.addMessage('claude', 'Found', `${video.title} (via ${data.source || 'proxy'})`);
+                const videos = results
+                    .filter(result => result.videoId)
+                    .map(result => this.formatYouTubeResult(result));
+                if (videos.length > 0) {
+                    const [firstVideo, ...alternateVideos] = videos;
+                    this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
                     return {
-                        videoId: video.videoId,
-                        title: video.title || 'Unknown',
-                        channelTitle: video.channelTitle || 'Unknown Artist',
-                        duration: this.formatSeconds(video.duration),
-                        durationSeconds: Number(video.duration) || 0
+                        ...firstVideo,
+                        alternateVideos: alternateVideos.slice(0, 5)
                     };
                 }
 
                 this.addMessage('claude', 'No Results', `No videos found for: ${query}`);
                 return null;
+            },
+
+            formatYouTubeResult(video) {
+                return {
+                    videoId: video.videoId,
+                    title: video.title || 'Unknown',
+                    channelTitle: video.channelTitle || 'Unknown Artist',
+                    duration: this.formatSeconds(video.duration),
+                    durationSeconds: Number(video.duration) || 0
+                };
             },
 
             formatSeconds(totalSeconds) {
@@ -321,6 +331,10 @@ const PlayerPlaylist = (function () {
                 // Insert newest items at the top
                 playlistBody.insertBefore(row, playlistBody.firstChild);
 
+                this.createPlaylistPlayer(item);
+            },
+
+            createPlaylistPlayer(item) {
                 // Create hidden player container outside the table
                 const playlistContainer = document.getElementById('playlistContainer');
                 const playerDiv = document.createElement('div');
@@ -384,9 +398,12 @@ const PlayerPlaylist = (function () {
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
                                     const detail = `YouTube player error ${event.data}`;
+                                    const entry = this.playerReadyPromises.get(item.id);
+                                    const reportNow = !entry || entry.settled;
                                     settleReady({ ok: false, error: detail });
-                                    this.updateStatus(`Error loading video: ${this.describePlaylistItem(item)}`);
-                                    this.addMessage('error', 'Player load failed', `Track: ${this.describePlaylistItem(item)}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}\nReason: ${detail}`);
+                                    if (reportNow) {
+                                        this.reportPlayerLoadFailure(item, detail);
+                                    }
                                 }
                             }
                         });
@@ -433,6 +450,78 @@ const PlayerPlaylist = (function () {
                 }, DOM_SETTLE_DELAY_MS);
             },
 
+            recreatePlaylistPlayer(item) {
+                const oldPlayer = this.players.get(item.id);
+                if (oldPlayer && typeof oldPlayer.destroy === 'function') {
+                    try {
+                        oldPlayer.destroy();
+                    } catch (error) {
+                        console.error('Error destroying player before retry:', error);
+                    }
+                }
+                this.players.delete(item.id);
+                this.playerReadyPromises.delete(item.id);
+
+                const playerDiv = document.getElementById(`player-${item.id}`);
+                if (playerDiv) {
+                    playerDiv.remove();
+                }
+
+                this.createPlaylistPlayer(item);
+            },
+
+            applyVideoDataToPlaylistItem(item, videoData) {
+                item.videoId = videoData.videoId;
+                item.title = videoData.title;
+                item.channelTitle = videoData.channelTitle;
+                item.duration = videoData.duration;
+                item.durationSeconds = videoData.durationSeconds;
+                item.lyricsStatus = 'idle';
+                item.lyricsData = null;
+            },
+
+            refreshPlaylistRowVideo(item) {
+                const row = document.querySelector(`[data-item-id="${item.id}"]`);
+                if (!row) return;
+
+                row.dataset.videoId = item.videoId;
+                const favBtn = row.querySelector('.favorite-btn');
+                if (favBtn) {
+                    favBtn.dataset.videoId = item.videoId;
+                    const favorited = this.isFavorite(item.videoId);
+                    favBtn.classList.toggle('favorited', favorited);
+                    favBtn.textContent = favorited ? '\u2605' : '\u2606';
+                }
+
+                const lyricsBtn = row.querySelector('.lyrics-row-btn');
+                if (lyricsBtn) {
+                    lyricsBtn.classList.remove('ready');
+                    lyricsBtn.textContent = 'Get';
+                    lyricsBtn.setAttribute('aria-label', 'Get lyrics');
+                }
+
+                const cells = row.querySelectorAll('td');
+                if (cells[5]) {
+                    cells[5].textContent = item.duration || '--:--';
+                }
+            },
+
+            tryNextVideoResult(item, reason) {
+                const nextVideo = item.alternateVideos && item.alternateVideos.shift();
+                if (!nextVideo) {
+                    return false;
+                }
+
+                const previousVideoId = item.videoId;
+                this.addMessage('claude', 'Retrying video result',
+                    `Track: ${this.describePlaylistItem(item)}\nSearch term: ${item.searchTerm || '(none)'}\nPrevious video ID: ${previousVideoId}\nReason: ${reason || 'unknown'}\nNext video ID: ${nextVideo.videoId}\nNext title: ${nextVideo.title}`);
+                this.applyVideoDataToPlaylistItem(item, nextVideo);
+                this.refreshPlaylistRowVideo(item);
+                this.recreatePlaylistPlayer(item);
+                this.persistPlaylist();
+                return true;
+            },
+
             describePlaylistItem(item) {
                 const title = item.name || item.title || item.searchTerm || 'Unknown track';
                 const artist = item.artist || item.channelTitle || '';
@@ -457,6 +546,12 @@ const PlayerPlaylist = (function () {
             reportPlayerLoadFailure(item, reason) {
                 const description = this.describePlaylistItem(item);
                 const detail = reason || 'Unknown player load failure';
+                if (this.tryNextVideoResult(item, detail)) {
+                    this.updateStatus(`Retrying another video for: ${this.truncateForStatus(description, 80)}`);
+                    void this.playVideo(item);
+                    return;
+                }
+
                 this.addMessage('error', 'Player load failed', `Track: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}\nReason: ${detail}`);
                 this.updateStatus(`Player load failed: ${this.truncateForStatus(description, 80)}. Try next.`);
                 if (this.settings.readClaudeResponse) {
@@ -530,6 +625,7 @@ const PlayerPlaylist = (function () {
                     const description = this.describePlaylistItem(item);
                     this.updateStatus(`Player loading: ${this.truncateForStatus(description, 100)}`);
                     this.addMessage('claude', 'Player loading', `Waiting for player: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}`);
+                    const loadingVideoId = item.videoId;
                     const ready = await this.waitForPlayerReady(item);
                     if (ready.ok) {
                         const readyPlayer = ready.player || this.players.get(item.id);
@@ -537,6 +633,9 @@ const PlayerPlaylist = (function () {
                             this.players.set(item.id, readyPlayer);
                         }
                         return this.playVideo(item);
+                    }
+                    if (item.videoId !== loadingVideoId) {
+                        return;
                     }
                     this.reportPlayerLoadFailure(item, ready.error);
                 }
