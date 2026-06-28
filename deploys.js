@@ -204,6 +204,13 @@ const DeployTelemetry = (function () {
 
     function init() {
         el('deployRefreshBtn')?.addEventListener('click', () => void refresh());
+        if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+            const summary = el('deploySummary');
+            if (summary) {
+                summary.textContent = 'Deploy telemetry loads on the live site; local smoke tests do not call GitHub Actions.';
+            }
+            return;
+        }
         void refresh();
         setInterval(() => void refresh(), REFRESH_MS);
     }
