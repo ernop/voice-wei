@@ -51,7 +51,19 @@ const DeployTelemetry = (function () {
         }
     }
 
-    async function loadRuns() {
+    async function loadRunsFromSiteTelemetry() {
+        const response = await fetch(`deploy-telemetry.json?v=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`Site telemetry unavailable: HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const runs = Array.isArray(data.runs) ? data.runs : [];
+        return runs
+            .filter(row => row.version)
+            .sort((a, b) => Number(a.version) - Number(b.version));
+    }
+
+    async function loadRunsFromGitHub() {
         const data = await fetchJson(`${apiBase}/actions/workflows/${WORKFLOW}/runs?branch=master&per_page=${RUN_LIMIT}`);
         const runs = data.workflow_runs || [];
         const rows = await Promise.all(runs.map(async run => {
@@ -73,6 +85,15 @@ const DeployTelemetry = (function () {
         return rows
             .filter(row => row.version)
             .sort((a, b) => Number(a.version) - Number(b.version));
+    }
+
+    async function loadRuns() {
+        try {
+            return await loadRunsFromSiteTelemetry();
+        } catch (error) {
+            console.warn('[deploy telemetry] Falling back to GitHub API', error);
+            return loadRunsFromGitHub();
+        }
     }
 
     function chartPoint(row, index, count, maxSeconds, width, height, pad) {

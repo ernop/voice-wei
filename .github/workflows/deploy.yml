@@ -5,6 +5,10 @@ on:
     branches: [master]
   workflow_dispatch:  # Manual trigger button in GitHub UI
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -56,6 +60,19 @@ jobs:
             --exclude='*.sh' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+      - name: Generate deploy telemetry
+        if: success()
+        run: node .github/scripts/generate-deploy-telemetry.js
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Upload deploy telemetry
+        if: success()
+        run: |
+          rsync -avz \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
 
       - name: Cleanup
         if: always()
