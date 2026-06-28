@@ -74,6 +74,7 @@ class VoiceMusicController {
         PlayerPlaylist.install(this);
         PlayerLyrics.install(this);
         PlayerSongLibrary.install(this);
+        PlayerHistoryUI.install(this);
 
         this.init();
     }
@@ -730,6 +731,7 @@ class VoiceMusicController {
         }
 
         this.setupSongLibraryUI();
+        this.setupMusicHistoryUI();
 
         // Transport bar buttons (sticky playlist controls)
         const transportPrevBtn = document.getElementById('transportPrevBtn');

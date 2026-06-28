@@ -88,6 +88,12 @@ const PlayerHistoryDB = (function () {
         });
     }
 
+    /** @param {string} storeName */
+    async function getAll(storeName) {
+        const objectStore = await store(storeName, 'readonly');
+        return requestPromise(objectStore.getAll());
+    }
+
     /** @param {string} storeName @param {unknown} value */
     async function put(storeName, value) {
         const objectStore = await store(storeName, 'readwrite');
@@ -168,6 +174,21 @@ const PlayerHistoryDB = (function () {
         return (await get(STORES.YOUTUBE_SEARCHES, normalized)) || null;
     }
 
+    async function listLookups() {
+        const records = /** @type {any[]} */ (await getAll(STORES.LOOKUPS));
+        return records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    }
+
+    async function listSongs() {
+        const records = /** @type {any[]} */ (await getAll(STORES.SONGS));
+        return records.sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
+    }
+
+    async function listYouTubeSearches() {
+        const records = /** @type {any[]} */ (await getAll(STORES.YOUTUBE_SEARCHES));
+        return records.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    }
+
     /** @param {FavoriteData | PlaylistItem | any} favorite @param {boolean} active */
     function recordFavorite(favorite, active) {
         if (!favorite || !favorite.videoId) return;
@@ -193,6 +214,9 @@ const PlayerHistoryDB = (function () {
         recordSongs,
         recordYouTubeSearch,
         getYouTubeSearch,
+        listLookups,
+        listSongs,
+        listYouTubeSearches,
         recordFavorite
     };
 })();

@@ -40,7 +40,7 @@ interface PlaylistItem {
     durationSeconds?: number;
     comment: string;
     searchTerm: string;
-    sourceKind?: 'search' | 'favorite' | 'restored' | 'demo';
+    sourceKind?: 'search' | 'favorite' | 'restored' | 'history' | 'demo';
     sourceLabel?: string;
     sourceSearchTerm?: string;
     lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
@@ -133,6 +133,9 @@ interface PlayerHistoryDBApi {
     recordSongs(songs: any[], sourceKind: string): void;
     recordYouTubeSearch(query: string, results: any[], meta?: Record<string, any>): void;
     getYouTubeSearch(query: string): Promise<any | null>;
+    listLookups(): Promise<any[]>;
+    listSongs(): Promise<any[]>;
+    listYouTubeSearches(): Promise<any[]>;
     recordFavorite(favorite: any, active: boolean): void;
 }
 
@@ -187,6 +190,16 @@ interface VoiceMusicController {
     loadDemoSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
     searchAndAddToPlaylist(songList: any[]): Promise<PlaylistSearchResult>;
+    setupMusicHistoryUI(): void;
+    refreshMusicHistoryPanel(): Promise<void>;
+    renderLookupHistory(lookups: any[]): void;
+    renderKnownSongsHistory(songs: any[]): void;
+    renderSearchCacheHistory(searches: any[]): void;
+    loadHistoryLookups(ids: number[]): Promise<void>;
+    rerunHistoryLookupById(id: number): Promise<void>;
+    loadKnownSongs(videoIds: string[]): Promise<void>;
+    addKnownSongsToPlaylist(songs: any[]): void;
+    refreshCachedSearchQuery(query: string): Promise<void>;
 
     currentLyricsItem(): PlaylistItem | null;
     toggleLyricsPanel(): void;
@@ -246,6 +259,10 @@ declare const PlayerLyrics: {
 };
 
 declare const PlayerSongLibrary: {
+    install(controller: VoiceMusicController): void;
+};
+
+declare const PlayerHistoryUI: {
     install(controller: VoiceMusicController): void;
 };
 

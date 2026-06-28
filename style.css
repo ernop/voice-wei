@@ -583,6 +583,96 @@ h1 {
     width: 100%;
 }
 
+.music-history-panel {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid rgba(74, 222, 128, 0.18);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.music-history-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.music-history-header h2,
+.music-history-card h3 {
+    margin: 0;
+    color: #bbf7d0;
+}
+
+.music-history-header p {
+    margin: 4px 0 0;
+    color: rgba(232, 245, 233, 0.7);
+    font-size: 0.85rem;
+}
+
+.music-history-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.music-history-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.music-history-card {
+    border: 1px solid rgba(74, 222, 128, 0.12);
+    border-radius: 10px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.music-history-list {
+    display: grid;
+    gap: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 8px;
+}
+
+.music-history-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 8px;
+    border: 1px solid rgba(74, 222, 128, 0.1);
+    border-radius: 8px;
+    background: rgba(74, 222, 128, 0.04);
+}
+
+.music-history-item-title {
+    color: #e8f5e9;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.music-history-item-meta {
+    color: rgba(232, 245, 233, 0.65);
+    font-size: 0.76rem;
+    margin-top: 2px;
+}
+
+.music-history-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.music-history-empty {
+    color: rgba(232, 245, 233, 0.55);
+    font-size: 0.82rem;
+    padding: 8px 0;
+}
+
 .playlist-header {
     display: flex;
     justify-content: space-between;
@@ -907,6 +997,12 @@ h1 {
     border-color: rgba(148, 163, 184, 0.32);
     background: rgba(148, 163, 184, 0.08);
     color: #cbd5e1;
+}
+
+.playlist-source-row.source-history .playlist-source-badge {
+    border-color: rgba(59, 130, 246, 0.36);
+    background: rgba(59, 130, 246, 0.08);
+    color: #bfdbfe;
 }
 
 .playlist-table td {

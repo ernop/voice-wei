@@ -1104,6 +1104,123 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && playlistSourceGroups.dataRows.includes('501')
             && playlistSourceGroups.dataRows.includes('502'));
 
+        const musicHistoryWorkflows = await tab.evaluate(async () => {
+            const harness = {
+                musicHistoryLookups: [{
+                    id: 1,
+                    requestText: 'old lookup request',
+                    songCount: 2,
+                    provider: 'openai',
+                    createdAt: '2026-01-01',
+                    songList: [{ searchTerm: 'old one' }, { searchTerm: 'old two' }]
+                }],
+                musicHistorySongs: [{
+                    videoId: 'known-video',
+                    name: 'Known Song',
+                    artist: 'Known Artist',
+                    title: 'Known Song',
+                    channelTitle: 'Known Artist',
+                    duration: '2:00',
+                    durationSeconds: 120,
+                    searchTerm: 'Known Artist Known Song',
+                    sourceKind: 'search',
+                    lastSeenAt: '2026-01-02'
+                }],
+                musicHistorySearches: [{
+                    query: 'cached query',
+                    queryKey: 'cached query',
+                    resultCount: 1,
+                    source: 'cache',
+                    updatedAt: '2026-01-03',
+                    results: [{ videoId: 'cached-video', title: 'Cached Video', channelTitle: 'Cached Channel', duration: 100 }]
+                }],
+                playlist: [],
+                currentPlaylistIndex: -1,
+                statuses: [],
+                messages: [],
+                searchedTerms: [],
+                rerunRequest: '',
+                escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); },
+                truncateForStatus(value) { return String(value || ''); },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.statuses.push(message); },
+                async searchAndAddToPlaylist(songList) { this.searchedTerms.push(...songList.map(song => song.searchTerm)); },
+                async processMusicSearch(requestText) { this.rerunRequest = requestText; },
+                hydrateItemLyricsFromCache() {},
+                addPlaylistItemToDOM(item) { this.playlist.push(item); },
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                showTransportBar() {}
+            };
+            PlayerHistoryUI.install(harness);
+            harness.refreshMusicHistoryPanel = async () => {};
+            harness.renderLookupHistory(harness.musicHistoryLookups);
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            harness.renderSearchCacheHistory(harness.musicHistorySearches);
+            const rendered = {
+                lookup: document.getElementById('musicLookupHistoryList').textContent,
+                song: document.getElementById('musicKnownSongsList').textContent,
+                cache: document.getElementById('musicSearchCacheList').textContent
+            };
+            await harness.loadHistoryLookups([1]);
+            await harness.rerunHistoryLookupById(1);
+            await harness.loadKnownSongs(['known-video']);
+            document.getElementById('musicLookupHistoryList').innerHTML = '';
+            document.getElementById('musicKnownSongsList').innerHTML = '';
+            document.getElementById('musicSearchCacheList').innerHTML = '';
+            return {
+                rendered,
+                searchedTerms: harness.searchedTerms.join('|'),
+                rerunRequest: harness.rerunRequest,
+                loadedKnown: harness.playlist[0]?.sourceKind || ''
+            };
+        });
+        report.check('player history UI loads, reruns, and combines stored work',
+            musicHistoryWorkflows.rendered.lookup.includes('old lookup request')
+            && musicHistoryWorkflows.rendered.song.includes('Known Song')
+            && musicHistoryWorkflows.rendered.cache.includes('cached query')
+            && musicHistoryWorkflows.searchedTerms === 'old one|old two'
+            && musicHistoryWorkflows.rerunRequest === 'old lookup request'
+            && musicHistoryWorkflows.loadedKnown === 'history');
+
+        const musicHistoryRefreshOverride = await tab.evaluate(async () => {
+            const query = `refresh cache ${Date.now()}`;
+            const realFetch = window.fetch;
+            window.fetch = async url => {
+                if (String(url).includes('proxy.php?q=')) {
+                    return new Response(JSON.stringify({
+                        results: [{ videoId: 'fresh-video', title: 'Fresh Video', channelTitle: 'Fresh Channel', duration: 111 }],
+                        source: 'fresh-source',
+                        instance: 'fresh-instance'
+                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }
+                return realFetch(url);
+            };
+            const harness = {
+                statuses: [],
+                messages: [],
+                updateStatus(message) { this.statuses.push(message); },
+                truncateForStatus(value) { return String(value || ''); },
+                escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                async refreshMusicHistoryPanel() {}
+            };
+            PlayerHistoryUI.install(harness);
+            await harness.refreshCachedSearchQuery(query);
+            window.fetch = realFetch;
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const cached = await PlayerHistoryDB.getYouTubeSearch(query);
+            return {
+                videoId: cached?.results?.[0]?.videoId || '',
+                source: cached?.source || '',
+                refreshedByUser: cached?.refreshedByUser === true
+            };
+        });
+        report.check('player search cache can be force-refreshed from remote',
+            musicHistoryRefreshOverride.videoId === 'fresh-video'
+            && musicHistoryRefreshOverride.source === 'fresh-source'
+            && musicHistoryRefreshOverride.refreshedByUser);
+
         const aiParsing = await tab.evaluate(async () => {
             const harness = {
                 statuses: [],

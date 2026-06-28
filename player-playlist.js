@@ -334,6 +334,9 @@ const PlayerPlaylist = (function () {
                 if (kind === 'favorite') {
                     return { key: 'favorite', label: 'Loaded favorites', className: 'source-favorite' };
                 }
+                if (kind === 'history') {
+                    return { key: 'history', label: 'Known songs', className: 'source-history' };
+                }
                 if (kind === 'demo') {
                     return { key: 'demo', label: 'Demo song', className: 'source-demo' };
                 }
