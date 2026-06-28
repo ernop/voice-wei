@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>Deploys - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=174">
+</head>
+
+<body data-page="deploys">
+    <div class="container">
+        <header id="siteHeader"></header>
+
+        <main>
+            <section class="deploy-panel">
+                <div class="deploy-header">
+                    <div>
+                        <h2>Deploy duration by version</h2>
+                        <p>Uses GitHub Actions run history as persistent telemetry. Auto-refreshes every minute.</p>
+                    </div>
+                    <button id="deployRefreshBtn" class="quick-action-btn" type="button">Refresh</button>
+                </div>
+
+                <div class="deploy-summary" id="deploySummary">Loading deploy telemetry...</div>
+                <div class="deploy-chart-wrap">
+                    <svg id="deployChart" class="deploy-chart" role="img" aria-label="Deploy duration chart"></svg>
+                </div>
+                <div class="deploy-table-wrap">
+                    <table class="deploy-table">
+                        <thead>
+                            <tr>
+                                <th>Version</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Run</th>
+                                <th>Commit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deployTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="dev-error-monitor.js?v=174"></script>
+    <script src="app-version.js?v=174"></script>
+    <script src="storage-keys.js?v=174"></script>
+    <script src="shared-header.js?v=174"></script>
+    <script src="deploys.js?v=174"></script>
+</body>
+
+</html>

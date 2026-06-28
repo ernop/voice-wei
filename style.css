@@ -673,6 +673,111 @@ h1 {
     padding: 8px 0;
 }
 
+.deploy-panel {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.24);
+}
+
+.deploy-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.deploy-header h2 {
+    margin: 0;
+    color: #bbf7d0;
+}
+
+.deploy-header p,
+.deploy-summary {
+    color: rgba(232, 245, 233, 0.72);
+    font-size: 0.9rem;
+}
+
+.deploy-summary {
+    margin: 12px 0;
+}
+
+.deploy-chart-wrap,
+.deploy-table-wrap {
+    overflow-x: auto;
+    border: 1px solid rgba(74, 222, 128, 0.12);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.deploy-chart {
+    display: block;
+    width: 100%;
+    min-width: 720px;
+    height: 320px;
+}
+
+.deploy-chart-axis {
+    fill: none;
+    stroke: rgba(232, 245, 233, 0.45);
+    stroke-width: 1.5;
+}
+
+.deploy-chart-grid {
+    stroke: rgba(232, 245, 233, 0.12);
+    stroke-width: 1;
+}
+
+.deploy-chart-line {
+    fill: none;
+    stroke: #4ade80;
+    stroke-width: 2.5;
+}
+
+.deploy-chart-dot {
+    stroke: #022c22;
+    stroke-width: 2;
+}
+
+.deploy-chart-dot.success {
+    fill: #86efac;
+}
+
+.deploy-chart-dot.failed {
+    fill: #f87171;
+}
+
+.deploy-chart-label {
+    fill: rgba(232, 245, 233, 0.75);
+    font-size: 12px;
+}
+
+.deploy-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+}
+
+.deploy-table th,
+.deploy-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+    text-align: left;
+    color: #e8f5e9;
+}
+
+.deploy-table th {
+    color: #86efac;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.deploy-row-failed td {
+    color: #fecaca;
+}
+
 .playlist-header {
     display: flex;
     justify-content: space-between;
