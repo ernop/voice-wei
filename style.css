@@ -955,60 +955,11 @@ h1 {
     border-left: 3px solid #4ade80;
 }
 
-.playlist-table tbody tr.playlist-source-row {
-    cursor: default;
-    background: rgba(0, 0, 0, 0.32);
-}
-
-.playlist-table tbody tr.playlist-source-row:hover,
-.playlist-table tbody tr.playlist-source-row:active {
-    background: rgba(0, 0, 0, 0.32);
-}
-
-.playlist-table tbody tr.playlist-source-row td {
-    padding: 7px 10px;
-    text-align: left;
-    border-bottom: 1px solid rgba(74, 222, 128, 0.16);
-}
-
-.playlist-source-badge {
-    display: inline-flex;
-    max-width: 100%;
-    padding: 3px 8px;
-    border: 1px solid rgba(74, 222, 128, 0.24);
-    border-radius: 999px;
-    color: #bbf7d0;
-    background: rgba(74, 222, 128, 0.08);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.playlist-source-row.source-favorite .playlist-source-badge {
-    border-color: rgba(250, 204, 21, 0.38);
-    background: rgba(250, 204, 21, 0.08);
-    color: #fde68a;
-}
-
-.playlist-source-row.source-restored .playlist-source-badge {
-    border-color: rgba(148, 163, 184, 0.32);
-    background: rgba(148, 163, 184, 0.08);
-    color: #cbd5e1;
-}
-
-.playlist-source-row.source-history .playlist-source-badge {
-    border-color: rgba(59, 130, 246, 0.36);
-    background: rgba(59, 130, 246, 0.08);
-    color: #bfdbfe;
-}
-
 .playlist-table td {
-    padding: 12px;
-    font-size: 0.9rem;
+    padding: 7px 10px;
+    font-size: 0.84rem;
     color: #e8f5e9;
+    line-height: 1.15;
     white-space: normal;
     word-wrap: break-word;
     vertical-align: middle;
@@ -1016,12 +967,12 @@ h1 {
 }
 
 .playlist-table td:nth-child(1) {
-    padding: 8px 4px;
+    padding: 5px 4px;
 }
 
 .playlist-table td:nth-child(2) {
     font-weight: 500;
-    color: rgba(232, 245, 233, 0.9);
+    color: #e8f5e9;
 }
 
 .playlist-table td:nth-child(3) {
@@ -1031,19 +982,47 @@ h1 {
 
 .playlist-table td:nth-child(4) {
     font-size: 0.8rem;
-    color: rgba(232, 245, 233, 0.6);
+    color: #d1fae5;
 }
 
 .playlist-table td:nth-child(5) {
     font-size: 0.85rem;
-    color: rgba(232, 245, 233, 0.7);
+    color: #d1fae5;
 }
 
 .playlist-table td:nth-child(6) {
     font-size: 0.8rem;
     font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
-    color: rgba(232, 245, 233, 0.6);
+    color: #d1fae5;
     white-space: nowrap;
+}
+
+.playlist-song-cell {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.playlist-song-name,
+.playlist-song-comment {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-song-name {
+    flex: 0 1 auto;
+}
+
+.playlist-song-comment {
+    flex: 1 1 10rem;
+    max-width: 22rem;
+    color: #bbf7d0;
+    font-size: 0.74rem;
+    font-weight: 500;
 }
 
 /* Favorite Button - Star */

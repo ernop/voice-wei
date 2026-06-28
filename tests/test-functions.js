@@ -1084,7 +1084,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 title: 'Restored Song',
                 channelTitle: 'Restored Artist',
                 duration: '1:00',
-                comment: '',
+                comment: 'Loaded before this page session',
                 searchTerm: 'Restored Artist Restored Song',
                 sourceKind: 'restored',
                 sourceLabel: 'Known at load'
@@ -1099,27 +1099,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 title: 'Search Song',
                 channelTitle: 'Search Artist',
                 duration: '1:00',
-                comment: '',
+                comment: 'Included because it matches the requested search',
                 searchTerm: 'Search Artist Search Song',
                 sourceKind: 'search',
                 sourceLabel: 'Search: Search Artist Search Song',
                 sourceSearchTerm: 'Search Artist Search Song'
             });
             const rows = Array.from(body.querySelectorAll('tr'));
-            const labels = rows
-                .filter(row => row.classList.contains('playlist-source-row'))
-                .map(row => row.textContent.trim());
+            const sourceRowCount = rows.filter(row => row.classList.contains('playlist-source-row')).length;
             const dataRows = rows
                 .filter(row => !row.classList.contains('playlist-source-row'))
                 .map(row => row.dataset.itemId);
+            const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => ({
+                text: el.textContent,
+                title: el.getAttribute('title')
+            }));
             body.innerHTML = '';
-            return { labels, dataRows };
+            return { sourceRowCount, dataRows, comments };
         });
-        report.check('player playlist visually groups source provenance',
-            playlistSourceGroups.labels.includes('Known at load')
-            && playlistSourceGroups.labels.includes('Search: Search Artist Search Song')
+        report.check('player playlist keeps compact rows and inline comments',
+            playlistSourceGroups.sourceRowCount === 0
             && playlistSourceGroups.dataRows.includes('501')
-            && playlistSourceGroups.dataRows.includes('502'));
+            && playlistSourceGroups.dataRows.includes('502')
+            && playlistSourceGroups.comments.some(comment =>
+                comment.text.includes('Included because') && comment.title.includes('matches the requested search')));
 
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {

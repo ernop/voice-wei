@@ -322,42 +322,6 @@ const PlayerPlaylist = (function () {
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             },
 
-            playlistSourceInfo(item) {
-                const kind = item.sourceKind || 'restored';
-                if (kind === 'search') {
-                    return {
-                        key: `search:${item.sourceSearchTerm || item.searchTerm || 'unknown'}`,
-                        label: item.sourceLabel || `Search: ${item.sourceSearchTerm || item.searchTerm || 'unknown'}`,
-                        className: 'source-search'
-                    };
-                }
-                if (kind === 'favorite') {
-                    return { key: 'favorite', label: 'Loaded favorites', className: 'source-favorite' };
-                }
-                if (kind === 'history') {
-                    return { key: 'history', label: 'Known songs', className: 'source-history' };
-                }
-                if (kind === 'demo') {
-                    return { key: 'demo', label: 'Demo song', className: 'source-demo' };
-                }
-                return { key: 'restored', label: 'Known at load', className: 'source-restored' };
-            },
-
-            ensurePlaylistSourceHeader(item) {
-                const playlistBody = document.getElementById('playlistBody');
-                const source = this.playlistSourceInfo(item);
-                const existing = Array.from(playlistBody.querySelectorAll('tr.playlist-source-row'))
-                    .find(row => row.dataset.sourceKey === source.key);
-                if (existing) return existing;
-
-                const row = document.createElement('tr');
-                row.className = `playlist-source-row ${source.className}`;
-                row.dataset.sourceKey = source.key;
-                row.innerHTML = `<td colspan="6"><span class="playlist-source-badge">${this.escapeHtml(source.label)}</span></td>`;
-                playlistBody.insertBefore(row, playlistBody.firstChild);
-                return row;
-            },
-
             addPlaylistItemToDOM(item) {
                 const playlistBody = document.getElementById('playlistBody');
                 const row = document.createElement('tr');
@@ -369,6 +333,7 @@ const PlayerPlaylist = (function () {
                 const songName = item.name || item.title || 'Unknown';
                 const yearText = item.year || '';
                 const albumText = item.album || '';
+                const commentText = item.comment || '';
                 const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
                 const lyricsLoading = item.lyricsStatus === 'loading';
                 const lyricsLabel = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
@@ -381,7 +346,12 @@ const PlayerPlaylist = (function () {
                         </div>
                     </td>
                     <td>${this.escapeHtml(artistName)}</td>
-                    <td>${this.escapeHtml(songName)}</td>
+                    <td>
+                        <div class="playlist-song-cell">
+                            <span class="playlist-song-name">${this.escapeHtml(songName)}</span>
+                            ${commentText ? `<span class="playlist-song-comment" title="${this.escapeHtml(commentText)}">${this.escapeHtml(commentText)}</span>` : ''}
+                        </div>
+                    </td>
                     <td>${yearText}</td>
                     <td>${this.escapeHtml(albumText)}</td>
                     <td>${item.duration || '--:--'}</td>
@@ -414,8 +384,7 @@ const PlayerPlaylist = (function () {
                     this.playVideo(item);
                 });
 
-                const sourceHeader = this.ensurePlaylistSourceHeader(item);
-                sourceHeader.insertAdjacentElement('afterend', row);
+                playlistBody.insertBefore(row, playlistBody.firstChild);
 
                 // YouTube iframes are created on first play. Creating one for
                 // every playlist row up front is expensive on mobile and can
