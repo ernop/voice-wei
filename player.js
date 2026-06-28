@@ -945,9 +945,12 @@ class VoiceMusicController {
             const playlistResult = await this.searchAndAddToPlaylist(result.songList);
             const addedCount = playlistResult?.addedCount || 0;
             const skippedCount = playlistResult?.skippedCount || 0;
+            const attemptedTerms = playlistResult?.attemptedTerms || result.songList.map(s => s.searchTerm).filter(Boolean);
 
             if (addedCount === 0) {
-                this.updateStatus('No YouTube matches found for those search terms.');
+                const termsText = this.formatSearchTermsForDisplay(attemptedTerms);
+                this.updateStatus(`No YouTube matches for: ${termsText}`);
+                this.addMessage('claude', 'No YouTube matches', `Attempted search terms:\n${attemptedTerms.join('\n')}`);
                 return;
             }
 
@@ -965,11 +968,12 @@ class VoiceMusicController {
         } catch (error) {
             const message = error && error.message ? error.message : 'Music lookup failed';
             if (error && error.name === 'NoSongsFoundError') {
-                this.updateStatus('No songs found. Try a more specific music request or paste page text.');
-                this.addMessage('claude', 'No songs found', 'The AI returned an empty list for that request.');
+                const requestSummary = this.truncateForStatus(requestText);
+                this.updateStatus(`No songs found for: ${requestSummary}`);
+                this.addMessage('claude', 'No songs found', `Request that returned no songs:\n${requestText}`);
                 this.hidePrompt();
                 if (this.settings.readClaudeResponse) {
-                    this.speakText('No songs found. Try a more specific music request or paste page text.');
+                    this.speakText(`No songs found for: ${requestSummary}`);
                 }
                 return;
             }
@@ -985,6 +989,18 @@ class VoiceMusicController {
             this.updateSubmitButton(false);
             this.updateTypedCommandUI(false);
         }
+    }
+
+    truncateForStatus(text, maxLength = 120) {
+        const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+        if (normalized.length <= maxLength) return normalized;
+        return `${normalized.slice(0, maxLength - 1)}…`;
+    }
+
+    formatSearchTermsForDisplay(terms) {
+        const cleanTerms = (terms || []).map(term => String(term || '').trim()).filter(Boolean);
+        if (cleanTerms.length === 0) return '(no search terms)';
+        return this.truncateForStatus(cleanTerms.join('; '), 160);
     }
 
     updateTypedCommandUI(busy) {

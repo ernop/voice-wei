@@ -143,16 +143,20 @@ const PlayerPlaylist = (function () {
 
                 // Add to playlist in original order (reversed so unshift preserves order)
                 let addedCount = 0;
+                const attemptedTerms = validSongs.map(({ song }) => song.searchTerm);
+                const skippedTerms = [];
                 let skippedCount = songList.length - validSongs.length;
                 for (const { song, index, videoData, error } of results) {
                     if (error) {
                         console.error(`Error searching for "${song.searchTerm}":`, error);
                         skippedCount++;
+                        skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `${song.searchTerm}: ${error.message}`);
                         continue;
                     }
                     if (!videoData) {
                         skippedCount++;
+                        skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `No YouTube results for: ${song.searchTerm}`);
                         continue;
                     }
@@ -191,7 +195,7 @@ const PlayerPlaylist = (function () {
                     this.speakText('Could not find any of those songs on YouTube');
                 }
                 this.persistPlaylist();
-                return { addedCount, skippedCount, requestedCount: songList.length };
+                return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
             },
 
             updatePlaylistLabel() {
