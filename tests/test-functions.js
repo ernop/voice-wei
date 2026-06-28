@@ -1143,6 +1143,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
 
+        const playerLoadTimeout = await tab.evaluate(async () => {
+            const harness = {
+                playerReadyPromises: new Map(),
+                messages: [],
+                status: '',
+                settings: { readClaudeResponse: false },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.status = message; },
+                truncateForStatus(text, maxLength = 120) {
+                    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+                    return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 1)}…`;
+                },
+                speakText() {}
+            };
+            PlayerPlaylist.install(harness);
+            const item = {
+                id: 44,
+                videoId: 'slow-video',
+                name: 'Slow Song',
+                artist: 'Slow Artist',
+                title: 'Slow Song',
+                channelTitle: 'Slow Artist',
+                searchTerm: 'Slow Artist Slow Song'
+            };
+            harness.playerReadyPromises.set(item.id, { promise: new Promise(() => {}), resolve() {} });
+            const ready = await harness.waitForPlayerReady(item, 5);
+            harness.reportPlayerLoadFailure(item, ready.error);
+            const failureLog = harness.messages.find(message => message.label === 'Player load failed');
+            return {
+                ok: ready.ok,
+                status: harness.status,
+                text: failureLog?.text || ''
+            };
+        });
+        report.check('player loading timeout exposes track and search term',
+            playerLoadTimeout.ok === false
+            && playerLoadTimeout.status.includes('Slow Song')
+            && playerLoadTimeout.text.includes('slow-video')
+            && playerLoadTimeout.text.includes('Slow Artist Slow Song'));
+
         // Auto mode: spoken control command executes locally
         await tab.click('#listenBtn');
         await tab.waitForTimeout(200);

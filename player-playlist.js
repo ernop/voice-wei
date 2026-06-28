@@ -6,6 +6,7 @@ const SEEK_JUMP_SECONDS = 10;
 const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const YOUTUBE_API_POLL_INTERVAL_MS = 100;
+const PLAYER_READY_TIMEOUT_MS = 8000;
 
 const PlayerPlaylist = (function () {
     'use strict';
@@ -333,16 +334,24 @@ const PlayerPlaylist = (function () {
                 let readyResolve;
                 const readyPromise = new Promise(resolve => { readyResolve = resolve; });
                 this.playerReadyPromises.set(item.id, { promise: readyPromise, resolve: readyResolve });
+                const settleReady = (result) => {
+                    const entry = this.playerReadyPromises.get(item.id);
+                    if (!entry || entry.settled) return;
+                    entry.settled = true;
+                    entry.resolve(result);
+                };
 
                 const createPlayer = () => {
                     if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
                         console.error('YouTube API not loaded yet');
+                        settleReady({ ok: false, error: 'YouTube API not loaded' });
                         return;
                     }
 
                     const playerElement = document.getElementById(playerId);
                     if (!playerElement) {
                         console.error('Player element not found:', playerId);
+                        settleReady({ ok: false, error: `Player element not found: ${playerId}` });
                         return;
                     }
 
@@ -361,8 +370,7 @@ const PlayerPlaylist = (function () {
                                 onReady: (event) => {
                                     console.log('Player ready for:', item.videoId);
                                     this.players.set(item.id, event.target);
-                                    const entry = this.playerReadyPromises.get(item.id);
-                                    if (entry) entry.resolve(event.target);
+                                    settleReady({ ok: true, player: event.target });
                                 },
                                 onStateChange: (event) => {
                                     // Auto-advance to next when video ends
@@ -375,7 +383,10 @@ const PlayerPlaylist = (function () {
                                 },
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
-                                    this.updateStatus('Error loading video');
+                                    const detail = `YouTube player error ${event.data}`;
+                                    settleReady({ ok: false, error: detail });
+                                    this.updateStatus(`Error loading video: ${this.describePlaylistItem(item)}`);
+                                    this.addMessage('error', 'Player load failed', `Track: ${this.describePlaylistItem(item)}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}\nReason: ${detail}`);
                                 }
                             }
                         });
@@ -384,6 +395,7 @@ const PlayerPlaylist = (function () {
                         this.players.set(item.id, player);
                     } catch (error) {
                         console.error('Error creating YouTube player:', error);
+                        settleReady({ ok: false, error: error.message || String(error) });
                     }
                 };
 
@@ -413,9 +425,43 @@ const PlayerPlaylist = (function () {
                         }, YOUTUBE_API_POLL_INTERVAL_MS);
 
                         // Give up after timeout
-                        setTimeout(() => clearInterval(checkApi), YOUTUBE_API_TIMEOUT_MS);
+                        setTimeout(() => {
+                            clearInterval(checkApi);
+                            settleReady({ ok: false, error: `YouTube API did not load within ${YOUTUBE_API_TIMEOUT_MS / 1000}s` });
+                        }, YOUTUBE_API_TIMEOUT_MS);
                     }
                 }, DOM_SETTLE_DELAY_MS);
+            },
+
+            describePlaylistItem(item) {
+                const title = item.name || item.title || item.searchTerm || 'Unknown track';
+                const artist = item.artist || item.channelTitle || '';
+                return artist ? `${title} by ${artist}` : title;
+            },
+
+            waitForPlayerReady(item, timeoutMs = PLAYER_READY_TIMEOUT_MS) {
+                const entry = this.playerReadyPromises.get(item.id);
+                if (!entry) {
+                    return Promise.resolve({ ok: false, error: 'No player readiness entry exists' });
+                }
+
+                const timeout = new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve({ ok: false, error: `Player did not become ready within ${timeoutMs / 1000}s` });
+                    }, timeoutMs);
+                });
+
+                return Promise.race([entry.promise, timeout]);
+            },
+
+            reportPlayerLoadFailure(item, reason) {
+                const description = this.describePlaylistItem(item);
+                const detail = reason || 'Unknown player load failure';
+                this.addMessage('error', 'Player load failed', `Track: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}\nReason: ${detail}`);
+                this.updateStatus(`Player load failed: ${this.truncateForStatus(description, 80)}. Try next.`);
+                if (this.settings.readClaudeResponse) {
+                    this.speakText(`Player load failed for ${description}. Try next.`);
+                }
             },
 
             async playVideo(item) {
@@ -481,12 +527,18 @@ const PlayerPlaylist = (function () {
                         this.updateStatus('Error playing video. Try again.');
                     }
                 } else {
-                    this.updateStatus('Player loading...');
-                    const entry = this.playerReadyPromises.get(item.id);
-                    if (entry) {
-                        await entry.promise;
-                        this.playVideo(item);
+                    const description = this.describePlaylistItem(item);
+                    this.updateStatus(`Player loading: ${this.truncateForStatus(description, 100)}`);
+                    this.addMessage('claude', 'Player loading', `Waiting for player: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}`);
+                    const ready = await this.waitForPlayerReady(item);
+                    if (ready.ok) {
+                        const readyPlayer = ready.player || this.players.get(item.id);
+                        if (readyPlayer) {
+                            this.players.set(item.id, readyPlayer);
+                        }
+                        return this.playVideo(item);
                     }
+                    this.reportPlayerLoadFailure(item, ready.error);
                 }
             },
 

@@ -8,7 +8,7 @@ class VoiceMusicController {
         this.voiceCore = null;
         /** @type {Map<number, YT.Player>} */
         this.players = new Map();
-        /** @type {Map<number, { promise: Promise<any>, resolve: Function }>} */
+        /** @type {Map<number, { promise: Promise<any>, resolve: Function, settled?: boolean }>} */
         this.playerReadyPromises = new Map();
         /** @type {number | null} */
         this.currentPlayingId = null;
