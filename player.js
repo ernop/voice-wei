@@ -942,18 +942,37 @@ class VoiceMusicController {
             }
 
             this.updateStatus(`Found ${result.songList.length} song(s), searching YouTube...`);
-            await this.searchAndAddToPlaylist(result.songList);
+            const playlistResult = await this.searchAndAddToPlaylist(result.songList);
+            const addedCount = playlistResult?.addedCount || 0;
+            const skippedCount = playlistResult?.skippedCount || 0;
+
+            if (addedCount === 0) {
+                this.updateStatus('No YouTube matches found for those search terms.');
+                return;
+            }
 
             if (this.settings.readClaudeResponse) {
                 const songNames = result.songList.map(s => s.searchTerm).slice(0, 3).join(', ');
-                const announcement = `Found ${result.songList.length} song${result.songList.length > 1 ? 's' : ''}: ${songNames}`;
+                const skipText = skippedCount > 0 ? `; ${skippedCount} not added` : '';
+                const announcement = `Added ${addedCount} song${addedCount > 1 ? 's' : ''}${skipText}: ${songNames}`;
                 await this.speakTextAsync(announcement);
             }
 
             this.playPlaylist();
-            this.updateStatus('Playing');
+            this.updateStatus(skippedCount > 0
+                ? `Playing ${addedCount} song${addedCount > 1 ? 's' : ''}; ${skippedCount} not added`
+                : 'Playing');
         } catch (error) {
             const message = error && error.message ? error.message : 'Music lookup failed';
+            if (error && error.name === 'NoSongsFoundError') {
+                this.updateStatus('No songs found. Try a more specific music request or paste page text.');
+                this.addMessage('claude', 'No songs found', 'The AI returned an empty list for that request.');
+                this.hidePrompt();
+                if (this.settings.readClaudeResponse) {
+                    this.speakText('No songs found. Try a more specific music request or paste page text.');
+                }
+                return;
+            }
             this.logError('Music Lookup Error', error);
             this.updateStatus(`Music lookup failed: ${message}`);
             this.hidePrompt();

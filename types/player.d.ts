@@ -107,6 +107,12 @@ interface SongLibraryStore {
     songs: SongLibrarySong[];
 }
 
+interface PlaylistSearchResult {
+    addedCount: number;
+    skippedCount: number;
+    requestedCount: number;
+}
+
 interface AppConfig {
     claudeApiKey?: string;
     openaiApiKey?: string;
@@ -157,7 +163,7 @@ interface VoiceMusicController {
     playerReady(): void;
     loadDemoSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
-    searchAndAddToPlaylist(songList: any[]): Promise<void>;
+    searchAndAddToPlaylist(songList: any[]): Promise<PlaylistSearchResult>;
 
     currentLyricsItem(): PlaylistItem | null;
     toggleLyricsPanel(): void;

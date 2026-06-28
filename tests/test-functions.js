@@ -1041,6 +1041,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     { band: 'The Ventures', comment: 'regional riff band' }
                 ]
             }), 'prompt');
+            let emptyErrorName = '';
+            try {
+                harness.parseAIResponse('[]', 'prompt');
+            } catch (error) {
+                emptyErrorName = error.name;
+            }
 
             const realFetch = window.fetch;
             const fetchUrls = [];
@@ -1064,6 +1070,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 fetchUrls,
                 count: wrapped.songList.length,
                 terms: wrapped.songList.map(song => song.searchTerm),
+                emptyErrorName,
                 linkedTitle: prepared.linkedPages[0]?.title || '',
                 inferredTitle: inferred.linkedPages[0]?.title || '',
                 status: harness.statuses[0] || ''
@@ -1073,7 +1080,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             aiParsing.count === 3
             && aiParsing.terms.includes('The Clash London Calling')
             && aiParsing.terms.includes('Simon & Garfunkel Cecilia')
-            && aiParsing.terms.includes('The Ventures'));
+            && aiParsing.terms.includes('The Ventures')
+            && aiParsing.emptyErrorName === 'NoSongsFoundError');
         report.check('player URL requests are prepared with linked page text',
             aiParsing.urls[0] === 'https://example.test/page'
             && aiParsing.linkedTitle === 'Regional riffs'
@@ -1082,6 +1090,56 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             aiParsing.inferredUrls[0] === 'https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'
             && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))
             && aiParsing.inferredTitle === 'Regional riffs');
+
+        const partialPlaylist = await tab.evaluate(async () => {
+            const harness = {
+                playlist: [],
+                currentPlaylistIndex: -1,
+                messages: [],
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                showTransportBar() {},
+                decodeHtml(value) { return value; },
+                hydrateItemLyricsFromCache() {},
+                addPlaylistItemToDOM() {},
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                speakText() {}
+            };
+            PlayerPlaylist.install(harness);
+            harness.showTransportBar = () => {};
+            harness.addPlaylistItemToDOM = () => {};
+            harness.updatePlaylistLabel = () => {};
+            harness.persistPlaylist = () => {};
+            harness.ensureLyricsForItem = () => Promise.resolve();
+            harness.searchYouTube = query => {
+                if (query === 'found song') {
+                    return Promise.resolve({
+                        videoId: 'abc123',
+                        title: 'Found Song',
+                        channelTitle: 'Found Artist',
+                        duration: '3:00',
+                        durationSeconds: 180
+                    });
+                }
+                return Promise.resolve(null);
+            };
+            const result = await harness.searchAndAddToPlaylist([
+                { searchTerm: 'found song', name: 'Found Song', artist: 'Found Artist' },
+                { searchTerm: 'missing song', name: 'Missing Song', artist: 'Missing Artist' }
+            ]);
+            return {
+                result,
+                playlistLength: harness.playlist.length,
+                hasErrorLog: harness.messages.some(message => message.kind === 'error'),
+                hasNotAddedLog: harness.messages.some(message => message.label.includes('not added'))
+            };
+        });
+        report.check('player partial YouTube misses return counts without error logs',
+            partialPlaylist.result.addedCount === 1
+            && partialPlaylist.result.skippedCount === 1
+            && partialPlaylist.playlistLength === 1
+            && partialPlaylist.hasErrorLog === false
+            && partialPlaylist.hasNotAddedLog === true);
 
         // Auto mode: spoken control command executes locally
         await tab.click('#listenBtn');
