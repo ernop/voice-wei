@@ -144,6 +144,15 @@ class VoiceMusicController {
 
         logContent.appendChild(line);
         logContent.scrollTop = logContent.scrollHeight;
+
+        if (window.PlayerHistoryDB) {
+            window.PlayerHistoryDB.recordLog({
+                type,
+                label,
+                text: String(text),
+                line: line.textContent || ''
+            });
+        }
     }
 
     logUserMessage(text) {
@@ -951,6 +960,16 @@ class VoiceMusicController {
                 this.logClaudeMessage(`Prompt sent:\n${result.prompt}`);
             }
 
+            if (window.PlayerHistoryDB) {
+                window.PlayerHistoryDB.recordLookup({
+                    requestText,
+                    provider: this.settings.aiProvider,
+                    songCount: result.songList.length,
+                    songList: result.songList,
+                    promptLength: result.prompt ? result.prompt.length : 0
+                });
+            }
+
             this.updateStatus(`Found ${result.songList.length} song(s), searching YouTube...`);
             const playlistResult = await this.searchAndAddToPlaylist(result.songList);
             const addedCount = playlistResult?.addedCount || 0;
@@ -981,6 +1000,15 @@ class VoiceMusicController {
                 const requestSummary = this.truncateForStatus(requestText);
                 this.updateStatus(`No songs found for: ${requestSummary}`);
                 this.addMessage('claude', 'No songs found', `Request that returned no songs:\n${requestText}`);
+                if (window.PlayerHistoryDB) {
+                    window.PlayerHistoryDB.recordLookup({
+                        requestText,
+                        provider: this.settings.aiProvider,
+                        songCount: 0,
+                        songList: [],
+                        error: 'NoSongsFoundError'
+                    });
+                }
                 this.hidePrompt();
                 if (this.settings.readClaudeResponse) {
                     this.speakText(`No songs found for: ${requestSummary}`);
@@ -1040,8 +1068,12 @@ class VoiceMusicController {
     toggleFavorite(videoId, songData = null) {
         if (this.favorites[videoId]) {
             // Already favorited - remove it
+            const oldFavorite = this.favorites[videoId];
             delete this.favorites[videoId];
             this.saveFavorites();
+            if (window.PlayerHistoryDB) {
+                window.PlayerHistoryDB.recordFavorite(oldFavorite, false);
+            }
             return false;
         } else if (songData) {
             // Add to favorites with full song data
@@ -1060,6 +1092,9 @@ class VoiceMusicController {
                 favoritedAt: Date.now()
             };
             this.saveFavorites();
+            if (window.PlayerHistoryDB) {
+                window.PlayerHistoryDB.recordFavorite(this.favorites[videoId], true);
+            }
             return true;
         }
         return false;

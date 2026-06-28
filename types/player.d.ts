@@ -40,6 +40,9 @@ interface PlaylistItem {
     durationSeconds?: number;
     comment: string;
     searchTerm: string;
+    sourceKind?: 'search' | 'favorite' | 'restored' | 'demo';
+    sourceLabel?: string;
+    sourceSearchTerm?: string;
     lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
     lyricsData?: LyricsResult | null;
 }
@@ -121,6 +124,16 @@ interface PlaylistSearchResult {
     requestedCount: number;
     attemptedTerms: string[];
     skippedTerms: string[];
+}
+
+interface PlayerHistoryDBApi {
+    recordLog(entry: { type: string; label: string; text: string; line: string }): void;
+    recordLookup(lookup: any): void;
+    recordSong(song: any, sourceKind: string): void;
+    recordSongs(songs: any[], sourceKind: string): void;
+    recordYouTubeSearch(query: string, results: any[], meta?: Record<string, any>): void;
+    getYouTubeSearch(query: string): Promise<any | null>;
+    recordFavorite(favorite: any, active: boolean): void;
 }
 
 interface AppConfig {

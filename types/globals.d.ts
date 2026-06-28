@@ -55,6 +55,7 @@ interface Window {
     PlayerLyrics?: typeof PlayerLyrics;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
+    PlayerHistoryDB?: PlayerHistoryDBApi;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
     ProgressStore?: any;

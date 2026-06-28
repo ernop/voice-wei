@@ -49,11 +49,17 @@ const PlayerPlaylist = (function () {
                         durationSeconds: favData.durationSeconds || this.parseDurationToSeconds(favData.duration || ''),
                         comment: favData.comment || '',
                         searchTerm: favData.searchTerm || '',
+                        sourceKind: 'favorite',
+                        sourceLabel: 'Loaded favorites',
+                        sourceSearchTerm: favData.searchTerm || '',
                         id: Date.now() + Math.random(),
                         lyricsStatus: 'idle',
                         lyricsData: null
                     };
                     this.hydrateItemLyricsFromCache(playlistItem);
+                    if (window.PlayerHistoryDB) {
+                        window.PlayerHistoryDB.recordSong(playlistItem, 'favorite-load');
+                    }
 
                     this.playlist.unshift(playlistItem);
                     if (this.currentPlaylistIndex >= 0) {
@@ -163,6 +169,9 @@ const PlayerPlaylist = (function () {
                         album: song.album ? this.decodeHtml(song.album) : '',
                         comment: song.comment ? this.decodeHtml(song.comment) : '',
                         searchTerm: song.searchTerm,
+                        sourceKind: 'search',
+                        sourceLabel: `Search: ${song.searchTerm}`,
+                        sourceSearchTerm: song.searchTerm,
                         ...primaryVideoData,
                         id: itemId,
                         lyricsStatus: 'idle',
@@ -172,6 +181,9 @@ const PlayerPlaylist = (function () {
                         this.youtubeAlternateResults.set(itemId, alternateVideos);
                     }
                     this.hydrateItemLyricsFromCache(playlistItem);
+                    if (window.PlayerHistoryDB) {
+                        window.PlayerHistoryDB.recordSong(playlistItem, 'search');
+                    }
                     this.playlist.unshift(playlistItem);
                     if (this.currentPlaylistIndex >= 0) {
                         this.currentPlaylistIndex++;
@@ -235,16 +247,27 @@ const PlayerPlaylist = (function () {
 
                 this.addMessage('claude', 'Search', `Searching for: ${query}`);
 
-                const response = await fetch(proxyUrl);
+                let data;
+                try {
+                    const response = await fetch(proxyUrl);
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    const errorMsg = errorData.error || `HTTP ${response.status}`;
-                    this.addMessage('error', 'Search Failed', errorMsg);
-                    throw new Error(`Search failed: ${errorMsg}`);
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMsg = errorData.error || `HTTP ${response.status}`;
+                        this.addMessage('error', 'Search Failed', errorMsg);
+                        throw new Error(`Search failed: ${errorMsg}`);
+                    }
+
+                    data = await response.json();
+                } catch (error) {
+                    const cached = window.PlayerHistoryDB ? await window.PlayerHistoryDB.getYouTubeSearch(query) : null;
+                    if (cached && Array.isArray(cached.results)) {
+                        this.addMessage('claude', 'Search Cache', `Using cached YouTube results for: ${query}`);
+                        data = { results: cached.results, source: cached.source || 'cache', instance: cached.instance || 'indexeddb-cache' };
+                    } else {
+                        throw error;
+                    }
                 }
-
-                const data = await response.json();
 
                 // Check for error response
                 if (data.error) {
@@ -254,6 +277,12 @@ const PlayerPlaylist = (function () {
 
                 // Get results from our standardized proxy response
                 const results = data.results || [];
+                if (window.PlayerHistoryDB && results.length > 0) {
+                    window.PlayerHistoryDB.recordYouTubeSearch(query, results, {
+                        source: data.source || '',
+                        instance: data.instance || ''
+                    });
+                }
 
                 const videos = results
                     .filter(result => result.videoId)
@@ -291,6 +320,39 @@ const PlayerPlaylist = (function () {
                     return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 }
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            },
+
+            playlistSourceInfo(item) {
+                const kind = item.sourceKind || 'restored';
+                if (kind === 'search') {
+                    return {
+                        key: `search:${item.sourceSearchTerm || item.searchTerm || 'unknown'}`,
+                        label: item.sourceLabel || `Search: ${item.sourceSearchTerm || item.searchTerm || 'unknown'}`,
+                        className: 'source-search'
+                    };
+                }
+                if (kind === 'favorite') {
+                    return { key: 'favorite', label: 'Loaded favorites', className: 'source-favorite' };
+                }
+                if (kind === 'demo') {
+                    return { key: 'demo', label: 'Demo song', className: 'source-demo' };
+                }
+                return { key: 'restored', label: 'Known at load', className: 'source-restored' };
+            },
+
+            ensurePlaylistSourceHeader(item) {
+                const playlistBody = document.getElementById('playlistBody');
+                const source = this.playlistSourceInfo(item);
+                const existing = Array.from(playlistBody.querySelectorAll('tr.playlist-source-row'))
+                    .find(row => row.dataset.sourceKey === source.key);
+                if (existing) return existing;
+
+                const row = document.createElement('tr');
+                row.className = `playlist-source-row ${source.className}`;
+                row.dataset.sourceKey = source.key;
+                row.innerHTML = `<td colspan="6"><span class="playlist-source-badge">${this.escapeHtml(source.label)}</span></td>`;
+                playlistBody.insertBefore(row, playlistBody.firstChild);
+                return row;
             },
 
             addPlaylistItemToDOM(item) {
@@ -349,8 +411,8 @@ const PlayerPlaylist = (function () {
                     this.playVideo(item);
                 });
 
-                // Insert newest items at the top
-                playlistBody.insertBefore(row, playlistBody.firstChild);
+                const sourceHeader = this.ensurePlaylistSourceHeader(item);
+                sourceHeader.insertAdjacentElement('afterend', row);
 
                 // YouTube iframes are created on first play. Creating one for
                 // every playlist row up front is expensive on mobile and can
@@ -1034,9 +1096,15 @@ const PlayerPlaylist = (function () {
 
                 this.playlist = saved.items.map(item => ({
                     ...item,
+                    sourceKind: 'restored',
+                    sourceLabel: 'Known at load',
+                    sourceSearchTerm: item.searchTerm || '',
                     lyricsStatus: item.lyricsStatus || 'idle',
                     lyricsData: item.lyricsData || null
                 }));
+                if (window.PlayerHistoryDB) {
+                    window.PlayerHistoryDB.recordSongs(this.playlist, 'restored-at-load');
+                }
                 this.currentPlaylistIndex = saved.currentPlaylistIndex;
 
                 document.getElementById('playlistContainer').style.display = 'block';

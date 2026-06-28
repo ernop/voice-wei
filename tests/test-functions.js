@@ -1024,6 +1024,86 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(2000);
 
+        const musicHistoryCache = await tab.evaluate(async () => {
+            const query = `cache test ${Date.now()}`;
+            PlayerHistoryDB.recordYouTubeSearch(query, [{
+                videoId: 'cached-video',
+                title: 'Cached Video',
+                channelTitle: 'Cached Channel',
+                duration: 100
+            }], { source: 'test' });
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const cached = await PlayerHistoryDB.getYouTubeSearch(query);
+            return {
+                query: cached?.query || '',
+                count: cached?.results?.length || 0,
+                videoId: cached?.results?.[0]?.videoId || '',
+                source: cached?.source || ''
+            };
+        });
+        report.check('player IndexedDB stores YouTube search conversions',
+            musicHistoryCache.query.startsWith('cache test')
+            && musicHistoryCache.count === 1
+            && musicHistoryCache.videoId === 'cached-video'
+            && musicHistoryCache.source === 'test');
+
+        const playlistSourceGroups = await tab.evaluate(() => {
+            const harness = {
+                favorites: {},
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {}
+            };
+            PlayerPlaylist.install(harness);
+            const body = document.getElementById('playlistBody');
+            body.innerHTML = '';
+            harness.addPlaylistItemToDOM({
+                id: 501,
+                videoId: 'restored-video',
+                name: 'Restored Song',
+                artist: 'Restored Artist',
+                year: '',
+                album: '',
+                title: 'Restored Song',
+                channelTitle: 'Restored Artist',
+                duration: '1:00',
+                comment: '',
+                searchTerm: 'Restored Artist Restored Song',
+                sourceKind: 'restored',
+                sourceLabel: 'Known at load'
+            });
+            harness.addPlaylistItemToDOM({
+                id: 502,
+                videoId: 'search-video',
+                name: 'Search Song',
+                artist: 'Search Artist',
+                year: '',
+                album: '',
+                title: 'Search Song',
+                channelTitle: 'Search Artist',
+                duration: '1:00',
+                comment: '',
+                searchTerm: 'Search Artist Search Song',
+                sourceKind: 'search',
+                sourceLabel: 'Search: Search Artist Search Song',
+                sourceSearchTerm: 'Search Artist Search Song'
+            });
+            const rows = Array.from(body.querySelectorAll('tr'));
+            const labels = rows
+                .filter(row => row.classList.contains('playlist-source-row'))
+                .map(row => row.textContent.trim());
+            const dataRows = rows
+                .filter(row => !row.classList.contains('playlist-source-row'))
+                .map(row => row.dataset.itemId);
+            body.innerHTML = '';
+            return { labels, dataRows };
+        });
+        report.check('player playlist visually groups source provenance',
+            playlistSourceGroups.labels.includes('Known at load')
+            && playlistSourceGroups.labels.includes('Search: Search Artist Search Song')
+            && playlistSourceGroups.dataRows.includes('501')
+            && playlistSourceGroups.dataRows.includes('502'));
+
         const aiParsing = await tab.evaluate(async () => {
             const harness = {
                 statuses: [],
