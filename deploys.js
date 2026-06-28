@@ -89,10 +89,35 @@ const DeployTelemetry = (function () {
 
     async function loadRuns() {
         try {
-            return await loadRunsFromSiteTelemetry();
+            const siteRows = await loadRunsFromSiteTelemetry();
+            return await mergeRecentGitHubTimings(siteRows);
         } catch (error) {
             console.warn('[deploy telemetry] Falling back to GitHub API', error);
             return loadRunsFromGitHub();
+        }
+    }
+
+    async function mergeRecentGitHubTimings(siteRows) {
+        try {
+            const data = await fetchJson(`${apiBase}/actions/workflows/${WORKFLOW}/runs?branch=master&per_page=${RUN_LIMIT}`);
+            const recentById = new Map((data.workflow_runs || []).map(run => [Number(run.id), run]));
+            return siteRows.map(row => {
+                const run = recentById.get(Number(row.id));
+                if (!run) return row;
+                const startedAt = run.run_started_at || run.created_at || row.startedAt;
+                const updatedAt = run.updated_at || row.completedAt || row.updatedAt;
+                return {
+                    ...row,
+                    status: run.status || row.status,
+                    conclusion: run.conclusion || row.conclusion,
+                    updatedAt,
+                    completedAt: updatedAt,
+                    durationSeconds: secondsBetween(startedAt, updatedAt)
+                };
+            });
+        } catch (error) {
+            console.warn('[deploy telemetry] Could not refresh recent GitHub timings', error);
+            return siteRows;
         }
     }
 

@@ -66,6 +66,7 @@ jobs:
         run: node .github/scripts/generate-deploy-telemetry.js
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_TELEMETRY_PAGES: 1
 
       - name: Upload deploy telemetry
         if: success()
