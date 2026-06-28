@@ -169,8 +169,9 @@
     }
 
     function playMidi(midi) {
-        if (!piano) return;
+        if (!piano || !phrasePlaybackAllowed()) return false;
         piano.playMidi(midi, state.noteLengthMs / 1000);
+        return true;
     }
 
     function buildPhrase() {
@@ -300,9 +301,10 @@
 
     /** @param {number} midi */
     async function playSingleNote(midi) {
-        if (!phrasePlaybackAllowed()) return;
-        await PianoCore.ensureStarted();
-        playMidi(midi);
+        await runPhrasePlayback(async () => {
+            await PianoCore.ensureStarted();
+            playMidi(midi);
+        });
     }
 
     // Muted notes are simply not performed. Spoken output reads the plan
@@ -676,11 +678,7 @@
         }
     }
 
-    async function playCurrentOrNew() {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return;
-        }
+    async function playCurrentOrNewUnlocked() {
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
         await playPhrase();
@@ -694,11 +692,28 @@
         return !phraseTestIsOpen();
     }
 
-    function handleMediaPlay() {
+    /**
+     * The one Phrases-page playback gate. Test mode is exclusively for
+     * listening to the user's singing; all page-level playback routes
+     * must enter through here before they can start transport, generate
+     * transport-side state, or use the Phrases MIDI boundary.
+     * @template T
+     * @param {() => T | Promise<T>} action
+     * @returns {Promise<T | null>}
+     */
+    async function runPhrasePlayback(action) {
         if (!phrasePlaybackAllowed()) {
             stopTransport();
-            return;
+            return null;
         }
+        return action();
+    }
+
+    async function playCurrentOrNew() {
+        await runPhrasePlayback(playCurrentOrNewUnlocked);
+    }
+
+    function handleMediaPlay() {
         playCurrentOrNew();
     }
 
@@ -707,10 +722,6 @@
     }
 
     function handleMediaNext() {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return;
-        }
         playNext();
     }
 
@@ -723,17 +734,17 @@
         syncBreakdownControls();
     }
 
-    async function playNext() {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return;
-        }
+    async function playNextUnlocked() {
         await MediaSessionCore.activate();
         testPanel.close();
         stopTransport();
         exitBreakdownMode();
         generatePhrase();
         await playPhrase();
+    }
+
+    async function playNext() {
+        await runPhrasePlayback(playNextUnlocked);
     }
 
     function toggleRepeatLoop() {
@@ -926,10 +937,11 @@
         playBtn.title = 'Play phrase';
         playBtn.textContent = '>';
         playBtn.addEventListener('click', async () => {
-            if (!phrasePlaybackAllowed()) return;
-            currentPhrase = phrase;
-            setTakeFromPhrase(phrase);
-            await playPhrase();
+            await runPhrasePlayback(async () => {
+                currentPhrase = phrase;
+                setTakeFromPhrase(phrase);
+                await playPhrase();
+            });
         });
         const text = document.createElement('div');
         text.className = 'history-text';

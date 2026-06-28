@@ -280,7 +280,10 @@ ambient types: `KeyContext`, `ScaleDegreeNote`, `TargetSpan`, `RailLine`,
    page-level playback routes, hardware/media-session actions, and delayed
    setting replays must not start page playback under the panel. The panel's
    explicit guide button is the sole permitted automatic-target sound while
-   the user is there to sing.
+   the user is there to sing. On Phrases this is enforced by a central
+   playback gate (`runPhrasePlayback`) plus the page-owned MIDI boundary
+   (`playMidi`); new Phrases playback actions must go through that gate, not
+   add one-off Test checks at the button handler.
 4. **One timeline, explicitly named.** Phrases derives a single take
    plan (`PhrasePlanNote[]`: index, midi, degree, spoken, enabled,
    startMs/endMs) and display, playback, and the test panel all read

@@ -122,7 +122,10 @@ play buttons, hardware/media-session play/next, Reflect replays, setting
 replays, and play-on-step) must not start phrase playback. The only sound
 allowed inside Test is the explicit `Play Guide` button owned by the pitch test
 panel. This is a product requirement, not an implementation detail: Test means
-"listen to my singing", not "play the phrase again".
+"listen to my singing", not "play the phrase again". Enforcement should stay
+centralized: add future phrase playback routes through `runPhrasePlayback`
+and the page-owned `playMidi` boundary rather than scattering bespoke guards
+across handlers.
 
 ## Trace (`trace-settings`)
 
