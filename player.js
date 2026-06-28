@@ -10,6 +10,14 @@ class VoiceMusicController {
         this.players = new Map();
         /** @type {Map<number, { promise: Promise<any>, resolve: Function, settled?: boolean }>} */
         this.playerReadyPromises = new Map();
+        /** @type {YT.Player | null} */
+        this.activeYoutubePlayer = null;
+        /** @type {boolean} */
+        this.activeYoutubePlayerReady = false;
+        /** @type {string} */
+        this.activeYoutubePlayerVideoId = '';
+        /** @type {number | null} */
+        this.activeYoutubePlayerItemId = null;
         /** @type {number | null} */
         this.currentPlayingId = null;
         /** @type {AppConfig | null} */

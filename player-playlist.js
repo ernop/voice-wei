@@ -87,11 +87,6 @@ const PlayerPlaylist = (function () {
                 const playlistBody = document.getElementById('playlistBody');
                 playlistBody.innerHTML = '';
 
-                // Remove old player divs
-                const container = document.getElementById('playlistContainer');
-                const playerDivs = container.querySelectorAll('.youtube-player');
-                playerDivs.forEach(div => div.remove());
-
                 // Re-add items
                 for (let i = this.playlist.length - 1; i >= 0; i--) {
                     this.addPlaylistItemToDOM(this.playlist[i]);
@@ -337,19 +332,36 @@ const PlayerPlaylist = (function () {
             },
 
             createPlaylistPlayer(item) {
-                // Create hidden player container outside the table
+                if (this.activeYoutubePlayerReady && this.activeYoutubePlayer) {
+                    this.players.clear();
+                    if (this.activeYoutubePlayer) {
+                        this.players.set(item.id, this.activeYoutubePlayer);
+                    }
+                    this.activeYoutubePlayerItemId = item.id;
+                    return;
+                }
+
+                // Create one active player container outside the table. All
+                // playlist items load into this player instead of creating
+                // many hidden YouTube iframes.
                 const playlistContainer = document.getElementById('playlistContainer');
-                const playerDiv = document.createElement('div');
-                playerDiv.id = `player-${item.id}`;
-                playerDiv.className = 'youtube-player';
-                playerDiv.style.display = 'none';
-                playlistContainer.appendChild(playerDiv);
+                let playerDiv = document.getElementById('active-youtube-player');
+                if (!playerDiv) {
+                    playerDiv = document.createElement('div');
+                    playerDiv.id = 'active-youtube-player';
+                    playerDiv.className = 'youtube-player';
+                    playerDiv.style.display = 'none';
+                    playlistContainer.appendChild(playerDiv);
+                }
 
                 // Create readiness promise before player construction
-                const playerId = `player-${item.id}`;
+                const playerId = 'active-youtube-player';
                 let readyResolve;
                 const readyPromise = new Promise(resolve => { readyResolve = resolve; });
+                this.playerReadyPromises.clear();
                 this.playerReadyPromises.set(item.id, { promise: readyPromise, resolve: readyResolve });
+                this.activeYoutubePlayerItemId = item.id;
+                this.activeYoutubePlayerVideoId = item.videoId;
                 const settleReady = (result) => {
                     const entry = this.playerReadyPromises.get(item.id);
                     if (!entry || entry.settled) return;
@@ -389,6 +401,9 @@ const PlayerPlaylist = (function () {
                             events: {
                                 onReady: (event) => {
                                     console.log('Player ready for:', item.videoId);
+                                    this.activeYoutubePlayer = event.target;
+                                    this.activeYoutubePlayerReady = true;
+                                    this.players.clear();
                                     this.players.set(item.id, event.target);
                                     settleReady({ ok: true, player: event.target });
                                 },
@@ -404,18 +419,20 @@ const PlayerPlaylist = (function () {
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
                                     const detail = this.describeYouTubePlayerError(event.data);
-                                    const entry = this.playerReadyPromises.get(item.id);
+                                    const activeItem = this.playlist.find(candidate => candidate.id === this.activeYoutubePlayerItemId) || item;
+                                    const entry = this.playerReadyPromises.get(activeItem.id);
                                     const reportNow = !entry || entry.settled;
                                     settleReady({ ok: false, error: detail, errorCode: event.data });
                                     if (reportNow) {
-                                        this.reportPlayerLoadFailure(item, { error: detail, errorCode: event.data });
+                                        this.reportPlayerLoadFailure(activeItem, { error: detail, errorCode: event.data });
                                     }
                                 }
                             }
                         });
 
-                        // Store player immediately (methods may not be available until onReady)
-                        this.players.set(item.id, player);
+                        // Keep a reference, but do not expose it through
+                        // players until onReady confirms it can be used.
+                        this.activeYoutubePlayer = player;
                     } catch (error) {
                         console.error('Error creating YouTube player:', error);
                         settleReady({ ok: false, error: error.message || String(error) });
@@ -457,30 +474,25 @@ const PlayerPlaylist = (function () {
             },
 
             ensurePlaylistPlayer(item) {
-                if (this.players.has(item.id) || this.playerReadyPromises.has(item.id)) {
+                if (this.activeYoutubePlayerReady && this.activeYoutubePlayer) {
+                    this.players.clear();
+                    this.players.set(item.id, this.activeYoutubePlayer);
+                    this.activeYoutubePlayerItemId = item.id;
+                    return;
+                }
+
+                if (this.playerReadyPromises.has(item.id)) {
                     return;
                 }
                 this.createPlaylistPlayer(item);
             },
 
             recreatePlaylistPlayer(item) {
-                const oldPlayer = this.players.get(item.id);
-                if (oldPlayer && typeof oldPlayer.destroy === 'function') {
-                    try {
-                        oldPlayer.destroy();
-                    } catch (error) {
-                        console.error('Error destroying player before retry:', error);
-                    }
+                this.players.clear();
+                if (this.activeYoutubePlayer) {
+                    this.players.set(item.id, this.activeYoutubePlayer);
                 }
-                this.players.delete(item.id);
-                this.playerReadyPromises.delete(item.id);
-
-                const playerDiv = document.getElementById(`player-${item.id}`);
-                if (playerDiv) {
-                    playerDiv.remove();
-                }
-
-                this.createPlaylistPlayer(item);
+                this.activeYoutubePlayerItemId = item.id;
             },
 
             applyVideoDataToPlaylistItem(item, videoData) {
@@ -640,7 +652,15 @@ const PlayerPlaylist = (function () {
                 const player = this.players.get(item.id);
                 if (player && typeof player.playVideo === 'function') {
                     try {
-                        player.playVideo();
+                        if (this.activeYoutubePlayerVideoId !== item.videoId && typeof player.loadVideoById === 'function') {
+                            this.activeYoutubePlayerVideoId = item.videoId;
+                            this.activeYoutubePlayerItemId = item.id;
+                            player.loadVideoById(item.videoId);
+                        } else {
+                            this.activeYoutubePlayerVideoId = item.videoId;
+                            this.activeYoutubePlayerItemId = item.id;
+                            player.playVideo();
+                        }
                         this.currentPlayingId = item.id;
                         this.isPlaying = true;
                         this.isPaused = false;
@@ -650,6 +670,7 @@ const PlayerPlaylist = (function () {
 
                         // Update central player display
                         this.updateCentralPlayer(item);
+                        this.updateMediaSessionForItem(item);
 
                         this.currentLyricsItemId = item.id;
                         this.currentLyricsLineIndex = -1;
@@ -722,15 +743,38 @@ const PlayerPlaylist = (function () {
                 this.updateBigLyricsAvailability();
             },
 
+            updateMediaSessionForItem(item) {
+                if (!('mediaSession' in navigator) || !item) return;
+
+                const title = item.name || item.title || 'Music';
+                const artist = item.artist || item.channelTitle || '';
+                if (typeof MediaMetadata !== 'undefined') {
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title,
+                        artist,
+                        album: item.album || 'Voice-Wei Music'
+                    });
+                }
+
+                navigator.mediaSession.playbackState = 'playing';
+                navigator.mediaSession.setActionHandler('play', () => this.playPlaylist());
+                navigator.mediaSession.setActionHandler('pause', () => this.pausePlayback());
+                navigator.mediaSession.setActionHandler('previoustrack', () => this.playPrevious());
+                navigator.mediaSession.setActionHandler('nexttrack', () => this.playNext());
+            },
+
             stopPlayback() {
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.stopVideo === 'function') {
                         try {
                             this.suppressAutoAdvanceUntil = Date.now() + 1500;
                             player.stopVideo();
                             this.isPlaying = false;
                             this.isPaused = false;
+                            if ('mediaSession' in navigator) {
+                                navigator.mediaSession.playbackState = 'none';
+                            }
                             this.updatePlayPauseButton();
                             this.stopProgressUpdates();
                             this.updateProgressBar(0, 1);
@@ -749,12 +793,15 @@ const PlayerPlaylist = (function () {
 
                 if (this.isPaused && this.currentPlayingId) {
                     // Resume current
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.playVideo === 'function') {
                         const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
                         player.playVideo();
                         this.isPlaying = true;
                         this.isPaused = false;
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.playbackState = 'playing';
+                        }
                         this.updatePlayPauseButton();
                         this.startProgressUpdates();
                         if (currentItem) {
@@ -776,11 +823,14 @@ const PlayerPlaylist = (function () {
 
             pausePlayback() {
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.pauseVideo === 'function') {
                         player.pauseVideo();
                         this.isPlaying = false;
                         this.isPaused = true;
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.playbackState = 'paused';
+                        }
                         this.updatePlayPauseButton();
                         this.stopProgressUpdates();
                     }
@@ -821,7 +871,7 @@ const PlayerPlaylist = (function () {
 
             fastForward() {
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
                         try {
                             const currentTime = player.getCurrentTime();
@@ -835,7 +885,7 @@ const PlayerPlaylist = (function () {
 
             rewind() {
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
                         try {
                             const currentTime = player.getCurrentTime();
@@ -881,7 +931,7 @@ const PlayerPlaylist = (function () {
             clearPlaylist() {
                 // Stop any playing video
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
                     if (player && typeof player.stopVideo === 'function') {
                         try {
                             this.suppressAutoAdvanceUntil = Date.now() + 1500;
@@ -916,6 +966,10 @@ const PlayerPlaylist = (function () {
                 });
                 this.players.clear();
                 this.playerReadyPromises.clear();
+                this.activeYoutubePlayer = null;
+                this.activeYoutubePlayerReady = false;
+                this.activeYoutubePlayerVideoId = '';
+                this.activeYoutubePlayerItemId = null;
                 this.currentPlayingId = null;
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);

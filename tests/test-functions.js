@@ -1170,7 +1170,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateSearchResult.alternate === 'good-video'
             && alternateSearchResult.message.includes('Bad Result'));
 
-        const lazyPlayerCreation = await tab.evaluate(async () => {
+        const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {
                 players: new Map(),
                 playerReadyPromises: new Map(),
@@ -1201,25 +1201,25 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.addPlaylistItemToDOM(item);
             const beforeEnsure = {
                 hasEntry: harness.playerReadyPromises.has(item.id),
-                hasPlayerDiv: !!document.getElementById(`player-${item.id}`)
+                hasPlayerDiv: !!document.getElementById('active-youtube-player')
             };
             harness.ensurePlaylistPlayer(item);
             const afterEnsure = {
                 hasEntry: harness.playerReadyPromises.has(item.id),
-                hasPlayerDiv: !!document.getElementById(`player-${item.id}`)
+                hasPlayerDiv: !!document.getElementById('active-youtube-player')
             };
             await new Promise(resolve => setTimeout(resolve, 80));
             window.youtubeApiReady = [];
             document.querySelector(`[data-item-id="${item.id}"]`)?.remove();
-            document.getElementById(`player-${item.id}`)?.remove();
+            document.getElementById('active-youtube-player')?.remove();
             window.YT = realYT;
             return { beforeEnsure, afterEnsure };
         });
-        report.check('player creates YouTube iframe lazily on first play',
-            lazyPlayerCreation.beforeEnsure.hasEntry === false
-            && lazyPlayerCreation.beforeEnsure.hasPlayerDiv === false
-            && lazyPlayerCreation.afterEnsure.hasEntry === true
-            && lazyPlayerCreation.afterEnsure.hasPlayerDiv === true);
+        report.check('player creates one YouTube iframe on first play',
+            singlePlayerCreation.beforeEnsure.hasEntry === false
+            && singlePlayerCreation.beforeEnsure.hasPlayerDiv === false
+            && singlePlayerCreation.afterEnsure.hasEntry === true
+            && singlePlayerCreation.afterEnsure.hasPlayerDiv === true);
 
         const playerVarsIdentity = await tab.evaluate(() => {
             const calls = [];
@@ -1250,7 +1250,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.createPlaylistPlayer(item);
             return new Promise(resolve => {
                 setTimeout(() => {
-                    document.getElementById(`player-${item.id}`)?.remove();
+                    document.getElementById('active-youtube-player')?.remove();
                     container.remove();
                     window.YT = realYT;
                     const playerVars = calls[0]?.playerVars || {};
