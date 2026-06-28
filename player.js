@@ -38,10 +38,11 @@ class VoiceMusicController {
         this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
-            claudeModel: 'claude-opus-4-5-20251101',
-            openaiModel: 'gpt-4o',
+            claudeModel: 'claude-opus-4-8',
+            openaiModel: 'gpt-5.5',
             aiProvider: 'claude'
         });
+        this.normalizeLlmSettings();
         /** @type {ReturnType<typeof setInterval> | null} */
         this.progressUpdateInterval = null;
         /** @type {boolean} */
@@ -890,6 +891,21 @@ class VoiceMusicController {
 
     saveSettings() {
         PlayerStorage.saveSettings(this.settings);
+    }
+
+    normalizeLlmSettings() {
+        const claudeAliases = {
+            'claude-opus-4-5-20251101': 'claude-opus-4-8',
+            'claude-opus-4-5': 'claude-opus-4-8',
+            'claude-haiku-4-5-20250514': 'claude-haiku-4-5',
+            'claude-haiku-4-5-20251001': 'claude-haiku-4-5'
+        };
+        const openaiAliases = {
+            'gpt-4o': 'gpt-5.5',
+            'gpt-4o-mini': 'gpt-4.1'
+        };
+        this.settings.claudeModel = claudeAliases[this.settings.claudeModel] || this.settings.claudeModel || 'claude-opus-4-8';
+        this.settings.openaiModel = openaiAliases[this.settings.openaiModel] || this.settings.openaiModel || 'gpt-5.5';
     }
 
     async submitTypedCommand() {

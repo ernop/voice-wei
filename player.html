@@ -9,8 +9,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=171">
-    <link rel="stylesheet" href="practice-controls.css?v=171">
+    <link rel="stylesheet" href="style.css?v=172">
+    <link rel="stylesheet" href="practice-controls.css?v=172">
 </head>
 
 <body data-page="music" data-settings-button="true">
@@ -20,7 +20,15 @@
         <div class="settings-panel" id="settingsPanel" style="display: none;">
             <h2>Settings</h2>
 
-            <div class="setting-item api-key-section">
+            <div class="setting-item">
+                <label for="aiProvider">AI Provider:</label>
+                <select id="aiProvider" class="text-input">
+                    <option value="claude">Claude / Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                </select>
+            </div>
+
+            <div class="setting-item api-key-section" id="claudeApiSection">
                 <label for="claudeApiKeyInput">Claude API Key:</label>
                 <div class="api-key-status" id="claudeApiKeyStatus"></div>
                 <div class="api-key-input-row" id="claudeApiKeyInputRow" style="display: none;">
@@ -34,6 +42,23 @@
                 </div>
                 <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call Claude's API directly.</p>
+            </div>
+
+            <div class="setting-item api-key-section" id="openaiApiSection">
+                <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                <div class="api-key-status" id="openaiApiKeyStatus"></div>
+                <div class="api-key-input-row" id="openaiApiKeyInputRow" style="display: none;">
+                    <input type="password" id="openaiApiKeyInput" placeholder="sk-..."
+                        class="text-input api-key-input" />
+                    <button id="saveOpenaiApiKeyBtn" class="save-api-key-btn">Save</button>
+                </div>
+                <div class="api-key-actions" id="openaiApiKeyActions" style="display: none;">
+                    <button id="showOpenaiApiKeyBtn" class="api-key-action-btn">Show</button>
+                    <button id="changeOpenaiApiKeyBtn" class="api-key-action-btn">Change</button>
+                    <button id="removeOpenaiApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                </div>
+                <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
+                    leaves your device except to call OpenAI's API directly.</p>
             </div>
 
             <div class="setting-item">
@@ -50,12 +75,22 @@
                 <p class="setting-description">Auto: Submits after you pause. Manual: Keeps listening until you say
                     "submit" or click Submit button.</p>
             </div>
-            <div class="setting-item">
+            <div class="setting-item" id="claudeModelSection">
                 <label>Claude Model:</label>
                 <div class="segment-row">
-                    <button class="vf-btn" type="button" data-claude-model="claude-opus-4-5-20251101">Opus 4.5</button>
-                    <button class="vf-btn" type="button" data-claude-model="claude-haiku-4-5-20250514">Haiku 4.5 (unverified)</button>
+                    <button class="vf-btn" type="button" data-claude-model="claude-opus-4-8">Opus 4.8</button>
+                    <button class="vf-btn" type="button" data-claude-model="claude-sonnet-4-6">Sonnet 4.6</button>
+                    <button class="vf-btn" type="button" data-claude-model="claude-haiku-4-5">Haiku 4.5</button>
+                    <button class="vf-btn" type="button" data-claude-model="claude-opus-4-5">Opus 4.5</button>
                 </div>
+            </div>
+            <div class="setting-item" id="openaiModelSection">
+                <label for="openaiModel">OpenAI Model:</label>
+                <select id="openaiModel" class="text-input">
+                    <option value="gpt-5.5">GPT-5.5</option>
+                    <option value="gpt-5.2">GPT-5.2</option>
+                    <option value="gpt-4.1">GPT-4.1</option>
+                </select>
             </div>
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
@@ -74,6 +109,11 @@
                 </div>
                 <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call Claude's API directly.</p>
+                <div class="api-key-input-row">
+                    <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..."
+                        class="text-input api-key-input" />
+                    <button id="saveOpenaiApiKeyOverlayBtn" class="save-api-key-btn">Save OpenAI</button>
+                </div>
             </div>
         </div>
 
@@ -279,26 +319,26 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=171"></script>
-    <script src="app-version.js?v=171"></script>
-    <script src="storage-keys.js?v=171"></script>
-    <script src="shared-header.js?v=171"></script>
-    <script src="settings-store.js?v=171"></script>
-    <script src="music-constants.js?v=171"></script>
-    <script src="piano-core.js?v=171"></script>
-    <script src="api-keys-store.js?v=171"></script>
-    <script src="practice-controls.js?v=171"></script>
-    <script src="voice-output.js?v=171"></script>
-    <script src="voice-command-core.js?v=171"></script>
-    <script src="player-storage.js?v=171"></script>
-    <script src="player-history-db.js?v=171"></script>
-    <script src="player-api-keys.js?v=171"></script>
-    <script src="player-commands.js?v=171"></script>
-    <script src="player-playlist.js?v=171"></script>
-    <script src="player-lyrics.js?v=171"></script>
-    <script src="player-song-library.js?v=171"></script>
-    <script src="player-history-ui.js?v=171"></script>
-    <script src="player.js?v=171"></script>
+    <script src="dev-error-monitor.js?v=172"></script>
+    <script src="app-version.js?v=172"></script>
+    <script src="storage-keys.js?v=172"></script>
+    <script src="shared-header.js?v=172"></script>
+    <script src="settings-store.js?v=172"></script>
+    <script src="music-constants.js?v=172"></script>
+    <script src="piano-core.js?v=172"></script>
+    <script src="api-keys-store.js?v=172"></script>
+    <script src="practice-controls.js?v=172"></script>
+    <script src="voice-output.js?v=172"></script>
+    <script src="voice-command-core.js?v=172"></script>
+    <script src="player-storage.js?v=172"></script>
+    <script src="player-history-db.js?v=172"></script>
+    <script src="player-api-keys.js?v=172"></script>
+    <script src="player-commands.js?v=172"></script>
+    <script src="player-playlist.js?v=172"></script>
+    <script src="player-lyrics.js?v=172"></script>
+    <script src="player-song-library.js?v=172"></script>
+    <script src="player-history-ui.js?v=172"></script>
+    <script src="player.js?v=172"></script>
 </body>
 
 </html>

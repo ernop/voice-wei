@@ -272,25 +272,18 @@ const PlayerCommands = (function () {
                 for (let i = 0; i < prompts.length; i++) {
                     const prompt = prompts[i];
                     let responseText = '';
-                    const requestBody = {
-                        model: this.settings.openaiModel,
-                        messages: [{
-                            role: 'user',
-                            content: prompt
-                        }],
-                        max_tokens: MUSIC_SEARCH_MAX_TOKENS
-                    };
+                    const request = this.buildOpenAIRequest(prompt);
 
                     this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
 
                     try {
-                        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        const response = await fetch(request.url, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${this.config.openaiApiKey}`
                             },
-                            body: JSON.stringify(requestBody)
+                            body: JSON.stringify(request.body)
                         });
 
                         if (!response.ok) {
@@ -299,7 +292,7 @@ const PlayerCommands = (function () {
                         }
 
                         const data = await response.json();
-                        responseText = data.choices[0].message.content.trim();
+                        responseText = this.extractOpenAIResponseText(data);
                     } catch (error) {
                         console.error('OpenAI API error:', error);
                         this.logError('OpenAI API Error', error);
@@ -310,6 +303,48 @@ const PlayerCommands = (function () {
                 }
 
                 return this.mergeAIResponseBatches(songLists, prompts);
+            },
+
+            buildOpenAIRequest(prompt) {
+                const model = this.settings.openaiModel;
+                if (/^gpt-5/i.test(model)) {
+                    return {
+                        url: 'https://api.openai.com/v1/responses',
+                        body: {
+                            model,
+                            input: prompt,
+                            max_output_tokens: MUSIC_SEARCH_MAX_TOKENS,
+                            reasoning: { effort: 'low' }
+                        }
+                    };
+                }
+
+                return {
+                    url: 'https://api.openai.com/v1/responses',
+                    body: {
+                        model,
+                        input: prompt,
+                        max_output_tokens: MUSIC_SEARCH_MAX_TOKENS
+                    }
+                };
+            },
+
+            extractOpenAIResponseText(data) {
+                if (typeof data.output_text === 'string') {
+                    return data.output_text.trim();
+                }
+
+                const outputText = (data.output || [])
+                    .flatMap(item => item.content || [])
+                    .map(part => part.text || part.output_text || '')
+                    .join('')
+                    .trim();
+                if (outputText) return outputText;
+
+                const chatText = data.choices?.[0]?.message?.content;
+                if (typeof chatText === 'string') return chatText.trim();
+
+                throw new Error('OpenAI response did not contain text output');
             },
 
             extractUrlsFromTranscript(transcript) {

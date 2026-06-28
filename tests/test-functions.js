@@ -1024,6 +1024,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(2000);
 
+        const modelOptions = await tab.evaluate(() => {
+            const openaiModel = /** @type {HTMLSelectElement | null} */ (document.getElementById('openaiModel'));
+            return {
+                hasClaudeOpus48: !!document.querySelector('[data-claude-model="claude-opus-4-8"]'),
+                hasClaudeSonnet46: !!document.querySelector('[data-claude-model="claude-sonnet-4-6"]'),
+                hasClaudeHaiku45: !!document.querySelector('[data-claude-model="claude-haiku-4-5"]'),
+                openaiModels: Array.from(openaiModel?.options || []).map(option => option.value)
+            };
+        });
+        report.check('player exposes current LLM model options',
+            modelOptions.hasClaudeOpus48
+            && modelOptions.hasClaudeSonnet46
+            && modelOptions.hasClaudeHaiku45
+            && modelOptions.openaiModels.includes('gpt-5.5')
+            && modelOptions.openaiModels.includes('gpt-5.2')
+            && modelOptions.openaiModels.includes('gpt-4.1'));
+
         const musicHistoryCache = await tab.evaluate(async () => {
             const query = `cache test ${Date.now()}`;
             PlayerHistoryDB.recordYouTubeSearch(query, [{
@@ -1225,11 +1242,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const harness = {
                 statuses: [],
                 messages: [],
+                settings: { openaiModel: 'gpt-5.5' },
                 updateStatus(message) { this.statuses.push(message); },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 logClaudeMessage(text) { this.messages.push({ kind: 'claude', label: 'Claude', text }); }
             };
             PlayerCommands.install(harness);
+            const openaiRequest = harness.buildOpenAIRequest('Return []');
+            const openaiText = harness.extractOpenAIResponseText({
+                output: [{
+                    content: [{ type: 'output_text', text: '[{"searchTerm":"test"}]' }]
+                }]
+            });
 
             const wrapped = harness.parseAIResponse(JSON.stringify({
                 songs: [
@@ -1274,6 +1298,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 fetchUrls,
                 count: wrapped.songList.length,
                 terms: wrapped.songList.map(song => song.searchTerm),
+                openaiUrl: openaiRequest.url,
+                openaiMaxOutputTokens: openaiRequest.body.max_output_tokens,
+                openaiReasoningEffort: openaiRequest.body.reasoning?.effort || '',
+                openaiText,
                 emptyErrorName,
                 linkedTitle: prepared.linkedPages[0]?.title || '',
                 inferredTitle: inferred.linkedPages[0]?.title || '',
@@ -1288,6 +1316,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && aiParsing.terms.includes('The Clash London Calling')
             && aiParsing.terms.includes('Simon & Garfunkel Cecilia')
             && aiParsing.terms.includes('The Ventures')
+            && aiParsing.openaiUrl.endsWith('/v1/responses')
+            && aiParsing.openaiMaxOutputTokens === 16000
+            && aiParsing.openaiReasoningEffort === 'low'
+            && aiParsing.openaiText.includes('test')
             && aiParsing.emptyErrorName === 'NoSongsFoundError');
         report.check('player URL requests are prepared with linked page text',
             aiParsing.urls[0] === 'https://example.test/page'
