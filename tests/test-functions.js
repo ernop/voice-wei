@@ -1216,6 +1216,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 recreatedVideoId,
                 playedVideoId,
                 persisted,
+                retryReason: harness.messages.find(message => message.label === 'Retrying video result')?.text || '',
                 hasRetryLog: harness.messages.some(message => message.label === 'Retrying video result'),
                 hasFailureLog: harness.messages.some(message => message.label === 'Player load failed')
             };
@@ -1227,8 +1228,61 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateRetry.recreatedVideoId === 'good-video'
             && alternateRetry.playedVideoId === 'good-video'
             && alternateRetry.persisted
+            && alternateRetry.retryReason.includes('owner disabled embedded playback')
             && alternateRetry.hasRetryLog
             && !alternateRetry.hasFailureLog);
+
+        const nonVideoSpecificNoRetry = await tab.evaluate(async () => {
+            const harness = {
+                playerReadyPromises: new Map(),
+                messages: [],
+                status: '',
+                settings: { readClaudeResponse: false },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.status = message; },
+                truncateForStatus(text) { return String(text || ''); },
+                speakText() {}
+            };
+            PlayerPlaylist.install(harness);
+            let recreated = false;
+            let played = false;
+            harness.recreatePlaylistPlayer = () => { recreated = true; };
+            harness.refreshPlaylistRowVideo = () => {};
+            harness.persistPlaylist = () => {};
+            harness.playVideo = () => { played = true; return Promise.resolve(); };
+            const item = {
+                id: 46,
+                videoId: 'slow-video',
+                name: 'Slow Song',
+                artist: 'Slow Artist',
+                title: 'Slow Song',
+                channelTitle: 'Slow Artist',
+                searchTerm: 'Slow Artist Slow Song',
+                alternateVideos: [{
+                    videoId: 'other-video',
+                    title: 'Other Result',
+                    channelTitle: 'Other Channel',
+                    duration: '2:00',
+                    durationSeconds: 120
+                }]
+            };
+            harness.reportPlayerLoadFailure(item, 'Player did not become ready within 8s');
+            return {
+                videoId: item.videoId,
+                recreated,
+                played,
+                status: harness.status,
+                hasRetryLog: harness.messages.some(message => message.label === 'Retrying video result'),
+                hasFailureLog: harness.messages.some(message => message.label === 'Player load failed')
+            };
+        });
+        report.check('player does not retry alternates for non-video-specific timeouts',
+            nonVideoSpecificNoRetry.videoId === 'slow-video'
+            && !nonVideoSpecificNoRetry.recreated
+            && !nonVideoSpecificNoRetry.played
+            && nonVideoSpecificNoRetry.status.includes('Player load failed')
+            && !nonVideoSpecificNoRetry.hasRetryLog
+            && nonVideoSpecificNoRetry.hasFailureLog);
 
         const playerLoadTimeout = await tab.evaluate(async () => {
             const harness = {

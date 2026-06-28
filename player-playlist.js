@@ -397,12 +397,12 @@ const PlayerPlaylist = (function () {
                                 },
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
-                                    const detail = `YouTube player error ${event.data}`;
+                                    const detail = this.describeYouTubePlayerError(event.data);
                                     const entry = this.playerReadyPromises.get(item.id);
                                     const reportNow = !entry || entry.settled;
-                                    settleReady({ ok: false, error: detail });
+                                    settleReady({ ok: false, error: detail, errorCode: event.data });
                                     if (reportNow) {
-                                        this.reportPlayerLoadFailure(item, detail);
+                                        this.reportPlayerLoadFailure(item, { error: detail, errorCode: event.data });
                                     }
                                 }
                             }
@@ -506,7 +506,52 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            tryNextVideoResult(item, reason) {
+            describeYouTubePlayerError(code) {
+                const numericCode = Number(code);
+                switch (numericCode) {
+                    case 2:
+                        return 'YouTube player error 2: invalid video ID or player parameter';
+                    case 5:
+                        return 'YouTube player error 5: this video cannot be played in the HTML5 player';
+                    case 100:
+                        return 'YouTube player error 100: video removed, private, or not found';
+                    case 101:
+                    case 150:
+                        return `YouTube player error ${numericCode}: owner disabled embedded playback`;
+                    case 153:
+                        return 'YouTube player error 153: missing referrer or client identity for the embed request';
+                    default:
+                        return `YouTube player error ${numericCode || code}`;
+                }
+            },
+
+            playerLoadFailureInfo(failure) {
+                if (typeof failure === 'object' && failure !== null) {
+                    return {
+                        detail: failure.error || failure.message || 'Unknown player load failure',
+                        errorCode: Number(failure.errorCode) || null
+                    };
+                }
+
+                const detail = failure || 'Unknown player load failure';
+                const match = String(detail).match(/YouTube player error\s+(\d+)/i);
+                const errorCode = match ? Number(match[1]) : null;
+                return {
+                    detail: errorCode ? this.describeYouTubePlayerError(errorCode) : detail,
+                    errorCode
+                };
+            },
+
+            shouldRetryWithAlternateVideo(errorCode) {
+                return [5, 100, 101, 150].includes(Number(errorCode));
+            },
+
+            tryNextVideoResult(item, failure) {
+                const { detail, errorCode } = this.playerLoadFailureInfo(failure);
+                if (!this.shouldRetryWithAlternateVideo(errorCode)) {
+                    return false;
+                }
+
                 const nextVideo = item.alternateVideos && item.alternateVideos.shift();
                 if (!nextVideo) {
                     return false;
@@ -514,7 +559,7 @@ const PlayerPlaylist = (function () {
 
                 const previousVideoId = item.videoId;
                 this.addMessage('claude', 'Retrying video result',
-                    `Track: ${this.describePlaylistItem(item)}\nSearch term: ${item.searchTerm || '(none)'}\nPrevious video ID: ${previousVideoId}\nReason: ${reason || 'unknown'}\nNext video ID: ${nextVideo.videoId}\nNext title: ${nextVideo.title}`);
+                    `Track: ${this.describePlaylistItem(item)}\nSearch term: ${item.searchTerm || '(none)'}\nPrevious video ID: ${previousVideoId}\nReason: ${detail}\nNext video ID: ${nextVideo.videoId}\nNext title: ${nextVideo.title}`);
                 this.applyVideoDataToPlaylistItem(item, nextVideo);
                 this.refreshPlaylistRowVideo(item);
                 this.recreatePlaylistPlayer(item);
@@ -543,10 +588,10 @@ const PlayerPlaylist = (function () {
                 return Promise.race([entry.promise, timeout]);
             },
 
-            reportPlayerLoadFailure(item, reason) {
+            reportPlayerLoadFailure(item, failure) {
                 const description = this.describePlaylistItem(item);
-                const detail = reason || 'Unknown player load failure';
-                if (this.tryNextVideoResult(item, detail)) {
+                const { detail } = this.playerLoadFailureInfo(failure);
+                if (this.tryNextVideoResult(item, failure)) {
                     this.updateStatus(`Retrying another video for: ${this.truncateForStatus(description, 80)}`);
                     void this.playVideo(item);
                     return;
