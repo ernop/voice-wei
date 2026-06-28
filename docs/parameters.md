@@ -115,6 +115,15 @@ toggling it does not start or stop audio. Play on step controls whether add
 note (or auto step after a cycle) triggers playback. Fill notes are audible
 only between adjacent enabled phrase notes, never across breakdown gaps.
 
+Phrase Test is an exclusive singing/listening mode. Entering Test stops the
+phrase transport and cancels guide playback; while Test is open, Phrases page
+entry points that normally play audio (Play, Next, history replay, per-note
+play buttons, hardware/media-session play/next, Reflect replays, setting
+replays, and play-on-step) must not start phrase playback. The only sound
+allowed inside Test is the explicit `Play Guide` button owned by the pitch test
+panel. This is a product requirement, not an implementation detail: Test means
+"listen to my singing", not "play the phrase again".
+
 ## Trace (`trace-settings`)
 
 Changing any key/guide setting also resets the trace (the chart is only

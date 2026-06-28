@@ -50,6 +50,10 @@ and deliver a weaker version of the requested change.
   spoken feedback where it helps driving.
 - **Exact audio control**: the piano engine knows every sounding voice;
   old-settings audio never overlaps new-settings audio; stop means stop.
+- **Practice test silence**: when a tool enters a sing/test mode, the page
+  must not keep playing or start playing automatically. In Phrases Test,
+  Play Guide is the only accepted sound source; Play/Next/history/note taps,
+  media keys, and setting-triggered replays stay silent while Test is open.
 - **Purpose-first design**: every page's functionality and controls are
   designed from its goal above. Controls doing the same job share one
   implementation; controls serving different jobs stay distinct (see

@@ -276,6 +276,11 @@ ambient types: `KeyContext`, `ScaleDegreeNote`, `TargetSpan`, `RailLine`,
    notation - a consumer cannot supply a guide that disagrees. Consumers
    only provide `playNote(midi, durationSec)`. The guide is an explicit
    button - the panel never auto-plays into a take.
+   Pages embedding the panel must treat open Test/Sing mode as exclusive:
+   page-level playback routes, hardware/media-session actions, and delayed
+   setting replays must not start page playback under the panel. The panel's
+   explicit guide button is the sole permitted automatic-target sound while
+   the user is there to sing.
 4. **One timeline, explicitly named.** Phrases derives a single take
    plan (`PhrasePlanNote[]`: index, midi, degree, spoken, enabled,
    startMs/endMs) and display, playback, and the test panel all read

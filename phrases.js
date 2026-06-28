@@ -300,6 +300,7 @@
 
     /** @param {number} midi */
     async function playSingleNote(midi) {
+        if (!phrasePlaybackAllowed()) return;
         await PianoCore.ensureStarted();
         playMidi(midi);
     }
@@ -522,6 +523,10 @@
     }
 
     async function playPhrase() {
+        if (!phrasePlaybackAllowed()) {
+            stopTransport();
+            return;
+        }
         if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
         cancelCurrentSound();
@@ -672,6 +677,10 @@
     }
 
     async function playCurrentOrNew() {
+        if (!phrasePlaybackAllowed()) {
+            stopTransport();
+            return;
+        }
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
         await playPhrase();
@@ -681,8 +690,12 @@
         return Boolean(testPanel && testPanel.isOpen);
     }
 
+    function phrasePlaybackAllowed() {
+        return !phraseTestIsOpen();
+    }
+
     function handleMediaPlay() {
-        if (phraseTestIsOpen()) {
+        if (!phrasePlaybackAllowed()) {
             stopTransport();
             return;
         }
@@ -694,7 +707,7 @@
     }
 
     function handleMediaNext() {
-        if (phraseTestIsOpen()) {
+        if (!phrasePlaybackAllowed()) {
             stopTransport();
             return;
         }
@@ -711,6 +724,10 @@
     }
 
     async function playNext() {
+        if (!phrasePlaybackAllowed()) {
+            stopTransport();
+            return;
+        }
         await MediaSessionCore.activate();
         testPanel.close();
         stopTransport();
@@ -909,6 +926,7 @@
         playBtn.title = 'Play phrase';
         playBtn.textContent = '>';
         playBtn.addEventListener('click', async () => {
+            if (!phrasePlaybackAllowed()) return;
             currentPhrase = phrase;
             setTakeFromPhrase(phrase);
             await playPhrase();

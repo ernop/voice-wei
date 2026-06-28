@@ -811,10 +811,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.evaluate(() => {
             window.phrasesDebug.mediaPlay();
             window.phrasesDebug.mediaNext();
+            document.getElementById('playBtn').click();
+            document.getElementById('nextBtn').click();
+            document.querySelector('.phrase-note-play-token')?.click();
+            document.querySelector('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]')?.click();
+            document.querySelector('#historyList .history-play-btn')?.click();
         });
-        await tab.waitForTimeout(900);
+        await tab.waitForTimeout(5200);
         const voicesAfterMediaActions = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
-        report.check(`phrases media actions stay silent during Test (${voicesAfter}->${voicesAfterMediaActions} voices)`,
+        report.check(`phrases playback entry points stay silent during Test (${voicesAfter}->${voicesAfterMediaActions} voices)`,
             voicesAfterMediaActions === voicesAfter);
 
         // The Guide button is the explicit way to hear the targets.
