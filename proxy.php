@@ -12,6 +12,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+function isPublicHttpUrl($url) {
+    $parts = parse_url($url);
+    if (!$parts || !isset($parts['scheme']) || !isset($parts['host'])) {
+        return false;
+    }
+
+    $scheme = strtolower($parts['scheme']);
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return false;
+    }
+
+    $host = strtolower($parts['host']);
+    if ($host === 'localhost' || substr($host, -6) === '.local') {
+        return false;
+    }
+
+    $ips = gethostbynamel($host);
+    if (!$ips || count($ips) === 0) {
+        return false;
+    }
+
+    foreach ($ips as $ip) {
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function makePageRequest($url) {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Accept: text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
+        'Accept-Language: en-US,en;q=0.9'
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    return [
+        'response' => $response,
+        'httpCode' => $httpCode,
+        'contentType' => $contentType ?: '',
+        'error' => $error
+    ];
+}
+
+function extractPageTitle($html) {
+    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
+        return trim(html_entity_decode(strip_tags($matches[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+    return '';
+}
+
+function extractReadableText($body) {
+    $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $body);
+    $text = preg_replace('/<!--.*?-->/s', ' ', $text);
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace('/[ \t\r\n]+/', ' ', $text);
+    return trim($text);
+}
+
+// Page-read mode: proxy.php?readUrl=https://example.com/page
+if (isset($_GET['readUrl'])) {
+    $url = trim($_GET['readUrl']);
+    if (!isPublicHttpUrl($url)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Only public http(s) page URLs can be read']);
+        exit;
+    }
+
+    $result = makePageRequest($url);
+    if ($result['httpCode'] < 200 || $result['httpCode'] >= 300 || !$result['response']) {
+        http_response_code(502);
+        echo json_encode(['error' => $result['error'] ?: "Could not read page: HTTP {$result['httpCode']}"]);
+        exit;
+    }
+
+    $body = strlen($result['response']) > 2000000 ? substr($result['response'], 0, 2000000) : $result['response'];
+    $title = extractPageTitle($body);
+    $text = extractReadableText($body);
+    $truncated = strlen($text) > 120000;
+    if ($truncated) {
+        $text = substr($text, 0, 120000);
+    }
+
+    if ($text === '') {
+        http_response_code(422);
+        echo json_encode(['error' => 'No readable text found on linked page']);
+        exit;
+    }
+
+    echo json_encode([
+        'url' => $url,
+        'title' => $title,
+        'text' => $text,
+        'charCount' => strlen($text),
+        'truncated' => $truncated,
+        'contentType' => $result['contentType']
+    ]);
+    exit;
+}
+
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([

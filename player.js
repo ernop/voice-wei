@@ -952,6 +952,14 @@ class VoiceMusicController {
 
             this.playPlaylist();
             this.updateStatus('Playing');
+        } catch (error) {
+            const message = error && error.message ? error.message : 'Music lookup failed';
+            this.logError('Music Lookup Error', error);
+            this.updateStatus(`Music lookup failed: ${message}`);
+            this.hidePrompt();
+            if (this.settings.readClaudeResponse) {
+                this.speakText(`Music lookup failed: ${message}`);
+            }
         } finally {
             this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;
