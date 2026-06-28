@@ -50,7 +50,7 @@ const PlayerHistoryUI = (function () {
                         <input type="checkbox" data-history-lookup-id="${record.id}">
                         <div>
                             <div class="music-history-item-title">${this.escapeHtml(this.truncateForStatus(record.requestText || '(no request)', 90))}</div>
-                            <div class="music-history-item-meta">${record.songCount || 0} extracted • ${this.escapeHtml(record.provider || 'unknown')} • ${this.escapeHtml(record.createdAt || '')}</div>
+                            <div class="music-history-item-meta">${record.songCount || 0} extracted - ${this.escapeHtml(record.provider || 'unknown')} - ${this.escapeHtml(record.createdAt || '')}</div>
                             <div class="music-history-item-actions">
                                 <button class="panel-action-btn" type="button" data-load-lookup-id="${record.id}">Load</button>
                                 <button class="panel-action-btn" type="button" data-rerun-lookup-id="${record.id}">Run Again</button>
@@ -83,7 +83,7 @@ const PlayerHistoryUI = (function () {
                         <input type="checkbox" data-history-song-id="${this.escapeHtml(record.videoId)}">
                         <div>
                             <div class="music-history-item-title">${this.escapeHtml(title)}</div>
-                            <div class="music-history-item-meta">${this.escapeHtml(artist)} • ${this.escapeHtml(record.sourceKind || 'known')} • ${this.escapeHtml(record.lastSeenAt || '')}</div>
+                            <div class="music-history-item-meta">${this.escapeHtml(artist)} - ${this.escapeHtml(record.sourceKind || 'known')} - ${this.escapeHtml(record.lastSeenAt || '')}</div>
                             <div class="music-history-item-actions">
                                 <button class="panel-action-btn" type="button" data-load-song-id="${this.escapeHtml(record.videoId)}">Load</button>
                             </div>
@@ -110,7 +110,7 @@ const PlayerHistoryUI = (function () {
                         <input type="checkbox" disabled>
                         <div>
                             <div class="music-history-item-title">${this.escapeHtml(record.query || record.queryKey)}</div>
-                            <div class="music-history-item-meta">${record.resultCount || 0} results • ${this.escapeHtml(record.source || 'cache')} • ${this.escapeHtml(record.updatedAt || '')}</div>
+                            <div class="music-history-item-meta">${record.resultCount || 0} results - ${this.escapeHtml(record.source || 'cache')} - ${this.escapeHtml(record.updatedAt || '')}</div>
                             <div class="music-history-item-actions">
                                 <button class="panel-action-btn" type="button" data-use-cache-query="${this.escapeHtml(record.query || '')}">Use First</button>
                                 <button class="panel-action-btn" type="button" data-refresh-cache-query="${this.escapeHtml(record.query || '')}">Refresh</button>
