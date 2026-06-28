@@ -1019,6 +1019,52 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'networkidle' });
         await tab.waitForTimeout(2000);
 
+        const aiParsing = await tab.evaluate(async () => {
+            const harness = {
+                statuses: [],
+                messages: [],
+                updateStatus(message) { this.statuses.push(message); },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                logClaudeMessage(text) { this.messages.push({ kind: 'claude', label: 'Claude', text }); }
+            };
+            PlayerCommands.install(harness);
+
+            const wrapped = harness.parseAIResponse(JSON.stringify({
+                songs: [
+                    'The Clash London Calling',
+                    { song: 'Cecilia', artist: 'Simon & Garfunkel' },
+                    { band: 'The Ventures', comment: 'regional riff band' }
+                ]
+            }), 'prompt');
+
+            const realFetch = window.fetch;
+            window.fetch = async url => new Response(JSON.stringify({
+                url: 'https://example.test/page',
+                title: 'Regional riffs',
+                text: 'The page mentions The Clash, London Calling, and The Ventures.',
+                charCount: 67
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            const prepared = await harness.prepareMusicSearchRequest('all songs in https://example.test/page please');
+            window.fetch = realFetch;
+
+            return {
+                urls: harness.extractUrlsFromTranscript('read https://example.test/page, thanks'),
+                count: wrapped.songList.length,
+                terms: wrapped.songList.map(song => song.searchTerm),
+                linkedTitle: prepared.linkedPages[0]?.title || '',
+                status: harness.statuses[0] || ''
+            };
+        });
+        report.check('player AI parser accepts wrapped songs and search terms',
+            aiParsing.count === 3
+            && aiParsing.terms.includes('The Clash London Calling')
+            && aiParsing.terms.includes('Simon & Garfunkel Cecilia')
+            && aiParsing.terms.includes('The Ventures'));
+        report.check('player URL requests are prepared with linked page text',
+            aiParsing.urls[0] === 'https://example.test/page'
+            && aiParsing.linkedTitle === 'Regional riffs'
+            && aiParsing.status.includes('Reading 1 linked page'));
+
         // Auto mode: spoken control command executes locally
         await tab.click('#listenBtn');
         await tab.waitForTimeout(200);

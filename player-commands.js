@@ -209,7 +209,8 @@ const PlayerCommands = (function () {
                     throw new Error('Claude API key not configured');
                 }
 
-                const prompt = this.getMusicSearchPrompt(transcript);
+                const request = await this.prepareMusicSearchRequest(transcript);
+                const prompt = this.getMusicSearchPrompt(request);
 
                 try {
                     const requestBody = {
@@ -255,7 +256,8 @@ const PlayerCommands = (function () {
                     throw new Error('OpenAI API key not configured');
                 }
 
-                const prompt = this.getMusicSearchPrompt(transcript);
+                const request = await this.prepareMusicSearchRequest(transcript);
+                const prompt = this.getMusicSearchPrompt(request);
 
                 try {
                     const requestBody = {
@@ -294,21 +296,69 @@ const PlayerCommands = (function () {
                 }
             },
 
-            getMusicSearchPrompt(transcript) {
+            extractUrlsFromTranscript(transcript) {
+                const matches = transcript.match(/\bhttps?:\/\/[^\s<>"']+/gi) || [];
+                const urls = matches.map(url => url.replace(/[)\].,!?;:]+$/g, ''));
+                return [...new Set(urls)];
+            },
+
+            async prepareMusicSearchRequest(transcript) {
+                const urls = this.extractUrlsFromTranscript(transcript);
+                if (urls.length === 0) {
+                    return { transcript, linkedPages: [] };
+                }
+
+                this.updateStatus(`Reading ${urls.length} linked page${urls.length === 1 ? '' : 's'}...`);
+                this.addMessage('claude', 'Linked pages', `Reading ${urls.join(', ')}`);
+
+                const linkedPages = await Promise.all(urls.map(url => this.fetchLinkedPageText(url)));
+                return { transcript, linkedPages };
+            },
+
+            async fetchLinkedPageText(url) {
+                const response = await fetch(`proxy.php?readUrl=${encodeURIComponent(url)}`);
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `Could not read linked page: ${url}`);
+                }
+
+                if (!data.text || !String(data.text).trim()) {
+                    throw new Error(`No readable text found at ${url}`);
+                }
+
+                this.addMessage('claude', 'Page read', `${data.title || url} (${data.charCount || data.text.length} chars)`);
+                return data;
+            },
+
+            getMusicSearchPrompt(request) {
+                const transcript = typeof request === 'string' ? request : request.transcript;
+                const linkedPages = typeof request === 'string' ? [] : request.linkedPages;
+                const pageContext = linkedPages.length === 0 ? '' : `
+
+Linked page text is supplied below. Use this supplied text as the source; do not say that you cannot browse the URL.
+${linkedPages.map((page, index) => `[${index + 1}] ${page.url}
+Title: ${page.title || '(untitled)'}
+Text:
+"""${page.text}"""`).join('\n\n')}`;
+
                 return `A user is requesting music. They might also ask for comments on each song.
 
 User's request: "${transcript}"
+${pageContext}
 
-Return a JSON array of songs that match this request. Include as many songs as appropriate for the request - a specific song request might be 1-2 songs, while a genre or mood request could be 5-15 songs or more.
+Return a JSON array of music search items that match this request. Include as many items as appropriate for the request - a specific song request might be 1-2 songs, while a genre, page extraction, or mood request could be 5-25 items or more.
+
+If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
 
 Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
 [{
-  "name": "Song Title",
-  "artist": "Artist Name",
+  "name": "Song Title, or empty string if the item is an artist/band/search phrase",
+  "artist": "Artist or band name, or empty string if unknown",
   "year": "Release year (if known, otherwise empty string)",
   "album": "Album name (if known, otherwise empty string)",
   "comment": "Brief comment about why this song fits the request",
-  "searchTerm": "Artist Name Song Title"
+  "searchTerm": "Artist Name Song Title, artist/band name, or exact terms to search for"
 }]
 
 If the request is not about music, return an empty array [].`;
@@ -317,25 +367,84 @@ If the request is not about music, return an empty array [].`;
             parseAIResponse(responseText, prompt) {
                 this.logClaudeMessage(`Response:\n${responseText}`);
 
-                // Extract JSON array from response
-                let jsonText = responseText;
-                const firstBracket = responseText.indexOf('[');
-                const lastBracket = responseText.lastIndexOf(']');
-
-                if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-                    jsonText = responseText.substring(firstBracket, lastBracket + 1);
-                }
+                const jsonText = this.extractAIJson(responseText);
 
                 this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
 
-                const songList = JSON.parse(jsonText);
+                const parsed = JSON.parse(jsonText);
+                const songList = this.normalizeAISongList(parsed);
                 this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
 
-                if (!Array.isArray(songList) || songList.length === 0) {
+                if (songList.length === 0) {
                     throw new Error('No songs found or invalid response');
                 }
 
                 return { songList, prompt };
+            },
+
+            extractAIJson(responseText) {
+                const fencedMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+                const text = fencedMatch ? fencedMatch[1].trim() : responseText.trim();
+
+                const firstArray = text.indexOf('[');
+                const lastArray = text.lastIndexOf(']');
+                if (firstArray !== -1 && lastArray !== -1 && lastArray > firstArray) {
+                    return text.substring(firstArray, lastArray + 1);
+                }
+
+                const firstObject = text.indexOf('{');
+                const lastObject = text.lastIndexOf('}');
+                if (firstObject !== -1 && lastObject !== -1 && lastObject > firstObject) {
+                    return text.substring(firstObject, lastObject + 1);
+                }
+
+                return text;
+            },
+
+            normalizeAISongList(parsed) {
+                const items = Array.isArray(parsed)
+                    ? parsed
+                    : (Array.isArray(parsed.songs) ? parsed.songs
+                        : (Array.isArray(parsed.tracks) ? parsed.tracks
+                            : (Array.isArray(parsed.items) ? parsed.items
+                                : (Array.isArray(parsed.results) ? parsed.results
+                                    : (Array.isArray(parsed.searchTerms) ? parsed.searchTerms : [])))));
+
+                return items
+                    .map(item => this.normalizeAISongItem(item))
+                    .filter(item => item && item.searchTerm);
+            },
+
+            normalizeAISongItem(item) {
+                if (typeof item === 'string') {
+                    const searchTerm = item.trim();
+                    if (!searchTerm) return null;
+                    return {
+                        name: '',
+                        artist: '',
+                        year: '',
+                        album: '',
+                        comment: '',
+                        searchTerm
+                    };
+                }
+
+                if (!item || typeof item !== 'object') return null;
+
+                const name = String(item.name || item.title || item.song || item.track || '').trim();
+                const artist = String(item.artist || item.band || item.performer || '').trim();
+                const searchTerm = String(item.searchTerm || item.search || item.query || item.terms || `${artist} ${name}`.trim()).trim();
+
+                if (!searchTerm) return null;
+
+                return {
+                    name,
+                    artist,
+                    year: String(item.year || '').trim(),
+                    album: String(item.album || '').trim(),
+                    comment: String(item.comment || item.reason || '').trim(),
+                    searchTerm
+                };
             }
         });
     }
