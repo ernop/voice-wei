@@ -1057,11 +1057,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     requestedUrl: 'https://example.test/page',
                     title: 'Regional riffs',
                     text: 'The page mentions The Clash, London Calling, and The Ventures.',
-                    charCount: 67
+                    charCount: 67,
+                    originalCharCount: 1000,
+                    truncated: true
                 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             };
             const prepared = await harness.prepareMusicSearchRequest('all songs in https://example.test/page please');
             const inferred = await harness.prepareMusicSearchRequest('get the songs bands and search terms from the tvtropes regional riffs page');
+            const prompt = harness.getMusicSearchPrompt(prepared);
+            const longTextPrompts = harness.getMusicSearchPrompts({
+                transcript: `Please extract every song. ${'Song line. '.repeat(7000)}`,
+                linkedPages: []
+            });
             window.fetch = realFetch;
 
             return {
@@ -1073,6 +1080,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 emptyErrorName,
                 linkedTitle: prepared.linkedPages[0]?.title || '',
                 inferredTitle: inferred.linkedPages[0]?.title || '',
+                prompt,
+                longTextPromptCount: longTextPrompts.length,
+                longTextPromptHasContinuationNote: longTextPrompts[0].includes('continues in the extraction batches'),
                 status: harness.statuses[0] || ''
             };
         });
@@ -1085,7 +1095,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('player URL requests are prepared with linked page text',
             aiParsing.urls[0] === 'https://example.test/page'
             && aiParsing.linkedTitle === 'Regional riffs'
-            && aiParsing.status.includes('Reading 1 linked page'));
+            && aiParsing.status.includes('Reading 1 linked page')
+            && aiParsing.prompt.includes('return every distinct music item')
+            && aiParsing.prompt.includes('truncated from 1000 chars')
+            && !aiParsing.prompt.includes('5-25')
+            && aiParsing.longTextPromptCount > 1
+            && aiParsing.longTextPromptHasContinuationNote);
         report.check('player infers TV Tropes Regional Riff page without pasted URL',
             aiParsing.inferredUrls[0] === 'https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'
             && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))
@@ -1097,6 +1112,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentPlaylistIndex: -1,
                 messages: [],
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus() {},
                 showTransportBar() {},
                 decodeHtml(value) { return value; },
                 hydrateItemLyricsFromCache() {},
@@ -1142,6 +1158,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.playlistLength === 1
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
+
+        const boundedSearch = await tab.evaluate(async () => {
+            const harness = {
+                active: 0,
+                maxActive: 0,
+                status: '',
+                messages: [],
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.status = message; },
+                async fakeSearchYouTube(query) {
+                    this.active++;
+                    this.maxActive = Math.max(this.maxActive, this.active);
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    this.active--;
+                    return { videoId: query, title: query, channelTitle: 'Test', duration: '1:00', durationSeconds: 60 };
+                }
+            };
+            PlayerPlaylist.install(harness);
+            harness.searchYouTube = query => harness.fakeSearchYouTube(query);
+            const validSongs = Array.from({ length: 9 }, (_, index) => ({
+                index,
+                song: { searchTerm: `term-${index}` }
+            }));
+            const results = await harness.searchSongsWithConcurrency(validSongs, 3);
+            return {
+                count: results.length,
+                order: results.map(result => result.videoData.videoId).join('|'),
+                maxActive: harness.maxActive,
+                status: harness.status
+            };
+        });
+        report.check('player searches every YouTube term with bounded concurrency',
+            boundedSearch.count === 9
+            && boundedSearch.order === 'term-0|term-1|term-2|term-3|term-4|term-5|term-6|term-7|term-8'
+            && boundedSearch.maxActive <= 3
+            && boundedSearch.status.includes('Searched 9/9'));
 
         const alternateSearchResult = await tab.evaluate(async () => {
             const harness = {

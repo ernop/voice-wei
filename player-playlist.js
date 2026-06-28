@@ -7,6 +7,7 @@ const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const YOUTUBE_API_POLL_INTERVAL_MS = 100;
 const PLAYER_READY_TIMEOUT_MS = 8000;
+const YOUTUBE_SEARCH_CONCURRENCY = 4;
 
 const PlayerPlaylist = (function () {
     'use strict';
@@ -115,7 +116,7 @@ const PlayerPlaylist = (function () {
                     document.getElementById('centralPlayer').style.display = 'block';
                 }
 
-                this.addMessage('claude', 'Processing', `Searching ${songList.length} songs in parallel...`);
+                this.addMessage('claude', 'Processing', `Searching ${songList.length} songs (${YOUTUBE_SEARCH_CONCURRENCY} at a time)...`);
 
                 const validSongs = songList
                     .map((song, i) => ({ song, index: i }))
@@ -127,15 +128,7 @@ const PlayerPlaylist = (function () {
                         return true;
                     });
 
-                // Fire all YouTube searches in parallel
-                const searchPromises = validSongs.map(({ song, index }) => {
-                    this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
-                    return this.searchYouTube(song.searchTerm)
-                        .then(videoData => ({ song, index, videoData, error: null }))
-                        .catch(error => ({ song, index, videoData: null, error }));
-                });
-
-                const results = await Promise.all(searchPromises);
+                const results = await this.searchSongsWithConcurrency(validSongs);
 
                 // Add to playlist in original order (reversed so unshift preserves order)
                 let addedCount = 0;
@@ -194,6 +187,32 @@ const PlayerPlaylist = (function () {
                 return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
             },
 
+            async searchSongsWithConcurrency(validSongs, concurrency = YOUTUBE_SEARCH_CONCURRENCY) {
+                const results = new Array(validSongs.length);
+                let nextIndex = 0;
+                let completed = 0;
+
+                const workerCount = Math.min(concurrency, validSongs.length);
+                const workers = Array.from({ length: workerCount }, async () => {
+                    while (nextIndex < validSongs.length) {
+                        const queueIndex = nextIndex++;
+                        const { song, index } = validSongs[queueIndex];
+                        this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
+                        try {
+                            const videoData = await this.searchYouTube(song.searchTerm);
+                            results[queueIndex] = { song, index, videoData, error: null };
+                        } catch (error) {
+                            results[queueIndex] = { song, index, videoData: null, error };
+                        }
+                        completed++;
+                        this.updateStatus(`Searched ${completed}/${validSongs.length} YouTube term${validSongs.length === 1 ? '' : 's'}...`);
+                    }
+                });
+
+                await Promise.all(workers);
+                return results;
+            },
+
             updatePlaylistLabel() {
                 const label = document.getElementById('playlistLabel');
                 if (label) {
@@ -237,7 +256,7 @@ const PlayerPlaylist = (function () {
                     this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
                     return {
                         ...firstVideo,
-                        alternateVideos: alternateVideos.slice(0, 5)
+                        alternateVideos
                     };
                 }
 

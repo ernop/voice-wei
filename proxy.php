@@ -129,12 +129,13 @@ if (isset($_GET['readUrl'])) {
         exit;
     }
 
-    $body = strlen($result['response']) > 2000000 ? substr($result['response'], 0, 2000000) : $result['response'];
+    $body = strlen($result['response']) > 8000000 ? substr($result['response'], 0, 8000000) : $result['response'];
     $title = extractPageTitle($body);
     $text = extractReadableText($body);
-    $truncated = strlen($text) > 120000;
+    $originalCharCount = strlen($text);
+    $truncated = $originalCharCount > 800000;
     if ($truncated) {
-        $text = substr($text, 0, 120000);
+        $text = substr($text, 0, 800000);
     }
 
     if ($text === '') {
@@ -149,6 +150,7 @@ if (isset($_GET['readUrl'])) {
         'title' => $title,
         'text' => $text,
         'charCount' => strlen($text),
+        'originalCharCount' => $originalCharCount,
         'truncated' => $truncated,
         'contentType' => $result['contentType']
     ]);

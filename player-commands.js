@@ -3,6 +3,8 @@
 
 // Skip Claude API calls and return hardcoded test data (for debugging YouTube search)
 const SKIP_CLAUDE = false;
+const MUSIC_SEARCH_MAX_TOKENS = 16000;
+const MUSIC_SOURCE_CHUNK_CHARS = 50000;
 
 const PlayerCommands = (function () {
     'use strict';
@@ -210,46 +212,52 @@ const PlayerCommands = (function () {
                 }
 
                 const request = await this.prepareMusicSearchRequest(transcript);
-                const prompt = this.getMusicSearchPrompt(request);
-                let responseText = '';
+                const prompts = this.getMusicSearchPrompts(request);
+                const songLists = [];
 
-                try {
+                for (let i = 0; i < prompts.length; i++) {
+                    const prompt = prompts[i];
+                    let responseText = '';
                     const requestBody = {
                         model: this.settings.claudeModel,
-                        max_tokens: 4000,
+                        max_tokens: MUSIC_SEARCH_MAX_TOKENS,
                         messages: [{
                             role: 'user',
                             content: prompt
                         }]
                     };
 
-                    this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel})`);
+                    this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel}) batch ${i + 1}/${prompts.length}`);
 
-                    const response = await fetch('https://api.anthropic.com/v1/messages', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-api-key': this.config.claudeApiKey,
-                            'anthropic-version': '2023-06-01',
-                            'anthropic-dangerous-direct-browser-access': 'true'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
+                    try {
+                        const response = await fetch('https://api.anthropic.com/v1/messages', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': this.config.claudeApiKey,
+                                'anthropic-version': '2023-06-01',
+                                'anthropic-dangerous-direct-browser-access': 'true'
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
 
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error?.message || 'Claude API request failed');
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.error?.message || 'Claude API request failed');
+                        }
+
+                        const data = await response.json();
+                        responseText = data.content[0].text.trim();
+                    } catch (error) {
+                        console.error('Claude API error:', error);
+                        this.logError('Claude API Error', error);
+                        throw error;
                     }
 
-                    const data = await response.json();
-                    responseText = data.content[0].text.trim();
-                } catch (error) {
-                    console.error('Claude API error:', error);
-                    this.logError('Claude API Error', error);
-                    throw error;
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
                 }
 
-                return this.parseAIResponse(responseText, prompt);
+                return this.mergeAIResponseBatches(songLists, prompts);
             },
 
             async processCommandWithOpenAI(transcript) {
@@ -258,44 +266,50 @@ const PlayerCommands = (function () {
                 }
 
                 const request = await this.prepareMusicSearchRequest(transcript);
-                const prompt = this.getMusicSearchPrompt(request);
-                let responseText = '';
+                const prompts = this.getMusicSearchPrompts(request);
+                const songLists = [];
 
-                try {
+                for (let i = 0; i < prompts.length; i++) {
+                    const prompt = prompts[i];
+                    let responseText = '';
                     const requestBody = {
                         model: this.settings.openaiModel,
                         messages: [{
                             role: 'user',
                             content: prompt
                         }],
-                        max_tokens: 4000
+                        max_tokens: MUSIC_SEARCH_MAX_TOKENS
                     };
 
-                    this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel})`);
+                    this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
 
-                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${this.config.openaiApiKey}`
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
+                    try {
+                        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${this.config.openaiApiKey}`
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
 
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error?.message || 'OpenAI API request failed');
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.error?.message || 'OpenAI API request failed');
+                        }
+
+                        const data = await response.json();
+                        responseText = data.choices[0].message.content.trim();
+                    } catch (error) {
+                        console.error('OpenAI API error:', error);
+                        this.logError('OpenAI API Error', error);
+                        throw error;
                     }
 
-                    const data = await response.json();
-                    responseText = data.choices[0].message.content.trim();
-                } catch (error) {
-                    console.error('OpenAI API error:', error);
-                    this.logError('OpenAI API Error', error);
-                    throw error;
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
                 }
 
-                return this.parseAIResponse(responseText, prompt);
+                return this.mergeAIResponseBatches(songLists, prompts);
             },
 
             extractUrlsFromTranscript(transcript) {
@@ -337,27 +351,76 @@ const PlayerCommands = (function () {
                     throw new Error(`No readable text found at ${url}`);
                 }
 
-                this.addMessage('claude', 'Page read', `${data.title || url} (${data.charCount || data.text.length} chars)`);
+                const truncatedText = data.truncated ? `, truncated from ${data.originalCharCount || 'unknown'} chars` : '';
+                this.addMessage('claude', 'Page read', `${data.title || url} (${data.charCount || data.text.length} chars${truncatedText})`);
                 return data;
             },
 
             getMusicSearchPrompt(request) {
+                return this.getMusicSearchPrompts(request)[0];
+            },
+
+            getMusicSearchPrompts(request) {
                 const transcript = typeof request === 'string' ? request : request.transcript;
                 const linkedPages = typeof request === 'string' ? [] : request.linkedPages;
-                const pageContext = linkedPages.length === 0 ? '' : `
+                const sourceChunks = this.buildMusicSourceChunks(transcript, linkedPages);
+                const promptRequest = sourceChunks.length > 0 && linkedPages.length === 0 && transcript.length > 2000
+                    ? `${transcript.slice(0, 2000)}\n[Long typed/pasted request continues in the extraction batches below.]`
+                    : transcript;
 
-Linked page text is supplied below. Use this supplied text as the source; do not say that you cannot browse the URL.
-${linkedPages.map((page, index) => `[${index + 1}] ${page.url}
-Title: ${page.title || '(untitled)'}
+                if (sourceChunks.length === 0) {
+                    return [this.buildMusicSearchPrompt(promptRequest, '')];
+                }
+
+                this.addMessage('claude', 'Extraction batches', `${sourceChunks.length} source batch${sourceChunks.length === 1 ? '' : 'es'} prepared`);
+                return sourceChunks.map(chunk => this.buildMusicSearchPrompt(promptRequest, `
+
+Source batch ${chunk.index + 1} of ${chunk.total} from ${chunk.label}.
+${chunk.meta}
+Extract only music items visible in this source batch. Duplicates across batches will be merged.
 Text:
-"""${page.text}"""`).join('\n\n')}`;
+"""${chunk.text}"""`));
+            },
 
+            buildMusicSourceChunks(transcript, linkedPages) {
+                if (linkedPages.length > 0) {
+                    return linkedPages.flatMap(page => this.chunkMusicSource(
+                        page.text,
+                        page.title || page.url,
+                        `URL: ${page.url}
+Readable text: ${page.charCount || page.text.length} chars${page.truncated ? ` (truncated from ${page.originalCharCount || 'unknown'} chars)` : ''}`
+                    ));
+                }
+
+                if (transcript.length > MUSIC_SOURCE_CHUNK_CHARS) {
+                    return this.chunkMusicSource(transcript, 'typed/pasted request text', 'The user supplied a long typed request. The extraction instruction may be part of the first batch.');
+                }
+
+                return [];
+            },
+
+            chunkMusicSource(text, label, meta) {
+                const chunks = [];
+                const source = String(text || '');
+                for (let start = 0; start < source.length; start += MUSIC_SOURCE_CHUNK_CHARS) {
+                    chunks.push(source.slice(start, start + MUSIC_SOURCE_CHUNK_CHARS));
+                }
+                return chunks.map((chunk, index) => ({
+                    text: chunk,
+                    label,
+                    meta,
+                    index,
+                    total: chunks.length
+                }));
+            },
+
+            buildMusicSearchPrompt(transcript, sourceContext) {
                 return `A user is requesting music. They might also ask for comments on each song.
 
 User's request: "${transcript}"
-${pageContext}
+${sourceContext}
 
-Return a JSON array of music search items that match this request. Include as many items as appropriate for the request - a specific song request might be 1-2 songs, while a genre, page extraction, or mood request could be 5-25 items or more.
+Return a JSON array of music search items that match this request. If the user asks for "all", "every", a complete list, or page extraction, return every distinct music item you can identify from the supplied request/page text. Do not impose a small recommendation cap. For very large lists, keep fields compact rather than summarizing or dropping items.
 
 If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
 
@@ -374,7 +437,7 @@ Return ONLY a JSON array (no markdown, no code blocks, no explanation), using th
 If the request is not about music, return an empty array [].`;
             },
 
-            parseAIResponse(responseText, prompt) {
+            parseAIResponse(responseText, prompt, options = {}) {
                 this.logClaudeMessage(`Response:\n${responseText}`);
 
                 const jsonText = this.extractAIJson(responseText);
@@ -385,13 +448,35 @@ If the request is not about music, return an empty array [].`;
                 const songList = this.normalizeAISongList(parsed);
                 this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
 
-                if (songList.length === 0) {
+                if (songList.length === 0 && !options.allowEmpty) {
                     const error = new Error('No songs found in the AI response');
                     error.name = 'NoSongsFoundError';
                     throw error;
                 }
 
                 return { songList, prompt };
+            },
+
+            mergeAIResponseBatches(songLists, prompts) {
+                const seen = new Set();
+                const merged = [];
+                for (const list of songLists) {
+                    for (const item of list) {
+                        const key = item.searchTerm.toLowerCase();
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        merged.push(item);
+                    }
+                }
+
+                this.addMessage('claude', 'Merged extraction', `${merged.length} unique music item${merged.length === 1 ? '' : 's'} from ${songLists.length} batch${songLists.length === 1 ? '' : 'es'}`);
+                if (merged.length === 0) {
+                    const error = new Error('No songs found in the AI response');
+                    error.name = 'NoSongsFoundError';
+                    throw error;
+                }
+
+                return { songList: merged, prompt: prompts.join('\n\n--- NEXT EXTRACTION BATCH ---\n\n') };
             },
 
             extractAIJson(responseText) {
