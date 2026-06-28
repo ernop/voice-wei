@@ -109,8 +109,29 @@
         genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial'] }
     });
 
-    /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
-    let piano = null;
+    const phraseAudio = (() => {
+        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+        let piano = null;
+        return {
+            /** @param {Awaited<ReturnType<typeof PianoCore.createPiano>>} instance */
+            setPiano(instance) {
+                piano = instance;
+            },
+            stopAll() {
+                if (piano) piano.stopAll();
+            },
+            /** @param {number} midi @param {number} durationSec */
+            playPhraseMidi(midi, durationSec) {
+                if (!piano || !phrasePlaybackAllowed()) return false;
+                piano.playMidi(midi, durationSec);
+                return true;
+            },
+            /** @param {number} midi @param {number} durationSec */
+            playGuideMidi(midi, durationSec) {
+                if (piano) piano.playMidi(midi, durationSec);
+            }
+        };
+    })();
     /** @type {Phrase | null} The generated phrase (history payload) */
     let currentPhrase = null;
     /**
@@ -144,7 +165,7 @@
     let staffView = null;
 
     function cancelCurrentSound() {
-        if (piano) piano.stopAll();
+        phraseAudio.stopAll();
         if (testPanel) testPanel.cancelGuide();
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -169,9 +190,7 @@
     }
 
     function playMidi(midi) {
-        if (!piano || !phrasePlaybackAllowed()) return false;
-        piano.playMidi(midi, state.noteLengthMs / 1000);
-        return true;
+        return phraseAudio.playPhraseMidi(midi, state.noteLengthMs / 1000);
     }
 
     function buildPhrase() {
@@ -405,7 +424,7 @@
         })),
         targets: buildPhraseTestTargets,
         contentDurationMs: () => phraseTestDurationMs(),
-        playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
+        playNote: (midi, durationSec) => { phraseAudio.playGuideMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
         progressTool: 'phrases-test'
     });
@@ -1293,7 +1312,7 @@
         if (state.chromaticRuns && !state.accidentalRate) state.accidentalRate = 0.35;
         if (!['none', 'full', 'chord'].includes(state.fillMode)) state.fillMode = 'none';
         try {
-            piano = await PianoCore.createPiano();
+            phraseAudio.setPiano(await PianoCore.createPiano());
         } catch (err) {
             // Keep the page interactive; tone output stays silent.
             console.error('Error loading piano samples:', err);

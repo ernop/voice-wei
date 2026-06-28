@@ -47,5 +47,14 @@ function collectJsFiles(dir, out) {
         report.errors.push('staff-view.js should use quarter-note glyphs for the phrase staff');
     }
 
+    const phrases = fs.readFileSync(path.join(ROOT, 'phrases.js'), 'utf8');
+    const directPhrasePianoCalls = [...phrases.matchAll(/piano\.playMidi/g)].length;
+    const phraseAudioBoundaryCalls = [...phrases.matchAll(/phraseAudio\.(playPhraseMidi|playGuideMidi)/g)].length;
+    report.check('phrases routes piano sound through its audio boundary',
+        directPhrasePianoCalls === 2 && phraseAudioBoundaryCalls >= 2);
+    if (directPhrasePianoCalls !== 2) {
+        report.errors.push('phrases.js must not call piano.playMidi outside the private phraseAudio boundary');
+    }
+
     report.finish();
 })();
