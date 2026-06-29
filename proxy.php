@@ -96,20 +96,117 @@ function extractPageTitle($html) {
     return '';
 }
 
-function extractReadableText($body) {
-    $source = $body;
+function narrowToReadable($body) {
     if (preg_match('/<div[^>]+id=["\']mw-content-text["\'][^>]*>(.*?)(?:<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>)/is', $body, $matches)) {
-        $source = $matches[1];
-    } elseif (preg_match('/<main\b[^>]*>(.*?)(?:<\/main>|<\/body>)/is', $body, $matches)) {
-        $source = $matches[1];
+        return $matches[1];
     }
+    if (preg_match('/<main\b[^>]*>(.*?)(?:<\/main>|<\/body>)/is', $body, $matches)) {
+        return $matches[1];
+    }
+    return $body;
+}
 
+function extractReadableText($body) {
+    $source = narrowToReadable($body);
     $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
     $text = preg_replace('/<!--.*?-->/s', ' ', $text);
     $text = strip_tags($text);
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $text = preg_replace('/[ \t\r\n]+/', ' ', $text);
     return trim($text);
+}
+
+// Resolve a possibly-relative href against the page URL it was found on.
+function absolutizeUrl($href, $baseUrl) {
+    $href = trim($href);
+    if ($href === '') {
+        return '';
+    }
+    if (preg_match('/^[a-zA-Z][a-zA-Z0-9+.\-]*:\/\//', $href)) {
+        return $href;
+    }
+    if (substr($href, 0, 2) === '//') {
+        $base = parse_url($baseUrl);
+        $scheme = isset($base['scheme']) ? $base['scheme'] : 'https';
+        return $scheme . ':' . $href;
+    }
+
+    $base = parse_url($baseUrl);
+    if (!$base || !isset($base['scheme']) || !isset($base['host'])) {
+        return '';
+    }
+    $origin = $base['scheme'] . '://' . $base['host'] . (isset($base['port']) ? ':' . $base['port'] : '');
+
+    if ($href[0] === '/') {
+        return $origin . $href;
+    }
+
+    $basePath = isset($base['path']) ? $base['path'] : '/';
+    $dir = substr($basePath, -1) === '/' ? $basePath : substr($basePath, 0, strrpos($basePath, '/') + 1);
+    if ($dir === '') {
+        $dir = '/';
+    }
+
+    $combined = $dir . $href;
+    $segments = [];
+    foreach (explode('/', $combined) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($segments);
+            continue;
+        }
+        $segments[] = $segment;
+    }
+    return $origin . '/' . implode('/', $segments);
+}
+
+// Pull outbound links (with their visible text) from a page's main content,
+// skipping site chrome so the list reads like a table of readings.
+function extractOutboundLinks($body, $baseUrl) {
+    $source = narrowToReadable($body);
+    $source = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
+    $source = preg_replace('/<(nav|header|footer)\b[^>]*>.*?<\/\1>/is', ' ', $source);
+
+    if (!preg_match_all('/<a\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', $source, $matches, PREG_SET_ORDER)) {
+        return [];
+    }
+
+    $links = [];
+    $seen = [];
+    foreach ($matches as $match) {
+        $href = html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($href === '' || $href[0] === '#' || stripos($href, 'javascript:') === 0
+            || stripos($href, 'mailto:') === 0 || stripos($href, 'tel:') === 0) {
+            continue;
+        }
+        $resolved = absolutizeUrl($href, $baseUrl);
+        if ($resolved === '' || !preg_match('/^https?:\/\//i', $resolved)) {
+            continue;
+        }
+        $canonical = strtok($resolved, '#');
+        if ($canonical === false || $canonical === '' || $canonical === $baseUrl) {
+            continue;
+        }
+        if (isset($seen[$canonical])) {
+            continue;
+        }
+        $seen[$canonical] = true;
+
+        $text = preg_replace('/<[^>]+>/', ' ', $match[2]);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = trim(preg_replace('/\s+/', ' ', $text));
+        if (strlen($text) > 300) {
+            $text = substr($text, 0, 300);
+        }
+
+        $links[] = ['text' => $text, 'url' => $canonical];
+        if (count($links) >= 400) {
+            break;
+        }
+    }
+    return $links;
 }
 
 // Page-read mode: proxy.php?readUrl=https://example.com/page
@@ -132,6 +229,7 @@ if (isset($_GET['readUrl'])) {
     $body = strlen($result['response']) > 8000000 ? substr($result['response'], 0, 8000000) : $result['response'];
     $title = extractPageTitle($body);
     $text = extractReadableText($body);
+    $links = extractOutboundLinks($body, $url);
     $originalCharCount = strlen($text);
     $truncated = $originalCharCount > 800000;
     if ($truncated) {
@@ -152,7 +250,8 @@ if (isset($_GET['readUrl'])) {
         'charCount' => strlen($text),
         'originalCharCount' => $originalCharCount,
         'truncated' => $truncated,
-        'contentType' => $result['contentType']
+        'contentType' => $result['contentType'],
+        'links' => $links
     ]);
     exit;
 }
