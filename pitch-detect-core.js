@@ -25,6 +25,7 @@ const PitchDetectCore = (function () {
     const VOICE_CLOCK_MAX_STEP_MS = 240;
     const MAX_VALID_FREQ_HZ = 2000;
     const ANALYSER_FFT_SIZE = 2048;
+    const DEFAULT_FRAME_CALLBACK_INTERVAL_MS = 50;
 
     /** @typedef {{ time: number, freq: number, midi: number, cents: number, note: string }} PitchSample */
 
@@ -32,15 +33,15 @@ const PitchDetectCore = (function () {
      * Autocorrelation pitch detector with parabolic peak interpolation.
      * @param {Float32Array} buffer
      * @param {number} sampleRate
+     * @param {any} [correlations]
      * @returns {number} Frequency in Hz, or -1 when no pitch found
      */
-    function detectPitch(buffer, sampleRate) {
+    function detectPitch(buffer, sampleRate, correlations = []) {
         const size = buffer.length;
         const maxSamples = Math.floor(size / 2);
         let bestOffset = -1;
         let bestCorrelation = 0;
         let foundGoodCorrelation = false;
-        const correlations = new Array(maxSamples);
 
         let rms = 0;
         for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
@@ -89,6 +90,10 @@ const PitchDetectCore = (function () {
         let microphone = null;
         /** @type {MediaStream | null} */
         let stream = null;
+        /** @type {Float32Array | null} */
+        let timeDomainBuffer = null;
+        /** @type {Float32Array | null} */
+        let correlationBuffer = null;
 
         return {
             get running() { return microphone !== null; },
@@ -107,6 +112,8 @@ const PitchDetectCore = (function () {
                     microphone = audioContext.createMediaStreamSource(stream);
                     analyser = audioContext.createAnalyser();
                     analyser.fftSize = ANALYSER_FFT_SIZE;
+                    timeDomainBuffer = new Float32Array(analyser.fftSize);
+                    correlationBuffer = new Float32Array(Math.floor(analyser.fftSize / 2));
                     microphone.connect(analyser);
                     return true;
                 } catch (err) {
@@ -126,6 +133,8 @@ const PitchDetectCore = (function () {
                     stream = null;
                 }
                 analyser = null;
+                timeDomainBuffer = null;
+                correlationBuffer = null;
             },
 
             /**
@@ -134,9 +143,12 @@ const PitchDetectCore = (function () {
              */
             readPitch() {
                 if (!analyser || !audioContext) return null;
-                const buffer = new Float32Array(analyser.fftSize);
-                analyser.getFloatTimeDomainData(buffer);
-                const freq = detectPitch(buffer, audioContext.sampleRate);
+                if (!timeDomainBuffer || timeDomainBuffer.length !== analyser.fftSize) {
+                    timeDomainBuffer = new Float32Array(analyser.fftSize);
+                    correlationBuffer = new Float32Array(Math.floor(analyser.fftSize / 2));
+                }
+                analyser.getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (/** @type {unknown} */ (timeDomainBuffer)));
+                const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate, correlationBuffer || undefined);
                 if (freq <= 0 || freq >= MAX_VALID_FREQ_HZ) return null;
                 const midi = freqToMidi(freq);
                 return {
@@ -160,6 +172,7 @@ const PitchDetectCore = (function () {
      *   onAccepted?: (sample: PitchSample) => void,
      *   onSilence?: () => void,
      *   onFrame?: () => void,
+     *   frameCallbackIntervalMs?: number,
      *   audioConstraints?: MediaTrackConstraints | boolean
      * }} options
      */
@@ -180,6 +193,8 @@ const PitchDetectCore = (function () {
         let voiceElapsedMs = 0;
         /** @type {number | null} */
         let lastVoiceAt = null;
+        let lastFrameCallbackAt = 0;
+        const frameCallbackIntervalMs = Math.max(0, options.frameCallbackIntervalMs ?? DEFAULT_FRAME_CALLBACK_INTERVAL_MS);
 
         function clockMs() {
             if (options.pauseOnSilence()) return voiceElapsedMs;
@@ -256,7 +271,13 @@ const PitchDetectCore = (function () {
                 if (options.onSilence) options.onSilence();
             }
 
-            if (options.onFrame) options.onFrame();
+            if (options.onFrame) {
+                const now = performance.now();
+                if (now - lastFrameCallbackAt >= frameCallbackIntervalMs) {
+                    lastFrameCallbackAt = now;
+                    options.onFrame();
+                }
+            }
             animationId = requestAnimationFrame(frameLoop);
         }
 

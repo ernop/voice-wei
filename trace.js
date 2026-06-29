@@ -39,6 +39,10 @@
     /** @type {ReturnType<typeof PianoCore.createSineSynth> | null} */
     let guideSine = null;
     let guidePlaybackToken = 0;
+    let lastPitchReadoutText = '';
+    let lastStatusText = '';
+    let lastPitchReadoutAt = 0;
+    let lastChartDrawAt = 0;
 
     const getEl = PracticeControls.getEl;
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -72,7 +76,10 @@
 
     function setStatus(message) {
         const el = getEl('statusReadout');
-        if (el) el.textContent = message;
+        if (el && lastStatusText !== message) {
+            el.textContent = message;
+            lastStatusText = message;
+        }
     }
 
     /**
@@ -81,14 +88,24 @@
      * @param {number} freq
      */
     function updatePitchReadout(note, cents, freq) {
+        const now = performance.now();
+        if (now - lastPitchReadoutAt < 50) return;
+        lastPitchReadoutAt = now;
         const el = getEl('pitchReadout');
         if (!el) return;
-        el.textContent = `Pitch: ${note} ${freq.toFixed(1)} Hz ${cents >= 0 ? '+' : ''}${cents.toFixed(0)}c`;
+        const text = `Pitch: ${note} ${freq.toFixed(1)} Hz ${cents >= 0 ? '+' : ''}${cents.toFixed(0)}c`;
+        if (lastPitchReadoutText !== text) {
+            el.textContent = text;
+            lastPitchReadoutText = text;
+        }
     }
 
     function clearPitchReadout() {
         const el = getEl('pitchReadout');
-        if (el) el.textContent = 'Pitch: --';
+        if (el && lastPitchReadoutText !== 'Pitch: --') {
+            el.textContent = 'Pitch: --';
+            lastPitchReadoutText = 'Pitch: --';
+        }
     }
 
     const session = PitchDetectCore.createTraceSession({
@@ -152,7 +169,12 @@
         showPlayhead: () => session.startedAt > 0
     });
 
-    function drawChart() { view.draw(); }
+    function drawChart(force = false) {
+        const now = performance.now();
+        if (!force && now - lastChartDrawAt < 50) return;
+        lastChartDrawAt = now;
+        view.draw();
+    }
     function resizeCanvas() { view.resize(); }
 
     function resetTrace() {
@@ -160,7 +182,7 @@
         session.reset();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
-        drawChart();
+        drawChart(true);
     }
 
     /**
@@ -201,7 +223,7 @@
         session.stop();
         syncControls();
         setStatus('Stopped');
-        drawChart();
+        drawChart(true);
     }
 
     async function toggleListening() {
@@ -289,7 +311,7 @@
             patternInput.addEventListener('input', () => {
                 state.patternText = patternInput.value;
                 saveSettings();
-                drawChart();
+                drawChart(true);
             });
         }
         getEl('startBtn')?.addEventListener('click', toggleListening);
@@ -306,12 +328,12 @@
         PracticeControls.wireToggle('fixedWindowToggle', state.fixedWindow, checked => {
             state.fixedWindow = checked;
             saveSettings();
-            drawChart();
+            drawChart(true);
         });
         PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
             state.expandRange = checked;
             saveSettings();
-            drawChart();
+            drawChart(true);
         });
         window.addEventListener('resize', resizeCanvas);
         syncControls();

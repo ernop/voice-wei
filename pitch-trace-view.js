@@ -18,6 +18,7 @@ const PitchTraceView = (function () {
     const TRACE_COLOR = '#facc15';
     const CENTS_GOOD = 12;
     const CENTS_OK = 30;
+    const MAX_TRACE_POINTS = 1200;
 
     // Target band colors by scoring verdict (pending = not yet sung)
     const TARGET_COLORS = {
@@ -181,7 +182,12 @@ const PitchTraceView = (function () {
                 }
             });
 
-            const history = options.history();
+            const rawHistory = options.history();
+            const visibleHistory = options.fixedWindow()
+                ? rawHistory.filter(point => point.time >= windowStart - PitchDetectCore.TRACE_BREAK_MS && point.time <= windowStart + timeWindow)
+                : rawHistory;
+            const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
+            const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
             if (history.length > 1) {
                 ctx.lineWidth = 2.4;
                 ctx.lineCap = 'round';

@@ -53,6 +53,12 @@ const PitchTestPanel = (function () {
         SettingsStore.load(config.storageKey, options, OPTION_KEYS);
 
         let panelOpen = false;
+        let lastStatusText = '';
+        let lastPitchText = '';
+        let lastCentsText = '';
+        let lastReadoutAt = 0;
+        let lastRealtimeRenderAt = 0;
+        let lastScoreText = '';
 
         /** @returns {HTMLElement | null} */
         function getEl(suffix) {
@@ -87,6 +93,9 @@ const PitchTestPanel = (function () {
             },
             onSilence: () => clearReadout(),
             onFrame: () => {
+                const now = performance.now();
+                if (now - lastRealtimeRenderAt < 50) return;
+                lastRealtimeRenderAt = now;
                 refreshScores();
                 view.draw();
             }
@@ -159,7 +168,10 @@ const PitchTestPanel = (function () {
             if (!el) return;
             const scored = scoredTargets.filter(t => t.active && t.result);
             if (!scored.length) {
-                el.textContent = '';
+                if (lastScoreText !== '') {
+                    el.textContent = '';
+                    lastScoreText = '';
+                }
                 return;
             }
             const hit = scored.filter(t => t.result === 'good' || t.result === 'ok');
@@ -169,7 +181,10 @@ const PitchTestPanel = (function () {
                 const avg = hit.reduce((sum, t) => sum + t.avgCents, 0) / hit.length;
                 text += ` (avg ${avg.toFixed(0)}c)`;
             }
-            el.textContent = text;
+            if (lastScoreText !== text) {
+                el.textContent = text;
+                lastScoreText = text;
+            }
         }
 
         function updateProgressLine() {
@@ -303,7 +318,10 @@ const PitchTestPanel = (function () {
         /** @param {string} message */
         function setStatus(message) {
             const el = getEl('Status');
-            if (el) el.textContent = message;
+            if (el && lastStatusText !== message) {
+                el.textContent = message;
+                lastStatusText = message;
+            }
         }
 
         /**
@@ -312,17 +330,34 @@ const PitchTestPanel = (function () {
          * @param {number} freq
          */
         function updateReadout(note, cents, freq) {
+            const now = performance.now();
+            if (now - lastReadoutAt < 50) return;
+            lastReadoutAt = now;
             const pitchEl = getEl('Pitch');
             const centsEl = getEl('Cents');
-            if (pitchEl) pitchEl.textContent = `Pitch: ${note} ${freq.toFixed(1)} Hz`;
-            if (centsEl) centsEl.textContent = `${cents >= 0 ? '+' : ''}${cents.toFixed(0)} cents`;
+            const pitchText = `Pitch: ${note} ${freq.toFixed(1)} Hz`;
+            const centsText = `${cents >= 0 ? '+' : ''}${cents.toFixed(0)} cents`;
+            if (pitchEl && lastPitchText !== pitchText) {
+                pitchEl.textContent = pitchText;
+                lastPitchText = pitchText;
+            }
+            if (centsEl && lastCentsText !== centsText) {
+                centsEl.textContent = centsText;
+                lastCentsText = centsText;
+            }
         }
 
         function clearReadout() {
             const pitchEl = getEl('Pitch');
             const centsEl = getEl('Cents');
-            if (pitchEl) pitchEl.textContent = 'Pitch: --';
-            if (centsEl) centsEl.textContent = '-- cents';
+            if (pitchEl && lastPitchText !== 'Pitch: --') {
+                pitchEl.textContent = 'Pitch: --';
+                lastPitchText = 'Pitch: --';
+            }
+            if (centsEl && lastCentsText !== '-- cents') {
+                centsEl.textContent = '-- cents';
+                lastCentsText = '-- cents';
+            }
         }
 
         function syncControls() {
