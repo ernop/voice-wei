@@ -1283,8 +1283,17 @@ class BooksController {
             state.seen.add(url);
         } finally {
             state.busy = false;
-            this.renderUrlImportReview();
         }
+        // A failed fetch leaves nothing to review; pull the next queued page so
+        // a blocked link (e.g. a 429) does not strand the import.
+        if (!state.reviewing && state.queue.length > 0) {
+            const next = state.queue.shift();
+            if (next) {
+                await this.ingestUrlImportPage(next);
+                return;
+            }
+        }
+        this.renderUrlImportReview();
     }
 
     /**
