@@ -4,6 +4,50 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-06-29 (player critique -> five workstreams)
+
+**Context**: Yui asked for a hard critique of the player design, then approved
+a five-part cleanup. All five shipped this session (v181 -> v188).
+
+**What landed**:
+- WS1: one authoritative `PlaybackState` (`player-playback-state.js`) replacing
+  nine scattered fields + the vestigial `players` Map. Other modules read
+  through `this.playback` and thin accessors `PlayerPlaylist` installs.
+- WS2: persistence principles (store-by-lifetime, one-owner-per-concept,
+  capped+trimmed-loudly). Dropped the duplicate IDB `favorites` store (DB v2),
+  caps with a one-time "History storage" notice. Documented `voice-wei-music`.
+- WS3: collapsed the dual YouTube-ready cascade (callback queue + poll) to one
+  `ensureYouTubeApi` promise. Documented external-resilience vs internal-
+  fallback boundary in architecture.md.
+- WS4: one render-throttle owner (`render-throttle.js`: `RateGate`, `ValueDiff`)
+  used by pitch-meter, trace, pitch-test-panel, and the player progress loop.
+- WS5: removed `@ts-nocheck` from all five player modules via the
+  `ThisType<VoiceMusicController>` mixin pattern + declaring the full surface in
+  `types/player.d.ts`. The player is now under the typecheck gate.
+
+**Lessons for future mei**:
+- **Version-bump cadence under concurrent agents.** A second agent (Books) was
+  pushing + bumping the same `VERSION` throughout. The rule "bump immediately
+  after push, keep local" assumes one agent; alone it caused divergence and one
+  burned version (I pushed a standalone v182 bump that served WS1 content, then
+  WS2 at 182 would have been cache-stale). What worked: ship each workstream
+  with its own bump in the SAME push, and right before pushing, `git fetch` +
+  `git reset --hard origin/master` + `git cherry-pick <feature commit>` +
+  re-`bump` to (remote+1). Cherry-pick is clean because workstream commits are
+  small and touch player files Books never touches (only `player.html` and
+  `docs/architecture.md` ever conflicted; both trivial). Do NOT push standalone
+  bump commits when another agent is active.
+- The mixin god-object is fully typecheckable without a rewrite:
+  `Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({...}))`
+  types `this`, and the class+interface merge gives the surface. Adding a player
+  method now means adding it to the interface (the gate enforces it).
+- Pre-existing failing check to fix later: `test-controls.js` "player canonical
+  controls (stray: 2)" - the settings panel uses raw `<select>` for
+  `aiProvider`/`openaiModel`, violating the canonical-pickers rule. Predates
+  this session; out of scope for the five workstreams.
+
+---
+
 ## 2026-06-10 (night)
 
 **Session context**: Yui called out rushing. The standing correction:
