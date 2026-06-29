@@ -82,6 +82,21 @@ const SettingsStore = (function () {
     }
 
     /**
+     * One-time migration helper: read a raw legacy localStorage value and
+     * delete it, so page code never touches localStorage directly. Returns the
+     * stored string, or null if absent.
+     * @param {string} legacyKey
+     * @returns {string | null}
+     */
+    function takeLegacy(legacyKey) {
+        const raw = localStorage.getItem(legacyKey);
+        if (raw !== null) {
+            localStorage.removeItem(legacyKey);
+        }
+        return raw;
+    }
+
+    /**
      * @param {string} storageKey
      * @param {Record<string, any>} state
      * @param {string[]} keys
@@ -219,7 +234,7 @@ const SettingsStore = (function () {
         }
     }
 
-    return { load, save, loadJson, saveJson, peekData, logPersistence };
+    return { load, save, loadJson, saveJson, peekData, takeLegacy, logPersistence };
 })();
 
 window.SettingsStore = SettingsStore;

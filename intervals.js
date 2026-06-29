@@ -157,7 +157,7 @@
     }
 
     function migrateLegacyEarsSettings() {
-        const legacyRaw = localStorage.getItem('ears-settings');
+        const legacyRaw = SettingsStore.takeLegacy('ears-settings');
         if (!legacyRaw) return;
         try {
             const legacy = JSON.parse(legacyRaw);

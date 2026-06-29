@@ -1,0 +1,16 @@
+id: llm-fetch-in-owner-modules
+message: Calls to the Anthropic/OpenAI HTTP APIs belong in their owner modules (player-commands.js for the music LLM, ebook.js for OpenAI TTS).
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/player-commands.js"
+  - "**/ebook.js"
+  - "**/tests/**"
+rule:
+  any:
+    - pattern: fetch('https://api.anthropic.com/v1/messages', $$$ARGS)
+    - pattern: fetch('https://api.openai.com/v1/responses', $$$ARGS)
+    - pattern: fetch('https://api.openai.com/v1/audio/speech', $$$ARGS)
+note: "Keeps API endpoints, auth headers, model lists, and error handling in one place per provider concern instead of scattered hardcoded fetches."

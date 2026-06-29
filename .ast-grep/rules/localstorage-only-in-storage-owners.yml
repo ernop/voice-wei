@@ -1,0 +1,17 @@
+id: localstorage-only-in-storage-owners
+message: localStorage access belongs in settings-store.js / api-keys-store.js. Persist via SettingsStore / ApiKeysStore; use SettingsStore.takeLegacy() for one-time migrations.
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/settings-store.js"
+  - "**/api-keys-store.js"
+  - "**/tests/**"
+rule:
+  any:
+    - pattern: localStorage.getItem($$$ARGS)
+    - pattern: localStorage.setItem($$$ARGS)
+    - pattern: localStorage.removeItem($$$ARGS)
+    - pattern: localStorage.clear($$$ARGS)
+note: "All browser-local user state goes through the persistence owners. Pages that read raw localStorage drift away from the versioned envelope format and the key registry."

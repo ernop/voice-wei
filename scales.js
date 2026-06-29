@@ -359,21 +359,18 @@ class ScalesController {
         SettingsStore.load(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
         if (snapshot.repeatCount === -1) snapshot.repeatCount = Infinity;
 
-        // One-time migration from legacy ad-hoc keys
-        const legacyShow = localStorage.getItem('scales-show-sequence');
+        // One-time migration from legacy ad-hoc keys (owner-mediated access)
+        const legacyShow = SettingsStore.takeLegacy('scales-show-sequence');
         if (legacyShow !== null) {
             snapshot.showSequence = legacyShow === 'true';
-            localStorage.removeItem('scales-show-sequence');
         }
-        const legacyAbbr = localStorage.getItem('scales-use-abbrev');
+        const legacyAbbr = SettingsStore.takeLegacy('scales-use-abbrev');
         if (legacyAbbr !== null) {
             snapshot.useAbbrev = legacyAbbr === 'true';
-            localStorage.removeItem('scales-use-abbrev');
         }
-        const legacyInstruction = localStorage.getItem('scales-instruction-dismissed');
+        const legacyInstruction = SettingsStore.takeLegacy('scales-instruction-dismissed');
         if (legacyInstruction !== null) {
             snapshot.instructionDismissed = legacyInstruction === 'true';
-            localStorage.removeItem('scales-instruction-dismissed');
         }
 
         Object.assign(this.settings, snapshot);

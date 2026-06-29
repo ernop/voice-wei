@@ -1,0 +1,13 @@
+id: indexeddb-only-in-db-owners
+message: IndexedDB access belongs in the DB owner modules (player-history-db.js for music history, ebook.js / BooksStorage for books).
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/player-history-db.js"
+  - "**/ebook.js"
+  - "**/tests/**"
+rule:
+  pattern: indexedDB.open($$$ARGS)
+note: "Each IndexedDB database has one owner module that controls its schema, versioning, and caps. Opening it elsewhere creates a second access path."
