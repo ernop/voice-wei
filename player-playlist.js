@@ -5,7 +5,6 @@ const PROGRESS_UPDATE_INTERVAL_MS = 100;
 const SEEK_JUMP_SECONDS = 10;
 const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
-const YOUTUBE_API_POLL_INTERVAL_MS = 100;
 const PLAYER_READY_TIMEOUT_MS = 8000;
 const YOUTUBE_SEARCH_CONCURRENCY = 4;
 
@@ -518,37 +517,26 @@ const PlayerPlaylist = (function () {
                     }
                 };
 
-                // Wait a tick for DOM to settle, then create player
+                // Wait a tick for the DOM to settle, then create the player on a
+                // single deterministic readiness path: await the one shared
+                // YouTube-API-ready promise, bounded by a timeout. No polling
+                // loop and no parallel callback queue - exactly one mechanism
+                // decides when the player is built.
                 setTimeout(() => {
-                    if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
-                        createPlayer();
-                    } else {
-                        // YouTube API not ready - use two strategies for robustness:
-                        // 1. Push to callback queue (if onYouTubeIframeAPIReady fires later)
-                        // 2. Poll for API (handles race conditions and late script loads)
-                        if (!window.youtubeApiReady) {
-                            window.youtubeApiReady = [];
-                        }
-                        window.youtubeApiReady.push(createPlayer);
-
-                        const checkApi = setInterval(() => {
-                            // Stop polling if element was removed (e.g., playlist cleared)
-                            if (!document.getElementById(playerId)) {
-                                clearInterval(checkApi);
-                                return;
-                            }
-                            if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
-                                clearInterval(checkApi);
-                                createPlayer();
-                            }
-                        }, YOUTUBE_API_POLL_INTERVAL_MS);
-
-                        // Give up after timeout
-                        setTimeout(() => {
-                            clearInterval(checkApi);
-                            settleReady({ ok: false, error: `YouTube API did not load within ${YOUTUBE_API_TIMEOUT_MS / 1000}s` });
-                        }, YOUTUBE_API_TIMEOUT_MS);
+                    if (!document.getElementById(playerId)) {
+                        return; // playlist cleared before we could create
                     }
+                    const apiTimeout = new Promise(resolve => setTimeout(() => resolve('timeout'), YOUTUBE_API_TIMEOUT_MS));
+                    Promise.race([this.ensureYouTubeApi(), apiTimeout]).then(() => {
+                        if (!document.getElementById(playerId)) {
+                            return; // playlist cleared while waiting
+                        }
+                        if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
+                            settleReady({ ok: false, error: `YouTube API did not load within ${YOUTUBE_API_TIMEOUT_MS / 1000}s` });
+                            return;
+                        }
+                        createPlayer();
+                    });
                 }, DOM_SETTLE_DELAY_MS);
             },
 
@@ -1252,27 +1240,38 @@ const PlayerPlaylist = (function () {
                 return `${mins}:${secs.toString().padStart(2, '0')}`;
             },
 
-            setupYouTubeAPI() {
-                if (typeof YT === 'undefined') {
-                    window.onYouTubeIframeAPIReady = () => {
-                        this.playerReady();
-                    };
-                } else {
-                    this.playerReady();
+            // One shared promise is the single source of "the YouTube IFrame
+            // API is ready". ensureYouTubeApi() resolves immediately if the API
+            // is already present, otherwise it resolves when the global ready
+            // callback fires. Player creation awaits this - no polling, no queue.
+            ensureYouTubeApi() {
+                if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
+                    return Promise.resolve();
                 }
+                if (!this.youtubeApiReadyPromise) {
+                    this.youtubeApiReadyPromise = new Promise(resolve => {
+                        this.resolveYouTubeApiReady = resolve;
+                    });
+                }
+                return this.youtubeApiReadyPromise;
+            },
+
+            setupYouTubeAPI() {
+                if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
+                    this.playerReady();
+                    return;
+                }
+                // The IFrame API calls this global once it finishes loading.
+                window.onYouTubeIframeAPIReady = () => {
+                    this.playerReady();
+                };
             },
 
             playerReady() {
                 console.log('YouTube API ready');
-
-                // Run any pending player creation functions
-                if (window.youtubeApiReady && Array.isArray(window.youtubeApiReady)) {
-                    window.youtubeApiReady.forEach(fn => {
-                        if (typeof fn === 'function') {
-                            fn();
-                        }
-                    });
-                    window.youtubeApiReady = [];
+                if (this.resolveYouTubeApiReady) {
+                    this.resolveYouTubeApiReady();
+                    this.resolveYouTubeApiReady = null;
                 }
             },
 

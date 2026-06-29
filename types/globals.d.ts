@@ -18,8 +18,7 @@ interface Window {
     // Early frontend error monitor
     __voiceWeiErrors?: Array<{ type: string; message: string; source?: string }>;
 
-    // YouTube API callback queue
-    youtubeApiReady?: (() => void)[];
+    // YouTube IFrame API ready callback (invoked by the API once loaded)
     onYouTubeIframeAPIReady?: () => void;
 
     // Our global instances (defined in JS files, declared here for cross-file access)

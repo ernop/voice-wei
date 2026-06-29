@@ -250,6 +250,32 @@ log panel; past the cap the oldest records are trimmed (lowest primary key for
 append-only stores, lowest time-index value for keyed stores). "Permanent"
 means kept until the user is warned and the oldest entries are trimmed.
 
+## External resilience vs. internal fallbacks
+
+The anti-fallback rule (`.cursor/rules/00-absolute-rules.mdc`) forbids
+downstream alternatives for things we control: no "try multiple mechanisms and
+hope", no parallel code paths for one job, no retry loops where one
+deterministic path belongs. That rule is about systems we own.
+
+It does **not** forbid resilience against genuinely external, flaky services we
+do not control. Two player behaviors are deliberate external resilience, not
+banned fallbacks, and are allowed:
+
+- `proxy.php` tries several Piped instances, then several Invidious instances.
+  These are independent third-party hosts that rot and rate-limit; failover
+  across them is the only way to get a result at all.
+- `searchYouTube` consults the IndexedDB search cache when the live proxy fetch
+  fails. This is recovery from an external outage using our own recorded data,
+  surfaced explicitly in the log ("Search Cache"), not a silent swallow.
+
+Internal cascades are still banned and have been removed. YouTube player
+creation now waits on exactly one shared API-ready promise (`ensureYouTubeApi`)
+bounded by a timeout - the previous "two strategies for robustness" (a callback
+queue plus a polling interval, which could both fire and build two players) is
+gone. The dividing test: if the alternative exists because an outside service
+might fail, it is resilience; if it exists because we were unsure our own code
+would work, it is a fallback and must be collapsed to one correct path.
+
 ## Data representation law
 
 One representation per concept, conversions in one place:
