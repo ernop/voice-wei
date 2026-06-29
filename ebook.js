@@ -125,6 +125,11 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @property {number} listeningOffsetSec
  * @property {Blob | null | undefined} legacyAudioBlob
  * @property {number | undefined} legacyAudioSize
+ * @property {string} [contentOrigin]
+ * @property {string} [sourceUrl]
+ * @property {string} [sourceRequestedUrl]
+ * @property {string} [lastFetchedAt]
+ * @property {string[]} [sourcePageUrls]
  */
 
 /**
@@ -181,6 +186,26 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @property {number} readSec
  * @property {number} readWords
  * @property {string} detail
+ */
+
+/**
+ * @typedef {Object} WebPage
+ * @property {string} url
+ * @property {string} title
+ * @property {string} text
+ * @property {{ text: string, url: string }[]} links
+ * @property {boolean} truncated
+ */
+
+/**
+ * @typedef {Object} UrlImportState
+ * @property {string} rootUrl
+ * @property {string} requestedUrl
+ * @property {WebPage[]} collected
+ * @property {Set<string>} seen
+ * @property {string[]} queue
+ * @property {WebPage | null} reviewing
+ * @property {boolean} busy
  */
 
 class BooksStorage {
@@ -376,6 +401,8 @@ class BooksController {
         this.showArchivedBooks = false;
         this.libraryQuery = '';
         this.readerQuery = '';
+        /** @type {UrlImportState | null} */
+        this.urlImport = null;
         /** @type {string | null} */
         this.currentSegmentId = null;
         /** @type {string | null} */
@@ -841,6 +868,27 @@ class BooksController {
                 this.renderLibrary();
             });
         }
+        this.setupUrlImportUI();
+    }
+
+    setupUrlImportUI() {
+        const urlInput = /** @type {HTMLInputElement | null} */ (document.getElementById('urlInput'));
+        this.bindButton('importUrlButton', () => this.startUrlImport());
+        if (urlInput) {
+            urlInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.startUrlImport();
+                }
+            });
+        }
+        this.bindButton('urlImportSubmitBtn', () => this.submitUrlImportSelection());
+        this.bindButton('urlImportFinishBtn', () => this.finishUrlImport());
+        this.bindButton('urlImportCancelBtn', () => this.cancelUrlImport());
+        this.bindButton('urlImportSelectAll', () => this.setAllUrlImportLinks(true));
+        this.bindButton('urlImportSelectNone', () => this.setAllUrlImportLinks(false));
+        const filter = /** @type {HTMLInputElement | null} */ (document.getElementById('urlImportFilter'));
+        if (filter) filter.addEventListener('input', () => this.filterUrlImportLinks(filter.value.trim().toLowerCase()));
     }
 
     setupWorkspaceUI() {
@@ -1178,6 +1226,326 @@ class BooksController {
         this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} chapters/sections, ${imported.segments.length} audio chunks planned`);
     }
 
+    normalizeUrl(value) {
+        let url = (value || '').trim();
+        if (!url) return '';
+        if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+        try {
+            return new URL(url).href;
+        } catch (error) {
+            return '';
+        }
+    }
+
+    async startUrlImport() {
+        const urlInput = /** @type {HTMLInputElement | null} */ (document.getElementById('urlInput'));
+        const url = this.normalizeUrl(urlInput?.value || '');
+        if (!url) {
+            this.updateStatus('Enter a valid http(s) URL to import');
+            return;
+        }
+        this.urlImport = {
+            rootUrl: url,
+            requestedUrl: urlInput?.value.trim() || url,
+            collected: [],
+            seen: new Set(),
+            queue: [],
+            reviewing: null,
+            busy: false
+        };
+        if (urlInput) urlInput.value = '';
+        this.openUrlImportOverlay();
+        await this.ingestUrlImportPage(url);
+    }
+
+    /**
+     * Fetch a page, add it to the collection, and show its outbound links for
+     * yes/no selection. Each accepted link later runs through here too.
+     * @param {string} url
+     */
+    async ingestUrlImportPage(url) {
+        const state = this.urlImport;
+        if (!state) return;
+        state.busy = true;
+        state.reviewing = null;
+        this.renderUrlImportReview(`Reading ${url} ...`);
+        try {
+            const page = await this.fetchWebPage(url);
+            state.seen.add(page.url);
+            state.seen.add(url);
+            state.collected.push(page);
+            state.reviewing = page;
+            this.log('info', `Read ${page.title || page.url}: ${page.text.length} chars, ${page.links.length} outbound links`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log('error', `Could not read ${url}: ${message}`);
+            this.updateStatus(`Could not read ${url}`);
+            state.seen.add(url);
+        } finally {
+            state.busy = false;
+            this.renderUrlImportReview();
+        }
+    }
+
+    /**
+     * @param {string} url
+     * @returns {Promise<WebPage>}
+     */
+    async fetchWebPage(url) {
+        const response = await fetch(`proxy.php?readUrl=${encodeURIComponent(url)}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.error) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        if (!data.text || !String(data.text).trim()) {
+            throw new Error('No readable text found');
+        }
+        const links = Array.isArray(data.links)
+            ? data.links
+                .filter(link => link && typeof link.url === 'string')
+                .map(link => ({ text: String(link.text || '').trim(), url: link.url }))
+            : [];
+        return {
+            url: data.url || url,
+            title: String(data.title || '').trim() || url,
+            text: String(data.text),
+            links,
+            truncated: Boolean(data.truncated)
+        };
+    }
+
+    /** @param {string} [statusOverride] */
+    renderUrlImportReview(statusOverride) {
+        const state = this.urlImport;
+        const progress = document.getElementById('urlImportProgress');
+        const current = document.getElementById('urlImportCurrent');
+        const linksWrap = document.getElementById('urlImportLinks');
+        const linkTools = document.getElementById('urlImportLinkTools');
+        const submitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('urlImportSubmitBtn'));
+        const finishBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('urlImportFinishBtn'));
+        if (!state || !progress || !current || !linksWrap) return;
+
+        const pageCount = state.collected.length;
+        const queued = state.queue.length;
+        const words = state.collected.reduce((sum, page) => sum + this.countWords(page.text), 0);
+        progress.innerHTML = [
+            `<span><strong>${pageCount}</strong> page${pageCount === 1 ? '' : 's'} collected</span>`,
+            `<span><strong>${queued}</strong> queued to review</span>`,
+            `<span>~${words.toLocaleString()} words</span>`
+        ].join('');
+
+        if (statusOverride) {
+            current.textContent = statusOverride;
+            linksWrap.innerHTML = '';
+            if (linkTools) linkTools.style.display = 'none';
+            if (submitBtn) submitBtn.disabled = true;
+            if (finishBtn) finishBtn.disabled = pageCount === 0;
+            return;
+        }
+
+        const page = state.reviewing;
+        if (submitBtn) submitBtn.disabled = !page || state.busy;
+        if (finishBtn) finishBtn.disabled = pageCount === 0 || state.busy;
+
+        if (!page) {
+            current.innerHTML = queued > 0
+                ? `<p>${queued} page${queued === 1 ? '' : 's'} still queued. Submit to keep going, or finish to build the book.</p>`
+                : '<p>No more linked pages to review. Finish to build the book.</p>';
+            linksWrap.innerHTML = '';
+            if (linkTools) linkTools.style.display = 'none';
+            return;
+        }
+
+        const fresh = page.links.filter(link => !state.seen.has(link.url));
+        const truncatedNote = page.truncated ? ' (page text was truncated)' : '';
+        current.innerHTML = [
+            `<div class="url-import-pagehead"><strong>${this.escapeHtml(page.title)}</strong>`,
+            `<a href="${this.escapeHtml(page.url)}" target="_blank" rel="noopener">${this.escapeHtml(page.url)}</a></div>`,
+            `<p>Included as a chapter. ${fresh.length} new outbound link${fresh.length === 1 ? '' : 's'} below`,
+            `${truncatedNote}. Toggle the ones to add as their own chapters.</p>`
+        ].join('');
+
+        if (fresh.length === 0) {
+            linksWrap.innerHTML = '<div class="url-import-empty">No new links on this page.</div>';
+            if (linkTools) linkTools.style.display = 'none';
+            return;
+        }
+
+        if (linkTools) linkTools.style.display = '';
+        linksWrap.innerHTML = fresh.map((link, index) => {
+            const label = link.text || link.url;
+            return `<label class="url-import-link" data-link-text="${this.escapeHtml((link.text + ' ' + link.url).toLowerCase())}">`
+                + `<input type="checkbox" data-link-url="${this.escapeHtml(link.url)}" id="urlImportLink${index}" />`
+                + `<span class="url-import-link-text">${this.escapeHtml(label)}</span>`
+                + `<span class="url-import-link-url">${this.escapeHtml(link.url)}</span>`
+                + `</label>`;
+        }).join('');
+    }
+
+    /** @param {boolean} checked */
+    setAllUrlImportLinks(checked) {
+        const linksWrap = document.getElementById('urlImportLinks');
+        if (!linksWrap) return;
+        linksWrap.querySelectorAll('label.url-import-link').forEach(label => {
+            const el = /** @type {HTMLElement} */ (label);
+            if (el.style.display === 'none') return;
+            const box = el.querySelector('input[type="checkbox"]');
+            if (box instanceof HTMLInputElement) box.checked = checked;
+        });
+    }
+
+    /** @param {string} term */
+    filterUrlImportLinks(term) {
+        const linksWrap = document.getElementById('urlImportLinks');
+        if (!linksWrap) return;
+        linksWrap.querySelectorAll('label.url-import-link').forEach(label => {
+            const el = /** @type {HTMLElement} */ (label);
+            const haystack = el.getAttribute('data-link-text') || '';
+            el.style.display = !term || haystack.includes(term) ? '' : 'none';
+        });
+    }
+
+    async submitUrlImportSelection() {
+        const state = this.urlImport;
+        if (!state || state.busy) return;
+        const linksWrap = document.getElementById('urlImportLinks');
+        if (linksWrap) {
+            linksWrap.querySelectorAll('input[type="checkbox"]:checked').forEach(box => {
+                const url = box.getAttribute('data-link-url');
+                if (url && !state.seen.has(url) && !state.queue.includes(url)) state.queue.push(url);
+            });
+        }
+        const next = state.queue.shift();
+        if (next) {
+            await this.ingestUrlImportPage(next);
+        } else {
+            state.reviewing = null;
+            this.renderUrlImportReview();
+            this.updateStatus('Nothing left to review. Finish to build the book.');
+        }
+    }
+
+    async finishUrlImport() {
+        const state = this.urlImport;
+        if (!state || state.busy) return;
+        if (state.collected.length === 0) {
+            this.cancelUrlImport();
+            return;
+        }
+        if (!this.storage) return;
+
+        const books = await this.storage.getBooks();
+        const existing = books.find(b => b.sourceUrl && b.sourceUrl === state.rootUrl);
+        const bookId = existing ? existing.id : this.createId('book');
+        if (existing) await this.storage.deleteBookCascade(existing.id);
+
+        const rawSections = state.collected
+            .map(page => ({ title: page.title || page.url, text: this.cleanText(page.text), html: '' }))
+            .filter(section => section.text.length > 0);
+        if (rawSections.length === 0) {
+            this.updateStatus('No readable text collected');
+            return;
+        }
+
+        const { sections, segments, totalWords, charCount } = this.assembleSectionsAndSegments(bookId, rawSections);
+        const rootPage = state.collected[0];
+        const title = rootPage.title || state.rootUrl;
+        const snapshot = JSON.stringify({
+            rootUrl: state.rootUrl,
+            requestedUrl: state.requestedUrl,
+            fetchedAt: new Date().toISOString(),
+            pages: state.collected.map(page => ({ url: page.url, title: page.title, text: page.text }))
+        }, null, 2);
+        const rawFile = new Blob([snapshot], { type: 'application/json' });
+        const now = new Date().toISOString();
+        /** @type {BookRecord} */
+        const book = {
+            id: bookId,
+            schemaVersion: 4,
+            title,
+            author: this.hostnameFor(state.rootUrl),
+            format: 'web',
+            fileName: `${this.slugify(title)}.web.json`,
+            fileType: 'application/json',
+            fileSize: rawFile.size,
+            rawFile,
+            sectionCount: sections.length,
+            segmentCount: segments.length,
+            generatedSegmentCount: 0,
+            wordCount: totalWords,
+            charCount,
+            estimatedDurationSec: this.estimateDuration(totalWords),
+            generatedDurationSec: 0,
+            createdAt: existing?.createdAt || now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            archivedAt: '',
+            readingSectionId: sections[0]?.id || '',
+            readingCharOffset: 0,
+            listeningSegmentId: segments[0]?.id || '',
+            listeningOffsetSec: 0,
+            legacyAudioBlob: null,
+            legacyAudioSize: 0,
+            contentOrigin: 'url',
+            sourceUrl: state.rootUrl,
+            sourceRequestedUrl: state.requestedUrl,
+            lastFetchedAt: now,
+            sourcePageUrls: state.collected.map(page => page.url)
+        };
+
+        await this.storage.putBook(book);
+        await this.storage.putSections(sections);
+        await this.storage.putSegments(segments);
+        this.closeUrlImportOverlay();
+        this.urlImport = null;
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+        this.showWorkspace(false);
+        this.currentBook = null;
+        this.sections = [];
+        this.segments = [];
+        this.currentSegmentId = null;
+        this.renderLibrary();
+        this.updateStatus(`Built ${title} from ${sections.length} web page${sections.length === 1 ? '' : 's'}`);
+        this.log('info', `Built web book ${title}: ${sections.length} pages, ${segments.length} audio chunks planned`);
+    }
+
+    cancelUrlImport() {
+        this.closeUrlImportOverlay();
+        this.urlImport = null;
+        this.updateStatus('Web import cancelled');
+    }
+
+    openUrlImportOverlay() {
+        const overlay = document.getElementById('urlImportOverlay');
+        if (overlay) overlay.style.display = 'flex';
+        const filter = /** @type {HTMLInputElement | null} */ (document.getElementById('urlImportFilter'));
+        if (filter) filter.value = '';
+    }
+
+    closeUrlImportOverlay() {
+        const overlay = document.getElementById('urlImportOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    /** @param {string} url */
+    hostnameFor(url) {
+        try {
+            return new URL(url).hostname.replace(/^www\./, '');
+        } catch (error) {
+            return '';
+        }
+    }
+
+    /** @param {string} value */
+    slugify(value) {
+        return (value || 'web-book')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 60) || 'web-book';
+    }
+
     async migrateLegacyBooks() {
         if (!this.storage) return;
         const books = await this.storage.getBooks();
@@ -1244,6 +1612,46 @@ class BooksController {
             .filter(section => section.text.length > 0);
         if (rawSections.length === 0) throw new Error('No readable text found');
 
+        const { sections, segments, totalWords, charCount } = this.assembleSectionsAndSegments(bookId, rawSections);
+        const now = new Date().toISOString();
+        const book = {
+            id: bookId,
+            schemaVersion: 3,
+            title,
+            author,
+            format: extension,
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+            rawFile: file,
+            sectionCount: sections.length,
+            segmentCount: segments.length,
+            generatedSegmentCount: 0,
+            wordCount: totalWords,
+            charCount,
+            estimatedDurationSec: this.estimateDuration(totalWords),
+            generatedDurationSec: 0,
+            createdAt: now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            archivedAt: '',
+            readingSectionId: sections[0]?.id || '',
+            readingCharOffset: 0,
+            listeningSegmentId: segments[0]?.id || '',
+            listeningOffsetSec: 0,
+            legacyAudioBlob: null,
+            legacyAudioSize: 0
+        };
+        return { book, sections, segments };
+    }
+
+    /**
+     * Turn normalized raw sections into persistent BookSection + AudioSegment
+     * arrays. Shared by file imports and web (URL) imports.
+     * @param {string} bookId
+     * @param {{ title: string, text: string, html?: string }[]} rawSections
+     */
+    assembleSectionsAndSegments(bookId, rawSections) {
         /** @type {BookSection[]} */
         const sections = [];
         /** @type {AudioSegment[]} */
@@ -1298,36 +1706,7 @@ class BooksController {
             }
             charCursor = section.charEnd + 2;
         }
-        const now = new Date().toISOString();
-        const book = {
-            id: bookId,
-            schemaVersion: 3,
-            title,
-            author,
-            format: extension,
-            fileName: file.name,
-            fileType: file.type || 'application/octet-stream',
-            fileSize: file.size,
-            rawFile: file,
-            sectionCount: sections.length,
-            segmentCount: segments.length,
-            generatedSegmentCount: 0,
-            wordCount: totalWords,
-            charCount: charCursor,
-            estimatedDurationSec: this.estimateDuration(totalWords),
-            generatedDurationSec: 0,
-            createdAt: now,
-            updatedAt: now,
-            lastOpenedAt: now,
-            archivedAt: '',
-            readingSectionId: sections[0]?.id || '',
-            readingCharOffset: 0,
-            listeningSegmentId: segments[0]?.id || '',
-            listeningOffsetSec: 0,
-            legacyAudioBlob: null,
-            legacyAudioSize: 0
-        };
-        return { book, sections, segments };
+        return { sections, segments, totalWords, charCount: charCursor };
     }
 
     /** @param {File} file */
