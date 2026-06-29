@@ -50,9 +50,22 @@ function resolveReadablePageUrl($url) {
 
     $host = strtolower($parts['host']);
     $path = $parts['path'];
+    $query = isset($parts['query']) ? '?' . $parts['query'] : '';
     if (($host === 'tvtropes.org' || $host === 'www.tvtropes.org')
         && preg_match('/\/RegionalRiffs?$/i', $path)) {
         return 'https://allthetropes.org/wiki/Regional_Riff';
+    }
+
+    // LessWrong / EA Forum / Alignment Forum render content client-side, but
+    // GreaterWrong serves the same posts as clean server-rendered HTML.
+    if ($host === 'lesswrong.com' || $host === 'www.lesswrong.com') {
+        return 'https://www.greaterwrong.com' . $path . $query;
+    }
+    if ($host === 'forum.effectivealtruism.org' || $host === 'www.forum.effectivealtruism.org') {
+        return 'https://ea.greaterwrong.com' . $path . $query;
+    }
+    if ($host === 'alignmentforum.org' || $host === 'www.alignmentforum.org') {
+        return 'https://www.greaterwrong.com' . $path . $query;
     }
 
     return $url;
@@ -96,8 +109,29 @@ function extractPageTitle($html) {
     return '';
 }
 
+// Drop a trailing comment thread (everything from the first comment-section
+// marker onward) so reader/listen text and link lists are not polluted by
+// reader discussion. No-op when no marker is found.
+function stripTrailingComments($source) {
+    $pattern = '/<(?:div|section|ol|ul|aside)\b[^>]*(?:id|class)=["\'][^"\']*'
+        . '(?:comments?-area|comment-list|commentlist|comment-respond|comment-thread|disqus_thread)/i';
+    if (preg_match($pattern, $source, $matches, PREG_OFFSET_CAPTURE)) {
+        return substr($source, 0, $matches[0][1]);
+    }
+    if (preg_match('/<[^>]+id=["\']comments["\'][^>]*>/i', $source, $matches, PREG_OFFSET_CAPTURE)) {
+        return substr($source, 0, $matches[0][1]);
+    }
+    return $source;
+}
+
 function narrowToReadable($body) {
     if (preg_match('/<div[^>]+id=["\']mw-content-text["\'][^>]*>(.*?)(?:<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>)/is', $body, $matches)) {
+        return $matches[1];
+    }
+    if (preg_match('/<article\b[^>]*>(.*?)<\/article>/is', $body, $matches)) {
+        return $matches[1];
+    }
+    if (preg_match('/<div[^>]+class=["\'][^"\']*(?:entry-content|post-content|postcontent|article-content|post-body|markdown-body)[^"\']*["\'][^>]*>(.*?)(?:<footer\b|<div[^>]+(?:id|class)=["\'][^"\']*comment|<\/main>|<\/body>)/is', $body, $matches)) {
         return $matches[1];
     }
     if (preg_match('/<main\b[^>]*>(.*?)(?:<\/main>|<\/body>)/is', $body, $matches)) {
@@ -107,7 +141,7 @@ function narrowToReadable($body) {
 }
 
 function extractReadableText($body) {
-    $source = narrowToReadable($body);
+    $source = stripTrailingComments(narrowToReadable($body));
     $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
     $text = preg_replace('/<!--.*?-->/s', ' ', $text);
     $text = strip_tags($text);
@@ -165,7 +199,7 @@ function absolutizeUrl($href, $baseUrl) {
 // Pull outbound links (with their visible text) from a page's main content,
 // skipping site chrome so the list reads like a table of readings.
 function extractOutboundLinks($body, $baseUrl) {
-    $source = narrowToReadable($body);
+    $source = stripTrailingComments(narrowToReadable($body));
     $source = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
     $source = preg_replace('/<(nav|header|footer)\b[^>]*>.*?<\/\1>/is', ' ', $source);
 
@@ -226,6 +260,24 @@ if (isset($_GET['readUrl'])) {
         exit;
     }
 
+    // PDFs cannot be turned into readable text by tag stripping; tell the
+    // client to fetch the bytes (via assetUrl) and parse them with PDF.js.
+    $looksPdf = stripos($result['contentType'], 'application/pdf') !== false
+        || substr($result['response'], 0, 5) === '%PDF-'
+        || preg_match('/\.pdf($|\?)/i', $url);
+    if ($looksPdf) {
+        $pathName = basename(parse_url($url, PHP_URL_PATH) ?: '');
+        echo json_encode([
+            'url' => $url,
+            'requestedUrl' => $requestedUrl,
+            'title' => $pathName !== '' ? $pathName : $url,
+            'kind' => 'pdf',
+            'isBinary' => true,
+            'contentType' => $result['contentType'] ?: 'application/pdf'
+        ]);
+        exit;
+    }
+
     $body = strlen($result['response']) > 8000000 ? substr($result['response'], 0, 8000000) : $result['response'];
     $title = extractPageTitle($body);
     $text = extractReadableText($body);
@@ -253,6 +305,52 @@ if (isset($_GET['readUrl'])) {
         'contentType' => $result['contentType'],
         'links' => $links
     ]);
+    exit;
+}
+
+// Asset passthrough: proxy.php?assetUrl=https://example.com/file.pdf
+// Streams raw bytes back with the upstream content type so the browser can
+// parse cross-origin assets (e.g. PDFs via PDF.js) without hitting CORS.
+if (isset($_GET['assetUrl'])) {
+    $assetUrl = trim($_GET['assetUrl']);
+    if (!isPublicHttpUrl($assetUrl)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Only public http(s) asset URLs can be fetched']);
+        exit;
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $assetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: */*']);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+    $bytes = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode < 200 || $httpCode >= 300 || $bytes === false || $bytes === '') {
+        http_response_code(502);
+        echo json_encode(['error' => $error ?: "Could not fetch asset: HTTP {$httpCode}"]);
+        exit;
+    }
+    if (strlen($bytes) > 60000000) {
+        http_response_code(413);
+        echo json_encode(['error' => 'Asset is too large to proxy']);
+        exit;
+    }
+
+    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
     exit;
 }
 
