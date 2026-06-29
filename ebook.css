@@ -199,6 +199,186 @@
     margin-bottom: 8px;
 }
 
+.url-import-row {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0 4px;
+}
+
+.url-import-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(74, 222, 128, 0.24);
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+    font-size: 0.85rem;
+}
+
+.url-import-input:focus {
+    outline: none;
+    border-color: rgba(74, 222, 128, 0.55);
+}
+
+.url-import-overlay {
+    position: fixed;
+    top: var(--site-header-height, 0px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.url-import-overlay-content {
+    background: linear-gradient(145deg, #1a3a2e 0%, #0d2818 100%);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: 16px;
+    padding: 22px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.url-import-header h2 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    color: #a7f3d0;
+}
+
+.url-import-subtitle {
+    margin: 0;
+    color: rgba(232, 245, 233, 0.7);
+    font-size: 0.86rem;
+}
+
+.url-import-progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.82rem;
+    color: rgba(232, 245, 233, 0.8);
+    border-top: 1px solid rgba(74, 222, 128, 0.16);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.16);
+    padding: 8px 0;
+}
+
+.url-import-current {
+    font-size: 0.86rem;
+    color: rgba(232, 245, 233, 0.9);
+}
+
+.url-import-pagehead {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+
+.url-import-pagehead strong {
+    color: #a7f3d0;
+    font-size: 1rem;
+}
+
+.url-import-pagehead a,
+.url-import-link-url {
+    color: rgba(134, 239, 172, 0.75);
+    font-size: 0.74rem;
+    word-break: break-all;
+}
+
+.url-import-linktools {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.url-import-filter {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid rgba(74, 222, 128, 0.24);
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+    font-size: 0.82rem;
+}
+
+.url-import-links {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 4px;
+}
+
+.url-import-link {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "check text" "check url";
+    column-gap: 8px;
+    align-items: center;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(74, 222, 128, 0.12);
+    cursor: pointer;
+}
+
+.url-import-link:hover {
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.url-import-link input[type="checkbox"] {
+    grid-area: check;
+    width: 18px;
+    height: 18px;
+    accent-color: #22c55e;
+}
+
+.url-import-link-text {
+    grid-area: text;
+    color: #e8f5e9;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.url-import-link-url {
+    grid-area: url;
+}
+
+.url-import-empty {
+    color: rgba(232, 245, 233, 0.6);
+    font-size: 0.85rem;
+    font-style: italic;
+    padding: 8px 0;
+}
+
+.url-import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: 1px solid rgba(74, 222, 128, 0.16);
+    padding-top: 12px;
+}
+
+.url-import-actions .upload-button {
+    width: auto;
+    flex: 1;
+    margin-bottom: 0;
+}
+
 .upload-card p,
 .storage-line,
 .workspace-meta,
