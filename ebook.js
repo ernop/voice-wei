@@ -1306,6 +1306,9 @@ class BooksController {
         if (!response.ok || data.error) {
             throw new Error(data.error || `HTTP ${response.status}`);
         }
+        if (data.kind === 'pdf' || data.isBinary) {
+            return this.fetchPdfPage(data.url || url, data.title);
+        }
         if (!data.text || !String(data.text).trim()) {
             throw new Error('No readable text found');
         }
@@ -1321,6 +1324,45 @@ class BooksController {
             links,
             truncated: Boolean(data.truncated)
         };
+    }
+
+    /**
+     * Pull a PDF through the asset proxy and extract its text with the same
+     * client-side PDF.js path used for uploaded PDF files.
+     * @param {string} url
+     * @param {string} [titleHint]
+     * @returns {Promise<WebPage>}
+     */
+    async fetchPdfPage(url, titleHint) {
+        const response = await fetch(`proxy.php?assetUrl=${encodeURIComponent(url)}`);
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `PDF fetch failed: HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const fileName = this.fileNameFromUrl(url) || 'document.pdf';
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const sections = await this.parsePdf(file);
+        const text = sections.map(section => section.text || '').join('\n\n').trim();
+        if (!text) throw new Error('No readable text in PDF');
+        return {
+            url,
+            title: (titleHint || '').trim() || fileName || url,
+            text,
+            links: [],
+            truncated: false
+        };
+    }
+
+    /** @param {string} url */
+    fileNameFromUrl(url) {
+        try {
+            const path = new URL(url).pathname;
+            const name = decodeURIComponent(path.split('/').filter(Boolean).pop() || '');
+            return name;
+        } catch (error) {
+            return '';
+        }
     }
 
     /** @param {string} [statusOverride] */
