@@ -221,6 +221,35 @@ string-only and commonly capped around 5-10 MB. IndexedDB quota is
 browser/device dependent; Books displays `navigator.storage.estimate()` and
 requests persistent storage by default where supported.
 
+### Music player durable history (`voice-wei-music`)
+
+The music player keeps unbounded/historical data in its own IndexedDB
+(`voice-wei-music`), owned solely by `player-history-db.js`. Page/engine code
+never touches this DB directly. Stores:
+
+- `logs`: every in-app log line (append-only).
+- `lookups`: each natural-language music request and its resulting song list.
+- `songs`: the known-songs catalog, keyed by `videoId` (upsert on re-seeing).
+- `youtubeSearches`: the search-term -> results cache, keyed by normalized
+  query; consulted as a fallback when the live proxy search fails.
+- `favoriteEvents`: an append-only audit of favorite toggles.
+
+Store-by-lifetime is the dividing law (persistence principle P1):
+**localStorage** owns small, synchronous, boot-time state - settings,
+lyrics-view prefs, API keys, the live playlist + index, and the
+**authoritative favorites set** (`PLAYER_FAVORITES`). **IndexedDB** owns the
+unbounded/historical data above. No concept is authoritative in two stores
+(P2): favorites live in localStorage; `favoriteEvents` is history only, never
+read back as the source of truth. (An earlier schema also mirrored favorites
+into a `favorites` object store; database version 2 deletes it on upgrade.)
+
+Every store is bounded by policy and trimmed loudly (P3): each has a record
+cap (`logs`/`songs`/`favoriteEvents` 5000, `lookups`/`youtubeSearches` 2000).
+On nearing 90% the player posts a one-time "History storage" notice via the
+log panel; past the cap the oldest records are trimmed (lowest primary key for
+append-only stores, lowest time-index value for keyed stores). "Permanent"
+means kept until the user is warned and the oldest entries are trimmed.
+
 ## Data representation law
 
 One representation per concept, conversions in one place:

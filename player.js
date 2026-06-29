@@ -84,6 +84,11 @@ class VoiceMusicController {
 
     async init() {
         try {
+            if (window.PlayerHistoryDB) {
+                window.PlayerHistoryDB.setNoticeHandler((message) => {
+                    this.addMessage('claude', 'History storage', message);
+                });
+            }
             await this.loadConfig();
             this.setupUI();
             this.applyLyricsViewSettings();

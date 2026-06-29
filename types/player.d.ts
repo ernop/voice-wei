@@ -127,6 +127,7 @@ interface PlaylistSearchResult {
 }
 
 interface PlayerHistoryDBApi {
+    setNoticeHandler(handler: (message: string) => void): void;
     recordLog(entry: { type: string; label: string; text: string; line: string }): void;
     recordLookup(lookup: any): void;
     recordSong(song: any, sourceKind: string): void;
