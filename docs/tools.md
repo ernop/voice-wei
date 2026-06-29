@@ -215,6 +215,15 @@ OpenAI.
   `rawFile` is a JSON snapshot of every fetched page, tagged with `sourceUrl`
   and `contentOrigin: url`. This suits syllabus/reading-list pages whose real
   content lives across many linked essays.
+- The web reader handles several common obstacles through the proxy:
+  LessWrong / EA Forum / Alignment Forum URLs are rewritten to their
+  server-rendered GreaterWrong mirrors; main-content narrowing prefers
+  `<article>` and post-content containers and truncates trailing comment
+  threads so reader text and link lists stay clean; and linked PDFs are
+  fetched as bytes through an asset passthrough (`proxy.php?assetUrl=`) and
+  parsed with the same client-side PDF.js path used for uploaded PDFs.
+  Cloudflare-gated mirrors such as archive.is still cannot be read
+  server-side and are skipped with a logged reason.
 - EPUB and HTML imports preserve sanitized reader markup, including embedded
   EPUB images when they can be resolved from the package, so the book can be
   read locally instead of only previewed as flattened plain text.
