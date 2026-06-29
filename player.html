@@ -21,11 +21,11 @@
             <h2>Settings</h2>
 
             <div class="setting-item">
-                <label for="aiProvider">AI Provider:</label>
-                <select id="aiProvider" class="text-input">
-                    <option value="claude">Claude / Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                </select>
+                <label>AI Provider:</label>
+                <div class="segment-row">
+                    <button class="vf-btn" type="button" data-ai-provider="claude">Claude / Anthropic</button>
+                    <button class="vf-btn" type="button" data-ai-provider="openai">OpenAI</button>
+                </div>
             </div>
 
             <div class="setting-item api-key-section" id="claudeApiSection">
@@ -85,12 +85,12 @@
                 </div>
             </div>
             <div class="setting-item" id="openaiModelSection">
-                <label for="openaiModel">OpenAI Model:</label>
-                <select id="openaiModel" class="text-input">
-                    <option value="gpt-5.5">GPT-5.5</option>
-                    <option value="gpt-5.2">GPT-5.2</option>
-                    <option value="gpt-4.1">GPT-4.1</option>
-                </select>
+                <label>OpenAI Model:</label>
+                <div class="segment-row">
+                    <button class="vf-btn" type="button" data-openai-model="gpt-5.5">GPT-5.5</button>
+                    <button class="vf-btn" type="button" data-openai-model="gpt-5.2">GPT-5.2</button>
+                    <button class="vf-btn" type="button" data-openai-model="gpt-4.1">GPT-4.1</button>
+                </div>
             </div>
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>

@@ -1025,12 +1025,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(2000);
 
         const modelOptions = await tab.evaluate(() => {
-            const openaiModel = /** @type {HTMLSelectElement | null} */ (document.getElementById('openaiModel'));
             return {
                 hasClaudeOpus48: !!document.querySelector('[data-claude-model="claude-opus-4-8"]'),
                 hasClaudeSonnet46: !!document.querySelector('[data-claude-model="claude-sonnet-4-6"]'),
                 hasClaudeHaiku45: !!document.querySelector('[data-claude-model="claude-haiku-4-5"]'),
-                openaiModels: Array.from(openaiModel?.options || []).map(option => option.value)
+                openaiModels: Array.from(document.querySelectorAll('[data-openai-model]'))
+                    .map(btn => /** @type {HTMLElement} */ (btn).dataset.openaiModel)
             };
         });
         report.check('player exposes current LLM model options',

@@ -356,9 +356,8 @@ class VoiceMusicController {
         this.saveSettings();
         this.updateProviderVisibility();
 
-        // Update provider selector
-        const providerSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('aiProvider'));
-        if (providerSelect) providerSelect.value = provider;
+        // Reflect the active provider in the segmented pill control
+        PracticeControls.syncSingleSelect('data-ai-provider', provider);
 
         return true;
     }
@@ -405,26 +404,20 @@ class VoiceMusicController {
         this.setupProviderApiKeyUI('claude');
         this.setupProviderApiKeyUI('openai');
 
-        // AI Provider selector
-        const providerSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('aiProvider'));
-        if (providerSelect) {
-            providerSelect.value = this.settings.aiProvider;
-            providerSelect.addEventListener('change', () => {
-                this.settings.aiProvider = providerSelect.value;
-                this.saveSettings();
-                this.updateProviderVisibility();
-            });
-        }
+        // AI provider and OpenAI model use the canonical segmented pill control
+        // (same as the Claude model picker), not raw selects.
+        PracticeControls.syncSingleSelect('data-ai-provider', this.settings.aiProvider);
+        PracticeControls.wireSingleSelect('data-ai-provider', String, this.settings.aiProvider, value => {
+            this.settings.aiProvider = value;
+            this.saveSettings();
+            this.updateProviderVisibility();
+        });
 
-        // OpenAI Model selector
-        const openaiModelSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('openaiModel'));
-        if (openaiModelSelect) {
-            openaiModelSelect.value = this.settings.openaiModel;
-            openaiModelSelect.addEventListener('change', () => {
-                this.settings.openaiModel = openaiModelSelect.value;
-                this.saveSettings();
-            });
-        }
+        PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
+        PracticeControls.wireSingleSelect('data-openai-model', String, this.settings.openaiModel, value => {
+            this.settings.openaiModel = value;
+            this.saveSettings();
+        });
 
         // Overlay save buttons
         const claudeOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('claudeApiKeyOverlayInput'));
