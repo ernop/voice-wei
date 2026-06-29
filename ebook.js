@@ -397,6 +397,13 @@ class BooksController {
         this.generationAbort = null;
         this.isGenerating = false;
         this.autoGenerateAhead = false;
+        /** @type {string[]} Segment IDs awaiting generation (FIFO). */
+        this.generationQueue = [];
+        this.generationDone = 0;
+        this.generationTotal = 0;
+        /** @type {string | null} */
+        this.generatingSegmentId = null;
+        this.generationCancelled = false;
         this.voiceConfigOpen = false;
         this.showArchivedBooks = false;
         this.libraryQuery = '';
@@ -2313,76 +2320,176 @@ class BooksController {
         await this.generateSegments(selected, automatic);
     }
 
-    /** @param {AudioSegment[]} selected @param {boolean} automatic */
+    /**
+     * Add segments to the generation queue and make sure the worker is running.
+     * Enqueuing while a job is in flight appends to the queue instead of being
+     * ignored, so the user can line up chapters/chunks freely.
+     * @param {AudioSegment[]} selected @param {boolean} automatic
+     */
     async generateSegments(selected, automatic) {
         const terms = this.getAudioUnitTerms();
-        if (selected.length === 0) {
-            if (!automatic) this.updateStatus(`No pending ${terms.plural} to generate`);
-            return;
-        }
         if (!this.apiKey) {
             this.showApiKeyOverlay();
             this.updateStatus('API key required to generate audio');
             return;
         }
-        if (!this.storage || !this.currentBook || this.isGenerating) return;
+        if (!this.storage || !this.currentBook) return;
+
+        const queuedSet = new Set(this.generationQueue);
+        const toAdd = selected.filter(segment =>
+            this.isSegmentPending(segment)
+            && !queuedSet.has(segment.id)
+            && segment.id !== this.generatingSegmentId
+        );
+        if (toAdd.length === 0) {
+            if (!automatic) {
+                const pendingExists = selected.some(segment => this.isSegmentPending(segment));
+                this.updateStatus(pendingExists
+                    ? `Already queued or generating`
+                    : `No pending ${terms.plural} to generate`);
+            }
+            return;
+        }
+
+        if (!this.isGenerating && this.generationQueue.length === 0) {
+            this.generationDone = 0;
+            this.generationTotal = 0;
+        }
+        for (const segment of toAdd) this.generationQueue.push(segment.id);
+        this.generationTotal += toAdd.length;
+        if (!automatic) {
+            const count = `${toAdd.length} ${toAdd.length === 1 ? terms.singular : terms.plural}`;
+            this.updateStatus(this.isGenerating ? `Queued ${count}` : `Generating ${count}...`);
+        }
+        this.renderGenerationProgress();
+        this.ensureGenerationWorker();
+    }
+
+    ensureGenerationWorker() {
+        if (this.isGenerating) return;
+        this.runGenerationWorker();
+    }
+
+    async runGenerationWorker() {
+        if (this.isGenerating) return;
+        if (!this.storage || !this.currentBook || this.generationQueue.length === 0) return;
+        const bookId = this.currentBook.id;
+        const terms = this.getAudioUnitTerms();
         this.isGenerating = true;
+        this.generationCancelled = false;
         this.generationAbort = new AbortController();
-        let completed = 0;
-        this.updateGenerationProgress(0, selected.length, `Generating ${selected.length} ${selected.length === 1 ? terms.singular : terms.plural}...`);
         try {
-            for (const segment of selected) {
-                if (this.generationAbort.signal.aborted) throw new Error('Generation cancelled');
-                if (this.isSegmentPlayable(segment)) {
-                    await this.repairPlayableSegmentMetadata(segment);
-                    completed++;
+            while (this.generationQueue.length > 0) {
+                if (this.generationCancelled || this.currentBook?.id !== bookId) break;
+                const segmentId = this.generationQueue.shift();
+                const segment = this.getSegmentById(segmentId || '');
+                if (!segment) {
+                    this.generationTotal = Math.max(this.generationDone, this.generationTotal - 1);
+                    this.renderGenerationProgress();
                     continue;
                 }
+                if (this.isSegmentPlayable(segment)) {
+                    await this.repairPlayableSegmentMetadata(segment);
+                    this.generationDone++;
+                    this.renderGenerationProgress();
+                    continue;
+                }
+                this.generatingSegmentId = segment.id;
                 segment.status = 'generating';
                 segment.error = '';
                 await this.storage.putSegment(segment);
                 this.replaceSegment(segment);
                 this.renderSegmentStatus(segment);
-                const response = await this.fetchSpeech(segment.text, this.generationAbort.signal);
-                const blob = await response.blob();
-                segment.blob = blob;
-                segment.audioSize = blob.size;
-                segment.status = 'done';
-                segment.generatedAt = new Date().toISOString();
-                segment.audioSettings = { ...this.settings };
-                segment.durationSec = segment.estimatedDurationSec;
-                await this.storage.putSegment(segment);
-                this.replaceSegment(segment);
-                await this.recalculateBookGeneration();
-                completed++;
-                this.updateGenerationProgress(completed, selected.length, `Generated ${completed}/${selected.length} ${selected.length === 1 ? terms.singular : terms.plural}`);
-                this.renderWorkspace();
-                if (!this.getCurrentGeneratedSegment() && segment.id === this.currentSegmentId) this.loadSegmentIntoPlayer(segment, false);
-            }
-            this.updateGenerationProgress(selected.length, selected.length, 'Generation complete');
-            this.updateStatus('Audio generation complete');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            for (const segment of selected) {
-                if (segment.status === 'generating') {
+                this.renderGenerationProgress();
+                try {
+                    const response = await this.fetchSpeech(segment.text, this.generationAbort.signal);
+                    const blob = await response.blob();
+                    segment.blob = blob;
+                    segment.audioSize = blob.size;
+                    segment.status = 'done';
+                    segment.generatedAt = new Date().toISOString();
+                    segment.audioSettings = { ...this.settings };
+                    segment.durationSec = segment.estimatedDurationSec;
+                    await this.storage.putSegment(segment);
+                    this.replaceSegment(segment);
+                    await this.recalculateBookGeneration();
+                    this.generationDone++;
+                    this.renderGenerationProgress();
+                    this.renderWorkspace();
+                    if (!this.getCurrentGeneratedSegment() && segment.id === this.currentSegmentId) this.loadSegmentIntoPlayer(segment, false);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    const cancelled = this.generationCancelled || Boolean(this.generationAbort?.signal.aborted);
+                    if (cancelled) {
+                        if (this.currentBook?.id === bookId) {
+                            segment.status = 'pending';
+                            segment.error = '';
+                            await this.storage.putSegment(segment);
+                            this.replaceSegment(segment);
+                            this.renderSegmentStatus(segment);
+                        }
+                        break;
+                    }
                     segment.status = 'error';
                     segment.error = message;
                     await this.storage.putSegment(segment);
                     this.replaceSegment(segment);
+                    this.renderSegmentStatus(segment);
+                    this.generationDone++;
+                    this.log('error', `Could not generate a ${terms.singular}: ${message}`);
+                    this.renderGenerationProgress();
+                } finally {
+                    this.generatingSegmentId = null;
                 }
             }
-            this.updateStatus(message);
-            this.log(message === 'Generation cancelled' ? 'warn' : 'error', message);
+            if (!this.generationCancelled) {
+                this.updateStatus('Audio generation complete');
+            }
         } finally {
             this.isGenerating = false;
             this.generationAbort = null;
-            await this.refreshLibrary();
-            await this.updateStorageEstimate();
+            this.generatingSegmentId = null;
         }
+
+        // Items can land during teardown awaits; restart cleanly if so.
+        if (!this.generationCancelled && this.generationQueue.length > 0) {
+            this.runGenerationWorker();
+            return;
+        }
+        this.renderGenerationProgress();
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+    }
+
+    /** Stop the in-flight generation and clear everything still queued. */
+    stopGeneration() {
+        this.generationQueue = [];
+        if (this.isGenerating) {
+            this.generationCancelled = true;
+            if (this.generationAbort) this.generationAbort.abort();
+        }
+        this.generationDone = 0;
+        this.generationTotal = 0;
     }
 
     cancelGeneration() {
-        if (this.generationAbort) this.generationAbort.abort();
+        if (!this.isGenerating && this.generationQueue.length === 0) return;
+        this.stopGeneration();
+        this.updateStatus('Cancelled generation and cleared the queue');
+        this.updateGenerationProgress(0, 0, 'Cancelled');
+    }
+
+    renderGenerationProgress() {
+        const terms = this.getAudioUnitTerms();
+        if (!this.isGenerating && this.generationTotal === 0) {
+            this.updateGenerationProgress(0, 0, 'Idle');
+            return;
+        }
+        const queued = this.generationQueue.length;
+        const message = this.isGenerating
+            ? `Generating ${terms.plural}: ${this.generationDone}/${this.generationTotal} done${queued ? `, ${queued} queued` : ''}`
+            : 'Generation complete';
+        this.updateGenerationProgress(this.generationDone, this.generationTotal, message);
     }
 
     /**
@@ -2648,7 +2755,7 @@ class BooksController {
     }
 
     ensureGeneratedAhead() {
-        if (!this.autoGenerateAhead || this.isGenerating || !this.apiKey) return;
+        if (!this.autoGenerateAhead || !this.apiKey) return;
         const ahead = this.generatedAheadSeconds();
         if (ahead < AUTO_AHEAD_SECONDS) this.generateNextDuration(AUTO_AHEAD_SECONDS - ahead, true);
     }
@@ -2915,6 +3022,7 @@ class BooksController {
     }
 
     resetAudioPlayerForBookSwitch() {
+        this.stopGeneration();
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audio) {
             audio.pause();
