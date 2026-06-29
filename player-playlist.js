@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 // Playlist DOM, YouTube search/playback, and transport controls.
 
 const PROGRESS_UPDATE_INTERVAL_MS = 100;
@@ -40,7 +40,7 @@ const PlayerPlaylist = (function () {
             }
         });
 
-        Object.assign(controller, {
+        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             loadFavoritesToPlaylist() {
                 const favoritesList = Object.values(this.favorites);
                 if (favoritesList.length === 0) {
@@ -465,7 +465,7 @@ const PlayerPlaylist = (function () {
                     }
 
                     try {
-                        const player = new YT.Player(playerId, {
+                        const player = new YT.Player(playerId, /** @type {YT.PlayerOptions} */ ({
                             height: '200',
                             width: '100%',
                             videoId: item.videoId,
@@ -506,7 +506,7 @@ const PlayerPlaylist = (function () {
                                     }
                                 }
                             }
-                        });
+                        }));
 
                         // Hold the handle, but leave playback.ready false until
                         // onReady confirms it can be used (playVideo gates on it).
@@ -569,11 +569,11 @@ const PlayerPlaylist = (function () {
             },
 
             refreshPlaylistRowVideo(item) {
-                const row = document.querySelector(`[data-item-id="${item.id}"]`);
+                const row = /** @type {HTMLElement | null} */ (document.querySelector(`[data-item-id="${item.id}"]`));
                 if (!row) return;
 
                 row.dataset.videoId = item.videoId;
-                const favBtn = row.querySelector('.favorite-btn');
+                const favBtn = /** @type {HTMLElement | null} */ (row.querySelector('.favorite-btn'));
                 if (favBtn) {
                     favBtn.dataset.videoId = item.videoId;
                     const favorited = this.isFavorite(item.videoId);
@@ -1328,7 +1328,7 @@ const PlayerPlaylist = (function () {
                 }
                 return parts[0] || 0;
             }
-        });
+        }));
     }
 
     return { install };

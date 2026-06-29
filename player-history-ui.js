@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 // Music history/cache panel workflows.
 
 const PlayerHistoryUI = (function () {
@@ -6,7 +6,7 @@ const PlayerHistoryUI = (function () {
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
-        Object.assign(controller, {
+        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             setupMusicHistoryUI() {
                 const refreshBtn = document.getElementById('musicHistoryRefreshBtn');
                 const reloadBtn = document.getElementById('musicHistoryReloadBtn');
@@ -253,7 +253,7 @@ const PlayerHistoryUI = (function () {
                 await new Promise(resolve => setTimeout(resolve, 120));
                 await this.refreshMusicHistoryPanel();
             }
-        });
+        }));
     }
 
     return { install };

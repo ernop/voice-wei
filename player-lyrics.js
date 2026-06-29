@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 // Lyrics panel, overlay, LRCLIB lookup, and synced line highlighting.
 
 const PlayerLyrics = (function () {
@@ -6,7 +6,7 @@ const PlayerLyrics = (function () {
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
-        Object.assign(controller, {
+        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             currentLyricsItem() {
                 if (this.currentLyricsItemId == null) {
                     return null;
@@ -635,7 +635,7 @@ const PlayerLyrics = (function () {
                     this.updateBigLyricsAvailability();
                 }
             }
-        });
+        }));
     }
 
     return { install };

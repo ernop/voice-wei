@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 // Voice command parsing, control execution, and LLM music search.
 
 // Skip Claude API calls and return hardcoded test data (for debugging YouTube search)
@@ -11,7 +11,7 @@ const PlayerCommands = (function () {
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
-        Object.assign(controller, {
+        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             parseControlCommand(transcript) {
                 const lower = transcript.toLowerCase().trim();
 
@@ -578,7 +578,7 @@ If the request is not about music, return an empty array [].`;
                     searchTerm
                 };
             }
-        });
+        }));
     }
 
     return { install };

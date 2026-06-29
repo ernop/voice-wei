@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 // Local imported song library for MIDI and MusicXML source files.
 
 const PlayerSongLibrary = (function () {
@@ -12,7 +12,7 @@ const PlayerSongLibrary = (function () {
         let libraryPiano = null;
         let playbackToken = 0;
 
-        Object.assign(controller, {
+        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             setupSongLibraryUI() {
                 const importInput = /** @type {HTMLInputElement | null} */ (document.getElementById('songLibraryImportInput'));
                 const importBtn = document.getElementById('songLibraryImportBtn');
@@ -147,7 +147,7 @@ const PlayerSongLibrary = (function () {
                 PlayerStorage.saveSongLibrary(this.songLibrary);
                 this.renderSongLibrary();
             }
-        });
+        }));
     }
 
     /** @param {File} file @returns {Promise<SongLibrarySong>} */

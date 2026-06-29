@@ -351,6 +351,21 @@ ambient types: `KeyContext`, `ScaleDegreeNote`, `TargetSpan`, `RailLine`,
 New shared components follow the same pattern: a named `...Config` type
 in `types/`, required fields for required data, a throwing constructor.
 
+### Player module typing
+
+The music player is one controller (`VoiceMusicController` in `player.js`)
+composed from feature modules that mix their methods onto it via
+`Object.assign(controller, ...)` (commands, playlist, lyrics, song-library,
+history-ui). All of these are `@ts-check`, not `@ts-nocheck`: each install
+wraps its method object in `/** @type {ThisType<VoiceMusicController>} */` so
+`this` is the controller type inside every method, and the controller's full
+surface is declared in `types/player.d.ts` (merged with the `class`). Playback
+state is the one piece that is a real owned object, not a mixin: `PlaybackState`
+(`player-playback-state.js`) holds all playback status and is reached through
+`controller.playback` plus thin installed accessors. Adding a method to a player
+module means adding it to the `VoiceMusicController` interface; the typecheck
+gate enforces this.
+
 ## Testing
 
 `npm test` runs the fast headless profile in `tests/`: JavaScript syntax,

@@ -155,19 +155,56 @@ interface VoiceMusicController {
     readonly currentPlayingId: number | null;
     currentPlaylistIndex: number;
     wasPlayingBeforeListening: boolean;
+    progressDiff: ValueDiff;
+    youtubeApiReadyPromise: Promise<void> | null;
+    resolveYouTubeApiReady: (() => void) | null;
 
     parseControlCommand(transcript: string): string | null;
     executeControlCommand(command: string): void;
     showHelp(): void;
     announceCurrentSong(): void;
     processCommandWithLLM(transcript: string): Promise<any>;
-    getMusicSearchPrompt(transcript: string): string;
-    parseAIResponse(responseText: string, prompt: string): any;
+    processCommandWithClaude(transcript: string): Promise<any>;
+    processCommandWithOpenAI(transcript: string): Promise<any>;
+    buildOpenAIRequest(prompt: string): { url: string; body: any };
+    extractOpenAIResponseText(data: any): string;
+    extractUrlsFromTranscript(transcript: string): string[];
+    inferKnownPageUrls(transcript: string): string[];
+    prepareMusicSearchRequest(transcript: string): Promise<any>;
+    fetchLinkedPageText(url: string): Promise<any>;
+    getMusicSearchPrompt(request: any): string;
+    getMusicSearchPrompts(request: any): string[];
+    buildMusicSourceChunks(transcript: string, linkedPages: any[]): any[];
+    chunkMusicSource(text: string, label: string, meta: string): any[];
+    buildMusicSearchPrompt(transcript: string, sourceContext: string): string;
+    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean }): any;
+    mergeAIResponseBatches(songLists: any[][], prompts: string[]): any;
+    extractAIJson(responseText: string): string;
+    normalizeAISongList(parsed: any): any[];
+    normalizeAISongItem(item: any): any;
 
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
+    formatYouTubeResult(video: any): YouTubeVideoCandidate;
+    searchYouTube(query: string): Promise<any>;
+    searchSongsWithConcurrency(validSongs: any[], concurrency?: number): Promise<any[]>;
+    createPlaylistPlayer(item: PlaylistItem): void;
+    ensurePlaylistPlayer(item: PlaylistItem): void;
+    recreatePlaylistPlayer(item: PlaylistItem): void;
+    ensureYouTubeApi(): Promise<void>;
+    applyVideoDataToPlaylistItem(item: PlaylistItem, videoData: any): void;
+    refreshPlaylistRowVideo(item: PlaylistItem): void;
+    describeYouTubePlayerError(code: number | string): string;
+    playerLoadFailureInfo(failure: any): { detail: string; errorCode: number | null };
+    shouldRetryWithAlternateVideo(errorCode: number | string): boolean;
+    tryNextVideoResult(item: PlaylistItem, failure: any): boolean;
+    describePlaylistItem(item: PlaylistItem): string;
+    waitForPlayerReady(item: PlaylistItem, timeoutMs?: number): Promise<any>;
+    reportPlayerLoadFailure(item: PlaylistItem, failure: any): void;
+    playVideo(item: PlaylistItem): Promise<void>;
+    updateMediaSessionForItem(item: PlaylistItem): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
     updateCentralPlayer(item: PlaylistItem): void;
     stopPlayback(): void;
@@ -201,15 +238,25 @@ interface VoiceMusicController {
     loadDemoSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
     searchAndAddToPlaylist(songList: any[]): Promise<PlaylistSearchResult>;
+    musicHistoryLookups: any[];
+    musicHistorySongs: any[];
+    musicHistorySearches: any[];
     setupMusicHistoryUI(): void;
     refreshMusicHistoryPanel(): Promise<void>;
     renderLookupHistory(lookups: any[]): void;
     renderKnownSongsHistory(songs: any[]): void;
     renderSearchCacheHistory(searches: any[]): void;
+    selectedLookupIds(): number[];
+    selectedSongIds(): string[];
+    loadSelectedHistoryLookups(): Promise<void>;
+    loadHistoryLookupById(id: number): Promise<void>;
     loadHistoryLookups(ids: number[]): Promise<void>;
     rerunHistoryLookupById(id: number): Promise<void>;
+    loadSelectedKnownSongs(): Promise<void>;
+    loadKnownSongByVideoId(videoId: string): Promise<void>;
     loadKnownSongs(videoIds: string[]): Promise<void>;
     addKnownSongsToPlaylist(songs: any[]): void;
+    loadCachedSearchFirstResult(query: string): Promise<void>;
     refreshCachedSearchQuery(query: string): Promise<void>;
 
     currentLyricsItem(): PlaylistItem | null;
@@ -241,7 +288,11 @@ interface VoiceMusicController {
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
-    hydrateItemLyricsFromCache(item: PlaylistItem): void;
+    ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
+    showLyricsForItem(item: PlaylistItem): Promise<void>;
+    lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
+    searchLyricsProvider(title: string, artist: string, album: string): Promise<LyricsResult[]>;
+    hydrateItemLyricsFromCache(item: PlaylistItem): boolean;
     cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
     persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];
@@ -256,25 +307,5 @@ interface VoiceMusicController {
     stopLibrarySong(): void;
     toggleLibrarySongFavorite(songId: string): void;
 }
-
-declare const PlayerCommands: {
-    install(controller: VoiceMusicController): void;
-};
-
-declare const PlayerPlaylist: {
-    install(controller: VoiceMusicController): void;
-};
-
-declare const PlayerLyrics: {
-    install(controller: VoiceMusicController): void;
-};
-
-declare const PlayerSongLibrary: {
-    install(controller: VoiceMusicController): void;
-};
-
-declare const PlayerHistoryUI: {
-    install(controller: VoiceMusicController): void;
-};
 
 declare const ScalesVoiceMaps: NonNullable<Window['ScalesVoiceMaps']>;
