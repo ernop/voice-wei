@@ -73,6 +73,25 @@ const SCALE_PATTERNS = Object.freeze({
     augmented: [0, 3, 4, 7, 8, 11, 12]
 });
 
+// Interval vocabulary - the single owner of interval ids, sizes, and names.
+// Spoken-form aliases (voice recognition) are an ear-training concern and live
+// there; the musical facts (order, semitones, canonical names) live here.
+
+/** @type {readonly string[]} Interval ids, smallest to largest. */
+const INTERVAL_ORDER = Object.freeze(['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8']);
+
+/** @type {Readonly<Record<string, number>>} Interval id -> semitones. */
+const INTERVAL_SEMITONES = Object.freeze({
+    m2: 1, M2: 2, m3: 3, M3: 4, P4: 5, TT: 6, P5: 7, m6: 8, M6: 9, m7: 10, M7: 11, P8: 12
+});
+
+/** @type {Readonly<Record<string, string>>} Interval id -> canonical display name. */
+const INTERVAL_NAMES = Object.freeze({
+    m2: 'minor 2nd', M2: 'Major 2nd', m3: 'minor 3rd', M3: 'Major 3rd',
+    P4: 'Perfect 4th', TT: 'Tritone', P5: 'Perfect 5th', m6: 'minor 6th',
+    M6: 'Major 6th', m7: 'minor 7th', M7: 'Major 7th', P8: 'Octave'
+});
+
 const DIATONIC_LETTER_STEPS = Object.freeze([0, 1, 2, 3, 4, 5, 6, 7]);
 
 /** @type {Readonly<Record<string, readonly number[]>>} Letter steps for scale-degree spelling. */

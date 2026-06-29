@@ -84,7 +84,7 @@
             } },
     ];
 
-    const INTERVAL_ORDER = ['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'];
+    // INTERVAL_ORDER comes from music-constants.js (single owner of interval vocabulary).
 
     // ---- STATE ----
     const state = {
