@@ -232,6 +232,11 @@ OpenAI.
   the selected/current/next chapter, whole book, +15 minutes, or a single
   backup chunk. Finished chunks are never regenerated unless deleted in a
   future management flow.
+- Generation is a work queue, not a single locked job: starting another
+  chapter or chunk while one is already generating appends it to the queue
+  (deduped) instead of being ignored, and the progress line shows how many
+  units are done and how many are still queued. Cancel stops the in-flight
+  unit and clears the queue; switching books clears it too.
 - Narration options show OpenAI reference pricing for the selected model and
   include per-voice sample buttons. GPT-4o mini TTS exposes accent and
   narration-style presets as structured `instructions`; legacy TTS models
