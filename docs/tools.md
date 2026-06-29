@@ -205,6 +205,16 @@ OpenAI.
 - Formats: TXT, EPUB, PDF, HTML.
 - Imports are saved in this browser's IndexedDB library as the original raw
   file plus parsed book sections.
+- Web import: paste a page URL and Voice-Wei reads it through the server proxy
+  (`proxy.php?readUrl=`), always including that page as the first chapter. It
+  then lists the page's outbound links (text plus URL) with on/off toggles;
+  submitting fetches each accepted link, includes it as its own chapter, and
+  shows *its* outbound links for the next round. A review queue with a
+  "Finish and build book" button keeps the expansion human-controlled instead
+  of crawling automatically. The result is one multi-chapter book whose
+  `rawFile` is a JSON snapshot of every fetched page, tagged with `sourceUrl`
+  and `contentOrigin: url`. This suits syllabus/reading-list pages whose real
+  content lives across many linked essays.
 - EPUB and HTML imports preserve sanitized reader markup, including embedded
   EPUB images when they can be resolved from the package, so the book can be
   read locally instead of only previewed as flattened plain text.
