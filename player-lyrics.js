@@ -502,7 +502,7 @@ const PlayerLyrics = (function () {
 
             currentPlaybackTime() {
                 if (!this.currentPlayingId) return 0;
-                const player = this.players.get(this.currentPlayingId);
+                const player = this.playback.player;
                 if (player && typeof player.getCurrentTime === 'function') {
                     try {
                         return player.getCurrentTime();

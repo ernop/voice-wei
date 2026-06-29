@@ -145,6 +145,16 @@ interface AppConfig {
 }
 
 interface VoiceMusicController {
+    // Authoritative playback state plus the thin accessors PlayerPlaylist
+    // installs over it. These read/write through this.playback so playback
+    // state has exactly one storage location.
+    playback: PlaybackState;
+    readonly isPlaying: boolean;
+    readonly isPaused: boolean;
+    readonly currentPlayingId: number | null;
+    currentPlaylistIndex: number;
+    wasPlayingBeforeListening: boolean;
+
     parseControlCommand(transcript: string): string | null;
     executeControlCommand(command: string): void;
     showHelp(): void;

@@ -6,34 +6,22 @@ class VoiceMusicController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
-        /** @type {Map<number, YT.Player>} */
-        this.players = new Map();
+        // The single authoritative location for all playback state: status,
+        // the reused YouTube player handle and its readiness, the active/
+        // current item, the playlist cursor, and playback intents all live
+        // only here. Other modules read through this.playback and the thin
+        // accessors installed by PlayerPlaylist; they never store playback
+        // state of their own.
+        /** @type {PlaybackState} */
+        this.playback = new PlaybackState();
         /** @type {Map<number, { promise: Promise<any>, resolve: Function, settled?: boolean }>} */
         this.playerReadyPromises = new Map();
         /** @type {Map<number, YouTubeVideoCandidate[]>} */
         this.youtubeAlternateResults = new Map();
-        /** @type {YT.Player | null} */
-        this.activeYoutubePlayer = null;
-        /** @type {boolean} */
-        this.activeYoutubePlayerReady = false;
-        /** @type {string} */
-        this.activeYoutubePlayerVideoId = '';
-        /** @type {number | null} */
-        this.activeYoutubePlayerItemId = null;
-        /** @type {number | null} */
-        this.currentPlayingId = null;
         /** @type {AppConfig | null} */
         this.config = null;
         /** @type {PlaylistItem[]} */
         this.playlist = [];
-        /** @type {number} */
-        this.currentPlaylistIndex = -1;
-        /** @type {boolean} */
-        this.isPlaying = false;
-        /** @type {boolean} */
-        this.isPaused = false;
-        /** @type {boolean} */
-        this.wasPlayingBeforeListening = false;
         /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string }} */
         this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
@@ -47,8 +35,6 @@ class VoiceMusicController {
         this.progressUpdateInterval = null;
         /** @type {boolean} */
         this.isDraggingProgress = false;
-        /** @type {number} */
-        this.suppressAutoAdvanceUntil = 0;
         /** @type {Record<string, FavoriteData>} */
         this.favorites = PlayerStorage.loadFavorites();
         /** @type {SongLibraryStore} */

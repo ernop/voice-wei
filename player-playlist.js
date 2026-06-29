@@ -14,6 +14,33 @@ const PlayerPlaylist = (function () {
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
+        // All playback state lives in controller.playback (one authoritative
+        // location). The constructor creates it; create one here too so test
+        // harnesses that install this module in isolation still have it.
+        if (!controller.playback) {
+            controller.playback = new PlaybackState();
+        }
+
+        // Thin read/write views so other modules and existing call sites can
+        // keep using this.isPlaying / this.currentPlaylistIndex etc., while the
+        // single storage location stays controller.playback. Status fields are
+        // read-only here: they only change through playback transitions.
+        Object.defineProperties(controller, {
+            isPlaying: { configurable: true, get() { return this.playback.isPlaying; } },
+            isPaused: { configurable: true, get() { return this.playback.isPaused; } },
+            currentPlayingId: { configurable: true, get() { return this.playback.currentPlayingId; } },
+            currentPlaylistIndex: {
+                configurable: true,
+                get() { return this.playback.currentPlaylistIndex; },
+                set(value) { this.playback.currentPlaylistIndex = value; }
+            },
+            wasPlayingBeforeListening: {
+                configurable: true,
+                get() { return this.playback.resumeAfterListening; },
+                set(value) { this.playback.resumeAfterListening = value; }
+            }
+        });
+
         Object.assign(controller, {
             loadFavoritesToPlaylist() {
                 const favoritesList = Object.values(this.favorites);
@@ -392,12 +419,8 @@ const PlayerPlaylist = (function () {
             },
 
             createPlaylistPlayer(item) {
-                if (this.activeYoutubePlayerReady && this.activeYoutubePlayer) {
-                    this.players.clear();
-                    if (this.activeYoutubePlayer) {
-                        this.players.set(item.id, this.activeYoutubePlayer);
-                    }
-                    this.activeYoutubePlayerItemId = item.id;
+                if (this.playback.ready && this.playback.player) {
+                    this.playback.setActiveItem(item.id);
                     return;
                 }
 
@@ -420,8 +443,7 @@ const PlayerPlaylist = (function () {
                 const readyPromise = new Promise(resolve => { readyResolve = resolve; });
                 this.playerReadyPromises.clear();
                 this.playerReadyPromises.set(item.id, { promise: readyPromise, resolve: readyResolve });
-                this.activeYoutubePlayerItemId = item.id;
-                this.activeYoutubePlayerVideoId = item.videoId;
+                this.playback.setActiveMedia(item.id, item.videoId);
                 const settleReady = (result) => {
                     const entry = this.playerReadyPromises.get(item.id);
                     if (!entry || entry.settled) return;
@@ -461,16 +483,13 @@ const PlayerPlaylist = (function () {
                             events: {
                                 onReady: (event) => {
                                     console.log('Player ready for:', item.videoId);
-                                    this.activeYoutubePlayer = event.target;
-                                    this.activeYoutubePlayerReady = true;
-                                    this.players.clear();
-                                    this.players.set(item.id, event.target);
+                                    this.playback.markPlayerReady(event.target);
                                     settleReady({ ok: true, player: event.target });
                                 },
                                 onStateChange: (event) => {
                                     // Auto-advance to next when video ends
                                     if (event.data === YT.PlayerState.ENDED) {
-                                        if (Date.now() < this.suppressAutoAdvanceUntil) {
+                                        if (this.playback.shouldSuppressAutoAdvance()) {
                                             return;
                                         }
                                         this.playNext();
@@ -479,7 +498,7 @@ const PlayerPlaylist = (function () {
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
                                     const detail = this.describeYouTubePlayerError(event.data);
-                                    const activeItem = this.playlist.find(candidate => candidate.id === this.activeYoutubePlayerItemId) || item;
+                                    const activeItem = this.playlist.find(candidate => candidate.id === this.playback.activeItemId) || item;
                                     const entry = this.playerReadyPromises.get(activeItem.id);
                                     const reportNow = !entry || entry.settled;
                                     settleReady({ ok: false, error: detail, errorCode: event.data });
@@ -490,9 +509,9 @@ const PlayerPlaylist = (function () {
                             }
                         });
 
-                        // Keep a reference, but do not expose it through
-                        // players until onReady confirms it can be used.
-                        this.activeYoutubePlayer = player;
+                        // Hold the handle, but leave playback.ready false until
+                        // onReady confirms it can be used (playVideo gates on it).
+                        this.playback.player = player;
                     } catch (error) {
                         console.error('Error creating YouTube player:', error);
                         settleReady({ ok: false, error: error.message || String(error) });
@@ -534,10 +553,8 @@ const PlayerPlaylist = (function () {
             },
 
             ensurePlaylistPlayer(item) {
-                if (this.activeYoutubePlayerReady && this.activeYoutubePlayer) {
-                    this.players.clear();
-                    this.players.set(item.id, this.activeYoutubePlayer);
-                    this.activeYoutubePlayerItemId = item.id;
+                if (this.playback.ready && this.playback.player) {
+                    this.playback.setActiveItem(item.id);
                     return;
                 }
 
@@ -548,11 +565,9 @@ const PlayerPlaylist = (function () {
             },
 
             recreatePlaylistPlayer(item) {
-                this.players.clear();
-                if (this.activeYoutubePlayer) {
-                    this.players.set(item.id, this.activeYoutubePlayer);
-                }
-                this.activeYoutubePlayerItemId = item.id;
+                // The single player handle is reused; just repoint it at the new
+                // item so the next play loads its (changed) video id.
+                this.playback.setActiveItem(item.id);
             },
 
             applyVideoDataToPlaylistItem(item, videoData) {
@@ -698,7 +713,7 @@ const PlayerPlaylist = (function () {
 
                 // Stop currently playing video
                 if (this.currentPlayingId && this.currentPlayingId !== item.id) {
-                    const currentPlayer = this.players.get(this.currentPlayingId);
+                    const currentPlayer = this.playback.player;
                     if (currentPlayer && typeof currentPlayer.pauseVideo === 'function') {
                         try {
                             currentPlayer.pauseVideo();
@@ -712,25 +727,22 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                // Play new video
-                const player = this.players.get(item.id);
+                // Play new video. The player is only exposed once ready; until
+                // then we fall through to the loading branch below.
+                const player = this.playback.ready ? this.playback.player : null;
                 if (player && typeof player.playVideo === 'function') {
                     try {
-                        if (this.activeYoutubePlayerVideoId !== item.videoId && typeof player.loadVideoById === 'function') {
-                            this.activeYoutubePlayerVideoId = item.videoId;
-                            this.activeYoutubePlayerItemId = item.id;
+                        if (this.playback.activeVideoId !== item.videoId && typeof player.loadVideoById === 'function') {
+                            this.playback.setActiveMedia(item.id, item.videoId);
                             player.loadVideoById(item.videoId);
                         } else {
-                            this.activeYoutubePlayerVideoId = item.videoId;
-                            this.activeYoutubePlayerItemId = item.id;
+                            this.playback.setActiveMedia(item.id, item.videoId);
                             player.playVideo();
                         }
-                        this.currentPlayingId = item.id;
-                        this.isPlaying = true;
-                        this.isPaused = false;
+                        this.playback.markPlaying(item.id);
 
                         // Update playlist index
-                        this.currentPlaylistIndex = this.playlist.findIndex(song => song.id === item.id);
+                        this.playback.currentPlaylistIndex = this.playlist.findIndex(song => song.id === item.id);
 
                         // Update central player display
                         this.updateCentralPlayer(item);
@@ -767,15 +779,16 @@ const PlayerPlaylist = (function () {
                         this.updateStatus('Error playing video. Try again.');
                     }
                 } else {
+                    this.playback.markLoading();
                     const description = this.describePlaylistItem(item);
                     this.updateStatus(`Player loading: ${this.truncateForStatus(description, 100)}`);
                     this.addMessage('claude', 'Player loading', `Waiting for player: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}`);
                     const loadingVideoId = item.videoId;
                     const ready = await this.waitForPlayerReady(item);
                     if (ready.ok) {
-                        const readyPlayer = ready.player || this.players.get(item.id);
+                        const readyPlayer = ready.player || this.playback.player;
                         if (readyPlayer) {
-                            this.players.set(item.id, readyPlayer);
+                            this.playback.markPlayerReady(readyPlayer);
                         }
                         return this.playVideo(item);
                     }
@@ -829,13 +842,12 @@ const PlayerPlaylist = (function () {
 
             stopPlayback() {
                 if (this.currentPlayingId) {
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.stopVideo === 'function') {
                         try {
-                            this.suppressAutoAdvanceUntil = Date.now() + 1500;
+                            this.playback.suppressAutoAdvanceFor(1500);
                             player.stopVideo();
-                            this.isPlaying = false;
-                            this.isPaused = false;
+                            this.playback.markStopped();
                             if ('mediaSession' in navigator) {
                                 navigator.mediaSession.playbackState = 'none';
                             }
@@ -857,12 +869,11 @@ const PlayerPlaylist = (function () {
 
                 if (this.isPaused && this.currentPlayingId) {
                     // Resume current
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.playVideo === 'function') {
                         const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
                         player.playVideo();
-                        this.isPlaying = true;
-                        this.isPaused = false;
+                        this.playback.markPlaying(this.playback.currentPlayingId);
                         if ('mediaSession' in navigator) {
                             navigator.mediaSession.playbackState = 'playing';
                         }
@@ -887,11 +898,10 @@ const PlayerPlaylist = (function () {
 
             pausePlayback() {
                 if (this.currentPlayingId) {
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.pauseVideo === 'function') {
                         player.pauseVideo();
-                        this.isPlaying = false;
-                        this.isPaused = true;
+                        this.playback.markPaused();
                         if ('mediaSession' in navigator) {
                             navigator.mediaSession.playbackState = 'paused';
                         }
@@ -935,7 +945,7 @@ const PlayerPlaylist = (function () {
 
             fastForward() {
                 if (this.currentPlayingId) {
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
                         try {
                             const currentTime = player.getCurrentTime();
@@ -949,7 +959,7 @@ const PlayerPlaylist = (function () {
 
             rewind() {
                 if (this.currentPlayingId) {
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
                         try {
                             const currentTime = player.getCurrentTime();
@@ -968,7 +978,7 @@ const PlayerPlaylist = (function () {
 
             restartCurrentTrack() {
                 if (this.currentPlayingId) {
-                    const player = this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.seekTo === 'function') {
                         player.seekTo(0, true);
                     }
@@ -995,10 +1005,10 @@ const PlayerPlaylist = (function () {
             clearPlaylist() {
                 // Stop any playing video
                 if (this.currentPlayingId) {
-                    const player = this.activeYoutubePlayer || this.players.get(this.currentPlayingId);
+                    const player = this.playback.player;
                     if (player && typeof player.stopVideo === 'function') {
                         try {
-                            this.suppressAutoAdvanceUntil = Date.now() + 1500;
+                            this.playback.suppressAutoAdvanceFor(1500);
                             player.stopVideo();
                         } catch (e) {
                             // Ignore
@@ -1008,9 +1018,6 @@ const PlayerPlaylist = (function () {
 
                 this.stopProgressUpdates();
                 this.playlist = [];
-                this.currentPlaylistIndex = -1;
-                this.isPlaying = false;
-                this.isPaused = false;
                 document.getElementById('playlistBody').innerHTML = '';
 
                 // Remove any player divs that were appended to the container
@@ -1021,21 +1028,16 @@ const PlayerPlaylist = (function () {
                 document.getElementById('playlistContainer').style.display = 'none';
                 document.getElementById('centralPlayer').style.display = 'none';
                 this.hideTransportBar();
-                this.players.forEach(player => {
+                if (this.playback.player) {
                     try {
-                        player.destroy();
+                        this.playback.player.destroy();
                     } catch (e) {
                         // Ignore errors
                     }
-                });
-                this.players.clear();
+                }
                 this.playerReadyPromises.clear();
                 this.youtubeAlternateResults.clear();
-                this.activeYoutubePlayer = null;
-                this.activeYoutubePlayerReady = false;
-                this.activeYoutubePlayerVideoId = '';
-                this.activeYoutubePlayerItemId = null;
-                this.currentPlayingId = null;
+                this.playback.reset();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);
                 this.updatePlaylistLabel();
@@ -1188,7 +1190,7 @@ const PlayerPlaylist = (function () {
             seekToPercentage(percentage) {
                 if (!this.currentPlayingId) return;
 
-                const player = this.players.get(this.currentPlayingId);
+                const player = this.playback.player;
                 if (player && typeof player.getDuration === 'function' && typeof player.seekTo === 'function') {
                     const duration = player.getDuration();
                     if (duration && duration > 0) {
@@ -1216,7 +1218,7 @@ const PlayerPlaylist = (function () {
             updateCurrentProgress() {
                 if (!this.currentPlayingId || this.isDraggingProgress) return;
 
-                const player = this.players.get(this.currentPlayingId);
+                const player = this.playback.player;
                 if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
                     const currentTime = player.getCurrentTime();
                     const duration = player.getDuration();

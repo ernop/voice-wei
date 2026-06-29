@@ -50,6 +50,7 @@ interface Window {
     EarTraining?: {
         create: (options: any) => any;
     };
+    PlaybackState?: typeof PlaybackState;
     PlayerCommands?: typeof PlayerCommands;
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerLyrics?: typeof PlayerLyrics;
