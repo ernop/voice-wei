@@ -1223,11 +1223,12 @@ const PlayerPlaylist = (function () {
                 const totalTimeEl = document.getElementById('totalTime');
 
                 if (fill && handle && currentTimeEl && totalTimeEl) {
-                    const percentage = (currentTime / duration) * 100;
-                    fill.style.width = `${percentage}%`;
-                    handle.style.left = `${percentage}%`;
-                    currentTimeEl.textContent = this.formatTime(currentTime);
-                    totalTimeEl.textContent = this.formatTime(duration);
+                    if (!this.progressDiff) this.progressDiff = new ValueDiff();
+                    const percentage = `${(currentTime / duration) * 100}%`;
+                    this.progressDiff.style('fillWidth', fill, 'width', percentage);
+                    this.progressDiff.style('handleLeft', handle, 'left', percentage);
+                    this.progressDiff.text('currentTime', currentTimeEl, this.formatTime(currentTime));
+                    this.progressDiff.text('totalTime', totalTimeEl, this.formatTime(duration));
                 }
 
                 this.updateSyncedLyricsPosition(currentTime);

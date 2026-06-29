@@ -32,6 +32,8 @@ interface Window {
     PitchDetectCore?: any;
     PitchTraceView?: any;
     PracticeControls?: any;
+    RateGate?: typeof RateGate;
+    ValueDiff?: typeof ValueDiff;
     SettingsStore?: any;
     StorageKeys?: any;
     LegacyStorageKeys?: any;

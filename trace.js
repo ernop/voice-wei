@@ -39,10 +39,9 @@
     /** @type {ReturnType<typeof PianoCore.createSineSynth> | null} */
     let guideSine = null;
     let guidePlaybackToken = 0;
-    let lastPitchReadoutText = '';
-    let lastStatusText = '';
-    let lastPitchReadoutAt = 0;
-    let lastChartDrawAt = 0;
+    const readoutGate = new RateGate(50);
+    const chartGate = new RateGate(50);
+    const textDiff = new ValueDiff();
 
     const getEl = PracticeControls.getEl;
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -75,11 +74,7 @@
     }
 
     function setStatus(message) {
-        const el = getEl('statusReadout');
-        if (el && lastStatusText !== message) {
-            el.textContent = message;
-            lastStatusText = message;
-        }
+        textDiff.text('status', getEl('statusReadout'), message);
     }
 
     /**
@@ -88,24 +83,15 @@
      * @param {number} freq
      */
     function updatePitchReadout(note, cents, freq) {
-        const now = performance.now();
-        if (now - lastPitchReadoutAt < 50) return;
-        lastPitchReadoutAt = now;
+        if (!readoutGate.ready()) return;
         const el = getEl('pitchReadout');
         if (!el) return;
         const text = `Pitch: ${note} ${freq.toFixed(1)} Hz ${cents >= 0 ? '+' : ''}${cents.toFixed(0)}c`;
-        if (lastPitchReadoutText !== text) {
-            el.textContent = text;
-            lastPitchReadoutText = text;
-        }
+        textDiff.text('pitchReadout', el, text);
     }
 
     function clearPitchReadout() {
-        const el = getEl('pitchReadout');
-        if (el && lastPitchReadoutText !== 'Pitch: --') {
-            el.textContent = 'Pitch: --';
-            lastPitchReadoutText = 'Pitch: --';
-        }
+        textDiff.text('pitchReadout', getEl('pitchReadout'), 'Pitch: --');
     }
 
     const session = PitchDetectCore.createTraceSession({
@@ -170,9 +156,11 @@
     });
 
     function drawChart(force = false) {
-        const now = performance.now();
-        if (!force && now - lastChartDrawAt < 50) return;
-        lastChartDrawAt = now;
+        if (force) {
+            chartGate.stamp();
+        } else if (!chartGate.ready()) {
+            return;
+        }
         view.draw();
     }
     function resizeCanvas() { view.resize(); }

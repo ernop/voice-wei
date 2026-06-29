@@ -97,9 +97,9 @@ class PitchMeterController {
         this.currentFreqEl = null;
         /** @type {HTMLElement | null} */
         this.centsMarkerEl = null;
-        this.lastPitchDisplayAt = 0;
-        this.lastChartDrawAt = 0;
-        this.pitchDisplayCache = { note: '', cents: '', freq: '', noteColor: '', markerLeft: '', markerColor: '' };
+        this.chartGate = new RateGate(50);
+        this.pitchDisplayGate = new RateGate(50);
+        this.pitchDisplayDiff = new ValueDiff();
 
         this.traceView = PitchTraceView.create({
             canvasId: 'pitchChart',
@@ -256,9 +256,7 @@ class PitchMeterController {
     }
 
     drawChart() {
-        const now = performance.now();
-        if (now - this.lastChartDrawAt < 50) return;
-        this.lastChartDrawAt = now;
+        if (!this.chartGate.ready()) return;
         this.traceView.draw();
     }
 
@@ -635,9 +633,7 @@ class PitchMeterController {
      * @param {number} freq
      */
     updatePitchDisplay(noteName, cents, freq) {
-        const now = performance.now();
-        if (now - this.lastPitchDisplayAt < 50) return;
-        this.lastPitchDisplayAt = now;
+        if (!this.pitchDisplayGate.ready()) return;
 
         const noteText = noteName;
         const centsText = (cents >= 0 ? '+' : '') + cents.toFixed(0) + ' cents';
@@ -660,45 +656,21 @@ class PitchMeterController {
             markerColor = '#f87171';
         }
 
-        if (this.pitchDisplayCache.note !== noteText) {
-            this.currentNoteEl.textContent = noteText;
-            this.pitchDisplayCache.note = noteText;
-        }
-        if (this.pitchDisplayCache.cents !== centsText) {
-            this.currentCentsEl.textContent = centsText;
-            this.pitchDisplayCache.cents = centsText;
-        }
-        if (this.pitchDisplayCache.freq !== freqText) {
-            this.currentFreqEl.textContent = freqText;
-            this.pitchDisplayCache.freq = freqText;
-        }
-        if (this.pitchDisplayCache.markerLeft !== markerLeft) {
-            this.centsMarkerEl.style.left = markerLeft;
-            this.pitchDisplayCache.markerLeft = markerLeft;
-        }
-        if (this.pitchDisplayCache.noteColor !== noteColor) {
-            this.currentNoteEl.style.color = noteColor;
-            this.pitchDisplayCache.noteColor = noteColor;
-        }
-        if (this.pitchDisplayCache.markerColor !== markerColor) {
-            this.centsMarkerEl.style.background = markerColor;
-            this.pitchDisplayCache.markerColor = markerColor;
-        }
+        const diff = this.pitchDisplayDiff;
+        diff.text('note', this.currentNoteEl, noteText);
+        diff.text('cents', this.currentCentsEl, centsText);
+        diff.text('freq', this.currentFreqEl, freqText);
+        diff.style('markerLeft', this.centsMarkerEl, 'left', markerLeft);
+        diff.style('noteColor', this.currentNoteEl, 'color', noteColor);
+        diff.style('markerColor', this.centsMarkerEl, 'background', markerColor);
     }
 
     clearPitchDisplay() {
-        if (this.pitchDisplayCache.note !== '--') this.currentNoteEl.textContent = '--';
-        if (this.pitchDisplayCache.cents !== '-- cents') this.currentCentsEl.textContent = '-- cents';
-        if (this.pitchDisplayCache.freq !== '-- Hz') this.currentFreqEl.textContent = '-- Hz';
-        this.currentNoteEl.style.color = 'rgba(255,255,255,0.5)';
-        this.pitchDisplayCache = {
-            note: '--',
-            cents: '-- cents',
-            freq: '-- Hz',
-            noteColor: 'rgba(255,255,255,0.5)',
-            markerLeft: this.pitchDisplayCache.markerLeft,
-            markerColor: this.pitchDisplayCache.markerColor
-        };
+        const diff = this.pitchDisplayDiff;
+        diff.text('note', this.currentNoteEl, '--');
+        diff.text('cents', this.currentCentsEl, '-- cents');
+        diff.text('freq', this.currentFreqEl, '-- Hz');
+        diff.style('noteColor', this.currentNoteEl, 'color', 'rgba(255,255,255,0.5)');
     }
 
     //-------SCALE PLAYBACK (preview)-------
