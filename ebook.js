@@ -201,11 +201,16 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @typedef {Object} UrlImportState
  * @property {string} rootUrl
  * @property {string} requestedUrl
- * @property {WebPage[]} collected
- * @property {Set<string>} seen
- * @property {string[]} queue
- * @property {WebPage | null} reviewing
- * @property {boolean} busy
+ * @property {WebPage | null} rootPage
+ * @property {boolean} building
+ * @property {boolean} cancelled
+ */
+
+/**
+ * @typedef {Object} UrlImportResult
+ * @property {{ text: string, url: string }} link
+ * @property {WebPage | null} page
+ * @property {string} error
  */
 
 class BooksStorage {
@@ -889,11 +894,11 @@ class BooksController {
                 }
             });
         }
-        this.bindButton('urlImportSubmitBtn', () => this.submitUrlImportSelection());
-        this.bindButton('urlImportFinishBtn', () => this.finishUrlImport());
+        this.bindButton('urlImportSubmitBtn', () => this.submitUrlImport());
         this.bindButton('urlImportCancelBtn', () => this.cancelUrlImport());
         this.bindButton('urlImportSelectAll', () => this.setAllUrlImportLinks(true));
         this.bindButton('urlImportSelectNone', () => this.setAllUrlImportLinks(false));
+        this.bindButton('urlImportInvert', () => this.invertUrlImportLinks());
         const filter = /** @type {HTMLInputElement | null} */ (document.getElementById('urlImportFilter'));
         if (filter) filter.addEventListener('input', () => this.filterUrlImportLinks(filter.value.trim().toLowerCase()));
     }
@@ -1254,53 +1259,26 @@ class BooksController {
         this.urlImport = {
             rootUrl: url,
             requestedUrl: urlInput?.value.trim() || url,
-            collected: [],
-            seen: new Set(),
-            queue: [],
-            reviewing: null,
-            busy: false
+            rootPage: null,
+            building: false,
+            cancelled: false
         };
         if (urlInput) urlInput.value = '';
         this.openUrlImportOverlay();
-        await this.ingestUrlImportPage(url);
-    }
-
-    /**
-     * Fetch a page, add it to the collection, and show its outbound links for
-     * yes/no selection. Each accepted link later runs through here too.
-     * @param {string} url
-     */
-    async ingestUrlImportPage(url) {
-        const state = this.urlImport;
-        if (!state) return;
-        state.busy = true;
-        state.reviewing = null;
-        this.renderUrlImportReview(`Reading ${url} ...`);
+        this.showUrlImportMode('loading');
+        this.setUrlImportMessage(`Reading ${url} ...`);
         try {
             const page = await this.fetchWebPage(url);
-            state.seen.add(page.url);
-            state.seen.add(url);
-            state.collected.push(page);
-            state.reviewing = page;
+            if (!this.urlImport || this.urlImport.cancelled) return;
+            this.urlImport.rootPage = page;
             this.log('info', `Read ${page.title || page.url}: ${page.text.length} chars, ${page.links.length} outbound links`);
+            this.renderUrlImportSelection();
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.log('error', `Could not read ${url}: ${message}`);
-            this.updateStatus(`Could not read ${url}`);
-            state.seen.add(url);
-        } finally {
-            state.busy = false;
+            this.setUrlImportMessage(`Could not read ${url}: ${message}`);
+            this.showUrlImportMode('error');
         }
-        // A failed fetch leaves nothing to review; pull the next queued page so
-        // a blocked link (e.g. a 429) does not strand the import.
-        if (!state.reviewing && state.queue.length > 0) {
-            const next = state.queue.shift();
-            if (next) {
-                await this.ingestUrlImportPage(next);
-                return;
-            }
-        }
-        this.renderUrlImportReview();
     }
 
     /**
@@ -1372,72 +1350,35 @@ class BooksController {
         }
     }
 
-    /** @param {string} [statusOverride] */
-    renderUrlImportReview(statusOverride) {
+    renderUrlImportSelection() {
         const state = this.urlImport;
-        const progress = document.getElementById('urlImportProgress');
         const current = document.getElementById('urlImportCurrent');
         const linksWrap = document.getElementById('urlImportLinks');
-        const linkTools = document.getElementById('urlImportLinkTools');
-        const submitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('urlImportSubmitBtn'));
-        const finishBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('urlImportFinishBtn'));
-        if (!state || !progress || !current || !linksWrap) return;
-
-        const pageCount = state.collected.length;
-        const queued = state.queue.length;
-        const words = state.collected.reduce((sum, page) => sum + this.countWords(page.text), 0);
-        progress.innerHTML = [
-            `<span><strong>${pageCount}</strong> page${pageCount === 1 ? '' : 's'} collected</span>`,
-            `<span><strong>${queued}</strong> queued to review</span>`,
-            `<span>~${words.toLocaleString()} words</span>`
-        ].join('');
-
-        if (statusOverride) {
-            current.textContent = statusOverride;
-            linksWrap.innerHTML = '';
-            if (linkTools) linkTools.style.display = 'none';
-            if (submitBtn) submitBtn.disabled = true;
-            if (finishBtn) finishBtn.disabled = pageCount === 0;
-            return;
-        }
-
-        const page = state.reviewing;
-        if (submitBtn) submitBtn.disabled = !page || state.busy;
-        if (finishBtn) finishBtn.disabled = pageCount === 0 || state.busy;
-
-        if (!page) {
-            current.innerHTML = queued > 0
-                ? `<p>${queued} page${queued === 1 ? '' : 's'} still queued. Submit to keep going, or finish to build the book.</p>`
-                : '<p>No more linked pages to review. Finish to build the book.</p>';
-            linksWrap.innerHTML = '';
-            if (linkTools) linkTools.style.display = 'none';
-            return;
-        }
-
-        const fresh = page.links.filter(link => !state.seen.has(link.url));
+        if (!state || !state.rootPage || !current || !linksWrap) return;
+        const page = state.rootPage;
         const truncatedNote = page.truncated ? ' (page text was truncated)' : '';
+        const count = page.links.length;
         current.innerHTML = [
             `<div class="url-import-pagehead"><strong>${this.escapeHtml(page.title)}</strong>`,
             `<a href="${this.escapeHtml(page.url)}" target="_blank" rel="noopener">${this.escapeHtml(page.url)}</a></div>`,
-            `<p>Included as a chapter. ${fresh.length} new outbound link${fresh.length === 1 ? '' : 's'} below`,
-            `${truncatedNote}. Toggle the ones to add as their own chapters.</p>`
+            `<p>This page becomes the contents chapter${truncatedNote}. Choose which of its ${count} link${count === 1 ? '' : 's'} to download as their own chapters, then Submit. Everything downloads in the background.</p>`
         ].join('');
 
-        if (fresh.length === 0) {
-            linksWrap.innerHTML = '<div class="url-import-empty">No new links on this page.</div>';
-            if (linkTools) linkTools.style.display = 'none';
-            return;
+        if (count === 0) {
+            linksWrap.innerHTML = '<div class="url-import-empty">No outbound links found. Submit to import just this page.</div>';
+        } else {
+            linksWrap.innerHTML = page.links.map((link, index) => {
+                const label = link.text || link.url;
+                return `<label class="url-import-link" data-link-text="${this.escapeHtml((link.text + ' ' + link.url).toLowerCase())}">`
+                    + `<input type="checkbox" checked data-link-url="${this.escapeHtml(link.url)}" id="urlImportLink${index}" />`
+                    + `<span class="url-import-link-text">${this.escapeHtml(label)}</span>`
+                    + `<span class="url-import-link-url">${this.escapeHtml(link.url)}</span>`
+                    + `</label>`;
+            }).join('');
         }
-
-        if (linkTools) linkTools.style.display = '';
-        linksWrap.innerHTML = fresh.map((link, index) => {
-            const label = link.text || link.url;
-            return `<label class="url-import-link" data-link-text="${this.escapeHtml((link.text + ' ' + link.url).toLowerCase())}">`
-                + `<input type="checkbox" data-link-url="${this.escapeHtml(link.url)}" id="urlImportLink${index}" />`
-                + `<span class="url-import-link-text">${this.escapeHtml(label)}</span>`
-                + `<span class="url-import-link-url">${this.escapeHtml(link.url)}</span>`
-                + `</label>`;
-        }).join('');
+        const filter = /** @type {HTMLInputElement | null} */ (document.getElementById('urlImportFilter'));
+        if (filter) filter.value = '';
+        this.showUrlImportMode('select');
     }
 
     /** @param {boolean} checked */
@@ -1452,6 +1393,17 @@ class BooksController {
         });
     }
 
+    invertUrlImportLinks() {
+        const linksWrap = document.getElementById('urlImportLinks');
+        if (!linksWrap) return;
+        linksWrap.querySelectorAll('label.url-import-link').forEach(label => {
+            const el = /** @type {HTMLElement} */ (label);
+            if (el.style.display === 'none') return;
+            const box = el.querySelector('input[type="checkbox"]');
+            if (box instanceof HTMLInputElement) box.checked = !box.checked;
+        });
+    }
+
     /** @param {string} term */
     filterUrlImportLinks(term) {
         const linksWrap = document.getElementById('urlImportLinks');
@@ -1463,56 +1415,136 @@ class BooksController {
         });
     }
 
-    async submitUrlImportSelection() {
+    async submitUrlImport() {
         const state = this.urlImport;
-        if (!state || state.busy) return;
+        if (!state || !state.rootPage || state.building) return;
+        if (!this.storage) return;
+
         const linksWrap = document.getElementById('urlImportLinks');
+        const checked = new Set();
         if (linksWrap) {
             linksWrap.querySelectorAll('input[type="checkbox"]:checked').forEach(box => {
                 const url = box.getAttribute('data-link-url');
-                if (url && !state.seen.has(url) && !state.queue.includes(url)) state.queue.push(url);
+                if (url) checked.add(url);
             });
         }
-        const next = state.queue.shift();
-        if (next) {
-            await this.ingestUrlImportPage(next);
-        } else {
-            state.reviewing = null;
-            this.renderUrlImportReview();
-            this.updateStatus('Nothing left to review. Finish to build the book.');
-        }
+        const selected = state.rootPage.links.filter(link => checked.has(link.url));
+
+        state.building = true;
+        state.cancelled = false;
+        this.showUrlImportMode('building');
+        this.updateUrlImportBuildProgress(0, selected.length, selected.length ? 'Starting downloads...' : 'Building...');
+
+        const results = await this.downloadSelectedPages(state, selected, (done, total) =>
+            this.updateUrlImportBuildProgress(done, total, `Downloading ${done}/${total} pages...`));
+        if (!this.urlImport || state.cancelled) return;
+        await this.buildMetabook(state, results);
     }
 
-    async finishUrlImport() {
-        const state = this.urlImport;
-        if (!state || state.busy) return;
-        if (state.collected.length === 0) {
-            this.cancelUrlImport();
-            return;
-        }
-        if (!this.storage) return;
+    /**
+     * Download accepted pages with bounded concurrency, preserving order.
+     * @param {UrlImportState} state
+     * @param {{ text: string, url: string }[]} links
+     * @param {(done: number, total: number) => void} onProgress
+     * @returns {Promise<UrlImportResult[]>}
+     */
+    async downloadSelectedPages(state, links, onProgress) {
+        /** @type {UrlImportResult[]} */
+        const results = new Array(links.length);
+        const total = links.length;
+        let nextIndex = 0;
+        let done = 0;
+        const concurrency = Math.min(5, Math.max(1, links.length));
+        const worker = async () => {
+            while (true) {
+                const i = nextIndex++;
+                if (i >= links.length) break;
+                const link = links[i];
+                if (state.cancelled) {
+                    results[i] = { link, page: null, error: 'cancelled' };
+                } else {
+                    try {
+                        const page = await this.fetchWebPage(link.url);
+                        results[i] = { link, page, error: '' };
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        results[i] = { link, page: null, error: message };
+                    }
+                }
+                done++;
+                onProgress(done, total);
+            }
+        };
+        await Promise.all(Array.from({ length: concurrency }, () => worker()));
+        return results;
+    }
+
+    /**
+     * @param {UrlImportState} state
+     * @param {UrlImportResult[]} results
+     */
+    async buildMetabook(state, results) {
+        if (!this.storage || !state.rootPage || state.cancelled) return;
+        const rootPage = state.rootPage;
 
         const books = await this.storage.getBooks();
         const existing = books.find(b => b.sourceUrl && b.sourceUrl === state.rootUrl);
         const bookId = existing ? existing.id : this.createId('book');
-        if (existing) await this.storage.deleteBookCascade(existing.id);
 
-        const rawSections = state.collected
-            .map(page => ({ title: page.title || page.url, text: this.cleanText(page.text), html: '' }))
+        /** @type {{ title: string, text: string, html?: string }[]} */
+        const chapterSections = [];
+        /** @type {string[]} */
+        const tocLines = [];
+        /** @type {string[]} */
+        const pageUrls = [rootPage.url];
+        let succeeded = 0;
+        let failed = 0;
+        let chapterNo = 2; // chapter 1 is the contents chapter
+        for (const result of results) {
+            const linkTitle = (result.link.text || result.page?.title || result.link.url).trim();
+            if (result.page && result.page.text.trim()) {
+                chapterSections.push({ title: linkTitle, text: this.cleanText(result.page.text), html: '' });
+                tocLines.push(`Chapter ${chapterNo}: ${linkTitle}`);
+                pageUrls.push(result.page.url);
+                chapterNo++;
+                succeeded++;
+            } else {
+                const reason = result.error || 'no readable text';
+                tocLines.push(`(could not include) ${linkTitle} - ${reason} [${result.link.url}]`);
+                failed++;
+            }
+        }
+
+        const tocBody = [
+            rootPage.title,
+            '',
+            this.cleanText(rootPage.text),
+            '',
+            'Contents',
+            ''
+        ].join('\n');
+        const tocText = tocLines.length ? `${tocBody}\n${tocLines.join('\n')}` : tocBody;
+
+        /** @type {{ title: string, text: string, html?: string }[]} */
+        const rawSections = [{ title: rootPage.title || 'Contents', text: this.cleanText(tocText), html: '' }, ...chapterSections]
             .filter(section => section.text.length > 0);
         if (rawSections.length === 0) {
             this.updateStatus('No readable text collected');
+            this.cancelUrlImport();
             return;
         }
 
+        if (existing) await this.storage.deleteBookCascade(existing.id);
         const { sections, segments, totalWords, charCount } = this.assembleSectionsAndSegments(bookId, rawSections);
-        const rootPage = state.collected[0];
         const title = rootPage.title || state.rootUrl;
         const snapshot = JSON.stringify({
             rootUrl: state.rootUrl,
             requestedUrl: state.requestedUrl,
             fetchedAt: new Date().toISOString(),
-            pages: state.collected.map(page => ({ url: page.url, title: page.title, text: page.text }))
+            contents: { succeeded, failed },
+            toc: tocLines,
+            pages: [{ url: rootPage.url, title: rootPage.title, text: rootPage.text }]
+                .concat(results.filter(r => r.page).map(r => ({ url: /** @type {WebPage} */ (r.page).url, title: /** @type {WebPage} */ (r.page).title, text: /** @type {WebPage} */ (r.page).text })))
         }, null, 2);
         const rawFile = new Blob([snapshot], { type: 'application/json' });
         const now = new Date().toISOString();
@@ -1548,7 +1580,7 @@ class BooksController {
             sourceUrl: state.rootUrl,
             sourceRequestedUrl: state.requestedUrl,
             lastFetchedAt: now,
-            sourcePageUrls: state.collected.map(page => page.url)
+            sourcePageUrls: pageUrls
         };
 
         await this.storage.putBook(book);
@@ -1564,14 +1596,46 @@ class BooksController {
         this.segments = [];
         this.currentSegmentId = null;
         this.renderLibrary();
-        this.updateStatus(`Built ${title} from ${sections.length} web page${sections.length === 1 ? '' : 's'}`);
-        this.log('info', `Built web book ${title}: ${sections.length} pages, ${segments.length} audio chunks planned`);
+        const failNote = failed ? `, ${failed} link${failed === 1 ? '' : 's'} could not be read` : '';
+        this.updateStatus(`Built ${title}: contents + ${succeeded} chapter${succeeded === 1 ? '' : 's'}${failNote}`);
+        this.log('info', `Built web book ${title}: ${sections.length} chapters (${succeeded} from links, ${failed} failed), ${segments.length} audio chunks planned`);
+    }
+
+    /** @param {number} done @param {number} total @param {string} label */
+    updateUrlImportBuildProgress(done, total, label) {
+        const fill = document.getElementById('urlImportBuildFill');
+        const status = document.getElementById('urlImportBuildStatus');
+        const percent = total ? Math.round(done / total * 100) : 100;
+        if (fill) fill.style.width = `${percent}%`;
+        if (status) status.textContent = total ? `${label} (${percent}%)` : label;
     }
 
     cancelUrlImport() {
+        if (this.urlImport) this.urlImport.cancelled = true;
         this.closeUrlImportOverlay();
         this.urlImport = null;
         this.updateStatus('Web import cancelled');
+    }
+
+    /** @param {'loading' | 'select' | 'building' | 'error'} mode */
+    showUrlImportMode(mode) {
+        const linkTools = document.getElementById('urlImportLinkTools');
+        const links = document.getElementById('urlImportLinks');
+        const build = document.getElementById('urlImportBuild');
+        const submit = /** @type {HTMLButtonElement | null} */ (document.getElementById('urlImportSubmitBtn'));
+        const selectMode = mode === 'select';
+        if (linkTools) linkTools.style.display = selectMode ? '' : 'none';
+        if (links) links.style.display = selectMode ? '' : 'none';
+        if (build) build.style.display = mode === 'building' ? '' : 'none';
+        if (submit) submit.disabled = !selectMode;
+    }
+
+    /** @param {string} message */
+    setUrlImportMessage(message) {
+        const current = document.getElementById('urlImportCurrent');
+        if (current) current.textContent = message;
+        const linksWrap = document.getElementById('urlImportLinks');
+        if (linksWrap) linksWrap.innerHTML = '';
     }
 
     openUrlImportOverlay() {

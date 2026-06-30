@@ -365,6 +365,33 @@
     padding: 8px 0;
 }
 
+.url-import-build {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 0;
+}
+
+.url-import-bar {
+    height: 12px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    overflow: hidden;
+}
+
+.url-import-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    transition: width 0.2s ease;
+}
+
+.url-import-build-status {
+    font-size: 0.86rem;
+    color: rgba(232, 245, 233, 0.85);
+}
+
 .url-import-actions {
     display: flex;
     flex-wrap: wrap;

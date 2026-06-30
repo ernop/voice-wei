@@ -55,19 +55,22 @@
             <div class="url-import-overlay-content">
                 <header class="url-import-header">
                     <h2>Build a book from the web</h2>
-                    <p class="url-import-subtitle" id="urlImportSubtitle">Pick which linked pages to include.</p>
+                    <p class="url-import-subtitle" id="urlImportSubtitle">Pick which linked pages to include as chapters.</p>
                 </header>
-                <div class="url-import-progress" id="urlImportProgress"></div>
                 <div class="url-import-current" id="urlImportCurrent"></div>
                 <div class="url-import-linktools" id="urlImportLinkTools" style="display: none;">
                     <input type="search" id="urlImportFilter" class="url-import-filter" placeholder="Filter links by text or URL" />
                     <button id="urlImportSelectAll" class="small-action-btn" type="button">Select all</button>
-                    <button id="urlImportSelectNone" class="small-action-btn" type="button">Clear</button>
+                    <button id="urlImportSelectNone" class="small-action-btn" type="button">Select none</button>
+                    <button id="urlImportInvert" class="small-action-btn" type="button">Invert</button>
                 </div>
                 <div class="url-import-links" id="urlImportLinks"></div>
+                <div class="url-import-build" id="urlImportBuild" style="display: none;">
+                    <div class="url-import-bar"><div class="url-import-bar-fill" id="urlImportBuildFill"></div></div>
+                    <div class="url-import-build-status" id="urlImportBuildStatus"></div>
+                </div>
                 <footer class="url-import-actions">
-                    <button id="urlImportSubmitBtn" class="upload-button" type="button">Submit selected</button>
-                    <button id="urlImportFinishBtn" class="small-action-btn" type="button">Finish and build book</button>
+                    <button id="urlImportSubmitBtn" class="upload-button" type="button">Submit and build</button>
                     <button id="urlImportCancelBtn" class="small-action-btn danger" type="button">Cancel</button>
                 </footer>
             </div>
