@@ -517,6 +517,42 @@ class PitchMeterController {
         this.analyzeCallResponseResults();
     }
 
+    /**
+     * Shared results summary header (accuracy %, avg cents, notes hit + color).
+     * @param {number} accuracyPercent @param {string} avgCentsText
+     * @param {number} notesHit @param {number} total
+     */
+    renderResultsSummary(accuracyPercent, avgCentsText, notesHit, total) {
+        document.getElementById('overallAccuracy').textContent = Math.round(accuracyPercent) + '%';
+        document.getElementById('avgDeviation').textContent = avgCentsText + ' cents';
+        document.getElementById('notesHit').textContent = notesHit + '/' + total;
+        const accEl = document.getElementById('overallAccuracy');
+        accEl.style.color = accuracyPercent >= 80 ? '#4ade80' : accuracyPercent >= 60 ? '#facc15' : '#f87171';
+    }
+
+    /**
+     * Shared per-note breakdown list. Each item: { name, status, deviation }
+     * where status is 'good' | 'ok' | 'poor' | 'missed'.
+     * @param {string} title
+     * @param {{ name: string, status: 'good' | 'ok' | 'poor' | 'missed', deviation: string }[]} items
+     */
+    renderNoteBreakdown(title, items) {
+        const breakdownEl = document.getElementById('noteBreakdown');
+        breakdownEl.innerHTML = `<h4>${title}</h4>`;
+        const icons = { good: String.fromCharCode(10003), ok: '~', poor: '!', missed: 'x' };
+        const classes = { good: 'note-good', ok: 'note-ok', poor: 'note-poor', missed: 'note-missed' };
+        items.forEach(item => {
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'note-result';
+            noteDiv.innerHTML = `
+                <span class="note-name">${item.name}</span>
+                <span class="note-status ${classes[item.status]}">${icons[item.status]}</span>
+                <span class="note-deviation">${item.deviation}</span>
+            `;
+            breakdownEl.appendChild(noteDiv);
+        });
+    }
+
     analyzeCallResponseResults() {
         const resultsPanel = document.getElementById('resultsPanel');
         resultsPanel.style.display = 'block';
@@ -528,69 +564,36 @@ class PitchMeterController {
         const avgAccuracy = matched.length > 0
             ? Math.round(matched.reduce((sum, r) => sum + r.accuracy, 0) / matched.length)
             : 0;
-
         const avgCents = matched.length > 0
             ? (matched.reduce((sum, r) => sum + r.avgCents, 0) / matched.length).toFixed(1)
             : '--';
 
-        document.getElementById('overallAccuracy').textContent = avgAccuracy + '%';
-        document.getElementById('avgDeviation').textContent = avgCents + ' cents';
-        document.getElementById('notesHit').textContent = notesHitCount + '/' + totalNotes;
-
-        const accEl = document.getElementById('overallAccuracy');
-        if (avgAccuracy >= 80) {
-            accEl.style.color = '#4ade80';
-        } else if (avgAccuracy >= 60) {
-            accEl.style.color = '#facc15';
-        } else {
-            accEl.style.color = '#f87171';
-        }
-
-        // Build note breakdown
-        const breakdownEl = document.getElementById('noteBreakdown');
-        breakdownEl.innerHTML = '<h4>Per-Note Results</h4>';
+        this.renderResultsSummary(avgAccuracy, avgCents, notesHitCount, totalNotes);
 
         const noteOutcomes = this.noteResults.map(r => ({
             label: r.label || r.targetNote || '?',
             midi: r.midi ?? 0,
             result: /** @type {'good' | 'ok' | 'missed'} */ (
-                !r.matched ? 'missed'
-                    : (r.avgCents ?? 99) <= 10 ? 'good'
-                        : (r.avgCents ?? 99) <= 25 ? 'ok' : 'missed'),
+                !r.matched ? 'missed' : PitchScore.verdictFor(r.avgCents ?? 99)),
             avgCents: r.avgCents ?? null,
             biasCents: r.biasCents ?? null
         }));
         this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null, noteOutcomes);
 
-        this.noteResults.forEach((result, i) => {
+        this.renderNoteBreakdown('Per-Note Results', this.noteResults.map((result, i) => {
             const note = this.targetNotes[i];
-            const noteDiv = document.createElement('div');
-            noteDiv.className = 'note-result';
-
-            let statusClass, statusIcon;
+            /** @type {'good' | 'ok' | 'poor' | 'missed'} */
+            let status = 'missed';
             if (result.matched) {
-                if (result.accuracy >= 80) {
-                    statusClass = 'note-good';
-                    statusIcon = String.fromCharCode(10003);  // checkmark
-                } else if (result.accuracy >= 60) {
-                    statusClass = 'note-ok';
-                    statusIcon = '~';
-                } else {
-                    statusClass = 'note-poor';
-                    statusIcon = '!';
-                }
-            } else {
-                statusClass = 'note-missed';
-                statusIcon = 'x';
+                const verdict = PitchScore.verdictFor(result.avgCents ?? 99);
+                status = verdict === 'missed' ? 'poor' : verdict;
             }
-
-            noteDiv.innerHTML = `
-                <span class="note-name">${note.name}</span>
-                <span class="note-status ${statusClass}">${statusIcon}</span>
-                <span class="note-deviation">${result.matched ? result.accuracy + '% (' + result.avgCents.toFixed(0) + ' cents)' : result.reason}</span>
-            `;
-            breakdownEl.appendChild(noteDiv);
-        });
+            return {
+                name: note.name,
+                status,
+                deviation: result.matched ? `${result.accuracy}% (${result.avgCents.toFixed(0)} cents)` : result.reason
+            };
+        }));
 
         this.updateStatus(`Done! ${notesHitCount}/${totalNotes} notes matched, ${avgAccuracy}% average accuracy`);
     }
@@ -771,52 +774,22 @@ class PitchMeterController {
         });
         this.recordProgress(notesHitCount, this.targetNotes.length, sungScores.length ? avgDeviation : null, playAlongOutcomes);
 
-        document.getElementById('overallAccuracy').textContent = accuracy.toFixed(0) + '%';
-        document.getElementById('avgDeviation').textContent = avgDeviation.toFixed(1) + ' cents';
-        document.getElementById('notesHit').textContent = notesHitCount + '/' + this.targetNotes.length;
+        this.renderResultsSummary(accuracy, avgDeviation.toFixed(1), notesHitCount, this.targetNotes.length);
 
-        const accEl = document.getElementById('overallAccuracy');
-        if (accuracy >= 80) {
-            accEl.style.color = '#4ade80';
-        } else if (accuracy >= 60) {
-            accEl.style.color = '#facc15';
-        } else {
-            accEl.style.color = '#f87171';
-        }
-
-        const breakdownEl = document.getElementById('noteBreakdown');
-        breakdownEl.innerHTML = '<h4>Per-Note Breakdown</h4>';
-
-        this.targetNotes.forEach(note => {
+        this.renderNoteBreakdown('Per-Note Breakdown', this.targetNotes.map(note => {
             const score = noteScoreByMidi.get(note.midi);
             const wasHit = !!(score && score.attempted);
-            const avgCents = wasHit ? score.avgCents : 0;
-
-            const noteDiv = document.createElement('div');
-            noteDiv.className = 'note-result';
-
-            let statusClass = 'note-missed';
-            let statusIcon = 'x';
+            /** @type {'good' | 'ok' | 'poor' | 'missed'} */
+            let status = 'missed';
             if (wasHit) {
-                if (score.verdict === 'good') {
-                    statusClass = 'note-good';
-                    statusIcon = String.fromCharCode(10003);
-                } else if (score.verdict === 'ok') {
-                    statusClass = 'note-ok';
-                    statusIcon = '~';
-                } else {
-                    statusClass = 'note-poor';
-                    statusIcon = '!';
-                }
+                status = score.verdict === 'good' ? 'good' : score.verdict === 'ok' ? 'ok' : 'poor';
             }
-
-            noteDiv.innerHTML = `
-                <span class="note-name">${note.name}</span>
-                <span class="note-status ${statusClass}">${statusIcon}</span>
-                <span class="note-deviation">${wasHit ? avgCents.toFixed(0) + ' cents avg' : 'not detected'}</span>
-            `;
-            breakdownEl.appendChild(noteDiv);
-        });
+            return {
+                name: note.name,
+                status,
+                deviation: wasHit ? `${score.avgCents.toFixed(0)} cents avg` : 'not detected'
+            };
+        }));
 
         this.updateStatus('Done! ' + accuracy.toFixed(0) + '% accuracy');
     }
