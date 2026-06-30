@@ -206,15 +206,19 @@ OpenAI.
 - Imports are saved in this browser's IndexedDB library as the original raw
   file plus parsed book sections.
 - Web import: paste a page URL and Voice-Wei reads it through the server proxy
-  (`proxy.php?readUrl=`), always including that page as the first chapter. It
-  then lists the page's outbound links (text plus URL) with on/off toggles;
-  submitting fetches each accepted link, includes it as its own chapter, and
-  shows *its* outbound links for the next round. A review queue with a
-  "Finish and build book" button keeps the expansion human-controlled instead
-  of crawling automatically. The result is one multi-chapter book whose
-  `rawFile` is a JSON snapshot of every fetched page, tagged with `sourceUrl`
-  and `contentOrigin: url`. This suits syllabus/reading-list pages whose real
-  content lives across many linked essays.
+  (`proxy.php?readUrl=`), then shows that page's outbound links (text plus URL)
+  in one flat list with select all / select none / invert / per-link toggles
+  and a filter (links are checked by default). One Submit builds the whole
+  book: the accepted links download in the background with bounded concurrency,
+  and each becomes its own chapter named after the link text. The result is a
+  "metabook" whose first chapter is the contents - the original page's full
+  text followed by an index of every selected link, each marked with the
+  chapter it became or, if it could not be fetched, an inline note with the
+  failure reason. There is no per-link recursion: the importer goes one level
+  deep from the pasted page. The `rawFile` is a JSON snapshot of every fetched
+  page, tagged with `sourceUrl` and `contentOrigin: url`. This suits
+  syllabus/reading-list pages whose real content lives across many linked
+  essays.
 - The web reader handles several common obstacles through the proxy:
   LessWrong / EA Forum / Alignment Forum URLs are rewritten to their
   server-rendered GreaterWrong mirrors; main-content narrowing prefers
