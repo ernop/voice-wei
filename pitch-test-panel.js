@@ -300,7 +300,7 @@ const PitchTestPanel = (function () {
         function updateReadout(note, cents, freq) {
             if (!readoutGate.ready()) return;
             const pitchText = `Pitch: ${note} ${freq.toFixed(1)} Hz`;
-            const centsText = `${cents >= 0 ? '+' : ''}${cents.toFixed(0)} cents`;
+            const centsText = `${formatCents(cents)} cents`;
             panelDiff.text('pitch', getEl('Pitch'), pitchText);
             panelDiff.text('cents', getEl('Cents'), centsText);
         }

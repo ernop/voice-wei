@@ -86,7 +86,7 @@
         if (!readoutGate.ready()) return;
         const el = getEl('pitchReadout');
         if (!el) return;
-        const text = `Pitch: ${note} ${freq.toFixed(1)} Hz ${cents >= 0 ? '+' : ''}${cents.toFixed(0)}c`;
+        const text = `Pitch: ${note} ${freq.toFixed(1)} Hz ${formatCents(cents)}c`;
         textDiff.text('pitchReadout', el, text);
     }
 

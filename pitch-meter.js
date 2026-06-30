@@ -638,7 +638,7 @@ class PitchMeterController {
         if (!this.pitchDisplayGate.ready()) return;
 
         const noteText = noteName;
-        const centsText = (cents >= 0 ? '+' : '') + cents.toFixed(0) + ' cents';
+        const centsText = `${formatCents(cents)} cents`;
         const freqText = freq.toFixed(1) + ' Hz';
 
         const markerPos = 50 + (cents / 50) * 50;

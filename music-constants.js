@@ -432,6 +432,17 @@ function getCentsDeviation(freq) {
 }
 
 /**
+ * Format a cents deviation as a signed integer string ("+12", "-5", "+0").
+ * The single formatter for every pitch readout; callers add their own suffix.
+ * @param {number} cents
+ * @returns {string}
+ */
+function formatCents(cents) {
+    const rounded = Math.round(cents);
+    return cents >= 0 ? `+${rounded}` : `${rounded}`;
+}
+
+/**
  * Build array of note frequencies for a scale
  * @param {string} rootNote - Root note name
  * @param {number} octave - Starting octave
