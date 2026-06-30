@@ -470,38 +470,37 @@ class PitchMeterController {
      * @returns {NoteResult}
      */
     evaluateNoteMatch(targetNote, pitchSamples) {
-        if (pitchSamples.length < 5) {
+        const score = PitchScore.scoreWindow(pitchSamples, targetNote.midi);
+        if (!score.attempted) {
             return { matched: false, reason: 'no sound detected', accuracy: 0 };
         }
-
-        // Filter samples that are close to the target note
-        const targetMidi = targetNote.midi;
-        const closeMatches = pitchSamples.filter(s => Math.abs(s.midi - targetMidi) < 1.5);
-
-        if (closeMatches.length < pitchSamples.length * 0.3) {
-            // Less than 30% of samples were close to the target
-            const avgMidi = pitchSamples.reduce((sum, s) => sum + s.midi, 0) / pitchSamples.length;
-            const sungNote = midiToNoteName(avgMidi).full;
-            return { matched: false, reason: `sang ${sungNote} instead`, accuracy: 0 };
+        if (!score.matched) {
+            const sungNote = midiToNoteName(/** @type {number} */ (score.sungMidi)).full;
+            return { matched: false, reason: `sang ${sungNote} instead`, accuracy: 0, biasCents: score.biasCents };
         }
 
-        // Calculate accuracy based on cents deviation
-        const centsDeviations = closeMatches.map(s => Math.abs((s.midi - targetMidi) * 100));
-        const avgCents = centsDeviations.reduce((a, b) => a + b, 0) / centsDeviations.length;
-        // Signed deviation tells sharp from flat - the degree-level data
-        // the training goal needs ("you overshoot the 6th").
-        const biasCents = closeMatches.reduce((sum, s) => sum + (s.midi - targetMidi) * 100, 0) / closeMatches.length;
-
-        // Convert cents to accuracy percentage (0 cents = 100%, 50 cents = 0%)
-        const accuracy = Math.max(0, Math.round(100 - (avgCents * 2)));
+        // Reached the note. 'good'/'ok' count as a hit; a matched-but-loose note
+        // (verdict 'missed') is reported with its sharp/flat direction.
+        const hit = score.verdict === 'good' || score.verdict === 'ok';
+        if (!hit) {
+            return {
+                matched: false,
+                reason: `${score.biasCents > 0 ? 'sharp' : 'flat'} by ${Math.round(score.avgCents)}c`,
+                accuracy: score.accuracy,
+                avgCents: score.avgCents,
+                biasCents: score.biasCents,
+                targetNote: targetNote.name,
+                samples: score.onTargetCount
+            };
+        }
 
         return {
             matched: true,
-            accuracy,
-            avgCents,
-            biasCents,
+            accuracy: score.accuracy,
+            avgCents: score.avgCents,
+            biasCents: score.biasCents,
             targetNote: targetNote.name,
-            samples: closeMatches.length
+            samples: score.onTargetCount
         };
     }
 
@@ -715,67 +714,62 @@ class PitchMeterController {
         const resultsPanel = document.getElementById('resultsPanel');
         if (resultsPanel) resultsPanel.style.display = 'block';
 
-        const targetMidis = this.targetNotes.map(n => n.midi);
-        /** @type {Record<number, { hits: number, totalCents: number, signedCents: number, count: number }>} */
-        const noteHits = {};
-        targetMidis.forEach(midi => {
-            noteHits[midi] = { hits: 0, totalCents: 0, signedCents: 0, count: 0 };
-        });
-
-        let totalAccurateSamples = 0;
-        let totalCentsDeviation = 0;
-        let validSamples = 0;
+        // Free practice has no per-note time windows, so assign each voiced
+        // sample to its nearest target (within the note-identity band) and then
+        // grade each target with the one shared correctness definition.
+        const identitySemitones = PitchScore.IDENTITY_CENTS / 100;
+        /** @type {Map<number, { midi: number }[]>} */
+        const samplesByTarget = new Map();
+        this.targetNotes.forEach(note => samplesByTarget.set(note.midi, []));
 
         this.session.history.forEach(sample => {
-            let nearestTarget = null;
+            /** @type {number | null} */
+            let nearestMidi = null;
             let nearestDist = Infinity;
-
-            targetMidis.forEach(targetMidi => {
-                const dist = Math.abs(sample.midi - targetMidi);
+            this.targetNotes.forEach(note => {
+                const dist = Math.abs(sample.midi - note.midi);
                 if (dist < nearestDist) {
                     nearestDist = dist;
-                    nearestTarget = targetMidi;
+                    nearestMidi = note.midi;
                 }
             });
-
-            if (nearestTarget !== null && nearestDist < 1.5) {
-                /** @type {number} */
-                const targetKey = nearestTarget;  // Type narrowing
-                const entry = noteHits[targetKey];
-                if (!entry) return;
-                const cents = (sample.midi - targetKey) * 100;
-                entry.hits++;
-                entry.totalCents += Math.abs(cents);
-                entry.signedCents += cents;
-                entry.count++;
-
-                totalCentsDeviation += Math.abs(cents);
-                validSamples++;
-
-                if (Math.abs(cents) < 25) {
-                    totalAccurateSamples++;
-                }
+            if (nearestMidi !== null && nearestDist <= identitySemitones) {
+                const bucket = samplesByTarget.get(nearestMidi);
+                if (bucket) bucket.push(sample);
             }
         });
 
-        const accuracy = validSamples > 0 ? (totalAccurateSamples / validSamples * 100) : 0;
-        const avgDeviation = validSamples > 0 ? (totalCentsDeviation / validSamples) : 0;
-        const notesHitCount = Object.values(noteHits).filter(n => n.count > 5).length;
+        /** @type {Map<number, any>} */
+        const noteScoreByMidi = new Map();
+        this.targetNotes.forEach(note => {
+            noteScoreByMidi.set(note.midi, PitchScore.scoreWindow(samplesByTarget.get(note.midi) || [], note.midi));
+        });
 
-        const playAlongOutcomes = this.targetNotes.map(target => {
-            const entry = noteHits[target.midi];
-            const sung = entry && entry.count > 5;
-            const noteAvg = sung ? entry.totalCents / entry.count : null;
+        const sungScores = this.targetNotes
+            .map(note => noteScoreByMidi.get(note.midi))
+            .filter(score => score && score.attempted);
+        const notesHitCount = this.targetNotes.filter(note => {
+            const score = noteScoreByMidi.get(note.midi);
+            return score && (score.verdict === 'good' || score.verdict === 'ok');
+        }).length;
+        const avgDeviation = sungScores.length
+            ? sungScores.reduce((sum, s) => sum + s.avgCents, 0) / sungScores.length
+            : 0;
+        const accuracy = sungScores.length
+            ? sungScores.reduce((sum, s) => sum + s.accuracy, 0) / sungScores.length
+            : 0;
+
+        const playAlongOutcomes = this.targetNotes.map(note => {
+            const score = noteScoreByMidi.get(note.midi);
             return {
-                label: target.name,
-                midi: target.midi,
-                result: /** @type {'good' | 'ok' | 'missed'} */ (
-                    !sung ? 'missed' : noteAvg <= 10 ? 'good' : noteAvg <= 25 ? 'ok' : 'missed'),
-                avgCents: noteAvg,
-                biasCents: sung ? entry.signedCents / entry.count : null
+                label: note.name,
+                midi: note.midi,
+                result: /** @type {'good' | 'ok' | 'missed'} */ (score ? score.verdict : 'missed'),
+                avgCents: score && score.attempted ? score.avgCents : null,
+                biasCents: score && score.attempted ? score.biasCents : null
             };
         });
-        this.recordProgress(notesHitCount, this.targetNotes.length, validSamples > 0 ? avgDeviation : null, playAlongOutcomes);
+        this.recordProgress(notesHitCount, this.targetNotes.length, sungScores.length ? avgDeviation : null, playAlongOutcomes);
 
         document.getElementById('overallAccuracy').textContent = accuracy.toFixed(0) + '%';
         document.getElementById('avgDeviation').textContent = avgDeviation.toFixed(1) + ' cents';
@@ -794,9 +788,9 @@ class PitchMeterController {
         breakdownEl.innerHTML = '<h4>Per-Note Breakdown</h4>';
 
         this.targetNotes.forEach(note => {
-            const data = noteHits[note.midi];
-            const avgCents = data.count > 0 ? (data.totalCents / data.count) : 0;
-            const wasHit = data.count > 5;
+            const score = noteScoreByMidi.get(note.midi);
+            const wasHit = !!(score && score.attempted);
+            const avgCents = wasHit ? score.avgCents : 0;
 
             const noteDiv = document.createElement('div');
             noteDiv.className = 'note-result';
@@ -804,10 +798,10 @@ class PitchMeterController {
             let statusClass = 'note-missed';
             let statusIcon = 'x';
             if (wasHit) {
-                if (avgCents < 15) {
+                if (score.verdict === 'good') {
                     statusClass = 'note-good';
                     statusIcon = String.fromCharCode(10003);
-                } else if (avgCents < 30) {
+                } else if (score.verdict === 'ok') {
                     statusClass = 'note-ok';
                     statusIcon = '~';
                 } else {

@@ -34,6 +34,7 @@ interface Window {
     PracticeControls?: any;
     RateGate?: typeof RateGate;
     ValueDiff?: typeof ValueDiff;
+    PitchScore?: typeof PitchScore;
     SettingsStore?: any;
     StorageKeys?: any;
     LegacyStorageKeys?: any;

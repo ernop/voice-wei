@@ -100,6 +100,32 @@ play/pause/next handlers (`media-session-core.js`). Trace and pitch-meter
 deliberately do not - they are watch-the-screen tools where hardware keys
 add nothing.
 
+## Pitch correctness (one owner)
+
+`pitch-score.js` is the single definition of "did the singer hit this note,
+and how accurately?". The embedded sing/test panel, the Pitch tool's
+call-and-response, and Pitch free practice all call `PitchScore.scoreWindow`;
+no tool carries its own thresholds (they had previously drifted - a 1.5
+vs 1.5-but-`<` match window, 3 vs 5 minimum samples, 10/25 vs 15/30 bands).
+
+The model, from one consistent idea of correct:
+
+1. **Attempt** - at least `MIN_VOICED` voiced samples in the note's window,
+   else it is "didn't sing it", not "wrong".
+2. **Identity** - the pitch actually sustained is the **median** of the voiced
+   samples (robust to onset slide, release, and octave glitches, which a mean
+   is not). It must sit within `IDENTITY_CENTS` (70c) of the target, and a
+   majority of samples must be within that band, so wobble around the target
+   is not credited as a hold.
+3. **Accuracy** - graded from the sustained pitch's distance: good <= 15c,
+   ok <= 30c, otherwise missed (reached but too loose for a clean rep).
+
+`biasCents` is always reported signed (+ sharp, - flat) so degree-level
+weak-spot analysis can say "you overshoot the 6th" - the training goal. Free
+practice has no time windows, so it bins each voiced sample to its nearest
+target within the identity band, then grades each target with the same
+`scoreWindow` definition.
+
 ## Scales engine rules (movement styles, exercises)
 
 The scales feature plays musical patterns built from:

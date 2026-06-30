@@ -25,15 +25,8 @@ const PitchTestPanel = (function () {
     const REQUIRED_CONFIG = ['hostId', 'idPrefix', 'title', 'subtitle', 'storageKey',
         'key', 'rails', 'targets', 'contentDurationMs', 'playNote'];
 
-    // Per-note scoring (same thresholds as the pitch meter): a note is
-    // matched when at least 30% of its window's samples are within 1.5
-    // semitones; the verdict comes from the average cents off target.
-    const SCORE_MATCH_SEMITONES = 1.5;
-    const SCORE_MATCH_RATIO = 0.3;
-    const SCORE_MIN_SAMPLES = 3;
-    const SCORE_GOOD_CENTS = 10;
-    const SCORE_OK_CENTS = 25;
-    // A window counts as passed (scoreable) shortly after its end.
+    // Per-note correctness is owned by PitchScore (one definition everywhere).
+    // A window counts as scoreable shortly after its end.
     const SCORE_GRACE_MS = 60;
 
     /** @param {PitchTestPanelConfig} config */
@@ -143,18 +136,8 @@ const PitchTestPanel = (function () {
                 if (clock < target.endMs + SCORE_GRACE_MS) return { ...target, result: null };
 
                 const samples = history.filter(s => s.time >= target.startMs && s.time <= target.endMs);
-                if (samples.length < SCORE_MIN_SAMPLES) return { ...target, result: 'missed' };
-
-                const close = samples.filter(s => Math.abs(s.midi - target.midi) <= SCORE_MATCH_SEMITONES);
-                if (close.length < samples.length * SCORE_MATCH_RATIO) return { ...target, result: 'missed' };
-
-                const avgCents = close.reduce((sum, s) => sum + Math.abs((s.midi - target.midi) * 100), 0) / close.length;
-                // Signed deviation is kept separately: it tells sharp from
-                // flat ("you overshoot the 6th"), which the absolute value
-                // used for verdicts cannot.
-                const biasCents = close.reduce((sum, s) => sum + (s.midi - target.midi) * 100, 0) / close.length;
-                const result = avgCents <= SCORE_GOOD_CENTS ? 'good' : avgCents <= SCORE_OK_CENTS ? 'ok' : 'missed';
-                return { ...target, result, avgCents, biasCents };
+                const score = PitchScore.scoreWindow(samples, target.midi);
+                return { ...target, result: score.verdict, avgCents: score.avgCents, biasCents: score.biasCents };
             });
         }
 
@@ -199,7 +182,7 @@ const PitchTestPanel = (function () {
             const active = scoredTargets.filter(t => t.active);
             if (active.length < 2) return;
             if (!active.every(t => t.result)) return;
-            if (session.history.length < SCORE_MIN_SAMPLES) return;
+            if (session.history.length < PitchScore.MIN_VOICED) return;
 
             const hit = active.filter(t => t.result === 'good' || t.result === 'ok');
             const key = config.key();
