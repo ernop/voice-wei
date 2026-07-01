@@ -28,9 +28,9 @@ For the Voice-Wei repo, update the cloud-agent environment so fresh agents can
 run verification without manual setup. Install OS packages php-cli and
 python3-pip in the image or startup script. On startup in the repo, run
 ./setup-cloud-agent.sh, which installs npm dependencies with npm install
---no-audit --no-fund --no-package-lock, installs Playwright Chromium with npx
-playwright install chromium, and checks node, npm, Playwright, python3, pip3,
-and php.
+--no-audit --no-fund --no-package-lock, installs Playwright Chromium and its
+system dependencies with npx playwright install --with-deps chromium, and
+checks node, npm, Playwright, python3, pip3, and php.
 ```
 
 This project uses GitHub Actions for automatic deployment to production.

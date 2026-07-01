@@ -22,9 +22,11 @@ jobs:
           node-version: 22
 
       # package-lock.json is gitignored (project choice), so install from
-      # the version ranges; only typecheck/lint tooling is needed here.
+      # the version ranges; browser checks also need Playwright's Chromium.
       - name: Install dev tooling
-        run: npm install --no-audit --no-fund
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
 
       # Static gates: typed contracts and lint guards must hold before
       # anything reaches the live site. Zero tolerated errors.
