@@ -21,6 +21,23 @@ const SCALES_PRESETS_STORAGE_KEY = StorageKeys.SCALES_PRESETS;
 const SCALES_VOICE_RATE_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
 const SCALES_VOICE_PITCH_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5];
 
+// Interval movement styles: each scale degree is followed by a diatonic
+// interval above or below it (scale-based, so absolute semitone size varies).
+// scaleSteps counts scale degrees away: third = 2 steps, seventh = 6 steps.
+/** @type {Record<string, { scaleSteps: number, direction: 1 | -1 }>} */
+const INTERVAL_MOVEMENTS = {
+    third_up: { scaleSteps: 2, direction: 1 },
+    fourth_up: { scaleSteps: 3, direction: 1 },
+    fifth_up: { scaleSteps: 4, direction: 1 },
+    sixth_up: { scaleSteps: 5, direction: 1 },
+    seventh_up: { scaleSteps: 6, direction: 1 },
+    third_down: { scaleSteps: 2, direction: -1 },
+    fourth_down: { scaleSteps: 3, direction: -1 },
+    fifth_down: { scaleSteps: 4, direction: -1 },
+    sixth_down: { scaleSteps: 5, direction: -1 },
+    seventh_down: { scaleSteps: 6, direction: -1 }
+};
+
 const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
 const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
@@ -135,7 +152,7 @@ class ScalesController {
             // This is NOT the UI "Gap" control which is between NOTES.
             repeatGapMs: FOREVER_SECTION_GAP_MS,
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
-            movementStyle: 'normal', // normal, stop_and_go, one_three_five, from_one
+            movementStyle: 'normal', // normal, stop_and_go, one_three_five, neighbors, chords, from_one, to_one, plus_minus_one, chromatic_stop_and_go, plus_minus_half, or an INTERVAL_MOVEMENTS key
             // Voice-first settings (also controllable via UI)
             scaleType: 'major',
             root: 'C',
@@ -1489,7 +1506,21 @@ class ScalesController {
         }
 
         // Movement style modifiers (within a scale)
-        if (text.match(/\bstop\s*-\s*and\s*-\s*go\b/) || text.match(/\bstop\s+and\s+go\b/)) {
+        // Chromatic variants must be checked before their diatonic namesakes.
+        /** @type {Record<string, string>} */
+        const intervalMovementWords = { third: 'third', thirds: 'third', fourth: 'fourth', fourths: 'fourth', fifth: 'fifth', fifths: 'fifth', sixth: 'sixth', sixths: 'sixth', seventh: 'seventh', sevenths: 'seventh' };
+        const intervalMovementRe = /\b(?:in\s+)?(thirds?|fourths?|fifths?|sixths?|sevenths?)\s+(up|down)\b/;
+        const intervalMovementMatch = text.match(intervalMovementRe);
+        if (text.match(/\bchromatic\s+stop\s*-?\s*and\s*-?\s*go\b/) || text.match(/\bchromatic\s+steps?\b/) || text.match(/\+1\s*\+2\s*(chromatic|half)\b/)) {
+            modifiers.movementStyle = 'chromatic_stop_and_go';
+            text = text.replace(/\bchromatic\s+stop\s*-?\s*and\s*-?\s*go\b/, '').replace(/\bchromatic\s+steps?\b/, '').replace(/\+1\s*\+2\s*(chromatic|half)\b/, '');
+        } else if (text.match(/\bplus\s*minus\s*(a\s+)?half\b/) || text.match(/\+1\s*-1\s*(chromatic|half)\b/) || text.match(/\bchromatic\s+neighbou?rs?\b/)) {
+            modifiers.movementStyle = 'plus_minus_half';
+            text = text.replace(/\bplus\s*minus\s*(a\s+)?half\b/, '').replace(/\+1\s*-1\s*(chromatic|half)\b/, '').replace(/\bchromatic\s+neighbou?rs?\b/, '');
+        } else if (intervalMovementMatch) {
+            modifiers.movementStyle = `${intervalMovementWords[intervalMovementMatch[1]]}_${intervalMovementMatch[2]}`;
+            text = text.replace(intervalMovementRe, '');
+        } else if (text.match(/\bstop\s*-\s*and\s*-\s*go\b/) || text.match(/\bstop\s+and\s+go\b/)) {
             modifiers.movementStyle = 'stop_and_go';
             text = text.replace(/\bstop\s*-\s*and\s*-\s*go\b/, '').replace(/\bstop\s+and\s+go\b/, '');
         } else if (text.match(/\btwo\s+(steps?\s+)?forward\s+(one\s+step\s+)?back\b/)) {
@@ -1760,6 +1791,33 @@ class ScalesController {
             this.settings.movementStyle = 'plus_minus_one';
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_one' };
+        }
+        if (originalLower.match(/^(chromatic\s+stop\s*-?\s*and\s*-?\s*go|chromatic\s+steps?|\+1\s*\+2\s*(chromatic|half|c)|\+1\+2c)$/)) {
+            this.settings.movementStyle = 'chromatic_stop_and_go';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'chromatic_stop_and_go' };
+        }
+        if (originalLower.match(/^(plus\s*minus\s*(a\s+)?half|\+1\s*-1\s*(chromatic|half|c)|\+1-1c|chromatic\s+neighbou?rs?)$/)) {
+            this.settings.movementStyle = 'plus_minus_half';
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_half' };
+        }
+        const standaloneIntervalMatch = originalLower.match(/^(?:in\s+)?(thirds?|fourths?|fifths?|sixths?|sevenths?|3rds?|4ths?|5ths?|6ths?|7ths?)\s+(up|down)$/) || originalLower.match(/^([34567])\s*([ud])$/);
+        if (standaloneIntervalMatch) {
+            /** @type {Record<string, string>} */
+            const wordMap = {
+                third: 'third', '3rd': 'third', '3': 'third',
+                fourth: 'fourth', '4th': 'fourth', '4': 'fourth',
+                fifth: 'fifth', '5th': 'fifth', '5': 'fifth',
+                sixth: 'sixth', '6th': 'sixth', '6': 'sixth',
+                seventh: 'seventh', '7th': 'seventh', '7': 'seventh'
+            };
+            const word = wordMap[standaloneIntervalMatch[1].replace(/s$/, '')];
+            const dir = standaloneIntervalMatch[2].startsWith('u') ? 'up' : 'down';
+            const style = `${word}_${dir}`;
+            this.settings.movementStyle = style;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'movementStyle', value: style };
         }
         if (originalLower.match(/^(normal\s+movement|normal)$/)) {
             this.settings.movementStyle = 'normal';
@@ -2490,13 +2548,29 @@ class ScalesController {
 
         // Movement style (scale-only)
         if (mods.movementStyle) {
-            if (mods.movementStyle === 'stop_and_go') parts.push('stop and go');
-            else if (mods.movementStyle === 'one_three_five') parts.push('one three five');
-            else if (mods.movementStyle === 'neighbors') parts.push('neighbors');
-            else if (mods.movementStyle === 'chords') parts.push('chords');
-            else if (mods.movementStyle === 'from_one') parts.push('from one');
-            else if (mods.movementStyle === 'to_one') parts.push('to one');
-            else if (mods.movementStyle === 'plus_minus_one') parts.push('plus minus one');
+            /** @type {Record<string, string>} */
+            const speakable = {
+                stop_and_go: 'stop and go',
+                one_three_five: 'one three five',
+                neighbors: 'neighbors',
+                chords: 'chords',
+                from_one: 'from one',
+                to_one: 'to one',
+                plus_minus_one: 'plus minus one',
+                chromatic_stop_and_go: 'chromatic stop and go',
+                plus_minus_half: 'plus minus half',
+                third_up: 'thirds up',
+                fourth_up: 'fourths up',
+                fifth_up: 'fifths up',
+                sixth_up: 'sixths up',
+                seventh_up: 'sevenths up',
+                third_down: 'thirds down',
+                fourth_down: 'fourths down',
+                fifth_down: 'fifths down',
+                sixth_down: 'sixths down',
+                seventh_down: 'sevenths down'
+            };
+            if (speakable[mods.movementStyle]) parts.push(speakable[mods.movementStyle]);
         }
 
         // Rising / modulation
@@ -2572,7 +2646,19 @@ class ScalesController {
             chords: 'chords',
             from_one: 'from 1',
             to_one: 'to 1',
-            plus_minus_one: '+1-1 (fixed)'
+            plus_minus_one: '+1-1 (fixed)',
+            chromatic_stop_and_go: '+1+2 chromatic',
+            plus_minus_half: '+1-1 chromatic',
+            third_up: '3rd up',
+            fourth_up: '4th up',
+            fifth_up: '5th up',
+            sixth_up: '6th up',
+            seventh_up: '7th up',
+            third_down: '3rd down',
+            fourth_down: '4th down',
+            fifth_down: '5th down',
+            sixth_down: '6th down',
+            seventh_down: '7th down'
         };
         return map[style] || style;
     }
@@ -2700,6 +2786,43 @@ class ScalesController {
                     const moveNotes = [midi];
                     if (aboveNotes.length > 0) moveNotes.push(aboveNotes[0]);
                     if (belowNotes.length > 0) moveNotes.push(belowNotes[0]);
+                    groups.push(makeGroup(moveNotes, 0));
+                }
+            }
+        } else if (style === 'chromatic_stop_and_go') {
+            // Chromatic version of stop-and-go: +1 and +2 semitones from each
+            // scale degree, regardless of scale membership.
+            for (let i = 0; i < sectionNotes.length; i++) {
+                const midi = sectionNotes[i];
+                if (i === lastIndex) {
+                    groups.push(makeGroup([midi], 0));
+                } else {
+                    groups.push(makeGroup([midi, midi + 1, midi + 2], 0));
+                }
+            }
+        } else if (style === 'plus_minus_half') {
+            // Chromatic neighbors: +1 semitone, then -1 semitone from the
+            // original note, then continue to the next scale degree.
+            for (let i = 0; i < sectionNotes.length; i++) {
+                const midi = sectionNotes[i];
+                if (i === lastIndex) {
+                    groups.push(makeGroup([midi], 0));
+                } else {
+                    groups.push(makeGroup([midi, midi + 1, midi - 1], 0));
+                }
+            }
+        } else if (INTERVAL_MOVEMENTS[style]) {
+            const { scaleSteps, direction } = INTERVAL_MOVEMENTS[style];
+            for (let i = 0; i < sectionNotes.length; i++) {
+                const midi = sectionNotes[i];
+                if (i === lastIndex) {
+                    groups.push(makeGroup([midi], 0));
+                } else {
+                    const steps = direction === 1
+                        ? this.getNotesAbove(midi, ascendingScale, scaleSteps)
+                        : this.getNotesBelow(midi, ascendingScale, scaleSteps);
+                    const moveNotes = [midi];
+                    if (steps.length >= scaleSteps) moveNotes.push(steps[scaleSteps - 1]);
                     groups.push(makeGroup(moveNotes, 0));
                 }
             }
