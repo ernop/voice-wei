@@ -88,7 +88,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 .phrase-degrees-large {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: var(--phrase-staff-note-step, var(--phrase-note-cell-width, 42px));
+    grid-auto-columns: var(--phrase-staff-note-step, var(--phrase-note-cell-width, 21px));
     align-items: stretch;
     justify-content: start;
     gap: 0;
@@ -98,7 +98,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     overflow-y: hidden;
     color: #86efac;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: clamp(1rem, 5vw, 2.9rem);
+    font-size: clamp(0.84rem, 3.3vw, 1.45rem);
     font-weight: 800;
     line-height: 1.05;
     padding: 1px 1px 0 var(--phrase-staff-grid-pad, 1px);
@@ -194,7 +194,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 /* Long phrases scale down so the sticky stage stays a readable band
    instead of covering the controls. */
 .phrase-degrees-large.phrase-degrees-many {
-    font-size: clamp(0.8rem, 3.2vw, 1.6rem);
+    font-size: clamp(0.58rem, 1.45vw, 0.74rem);
 }
 
 .phrase-note-column.inactive {

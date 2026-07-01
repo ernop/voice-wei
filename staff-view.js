@@ -8,8 +8,8 @@
 const StaffView = (function () {
     'use strict';
 
-    const NOTE_WIDTH = 42;
-    const MIN_NOTE_STEP = 42;
+    const NOTE_WIDTH = 21;
+    const MIN_NOTE_STEP = 21;
     const STAVE_X = 8;
     const STAVE_Y = 8;
     const MIN_WIDTH = 220;
@@ -100,7 +100,7 @@ const StaffView = (function () {
                         keyContext.scaleType,
                         accidental
                     )],
-                    duration: 'q',
+                    duration: '16',
                     clef,
                     stem_direction: VF.Stem.UP
                 });

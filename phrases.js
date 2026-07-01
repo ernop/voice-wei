@@ -148,6 +148,7 @@
     let isPointerToggling = false;
     let pointerToggleValue = true;
     let breakdownPassIndex = 0;
+    let syncingPhraseStageScroll = false;
 
     function hasHearOutput() {
         return state.hearTones || state.hearSpeech || state.singNumbers;
@@ -265,7 +266,7 @@
         degreesEl.classList.toggle('phrase-degrees-show-play', state.showPlayRow);
         degreesEl.classList.toggle('phrase-degrees-show-names', state.showNoteNames);
         degreesEl.style.setProperty('--phrase-note-count', String(plan.length));
-        degreesEl.style.setProperty('--phrase-note-cell-width', '42px');
+        degreesEl.style.setProperty('--phrase-note-cell-width', '21px');
         plan.forEach(note => {
             const column = document.createElement('div');
             column.className = 'phrase-note-column';
@@ -449,6 +450,34 @@
             return;
         }
         staffView.draw();
+        syncPhraseStageScrollers();
+    }
+
+    function syncPhraseStageScrollers() {
+        const degreesEl = getEl('phraseDegrees');
+        const staffScroll = document.querySelector('#phraseStaff .phrase-staff-scroll');
+        if (!(degreesEl instanceof HTMLElement) || !(staffScroll instanceof HTMLElement)) return;
+
+        wirePhraseStageScroller(degreesEl, staffScroll);
+        wirePhraseStageScroller(staffScroll, degreesEl);
+        staffScroll.scrollLeft = degreesEl.scrollLeft;
+    }
+
+    /**
+     * Numbers and note controls are outside the SVG, so keep both horizontal
+     * scrollers locked to the same x-origin after VexFlow lays out the staff.
+     * @param {HTMLElement} source
+     * @param {HTMLElement} target
+     */
+    function wirePhraseStageScroller(source, target) {
+        if (source.dataset.phraseScrollSync === 'true') return;
+        source.dataset.phraseScrollSync = 'true';
+        source.addEventListener('scroll', () => {
+            if (syncingPhraseStageScroll) return;
+            syncingPhraseStageScroll = true;
+            target.scrollLeft = source.scrollLeft;
+            syncingPhraseStageScroll = false;
+        });
     }
 
     /**

@@ -168,8 +168,8 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
-    // PHRASES: long phrases with multi-character degrees (10, 15, 7d) render
-    // without glyph clipping or token overlap on a desktop viewport.
+    // PHRASES: long phrases with multi-character degrees (10, 15, 7d)
+    // stay compact and keep per-note controls centered over staff notes.
     {
         const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
         const tab = await ctx.newPage();
@@ -189,6 +189,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.click('#nextBtn');
         await tab.waitForTimeout(500);
         const stage = await tab.evaluate(() => {
+            const stageEl = document.querySelector('.phrase-stage');
             const tokens = Array.from(document.querySelectorAll('.phrase-degree-token'));
             const clipped = tokens.filter(t => t.scrollWidth > t.clientWidth + 1).length;
             const rects = tokens.map(t => t.getBoundingClientRect());
@@ -200,10 +201,32 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
                     if (x > 1 && y > 1) overlaps++;
                 }
             }
-            return { count: tokens.length, clipped, overlaps };
+            const columns = Array.from(document.querySelectorAll('.phrase-note-column'));
+            const noteGroups = Array.from(document.querySelectorAll('#phraseStaff .vf-stavenote'));
+            const deltas = columns.map((column, index) => {
+                const note = noteGroups[index];
+                if (!note) return null;
+                const columnRect = column.getBoundingClientRect();
+                const noteRect = note.getBoundingClientRect();
+                return Math.abs(
+                    (columnRect.left + columnRect.width / 2) - (noteRect.left + noteRect.width / 2)
+                );
+            }).filter(delta => delta !== null);
+            const compactStep = Number.parseFloat(stageEl.style.getPropertyValue('--phrase-staff-note-step'));
+            return {
+                count: tokens.length,
+                clipped,
+                overlaps,
+                compactStep,
+                alignmentDelta: deltas.length ? Math.max(...deltas) : Infinity
+            };
         });
-        report.check(`phrases stage tokens don't clip or overlap (n=${stage.count}, clipped=${stage.clipped}, overlaps=${stage.overlaps})`,
-            stage.count >= 28 && stage.clipped === 0 && stage.overlaps === 0);
+        report.check(`phrases stage is compact and aligned (n=${stage.count}, step=${stage.compactStep.toFixed(1)}, clipped=${stage.clipped}, overlaps=${stage.overlaps}, align=${stage.alignmentDelta.toFixed(1)})`,
+            stage.count >= 28
+            && stage.compactStep <= 24
+            && stage.clipped === 0
+            && stage.overlaps === 0
+            && stage.alignmentDelta <= 7);
         await ctx.close();
     }
 

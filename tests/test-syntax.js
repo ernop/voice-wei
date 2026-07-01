@@ -41,10 +41,10 @@ function collectJsFiles(dir, out) {
     if (manualAccidental) {
         report.errors.push('staff-view.js must not manually attach accidental glyphs; spell keys and use applyAccidentals once');
     }
-    const usesQuarterNotes = /duration:\s*'q'/.test(staffView);
-    report.check('staff notation renders phrase pitches as quarter notes', usesQuarterNotes);
-    if (!usesQuarterNotes) {
-        report.errors.push('staff-view.js should use quarter-note glyphs for the phrase staff');
+    const usesCompactNotes = /duration:\s*'16'/.test(staffView);
+    report.check('staff notation renders phrase pitches as compact sixteenth notes', usesCompactNotes);
+    if (!usesCompactNotes) {
+        report.errors.push('staff-view.js should use compact sixteenth-note glyphs for the phrase staff');
     }
 
     const phrases = fs.readFileSync(path.join(ROOT, 'phrases.js'), 'utf8');
