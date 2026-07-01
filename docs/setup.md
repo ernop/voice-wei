@@ -15,21 +15,22 @@ It installs the missing OS tools this repo's checks need when they are absent:
 - `php-curl` for local `proxy.php` page/search endpoint checks
 - `python3-pip` for Python tooling availability
 - npm dev dependencies from `package.json` without creating a lockfile
+- Playwright's bundled Chromium browser for headless browser checks
 
-The browser tests use Playwright with the installed Chrome. If an image does
-not include Chrome, install Chrome in the base image or set `CHROME_PATH` to a
-compatible Chromium/Chrome binary.
+The browser tests use Playwright's installed Chromium by default. If a specific
+system Chrome is needed, set `CHROME_PATH` to that compatible Chrome/Chromium
+binary.
 
 Cursor environment setup agent prompt:
 
 ```text
 For the Voice-Wei repo, update the cloud-agent environment so fresh agents can
 run verification without manual setup. Install OS packages php-cli and
-python3-pip in the image or startup script. Ensure Chrome is available for
-Playwright tests, or set CHROME_PATH to the installed Chromium/Chrome binary.
-On startup in the repo, run ./setup-cloud-agent.sh, which installs npm
-dependencies with npm install --no-audit --no-fund --no-package-lock and checks
-node, npm, python3, pip3, and php.
+python3-pip in the image or startup script. On startup in the repo, run
+./setup-cloud-agent.sh, which installs npm dependencies with npm install
+--no-audit --no-fund --no-package-lock, installs Playwright Chromium with npx
+playwright install chromium, and checks node, npm, Playwright, python3, pip3,
+and php.
 ```
 
 This project uses GitHub Actions for automatic deployment to production.

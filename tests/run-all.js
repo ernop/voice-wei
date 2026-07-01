@@ -4,7 +4,7 @@
 //   npm test                 # fast default: syntax + smoke + CSS ownership
 //   npm run test:full        # slower audio/mic/playback end-to-end coverage
 //   node tests/run-all.js --suite test-controls.js
-// Requires: Chrome installed (or CHROME_PATH env), npm install done.
+// Requires: npm install and npx playwright install chromium.
 
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');

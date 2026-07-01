@@ -1,7 +1,7 @@
 // @ts-check
 // Shared helpers for the headless browser test suite.
 // Requires the dev server (tests/run-all.js starts one, or run
-// `python3 -m http.server 8000` yourself) and a supported browser installed.
+// `python3 -m http.server 8000` yourself) and Playwright Chromium installed.
 
 const { chromium, firefox } = require('playwright');
 
@@ -17,8 +17,6 @@ function launchOptions(extraArgs = []) {
         options.args = ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', ...extraArgs];
         if (process.env.CHROME_PATH) {
             options.executablePath = process.env.CHROME_PATH;
-        } else {
-            options.channel = 'chrome';
         }
     }
     return options;

@@ -63,13 +63,14 @@ HTTPS is required for microphone access when deployed.
 ## Testing
 
 ```bash
-./setup-cloud-agent.sh   # once per fresh cloud VM; installs npm deps + PHP/pip tooling
+./setup-cloud-agent.sh   # once per fresh cloud VM; installs npm deps, Playwright Chromium, PHP/pip tooling
 npm test      # fast suite: JS syntax, CSS ownership, page-load smoke, Books flow
 npm run test:full  # slower playback/mic/control/tab end-to-end suite
 ```
 
 The suite starts its own static server on port 8000 (or reuses one already
-running). Set `CHROME_PATH` if Chrome is not auto-detected; full mic tests use
+running). It uses Playwright's installed Chromium by default; set `CHROME_PATH`
+only when targeting a specific Chrome/Chromium binary. Full mic tests use
 Chrome's fake audio device. For ordinary text/CSS/small JS changes, use the
 fast default plus any targeted suite (`node tests/run-all.js --suite
 test-controls.js`). The deploy workflow gates on typecheck, lint, and the fast

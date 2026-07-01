@@ -41,9 +41,11 @@ install_apt_packages() {
 install_apt_packages
 
 npm install --no-audit --no-fund --no-package-lock
+npx playwright install chromium
 
 node --version
 npm --version
+npx playwright --version
 python3 --version
 pip3 --version
 php --version
