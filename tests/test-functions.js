@@ -465,6 +465,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const s2 = await tab.evaluate(() => window.__voiceStarts);
         report.check(`phrases history records and replays (${historyCount} items)`, historyCount >= 2 && s2 > s1);
 
+        // Play-on-next off: Next generates and shows a new phrase silently
+        await tab.click('#playOnNextBtn');
+        await tab.waitForTimeout(200);
+        const silentNextBefore = await tab.evaluate(() => ({
+            pressed: document.getElementById('playOnNextBtn').getAttribute('aria-pressed'),
+            history: document.querySelectorAll('#historyList .history-item').length,
+            voices: window.__voiceStarts
+        }));
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(600);
+        const silentNextAfter = await tab.evaluate(() => ({
+            history: document.querySelectorAll('#historyList .history-item').length,
+            voices: window.__voiceStarts,
+            playOnNext: window.phrasesDebug.settings().playOnNext
+        }));
+        report.check(`phrases next is silent with play on next off (${silentNextBefore.history}->${silentNextAfter.history} items, ${silentNextAfter.voices - silentNextBefore.voices} voices)`,
+            silentNextBefore.pressed === 'false'
+            && silentNextAfter.playOnNext === false
+            && silentNextAfter.history === silentNextBefore.history + 1
+            && silentNextAfter.voices === silentNextBefore.voices);
+        await tab.click('#playOnNextBtn');
+        await tab.waitForTimeout(200);
+
         // "just over" range: offsets bounded to two degrees past the octave
         const overBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];

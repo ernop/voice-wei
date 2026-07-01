@@ -39,6 +39,7 @@
         breakdownEnabled: false,
         autoStep: false,
         playOnStep: false,
+        playOnNext: true,
         lessonLockedKeys: []
     };
 
@@ -49,7 +50,7 @@
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
         'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep',
-        'lessonLockedKeys'
+        'playOnNext', 'lessonLockedKeys'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
@@ -788,6 +789,9 @@
         stopTransport();
         exitBreakdownMode();
         generatePhrase();
+        // With play-on-next off, Next only reveals the phrase so it can be
+        // worked out by eye/voice first; Play starts audio when ready.
+        if (!state.playOnNext) return;
         await playPhrase();
     }
 
@@ -915,6 +919,12 @@
         syncBreakdownControls();
     }
 
+    function togglePlayOnNext() {
+        state.playOnNext = !state.playOnNext;
+        saveSettings();
+        syncBreakdownControls();
+    }
+
     async function advanceBreakdownNote() {
         if (!state.breakdownEnabled) return;
         if (!currentPhrase) generatePhrase();
@@ -947,6 +957,11 @@
         if (playOnStepBtn) {
             playOnStepBtn.classList.toggle('selected', state.playOnStep);
             playOnStepBtn.setAttribute('aria-pressed', String(state.playOnStep));
+        }
+        const playOnNextBtn = getEl('playOnNextBtn');
+        if (playOnNextBtn) {
+            playOnNextBtn.classList.toggle('selected', state.playOnNext);
+            playOnNextBtn.setAttribute('aria-pressed', String(state.playOnNext));
         }
         const addBtn = getEl('addNoteBtn');
         if (addBtn instanceof HTMLButtonElement) {
@@ -1294,6 +1309,7 @@
         getEl('breakdownBtn')?.addEventListener('click', toggleBreakdownEnabled);
         getEl('autoStepBtn')?.addEventListener('click', toggleAutoStep);
         getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
+        getEl('playOnNextBtn')?.addEventListener('click', togglePlayOnNext);
         getEl('addNoteBtn')?.addEventListener('click', () => { advanceBreakdownNote(); });
         history = HistoryList.create({
             listId: 'historyList',
@@ -1364,6 +1380,7 @@
                 breakdownEnabled: state.breakdownEnabled,
                 autoStep: state.autoStep,
                 playOnStep: state.playOnStep,
+                playOnNext: state.playOnNext,
                 loopCurrent: state.loopCurrent,
                 hearTones: state.hearTones,
                 hearSpeech: state.hearSpeech,

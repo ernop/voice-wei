@@ -71,6 +71,7 @@ chooses a question range, not a root) and keeps its own range.
 | breakdownEnabled | false | toggle | immediate (mask only) |
 | autoStep | false | toggle | immediate (preference) |
 | playOnStep | false | toggle | immediate (preference) |
+| playOnNext | true | toggle - when off, Next generates and shows the phrase silently (work it out first, then press Play) | immediate (preference) |
 | noteLengthMs | 300 | shared note-length list | replay |
 | gapMs | 0 | shared gap list | replay |
 | showNoteNames | true | toggle | redraw |

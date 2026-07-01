@@ -102,6 +102,7 @@ interface Window {
             breakdownEnabled: boolean;
             autoStep: boolean;
             playOnStep: boolean;
+            playOnNext: boolean;
             loopCurrent: boolean;
             hearTones: boolean;
             hearSpeech: boolean;
