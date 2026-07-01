@@ -100,7 +100,7 @@ const StaffView = (function () {
                         keyContext.scaleType,
                         accidental
                     )],
-                    duration: '16',
+                    duration: 'q',
                     clef,
                     stem_direction: VF.Stem.UP
                 });
