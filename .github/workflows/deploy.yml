@@ -28,6 +28,11 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
 
+      # The browser suite runs on Playwright's bundled Chromium
+      # (tests/helpers.js no longer falls back to system Chrome).
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
       # Static gates: typed contracts and lint guards must hold before
       # anything reaches the live site. Zero tolerated errors.
       - name: Typecheck (typed contracts)
