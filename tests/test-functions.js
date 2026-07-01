@@ -503,6 +503,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return true;
         });
         report.check('phrases algos keep "just over" bounded to 6-below..3-above', overBounded);
+
+        // "around 1" range: centered on the root, 5-6-7 below up to 5 above
+        const aroundBounded = await tab.evaluate(() => {
+            const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
+            for (const phraseAlgo of algos) {
+                for (let i = 0; i < 300; i++) {
+                    const offsets = PatternPracticeCore.generatePhraseOffsets({
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'around',
+                        minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
+                    });
+                    if (Math.min(...offsets) < -3 || Math.max(...offsets) > 4) return false;
+                }
+            }
+            return true;
+        });
+        report.check('phrases algos keep "around 1" bounded to 5-below..5-above', aroundBounded);
         await tab.click('[data-range="over"]');
         await tab.waitForTimeout(200);
         const savedRange = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.rangeMode);

@@ -201,14 +201,16 @@ const PatternPracticeCore = (function () {
      * Phrase range modes: how far offsets may wander beyond the octave.
      * 'within' = degrees 1..8 only; 'over' = two degrees past each end
      * (down to 6 of the octave below, up to 3 of the octave above for
-     * seven-note scales); 'expanded' = half an octave below to two
-     * octaves up.
+     * seven-note scales); 'around' = centered on the root, half an octave
+     * each way (5-6-7 below up to 5 above for seven-note scales);
+     * 'expanded' = half an octave below to two octaves up.
      * @param {string} rangeMode
      * @param {number} dp - degrees per octave
      */
     function rangeBounds(rangeMode, dp) {
         if (rangeMode === 'expanded') return { min: -Math.floor(dp / 2), max: dp * 2 };
         if (rangeMode === 'over') return { min: -2, max: dp + 2 };
+        if (rangeMode === 'around') return { min: -Math.floor(dp / 2), max: Math.ceil(dp / 2) };
         return { min: 0, max: dp };
     }
 
@@ -230,11 +232,16 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * Random starts stay in the first octave but must also fit the range
+     * bounds (the 'around' window tops out below the octave).
      * @param {{ startAtOne: boolean }} options
      * @param {number} dp
+     * @param {number} minOffset
+     * @param {number} maxOffset
      */
-    function initialPhraseOffset(options, dp) {
-        return options.startAtOne ? 0 : randomInt(0, dp);
+    function initialPhraseOffset(options, dp, minOffset, maxOffset) {
+        if (options.startAtOne) return 0;
+        return randomInt(Math.max(0, minOffset), Math.min(dp, maxOffset));
     }
 
     /**
@@ -298,7 +305,7 @@ const PatternPracticeCore = (function () {
         const dp = degreesPerOctave(options.scaleType);
         const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
         const length = phraseLength(options);
-        const initial = initialPhraseOffset(options, dp);
+        const initial = initialPhraseOffset(options, dp, minOffset, maxOffset);
         return { dp, minOffset, maxOffset, length, initial, offsets: [initial] };
     }
 

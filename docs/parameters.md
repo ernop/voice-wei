@@ -58,7 +58,7 @@ chooses a question range, not a root) and keeps its own range.
 | phraseLesson | free_open | style-specific lesson buttons | bounds-next |
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
-| rangeMode | within | in octave / just over / out octave | bounds-next |
+| rangeMode | within | in octave / just over / around 1 / out octave | bounds-next |
 | chromaticRuns | false | toggle - sometimes pass through the chromatic note between whole-step degrees (4 #4 5 up, 6 b6 5 down); only where such a note exists | bounds-next |
 | minLength | 5 | 2..12, 14, 16 list | bounds-next |
 | maxLength | 8 | 3..12, 14, 16, then smaller long-phrase steps to 50 | bounds-next |
@@ -81,8 +81,9 @@ chooses a question range, not a root) and keeps its own range.
 
 Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
 past each end (down to 6 of the octave below, up to 3 of the octave above
-for seven-note scales); "out octave" allows half an octave below to two
-octaves up.
+for seven-note scales); "around 1" centers the exploration on the root with
+half an octave each way (5-6-7 of the octave below up to 5 for seven-note
+scales); "out octave" allows half an octave below to two octaves up.
 
 Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
 "staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);
