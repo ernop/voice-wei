@@ -185,7 +185,7 @@ The UI uses a **compact inline layout** with labels on the left and clickable op
 | **Root** | C, C#, D, D#, E, F, F#, G, G#, A, A#, B | C |
 | **Octave** | 3, 4 | 4 |
 | **Scale** | major, minor, chromatic, pentatonic, h minor, m minor | major |
-| **Move** | normal, +1+2, 1-3-5, neighbors, chords, from 1, to 1, +1-1 | normal |
+| **Move** | normal, +1+2, 1-3-5, neighbors, chords, from 1, to 1, +1-1, +1+2 chrom, +1-1 chrom, 3rd/4th/5th/6th/7th up, 3rd/4th/5th/6th/7th down | normal |
 | **Note Length** | 0.1s, 0.15s, 0.3s, 0.5s, 0.8s, 1s, 1.5s, 2s, 3s, 5s | 0.3s |
 | **Direction** | up, down, up+down, down+up | up |
 | **Repeat** | once, twice, infinity, infinity+no gap | once |
@@ -319,6 +319,10 @@ The goal is to support more sophisticated vocal training patterns beyond basic s
 | to 1 | "to one", "interleave", "return to root" | Section note, then back to root | D-c, E-c, F-c, G-c... |
 | +1-1 (fixed) | "plus minus one", "dance around" | Always: section, above, below | C-D-B, D-E-C, E-F-D... |
 | chords | "chords" | Play as simultaneous chord | [CEG], [DFA], [EGB]... |
+| +1+2 chromatic | "chromatic stop and go", "chromatic steps" | Add +1 and +2 semitones (fixed size) | C-C#-D, D-D#-E, E-F-F#... |
+| +1-1 chromatic | "plus minus half", "chromatic neighbors" | Add +1 then -1 semitone from the original | C-C#-B, D-D#-C#, E-F-D#... |
+| 3rd..7th up | "thirds up" ... "sevenths up" | Add the diatonic interval above (size varies with degree) | thirds up: C-E, D-F, E-G... |
+| 3rd..7th down | "thirds down" ... "sevenths down" | Add the diatonic interval below | thirds down: C-A, D-B, E-C... |
 
 ### Exercise Patterns (Presets)
 
