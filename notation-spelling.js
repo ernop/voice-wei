@@ -61,14 +61,19 @@ const NotationSpelling = (function () {
     }
 
     /**
-     * Pick treble or bass from the phrase's pitch center.
+     * Pick the clef whose five staff lines need the fewest ledger lines
+     * for the phrase; ties fall back to the pitch-center threshold.
      * @param {number} rootMidi
      * @param {number[]} midis
      */
     function clefForPhrase(rootMidi, midis) {
-        const center = midis.length
-            ? midis.reduce((sum, midi) => sum + midi, 0) / midis.length
-            : rootMidi;
+        const notes = midis.length ? midis : [rootMidi];
+        const outside = (lo, hi) => notes.reduce(
+            (sum, midi) => sum + Math.max(0, lo - midi, midi - hi), 0);
+        const trebleCost = outside(64, 77); // staff lines E4..F5
+        const bassCost = outside(43, 57);   // staff lines G2..A3
+        if (trebleCost !== bassCost) return trebleCost < bassCost ? 'treble' : 'bass';
+        const center = notes.reduce((sum, midi) => sum + midi, 0) / notes.length;
         return center < 57 ? 'bass' : 'treble';
     }
 

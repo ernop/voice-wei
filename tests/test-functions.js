@@ -722,7 +722,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 && NotationSpelling.midiToVexKeyForScale(51, 51, 'major') === 'eb/3'
                 && NotationSpelling.midiToVexKeyForScale(56, 51, 'major') === 'ab/3'
                 && NotationSpelling.midiToVexKeyForScale(70, 65, 'major') === 'bb/4'
+                // Written octave follows the letter: B# in C# major sits on
+                // the B line below its sounding C (midi 60 -> b#/3, not /4)
+                && NotationSpelling.midiToVexKeyForScale(60, 49, 'major') === 'b#/3'
+                && scaleMidiToPitchString('C#', 3, 'major', 60) === 'B#3'
                 && NotationSpelling.clefForPhrase(51, [51, 53, 55]) === 'bass'
+                // Clef minimizes ledger lines: C#3 phrases hug the bass staff
+                && NotationSpelling.clefForPhrase(49, [49, 60, 61, 60, 58, 49]) === 'bass'
+                && NotationSpelling.clefForPhrase(60, [60, 64, 67, 72]) === 'treble'
                 && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';
         });
         report.check('phrases staff spelling helpers', staffSpelling);

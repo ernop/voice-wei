@@ -389,7 +389,11 @@ function scaleIntervalToPitchString(root, octave, scaleType, interval, accidenta
 
     const letter = NOTE_LETTERS[(rootLetterIndex + steps[degreeIndex]) % NOTE_LETTERS.length];
     const name = spellPitchClassWithLetter(letter, midiPitchClass(midi));
-    return `${name}${midiOctave(midi)}`;
+    // The written octave follows the letter, not the sounding pitch:
+    // B#3 sounds as C4 (midi 60) but sits on B3's staff position, and Cb4
+    // sounds as B3. Back the accidental shift out before taking the octave.
+    const accidentalShift = (name.match(/#/g) || []).length - (name.match(/b/g) || []).length;
+    return `${name}${midiOctave(midi - accidentalShift)}`;
 }
 
 /**
