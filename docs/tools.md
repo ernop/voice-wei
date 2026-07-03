@@ -195,6 +195,11 @@ Transport voice commands:
 Music pauses while you speak, resumes while waiting for Claude, and pauses
 again while the response is read aloud.
 
+Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
+settings) the current synced lyric line is relayed into the now-playing
+title that Bluetooth/car displays, lock screens, and the tab show -- the
+song name moves to the artist slot while a line is active.
+
 ## Books
 
 Local ebook library, reader, audiobook generator, and MP3 player using OpenAI

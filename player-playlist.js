@@ -836,6 +836,7 @@ const PlayerPlaylist = (function () {
                             this.playback.suppressAutoAdvanceFor(1500);
                             player.stopVideo();
                             this.playback.markStopped();
+                            this.relayLyricToNowPlaying(-1);
                             if ('mediaSession' in navigator) {
                                 navigator.mediaSession.playbackState = 'none';
                             }
@@ -867,6 +868,7 @@ const PlayerPlaylist = (function () {
                         }
                         this.updatePlayPauseButton();
                         this.startProgressUpdates();
+                        this.relayLyricToNowPlaying(this.currentLyricsLineIndex);
                         if (currentItem) {
                             this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentItem.id);
                             this.currentLyricsItemId = currentItem.id;
@@ -890,6 +892,7 @@ const PlayerPlaylist = (function () {
                     if (player && typeof player.pauseVideo === 'function') {
                         player.pauseVideo();
                         this.playback.markPaused();
+                        this.relayLyricToNowPlaying(-1);
                         if ('mediaSession' in navigator) {
                             navigator.mediaSession.playbackState = 'paused';
                         }

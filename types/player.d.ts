@@ -9,6 +9,7 @@ interface PlayerAppSettings {
     claudeModel: string;
     openaiModel: string;
     aiProvider: string;
+    lyricsOnNowPlaying: boolean;
 }
 
 interface LyricsViewSettings {
@@ -288,6 +289,9 @@ interface VoiceMusicController {
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
+    relayLyricToNowPlaying(activeIndex: number): void;
+    setNowPlayingText(title: string, artist: string, album: string): void;
+    nowPlayingShowsLyric: boolean;
     ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;

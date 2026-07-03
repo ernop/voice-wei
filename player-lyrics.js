@@ -4,6 +4,9 @@
 const PlayerLyrics = (function () {
     'use strict';
 
+    // Restored whenever the now-playing text stops showing a lyric line.
+    const DEFAULT_DOCUMENT_TITLE = document.title;
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
@@ -535,6 +538,7 @@ const PlayerLyrics = (function () {
             applyActiveLyricsLine(activeIndex, force = false) {
                 if (!force && this.currentLyricsLineIndex === activeIndex) return;
                 this.currentLyricsLineIndex = activeIndex;
+                this.relayLyricToNowPlaying(activeIndex);
                 const overlayOpen = document.body.classList.contains('lyrics-overlay-open');
                 const selectors = ['#lyricsContent .lyrics-line', '#lyricsOverlayContent .lyrics-line'];
                 for (const selector of selectors) {
@@ -560,6 +564,50 @@ const PlayerLyrics = (function () {
                         }
                     });
                 }
+            },
+
+            /**
+             * Relay the active lyric line into the now-playing surfaces
+             * (Media Session metadata for car/lock-screen displays plus the
+             * tab title), keeping the song identity in the artist slot.
+             * With no active line, restore the song's own metadata.
+             */
+            relayLyricToNowPlaying(activeIndex) {
+                const item = this.currentLyricsItem();
+                const playingThisItem = !!item && item.id === this.currentPlayingId
+                    && this.isPlaying && !this.isPaused;
+                const line = (this.settings.lyricsOnNowPlaying && playingThisItem
+                    && activeIndex >= 0 && item.lyricsData)
+                    ? (item.lyricsData.syncedLines[activeIndex]?.text || '').trim()
+                    : '';
+
+                if (line) {
+                    const songTitle = item.name || item.title || 'Music';
+                    const artistName = item.artist || item.channelTitle || '';
+                    this.setNowPlayingText(
+                        line,
+                        artistName ? `${songTitle} - ${artistName}` : songTitle,
+                        item.album || 'Voice-Wei Music'
+                    );
+                    document.title = line;
+                    this.nowPlayingShowsLyric = true;
+                } else if (this.nowPlayingShowsLyric) {
+                    this.nowPlayingShowsLyric = false;
+                    document.title = DEFAULT_DOCUMENT_TITLE;
+                    const restoreItem = item || this.currentPlaylistItem();
+                    if (restoreItem) {
+                        this.setNowPlayingText(
+                            restoreItem.name || restoreItem.title || 'Music',
+                            restoreItem.artist || restoreItem.channelTitle || '',
+                            restoreItem.album || 'Voice-Wei Music'
+                        );
+                    }
+                }
+            },
+
+            setNowPlayingText(title, artist, album) {
+                if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+                navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album });
             },
 
             hydrateItemLyricsFromCache(item) {

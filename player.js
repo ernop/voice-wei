@@ -22,13 +22,14 @@ class VoiceMusicController {
         this.config = null;
         /** @type {PlaylistItem[]} */
         this.playlist = [];
-        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string }} */
+        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string, lyricsOnNowPlaying: boolean }} */
         this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-8',
             openaiModel: 'gpt-5.5',
-            aiProvider: 'claude'
+            aiProvider: 'claude',
+            lyricsOnNowPlaying: true
         });
         this.normalizeLlmSettings();
         /** @type {ReturnType<typeof setInterval> | null} */
@@ -52,6 +53,8 @@ class VoiceMusicController {
         this.currentLyricsItemId = null;
         /** @type {number} */
         this.currentLyricsLineIndex = -1;
+        /** @type {boolean} Whether the now-playing text currently shows a lyric line */
+        this.nowPlayingShowsLyric = false;
         /** @type {boolean} */
         this.isProcessingCommand = false;
         /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */
@@ -587,6 +590,17 @@ class VoiceMusicController {
             this.settings.readClaudeResponse = target.checked;
             this.saveSettings();
         });
+
+        const lyricsNowPlayingEl = /** @type {HTMLInputElement | null} */ (document.getElementById('lyricsOnNowPlayingToggle'));
+        if (lyricsNowPlayingEl) {
+            lyricsNowPlayingEl.checked = this.settings.lyricsOnNowPlaying;
+            lyricsNowPlayingEl.addEventListener('input', (e) => {
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                this.settings.lyricsOnNowPlaying = target.checked;
+                this.saveSettings();
+                this.relayLyricToNowPlaying(target.checked ? this.currentLyricsLineIndex : -1);
+            });
+        }
 
         if (autoSubmitEl) autoSubmitEl.addEventListener('input', (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);

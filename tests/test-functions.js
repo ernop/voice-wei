@@ -1840,6 +1840,56 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check(`transcript collapses cumulative finals across indices ("${collapsed}")`,
             collapsed === 'there was a guy play it');
+
+        // Synced lyric lines relay into the now-playing title (car / lock
+        // screen / tab); pause restores the song's own metadata
+        const lyricRelay = await tab.evaluate(() => {
+            const item = {
+                id: 77, name: 'Test Song', artist: 'Test Artist',
+                lyricsStatus: 'ready',
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Test Song', artistName: 'Test Artist',
+                    albumName: '', duration: 100, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:01.00]first line here\n[00:05.00]second line here',
+                    syncedLines: [
+                        { time: 1, text: 'first line here' },
+                        { time: 5, text: 'second line here' }
+                    ]
+                }
+            };
+            const harness = {
+                settings: { lyricsOnNowPlaying: true },
+                playlist: [item],
+                currentLyricsItemId: 77,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsLyric: false,
+                isPlaying: true,
+                isPaused: false,
+                currentPlayingId: 77,
+                currentPlaylistItem() { return item; }
+            };
+            PlayerLyrics.install(harness);
+            harness.updateSyncedLyricsPosition(6);
+            const meta = () => navigator.mediaSession.metadata;
+            const during = {
+                docTitle: document.title,
+                metaTitle: meta() ? meta().title : '',
+                metaArtist: meta() ? meta().artist : ''
+            };
+            harness.isPaused = true;
+            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex);
+            const after = {
+                docTitle: document.title,
+                metaTitle: meta() ? meta().title : ''
+            };
+            return { during, after };
+        });
+        report.check(`player relays synced lyric to now-playing title ("${lyricRelay.during.metaTitle}" / "${lyricRelay.during.metaArtist}")`,
+            lyricRelay.during.metaTitle === 'second line here'
+            && lyricRelay.during.docTitle === 'second line here'
+            && lyricRelay.during.metaArtist === 'Test Song - Test Artist'
+            && lyricRelay.after.metaTitle === 'Test Song'
+            && lyricRelay.after.docTitle !== 'second line here');
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));
