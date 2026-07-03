@@ -369,19 +369,20 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     display: flex;
     justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
 }
 
 .phrase-stage-btn {
-    min-height: 44px;
-    padding: 9px 12px;
+    min-height: 0;
+    padding: 3px 10px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 7px;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 700;
+    line-height: 1.3;
     cursor: pointer;
 }
 

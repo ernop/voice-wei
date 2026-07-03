@@ -370,8 +370,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 addHidden: document.getElementById('addNoteBtn').hidden
             };
         });
-        report.check(`phrases breakdown controls are left/tall (left=${breakdownControls.leftDelta.toFixed(0)}, h=${breakdownControls.buttonHeight.toFixed(0)})`,
-            breakdownControls.leftDelta <= 16 && breakdownControls.buttonHeight >= 44
+        report.check(`phrases breakdown controls are left/compact (left=${breakdownControls.leftDelta.toFixed(0)}, h=${breakdownControls.buttonHeight.toFixed(0)})`,
+            breakdownControls.leftDelta <= 16 && breakdownControls.buttonHeight <= 30
             && breakdownControls.autoStep === 'false' && breakdownControls.addHidden === true);
 
         await tab.evaluate(() => {

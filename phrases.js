@@ -1045,6 +1045,20 @@
         syncFillButtons();
     }
 
+    /**
+     * A boolean control drawn as one button: the label names the current
+     * state and a click flips it (same pattern as the Reflect button).
+     * @param {string} id @param {boolean} on
+     * @param {string} onLabel @param {string} offLabel
+     */
+    function syncBooleanPill(id, on, onLabel, offLabel) {
+        const btn = getEl(id);
+        if (!btn) return;
+        btn.classList.toggle('selected', on);
+        btn.setAttribute('aria-pressed', String(on));
+        btn.textContent = on ? onLabel : offLabel;
+    }
+
     function syncFillButtons() {
         const fullBtn = getEl('fillFullBtn');
         const chordBtn = getEl('fillChordBtn');
@@ -1079,8 +1093,8 @@
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
         PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
         PracticeControls.syncSingleSelect('data-range', state.rangeMode);
-        PracticeControls.syncSingleSelect('data-start-anchor', state.startAtOne ? 'one' : 'random');
-        PracticeControls.syncSingleSelect('data-return-anchor', state.returnToInitial ? 'on' : 'off');
+        syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
+        syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncToggleControl('hearTonesToggle', state.hearTones);
         syncToggleControl('hearSpeechToggle', state.hearSpeech);
         syncToggleControl('singNumbersToggle', state.singNumbers);
@@ -1098,8 +1112,8 @@
             scaleType: '[data-scale]',
             phraseAlgo: '[data-phrase-algo]',
             rangeMode: '[data-range]',
-            startAtOne: '[data-start-anchor]',
-            returnToInitial: '[data-return-anchor]',
+            startAtOne: '#startAnchorBtn',
+            returnToInitial: '#returnAnchorBtn',
             fillMode: '#fillFullBtn, #fillChordBtn',
             noteLengthMs: '[data-step-key="noteLengthMs"]',
             gapMs: '[data-step-key="gapMs"]',
@@ -1263,14 +1277,16 @@
         wireHearToggle('hearTonesToggle', 'hearTones');
         wireHearToggle('hearSpeechToggle', 'hearSpeech');
         wireHearToggle('singNumbersToggle', 'singNumbers');
-        PracticeControls.wireSingleSelect('data-start-anchor', value => value === 'one', state.startAtOne, value => {
+        getEl('startAnchorBtn')?.addEventListener('click', () => {
             unlockLessonKey('startAtOne');
-            state.startAtOne = value;
+            state.startAtOne = !state.startAtOne;
+            syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
             onSettingChanged('startAtOne');
         });
-        PracticeControls.wireSingleSelect('data-return-anchor', value => value === 'on', state.returnToInitial, value => {
+        getEl('returnAnchorBtn')?.addEventListener('click', () => {
             unlockLessonKey('returnToInitial');
-            state.returnToInitial = value;
+            state.returnToInitial = !state.returnToInitial;
+            syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
             onSettingChanged('returnToInitial');
         });
         PracticeControls.wireSteppers(stepAdjusterValue);
@@ -1323,6 +1339,8 @@
         syncRepeatButton();
         syncBreakdownControls();
         syncAnchorControls();
+        syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
+        syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncAdjusterControls();
         syncPhraseLessonControls();
         syncLessonLocks();

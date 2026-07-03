@@ -148,12 +148,10 @@
                         <button class="vf-btn" data-phrase-lesson="genre_modal" title="Modal/minor color studies">modal</button>
                     </div>
                     <div class="segment-row phrase-anchor-row">
-                        <button class="vf-btn" data-start-anchor="one">start at 1</button>
-                        <button class="vf-btn" data-start-anchor="random">random start</button>
-                    </div>
-                    <div class="segment-row phrase-anchor-row">
-                        <button class="vf-btn" data-return-anchor="on" id="returnAnchorOnBtn">return to 1</button>
-                        <button class="vf-btn" data-return-anchor="off">no return</button>
+                        <button class="vf-btn phrase-toggle-btn" id="startAnchorBtn" type="button" aria-pressed="true"
+                            title="Toggle: start each phrase at degree 1, or at a random degree">start at 1</button>
+                        <button class="vf-btn phrase-toggle-btn" id="returnAnchorBtn" type="button" aria-pressed="true"
+                            title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
                     </div>
                     <div class="segment-row">
                         <button class="vf-btn" data-range="within">in octave</button>
