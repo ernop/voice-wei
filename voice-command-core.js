@@ -15,16 +15,26 @@ const TRANSCRIPT_AUTO_HIDE_MS = 3000;
 
 //-------TRANSCRIPT MANAGER-------
 
+// Speech engines re-deliver results: every onresult event describes the
+// CURRENT state of the session's result list, not an increment. Desktop
+// Chrome appends new indices; Android Chrome re-sends the same index with
+// grown cumulative text (often marked final each time). The only safe model
+// is to mirror the engine's result list by index and rebuild the transcript
+// from it on every event -- never append across events.
+
 class TranscriptManager {
     constructor() {
         /** @type {HTMLElement | null} */
         this.container = null;
         /** @type {HTMLElement | null} */
         this.textElement = null;
-        /** @type {string[]} */
-        this.segments = [];
-        /** @type {string} */
-        this.interimText = '';
+        /** Finalized text from completed recognition sessions (manual mode
+         *  silently restarts recognition between pauses). @type {string} */
+        this.committedText = '';
+        /** Mirror of the engine's result list for the CURRENT session,
+         *  indexed by the engine's own result index.
+         *  @type {Array<{ text: string, isFinal: boolean } | undefined>} */
+        this.sessionResults = [];
         /** @type {ReturnType<typeof setTimeout> | null} */
         this.hideTimeout = null;
     }
@@ -71,64 +81,99 @@ class TranscriptManager {
         this.container.style.display = 'block';
     }
 
+    /** A new recognition session started; its result indices start over. */
+    beginSession() {
+        this.sessionResults = [];
+    }
+
     /**
-     * @param {string[]} segments
-     * @param {string} [interimText]
+     * Mirror one engine result. Re-delivered indices overwrite in place,
+     * which makes repeated cumulative updates idempotent.
+     * @param {number} index
+     * @param {string} text
+     * @param {boolean} isFinal
      */
-    showSegments(segments, interimText = '') {
+    updateSessionResult(index, text, isFinal) {
+        this.sessionResults[index] = { text, isFinal };
+    }
+
+    /** Fold the finished session's finalized text into the committed text. */
+    endSession() {
+        this.committedText = this.getFinalizedText();
+        this.sessionResults = [];
+    }
+
+    /**
+     * Join result texts, collapsing cumulative re-deliveries: when a chunk
+     * restates everything said so far and extends it (Android's pattern),
+     * it replaces the accumulation instead of being appended.
+     * @param {string[]} parts
+     * @returns {string}
+     */
+    joinCollapsing(parts) {
+        const normalize = (/** @type {string} */ text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+        let joined = '';
+        for (const part of parts) {
+            const text = part.trim();
+            if (!text) continue;
+            if (!joined) {
+                joined = text;
+            } else if (normalize(text).startsWith(normalize(joined))) {
+                joined = text;
+            } else {
+                joined = `${joined} ${text}`;
+            }
+        }
+        return joined;
+    }
+
+    /**
+     * @param {boolean} includeInterim
+     * @returns {string}
+     */
+    sessionText(includeInterim) {
+        const parts = [];
+        for (const result of this.sessionResults) {
+            if (!result) continue;
+            if (result.isFinal || includeInterim) parts.push(result.text);
+        }
+        return this.joinCollapsing(parts);
+    }
+
+    /** @returns {string} Committed plus current-session finalized text. */
+    getFinalizedText() {
+        return `${this.committedText} ${this.sessionText(false)}`.trim();
+    }
+
+    /** @returns {string} Everything, including the live interim tail. */
+    getFullText() {
+        return `${this.committedText} ${this.sessionText(true)}`.trim();
+    }
+
+    /** Render finalized text normally with the interim tail styled live. */
+    renderLive() {
         if (!this.container || !this.textElement) return;
 
         this.clearHideTimeout();
-        this.segments = segments;
-        this.interimText = interimText;
+        const finalized = this.getFinalizedText();
+        const full = this.getFullText();
+        const interimTail = full.startsWith(finalized)
+            ? full.slice(finalized.length).trim()
+            : '';
+        const shownFinal = interimTail || !full ? finalized : full;
 
         let html = '';
-        segments.forEach((seg, i) => {
-            if (i > 0) {
-                html += '<span class="segment-divider"> | </span>';
-            }
-            html += `<span class="segment">${this.escapeHtml(seg)}</span>`;
-        });
-
-        if (interimText) {
-            if (segments.length > 0) {
-                html += '<span class="segment-divider"> | </span>';
-            }
-            html += `<span class="segment interim">${this.escapeHtml(interimText)}</span>`;
+        if (shownFinal) html += `<span class="segment">${this.escapeHtml(shownFinal)}</span>`;
+        if (interimTail) {
+            html += `${shownFinal ? ' ' : ''}<span class="segment interim">${this.escapeHtml(interimTail)}</span>`;
         }
-
         this.textElement.innerHTML = html || '<span class="interim">...</span>';
         this.container.style.display = 'block';
     }
 
-    /** @param {string} text */
-    addSegment(text) {
-        const trimmed = text.trim();
-        if (trimmed) {
-            this.segments.push(trimmed);
-        }
-        this.interimText = '';
-    }
-
-    /** @param {string} text */
-    setInterim(text) {
-        this.interimText = text;
-    }
-
-    /** @returns {string} */
-    getFullText() {
-        const segmentsText = this.segments.join(' ');
-        return (segmentsText + (this.interimText ? ' ' + this.interimText : '')).trim();
-    }
-
-    /** @returns {string} */
-    getFinalizedText() {
-        return this.segments.join(' ').trim();
-    }
-
     clear() {
-        this.segments = [];
-        this.interimText = '';
+        this.committedText = '';
+        this.sessionResults = [];
         if (this.textElement) {
             this.textElement.textContent = '';
             this.textElement.innerHTML = '';
@@ -307,6 +352,7 @@ class VoiceCommandCore {
 
         this.recognition.onstart = () => {
             this.isListening = true;
+            this.transcript.beginSession();
             this.updateListenButton(true);
             this.updateStatus(this.settings.autoSubmitMode
                 ? 'Listening...'
@@ -315,56 +361,40 @@ class VoiceCommandCore {
         };
 
         this.recognition.onresult = (/** @type {SpeechRecognitionEvent} */ event) => {
-            let finalTranscript = '';
-            let interimTranscript = '';
-
+            // Mirror the engine's result list; never append across events.
+            // (See TranscriptManager: engines re-deliver and grow results.)
+            let sawFinal = false;
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const result = event.results[i];
-                if (result.isFinal) {
-                    finalTranscript += result[0].transcript;
-                } else {
-                    interimTranscript += result[0].transcript;
-                }
+                this.transcript.updateSessionResult(i, result[0].transcript, Boolean(result.isFinal));
+                if (result.isFinal) sawFinal = true;
             }
 
             if (this.settings.autoSubmitMode) {
-                if (interimTranscript) {
-                    this.transcript.showLive(interimTranscript);
+                // Auto mode runs one utterance per session; submit it as
+                // soon as the engine finalizes.
+                const finalized = this.transcript.getFinalizedText();
+                if (sawFinal && finalized) {
+                    this.transcript.clear();
+                    this.transcript.show(finalized);
+                    this.handleVoiceCommand(finalized);
+                } else {
+                    const interim = this.transcript.getFullText();
+                    if (interim) this.transcript.showLive(interim);
                 }
-                if (finalTranscript) {
-                    this.transcript.show(finalTranscript);
-                    this.handleVoiceCommand(finalTranscript);
-                }
-            } else {
-                if (finalTranscript) {
-                    this.transcript.addSegment(finalTranscript);
-                }
-                if (interimTranscript) {
-                    this.transcript.setInterim(interimTranscript);
-                }
-
-                // Hands-free manual mode: a trailing spoken "submit" sends
-                // the accumulated transcript (minus the word itself).
-                const lowerFull = this.transcript.getFullText().toLowerCase().trim();
-                if (lowerFull === 'submit' || lowerFull.endsWith(' submit')) {
-                    if (this.transcript.interimText.toLowerCase().trim().endsWith('submit')) {
-                        this.transcript.setInterim('');
-                    } else if (this.transcript.segments.length > 0) {
-                        const segments = this.transcript.segments;
-                        segments[segments.length - 1] = segments[segments.length - 1].replace(/\s*submit\s*$/i, '').trim();
-                        if (!segments[segments.length - 1]) segments.pop();
-                    }
-                    if (this.transcript.getFinalizedText()) {
-                        this.submitManualTranscript();
-                    } else {
-                        this.stopListening();
-                    }
-                    return;
-                }
-
-                this.transcript.showSegments(this.transcript.segments, this.transcript.interimText);
-                this.onTranscriptChange(this.transcript.getFullText());
+                return;
             }
+
+            // Hands-free manual mode: a trailing spoken "submit" sends
+            // everything heard so far (minus the word itself).
+            const lowerFull = this.transcript.getFullText().toLowerCase();
+            if (lowerFull === 'submit' || lowerFull.endsWith(' submit')) {
+                this.submitManualTranscript();
+                return;
+            }
+
+            this.transcript.renderLive();
+            this.onTranscriptChange(this.transcript.getFullText());
         };
 
         this.recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
@@ -388,6 +418,9 @@ class VoiceCommandCore {
 
         this.recognition.onend = () => {
             this.isListening = false;
+            // Manual mode silently restarts between pauses; finalized text
+            // must survive the restart while result indices start over.
+            this.transcript.endSession();
             this.updateListenButton(false);
 
             if (!this.settings.autoSubmitMode && !this.manualModeStopRequested) {
@@ -491,14 +524,23 @@ class VoiceCommandCore {
     }
 
     submitManualTranscript() {
-        const text = this.transcript.getFinalizedText();
-        if (text && this.recognition) {
-            this.manualModeStopRequested = true;
-            if (this.isListening) {
-                this.recognition.stop();
-            }
-            this.handleVoiceCommand(text);
+        // Interim text is the best transcript we have at submit time, so it
+        // is included; a trailing spoken "submit" is the send command, not
+        // part of the request.
+        const text = this.transcript.getFullText().replace(/\s*submit\s*$/i, '').trim();
+        if (!this.recognition) return;
+        if (!text) {
+            this.stopListening();
+            return;
         }
+        this.manualModeStopRequested = true;
+        if (this.isListening) {
+            this.recognition.stop();
+        }
+        // The request is captured in `text`; drop the accumulation state so
+        // a later Submit cannot resend it.
+        this.transcript.clear();
+        this.handleVoiceCommand(text);
     }
 
     /** @param {string} transcript */

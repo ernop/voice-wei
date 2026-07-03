@@ -495,11 +495,6 @@ h1 {
     display: inline;
 }
 
-.transcript .segment-divider {
-    color: rgba(255, 255, 255, 0.4);
-    font-weight: 400;
-}
-
 .transcript .segment.interim,
 .transcript .interim {
     opacity: 0.6;

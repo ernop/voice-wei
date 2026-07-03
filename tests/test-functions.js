@@ -1041,16 +1041,31 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     this.continuous = false;
                     this.interimResults = false;
                     this.lang = '';
+                    // Real engines keep a growing per-session result list and
+                    // re-send it in every event; the fakes must do the same.
+                    this._results = [];
                 }
-                start() { this.onstart && this.onstart(); }
+                start() { this._results = []; this.onstart && this.onstart(); }
                 stop() { this.onend && this.onend(); }
                 abort() { this.onend && this.onend(); }
             }
+            // Desktop pattern: each utterance appends a new result index.
             window.__emitResult = (text, isFinal = true) => {
                 const rec = window.__recs[window.__recs.length - 1];
                 const result = [{ transcript: text }];
                 result.isFinal = isFinal;
-                rec.onresult({ resultIndex: 0, results: [result] });
+                rec._results.push(result);
+                rec.onresult({ resultIndex: rec._results.length - 1, results: rec._results });
+            };
+            // Android pattern: the SAME index is re-sent with grown
+            // cumulative text, repeatedly marked final.
+            window.__emitCumulative = (text, isFinal = true) => {
+                const rec = window.__recs[window.__recs.length - 1];
+                const result = [{ transcript: text }];
+                result.isFinal = isFinal;
+                const index = Math.max(0, rec._results.length - 1);
+                rec._results[index] = result;
+                rec.onresult({ resultIndex: index, results: rec._results });
             };
             window.SpeechRecognition = FakeSpeechRecognition;
             window.webkitSpeechRecognition = FakeSpeechRecognition;
@@ -1796,6 +1811,35 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             document.getElementById('logContent').textContent.includes('play some jazz'));
         report.check(`player manual mode + spoken submit ("${manualStatus}", request logged: ${logged})`,
             manualStatus.includes('say "submit"') && logged);
+
+        // Android-style cumulative re-delivery (same index re-sent with
+        // grown text, marked final each time) must not duplicate anything
+        await tab.click('#listenBtn');
+        await tab.waitForTimeout(200);
+        await tab.evaluate(() => {
+            window.__emitCumulative('there was', true);
+            window.__emitCumulative('there was a guy', true);
+            window.__emitCumulative('there was a guy I think', true);
+        });
+        const liveText = await tab.evaluate(() =>
+            document.getElementById('transcript').textContent.trim());
+        await tab.evaluate(() => window.__emitResult('submit'));
+        await tab.waitForTimeout(600);
+        const cumulativeLogged = await tab.evaluate(() =>
+            document.getElementById('logContent').textContent.includes('there was a guy I think'));
+        report.check(`player cumulative re-delivery stays deduped ("${liveText}")`,
+            liveText === 'there was a guy I think' && cumulativeLogged);
+
+        // Cross-index cumulative finals (the other Android variant) collapse
+        const collapsed = await tab.evaluate(() => {
+            const tm = new window.TranscriptManager();
+            tm.updateSessionResult(0, 'there was', true);
+            tm.updateSessionResult(1, 'there was a guy', true);
+            tm.updateSessionResult(2, ' play it', true);
+            return tm.getFinalizedText();
+        });
+        report.check(`transcript collapses cumulative finals across indices ("${collapsed}")`,
+            collapsed === 'there was a guy play it');
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));
