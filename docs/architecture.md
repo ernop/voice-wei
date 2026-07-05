@@ -66,7 +66,9 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 CSS: `style.css` (global shell) -> `practice-controls.css` (shared
 primitives: vf-btn chips, step fields, segment rows, display toggles,
 transport buttons, history lists, pitch-test panel) -> one page stylesheet.
-Page CSS may override primitives; never the reverse.
+Page CSS may override primitives; never the reverse. The full button/control
+class inventory per page, with its unification plan, is
+[controls.md](controls.md).
 
 ## The playback law
 
@@ -499,7 +501,9 @@ Beyond pickers, the rest of the control vocabulary is also fixed:
 Page stylesheets may add layout (placement, sizing) on top of these but
 must not redefine their look. `tests/test-css-ownership.js` fails the
 suite if a page stylesheet redefines a selector owned by
-practice-controls.css.
+practice-controls.css. The concrete class-by-class inventory (including
+the player and Books dialects still awaiting convergence) is
+[controls.md](controls.md).
 
 ## Canonical settings order
 
