@@ -40,6 +40,9 @@ Full usage details per tool: [docs/tools.md](docs/tools.md).
 
 ## Documentation map
 
+[agents.md](agents.md) is the root of the documentation tree and holds the
+complete index. The most-used docs:
+
 | Doc | Contents |
 |-----|----------|
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
@@ -47,7 +50,8 @@ Full usage details per tool: [docs/tools.md](docs/tools.md).
 | [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
 | [docs/parameters.md](docs/parameters.md) | Every setting: values, defaults, change behavior |
 | [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, engine rules, testing, deploy |
-| [docs/setup.md](docs/setup.md) | Environment setup |
+| [docs/controls.md](docs/controls.md) | Button/control inventory and unification plan |
+| [docs/setup.md](docs/setup.md) | Environment setup and deploy pipeline |
 | [agents.md](agents.md) | Entry point for AI agents working on this repo |
 
 ## Quick start

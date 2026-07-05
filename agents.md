@@ -43,27 +43,64 @@ the repo is reachable from here.
    docs/architecture.md.
 8. **Update the docs hierarchy with the work.** Behavior changes update
    docs/tools.md and docs/parameters.md; design changes update
-   docs/architecture.md; new standing guidance updates this file. No
-   documentation file may exist outside the tree below.
+   docs/architecture.md; control-surface changes update docs/controls.md;
+   new standing guidance updates this file. No documentation file may
+   exist outside the tree below.
 
 ## Documentation tree (every doc, from here)
 
+This table is the complete index: every markdown doc in the repo appears
+here, exactly once. A doc that cannot earn a row gets folded into an
+existing doc or deleted - never left dangling.
+
+**Orientation (read first)**
+
 | Doc | What it holds |
 |-----|---------------|
-| [README.md](README.md) | Human-facing overview, dev setup, version system |
+| agents.md (this file) | Agent entry point: working method, doc tree, shipping steps |
+| [README.md](README.md) | Human-facing overview, dev setup, testing, version system |
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
+
+**Reference (the system as it is)**
+
+| Doc | What it holds |
+|-----|---------------|
+| [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, representation law, typed contracts, engine rules, persistence, testing, deploy |
+| [docs/controls.md](docs/controls.md) | Button/control class inventory across all pages + the unification plan (music UI first) |
 | [docs/tools.md](docs/tools.md) | Per-tab usage reference |
-| [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, representation law, typed contracts, control vocabulary, engine rules, testing, deploy |
-| [docs/parameters.md](docs/parameters.md) | Every setting: values, defaults, change behavior |
+| [docs/parameters.md](docs/parameters.md) | Every setting on every page: values, defaults, change behavior |
 | [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
-| [docs/setup.md](docs/setup.md) | Deployment/environment setup |
-| [docs/music-lyrics-research.md](docs/music-lyrics-research.md) | Research notes: lyrics features for the player (feeds product-goals backlog) |
+| [docs/setup.md](docs/setup.md) | Environment setup, CI deploy pipeline, secrets, version management |
+
+**Research and source material (feeds the backlog)**
+
+| Doc | What it holds |
+|-----|---------------|
+| [docs/music-lyrics-research.md](docs/music-lyrics-research.md) | Lyrics/metadata provider research; phases 1-3 shipped, later phases still backlog |
+| [docs/public-domain-song-sources.md](docs/public-domain-song-sources.md) | Symbolic (MIDI/MusicXML) corpora for the player's local song library |
+
+**Meta (agent lineage)**
+
+| Doc | What it holds |
+|-----|---------------|
 | [.cursor/diary.md](.cursor/diary.md) | Mei diary: session notes from agent to future agents |
 | `.cursor/rules/` | Binding rules, always applied (not markdown docs) |
 
+### Doc format standard
+
+Every doc in `docs/` follows the same shape:
+
+1. One `#` H1 title naming the doc's subject.
+2. An opening paragraph stating what the doc holds and linking the
+   neighboring docs a reader might actually want (its parents/siblings
+   in this tree), so nobody dead-ends.
+3. Content sections that own their subject exclusively - a fact lives in
+   one doc and is linked from the others, never restated. When two docs
+   describe the same thing, one of them is wrong.
+
 Read before structural work: product-goals (does the change fit),
-architecture (how it must be built), parameters (setting behaviors),
-tools (user-visible behavior).
+architecture (how it must be built), controls (what the surface may use),
+parameters (setting behaviors), tools (user-visible behavior).
 
 ## Non-negotiables (summary; full versions in .cursor/rules/)
 
