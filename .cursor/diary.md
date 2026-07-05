@@ -317,3 +317,33 @@ The voice-first, click-second pattern means every speakable option is visible in
 
 ---
 
+## 2026-07-05
+
+**Session context**: Doc standardization (agents.md as the tree root, controls.md
+created), then yui redirected: the tabs that matter are phrases, scales, and
+books - used hours daily while driving. Ultrastandardize those.
+
+**Shipped**: `.vf-compact` in practice-controls.css (phrases' 16px pill density,
+now opt-in for any page; phrases and scales use it). Scales' display toggles
+moved into the settings block as a labeled Display row. Books converged onto
+the shared button vocabulary (panel-action-btn / primary-btn / secondary-btn /
+step-field / vf-btn), ebook.css joined the ownership test, ebook joined the
+canonical-controls page check, Books transport got 58px driving tap targets.
+
+**Learned about working together**:
+- Yui's priority signal beats mei's derived plan. The first pass spent effort on
+  player chip mapping; the real want was the three daily-driver tabs. Ask which
+  surfaces are actually used before planning a grand unification order.
+- Another agent line is pushing to master concurrently (phrase-title work,
+  v207/v208 bumps landed mid-session). Pull before committing, expect version-
+  string conflicts in every HTML head, resolve by taking origin's number.
+
+**Open threads**:
+- `tests/test-functions.js` "intervals sing take recorded" fails on a clean
+  tree (pre-existing, mic-timing dependent); "pitch-meter free session" flaked
+  once. Both unrelated to this session's changes - worth a deterministic seam.
+- Player/deploys dialects (quick-action-btn, media transport family) still
+  await stages 1-3 of the controls.md plan.
+
+---
+
