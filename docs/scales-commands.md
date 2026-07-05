@@ -1,36 +1,29 @@
-# Scales - Voice-Wei
+# Scales Voice Command Grammar
 
-A voice-first tool for singers and musicians to practice scales, intervals, arpeggios, and ear training with realistic piano sounds.
+The complete spoken grammar for the Scales page. How the page itself works
+(controls, piano keyboard, Sing panel) is in [tools.md](tools.md); setting
+defaults and change behavior are in [parameters.md](parameters.md); the
+engine rules behind movement styles and exercises are in
+[architecture.md](architecture.md).
 
-## Overview
+## How commands are interpreted
 
-The Scales page is a **voice-first, click-second** interface. Everything you can say is also visible and clickable in the UI. The current settings are always displayed, making it easy to understand what will play.
+1. Click **Listen**, speak, and the command is parsed on the final result.
+2. **Full commands reset settings to defaults first**, then apply your
+   modifiers - "D minor" always sounds the same regardless of prior UI
+   state. Playback starts automatically.
+3. **Standalone setting commands** (a bare modifier like "slowly",
+   "staccato", "thirds up", "octave 3") change just that setting and
+   restart playback live if something is playing.
+4. Say `stop` anytime to stop playback; `play` replays the current
+   settings.
 
-**Key Features:**
-- **Voice Commands**: Speak naturally to play scales, chords, intervals
-- **Bidirectional Controls**: Click any option or say it - both update the same state
-- **Live Status**: Shows current command set + playing note (e.g., "D minor | short | E4 [2nd]")
-- **Realistic Piano**: Salamander Grand Piano samples via Tone.js
-- **Instant Feedback**: See what you said in real-time while speaking
+## Phonetic aliases
 
----
+Speech recognition often mishears note names. These are automatically
+recognized:
 
-## Quick Start
-
-1. Click **Listen** and say: "D minor scale"
-2. Or click options (Root: D, Scale: minor) then click **Play**
-3. Say "stop" or click **Stop** to end playback
-4. Say "play" or click **Play** to repeat with current settings
-
----
-
-## Voice Commands
-
-### Phonetic Aliases
-
-Speech recognition often mishears note names. These aliases are automatically recognized:
-
-| Note | Also Recognized As |
+| Note | Also recognized as |
 |------|-------------------|
 | C | see, sea, si, cee |
 | D | dee, the |
@@ -40,104 +33,96 @@ Speech recognition often mishears note names. These aliases are automatically re
 | A | ay, hey, eh, eight |
 | B | bee, be, bea |
 
-| Modifier | Also Recognized As |
+| Modifier | Also recognized as |
 |----------|-------------------|
 | sharp | shop, sharpe, shark |
 | flat | flap, flight |
 
-Example: "see major scale" = "C major scale", "bee flat minor" = "Bb minor"
+Example: "see major scale" = "C major scale", "bee flat minor" = "Bb minor".
 
----
+## Base commands
 
 ### Scales
 
-| Command | Description |
-|---------|-------------|
+| Command | Result |
+|---------|--------|
 | `scale` | C major scale (default) |
 | `D scale` | D major scale |
 | `A minor scale` | A natural minor |
-| `chromatic scale` | All 12 semitones |
-| `chromatic from E` | Chromatic starting on E |
-| `pentatonic` | C major pentatonic |
-| `minor pentatonic` | C minor pentatonic |
+| `harmonic minor` / `A harmonic minor` | Harmonic minor (raised 7th) |
+| `melodic minor` | Jazz melodic minor (same up and down) |
+| `chromatic scale` / `chromatic from E` | All 12 semitones |
+| `pentatonic` / `minor pentatonic` | Major / minor pentatonic |
 
-#### Harmonic Scales
-| Command | Description | Intervals |
-|---------|-------------|-----------|
-| `harmonic minor` | Raised 7th | 1 2 b3 4 5 b6 7 |
-| `A harmonic minor` | From A | A B C D E F G# A |
-| `melodic minor` | Jazz melodic (same up/down) | 1 2 b3 4 5 6 7 |
+Supported scale patterns (the `SCALE_PATTERNS` registry in
+`music-constants.js`):
 
-### Notes & Chords
+| Scale | Semitone pattern |
+|-------|------------------|
+| Major | 0 2 4 5 7 9 11 12 |
+| Natural minor | 0 2 3 5 7 8 10 12 |
+| Harmonic minor | 0 2 3 5 7 8 11 12 |
+| Melodic minor | 0 2 3 5 7 9 11 12 |
+| Chromatic | 0 1 2 3 ... 12 |
+| Major pentatonic | 0 2 4 7 9 12 |
+| Minor pentatonic | 0 3 5 7 10 12 |
 
-| Command | Result |
-|---------|--------|
-| `C` or `play C` | Single C note |
-| `F sharp` | F# note |
-| `B flat` | Bb note |
-| `C chord` | C major chord (triad) |
-| `A minor chord` | A minor chord |
-| `tuning` | A440 reference tone |
-
-### Intervals
-
-Both word and numeric forms are accepted:
+### Notes, chords, intervals, arpeggios
 
 | Command | Result |
 |---------|--------|
-| `fifth` or `5th` | Perfect 5th from C |
+| `C` / `play C` | Single note |
+| `F sharp`, `B flat` | Accidentals |
+| `C chord` / `A minor chord` | Triad |
+| `tuning` / `A 440` / `concert A` / `reference` | A440 reference tone |
+| `fifth` / `5th` | Perfect 5th from C |
 | `third from G` | Major 3rd from G |
 | `minor third` | Minor 3rd from C |
 | `perfect fifth from D` | Perfect 5th from D |
+| `arpeggio` / `D minor arpeggio` | Arpeggio |
 
-Supported intervals: unison, 2nd, 3rd, 4th, 5th, 6th, 7th, octave
-
-### Arpeggios
-
-| Command | Result |
-|---------|--------|
-| `arpeggio` | C major arpeggio |
-| `D minor arpeggio` | D minor arpeggio |
-
----
+Supported interval names: unison, 2nd, 3rd, 4th, 5th, 6th, 7th, octave.
 
 ## Modifiers
 
-Modifiers can be combined with any scale, arpeggio, or interval command.
+Modifiers combine with any scale, arpeggio, or interval command
+("slowly chromatic scale", "G major up and down twice").
 
-### Note Length (Tempo)
-| Voice Command | Note Duration |
+### Note length (tempo)
+
+| Voice command | Note duration |
 |---------------|---------------|
-| `very fast` | 100ms |
+| `very fast` / `very quickly` | 100ms |
 | `fast` / `quickly` | 150ms |
 | *(default)* | 300ms |
 | `normal` | 500ms |
-| `slowly` | 1000ms |
+| `slowly` / `slow` | 1000ms |
 | `very slowly` | 2000ms |
 | `super slowly` | 5000ms |
 
-UI buttons offer finer control: 0.1s, 0.15s, 0.3s (default), 0.5s, 0.8s, 1s, 1.5s, 2s, 3s, 5s.
+The UI note-length stepper offers the finer shared preset list (see
+"Shared step presets" in [parameters.md](parameters.md)).
 
-### Gaps (Pauses Between Notes)
-| Modifier | Effect |
-|----------|--------|
-| `legato` / no modifier | No gap (none) |
-| `with a gap` / `small gap` | 50ms (small) |
-| `with a medium gap` | 150ms (normal) |
-| `staccato` / `large gap` | 300ms (large) |
-| `very large gap` | 500ms (very large) |
+### Gaps between notes
+
+| Modifier | Gap |
+|----------|-----|
+| `legato` / no modifier | 0 (none) |
+| `with a gap` / `with a small gap` | 50ms |
+| `with a large gap` / `staccato` | 300ms |
+| `with a very large gap` | 500ms |
 
 ### Repetition
+
 | Modifier | Effect |
 |----------|--------|
-| *(default)* | Play once, stop (off) |
-| `once` | Play one time |
-| `twice` | Play 2 times |
-| `repeat` / `loop` / `forever` / `forever` | Loop until "stop" |
-| `forever` | Loop until "stop" with a ~0.2s gap between sections (not the between-notes gap) |
-| `forever no gap` | Loop until "stop", with no gap between sections (not the between-notes gap) |
+| *(default)* | Play once |
+| `twice` / `repeat twice` / `two times` | Play 2 times |
+| `repeat` / `loop` / `forever` | Loop until "stop", ~1s gap between repeats |
+| `forever no gap` | Loop until "stop" with no gap between repeats |
 
 ### Direction
+
 | Modifier | Effect |
 |----------|--------|
 | `ascending` / `going up` | Upward only (default) |
@@ -145,21 +130,63 @@ UI buttons offer finer control: 0.1s, 0.15s, 0.3s (default), 0.5s, 0.8s, 1s, 1.5
 | `up and down` / `both ways` | Up then down |
 | `down and up` | Down then up |
 
-### Section Width
-| Voice Command | Effect |
-|---------------|--------|
-| `1 octave` | Normal 1-octave scale (default) |
-| `octave plus third` / `1o+3` | Octave + major 3rd |
-| `octave plus fifth` / `1o+5` | Octave + perfect 5th |
-| `2 octaves` | Play scale over 2 octaves |
+### Range and width
 
-### Octave Selection
 | Modifier | Effect |
 |----------|--------|
-| `octave 3` | Start in octave 3 |
-| `octave 4` | Start in octave 4 (default) |
+| `wide` | Extra scale notes on each end (range expansion) |
+| `very wide` | More extra notes on each end |
+| `octave plus third` / `1o+3` | Section spans octave + major 3rd |
+| `octave plus fifth` / `1o+5` | Section spans octave + perfect 5th |
+| `two octaves` / `double octave` | Section spans 2 octaves |
 
-### Example Combinations
+### Octave (standalone)
+
+`octave 2` .. `octave 6` (or just a bare `3`, `4`...) moves the starting
+octave. Note commands take an explicit octave too ("play C 5").
+
+## Movement styles
+
+Movement styles add extra notes around each section note; section notes
+are never replaced (see "Scales engine rules" in
+[architecture.md](architecture.md)).
+
+| Style | Voice command | Example (C major up) |
+|-------|---------------|---------------------|
+| +1+2 | `stop and go` | C-D-E, D-E-F, E-F-G... |
+| 1-3-5 | `one three five`, `triads` | C-E-G, D-F-A, E-G-B... |
+| neighbors | `neighbors` | Direction-aware: C-D-B up, C-B-D down |
+| from 1 | `from one`, `from the root` | c-D, c-E, c-F... |
+| to 1 | `to one`, `interleave`, `return to root` | D-c, E-c, F-c... |
+| +1-1 | `plus minus one`, `dance around` | C-D-B, D-E-C, E-F-D... |
+| chords | `chords` | [CEG], [DFA], [EGB]... |
+| +1+2 chromatic | `chromatic stop and go`, `chromatic steps` | C-C#-D, D-D#-E... |
+| +1-1 chromatic | `plus minus half`, `chromatic neighbors` | C-C#-B, D-D#-C#... |
+| 3rd..7th up | `thirds up` ... `sevenths up` | thirds up: C-E, D-F, E-G... |
+| 3rd..7th down | `thirds down` ... `sevenths down` | thirds down: C-A, D-B, E-C... |
+
+## Exercises
+
+Degree-offset presets (with `O` as the octave placeholder), which default
+to shifting mode:
+
+| Exercise | Voice command | Pattern |
+|----------|---------------|---------|
+| 5-note | `five note warmup`, `warmup` | 1-2-3-4-5-4-3-2-1 |
+| oct jump | `octave jump` | 1-8-1 |
+| arp return | `arpeggio return`, `arp return` | 1-3-5-8-5-3-1 |
+| thirds | `thirds`, `skip pattern` | 1-3-2-4-3-5-4-6... |
+
+## Rising and shifting
+
+| Mode | Voice command | Behavior |
+|------|---------------|----------|
+| Rising | `rising`, `modulating`, `transpose` | Transposes the whole scale up each repeat (C major -> D major -> ...); `rising half step` / `whole step` / `minor third` / `fourth` / `fifth` choose the step; `no rising` turns it off |
+| Shifting | `shifting`, `walking` | Moves the start within the same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major) |
+
+Both imply repeat-forever and are mutually exclusive.
+
+## Example combinations
 
 ```
 "D minor scale"
@@ -170,239 +197,11 @@ UI buttons offer finer control: 0.1s, 0.15s, 0.3s (default), 0.5s, 0.8s, 1s, 1.5
 "double octave harmonic minor"
 "A minor repeat forever"
 "quickly chromatic twice"
+"five note warmup rising half step"
 ```
 
----
+## Tips
 
-## UI Controls
-
-The UI uses a **compact inline layout** with labels on the left and clickable options on the right.
-
-### Control Rows
-
-| Row | Options | Default |
-|-----|---------|---------|
-| **Root** | C, C#, D, D#, E, F, F#, G, G#, A, A#, B | C |
-| **Octave** | 3, 4 | 4 |
-| **Scale** | major, minor, chromatic, pentatonic, h minor, m minor | major |
-| **Move** | normal, +1+2, 1-3-5, neighbors, chords, from 1, to 1, +1-1, +1+2 chrom, +1-1 chrom, 3rd/4th/5th/6th/7th up, 3rd/4th/5th/6th/7th down | normal |
-| **Note Length** | 0.1s, 0.15s, 0.3s, 0.5s, 0.8s, 1s, 1.5s, 2s, 3s, 5s | 0.3s |
-| **Direction** | up, down, up+down, down+up | up |
-| **Repeat** | once, twice, infinity, infinity+no gap | once |
-| **Rising** | off, half, whole | off |
-| **Exercise** | full scale, 5-note, oct jump, arp return, thirds | full scale |
-| **Shifting** | off, on | off |
-| **Section Width** | 1 octave, octave+3rd, octave+5th, 2 octaves | 1 octave |
-| **Note Gap** | -50%, -10%, -5%, 0s, 0.05s, 0.1s, 0.15s, 0.3s, 0.5s, 1s | 0s |
-
-### Main Buttons
-
-| Button | Action |
-|--------|--------|
-| **Listen** | Start voice recognition |
-| **Stop** | Stop playback and cancel listening |
-| **Play** | Play current settings |
-| **Reset** | Return all settings to defaults |
-
-### Voice Controls
-
-Say these words anytime during listening:
-- `stop` - Stop playback
-- `play` - Play current settings
-
-### Status Bar
-
-The status bar shows the current command set during playback:
-
-```
-D minor | short | E4 [2nd]
-```
-
-- Always shows: root + scale type
-- Shows non-default options: direction, tempo, gap, octave span, wide, repeat
-- Shows current note with interval name
-
----
-
-## Piano Keyboard
-
-- **15 white keys** spanning 2 octaves + top C (C4 to C6 when Octave=4)
-- **10 black keys** for sharps/flats
-- **Click keys** to play individual notes
-- **Octave control** (3 or 4) shifts the entire keyboard
-- **Active keys highlight green** during scale playback (notes outside the keyboard range highlight the same pitch class at the nearest available octave)
-- **Scale preview** highlights all scale notes when idle (root note in darker green)
-- **C notes labeled** with octave number (C4, C5, C6)
-
----
-
-## How Voice-First Works
-
-1. **Click Listen** - starts voice recognition
-2. **Speak your command** - e.g., "D minor descending slowly"
-3. **Settings reset to defaults** - then your modifiers are applied
-4. **UI updates** - shows what was understood
-5. **Scale plays automatically** - no need to click Play
-6. **Click Play** to repeat the same settings
-
-The key insight: voice commands always start from defaults, then apply what you said. This means "D minor" always plays the same way, regardless of what buttons were previously clicked.
-
----
-
-## Priority System
-
-Voice modifiers override UI settings:
-
-1. **Voice modifiers** (highest): "slowly", "with a gap", etc.
-2. **UI buttons**: Used when no voice modifier specified
-3. **Built-in defaults**: normal tempo, no gap, ascending
-
-Example: If Note Length is "short" but you say "slowly chromatic scale", it plays slow.
-
----
-
-## Technical Details
-
-### Audio Engine
-- **Tone.js** with Salamander Grand Piano samples
-- Samples loaded from Tone.js CDN
-- Gain node for instant audio cutoff on Stop
-
-### Voice Recognition
-- Web Speech API (browser native)
-- Auto-submit mode: Processes immediately on final result
-- Live interim display while speaking
-
-### Architecture
-- `voice-command-core.js`: Reusable voice input abstraction
-- `scales.js`: Scale-specific command parsing and execution
-- `scales.html` / `scales.css`: UI components
-
----
-
-## Scale Patterns Reference
-
-| Scale | Semitone Pattern |
-|-------|------------------|
-| Major | 0 2 4 5 7 9 11 12 |
-| Natural Minor | 0 2 3 5 7 8 10 12 |
-| Harmonic Minor | 0 2 3 5 7 8 11 12 |
-| Melodic Minor | 0 2 3 5 7 9 11 12 |
-| Chromatic | 0 1 2 3 4 5 6 7 8 9 10 11 12 |
-| Major Pentatonic | 0 2 4 7 9 12 |
-| Minor Pentatonic | 0 3 5 7 10 12 |
-
----
-
-## Usage Tips
-
-1. **For ear training**: Use "twice" or "forever" repeat
-2. **For slow practice**: Say "very slowly" or "super slowly"
-3. **For interval recognition**: Use "minor third", "perfect fifth", etc.
-4. **Debug recognition issues**: Enable "Echo commands" checkbox to hear what was understood
-5. **Quick repetition**: Just say "play" or click the Play button
-
----
-
-## Vision: Extra Note Patterns (Under Development)
-
-The goal is to support more sophisticated vocal training patterns beyond basic scales. These patterns add "extra notes" (also called "grace notes") around each scale note.
-
-### Movement Patterns (Extra Notes)
-
-| Pattern | Voice Command | Description | Example (C major up) |
-|---------|---------------|-------------|---------------------|
-| +1+2 | "stop and go" | Add next 2 scale degrees | C-D-E, D-E-F, E-F-G... |
-| 1-3-5 | "one three five", "triads" | Add 3rd and 5th above | C-E-G, D-F-A, E-G-B... |
-| neighbors (dir) | "neighbors" | Direction-aware: above then below (or reverse) | C-D-B (up), C-B-D (down) |
-| from 1 | "from one", "from the root" | Root first, then section note | c-D, c-E, c-F, c-G... |
-| to 1 | "to one", "interleave", "return to root" | Section note, then back to root | D-c, E-c, F-c, G-c... |
-| +1-1 (fixed) | "plus minus one", "dance around" | Always: section, above, below | C-D-B, D-E-C, E-F-D... |
-| chords | "chords" | Play as simultaneous chord | [CEG], [DFA], [EGB]... |
-| +1+2 chromatic | "chromatic stop and go", "chromatic steps" | Add +1 and +2 semitones (fixed size) | C-C#-D, D-D#-E, E-F-F#... |
-| +1-1 chromatic | "plus minus half", "chromatic neighbors" | Add +1 then -1 semitone from the original | C-C#-B, D-D#-C#, E-F-D#... |
-| 3rd..7th up | "thirds up" ... "sevenths up" | Add the diatonic interval above (size varies with degree) | thirds up: C-E, D-F, E-G... |
-| 3rd..7th down | "thirds down" ... "sevenths down" | Add the diatonic interval below | thirds down: C-A, D-B, E-C... |
-
-### Exercise Patterns (Presets)
-
-| Exercise | Voice Command | Pattern | Description |
-|----------|---------------|---------|-------------|
-| 5-note | "five note warmup", "warmup" | 1-2-3-4-5-4-3-2-1 | Classic vocal warmup |
-| oct jump | "octave jump" | 1-8-1 | Root to octave and back |
-| arp return | "arpeggio return", "arp return" | 1-3-5-8-5-3-1 | Up the chord and back |
-| thirds | "thirds", "skip pattern" | 1-3-2-4-3-5-4-6... | Alternating steps and skips |
-
-### Shifting vs Rising
-
-| Mode | Voice Command | Behavior |
-|------|---------------|----------|
-| Rising | "rising" | Transposes the entire scale up (C major -> D major -> E major) |
-| Shifting | "shifting", "walking" | Shifts starting note within same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major) |
-
-Exercises default to shifting mode. Rising and shifting are mutually exclusive.
-
-### Key Concepts
-
-**Scale Notes vs Extra Notes:**
-- **Scale notes**: The core scale degrees (1-8 in an octave) - these define the progression
-- **Extra notes**: Embellishments that can extend beyond the scale range (to 9, 10, etc.)
-- Every scale note MUST be played as a scale note - extra notes don't substitute
-
-**Connectedness (Turnaround Logic):**
-Like running up steps and turning around - you don't take two steps on the same spot:
-- **WRONG**: 1-2-3-4-5-6-7-8-**8**-7-6-5-4-3-2-1
-- **RIGHT**: 1-2-3-4-5-6-7-8-7-6-5-4-3-2-1
-
-When looping without gaps, same at bottom: ...3-2-1-2-3... (not 1-**1**-2)
-
-**Clean Endings:**
-Extra notes do NOT extend past the final note. The ear expects resolution:
-- With +1,+2 ending: ...3-4-5, 2-3-4, **1** (stops clean, no 1-2-3)
-
-### Rising Exercises (Future)
-
-Professional vocal exercises often use "rising" patterns where each repetition shifts up:
-
-```
-1-2-3-4-5-4-3-2-1  (starting on C)
-2-3-4-5-6-5-4-3-2  (starting on D)
-3-4-5-6-7-6-5-4-3  (starting on E)
-4-5-6-7-8-7-6-5-4  (starting on F)
-...
-```
-
-This trains the voice across ranges while keeping the pattern familiar.
-
----
-
-## Vision: Pitch Detection ("Also Listen" Mode)
-
-Future feature: toggle microphone listening during scale playback to provide pitch accuracy feedback.
-
-**Concept:**
-- Play scale notes as reference
-- Listen to user's voice simultaneously
-- Show visual meter: how close to the target pitch
-- Provide guidance: "go down a little bit"
-- Grade overall accuracy
-
-**Technical Considerations:**
-- May work even with overlapping audio (speaker + microphone)
-- Needs to distinguish target pitch from played audio
-- Visual feedback should be immediate (no lag)
-
----
-
-## Deployment
-
-Files to sync:
-```
-scales.html
-scales.js
-scales.css
-voice-command-core.js
-style.css (shared)
-```
-
-See `rsync-command.txt` for deployment commands.
+- Enable **Echo commands** in the voice panel to hear what was understood
+  when recognition misbehaves.
+- Say `help` while listening for a spoken summary of the grammar.
