@@ -263,6 +263,8 @@
         const title = plan.length ? phraseTitleFromPlan(plan) : DEFAULT_DOCUMENT_TITLE;
         document.title = title;
         if (plan.length) MediaSessionCore.updateMetadata(title, { artist: '' });
+        const heading = document.querySelector('#siteHeader .header-title-group h1');
+        if (heading) heading.textContent = plan.length ? title : 'Phrases';
     }
 
     /** @param {PhrasePlanNote[]} plan */

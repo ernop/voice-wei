@@ -292,12 +292,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 expected,
                 documentTitle: document.title,
-                mediaTitle: navigator.mediaSession.metadata?.title || ''
+                mediaTitle: navigator.mediaSession.metadata?.title || '',
+                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
             };
         });
         report.check(`phrases title follows playable note sequence ("${phraseTitle.documentTitle}")`,
             phraseTitle.documentTitle === phraseTitle.expected
             && phraseTitle.mediaTitle === phraseTitle.expected
+            && phraseTitle.headerTitle === phraseTitle.expected
             && phraseTitle.expected.length > 0
             && !phraseTitle.documentTitle.includes('Phrases')
             && !phraseTitle.documentTitle.includes('Voice'));
@@ -329,12 +331,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 expected,
                 documentTitle: document.title,
-                mediaTitle: navigator.mediaSession.metadata?.title || ''
+                mediaTitle: navigator.mediaSession.metadata?.title || '',
+                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
             };
         });
         report.check('phrases title follows playable note mask',
             maskedTitle.documentTitle === maskedTitle.expected
-            && maskedTitle.mediaTitle === maskedTitle.expected);
+            && maskedTitle.mediaTitle === maskedTitle.expected
+            && maskedTitle.headerTitle === maskedTitle.expected);
         const starts0 = await tab.evaluate(() => window.__voiceStarts);
         await tab.click('#playBtn');
         await tab.waitForTimeout(noteCount * 350 + 1200);
