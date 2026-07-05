@@ -22,8 +22,8 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     justify-content: flex-start;
     gap: 0;
     min-height: 0;
-    margin: 6px 0 10px;
-    padding: 8px 8px 6px;
+    margin: 6px 0 2px;
+    padding: 8px 8px 4px;
     background: rgba(13, 40, 24, 0.93);
     backdrop-filter: blur(6px);
     border: 1px solid rgba(134, 239, 172, 0.24);
@@ -223,6 +223,9 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 }
 
 .phrase-controls {
+    /* The stage above owns the (small) separation; the shared
+       voice-first-ui top margin would double it. */
+    margin-top: 0;
     margin-bottom: 8px;
 }
 
