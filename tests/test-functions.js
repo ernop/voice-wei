@@ -1896,9 +1896,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             collapsed === 'there was a guy play it');
 
         // Synced lyric lines relay into the now-playing title (car / lock
-        // screen / tab): bare lyric only, led ahead of the sung moment so
-        // Bluetooth propagation lands on time; pause restores the song's
-        // own metadata
+        // screen / tab): bare lyric only - never song/artist - led ahead
+        // of the sung moment so Bluetooth propagation lands on time.
+        // Intros show the upcoming first line; pause clears the lyric
+        // without ever writing the song name.
         const lyricRelay = await tab.evaluate(() => {
             const item = {
                 id: 77, name: 'Test Song', artist: 'Test Artist',
@@ -1906,9 +1907,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyricsData: {
                     provider: 'LRCLIB', trackName: 'Test Song', artistName: 'Test Artist',
                     albumName: '', duration: 100, instrumental: false, plainLyrics: '',
-                    syncedLyrics: '[00:01.00]first line here\n[00:05.00]second line here',
+                    syncedLyrics: '[00:02.00]first line here\n[00:05.00]second line here',
                     syncedLines: [
-                        { time: 1, text: 'first line here' },
+                        { time: 2, text: 'first line here' },
                         { time: 5, text: 'second line here' }
                     ]
                 }
@@ -1927,38 +1928,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             PlayerLyrics.install(harness);
             const meta = () => navigator.mediaSession.metadata;
-            // 4.5s: line 1 (at 5s) is not sung yet, but within the title
-            // lead window, so the title runs ahead of the highlight.
-            harness.updateSyncedLyricsPosition(4.5);
-            const led = {
+            const snap = () => ({
                 docTitle: document.title,
                 metaTitle: meta() ? meta().title : '',
                 metaArtist: meta() ? meta().artist : '',
                 highlightIndex: harness.currentLyricsLineIndex
-            };
+            });
+            // 0s: nothing sung yet (first line at 2s) - the intro shows
+            // the upcoming first line so the singer can get ready.
+            harness.updateSyncedLyricsPosition(0);
+            const intro = snap();
+            // 4.5s: line 1 (at 5s) is not sung yet, but within the title
+            // lead window, so the title runs ahead of the highlight.
+            harness.updateSyncedLyricsPosition(4.5);
+            const led = snap();
             harness.updateSyncedLyricsPosition(6);
-            const during = {
-                docTitle: document.title,
-                metaTitle: meta() ? meta().title : '',
-                highlightIndex: harness.currentLyricsLineIndex
-            };
+            const during = snap();
             harness.isPaused = true;
             harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex);
-            const after = {
-                docTitle: document.title,
-                metaTitle: meta() ? meta().title : ''
-            };
-            return { led, during, after };
+            const after = snap();
+            return { intro, led, during, after };
         });
-        report.check(`player leads synced lyric into now-playing title ("${lyricRelay.led.metaTitle}", highlight ${lyricRelay.led.highlightIndex})`,
-            lyricRelay.led.metaTitle === 'second line here'
+        const neverSongArtist = [lyricRelay.intro, lyricRelay.led, lyricRelay.during, lyricRelay.after]
+            .every(snap => !snap.metaTitle.includes('Test Song') && !snap.metaArtist.includes('Test Artist')
+                && !snap.docTitle.includes('Test Song'));
+        report.check(`player titles sing-along lyrics only ("${lyricRelay.intro.metaTitle}" -> "${lyricRelay.led.metaTitle}", never song/artist: ${neverSongArtist})`,
+            lyricRelay.intro.metaTitle === 'first line here'
+            && lyricRelay.intro.docTitle === 'first line here'
+            && lyricRelay.intro.highlightIndex === -1
+            && lyricRelay.led.metaTitle === 'second line here'
             && lyricRelay.led.docTitle === 'second line here'
-            && lyricRelay.led.metaArtist === ''
             && lyricRelay.led.highlightIndex === 0
             && lyricRelay.during.metaTitle === 'second line here'
             && lyricRelay.during.highlightIndex === 1
-            && lyricRelay.after.metaTitle === 'Test Song'
-            && lyricRelay.after.docTitle !== 'second line here');
+            && lyricRelay.after.metaTitle === ''
+            && lyricRelay.after.docTitle !== 'second line here'
+            && neverSongArtist);
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));

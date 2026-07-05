@@ -580,19 +580,40 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * Relay the active lyric line into the now-playing surfaces
+             * The singer's title line: the line at the (led) index when it
+             * has text, otherwise the next upcoming line - so intros and
+             * instrumental gaps show what is about to be sung. Past the
+             * last line, the last sung line stays up.
+             * @param {SyncedLyricLine[]} lines @param {number} index
+             */
+            lyricTitleLineAt(lines, index) {
+                if (index >= 0 && index < lines.length && lines[index].text.trim()) {
+                    return lines[index].text.trim();
+                }
+                for (let i = Math.max(index + 1, 0); i < lines.length; i++) {
+                    if (lines[i].text.trim()) return lines[i].text.trim();
+                }
+                for (let i = Math.min(index, lines.length - 1); i >= 0; i--) {
+                    if (lines[i].text.trim()) return lines[i].text.trim();
+                }
+                return '';
+            },
+
+            /**
+             * Relay the sung/upcoming lyric into the now-playing surfaces
              * (Media Session metadata for car/lock-screen displays plus
-             * the tab title). Car screens are tiny, so the lyric is the
-             * whole title - no song/artist decoration. With no active
-             * line, restore the song's own metadata.
+             * the tab title). The point is singing along while driving:
+             * the title is the lyric line and nothing else. Song/artist
+             * names are NEVER written here - when there is no lyric to
+             * show, the surfaces are cleared instead.
              */
             relayLyricToNowPlaying(activeIndex) {
                 const item = this.currentLyricsItem();
                 const playingThisItem = !!item && item.id === this.currentPlayingId
                     && this.isPlaying && !this.isPaused;
-                const line = (this.settings.lyricsOnNowPlaying && playingThisItem
-                    && activeIndex >= 0 && item.lyricsData)
-                    ? (item.lyricsData.syncedLines[activeIndex]?.text || '').trim()
+                const lines = (playingThisItem && item.lyricsData) ? item.lyricsData.syncedLines : [];
+                const line = (this.settings.lyricsOnNowPlaying && lines.length)
+                    ? this.lyricTitleLineAt(lines, activeIndex)
                     : '';
 
                 if (line) {
@@ -605,14 +626,7 @@ const PlayerLyrics = (function () {
                     this.nowPlayingShowsLyric = false;
                     this.nowPlayingLyricLine = '';
                     document.title = DEFAULT_DOCUMENT_TITLE;
-                    const restoreItem = item || this.currentPlaylistItem();
-                    if (restoreItem) {
-                        this.setNowPlayingText(
-                            restoreItem.name || restoreItem.title || 'Music',
-                            restoreItem.artist || restoreItem.channelTitle || '',
-                            restoreItem.album || 'Voice-Wei Music'
-                        );
-                    }
+                    this.setNowPlayingText('', '', '');
                 }
             },
 

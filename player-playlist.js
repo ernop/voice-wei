@@ -811,14 +811,12 @@ const PlayerPlaylist = (function () {
             updateMediaSessionForItem(item) {
                 if (!('mediaSession' in navigator) || !item) return;
 
-                const title = item.name || item.title || 'Music';
-                const artist = item.artist || item.channelTitle || '';
+                // The now-playing title belongs to the lyric relay: the
+                // driver sings along from it, so song/artist names are
+                // never written here. Clear the previous song's lyric
+                // until this song's lines start arriving.
                 if (typeof MediaMetadata !== 'undefined') {
-                    navigator.mediaSession.metadata = new MediaMetadata({
-                        title,
-                        artist,
-                        album: item.album || 'Voice-Wei Music'
-                    });
+                    navigator.mediaSession.metadata = new MediaMetadata({ title: '', artist: '', album: '' });
                 }
 
                 navigator.mediaSession.playbackState = 'playing';
