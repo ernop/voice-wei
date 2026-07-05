@@ -67,20 +67,28 @@ const MediaSessionCore = (function () {
 
     /**
      * @param {string} title
-     * @param {Array<[MediaSessionAction, () => void]>} handlers
+     * @param {{ artist?: string }} [options]
      */
-    function register(title, handlers) {
+    function updateMetadata(title, options = {}) {
         if (!('mediaSession' in navigator)) return;
 
         try {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title,
-                artist: 'Voice-Wei'
-            });
+            const metadata = options.artist === undefined
+                ? { title, artist: 'Voice-Wei' }
+                : { title, artist: options.artist };
+            navigator.mediaSession.metadata = new MediaMetadata(metadata);
             navigator.mediaSession.playbackState = 'playing';
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
+    }
+
+    /**
+     * @param {string} title
+     * @param {Array<[MediaSessionAction, () => void]>} handlers
+     */
+    function register(title, handlers) {
+        updateMetadata(title);
 
         handlers.forEach(([action, handler]) => {
             try {
@@ -98,7 +106,7 @@ const MediaSessionCore = (function () {
         document.addEventListener('touchend', prime, { once: true });
     }
 
-    return { activate, register, primeOnUserGesture };
+    return { activate, register, updateMetadata, primeOnUserGesture };
 })();
 
 window.MediaSessionCore = MediaSessionCore;

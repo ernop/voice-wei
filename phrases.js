@@ -251,10 +251,18 @@
     }
 
     /** @param {PhrasePlanNote[]} plan */
-    function syncDocumentTitle(plan) {
-        document.title = plan.length
-            ? plan.map(note => note.degree).join(' ')
-            : DEFAULT_DOCUMENT_TITLE;
+    function phraseTitleFromPlan(plan) {
+        return plan
+            .filter(note => note.enabled)
+            .flatMap(note => [note.degree, note.noteName])
+            .join(' ');
+    }
+
+    /** @param {PhrasePlanNote[]} plan */
+    function syncPhraseTitle(plan) {
+        const title = plan.length ? phraseTitleFromPlan(plan) : DEFAULT_DOCUMENT_TITLE;
+        document.title = title;
+        if (plan.length) MediaSessionCore.updateMetadata(title, { artist: '' });
     }
 
     /** @param {PhrasePlanNote[]} plan */
@@ -499,7 +507,7 @@
         if (!degreesEl || !notesEl) return;
         const plan = buildTakePlan();
         if (!plan.length) {
-            syncDocumentTitle(plan);
+            syncPhraseTitle(plan);
             degreesEl.textContent = '--';
             degreesEl.classList.remove('phrase-degrees-many');
             notesEl.textContent = '';
@@ -508,7 +516,7 @@
             updateStickyOffset();
             return;
         }
-        syncDocumentTitle(plan);
+        syncPhraseTitle(plan);
         renderPhraseUnits(plan);
         notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
         drawPhraseStaff();
@@ -821,6 +829,7 @@
         document.querySelectorAll(`[data-index="${index}"]`).forEach(token => {
             token.classList.toggle('inactive', !active);
         });
+        syncPhraseTitle(buildTakePlan());
         drawPhraseTest();
     }
 
