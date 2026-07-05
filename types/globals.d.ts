@@ -98,6 +98,7 @@ interface Window {
         breakdownPassIndex: () => number;
         mediaPlay: () => void;
         mediaNext: () => void;
+        mediaPrevious: () => void;
         settings: () => {
             breakdownEnabled: boolean;
             autoStep: boolean;

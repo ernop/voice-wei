@@ -14,6 +14,8 @@ const MediaSessionCore = (function () {
 
     /** @type {HTMLAudioElement | null} */
     let audioEl = null;
+    /** @type {MediaSessionPlaybackState | null} Last state a page reported */
+    let explicitState = null;
 
     function createSilentWavUrl() {
         const sampleCount = SAMPLE_RATE * SILENCE_SECONDS;
@@ -59,9 +61,30 @@ const MediaSessionCore = (function () {
 
         try {
             await audioEl.play();
-            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+            // The silent loop would otherwise be computed as 'playing';
+            // pages that report transport state keep their word here.
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = explicitState || 'playing';
+            }
         } catch (err) {
             // Chrome may require a user gesture before exposing hardware media controls.
+        }
+    }
+
+    /**
+     * Report the page's true transport state. Car play/pause buttons are
+     * a toggle routed by this state: claiming 'playing' while idle makes
+     * every play press arrive as 'pause', so honesty here is what makes
+     * the play button work at all.
+     * @param {MediaSessionPlaybackState} state
+     */
+    function setPlaybackState(state) {
+        explicitState = state;
+        if (!('mediaSession' in navigator)) return;
+        try {
+            navigator.mediaSession.playbackState = state;
+        } catch (err) {
+            // Optional surface; never let it break playback.
         }
     }
 
@@ -77,7 +100,6 @@ const MediaSessionCore = (function () {
                 ? { title, artist: 'Voice-Wei' }
                 : { title, artist: options.artist };
             navigator.mediaSession.metadata = new MediaMetadata(metadata);
-            navigator.mediaSession.playbackState = 'playing';
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
@@ -106,7 +128,7 @@ const MediaSessionCore = (function () {
         document.addEventListener('touchend', prime, { once: true });
     }
 
-    return { activate, register, updateMetadata, primeOnUserGesture };
+    return { activate, register, updateMetadata, setPlaybackState, primeOnUserGesture };
 })();
 
 window.MediaSessionCore = MediaSessionCore;

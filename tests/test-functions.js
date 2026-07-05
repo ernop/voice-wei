@@ -499,6 +499,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const s2 = await tab.evaluate(() => window.__voiceStarts);
         report.check(`phrases history records and replays (${historyCount} items)`, historyCount >= 2 && s2 > s1);
 
+        // Transport state honesty: idle reports 'paused' so a car's
+        // play/pause toggle sends 'play'; the media back handler steps
+        // to the previous history phrase and plays it audibly.
+        await tab.click('#stopBtn');
+        await tab.waitForTimeout(300);
+        const idleState = await tab.evaluate(() => navigator.mediaSession.playbackState);
+        const degreesNow = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        const s3 = await tab.evaluate(() => window.__voiceStarts);
+        await tab.evaluate(() => { window.phrasesDebug.mediaPrevious(); });
+        await tab.waitForTimeout(300);
+        const playingState = await tab.evaluate(() => navigator.mediaSession.playbackState);
+        await tab.waitForTimeout(1500);
+        const s4 = await tab.evaluate(() => window.__voiceStarts);
+        const degreesPrev = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        await tab.click('#stopBtn');
+        report.check(`phrases media back plays previous phrase (state ${idleState}->${playingState}, ${s4 - s3} voices)`,
+            idleState === 'paused' && playingState === 'playing' && s4 > s3 && degreesPrev !== degreesNow);
+
         // Play-on-next off: Next generates and shows a new phrase silently
         await tab.click('#playOnNextBtn');
         await tab.waitForTimeout(200);

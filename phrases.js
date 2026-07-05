@@ -176,9 +176,21 @@
     /** @type {number[][]} */
     let breakdownPasses = [];
 
+    // Honest car/lock-screen transport state: most head units render one
+    // play/pause toggle and route the press by this state, so claiming
+    // 'playing' while idle turns every play press into a pause command.
+    let transportPlaying = false;
+
+    /** @param {boolean} playing */
+    function setTransportPlaying(playing) {
+        transportPlaying = playing;
+        MediaSessionCore.setPlaybackState(playing ? 'playing' : 'paused');
+    }
+
     function stopTransport() {
         playToken++;
         cancelCurrentSound();
+        setTransportPlaying(false);
     }
 
     function stopPlayback() {
@@ -594,6 +606,7 @@
         await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
+        setTransportPlaying(true);
         do {
             await playPhraseOnce(token);
             if (token !== playToken) break;
@@ -601,6 +614,7 @@
             if (!state.loopCurrent) break;
             await sleep(650);
         } while (token === playToken && state.loopCurrent);
+        if (token === playToken) setTransportPlaying(false);
     }
 
     // Tone output may include invisible fill notes; the visible take plan
@@ -786,6 +800,10 @@
         playNext();
     }
 
+    function handleMediaPrevious() {
+        playPrevious();
+    }
+
     function exitBreakdownMode() {
         if (!state.breakdownEnabled) return;
         state.breakdownEnabled = false;
@@ -809,6 +827,30 @@
 
     async function playNext() {
         await runPhrasePlayback(playNextUnlocked);
+    }
+
+    /**
+     * Car back button: step back through the phrase history, one entry
+     * per press, replaying each. At the oldest entry it replays that.
+     */
+    async function playPreviousUnlocked() {
+        await MediaSessionCore.activate();
+        testPanel.close();
+        stopTransport();
+        exitBreakdownMode();
+        const entries = history ? history.entries : [];
+        if (entries.length) {
+            const index = entries.indexOf(currentPhrase);
+            const previous = entries[index < 0 ? 0 : Math.min(index + 1, entries.length - 1)];
+            currentPhrase = previous;
+            setTakeFromPhrase(previous);
+        }
+        if (!currentPhrase) return;
+        await playPhrase();
+    }
+
+    async function playPrevious() {
+        await runPhrasePlayback(playPreviousUnlocked);
     }
 
     function toggleRepeatLoop() {
@@ -1362,9 +1404,13 @@
             ['pause', handleMediaPause],
             ['nexttrack', handleMediaNext],
             ['seekforward', handleMediaNext],
-            ['seekto', handleMediaNext]
+            ['seekto', handleMediaNext],
+            ['previoustrack', handleMediaPrevious],
+            ['seekbackward', handleMediaPrevious]
         ]);
         MediaSessionCore.primeOnUserGesture();
+        // Idle at load: the car's toggle must send 'play', not 'pause'.
+        setTransportPlaying(false);
     }
 
     function migrateLoadedSettings() {
@@ -1407,6 +1453,7 @@
             breakdownPassIndex: () => breakdownPassIndex,
             mediaPlay: handleMediaPlay,
             mediaNext: handleMediaNext,
+            mediaPrevious: handleMediaPrevious,
             settings: () => ({
                 breakdownEnabled: state.breakdownEnabled,
                 autoStep: state.autoStep,
