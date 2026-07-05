@@ -252,10 +252,12 @@
 
     /** @param {PhrasePlanNote[]} plan */
     function phraseTitleFromPlan(plan) {
-        return plan
+        const scaleName = `${scaleRootPitchString(state.root, state.octave)} ${state.scaleType.replace(/_/g, ' ')}`;
+        const degrees = plan
             .filter(note => note.enabled)
-            .flatMap(note => [note.degree, note.noteName])
-            .join(' ');
+            .map(note => note.degree)
+            .join(',');
+        return `${scaleName} ${degrees}`;
     }
 
     /** @param {PhrasePlanNote[]} plan */

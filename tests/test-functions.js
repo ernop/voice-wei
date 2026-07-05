@@ -285,22 +285,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const degrees = await tab.evaluate(() =>
             Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
         const phraseTitle = await tab.evaluate(() => {
-            const expected = window.phrasesDebug.takePlan()
+            const degrees = window.phrasesDebug.takePlan()
                 .filter(note => note.enabled)
-                .flatMap(note => [note.degree, note.noteName])
-                .join(' ');
+                .map(note => note.degree)
+                .join(',');
             return {
-                expected,
+                degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
                 headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
             };
         });
-        report.check(`phrases title follows playable note sequence ("${phraseTitle.documentTitle}")`,
-            phraseTitle.documentTitle === phraseTitle.expected
-            && phraseTitle.mediaTitle === phraseTitle.expected
-            && phraseTitle.headerTitle === phraseTitle.expected
-            && phraseTitle.expected.length > 0
+        const titleShape = /^[A-G][b#]?\d [a-z ]+ [^ ]+$/;
+        report.check(`phrases title is scale name plus degree list ("${phraseTitle.documentTitle}")`,
+            titleShape.test(phraseTitle.documentTitle)
+            && phraseTitle.documentTitle.endsWith(` ${phraseTitle.degrees}`)
+            && phraseTitle.mediaTitle === phraseTitle.documentTitle
+            && phraseTitle.headerTitle === phraseTitle.documentTitle
+            && phraseTitle.degrees.length > 0
             && !phraseTitle.documentTitle.includes('Phrases')
             && !phraseTitle.documentTitle.includes('Voice'));
 
@@ -324,21 +326,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         await tab.waitForTimeout(200);
         const maskedTitle = await tab.evaluate(() => {
-            const expected = window.phrasesDebug.takePlan()
+            const degrees = window.phrasesDebug.takePlan()
                 .filter(note => note.enabled)
-                .flatMap(note => [note.degree, note.noteName])
-                .join(' ');
+                .map(note => note.degree)
+                .join(',');
             return {
-                expected,
+                degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
                 headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
             };
         });
         report.check('phrases title follows playable note mask',
-            maskedTitle.documentTitle === maskedTitle.expected
-            && maskedTitle.mediaTitle === maskedTitle.expected
-            && maskedTitle.headerTitle === maskedTitle.expected);
+            maskedTitle.documentTitle.endsWith(` ${maskedTitle.degrees}`)
+            && maskedTitle.mediaTitle === maskedTitle.documentTitle
+            && maskedTitle.headerTitle === maskedTitle.documentTitle);
         const starts0 = await tab.evaluate(() => window.__voiceStarts);
         await tab.click('#playBtn');
         await tab.waitForTimeout(noteCount * 350 + 1200);
