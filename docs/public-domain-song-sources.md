@@ -1,6 +1,8 @@
 # Public-Domain Song Sources
 
-The player imports local `.mid`, `.midi`, `.musicxml`, and `.xml` files. Use
+Source material for the Music player's Local Song Library (usage in
+[tools.md](tools.md)). The player imports local `.mid`, `.midi`,
+`.musicxml`, and `.xml` files. Use
 `./download-public-domain-songs.sh` to download symbolic public-domain corpora
 into `.dev/song-sources`, which is ignored by git.
 

@@ -4,7 +4,8 @@ Single source of truth for every user-facing setting on every page: what it
 means, its default, and exactly what happens when it changes. No page may
 invent a new change behavior; every setting picks one from the vocabulary
 below and is listed here. When adding a setting, add its row in the same
-change.
+change. (What each tool does is in [tools.md](tools.md); how settings
+persist is in [architecture.md](architecture.md) "Persistence".)
 
 ## Change-behavior vocabulary
 
@@ -213,6 +214,37 @@ The play loop reads settings when it generates each pattern.
 | rootRangeMid | 48 (C3, range-center stepper C2-C5) | next-round |
 
 Drone test: note stepper (C3-C5) applies on Start.
+
+## Music player (`PLAYER_SETTINGS`, lyrics view in `PLAYER_LYRICS_VIEW`)
+
+All player settings are `immediate`: they apply to the next request,
+playback update, or lyric render without replaying anything.
+
+| Setting | Default | Values | Behavior |
+|---------|---------|--------|----------|
+| aiProvider | claude | claude / openai segment row | immediate (next request; shows that provider's model row and key panel) |
+| claudeModel | claude-opus-4-8 | segment row of current Claude models | immediate (next request) |
+| openaiModel | gpt-5.5 | segment row of current OpenAI models | immediate (next request) |
+| autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
+| readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
+| lyricsOnNowPlaying | true | toggle | immediate (relay current synced lyric into the media-session title) |
+
+Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
+(re-render of the open overlay):
+
+| Setting | Default | Values |
+|---------|---------|--------|
+| fontScale | 1 | 0.72..1.9 in overlay +/- steps |
+| widthMode | wide | wide / focus |
+| align | center | center / left |
+| spacing | roomy | roomy / tight |
+| backdrop | dim | dim / blackout |
+
+API keys are plain strings via `api-keys-store.js` (`API_CLAUDE`,
+`API_OPENAI`). The playlist + current index persist in `PLAYER_PLAYLIST`;
+favorites in `PLAYER_FAVORITES`; resolved lyrics in `PLAYER_LYRICS_CACHE`.
+Unbounded history lives in the `voice-wei-music` IndexedDB (see
+"Music player durable history" in [architecture.md](architecture.md)).
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

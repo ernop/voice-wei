@@ -1,5 +1,12 @@
 # Music Player Lyrics Research
 
+Research notes behind the player's lyrics features. **Status: phases 1-3
+shipped** (LRCLIB lookup, the big-text overlay, and synced line
+highlighting live in `player-lyrics.js`; see [tools.md](tools.md) for the
+user-facing behavior). Phases 4-5 (musical metadata, alignment
+generation) remain research and feed the backlog in
+[product-goals.md](product-goals.md).
+
 ## Goal
 
 Extend the YouTube-based music player so it can:

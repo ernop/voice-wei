@@ -195,10 +195,24 @@ Transport voice commands:
 Music pauses while you speak, resumes while waiting for Claude, and pauses
 again while the response is read aloud.
 
+Requests can also be typed (the "Type a music request" box) when speaking
+is not an option.
+
 Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
 settings) the current synced lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show -- the
 song name moves to the artist slot while a line is active.
+
+Other surfaces on the page:
+
+- **Load Favorites** rebuilds a playlist from the favorited tracks.
+- **History / Cache** opens past lookups, the known-songs catalog, and
+  the YouTube search cache (all from the `voice-wei-music` IndexedDB);
+  selected lookups or songs can be loaded back into the playlist.
+- **Local Song Library** imports `.mid`/`.midi`/`.musicxml`/`.xml` melody
+  files, keeps them in this browser, and plays their melodies on the
+  shared piano. Public-domain corpora to import are listed in
+  [public-domain-song-sources.md](public-domain-song-sources.md).
 
 ## Books
 

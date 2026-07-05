@@ -1,5 +1,10 @@
 # Environment and Deployment Setup
 
+How to prepare a machine to work on this repo and how the deploy pipeline
+gets code to production. What to run before shipping is in
+[agents.md](../agents.md) ("Shipping"); the test suites themselves are
+described in [architecture.md](architecture.md) ("Testing").
+
 ## Cloud Agent / Fresh Linux VM Setup
 
 Run the repo setup script before verification in a new Cursor cloud agent or
