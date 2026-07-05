@@ -201,16 +201,16 @@ const PatternPracticeCore = (function () {
      * Phrase range modes: how far offsets may wander beyond the octave.
      * 'within' = degrees 1..8 only; 'over' = two degrees past each end
      * (down to 6 of the octave below, up to 3 of the octave above for
-     * seven-note scales); 'around' = centered on the root, half an octave
-     * each way (5-6-7 below up to 5 above for seven-note scales);
-     * 'expanded' = half an octave below to two octaves up.
+     * seven-note scales); 'around' = the full octave 1..8 plus down to
+     * the 1 an octave below; 'expanded' = half an octave below to two
+     * octaves up.
      * @param {string} rangeMode
      * @param {number} dp - degrees per octave
      */
     function rangeBounds(rangeMode, dp) {
         if (rangeMode === 'expanded') return { min: -Math.floor(dp / 2), max: dp * 2 };
         if (rangeMode === 'over') return { min: -2, max: dp + 2 };
-        if (rangeMode === 'around') return { min: -Math.floor(dp / 2), max: Math.ceil(dp / 2) };
+        if (rangeMode === 'around') return { min: -dp, max: dp };
         return { min: 0, max: dp };
     }
 
@@ -233,7 +233,7 @@ const PatternPracticeCore = (function () {
 
     /**
      * Random starts stay in the first octave but must also fit the range
-     * bounds (the 'around' window tops out below the octave).
+     * bounds.
      * @param {{ startAtOne: boolean }} options
      * @param {number} dp
      * @param {number} minOffset

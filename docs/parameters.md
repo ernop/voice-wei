@@ -82,9 +82,9 @@ chooses a question range, not a root) and keeps its own range.
 
 Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
 past each end (down to 6 of the octave below, up to 3 of the octave above
-for seven-note scales); "around 1" centers the exploration on the root with
-half an octave each way (5-6-7 of the octave below up to 5 for seven-note
-scales); "out octave" allows half an octave below to two octaves up.
+for seven-note scales); "around 1" allows the full octave 1-8 plus down to
+the 1 an octave below; "out octave" allows half an octave below to two
+octaves up.
 
 Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
 "staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);
