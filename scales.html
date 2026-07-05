@@ -76,7 +76,7 @@
             </div>
 
             <!-- Voice-First Scale Builder - All Bidirectional Controls -->
-            <div class="voice-first-ui">
+            <div class="voice-first-ui vf-compact">
                 <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
                     click directly. <button class="vf-dismiss" id="dismissInstruction">x</button></p>
 
@@ -230,6 +230,24 @@
                 </div>
 
                 <div class="vf-row">
+                    <span class="vf-label" data-full="Display" data-abbr="Dsp">Display</span>
+                    <div class="vf-options">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="showSequenceToggle">
+                            <span>Show Sequence</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="useAbbrevToggle">
+                            <span>Use Abbreviations</span>
+                        </label>
+                        <label class="display-toggle">
+                            <input type="checkbox" id="echoCommandsToggle">
+                            <span>Echo Commands</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="vf-row">
                     <span class="vf-label" data-full="Scale" data-abbr="Scl">Scale</span>
                     <div class="vf-options">
                         <button class="vf-btn" data-scale-type="major" data-full="major" data-abbr="Maj">major</button>
@@ -252,22 +270,6 @@
                         <button id="randomBtn" class="panel-action-btn">Random</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Display Toggles -->
-            <div class="display-toggles">
-                <label class="display-toggle">
-                    <input type="checkbox" id="showSequenceToggle">
-                    <span>Show Sequence</span>
-                </label>
-                <label class="display-toggle">
-                    <input type="checkbox" id="useAbbrevToggle">
-                    <span>Use Abbreviations</span>
-                </label>
-                <label class="display-toggle">
-                    <input type="checkbox" id="echoCommandsToggle">
-                    <span>Echo Commands</span>
-                </label>
             </div>
 
             <!-- Voice Control Commands -->

@@ -272,11 +272,6 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     margin-bottom: 0;
 }
 
-.phrase-control-card .segment-row .vf-btn {
-    min-width: auto;
-    flex: 0 0 auto;
-}
-
 .phrase-algo-row,
 .phrase-scale-row,
 .phrase-genre-row {
@@ -408,52 +403,8 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     box-shadow: 0 4px 18px rgba(245, 158, 11, 0.32);
 }
 
-/* Dense control stack: pill rows top out at 16px tall (12px line +
-   1px padding and 1px border each side). */
-.phrase-control-card .vf-btn {
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    line-height: 12px;
-}
-
-.phrase-controls .segment-row {
-    padding: 2px;
-    gap: 2px;
-}
-
-.phrase-controls .vf-options {
-    gap: 3px;
-}
-
-.phrase-controls .step-field {
-    padding: 2px;
-    grid-template-columns: 52px 30px 44px 30px;
-}
-
-.phrase-controls .step-btn {
-    width: 32px;
-    height: 20px;
-    font-size: 0.85rem;
-}
-
-.phrase-controls .step-value {
-    padding: 2px 6px;
-    font-size: 0.78rem;
-}
-
-.phrase-controls .display-toggle {
-    padding: 1px 7px;
-    gap: 4px;
-    font-size: 0.7rem;
-    line-height: 12px;
-}
-
-.phrase-controls .display-toggle input[type="checkbox"] {
-    width: 12px;
-    height: 12px;
-    margin: 0;
-}
+/* Dense control stack itself comes from the shared .vf-compact class
+   (practice-controls.css); only phrase-specific layout stays here. */
 
 @media (max-width: 640px) {
     .phrase-control-grid {

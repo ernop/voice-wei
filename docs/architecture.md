@@ -494,15 +494,19 @@ Beyond pickers, the rest of the control vocabulary is also fixed:
   Show, Select All). Add `.danger` for destructive actions (red hover).
 - **Secondary buttons**: `secondary-btn` for mid-size neutral actions
   (trace Reset, ears sing controls). Also takes `.danger`.
+- **Primary buttons**: `primary-btn` for mid-size green "do the thing"
+  actions (Books import/generate/play-from-progress).
 - **Text fields**: `text-input` base look; pages may size (width,
   font-size, resize), never re-skin.
 - **Selected state**: `.selected`, everywhere. No `.active` dialects.
+- **Compact density**: `vf-compact` on a settings container switches the
+  shared controls inside to the 16px pill density (phrases, scales).
 
 Page stylesheets may add layout (placement, sizing) on top of these but
 must not redefine their look. `tests/test-css-ownership.js` fails the
-suite if a page stylesheet redefines a selector owned by
-practice-controls.css. The concrete class-by-class inventory (including
-the player and Books dialects still awaiting convergence) is
+suite if a page stylesheet (including ebook.css) redefines a selector
+owned by practice-controls.css. The concrete class-by-class inventory
+(with the player dialects still awaiting convergence) is
 [controls.md](controls.md).
 
 ## Canonical settings order
@@ -527,7 +531,8 @@ phrase stage) sit outside this order.
 Gameplay surfaces that are not settings controls and intentionally keep
 their own look: ears' answer grid and interval multi-select, scales'
 piano keyboard, the player's media transport bar and lyrics overlay,
-and the ebook reader (a separate non-music tool with its own selects).
+and the ebook reader surface (page text, TOC, and its dynamic
+voice/model selects - Books' buttons use the shared vocabulary).
 
 ## Known deliberate gaps
 

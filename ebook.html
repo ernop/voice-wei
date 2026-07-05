@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=208">
+    <link rel="stylesheet" href="practice-controls.css?v=208">
     <link rel="stylesheet" href="ebook.css?v=208">
 </head>
 
@@ -24,18 +25,18 @@
                 <div class="api-key-status" id="apiKeyStatus"></div>
                 <div class="api-key-input-row" id="apiKeyInputRow" style="display: none;">
                     <input type="password" id="openaiApiKeyInput" placeholder="sk-..." class="api-key-input" />
-                    <button id="saveApiKeyBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveApiKeyBtn" class="panel-action-btn">Save</button>
                 </div>
                 <div class="api-key-actions" id="apiKeyActions" style="display: none;">
-                    <button id="showApiKeyBtn" class="api-key-action-btn">Show</button>
-                    <button id="changeApiKeyBtn" class="api-key-action-btn">Change</button>
-                    <button id="removeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                    <button id="showApiKeyBtn" class="panel-action-btn">Show</button>
+                    <button id="changeApiKeyBtn" class="panel-action-btn">Change</button>
+                    <button id="removeApiKeyBtn" class="panel-action-btn danger">Remove</button>
                 </div>
                 <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call OpenAI's API directly.</p>
             </div>
 
-            <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
+            <button id="closeSettingsBtn" class="panel-action-btn">Close</button>
         </div>
 
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
@@ -45,7 +46,7 @@
                         href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..." class="api-key-input" />
-                    <button id="saveApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveApiKeyOverlayBtn" class="panel-action-btn">Save</button>
                 </div>
                 <p class="api-key-privacy-note">The key stays in this browser's localStorage and is sent only to OpenAI.</p>
             </div>
@@ -60,9 +61,9 @@
                 <div class="url-import-current" id="urlImportCurrent"></div>
                 <div class="url-import-linktools" id="urlImportLinkTools" style="display: none;">
                     <input type="search" id="urlImportFilter" class="url-import-filter" placeholder="Filter links by text or URL" />
-                    <button id="urlImportSelectAll" class="small-action-btn" type="button">Select all</button>
-                    <button id="urlImportSelectNone" class="small-action-btn" type="button">Select none</button>
-                    <button id="urlImportInvert" class="small-action-btn" type="button">Invert</button>
+                    <button id="urlImportSelectAll" class="panel-action-btn" type="button">Select all</button>
+                    <button id="urlImportSelectNone" class="panel-action-btn" type="button">Select none</button>
+                    <button id="urlImportInvert" class="panel-action-btn" type="button">Invert</button>
                 </div>
                 <div class="url-import-links" id="urlImportLinks"></div>
                 <div class="url-import-build" id="urlImportBuild" style="display: none;">
@@ -70,8 +71,8 @@
                     <div class="url-import-build-status" id="urlImportBuildStatus"></div>
                 </div>
                 <footer class="url-import-actions">
-                    <button id="urlImportSubmitBtn" class="upload-button" type="button">Submit and build</button>
-                    <button id="urlImportCancelBtn" class="small-action-btn danger" type="button">Cancel</button>
+                    <button id="urlImportSubmitBtn" class="primary-btn" type="button">Submit and build</button>
+                    <button id="urlImportCancelBtn" class="panel-action-btn danger" type="button">Cancel</button>
                 </footer>
             </div>
         </div>
@@ -83,18 +84,18 @@
                 <aside class="books-library-panel">
                     <div class="upload-card">
                         <input type="file" id="fileInput" accept=".txt,.epub,.pdf,.html,.htm" hidden />
-                        <button id="uploadButton" class="upload-button" type="button">Import book</button>
+                        <button id="uploadButton" class="primary-btn" type="button">Import book</button>
                         <p>TXT, EPUB, PDF, HTML. Originals stay on this device in IndexedDB.</p>
                         <div class="url-import-row">
                             <input type="url" id="urlInput" class="url-import-input" placeholder="https://example.com/page" inputmode="url" autocomplete="off" />
-                            <button id="importUrlButton" class="small-action-btn" type="button">Add from web</button>
+                            <button id="importUrlButton" class="panel-action-btn" type="button">Add from web</button>
                         </div>
                         <p>Paste a page URL. Voice-Wei reads it, then lets you pick which of its outbound links to also pull in as chapters.</p>
                     </div>
 
                     <div class="library-toolbar">
                         <input type="search" id="librarySearch" class="library-search" placeholder="Search titles, authors, and filenames" />
-                        <button id="toggleArchiveViewBtn" class="small-action-btn" type="button">Show archive</button>
+                        <button id="toggleArchiveViewBtn" class="panel-action-btn" type="button">Show archive</button>
                         <div class="storage-line">
                             <span id="storageEstimate">Checking storage...</span>
                             <span id="storagePersistenceStatus">Keeping storage by default</span>
@@ -113,18 +114,18 @@
                 <section class="book-workspace" id="bookWorkspace" style="display: none;">
                     <header class="workspace-header">
                         <div>
-                            <button id="backToLibraryBtn" class="back-library-btn" type="button">&lt; Bookshelf</button>
+                            <button id="backToLibraryBtn" class="secondary-btn" type="button">&lt; Bookshelf</button>
                             <h2 id="workspaceTitle">Book Title</h2>
                             <div class="workspace-meta" id="workspaceMeta"></div>
                         </div>
                         <div class="workspace-actions">
-                            <button id="downloadOriginalBtn" class="small-action-btn" type="button">Original</button>
-                            <button id="downloadCurrentSegmentBtn" class="small-action-btn" type="button">Chunk MP3</button>
-                            <button id="downloadAllSegmentsBtn" class="small-action-btn" type="button">All MP3s</button>
-                            <button id="downloadCombinedBtn" class="small-action-btn" type="button">Combined MP3</button>
-                            <button id="toggleArchiveCurrentBookBtn" class="small-action-btn" type="button">Move to archive</button>
-                            <button id="deleteCurrentSegmentAudioBtn" class="small-action-btn danger" type="button">Delete chunk MP3</button>
-                            <button id="deleteAllAudioBtn" class="small-action-btn danger" type="button">Delete all MP3s</button>
+                            <button id="downloadOriginalBtn" class="panel-action-btn" type="button">Original</button>
+                            <button id="downloadCurrentSegmentBtn" class="panel-action-btn" type="button">Chunk MP3</button>
+                            <button id="downloadAllSegmentsBtn" class="panel-action-btn" type="button">All MP3s</button>
+                            <button id="downloadCombinedBtn" class="panel-action-btn" type="button">Combined MP3</button>
+                            <button id="toggleArchiveCurrentBookBtn" class="panel-action-btn" type="button">Move to archive</button>
+                            <button id="deleteCurrentSegmentAudioBtn" class="panel-action-btn danger" type="button">Delete chunk MP3</button>
+                            <button id="deleteAllAudioBtn" class="panel-action-btn danger" type="button">Delete all MP3s</button>
                         </div>
                     </header>
 
@@ -143,7 +144,7 @@
                                         <strong>Current voice and settings</strong>
                                         <span id="currentVoiceSummary">Loading voice settings...</span>
                                     </div>
-                                    <button id="toggleVoiceConfigBtn" class="small-action-btn" type="button">Configure voice</button>
+                                    <button id="toggleVoiceConfigBtn" class="panel-action-btn" type="button">Configure voice</button>
                                 </div>
                                 <div class="conversion-options-card" id="voiceConfigPanel" style="display: none;">
                                     <div class="conversion-options-header">
@@ -153,28 +154,28 @@
                                     <div class="conversion-options-grid">
                                         <label>
                                             Voice
-                                            <select id="generatorTtsVoice" class="model-selector"></select>
+                                            <select id="generatorTtsVoice" class="books-select"></select>
                                         </label>
                                         <label>
                                             Model
-                                            <select id="generatorTtsModel" class="model-selector"></select>
+                                            <select id="generatorTtsModel" class="books-select"></select>
                                         </label>
                                         <p class="conversion-options-wide model-pricing-line" id="generatorModelPricingDescription"></p>
                                         <label>
                                             Speed
-                                            <div class="speed-control">
-                                                <button class="speed-step-btn" type="button" data-tts-speed-step="-0.1" aria-label="Slow narration down">-</button>
-                                                <span id="generatorTtsSpeedValue" class="speed-value">1.0x</span>
-                                                <button class="speed-step-btn" type="button" data-tts-speed-step="0.1" aria-label="Speed narration up">+</button>
+                                            <div class="step-field step-field-bare">
+                                                <button class="step-btn" type="button" data-tts-speed-step="-0.1" aria-label="Slow narration down">-</button>
+                                                <span id="generatorTtsSpeedValue" class="step-value">1.0x</span>
+                                                <button class="step-btn" type="button" data-tts-speed-step="0.1" aria-label="Speed narration up">+</button>
                                             </div>
                                         </label>
                                         <label>
                                             Accent
-                                            <select id="generatorTtsAccent" class="model-selector"></select>
+                                            <select id="generatorTtsAccent" class="books-select"></select>
                                         </label>
                                         <label>
                                             Style
-                                            <select id="generatorTtsStyle" class="model-selector"></select>
+                                            <select id="generatorTtsStyle" class="books-select"></select>
                                         </label>
                                         <label class="conversion-options-wide">
                                             Extra instructions
@@ -211,17 +212,17 @@
                                 <div class="chapter-generator-row">
                                     <label for="generationChapterSelect">Book TOC</label>
                                     <select id="generationChapterSelect" class="chapter-selector"></select>
-                                    <button id="generateSelectedChapterBtn" class="primary-action-btn" type="button">Selected chapter</button>
+                                    <button id="generateSelectedChapterBtn" class="primary-btn" type="button">Selected chapter</button>
                                 </div>
                                 <div class="generator-actions">
-                                    <button id="generatePreviousChapterBtn" class="primary-action-btn" type="button">-Chapter</button>
-                                    <button id="generateCurrentChapterBtn" class="primary-action-btn" type="button">Current chapter</button>
-                                    <button id="generateNextChapterBtn" class="primary-action-btn" type="button">+Chapter</button>
-                                    <button id="generateAllBtn" class="primary-action-btn" type="button">Whole book</button>
-                                    <button id="generateCurrentChunkBtn" class="primary-action-btn" type="button">+Chunk</button>
-                                    <button id="generateNext15Btn" class="primary-action-btn" type="button">+15 min</button>
+                                    <button id="generatePreviousChapterBtn" class="primary-btn" type="button">-Chapter</button>
+                                    <button id="generateCurrentChapterBtn" class="primary-btn" type="button">Current chapter</button>
+                                    <button id="generateNextChapterBtn" class="primary-btn" type="button">+Chapter</button>
+                                    <button id="generateAllBtn" class="primary-btn" type="button">Whole book</button>
+                                    <button id="generateCurrentChunkBtn" class="primary-btn" type="button">+Chunk</button>
+                                    <button id="generateNext15Btn" class="primary-btn" type="button">+15 min</button>
                                 </div>
-                                <button id="cancelGenerationBtn" class="danger-action-btn generation-cancel-btn" type="button">Cancel MP3 conversion</button>
+                                <button id="cancelGenerationBtn" class="secondary-btn danger generation-cancel-btn" type="button">Cancel MP3 conversion</button>
                                 <label class="ahead-toggle">
                                     <input type="checkbox" id="autoGenerateAheadToggle" />
                                     <span>Keep about 1 hour generated ahead while listening</span>
@@ -241,24 +242,24 @@
                                         <span id="playerDuration">0:00</span>
                                     </div>
                                     <div class="player-control-grid">
-                                        <button id="previousSegmentBtn" class="small-action-btn transport-step-btn" type="button">Prev</button>
-                                        <button id="back30Btn" class="small-action-btn transport-step-btn" type="button">-30s</button>
-                                        <button id="quadraticBackBtn" class="small-action-btn transport-step-btn" type="button">Half back</button>
-                                        <button id="playPauseBtn" class="primary-action-btn" type="button">Play</button>
-                                        <button id="quadraticForwardBtn" class="small-action-btn transport-step-btn" type="button">Half fwd</button>
-                                        <button id="forward30Btn" class="small-action-btn transport-step-btn" type="button">+30s</button>
-                                        <button id="nextSegmentBtn" class="small-action-btn transport-step-btn" type="button">Next</button>
+                                        <button id="previousSegmentBtn" class="panel-action-btn transport-step-btn" type="button">Prev</button>
+                                        <button id="back30Btn" class="panel-action-btn transport-step-btn" type="button">-30s</button>
+                                        <button id="quadraticBackBtn" class="panel-action-btn transport-step-btn" type="button">Half back</button>
+                                        <button id="playPauseBtn" class="primary-btn" type="button">Play</button>
+                                        <button id="quadraticForwardBtn" class="panel-action-btn transport-step-btn" type="button">Half fwd</button>
+                                        <button id="forward30Btn" class="panel-action-btn transport-step-btn" type="button">+30s</button>
+                                        <button id="nextSegmentBtn" class="panel-action-btn transport-step-btn" type="button">Next</button>
                                     </div>
                                 </div>
                                 <div class="player-actions">
-                                    <button id="playFromProgressBtn" class="primary-action-btn" type="button">Play from progress</button>
-                                    <button id="showHistoryBtn" class="small-action-btn" type="button">History</button>
+                                    <button id="playFromProgressBtn" class="primary-btn" type="button">Play from progress</button>
+                                    <button id="showHistoryBtn" class="panel-action-btn" type="button">History</button>
                                 </div>
                                 <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3s. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
                                     <div class="history-header">
                                         <strong>Listening history</strong>
-                                        <button id="hideHistoryBtn" class="small-action-btn" type="button">Hide</button>
+                                        <button id="hideHistoryBtn" class="panel-action-btn" type="button">Hide</button>
                                     </div>
                                     <div id="historySummary" class="history-summary"></div>
                                     <div id="historyList" class="history-list"></div>
@@ -269,8 +270,8 @@
                         <section class="reader-panel">
                             <div class="reader-toolbar">
                                 <input type="search" id="readerSearch" class="reader-search" placeholder="Search this book's contents" />
-                                <button id="readerSearchClearBtn" class="small-action-btn" type="button">Clear</button>
-                                <button id="readerFullscreenBtn" class="small-action-btn" type="button">Fullscreen</button>
+                                <button id="readerSearchClearBtn" class="panel-action-btn" type="button">Clear</button>
+                                <button id="readerFullscreenBtn" class="panel-action-btn" type="button">Fullscreen</button>
                             </div>
                             <div id="readerView" class="reader-view"></div>
                         </section>
@@ -278,7 +279,7 @@
                         <div class="log-container compact-log" id="logContainer">
                             <div class="log-header">
                                 <span class="log-label">Log</span>
-                                <button id="clearLogBtn" class="clear-log-btn" type="button">Clear</button>
+                                <button id="clearLogBtn" class="panel-action-btn" type="button">Clear</button>
                             </div>
                             <div class="log-content" id="logContent"></div>
                         </div>

@@ -153,6 +153,64 @@
     }
 }
 
+/* Compact density: put .vf-compact on a settings container to get the
+   16px pill rows introduced on Phrases (12px line + 1px padding and
+   1px border each side). The whole settings block shrinks so more of
+   it stays on screen - the car-glance layout. */
+.vf-compact .vf-btn {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    line-height: 12px;
+}
+
+.vf-compact .segment-row {
+    padding: 2px;
+    gap: 2px;
+}
+
+.vf-compact .segment-row .vf-btn {
+    min-width: auto;
+    flex: 0 0 auto;
+}
+
+.vf-compact .vf-options {
+    gap: 3px;
+}
+
+.vf-compact .step-field {
+    padding: 2px;
+    grid-template-columns: 52px 30px 44px 30px;
+}
+
+.vf-compact .step-field-bare {
+    grid-template-columns: 30px 44px 30px;
+}
+
+.vf-compact .step-btn {
+    width: 32px;
+    height: 20px;
+    font-size: 0.85rem;
+}
+
+.vf-compact .step-value {
+    padding: 2px 6px;
+    font-size: 0.78rem;
+}
+
+.vf-compact .display-toggle {
+    padding: 1px 7px;
+    gap: 4px;
+    font-size: 0.7rem;
+    line-height: 12px;
+}
+
+.vf-compact .display-toggle input[type="checkbox"] {
+    width: 12px;
+    height: 12px;
+    margin: 0;
+}
+
 .pitch-test-panel {
     margin: 0 0 14px;
     padding: 16px;
@@ -630,6 +688,35 @@
 .panel-action-btn.danger:hover {
     background: rgba(239, 68, 68, 0.3);
     border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Mid-size primary action (Books import/generate/play-from-progress):
+   the green "do the thing" button, one look everywhere */
+.primary-btn {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    border: none;
+    border-radius: 8px;
+    color: #06240f;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.primary-btn:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+}
+
+.primary-btn:active {
+    transform: scale(0.98);
+}
+
+.panel-action-btn:disabled,
+.secondary-btn:disabled,
+.primary-btn:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Mid-size neutral action button (trace Reset, ears sing controls) */

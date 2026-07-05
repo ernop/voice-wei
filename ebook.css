@@ -1,7 +1,6 @@
 /* Books: local library, reader, generator, and audio player */
 
 .voice-selector-row,
-.speed-control,
 .workspace-actions,
 .generator-actions,
 .chapter-generator-row,
@@ -13,7 +12,7 @@
     align-items: center;
 }
 
-.model-selector,
+.books-select,
 .library-search,
 .reader-search,
 .chapter-selector,
@@ -27,13 +26,13 @@
     color: #e8f5e9;
 }
 
-.model-selector option,
+.books-select option,
 .chapter-selector option {
     background: #1a3a2e;
     color: #e8f5e9;
 }
 
-.model-selector:focus,
+.books-select:focus,
 .library-search:focus,
 .reader-search:focus,
 .chapter-selector:focus,
@@ -52,101 +51,12 @@
     opacity: 0.58;
 }
 
-.small-action-btn,
-.primary-action-btn,
-.danger-action-btn,
-.upload-button {
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
-}
+/* Buttons come from the shared vocabulary (practice-controls.css):
+   panel-action-btn, primary-btn, secondary-btn, step-field/step-btn.
+   Only Books layout (grids, widths) is added below. */
 
-.small-action-btn {
-    padding: 8px 10px;
-    background: rgba(74, 222, 128, 0.14);
-    color: #86efac;
-    border: 1px solid rgba(74, 222, 128, 0.24);
-    font-size: 0.82rem;
-}
-
-.small-action-btn:hover {
-    background: rgba(74, 222, 128, 0.23);
-}
-
-.small-action-btn.danger {
-    background: rgba(239, 68, 68, 0.16);
-    color: #fca5a5;
-    border-color: rgba(239, 68, 68, 0.28);
-}
-
-.small-action-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.25);
-}
-
-.small-action-btn:disabled,
-.primary-action-btn:disabled,
-.danger-action-btn:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
-}
-
-.primary-action-btn,
-.upload-button {
-    padding: 10px 12px;
-    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-    color: #0d2818;
-    font-size: 0.9rem;
-}
-
-.danger-action-btn {
-    padding: 10px 12px;
-    background: rgba(239, 68, 68, 0.2);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    font-size: 0.9rem;
-}
-
-.speed-control {
-    display: grid;
-    grid-template-columns: 44px minmax(68px, 1fr) 44px;
-    gap: 6px;
-    align-items: center;
+.conversion-options-grid .step-field {
     margin-top: 8px;
-}
-
-.speed-step-btn {
-    min-height: 38px;
-    border-radius: 8px;
-    border: 1px solid rgba(74, 222, 128, 0.28);
-    background: rgba(74, 222, 128, 0.13);
-    color: #bbf7d0;
-    font-size: 1rem;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.speed-step-btn:hover {
-    background: rgba(74, 222, 128, 0.24);
-}
-
-.speed-step-btn:disabled {
-    opacity: 0.42;
-    cursor: not-allowed;
-}
-
-#ttsSpeedValue,
-#generatorTtsSpeedValue {
-    min-width: 68px;
-    min-height: 38px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.24);
-    text-align: center;
-    font-weight: 700;
-    color: #86efac;
 }
 
 .books-shell {
@@ -191,7 +101,7 @@
     margin-bottom: 12px;
 }
 
-.upload-button {
+.upload-card > .primary-btn {
     width: 100%;
     margin-bottom: 8px;
 }
@@ -397,10 +307,8 @@
     padding-top: 12px;
 }
 
-.url-import-actions .upload-button {
-    width: auto;
+.url-import-actions .primary-btn {
     flex: 1;
-    margin-bottom: 0;
 }
 
 .upload-card p,
@@ -577,18 +485,8 @@
     min-width: 0;
 }
 
-.back-library-btn {
-    display: inline-flex;
-    align-items: center;
+.workspace-header .secondary-btn {
     margin-bottom: 4px;
-    padding: 5px 8px;
-    border: 1px solid rgba(74, 222, 128, 0.28);
-    border-radius: 8px;
-    background: rgba(74, 222, 128, 0.12);
-    color: #86efac;
-    cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 750;
 }
 
 .workspace-header {
@@ -619,7 +517,7 @@
     gap: 5px;
 }
 
-.workspace-actions .small-action-btn {
+.workspace-actions .panel-action-btn {
     padding: 6px 7px;
     font-size: 0.74rem;
     line-height: 1.15;
@@ -943,30 +841,16 @@
     gap: 5px;
 }
 
-.voice-sample-btn {
-    padding: 7px 5px;
-    border-radius: 7px;
-    border: 1px solid rgba(74, 222, 128, 0.22);
-    background: rgba(74, 222, 128, 0.1);
-    color: #bbf7d0;
-    font-size: 0.72rem;
-    font-weight: 750;
-    cursor: pointer;
+/* Sample chips are shared vf-btn option chips; the grid sizes them and
+   a playing chip glows amber while its sample is audible. */
+.voice-sample-grid .vf-btn {
+    text-align: center;
 }
 
-.voice-sample-btn.selected {
-    border-color: rgba(74, 222, 128, 0.52);
-    background: rgba(74, 222, 128, 0.18);
-}
-
-.voice-sample-btn.playing {
+.voice-sample-grid .vf-btn.playing {
     background: rgba(251, 191, 36, 0.2);
     border-color: rgba(251, 191, 36, 0.46);
     color: #fde68a;
-}
-
-.voice-sample-btn:hover {
-    background: rgba(74, 222, 128, 0.2);
 }
 
 .voice-sample-status {
@@ -993,7 +877,7 @@
     margin: 10px 0;
 }
 
-.generator-actions .primary-action-btn {
+.generator-actions .primary-btn {
     padding: 8px 5px;
     font-size: 0.76rem;
     line-height: 1.1;
@@ -1173,7 +1057,8 @@
 .player-seek-track {
     position: relative;
     width: 100%;
-    height: 12px;
+    /* Tall enough to hit while driving */
+    height: 22px;
     border: none;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.13);
@@ -1202,13 +1087,20 @@
     gap: 4px;
 }
 
-.player-control-grid .small-action-btn,
-.player-control-grid .primary-action-btn {
+/* Driving-friendly transport: tall tap targets that can be hit without
+   looking closely, Play the tallest and brightest of the row. */
+.player-control-grid .panel-action-btn,
+.player-control-grid .primary-btn {
     padding: 7px 4px;
-    min-height: 36px;
-    font-size: 0.72rem;
-    line-height: 1.05;
-    border-radius: 8px;
+    min-height: 58px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.1;
+    border-radius: 10px;
+}
+
+.player-control-grid .primary-btn {
+    font-size: 1rem;
 }
 
 .player-actions {
@@ -1218,10 +1110,10 @@
     margin-top: 10px;
 }
 
-.player-actions .primary-action-btn,
-.player-actions .small-action-btn {
+.player-actions .primary-btn,
+.player-actions .panel-action-btn {
     width: 100%;
-    min-height: 40px;
+    min-height: 48px;
 }
 
 .transport-step-btn {
@@ -1236,15 +1128,16 @@
     border: 1px solid rgba(74, 222, 128, 0.18);
 }
 
-.history-header {
+.history-panel .history-header {
     display: flex;
     justify-content: space-between;
     gap: 8px;
     align-items: center;
+    margin-bottom: 0;
     color: #a7f3d0;
 }
 
-.history-summary {
+.history-panel .history-summary {
     display: grid;
     gap: 4px;
     margin: 8px 0;
@@ -1253,7 +1146,7 @@
     text-align: left;
 }
 
-.history-list {
+.history-panel .history-list {
     display: grid;
     gap: 4px;
     max-height: 180px;
@@ -1263,7 +1156,7 @@
     text-align: left;
 }
 
-.history-item {
+.history-panel .history-item {
     padding: 5px 6px;
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.04);

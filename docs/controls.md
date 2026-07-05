@@ -21,6 +21,7 @@ surfaces" in architecture.md with its reasoning.
 | Numeric stepper | `step-field` / `step-field-bare` + `step-btn` | practice-controls.css |
 | Small action chip (Copy, Clear, Save, Apply...) | `panel-action-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size neutral action | `secondary-btn` (+ `.danger`) | practice-controls.css |
+| Mid-size primary action (Import, Generate, Play) | `primary-btn` | practice-controls.css |
 | Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`), `pitch-test-launch-button` | practice-controls.css / style.css |
 | Primary submit | `submit-button-large` | style.css |
 | On/off toggle | `display-toggle` chip checkbox | practice-controls.css |
@@ -29,6 +30,11 @@ surfaces" in architecture.md with its reasoning.
 
 Modifiers are fixed too: `.selected` for selected state (no `.active`
 dialects), `.danger` for destructive, `.listening` for an active mic.
+
+**Density:** adding `vf-compact` to a settings container switches every
+shared control inside it to the 16px pill density introduced on Phrases.
+Phrases and Scales use it; a page that wants the compact car-glance
+layout opts in with that one class instead of re-declaring sizes.
 
 ## Inventory - conforming pages
 
@@ -73,23 +79,26 @@ families (`control-btn*`, `transport-bar-btn`, overlay transport). The
 end state is a single `media-btn` family with size/context modifiers,
 used by the central player, the sticky bar, and the lyrics overlay.
 
-## Inventory - Books (ebook.css)
+## Inventory - Books (ebook.css) - CONVERGED
 
-Books is a deliberately distinct non-music tool, but its buttons do
-ordinary jobs and map cleanly when the standardization pass reaches it:
+Books now loads practice-controls.css and uses the shared vocabulary;
+ebook.css is in the ownership test and holds layout only. The mapping
+that was executed:
 
-| Dialect class | Job today | Maps to |
-|---------------|-----------|---------|
-| `small-action-btn` (+ `.danger`, `transport-step-btn`) | Small actions everywhere | `panel-action-btn` |
-| `primary-action-btn` | Primary generate/import actions | `secondary-btn` or `submit-button-large` |
-| `danger-action-btn` | Destructive (cancel generation) | `panel-action-btn danger` |
-| `upload-button` | Import file | `secondary-btn` |
-| `speed-step-btn` | TTS speed stepper | `step-field` + `step-btn` |
-| `voice-sample-btn` | Per-voice sample chips | `panel-action-btn` |
-| `back-library-btn` | Back navigation | `secondary-btn` |
+| Retired dialect | Now |
+|-----------------|-----|
+| `small-action-btn` (+ `.danger`) | `panel-action-btn` (+ `.danger`); `transport-step-btn` survives as a layout modifier |
+| `primary-action-btn`, `upload-button` | `primary-btn` |
+| `danger-action-btn` | `secondary-btn danger` |
+| `speed-step-btn` + `speed-control` | `step-field step-field-bare` + `step-btn` / `step-value` |
+| `voice-sample-btn` (+ `.selected`, `.playing`) | `vf-btn` (+ `.selected`); `.playing` styled as a scoped state in ebook.css |
+| `back-library-btn` | `secondary-btn` |
+| `save-api-key-btn`, `api-key-action-btn`, `close-settings-btn`, `clear-log-btn` (Books markup only) | `panel-action-btn` (+ `.danger`) |
+| `model-selector` (Books' selects) | renamed `books-select` so the retired player dialect name stays dead |
 
 Books' OpenAI voice/model `<select>`s stay (dynamic lists; the declared
-exception in architecture.md).
+exception in architecture.md). The Listen card's transport grid keeps
+the shared classes but sizes them tall (58px) for driving.
 
 ## Other pages
 
@@ -114,12 +123,14 @@ job (architecture.md, "How to decide what a control looks like"):
    Lyrics availability (`lyrics-available` / `lyrics-loading` /
    `lyrics-unavailable`) becomes state classes on `media-btn`.
 3. **Ownership and enforcement.** Carve the player's styles out of
-   style.css into `player.css`, add `player.css` (and later `ebook.css`)
-   to the `PAGE_SHEETS` list in `tests/test-css-ownership.js`, and add
-   every retired class from stages 1-2 to the retired-dialects list in
+   style.css into `player.css`, add `player.css` to the `PAGE_SHEETS`
+   list in `tests/test-css-ownership.js`, and add every retired class
+   from stages 1-2 to the retired-dialects list in
    `tests/test-controls.js` so they cannot reappear.
-4. **Books pass.** Apply the Books mapping table above, then retire
-   ebook.css's private button vocabulary the same way.
+4. **Books pass - DONE.** The Books mapping table above was executed:
+   ebook.html loads practice-controls.css, ebook.css lost its private
+   button vocabulary, ebook.css is in the ownership test, and the Books
+   dialects are on the retired list with `ebook` checked as a page.
 
 Feature unification between tabs (shared favorites/history surfaces,
 transport conventions, car mode) builds on this: controls converge first
@@ -130,5 +141,9 @@ control language.
 
 - `load-favorites-btn` (style.css) - markup now uses `quick-action-btn`;
   rules deleted.
-- `preview-voice-btn` (ebook.css) - superseded by `voice-sample-btn`;
-  rules deleted.
+- `preview-voice-btn` (ebook.css) - superseded by `voice-sample-btn`
+  (itself now retired into `vf-btn`); rules deleted.
+- All Books button dialects in the table above - retired into the
+  shared vocabulary and blocked by `tests/test-controls.js`.
+- `display-toggles` and `echo-toggle` (scales.css) - Scales' display
+  toggles moved into the voice-first settings block as a labeled row.

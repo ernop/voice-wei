@@ -713,7 +713,7 @@ class BooksController {
         grid.innerHTML = voices.map(voice => {
             const selected = voice.id === this.settings.voice ? ' selected' : '';
             const playing = voice.id === this.voiceSampleVoice && this.voiceSampleAudio && !this.voiceSampleAudio.paused ? ' playing' : '';
-            return `<button class="voice-sample-btn${selected}${playing}" type="button" data-voice-sample="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)}</button>`;
+            return `<button class="vf-btn${selected}${playing}" type="button" data-voice-sample="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)}</button>`;
         }).join('');
     }
 

@@ -23,6 +23,10 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             '.phrase-repeat-button', '.clear-history-btn', '.copy-all-history-btn', '.copy-all-btn',
             '.vf-reset-btn', '.test-voice-btn', '.reset-stats-btn', '.sing-control-btn',
             '.select-all-btn', '.log-toggle-btn', '.clear-log-btn', '.model-selector', '.provider-tab',
+            '.display-toggles', '.echo-toggle',
+            // Books dialects retired into the shared vocabulary
+            '.small-action-btn', '.primary-action-btn', '.danger-action-btn', '.upload-button',
+            '.speed-step-btn', '.speed-control', '.voice-sample-btn', '.back-library-btn',
         ].join(', ');
         const expectations = [
             { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], input[type="range"]' },
@@ -31,6 +35,9 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'trace', steppers: [], forbidden: 'select, input[type="range"]' },
             { page: 'player', steppers: [], forbidden: 'select, input[type="range"]' },
+            // Books keeps its selects (dynamic voice/model lists, the declared
+            // exception) but must use the shared button vocabulary.
+            { page: 'ebook', steppers: [], forbidden: 'input[type="range"]' },
         ];
         for (const { page, steppers, forbidden } of expectations) {
             await tab.goto(`${BASE_URL}/${page}.html`, { waitUntil: 'networkidle' });
