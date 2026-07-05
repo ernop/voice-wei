@@ -809,29 +809,6 @@ h1 {
     transform: scale(0.95);
 }
 
-/* Load Favorites Button */
-.load-favorites-btn {
-    padding: 8px 16px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: rgba(250, 204, 21, 0.2);
-    color: #facc15;
-    border: 1px solid rgba(250, 204, 21, 0.4);
-    border-radius: 6px;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.load-favorites-btn:hover {
-    background: rgba(250, 204, 21, 0.3);
-    border-color: rgba(250, 204, 21, 0.6);
-}
-
-.load-favorites-btn:active {
-    transform: scale(0.95);
-}
-
 /* Quick Actions Section */
 .quick-actions {
     display: flex;

@@ -52,7 +52,6 @@
     opacity: 0.58;
 }
 
-.preview-voice-btn,
 .small-action-btn,
 .primary-action-btn,
 .danger-action-btn,
@@ -63,7 +62,6 @@
     font-weight: 700;
 }
 
-.preview-voice-btn,
 .small-action-btn {
     padding: 8px 10px;
     background: rgba(74, 222, 128, 0.14);
@@ -72,7 +70,6 @@
     font-size: 0.82rem;
 }
 
-.preview-voice-btn:hover,
 .small-action-btn:hover {
     background: rgba(74, 222, 128, 0.23);
 }
