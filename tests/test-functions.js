@@ -1876,7 +1876,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             collapsed === 'there was a guy play it');
 
         // Synced lyric lines relay into the now-playing title (car / lock
-        // screen / tab); pause restores the song's own metadata
+        // screen / tab): bare lyric only, led ahead of the sung moment so
+        // Bluetooth propagation lands on time; pause restores the song's
+        // own metadata
         const lyricRelay = await tab.evaluate(() => {
             const item = {
                 id: 77, name: 'Test Song', artist: 'Test Artist',
@@ -1897,18 +1899,28 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentLyricsItemId: 77,
                 currentLyricsLineIndex: -1,
                 nowPlayingShowsLyric: false,
+                nowPlayingLyricLine: '',
                 isPlaying: true,
                 isPaused: false,
                 currentPlayingId: 77,
                 currentPlaylistItem() { return item; }
             };
             PlayerLyrics.install(harness);
-            harness.updateSyncedLyricsPosition(6);
             const meta = () => navigator.mediaSession.metadata;
+            // 4.5s: line 1 (at 5s) is not sung yet, but within the title
+            // lead window, so the title runs ahead of the highlight.
+            harness.updateSyncedLyricsPosition(4.5);
+            const led = {
+                docTitle: document.title,
+                metaTitle: meta() ? meta().title : '',
+                metaArtist: meta() ? meta().artist : '',
+                highlightIndex: harness.currentLyricsLineIndex
+            };
+            harness.updateSyncedLyricsPosition(6);
             const during = {
                 docTitle: document.title,
                 metaTitle: meta() ? meta().title : '',
-                metaArtist: meta() ? meta().artist : ''
+                highlightIndex: harness.currentLyricsLineIndex
             };
             harness.isPaused = true;
             harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex);
@@ -1916,12 +1928,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 docTitle: document.title,
                 metaTitle: meta() ? meta().title : ''
             };
-            return { during, after };
+            return { led, during, after };
         });
-        report.check(`player relays synced lyric to now-playing title ("${lyricRelay.during.metaTitle}" / "${lyricRelay.during.metaArtist}")`,
-            lyricRelay.during.metaTitle === 'second line here'
-            && lyricRelay.during.docTitle === 'second line here'
-            && lyricRelay.during.metaArtist === 'Test Song - Test Artist'
+        report.check(`player leads synced lyric into now-playing title ("${lyricRelay.led.metaTitle}", highlight ${lyricRelay.led.highlightIndex})`,
+            lyricRelay.led.metaTitle === 'second line here'
+            && lyricRelay.led.docTitle === 'second line here'
+            && lyricRelay.led.metaArtist === ''
+            && lyricRelay.led.highlightIndex === 0
+            && lyricRelay.during.metaTitle === 'second line here'
+            && lyricRelay.during.highlightIndex === 1
             && lyricRelay.after.metaTitle === 'Test Song'
             && lyricRelay.after.docTitle !== 'second line here');
         playerVoiceErrors

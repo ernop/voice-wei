@@ -7,6 +7,11 @@ const PlayerLyrics = (function () {
     // Restored whenever the now-playing text stops showing a lyric line.
     const DEFAULT_DOCUMENT_TITLE = document.title;
 
+    // The now-playing title leads the sung lyric so Bluetooth metadata
+    // propagation (phone -> AVRCP -> car redraw) lands near the moment
+    // the line actually starts. The on-screen highlight stays unled.
+    const LYRIC_TITLE_LEAD_SECONDS = 0.75;
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
@@ -520,25 +525,33 @@ const PlayerLyrics = (function () {
                 const currentItem = this.currentLyricsItem();
                 if (!currentItem || currentItem.id !== this.currentPlayingId || !currentItem.lyricsData || currentItem.lyricsData.syncedLines.length === 0) {
                     this.applyActiveLyricsLine(-1);
+                    this.relayLyricToNowPlaying(-1);
                     return;
                 }
 
                 const syncedLines = currentItem.lyricsData.syncedLines;
-                let activeIndex = -1;
+                this.applyActiveLyricsLine(this.syncedLyricLineIndexAt(syncedLines, currentTime));
+                this.relayLyricToNowPlaying(
+                    this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS)
+                );
+            },
+
+            /** @param {SyncedLyricLine[]} syncedLines @param {number} time */
+            syncedLyricLineIndexAt(syncedLines, time) {
+                let index = -1;
                 for (let i = 0; i < syncedLines.length; i++) {
-                    if (currentTime >= syncedLines[i].time) {
-                        activeIndex = i;
+                    if (time >= syncedLines[i].time) {
+                        index = i;
                     } else {
                         break;
                     }
                 }
-                this.applyActiveLyricsLine(activeIndex);
+                return index;
             },
 
             applyActiveLyricsLine(activeIndex, force = false) {
                 if (!force && this.currentLyricsLineIndex === activeIndex) return;
                 this.currentLyricsLineIndex = activeIndex;
-                this.relayLyricToNowPlaying(activeIndex);
                 const overlayOpen = document.body.classList.contains('lyrics-overlay-open');
                 const selectors = ['#lyricsContent .lyrics-line', '#lyricsOverlayContent .lyrics-line'];
                 for (const selector of selectors) {
@@ -568,9 +581,10 @@ const PlayerLyrics = (function () {
 
             /**
              * Relay the active lyric line into the now-playing surfaces
-             * (Media Session metadata for car/lock-screen displays plus the
-             * tab title), keeping the song identity in the artist slot.
-             * With no active line, restore the song's own metadata.
+             * (Media Session metadata for car/lock-screen displays plus
+             * the tab title). Car screens are tiny, so the lyric is the
+             * whole title - no song/artist decoration. With no active
+             * line, restore the song's own metadata.
              */
             relayLyricToNowPlaying(activeIndex) {
                 const item = this.currentLyricsItem();
@@ -582,17 +596,14 @@ const PlayerLyrics = (function () {
                     : '';
 
                 if (line) {
-                    const songTitle = item.name || item.title || 'Music';
-                    const artistName = item.artist || item.channelTitle || '';
-                    this.setNowPlayingText(
-                        line,
-                        artistName ? `${songTitle} - ${artistName}` : songTitle,
-                        item.album || 'Voice-Wei Music'
-                    );
+                    if (this.nowPlayingShowsLyric && this.nowPlayingLyricLine === line) return;
+                    this.nowPlayingLyricLine = line;
+                    this.setNowPlayingText(line, '', '');
                     document.title = line;
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
+                    this.nowPlayingLyricLine = '';
                     document.title = DEFAULT_DOCUMENT_TITLE;
                     const restoreItem = item || this.currentPlaylistItem();
                     if (restoreItem) {

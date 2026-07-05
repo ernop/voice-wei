@@ -288,10 +288,12 @@ interface VoiceMusicController {
     parseSyncedLyrics(syncedLyrics: string): SyncedLyricLine[];
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
+    syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
     relayLyricToNowPlaying(activeIndex: number): void;
     setNowPlayingText(title: string, artist: string, album: string): void;
     nowPlayingShowsLyric: boolean;
+    nowPlayingLyricLine: string;
     ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
