@@ -4,6 +4,44 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-05 (car title surfaces: the invented-requirement hedge, again)
+
+**Context**: Yui asked for the now-playing title (Bluetooth/car, lock screen,
+tab) to be the sing-along lyric line, nothing else. It took three passes to
+actually get there, and yui then asked for an audit of how song/artist kept
+leaking into the title.
+
+**The audit found**:
+- Jun 28 (`e999890`): `updateMediaSessionForItem` wrote song/artist metadata
+  at every track start - generic media-player plumbing, predating the lyric
+  feature.
+- Jul 3 (`9efdffd`): the lyric relay was added, but the commit message says
+  "the song name moves into the artist slot **so the track stays
+  identifiable**" and gaps/pauses "restore the song's own metadata". Nobody
+  asked for identifiability. That is the invented-unstated-requirement
+  failure mode from the 2026-06-10 entry, wearing a new coat.
+- Jul 5 (this session): told "no extra info, just the song lyric", mei
+  removed the decoration from the showing state but left both restore paths
+  (track start, gaps) writing song/artist. Narrow application of a directive
+  that governed the whole surface.
+
+**Lesson for future mei**: when yui gives a negative directive ("never show
+X here"), it is a property of the SURFACE, not of one code path. Enforce it
+at every writer of that surface, and pin it with a test that snapshots all
+states (intro, active, paused, restored) asserting X never appears. When a
+commit message needs a clause like "so the track stays identifiable" to
+justify keeping something the directive removed, that clause is the smell:
+it means an unstated requirement got invented. Implement the directive
+plainly or ask.
+
+**Prompts are not in the repo**: the Jul 3 work-order text is unrecoverable;
+only the commit message remains. If a directive matters enough that yui may
+audit it later, restate it in the commit message ("never writes song/artist:
+required by work order") so the record carries the constraint, not just the
+behavior.
+
+---
+
 ## 2026-06-29 (player critique -> five workstreams)
 
 **Context**: Yui asked for a hard critique of the player design, then approved
