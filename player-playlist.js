@@ -818,12 +818,15 @@ const PlayerPlaylist = (function () {
                 // loop) so the car reads THIS page, not youtube.com.
                 MediaSessionCore.clearNowPlayingTitle();
                 MediaSessionCore.setPlaybackState('playing');
-                MediaSessionCore.setActionHandlers([
-                    ['play', () => this.playPlaylist()],
-                    ['pause', () => this.pausePlayback()],
-                    ['previoustrack', () => this.playPrevious()],
-                    ['nexttrack', () => this.playNext()]
-                ]);
+                if (!this.mediaActionHandlersSet) {
+                    this.mediaActionHandlersSet = true;
+                    MediaSessionCore.setActionHandlers([
+                        ['play', () => this.playPlaylist()],
+                        ['pause', () => this.pausePlayback()],
+                        ['previoustrack', () => this.playPrevious()],
+                        ['nexttrack', () => this.playNext()]
+                    ]);
+                }
             },
 
             stopPlayback() {

@@ -31,6 +31,13 @@ const MediaSessionCore = (function () {
     let explicitState = null;
     /** @type {string | null} Header heading text before the first override */
     let defaultHeaderText = null;
+    // Last-written values: the core communicates minimally with the
+    // display surfaces, so identical repeat writes are dropped here and
+    // callers never carry their own dedupe.
+    /** @type {string | null} */
+    let writtenMetaTitle = null;
+    /** @type {string | null} */
+    let writtenMetaArtist = null;
 
     function createSilentWavUrl() {
         const sampleCount = SAMPLE_RATE * SILENCE_SECONDS;
@@ -95,9 +102,12 @@ const MediaSessionCore = (function () {
      * @param {MediaSessionPlaybackState} state
      */
     function setPlaybackState(state) {
+        const changed = state !== explicitState;
         explicitState = state;
-        if (state === 'playing') void activate();
-        if (!('mediaSession' in navigator)) return;
+        // Re-arm the keep-alive on the transition to playing, or when the
+        // OS paused the silent loop out from under a standing claim.
+        if (state === 'playing' && (changed || !audioEl || audioEl.paused)) void activate();
+        if (!changed || !('mediaSession' in navigator)) return;
         try {
             navigator.mediaSession.playbackState = state;
         } catch (err) {
@@ -111,12 +121,13 @@ const MediaSessionCore = (function () {
      */
     function updateMetadata(title, options = {}) {
         if (!('mediaSession' in navigator)) return;
+        const artist = options.artist === undefined ? 'Voice-Wei' : options.artist;
+        if (title === writtenMetaTitle && artist === writtenMetaArtist) return;
 
         try {
-            const metadata = options.artist === undefined
-                ? { title, artist: 'Voice-Wei' }
-                : { title, artist: options.artist };
-            navigator.mediaSession.metadata = new MediaMetadata(metadata);
+            navigator.mediaSession.metadata = new MediaMetadata({ title, artist });
+            writtenMetaTitle = title;
+            writtenMetaArtist = artist;
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
@@ -143,9 +154,9 @@ const MediaSessionCore = (function () {
      */
     function setNowPlayingTitle(title, options = {}) {
         updateMetadata(title, options);
-        document.title = title;
+        if (document.title !== title) document.title = title;
         const heading = headerHeading();
-        if (heading) {
+        if (heading && heading.textContent !== title) {
             captureHeaderDefault(heading);
             heading.textContent = title;
         }
@@ -154,9 +165,9 @@ const MediaSessionCore = (function () {
     /** Restore every surface to its page default. */
     function clearNowPlayingTitle() {
         updateMetadata('', { artist: '' });
-        document.title = DEFAULT_DOCUMENT_TITLE;
+        if (document.title !== DEFAULT_DOCUMENT_TITLE) document.title = DEFAULT_DOCUMENT_TITLE;
         const heading = headerHeading();
-        if (heading && defaultHeaderText !== null) {
+        if (heading && defaultHeaderText !== null && heading.textContent !== defaultHeaderText) {
             heading.textContent = defaultHeaderText;
         }
     }

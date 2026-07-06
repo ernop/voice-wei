@@ -1920,7 +1920,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentLyricsItemId: 77,
                 currentLyricsLineIndex: -1,
                 nowPlayingShowsLyric: false,
-                nowPlayingLyricLine: '',
                 isPlaying: true,
                 isPaused: false,
                 currentPlayingId: 77,
@@ -2041,6 +2040,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && deadlineClock.deadlines.afterLast === Infinity
             && deadlineClock.idleReads <= 2
             && deadlineClock.titleAfterLead === 'clock line one');
+
+        // Minimal display communication: identical repeat writes to the
+        // now-playing surfaces are dropped at the core - one metadata
+        // construction per distinct title, none for repeats.
+        const minimalWrites = await tab.evaluate(() => {
+            const RealMediaMetadata = window.MediaMetadata;
+            let constructions = 0;
+            // @ts-ignore - counting wrapper
+            window.MediaMetadata = function (init) { constructions++; return new RealMediaMetadata(init); };
+            MediaSessionCore.setNowPlayingTitle('repeat line', { artist: '' });
+            for (let i = 0; i < 5; i++) MediaSessionCore.setNowPlayingTitle('repeat line', { artist: '' });
+            const afterRepeats = constructions;
+            MediaSessionCore.setNowPlayingTitle('changed line', { artist: '' });
+            const afterChange = constructions;
+            for (let i = 0; i < 5; i++) MediaSessionCore.setPlaybackState('paused');
+            window.MediaMetadata = RealMediaMetadata;
+            MediaSessionCore.clearNowPlayingTitle();
+            return { afterRepeats, afterChange, state: navigator.mediaSession.playbackState };
+        });
+        report.check(`player now-playing writes are deduped (${minimalWrites.afterRepeats} write for 6 same, ${minimalWrites.afterChange} after change)`,
+            minimalWrites.afterRepeats === 1
+            && minimalWrites.afterChange === 2
+            && minimalWrites.state === 'paused');
 
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))

@@ -57,8 +57,8 @@ class VoiceMusicController {
         this.currentLyricsLineIndex = -1;
         /** @type {boolean} Whether the now-playing text currently shows a lyric line */
         this.nowPlayingShowsLyric = false;
-        /** @type {string} The lyric line currently relayed to now-playing (dedupes per-tick relays) */
-        this.nowPlayingLyricLine = '';
+        /** @type {boolean} Media-key handlers registered (once per page life) */
+        this.mediaActionHandlersSet = false;
         /** @type {boolean} */
         this.isProcessingCommand = false;
         /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */

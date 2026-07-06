@@ -296,7 +296,7 @@ interface VoiceMusicController {
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
     relayLyricToNowPlaying(activeIndex: number): void;
     nowPlayingShowsLyric: boolean;
-    nowPlayingLyricLine: string;
+    mediaActionHandlersSet: boolean;
     ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;

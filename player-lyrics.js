@@ -635,13 +635,11 @@ const PlayerLyrics = (function () {
                     : '';
 
                 if (line) {
-                    if (this.nowPlayingShowsLyric && this.nowPlayingLyricLine === line) return;
-                    this.nowPlayingLyricLine = line;
+                    // Repeat writes of the same line are dropped by the core.
                     MediaSessionCore.setNowPlayingTitle(line, { artist: '' });
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
-                    this.nowPlayingLyricLine = '';
                     MediaSessionCore.clearNowPlayingTitle();
                 }
             },
