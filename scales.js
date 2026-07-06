@@ -426,7 +426,6 @@ class ScalesController {
             ['play', () => { this.playAgainOrCurrent(); }],
             ['pause', () => { this.stopPlayback(); }]
         ]);
-        MediaSessionCore.primeOnUserGesture();
     }
 
     // The piano notification area is the page's status surface; loading is

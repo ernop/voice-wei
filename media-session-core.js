@@ -1,9 +1,20 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // MEDIA SESSION CORE
-// Hardware media key / lock-screen control integration. Browsers only
-// surface media controls for pages that are "playing audio", so this
-// loops a silent WAV element while registering action handlers.
+// The single owner of the now-playing surface: Media Session metadata
+// (what car Bluetooth displays and lock screens show), the document
+// title, the visible site-header heading, the reported playback state,
+// and hardware media key handlers.
+//
+// Browsers route the media session to whichever frame is audibly
+// playing. Our pages sound through Web Audio bursts or a YouTube
+// iframe, so left alone the session would detach (or belong to
+// youtube.com). The core therefore loops a silent WAV element to keep
+// THIS page the routed session, and reporting 'playing' automatically
+// secures that ownership - pages cannot claim playback without it.
+//
+// No page touches navigator.mediaSession or assigns document.title
+// directly (enforced by ast-grep); everything goes through here.
 //-----------------------------------------------------------------------
 
 const MediaSessionCore = (function () {
@@ -12,10 +23,14 @@ const MediaSessionCore = (function () {
     const SILENCE_SECONDS = 10;
     const SAMPLE_RATE = 8000;
 
+    const DEFAULT_DOCUMENT_TITLE = document.title;
+
     /** @type {HTMLAudioElement | null} */
     let audioEl = null;
     /** @type {MediaSessionPlaybackState | null} Last state a page reported */
     let explicitState = null;
+    /** @type {string | null} Header heading text before the first override */
+    let defaultHeaderText = null;
 
     function createSilentWavUrl() {
         const sampleCount = SAMPLE_RATE * SILENCE_SECONDS;
@@ -75,11 +90,13 @@ const MediaSessionCore = (function () {
      * Report the page's true transport state. Car play/pause buttons are
      * a toggle routed by this state: claiming 'playing' while idle makes
      * every play press arrive as 'pause', so honesty here is what makes
-     * the play button work at all.
+     * the play button work at all. Reporting 'playing' also secures the
+     * session (the silent loop) so the report reaches the car at all.
      * @param {MediaSessionPlaybackState} state
      */
     function setPlaybackState(state) {
         explicitState = state;
+        if (state === 'playing') void activate();
         if (!('mediaSession' in navigator)) return;
         try {
             navigator.mediaSession.playbackState = state;
@@ -105,13 +122,48 @@ const MediaSessionCore = (function () {
         }
     }
 
-    /**
-     * @param {string} title
-     * @param {Array<[MediaSessionAction, () => void]>} handlers
-     */
-    function register(title, handlers) {
-        updateMetadata(title);
+    /** @returns {HTMLElement | null} */
+    function headerHeading() {
+        const heading = document.querySelector('#siteHeader .header-title-group h1');
+        return heading instanceof HTMLElement ? heading : null;
+    }
 
+    /** Remember what the header said before the first override. */
+    function captureHeaderDefault(heading) {
+        if (defaultHeaderText === null) defaultHeaderText = heading.textContent || '';
+    }
+
+    /**
+     * THE now-playing text: one call updates every surface a listener
+     * can see - car/lock-screen metadata, the tab title, and the site
+     * header heading. Pages express "show this"; the fan-out is owned
+     * here so the surfaces can never disagree.
+     * @param {string} title
+     * @param {{ artist?: string }} [options]
+     */
+    function setNowPlayingTitle(title, options = {}) {
+        updateMetadata(title, options);
+        document.title = title;
+        const heading = headerHeading();
+        if (heading) {
+            captureHeaderDefault(heading);
+            heading.textContent = title;
+        }
+    }
+
+    /** Restore every surface to its page default. */
+    function clearNowPlayingTitle() {
+        updateMetadata('', { artist: '' });
+        document.title = DEFAULT_DOCUMENT_TITLE;
+        const heading = headerHeading();
+        if (heading && defaultHeaderText !== null) {
+            heading.textContent = defaultHeaderText;
+        }
+    }
+
+    /** @param {Array<[MediaSessionAction, () => void]>} handlers */
+    function setActionHandlers(handlers) {
+        if (!('mediaSession' in navigator)) return;
         handlers.forEach(([action, handler]) => {
             try {
                 navigator.mediaSession.setActionHandler(action, handler);
@@ -121,14 +173,31 @@ const MediaSessionCore = (function () {
         });
     }
 
-    function primeOnUserGesture() {
-        const prime = () => { activate(); };
-        document.addEventListener('pointerup', prime, { once: true });
-        document.addEventListener('click', prime, { once: true });
-        document.addEventListener('touchend', prime, { once: true });
+    /**
+     * @param {string} title
+     * @param {Array<[MediaSessionAction, () => void]>} handlers
+     */
+    function register(title, handlers) {
+        updateMetadata(title);
+        setActionHandlers(handlers);
     }
 
-    return { activate, register, updateMetadata, setPlaybackState, primeOnUserGesture };
+    // Arm the keep-alive on the first user gesture automatically: any
+    // page that loads the core gets session ownership without wiring.
+    const prime = () => { activate(); };
+    document.addEventListener('pointerup', prime, { once: true });
+    document.addEventListener('click', prime, { once: true });
+    document.addEventListener('touchend', prime, { once: true });
+
+    return {
+        activate,
+        register,
+        setActionHandlers,
+        updateMetadata,
+        setNowPlayingTitle,
+        clearNowPlayingTitle,
+        setPlaybackState
+    };
 })();
 
 window.MediaSessionCore = MediaSessionCore;

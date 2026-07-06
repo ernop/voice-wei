@@ -652,7 +652,6 @@
         setupTrainingModeSwitch();
         syncTrainingModeUI();
 
-        MediaSessionCore.primeOnUserGesture();
     }
 
     // ---- BOOT ----

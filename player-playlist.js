@@ -809,28 +809,22 @@ const PlayerPlaylist = (function () {
             },
 
             updateMediaSessionForItem(item) {
-                if (!('mediaSession' in navigator) || !item) return;
-
-                // The YouTube iframe is the audible frame, so without our
-                // own audio Chrome routes the media session (what the car
-                // displays) to youtube.com's metadata - video title and
-                // channel. The silent loop keeps THIS page the routed
-                // session so the lyric relay owns the car display.
-                void MediaSessionCore.activate();
+                if (!item) return;
 
                 // The now-playing title belongs to the lyric relay: the
                 // driver sings along from it, so song/artist names are
                 // never written here. Clear the previous song's lyric
-                // until this song's lines start arriving.
-                if (typeof MediaMetadata !== 'undefined') {
-                    navigator.mediaSession.metadata = new MediaMetadata({ title: '', artist: '', album: '' });
-                }
-
-                navigator.mediaSession.playbackState = 'playing';
-                navigator.mediaSession.setActionHandler('play', () => this.playPlaylist());
-                navigator.mediaSession.setActionHandler('pause', () => this.pausePlayback());
-                navigator.mediaSession.setActionHandler('previoustrack', () => this.playPrevious());
-                navigator.mediaSession.setActionHandler('nexttrack', () => this.playNext());
+                // until this song's lines start arriving. Reporting
+                // 'playing' secures session ownership (the core's silent
+                // loop) so the car reads THIS page, not youtube.com.
+                MediaSessionCore.clearNowPlayingTitle();
+                MediaSessionCore.setPlaybackState('playing');
+                MediaSessionCore.setActionHandlers([
+                    ['play', () => this.playPlaylist()],
+                    ['pause', () => this.pausePlayback()],
+                    ['previoustrack', () => this.playPrevious()],
+                    ['nexttrack', () => this.playNext()]
+                ]);
             },
 
             stopPlayback() {
@@ -842,9 +836,7 @@ const PlayerPlaylist = (function () {
                             player.stopVideo();
                             this.playback.markStopped();
                             this.relayLyricToNowPlaying(-1);
-                            if ('mediaSession' in navigator) {
-                                navigator.mediaSession.playbackState = 'none';
-                            }
+                            MediaSessionCore.setPlaybackState('none');
                             this.updatePlayPauseButton();
                             this.stopProgressUpdates();
                             this.updateProgressBar(0, 1);
@@ -868,9 +860,7 @@ const PlayerPlaylist = (function () {
                         const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
                         player.playVideo();
                         this.playback.markPlaying(this.playback.currentPlayingId);
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.playbackState = 'playing';
-                        }
+                        MediaSessionCore.setPlaybackState('playing');
                         this.updatePlayPauseButton();
                         this.startProgressUpdates();
                         this.relayLyricToNowPlaying(this.currentLyricsLineIndex);
@@ -898,9 +888,7 @@ const PlayerPlaylist = (function () {
                         player.pauseVideo();
                         this.playback.markPaused();
                         this.relayLyricToNowPlaying(-1);
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.playbackState = 'paused';
-                        }
+                        MediaSessionCore.setPlaybackState('paused');
                         this.updatePlayPauseButton();
                         this.stopProgressUpdates();
                     }

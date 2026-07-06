@@ -37,7 +37,7 @@ would countervail the request, ask yui before using it.
 
 ## Shared libraries - one owner per concern
 
-Pages must consume these instead of carrying their own copies; three of
+Pages must consume these instead of carrying their own copies; several of
 them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 
 | Library | Owns | Enforced |
@@ -56,7 +56,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `scales-playback.js` | Scales sequence playback coordinator | - |
 | `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
-| `media-session-core.js` | Hardware media keys (silent-WAV trick + action maps) | - |
+| `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
 | `voice-command-core.js` | Speech recognition, auto/manual modes, spoken "submit", transcript UI | yes (webkitSpeechRecognition) |
@@ -97,10 +97,19 @@ Consumers: the Trace page directly; Phrases, Scales, and Intervals through
 scoring; ears through low-level `createMicCapture` for its hold-detection
 loops.
 
-Media keys: phrases, scales, intervals, and ears register hardware
-play/pause/next handlers (`media-session-core.js`). Trace and pitch-meter
-deliberately do not - they are watch-the-screen tools where hardware keys
-add nothing.
+Media keys and the now-playing surface: phrases, scales, intervals, ears,
+and the player register hardware play/pause/next handlers through
+`media-session-core.js`, which is the ONLY writer of
+`navigator.mediaSession` and `document.title` (ast-grep enforced). One
+call (`setNowPlayingTitle`) fans out to every surface a listener sees -
+car/lock-screen metadata, the tab title, and the site-header heading - so
+the surfaces cannot disagree, and reporting `setPlaybackState('playing')`
+automatically secures session ownership via the silent-WAV loop (without
+it, Chrome routes the car display to whichever frame is audibly playing;
+with a YouTube iframe that means youtube.com's metadata, not ours). The
+core self-primes on the first user gesture; pages never wire activation.
+Trace and pitch-meter deliberately do not register - they are
+watch-the-screen tools where hardware keys add nothing.
 
 ## Pitch correctness (one owner)
 

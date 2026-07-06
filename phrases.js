@@ -44,7 +44,6 @@
     };
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
-    const DEFAULT_DOCUMENT_TITLE = document.title;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
@@ -274,11 +273,11 @@
 
     /** @param {PhrasePlanNote[]} plan */
     function syncPhraseTitle(plan) {
-        const title = plan.length ? phraseTitleFromPlan(plan) : DEFAULT_DOCUMENT_TITLE;
-        document.title = title;
-        if (plan.length) MediaSessionCore.updateMetadata(title, { artist: '' });
-        const heading = document.querySelector('#siteHeader .header-title-group h1');
-        if (heading) heading.textContent = plan.length ? title : 'Phrases';
+        if (plan.length) {
+            MediaSessionCore.setNowPlayingTitle(phraseTitleFromPlan(plan), { artist: '' });
+        } else {
+            MediaSessionCore.clearNowPlayingTitle();
+        }
     }
 
     /** @param {PhrasePlanNote[]} plan */
@@ -1408,7 +1407,6 @@
             ['previoustrack', handleMediaPrevious],
             ['seekbackward', handleMediaPrevious]
         ]);
-        MediaSessionCore.primeOnUserGesture();
         // Idle at load: the car's toggle must send 'play', not 'pause'.
         setTransportPlaying(false);
     }

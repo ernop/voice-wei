@@ -4,9 +4,6 @@
 const PlayerLyrics = (function () {
     'use strict';
 
-    // Restored whenever the now-playing text stops showing a lyric line.
-    const DEFAULT_DOCUMENT_TITLE = document.title;
-
     // The now-playing title leads the sung lyric so Bluetooth metadata
     // propagation (phone -> AVRCP -> car redraw) lands near the moment
     // the line actually starts. The on-screen highlight stays unled.
@@ -619,28 +616,13 @@ const PlayerLyrics = (function () {
                 if (line) {
                     if (this.nowPlayingShowsLyric && this.nowPlayingLyricLine === line) return;
                     this.nowPlayingLyricLine = line;
-                    this.setNowPlayingText(line, '', '');
-                    document.title = line;
-                    this.setHeaderTitleText(line);
+                    MediaSessionCore.setNowPlayingTitle(line, { artist: '' });
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
                     this.nowPlayingLyricLine = '';
-                    document.title = DEFAULT_DOCUMENT_TITLE;
-                    this.setHeaderTitleText('Music');
-                    this.setNowPlayingText('', '', '');
+                    MediaSessionCore.clearNowPlayingTitle();
                 }
-            },
-
-            /** The visible topbar heading mirrors the same lyric line. */
-            setHeaderTitleText(text) {
-                const heading = document.querySelector('#siteHeader .header-title-group h1');
-                if (heading) heading.textContent = text;
-            },
-
-            setNowPlayingText(title, artist, album) {
-                if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
-                navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album });
             },
 
             hydrateItemLyricsFromCache(item) {
