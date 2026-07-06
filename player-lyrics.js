@@ -621,13 +621,21 @@ const PlayerLyrics = (function () {
                     this.nowPlayingLyricLine = line;
                     this.setNowPlayingText(line, '', '');
                     document.title = line;
+                    this.setHeaderTitleText(line);
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
                     this.nowPlayingLyricLine = '';
                     document.title = DEFAULT_DOCUMENT_TITLE;
+                    this.setHeaderTitleText('Music');
                     this.setNowPlayingText('', '', '');
                 }
+            },
+
+            /** The visible topbar heading mirrors the same lyric line. */
+            setHeaderTitleText(text) {
+                const heading = document.querySelector('#siteHeader .header-title-group h1');
+                if (heading) heading.textContent = text;
             },
 
             setNowPlayingText(title, artist, album) {

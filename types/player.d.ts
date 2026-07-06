@@ -290,6 +290,7 @@ interface VoiceMusicController {
     updateSyncedLyricsPosition(currentTime: number): void;
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
+    setHeaderTitleText(text: string): void;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
     relayLyricToNowPlaying(activeIndex: number): void;
     setNowPlayingText(title: string, artist: string, album: string): void;

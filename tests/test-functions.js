@@ -1930,6 +1930,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const meta = () => navigator.mediaSession.metadata;
             const snap = () => ({
                 docTitle: document.title,
+                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || '',
                 metaTitle: meta() ? meta().title : '',
                 metaArtist: meta() ? meta().artist : '',
                 highlightIndex: harness.currentLyricsLineIndex
@@ -1955,14 +1956,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player titles sing-along lyrics only ("${lyricRelay.intro.metaTitle}" -> "${lyricRelay.led.metaTitle}", never song/artist: ${neverSongArtist})`,
             lyricRelay.intro.metaTitle === 'first line here'
             && lyricRelay.intro.docTitle === 'first line here'
+            && lyricRelay.intro.headerTitle === 'first line here'
             && lyricRelay.intro.highlightIndex === -1
             && lyricRelay.led.metaTitle === 'second line here'
             && lyricRelay.led.docTitle === 'second line here'
+            && lyricRelay.led.headerTitle === 'second line here'
             && lyricRelay.led.highlightIndex === 0
             && lyricRelay.during.metaTitle === 'second line here'
             && lyricRelay.during.highlightIndex === 1
             && lyricRelay.after.metaTitle === ''
             && lyricRelay.after.docTitle !== 'second line here'
+            && lyricRelay.after.headerTitle === 'Music'
             && neverSongArtist);
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))

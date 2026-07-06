@@ -11,7 +11,8 @@ const PLAYER_SETTINGS_KEYS = [
     'autoSubmitMode',
     'claudeModel',
     'openaiModel',
-    'aiProvider'
+    'aiProvider',
+    'lyricsOnNowPlaying'
 ];
 
 /** @type {LyricsViewSettings} */

@@ -23,6 +23,7 @@ interface Window {
 
     // Our global instances (defined in JS files, declared here for cross-file access)
     scalesController?: import('../scales.js').ScalesController;
+    musicController?: VoiceMusicController;
     pitchMeter?: import('../pitch-meter.js').PitchMeterController;
     VoiceCommandCore?: any;
     TranscriptManager?: any;

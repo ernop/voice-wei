@@ -1142,5 +1142,5 @@ class VoiceMusicController {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    new VoiceMusicController();
+    window.musicController = new VoiceMusicController();
 });

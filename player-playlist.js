@@ -811,6 +811,13 @@ const PlayerPlaylist = (function () {
             updateMediaSessionForItem(item) {
                 if (!('mediaSession' in navigator) || !item) return;
 
+                // The YouTube iframe is the audible frame, so without our
+                // own audio Chrome routes the media session (what the car
+                // displays) to youtube.com's metadata - video title and
+                // channel. The silent loop keeps THIS page the routed
+                // session so the lyric relay owns the car display.
+                void MediaSessionCore.activate();
+
                 // The now-playing title belongs to the lyric relay: the
                 // driver sings along from it, so song/artist names are
                 // never written here. Clear the previous song's lyric
