@@ -1968,6 +1968,80 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelay.after.docTitle !== 'second line here'
             && lyricRelay.after.headerTitle === 'Music'
             && neverSongArtist);
+        // Deadline clock, not polling: the progress/lyric renderer sleeps
+        // until the next known media-time boundary (whole display second
+        // or lyric moment) instead of ticking every 100ms, and the lyric
+        // transition still lands on time.
+        const deadlineClock = await tab.evaluate(async () => {
+            const c = window.musicController;
+            if (!c) return { error: 'no controller' };
+            const item = {
+                id: 553, videoId: 'clock', name: 'Clock Song', artist: 'Clock Artist',
+                lyricsStatus: 'ready',
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Clock Song', artistName: 'Clock Artist',
+                    albumName: '', duration: 120, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:05.00]clock line one\n[00:09.00]clock line two',
+                    syncedLines: [
+                        { time: 5, text: 'clock line one' },
+                        { time: 9, text: 'clock line two' }
+                    ]
+                }
+            };
+            c.playlist.push(item);
+            c.currentLyricsItemId = item.id;
+            c.playback.setActiveMedia(item.id, item.videoId);
+            c.playback.markPlaying(item.id);
+
+            const deadlines = {
+                fromZero: c.nextLyricDeadline(0),
+                beforeFirst: c.nextLyricDeadline(4.5),
+                betweenLines: c.nextLyricDeadline(6),
+                afterLast: c.nextLyricDeadline(9.5)
+            };
+
+            // Fake player whose clock advances like real playback.
+            let reads = 0;
+            let mediaStart = 0.2;
+            let wallStart = performance.now();
+            const fakePlayer = {
+                getCurrentTime() { reads++; return mediaStart + (performance.now() - wallStart) / 1000; },
+                getDuration() { return 120; }
+            };
+            c.playback.markPlayerReady(fakePlayer);
+
+            // Mid-second, far from any lyric: one initial render, then the
+            // clock sleeps to the next second boundary (0.8s away) - a
+            // 100ms poll would have read the time ~7 times in 650ms.
+            c.startProgressUpdates();
+            reads = 0;
+            await new Promise(resolve => setTimeout(resolve, 650));
+            const idleReads = reads;
+
+            // Jump to just before the first line's led window (4.25s):
+            // the transition must land without any polling cadence.
+            mediaStart = 4.1;
+            wallStart = performance.now();
+            c.resyncProgressClock();
+            await new Promise(resolve => setTimeout(resolve, 450));
+            const titleAfterLead = navigator.mediaSession.metadata?.title || '';
+
+            c.stopProgressUpdates();
+            c.playback.reset();
+            c.currentLyricsItemId = null;
+            c.relayLyricToNowPlaying(-1);
+            c.playlist.pop();
+            return { deadlines, idleReads, titleAfterLead };
+        });
+        report.check(`player progress clock sleeps to deadlines (idle reads ${deadlineClock.idleReads}, lead title "${deadlineClock.titleAfterLead}")`,
+            !deadlineClock.error
+            && deadlineClock.deadlines.fromZero === 4.25
+            && deadlineClock.deadlines.beforeFirst === 5
+            && deadlineClock.deadlines.betweenLines === 8.25
+            && deadlineClock.deadlines.afterLast === Infinity
+            && deadlineClock.idleReads <= 2
+            && deadlineClock.titleAfterLead === 'clock line one');
+
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));

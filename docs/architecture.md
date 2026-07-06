@@ -111,6 +111,20 @@ core self-primes on the first user gesture; pages never wire activation.
 Trace and pitch-meter deliberately do not register - they are
 watch-the-screen tools where hardware keys add nothing.
 
+**Deadline scheduling, not polling.** Timeline-driven UI (the player's
+progress bar, time text, lyric highlight, and now-playing lyric title)
+never runs on a fixed-interval timer. The moments at which those
+surfaces change are computable in advance (the next synced-lyric moment,
+the next whole display second), so the renderer draws once from the
+player's ACTUAL current time and sleeps until the earliest upcoming
+deadline (`scheduleNextProgressRender` in player-playlist.js). Every
+wake re-reads real time and renders idempotently, so early timers,
+buffering stalls, and drift self-correct; pause freezes the clock, and
+seeks / lyric arrival / resume call `resyncProgressClock()`. Polling is
+acceptable only where the data source is genuinely eventless and
+continuous: mic frames (requestAnimationFrame in pitch-detect-core) and
+the deploys dashboard's remote refresh.
+
 ## Pitch correctness (one owner)
 
 `pitch-score.js` is the single definition of "did the singer hit this note,

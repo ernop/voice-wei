@@ -294,7 +294,9 @@ const PlayerLyrics = (function () {
                 if (this.currentLyricsItemId === item.id) {
                     this.currentLyricsLineIndex = -1;
                     this.renderLyricsStateForItem(item);
-                    this.updateSyncedLyricsPosition(this.currentPlaybackTime());
+                    // New timeline: re-derive the surfaces and re-arm the
+                    // deadline clock so the first line lands on time.
+                    this.resyncProgressClock();
                 }
 
                 return item.lyricsData;
@@ -544,6 +546,25 @@ const PlayerLyrics = (function () {
                     }
                 }
                 return index;
+            },
+
+            /**
+             * The next media-time moment at which anything lyric-driven
+             * changes: a line becomes the highlight (line.time) or enters
+             * the led title window (line.time - lead). Infinity when no
+             * synced lyrics apply. The deadline clock sleeps until here.
+             * @param {number} currentTime
+             */
+            nextLyricDeadline(currentTime) {
+                const item = this.currentLyricsItem();
+                if (!item || item.id !== this.currentPlayingId || !item.lyricsData) return Infinity;
+                let next = Infinity;
+                for (const line of item.lyricsData.syncedLines) {
+                    for (const at of [line.time, line.time - LYRIC_TITLE_LEAD_SECONDS]) {
+                        if (at > currentTime && at < next) next = at;
+                    }
+                }
+                return next;
             },
 
             applyActiveLyricsLine(activeIndex, force = false) {

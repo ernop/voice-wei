@@ -231,7 +231,10 @@ interface VoiceMusicController {
     seekToPercentage(percentage: number): void;
     startProgressUpdates(): void;
     stopProgressUpdates(): void;
-    updateCurrentProgress(): void;
+    resyncProgressClock(): void;
+    scheduleNextProgressRender(): void;
+    renderPlaybackPosition(): number | null;
+    nextLyricDeadline(currentTime: number): number;
     updateProgressBar(currentTime: number, duration: number): void;
     formatTime(seconds: number): string;
     setupYouTubeAPI(): void;

@@ -32,8 +32,10 @@ class VoiceMusicController {
             lyricsOnNowPlaying: true
         });
         this.normalizeLlmSettings();
-        /** @type {ReturnType<typeof setInterval> | null} */
-        this.progressUpdateInterval = null;
+        /** @type {ReturnType<typeof setTimeout> | null} Deadline-clock wake-up (see scheduleNextProgressRender) */
+        this.progressUpdateTimer = null;
+        /** @type {number | null} Media time at the last render; detects buffering stalls */
+        this.lastRenderedMediaTime = null;
         /** @type {boolean} */
         this.isDraggingProgress = false;
         /** @type {Record<string, FavoriteData>} */

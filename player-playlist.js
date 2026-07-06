@@ -1,7 +1,6 @@
 // @ts-check
 // Playlist DOM, YouTube search/playback, and transport controls.
 
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
 const SEEK_JUMP_SECONDS = 10;
 const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
@@ -934,6 +933,7 @@ const PlayerPlaylist = (function () {
                         try {
                             const currentTime = player.getCurrentTime();
                             player.seekTo(currentTime + SEEK_JUMP_SECONDS, true);
+                            this.resyncProgressClock();
                         } catch (e) {
                             console.error('Error fast forwarding:', e);
                         }
@@ -948,6 +948,7 @@ const PlayerPlaylist = (function () {
                         try {
                             const currentTime = player.getCurrentTime();
                             player.seekTo(Math.max(0, currentTime - SEEK_JUMP_SECONDS), true);
+                            this.resyncProgressClock();
                         } catch (e) {
                             console.error('Error rewinding:', e);
                         }
@@ -965,6 +966,7 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.seekTo === 'function') {
                         player.seekTo(0, true);
+                        this.resyncProgressClock();
                     }
                 }
             },
@@ -1181,26 +1183,65 @@ const PlayerPlaylist = (function () {
                         const seekTime = duration * percentage;
                         player.seekTo(seekTime, true);
                         this.updateProgressBar(seekTime, duration);
+                        this.resyncProgressClock();
                     }
                 }
             },
 
+            // Deadline scheduling, not polling: everything these surfaces
+            // show changes at KNOWN media times - the next synced lyric
+            // moment (line time, and line time minus the title lead) and
+            // the next whole second of the mm:ss display. So render once
+            // from the player's actual time, then sleep until the
+            // earliest upcoming deadline. Every wake re-reads the real
+            // time and renders idempotently, so early timers, buffering
+            // stalls, and drift self-correct instead of accumulating.
             startProgressUpdates() {
-                this.stopProgressUpdates();
-                this.progressUpdateInterval = setInterval(() => {
-                    this.updateCurrentProgress();
-                }, PROGRESS_UPDATE_INTERVAL_MS);
+                this.scheduleNextProgressRender();
             },
 
             stopProgressUpdates() {
-                if (this.progressUpdateInterval) {
-                    clearInterval(this.progressUpdateInterval);
-                    this.progressUpdateInterval = null;
+                if (this.progressUpdateTimer !== null) {
+                    clearTimeout(this.progressUpdateTimer);
+                    this.progressUpdateTimer = null;
                 }
             },
 
-            updateCurrentProgress() {
-                if (!this.currentPlayingId || this.isDraggingProgress) return;
+            /** Re-derive the surfaces and the wake-up from truth, now. */
+            resyncProgressClock() {
+                if (this.isPlaying) {
+                    this.scheduleNextProgressRender();
+                } else {
+                    this.renderPlaybackPosition();
+                }
+            },
+
+            scheduleNextProgressRender() {
+                this.stopProgressUpdates();
+                const currentTime = this.renderPlaybackPosition();
+                if (!this.isPlaying) return; // pause/stop freeze the surfaces; transitions re-arm
+                let delaySec;
+                if (currentTime === null || this.isDraggingProgress) {
+                    delaySec = 0.25; // player not readable yet / drag in progress
+                } else if (currentTime === this.lastRenderedMediaTime) {
+                    delaySec = 0.5; // stalled (buffering): check back, don't spin
+                } else {
+                    const nextSecond = Math.floor(currentTime) + 1;
+                    const deadline = Math.min(nextSecond, this.nextLyricDeadline(currentTime));
+                    delaySec = Math.max(deadline - currentTime, 0.025);
+                }
+                this.lastRenderedMediaTime = currentTime;
+                this.progressUpdateTimer = setTimeout(() => this.scheduleNextProgressRender(), delaySec * 1000);
+            },
+
+            /**
+             * The one idempotent render of playback position: progress
+             * bar, time text, lyric highlight, and the now-playing title
+             * relay all re-derive from the player's actual current time.
+             * @returns {number | null} that time, if readable
+             */
+            renderPlaybackPosition() {
+                if (!this.currentPlayingId || this.isDraggingProgress) return null;
 
                 const player = this.playback.player;
                 if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
@@ -1208,8 +1249,10 @@ const PlayerPlaylist = (function () {
                     const duration = player.getDuration();
                     if (duration && duration > 0) {
                         this.updateProgressBar(currentTime, duration);
+                        return currentTime;
                     }
                 }
+                return null;
             },
 
             updateProgressBar(currentTime, duration) {
