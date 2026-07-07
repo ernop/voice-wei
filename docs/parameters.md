@@ -101,6 +101,13 @@ motion with contrary-step compensation; "motif" repeats and varies a short
 contour cell. No generator emits the same note twice in a row - immediate
 repetition reads as a stutter; repeats only come from deliberate anchors.
 
+The tonic anchors outrank lesson palettes at the phrase edges: with
+"start at 1" on, degree-set lessons seed on degree 1 even when the
+palette excludes it (e.g. barbershop dominant/sevenths), and "return to
+1" appends degree 1 at the end the same way. The palette governs
+everything between the anchors. Both anchors exist to make the phrase
+easier to pitch, so they always mean literal degree 1.
+
 Selecting a style or lesson applies its preset defaults and records those
 setting names in `lessonLockedKeys`. The lock is soft: it marks which controls
 the lesson currently owns, but clicking one of those controls removes that key

@@ -635,7 +635,11 @@ const PatternPracticeCore = (function () {
     function generateAllowedDegreeLesson(options, allowedDegrees, motion) {
         const { minOffset, maxOffset, length, initial } = phraseSeed(options);
         const allowed = boundedDegreeSet(allowedDegrees, minOffset, maxOffset);
-        const offsets = [nearestAllowed(allowed, initial)];
+        // 'start at 1' outranks the palette for the seed note, mirroring
+        // the return-to-1 anchor at the end: the tonic bookends the
+        // phrase (easier to pitch) and the lesson palette governs
+        // everything in between.
+        const offsets = [options.startAtOne ? 0 : nearestAllowed(allowed, initial)];
         while (offsets.length < length) {
             let next = nextLessonOffset(allowed, offsets[offsets.length - 1], motion);
             if (next === offsets[offsets.length - 1] && allowed.length > 1) {

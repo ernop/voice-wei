@@ -604,10 +604,25 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const staffStepsOnly = staff.slice(1).every((offset, index) => Math.abs(offset - staff[index]) === 1);
             const sightInPentachord = sight.every(offset => [0, 1, 2, 3, 4].includes(offset));
             const barberDominant = barber.every(offset => [1, 3, 4, 6].includes(offset));
-            return { staffStepsOnly, sightInPentachord, barberDominant };
+            // 'start at 1' outranks a palette that excludes the tonic:
+            // the seed note is literal degree 1, the rest stays in palette.
+            let tonicSeeded = true;
+            for (let i = 0; i < 40; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_sevenths',
+                    phraseAlgo: 'balanced', startAtOne: true, rangeMode: 'within',
+                    minLength: 6, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                    accidentalRate: 0
+                });
+                if (offsets[0] !== 0) tonicSeeded = false;
+                if (!offsets.slice(1).every(offset => [1, 3, 4, 6].includes(offset))) tonicSeeded = false;
+            }
+            return { staffStepsOnly, sightInPentachord, barberDominant, tonicSeeded };
         });
         report.check('phrases style lessons constrain generated degrees',
             lessonFamilies.staffStepsOnly && lessonFamilies.sightInPentachord && lessonFamilies.barberDominant);
+        report.check('phrases start-at-1 seeds tonic even outside lesson palette',
+            lessonFamilies.tonicSeeded);
         await tab.click('[data-phrase-style="barbershop"]');
         await tab.waitForTimeout(200);
         await tab.click('[data-phrase-lesson="barber_dominant"]');
