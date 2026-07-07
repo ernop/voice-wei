@@ -85,24 +85,81 @@ exits.
 
 ## Pitch pipeline
 
-`pitch-detect-core.js`: getUserMedia -> AnalyserNode (fft 2048) ->
-autocorrelation with parabolic interpolation -> glitch filter (jumps >5.5
-midi within 220ms need a confirming sample) -> voice-gated clock (time
-advances only while singing when pause-on-silence is on). The trace line
-breaks across gaps >250ms.
+The singing listen-and-draw system, end to end:
 
-The trace records and draws what was actually sung. The glitch filter is
-the only rejection (an unconfirmed one-frame jump is a detector artifact,
-not voice); there is no rails/target-based discarding, and the chart's
-vertical range in `pitch-trace-view.js` expands to cover the sung trace so
-off-rails singing (wrong octave, overshoot) draws at its true pitch
-instead of clamping to an edge or vanishing. Targets and rails are for
-comparison and scoring only - they never gate what is drawn.
+```
+Microphone (getUserMedia)
+ v  pitch-detect-core.js - capture + detection + recording
+AnalyserNode (fft 2048) -> autocorrelation detector -> glitch holdback
+ -> voice-gated clock -> history: PitchSample[] {time, freq, midi, cents, note}
+ v
+pitch-trace-view.js - canvas renderer (rails, targets, sung line, playhead)
+ ^ data via provider callbacks              ^ verdict colors
+pitch-test-panel.js - embeddable panel (owns session, canvas, guide, options)
+ v  per-note windows
+pitch-score.js - the one definition of "did you hit the note"
+ v
+progress-store.js - takes, trend lines, weak-spot analysis
+```
 
-Consumers: the Trace page directly; Phrases, Scales, and Intervals through
-`pitch-test-panel.js`; pitch-meter through the same session plus its own
-scoring; ears through low-level `createMicCapture` for its hold-detection
-loops.
+**Capture and detection** (`pitch-detect-core.js`, the only file allowed
+to call getUserMedia - ast-grep enforced). `createMicCapture` owns the
+AudioContext, a 2048-sample analyser, and reusable buffers. `readPitch()`
+runs an autocorrelation detector (normalized difference with parabolic
+peak interpolation) over the time-domain buffer; it returns nothing when
+the signal is too quiet (RMS < 0.01) or above 2 kHz, otherwise fractional
+MIDI plus cents deviation. Accuracy is within ~5 cents on voice-like
+signals across the singing range.
+
+**Recording** (`createTraceSession`, same file). A requestAnimationFrame
+loop reads a pitch every frame and appends accepted samples to `history`.
+Two mechanisms sit between detection and history:
+
+- *Glitch holdback*: a jump > 5.5 midi arriving within 220ms of the
+  previous sample is held back one frame; if the next sample confirms it
+  (within 1.2 midi, inside 260ms) both are recorded. A one-frame spike
+  that instantly reverts - the classic octave misdetection - never
+  reaches the trace. This is the ONLY rejection in the pipeline.
+- *Voice-gated clock*: with pause-on-silence on (the default), time only
+  advances while voice is detected, so a take does not scroll away while
+  the singer breathes. Off means wall-clock from the last reset.
+
+**The chart draws what was actually sung.** There is no rails/target-based
+discarding, and the chart's vertical range in `pitch-trace-view.js`
+expands to cover the sung trace, so off-rails singing (wrong octave,
+overshoot) draws at its true pitch instead of clamping to an edge or
+vanishing. Targets and rails are for comparison and scoring only - they
+never gate what is recorded or drawn. (This is load-bearing: the singer
+adjusts by seeing their real pitch. A regression test records samples an
+octave below the rails and asserts they stay in the trace.)
+
+**Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
+everything through provider callbacks: `rails()`, `targets()`,
+`history()`, `clockMs()`, windowing options. The sung line breaks across
+silences > 250ms and across unconfirmed fast jumps; dots along it are
+colored by cents deviation. Target bands recolor from blue (pending) to
+green/yellow/red once scored. Redraws are throttled to 50ms ticks by
+`RateGate` (render-throttle.js).
+
+**The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
+(Sing), and Intervals (Sing) embed the same component; a page supplies a
+typed `PitchTestPanelConfig` (key, rails, targets, content duration,
+`playNote`). The panel renders its own markup, owns the trace session,
+and sequences guide playback from the same target spans it draws - guide
+and notation cannot disagree. See "Typed contracts" below for the
+exclusivity and never-auto-play rules.
+
+**Scoring and progress**: `pitch-score.js` grades each target's window
+(see "Pitch correctness" below); completed takes are recorded through
+`progress-store.js` with per-note verdicts and signed cents bias, feeding
+the trend line and weak-spot line.
+
+Consumers: the Trace page uses session + view directly; Phrases, Scales,
+and Intervals go through `pitch-test-panel.js`; pitch-meter uses the same
+session plus its own call-and-response/play-along modes (scored through
+the same `pitch-score.js`); ears uses low-level `createMicCapture` for
+its hold-detection loops. User-facing behavior per page is in
+[tools.md](tools.md); per-setting behavior in [parameters.md](parameters.md).
 
 Media keys and the now-playing surface: phrases, scales, intervals, ears,
 and the player register hardware play/pause/next handlers through

@@ -270,7 +270,7 @@ const PitchTestPanel = (function () {
                     <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'}</span>
                     <span><i class="legend-sung"></i> sung pitch</span>
                     <span><i class="legend-scale"></i> scale degree rails</span>
-                    <span><i class="legend-scored"></i> scored: green &le;10c, yellow &le;25c, red missed</span>
+                    <span><i class="legend-scored"></i> scored: green &le;${PitchScore.GOOD_CENTS}c, yellow &le;${PitchScore.OK_CENTS}c, red missed</span>
                 </div>
             `;
         }

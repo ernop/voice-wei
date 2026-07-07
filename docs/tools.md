@@ -126,8 +126,11 @@ generating anything first.
 - Pause on silence (default on): the clock only advances while you sing.
 - 20s window switches to a fixed-width scrolling viewport; Expand range
   adds rails an octave above and below.
-- Detections outside the key range are discarded (one-frame octave spikes
-  never reach the chart); fast jumps need a confirming sample.
+- The chart draws what you actually sing, wherever it lands: the vertical
+  range expands to cover your voice even outside the rails. The only
+  filtering is glitch confirmation (a one-frame jump the next sample does
+  not confirm is a detector artifact, not voice, and never reaches the
+  chart).
 
 ## Pitch
 
@@ -321,12 +324,23 @@ scale-degree rails, target bands, your sung pitch as a yellow trace with
 cents-colored dots, and a voice-gated timeline (time starts when singing
 is detected).
 
-**Per-note scoring**: once your singing passes a target's window, the band
-recolors with its verdict - green (avg within 10 cents), yellow (within
-25), red (missed: too far off or not sung) - and the readout keeps a
-running score ("Score: 6/8 on pitch (avg 12c)"). A note counts as matched
-when at least 30% of its window's samples land within 1.5 semitones, same
-thresholds as the Pitch tool. Restart clears the scores with the trace.
+**The chart draws what you sing.** Rails and targets are for comparison
+and scoring only; they never gate what is recorded or drawn. Off-rails
+singing (wrong octave, overshoot) draws at its true pitch - the chart's
+vertical range expands to cover it. The only rejection anywhere in the
+pipeline is glitch confirmation: a one-frame detector spike that the next
+sample does not confirm never reaches the trace. (Architecture details:
+"Pitch pipeline" in [architecture.md](architecture.md).)
+
+**Per-note scoring** (owned by `pitch-score.js`, one definition
+everywhere): a note is *attempted* with at least 3 voiced samples in its
+window; the sustained pitch is the *median* of those samples and must sit
+within 70 cents of the target with a majority of samples inside that band;
+accuracy is then graded green (within 15 cents), yellow (within 30), red
+(missed: too far off, held too loosely, or not sung). The band recolors
+with its verdict once the window passes and the readout keeps a running
+score ("Score: 6/8 on pitch (avg 12c)"). Restart clears the scores with
+the trace.
 
 **Progress over time**: each completed take (all notes scored) is recorded,
 and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)
