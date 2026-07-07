@@ -9,6 +9,10 @@ const PlayerLyrics = (function () {
     // the line actually starts. The on-screen highlight stays unled.
     const LYRIC_TITLE_LEAD_SECONDS = 0.75;
 
+    // The lyrics cache is bounded by policy (persistence principle P3):
+    // past this many records the oldest are trimmed, loudly, in the log.
+    const LYRICS_CACHE_MAX_RECORDS = 200;
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
@@ -647,9 +651,10 @@ const PlayerLyrics = (function () {
             hydrateItemLyricsFromCache(item) {
                 const cacheKeys = this.getLyricsCacheKeysForItem(item);
                 for (const key of cacheKeys) {
-                    const cached = this.lyricsCache[key];
-                    if (cached && this.cachedLyricsMatchesItem(cached, item)) {
-                        item.lyricsData = cached;
+                    const canonical = this.lyricsCache.aliases[key] || key;
+                    const record = this.lyricsCache.records[canonical];
+                    if (record && this.cachedLyricsMatchesItem(record.lyrics, item)) {
+                        item.lyricsData = record.lyrics;
                         item.lyricsStatus = 'ready';
                         return true;
                     }
@@ -672,12 +677,32 @@ const PlayerLyrics = (function () {
 
             persistLyricsForItem(item, lyricsData) {
                 const durationSeconds = Math.round(lyricsData.duration || item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                const keys = new Set(this.getLyricsCacheKeysForItem(item));
-                keys.add(this.buildLyricsCacheKey(lyricsData.artistName, lyricsData.trackName, durationSeconds));
-                for (const key of keys) {
-                    this.lyricsCache[key] = lyricsData;
+                // One stored copy under the canonical key; every lookup key
+                // that should resolve to it becomes an alias.
+                const canonical = this.buildLyricsCacheKey(lyricsData.artistName, lyricsData.trackName, durationSeconds);
+                this.lyricsCache.records[canonical] = { lyrics: lyricsData, cachedAt: Date.now() };
+                for (const key of this.getLyricsCacheKeysForItem(item)) {
+                    this.lyricsCache.aliases[key] = canonical;
                 }
+                this.trimLyricsCache();
                 PlayerStorage.saveLyricsCache(this.lyricsCache);
+            },
+
+            trimLyricsCache() {
+                const keys = Object.keys(this.lyricsCache.records);
+                if (keys.length <= LYRICS_CACHE_MAX_RECORDS) return;
+                const oldestFirst = keys.sort((a, b) =>
+                    (this.lyricsCache.records[a].cachedAt || 0) - (this.lyricsCache.records[b].cachedAt || 0));
+                const removed = new Set(oldestFirst.slice(0, keys.length - LYRICS_CACHE_MAX_RECORDS));
+                for (const key of removed) {
+                    delete this.lyricsCache.records[key];
+                }
+                for (const [alias, canonical] of Object.entries(this.lyricsCache.aliases)) {
+                    if (removed.has(canonical)) {
+                        delete this.lyricsCache.aliases[alias];
+                    }
+                }
+                this.addMessage('claude', 'Lyrics cache', `Trimmed ${removed.size} oldest lyrics record${removed.size === 1 ? '' : 's'} (cap ${LYRICS_CACHE_MAX_RECORDS})`);
             },
 
             getLyricsCacheKeysForItem(item) {

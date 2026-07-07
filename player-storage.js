@@ -24,7 +24,7 @@ const LYRICS_VIEW_DEFAULTS = {
     backdrop: 'dim'
 };
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is Record<string, any>} */
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -35,8 +35,43 @@ function isFavoritesRecord(value) {
 }
 
 /** @param {unknown} value @returns {value is LyricsCacheStore} */
-function isLyricsCacheRecord(value) {
-    return isPlainObject(value);
+function isLyricsCacheStore(value) {
+    return isPlainObject(value)
+        && isPlainObject(/** @type {{ records?: unknown }} */(value).records)
+        && isPlainObject(/** @type {{ aliases?: unknown }} */(value).aliases);
+}
+
+/**
+ * Convert the legacy flat lyrics cache ({ [key]: LyricsResult }) into the
+ * deduplicated records+aliases shape. Duplicate copies of the same lyrics
+ * (same track/artist/duration) collapse to one record; every old key
+ * becomes an alias so existing lookups keep hitting.
+ * @param {Record<string, any>} flat
+ * @returns {LyricsCacheStore}
+ */
+function migrateFlatLyricsCache(flat) {
+    /** @type {LyricsCacheStore} */
+    const store = { records: {}, aliases: {} };
+    /** @type {Map<string, string>} lyrics identity -> canonical key */
+    const canonicalByIdentity = new Map();
+    const now = Date.now();
+    for (const [key, lyrics] of Object.entries(flat)) {
+        if (!isPlainObject(lyrics)) continue;
+        const identity = [
+            lyrics.provider || '',
+            lyrics.trackName || '',
+            lyrics.artistName || '',
+            Math.round(Number(lyrics.duration) || 0)
+        ].join('|').toLowerCase();
+        let canonical = canonicalByIdentity.get(identity);
+        if (!canonical) {
+            canonical = key;
+            canonicalByIdentity.set(identity, canonical);
+            store.records[canonical] = { lyrics: /** @type {LyricsResult} */ (lyrics), cachedAt: now };
+        }
+        store.aliases[key] = canonical;
+    }
+    return store;
 }
 
 /** @param {unknown} value @returns {value is SongLibraryStore} */
@@ -49,7 +84,7 @@ function isLyricsViewSettings(value) {
     return isPlainObject(value);
 }
 
-/** @param {unknown} value @returns {value is { items: PlaylistItem[], currentPlaylistIndex: number }} */
+/** @param {unknown} value @returns {value is { items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
 function isPlaylistEnvelope(value) {
     return isPlainObject(value) && Array.isArray(/** @type {{ items?: unknown }} */ (value).items);
 }
@@ -75,8 +110,24 @@ const PlayerStorage = (function () {
         SettingsStore.saveJson(StorageKeys.PLAYER_SONG_LIBRARY, library);
     }
 
+    /** @returns {LyricsCacheStore} */
     function loadLyricsCache() {
-        return SettingsStore.loadJson(StorageKeys.PLAYER_LYRICS_CACHE, {}, isLyricsCacheRecord);
+        /** @type {LyricsCacheStore} */
+        const empty = { records: {}, aliases: {} };
+        const raw = SettingsStore.loadJson(
+            StorageKeys.PLAYER_LYRICS_CACHE,
+            /** @type {Record<string, any>} */(empty),
+            isPlainObject
+        );
+        if (isLyricsCacheStore(raw)) {
+            return raw;
+        }
+        // Legacy flat shape: one full lyrics copy per lookup key. Collapse to
+        // the deduplicated store and re-save so the duplication never returns.
+        SettingsStore.logPersistence(`${StorageKeys.PLAYER_LYRICS_CACHE}: migrating flat lyrics cache to deduplicated records+aliases`);
+        const migrated = migrateFlatLyricsCache(/** @type {Record<string, any>} */(raw));
+        saveLyricsCache(migrated);
+        return migrated;
     }
 
     /** @param {LyricsCacheStore} cache */
@@ -113,8 +164,9 @@ const PlayerStorage = (function () {
         SettingsStore.save(StorageKeys.PLAYER_SETTINGS, settings, PLAYER_SETTINGS_KEYS);
     }
 
-    /** @returns {{ items: PlaylistItem[], currentPlaylistIndex: number }} */
+    /** @returns {{ items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
     function loadPlaylist() {
+        /** @type {{ items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
         const empty = { items: [], currentPlaylistIndex: -1 };
         const data = SettingsStore.loadJson(StorageKeys.PLAYER_PLAYLIST, empty, isPlaylistEnvelope);
         if (!data || !Array.isArray(data.items)) {
@@ -128,7 +180,7 @@ const PlayerStorage = (function () {
         };
     }
 
-    /** @param {PlaylistItem[]} items @param {number} currentPlaylistIndex */
+    /** @param {PersistedPlaylistEntry[]} items @param {number} currentPlaylistIndex */
     function savePlaylist(items, currentPlaylistIndex) {
         SettingsStore.saveJson(StorageKeys.PLAYER_PLAYLIST, { items, currentPlaylistIndex });
     }

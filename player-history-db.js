@@ -234,14 +234,11 @@ const PlayerHistoryDB = (function () {
 
     /** @param {PlaylistItem | FavoriteData | any} song @param {string} sourceKind */
     function recordSong(song, sourceKind) {
-        if (!song || !song.videoId) return;
-        putCapped(STORES.SONGS, {
-            ...song,
-            sourceKind,
-            videoId: song.videoId,
-            firstSeenAt: song.firstSeenAt || nowIso(),
-            lastSeenAt: nowIso()
-        });
+        // Store the Song fields plus seen timestamps - never the runtime
+        // lyric state or other per-list baggage a raw playlist item carries.
+        const record = PlayerSongs.historySongRecord(song, sourceKind, nowIso());
+        if (!record) return;
+        putCapped(STORES.SONGS, record);
     }
 
     /** @param {PlaylistItem[] | FavoriteData[]} songs @param {string} sourceKind */

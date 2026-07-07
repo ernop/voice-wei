@@ -59,6 +59,7 @@ interface Window {
     PlayerLyrics?: typeof PlayerLyrics;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
+    PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
     MediaSessionCore?: any;

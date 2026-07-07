@@ -28,38 +28,49 @@ interface YouTubeVideoCandidate {
     durationSeconds?: number;
 }
 
-interface PlaylistItem {
-    id: number;
+/**
+ * The song primitive. Identity is the YouTube videoId (the key that plays
+ * it); everything else is descriptive metadata, always present as typed
+ * defaults ('' / 0 / '--:--') so consumers never guess. Built only by
+ * PlayerSongs (player-songs.js), never by hand.
+ */
+interface Song {
     videoId: string;
     name: string;
     artist: string;
     year: string;
     album: string;
+    comment: string;
+    searchTerm: string;
     title: string;
     channelTitle: string;
     duration: string;
-    durationSeconds?: number;
-    comment: string;
-    searchTerm: string;
-    sourceKind?: 'search' | 'favorite' | 'restored' | 'history' | 'demo';
-    sourceLabel?: string;
-    sourceSearchTerm?: string;
-    lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
-    lyricsData?: LyricsResult | null;
+    durationSeconds: number;
 }
 
-interface FavoriteData {
-    videoId: string;
-    name: string;
-    artist: string;
-    year: string;
-    album: string;
-    title: string;
-    channelTitle: string;
-    duration: string;
-    durationSeconds?: number;
-    comment: string;
-    searchTerm: string;
+type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'demo';
+
+type PlaylistSortKey = 'artist' | 'year';
+
+/** A Song's membership in the working playlist + runtime lyric state. */
+interface PlaylistItem extends Song {
+    id: number;
+    sourceKind: PlaylistSourceKind;
+    sourceLabel: string;
+    sourceSearchTerm: string;
+    lyricsStatus: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
+    lyricsData: LyricsResult | null;
+}
+
+/** What the playlist persists per entry: the Song + membership, no lyric runtime. */
+interface PersistedPlaylistEntry extends Song {
+    id: number;
+    sourceKind: PlaylistSourceKind;
+    sourceLabel: string;
+    sourceSearchTerm: string;
+}
+
+interface FavoriteData extends Song {
     favoritedAt: number;
 }
 
@@ -80,8 +91,20 @@ interface LyricsResult {
     syncedLines: SyncedLyricLine[];
 }
 
+interface LyricsCacheRecord {
+    lyrics: LyricsResult;
+    cachedAt: number;
+}
+
+/**
+ * Deduplicated lyrics cache: each lyrics record is stored ONCE under a
+ * canonical key in `records`; every lookup key that resolved to it maps
+ * there via `aliases`. (The earlier flat shape stored a full copy of the
+ * lyrics under every alias key, which multiplied localStorage use.)
+ */
 interface LyricsCacheStore {
-    [cacheKey: string]: LyricsResult;
+    records: { [canonicalKey: string]: LyricsCacheRecord };
+    aliases: { [aliasKey: string]: string };
 }
 
 interface SongLibraryNote {
@@ -186,6 +209,12 @@ interface VoiceMusicController {
 
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
+    sortPlaylist(key: PlaylistSortKey): void;
+    rerenderPlaylistDom(): void;
+    removePlaylistItem(itemId: number): void;
+    appendPlaylistItem(item: PlaylistItem, options?: { eagerLyrics?: boolean }): void;
+    showPlaylistSurfaces(): void;
+    clearPlaylistItems(): void;
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
@@ -241,10 +270,13 @@ interface VoiceMusicController {
     playerReady(): void;
     loadDemoSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
-    searchAndAddToPlaylist(songList: any[]): Promise<PlaylistSearchResult>;
+    searchAndAddToPlaylist(songList: any[], options?: { replaceExisting?: boolean }): Promise<PlaylistSearchResult>;
     musicHistoryLookups: any[];
     musicHistorySongs: any[];
     musicHistorySearches: any[];
+    setMusicHistoryPanelVisible(visible: boolean): void;
+    toggleMusicHistoryPanel(): void;
+    toggleSongLibraryPanel(): void;
     setupMusicHistoryUI(): void;
     refreshMusicHistoryPanel(): Promise<void>;
     renderLookupHistory(lookups: any[]): void;
@@ -304,6 +336,7 @@ interface VoiceMusicController {
     hydrateItemLyricsFromCache(item: PlaylistItem): boolean;
     cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
     persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
+    trimLyricsCache(): void;
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];
     buildLyricsCacheKey(artist: string, title: string, durationSeconds: number): string;
     refreshLyricsRowButton(item: PlaylistItem): void;
