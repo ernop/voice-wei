@@ -371,6 +371,19 @@ deduplicated: one record per lyrics result under a canonical key in
 `aliases`, bounded at 200 records (oldest trimmed, logged). The legacy
 flat cache shape is migrated on first load.
 
+**Lyric lookups run through one bounded queue.** Background lyric
+resolution (`queueLyricsLookup`/`pumpLyricsQueue` in player-lyrics.js)
+processes at most 2 songs at a time, so adding a large playlist never
+fires a provider request per song at once. Every add path - including
+restore-at-load - queues through it, which is also the interruption
+recovery: closing the page mid-fetch costs nothing, because on the next
+open cached songs hydrate instantly, remembered not-founds stay
+`not_found` (the cache's `misses` map, 7-day TTL, capped at 500), and
+only the unresolved remainder is re-queued. Direct user intent (playing
+a song, tapping its row chip) calls `ensureLyricsForItem` immediately
+and idempotently; tapping the chip on a remembered not-found clears its
+miss and forces a fresh lookup.
+
 ### Music player durable history (`voice-wei-music`)
 
 The music player keeps unbounded/historical data in its own IndexedDB

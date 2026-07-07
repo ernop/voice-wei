@@ -1277,6 +1277,118 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && playlistSourceGroups.comments.some(comment =>
                 comment.includes('Included because it matches the requested search')));
 
+        const lyricsQueueRecovery = await tab.evaluate(async () => {
+            const realSaveLyricsCache = PlayerStorage.saveLyricsCache;
+            PlayerStorage.saveLyricsCache = () => {};
+            const makeHarness = (lyricsCache) => {
+                const harness = {
+                    playlist: [],
+                    favorites: {},
+                    youtubeAlternateResults: new Map(),
+                    lyricsCache,
+                    lyricsLookupCache: new Map(),
+                    lyricsFetchQueue: [],
+                    lyricsFetchActive: 0,
+                    currentLyricsItemId: null,
+                    currentLyricsLineIndex: -1,
+                    lyricsPanelVisible: false,
+                    lyricsPanelDismissed: false,
+                    nowPlayingShowsLyric: false,
+                    settings: { lyricsOnNowPlaying: false },
+                    isFavorite() { return false; },
+                    escapeHtml(value) { return String(value || ''); },
+                    truncateForStatus(value) { return String(value || ''); },
+                    addMessage() {},
+                    updateStatus() {},
+                    persistPlaylist() {},
+                    updatePlaylistLabel() {},
+                    showPlaylistSurfaces() {}
+                };
+                PlayerPlaylist.install(harness);
+                PlayerLyrics.install(harness);
+                harness.addPlaylistItemToDOM = () => {};
+                harness.lookups = 0;
+                harness.inFlight = 0;
+                harness.maxInFlight = 0;
+                harness.lookupLyrics = async (item) => {
+                    harness.lookups++;
+                    harness.inFlight++;
+                    harness.maxInFlight = Math.max(harness.maxInFlight, harness.inFlight);
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                    harness.inFlight--;
+                    if (item.name.startsWith('Missing')) return null;
+                    return {
+                        provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                        albumName: '', duration: 100, instrumental: false,
+                        plainLyrics: 'la la', syncedLyrics: null, syncedLines: []
+                    };
+                };
+                return harness;
+            };
+            const makeItem = (name) => PlayerSongs.createPlaylistItem({
+                videoId: `lyr-${name.replace(/\s+/g, '-')}`,
+                name, artist: 'Queue Artist', duration: '1:40', durationSeconds: 100,
+                searchTerm: `Queue Artist ${name}`
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+            const settle = async (harness) => {
+                for (let i = 0; i < 100; i++) {
+                    if (harness.playlist.every(item => item.lyricsStatus === 'ready' || item.lyricsStatus === 'not_found')) return true;
+                    await new Promise(resolve => setTimeout(resolve, 25));
+                }
+                return false;
+            };
+
+            // Session 1: six songs added at once; lookups must run through
+            // the bounded queue, and the not-found records a miss.
+            const cache = { records: {}, aliases: {}, misses: {} };
+            const first = makeHarness(cache);
+            ['Song One', 'Song Two', 'Song Three', 'Song Four', 'Song Five', 'Missing Song']
+                .forEach(name => first.appendPlaylistItem(makeItem(name)));
+            const firstSettled = await settle(first);
+            const missRemembered = Object.keys(cache.misses).length > 0;
+
+            // Session 2 (the "interrupted, reopened later" case): same cache,
+            // fresh page state. Cached songs hydrate, the known miss stays
+            // not_found, and only the genuinely unresolved song hits the
+            // provider again.
+            const second = makeHarness(cache);
+            second.appendPlaylistItem(makeItem('Song One'));
+            second.appendPlaylistItem(makeItem('Missing Song'));
+            const resumedFromCache = second.playlist[0].lyricsStatus === 'ready'
+                && second.playlist[1].lyricsStatus === 'not_found'
+                && second.lookups === 0;
+            second.appendPlaylistItem(makeItem('Song Never Seen'));
+            const secondSettled = await settle(second);
+            const newSongLookups = second.lookups;
+
+            // Tapping the chip on a remembered miss forces a fresh lookup.
+            const missingItem = second.playlist[1];
+            await second.showLyricsForItem(missingItem);
+            const chipRetried = second.lookups === 2 && missingItem.lyricsStatus === 'not_found';
+            second.setLyricsPanelVisible(false);
+
+            PlayerStorage.saveLyricsCache = realSaveLyricsCache;
+            return {
+                firstSettled,
+                maxInFlight: first.maxInFlight,
+                firstLookups: first.lookups,
+                missRemembered,
+                resumedFromCache,
+                secondSettled,
+                newSongLookups,
+                chipRetried
+            };
+        });
+        report.check(`player lyric queue is bounded and resumes after reload (max in-flight ${lyricsQueueRecovery.maxInFlight}, resume lookups ${lyricsQueueRecovery.newSongLookups})`,
+            lyricsQueueRecovery.firstSettled
+            && lyricsQueueRecovery.maxInFlight === 2
+            && lyricsQueueRecovery.firstLookups === 6
+            && lyricsQueueRecovery.missRemembered
+            && lyricsQueueRecovery.resumedFromCache
+            && lyricsQueueRecovery.secondSettled
+            && lyricsQueueRecovery.newSongLookups === 1
+            && lyricsQueueRecovery.chipRetried);
+
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
                 musicHistoryLookups: [{
@@ -1513,6 +1625,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.updatePlaylistLabel = () => {};
             harness.persistPlaylist = () => {};
             harness.ensureLyricsForItem = () => Promise.resolve();
+            harness.queueLyricsLookup = () => {};
             harness.searchYouTube = query => {
                 if (query === 'found song') {
                     return Promise.resolve({

@@ -101,10 +101,14 @@ interface LyricsCacheRecord {
  * canonical key in `records`; every lookup key that resolved to it maps
  * there via `aliases`. (The earlier flat shape stored a full copy of the
  * lyrics under every alias key, which multiplied localStorage use.)
+ * `misses` remembers confirmed not-founds (lookup key -> epoch ms) so
+ * resume-on-load does not re-query known-missing songs; entries expire
+ * after a TTL and a chip tap clears them for a forced retry.
  */
 interface LyricsCacheStore {
     records: { [canonicalKey: string]: LyricsCacheRecord };
     aliases: { [aliasKey: string]: string };
+    misses: { [aliasKey: string]: number };
 }
 
 interface SongLibraryNote {
@@ -212,7 +216,7 @@ interface VoiceMusicController {
     sortPlaylist(key: PlaylistSortKey): void;
     rerenderPlaylistDom(): void;
     removePlaylistItem(itemId: number): void;
-    appendPlaylistItem(item: PlaylistItem, options?: { eagerLyrics?: boolean }): void;
+    appendPlaylistItem(item: PlaylistItem): void;
     showPlaylistSurfaces(): void;
     clearPlaylistItems(): void;
     updatePlaylistLabel(): void;
@@ -337,6 +341,12 @@ interface VoiceMusicController {
     cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
     persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
     trimLyricsCache(): void;
+    lyricsFetchQueue: number[];
+    lyricsFetchActive: number;
+    queueLyricsLookup(item: PlaylistItem): void;
+    pumpLyricsQueue(): void;
+    recordLyricsMiss(item: PlaylistItem): void;
+    clearLyricsMiss(item: PlaylistItem): void;
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];
     buildLyricsCacheKey(artist: string, title: string, durationSeconds: number): string;
     refreshLyricsRowButton(item: PlaylistItem): void;

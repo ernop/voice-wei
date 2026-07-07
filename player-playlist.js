@@ -48,19 +48,18 @@ const PlayerPlaylist = (function () {
 
             /**
              * The one way a song enters the working playlist: append at the
-             * end, render its row, and (unless told otherwise) start its
-             * lyric lookup. Callers build the item via
-             * PlayerSongs.createPlaylistItem. Restore-at-load passes
-             * eagerLyrics false so a big saved playlist does not fire a
-             * provider request per song on every page load.
+             * end, render its row, and queue its lyric lookup. The bounded
+             * queue (player-lyrics.js) keeps big adds polite, and because
+             * restore-at-load takes this same path, lyric fetching that was
+             * interrupted by closing the page resumes on the next open -
+             * cached songs hydrate instantly, remembered misses stay
+             * not_found, and only the truly unresolved ones are re-queued.
              */
-            appendPlaylistItem(item, { eagerLyrics = true } = {}) {
+            appendPlaylistItem(item) {
                 this.hydrateItemLyricsFromCache(item);
                 this.playlist.push(item);
                 this.addPlaylistItemToDOM(item);
-                if (eagerLyrics && item.lyricsStatus === 'idle') {
-                    void this.ensureLyricsForItem(item);
-                }
+                this.queueLyricsLookup(item);
             },
 
             loadFavoritesToPlaylist() {
@@ -1090,6 +1089,7 @@ const PlayerPlaylist = (function () {
                 }
                 this.playerReadyPromises.clear();
                 this.youtubeAlternateResults.clear();
+                this.lyricsFetchQueue.length = 0;
                 this.playback.reset();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);
@@ -1142,7 +1142,7 @@ const PlayerPlaylist = (function () {
                         sourceLabel: 'Known at load'
                     });
                     if (!item) continue;
-                    this.appendPlaylistItem(item, { eagerLyrics: false });
+                    this.appendPlaylistItem(item);
                 }
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordSongs(this.playlist, 'restored-at-load');

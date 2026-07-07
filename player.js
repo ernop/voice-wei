@@ -46,6 +46,10 @@ class VoiceMusicController {
         this.lyricsCache = PlayerStorage.loadLyricsCache();
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
+        /** @type {number[]} Item ids awaiting a background lyric lookup */
+        this.lyricsFetchQueue = [];
+        /** @type {number} Lyric lookups currently in flight (bounded) */
+        this.lyricsFetchActive = 0;
         this.lyricsViewSettings = PlayerStorage.loadLyricsViewSettings();
         /** @type {boolean} */
         this.lyricsPanelVisible = false;

@@ -42,6 +42,19 @@ function isLyricsCacheStore(value) {
 }
 
 /**
+ * The `misses` map (remembered not-founds) arrived after records+aliases;
+ * stores saved without it get an empty one.
+ * @param {LyricsCacheStore} store
+ * @returns {LyricsCacheStore}
+ */
+function withLyricsMisses(store) {
+    if (!isPlainObject(/** @type {{ misses?: unknown }} */(store).misses)) {
+        store.misses = {};
+    }
+    return store;
+}
+
+/**
  * Convert the legacy flat lyrics cache ({ [key]: LyricsResult }) into the
  * deduplicated records+aliases shape. Duplicate copies of the same lyrics
  * (same track/artist/duration) collapse to one record; every old key
@@ -51,7 +64,7 @@ function isLyricsCacheStore(value) {
  */
 function migrateFlatLyricsCache(flat) {
     /** @type {LyricsCacheStore} */
-    const store = { records: {}, aliases: {} };
+    const store = { records: {}, aliases: {}, misses: {} };
     /** @type {Map<string, string>} lyrics identity -> canonical key */
     const canonicalByIdentity = new Map();
     const now = Date.now();
@@ -113,14 +126,14 @@ const PlayerStorage = (function () {
     /** @returns {LyricsCacheStore} */
     function loadLyricsCache() {
         /** @type {LyricsCacheStore} */
-        const empty = { records: {}, aliases: {} };
+        const empty = { records: {}, aliases: {}, misses: {} };
         const raw = SettingsStore.loadJson(
             StorageKeys.PLAYER_LYRICS_CACHE,
             /** @type {Record<string, any>} */(empty),
             isPlainObject
         );
         if (isLyricsCacheStore(raw)) {
-            return raw;
+            return withLyricsMisses(raw);
         }
         // Legacy flat shape: one full lyrics copy per lookup key. Collapse to
         // the deduplicated store and re-save so the duplication never returns.
