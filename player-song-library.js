@@ -18,6 +18,11 @@ const PlayerSongLibrary = (function () {
                 const importBtn = document.getElementById('songLibraryImportBtn');
                 const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('songLibrarySearch'));
                 const stopBtn = document.getElementById('songLibraryStopBtn');
+                const toggleBtn = document.getElementById('songLibraryToggleBtn');
+
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', () => this.toggleSongLibraryPanel());
+                }
 
                 if (importBtn && importInput) {
                     importBtn.addEventListener('click', () => importInput.click());
@@ -38,6 +43,12 @@ const PlayerSongLibrary = (function () {
                 }
 
                 this.renderSongLibrary();
+            },
+
+            toggleSongLibraryPanel() {
+                const panel = document.getElementById('songLibraryPanel');
+                if (!panel) return;
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
             },
 
             /** @param {FileList | File[]} files */

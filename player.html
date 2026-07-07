@@ -73,8 +73,7 @@
                     <span>Show current lyric on car / lock-screen display</span>
                 </label>
                 <p class="setting-description">While a song with synced lyrics plays, the now-playing title (what
-                    Bluetooth and the tab show) follows the current lyric line; the song name moves to the artist
-                    slot.</p>
+                    Bluetooth and the tab show) is the current lyric line and nothing else.</p>
             </div>
             <div class="setting-item">
                 <label class="display-toggle">
@@ -151,6 +150,10 @@
                 <div class="player-controls-secondary">
                     <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
                     <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
+                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
+                        aria-label="Show or hide lyrics">Lyrics</button>
+                    <button id="lyricsOverlayBtn" class="control-btn-small big-lyrics-btn lyrics-unavailable"
+                        aria-label="Open large lyrics overlay">Big Lyrics</button>
                 </div>
             </div>
 
@@ -181,21 +184,55 @@
             </div>
 
             <div class="quick-actions" id="quickActions">
-                <button id="loadFavoritesBtnMain" class="quick-action-btn">Load Favorites</button>
-                <button id="musicHistoryRefreshBtn" class="quick-action-btn" type="button">History / Cache</button>
+                <button id="loadFavoritesBtnMain" class="secondary-btn">Load Favorites</button>
+                <button id="musicHistoryToggleBtn" class="secondary-btn" type="button">History / Cache</button>
+                <button id="songLibraryToggleBtn" class="secondary-btn" type="button">Song Library</button>
             </div>
 
-            <section class="music-history-panel" id="musicHistoryPanel" aria-labelledby="musicHistoryTitle">
+            <div class="playlist-container" id="playlistContainer" style="display: none;">
+                <div class="playlist-header">
+                    <span class="playlist-label" id="playlistLabel">Playlist:</span>
+                    <div class="playlist-header-actions">
+                        <button id="shufflePlaylistBtn" class="panel-action-btn" type="button">Shuffle</button>
+                        <button id="sortPlaylistArtistBtn" class="panel-action-btn" type="button">Sort: Artist</button>
+                        <button id="sortPlaylistYearBtn" class="panel-action-btn" type="button">Sort: Year</button>
+                        <button id="clearPlaylistBtn" class="panel-action-btn danger" type="button">Clear</button>
+                    </div>
+                </div>
+                <div class="playlist-list" id="playlistBody"></div>
+            </div>
+
+            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
+                <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous">&#9198;</button>
+                <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
+                <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next">&#9197;</button>
+                <div class="transport-bar-info" id="transportBarInfo">No song playing</div>
+            </div>
+
+            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
+                <div class="lyrics-panel-header">
+                    <div class="lyrics-panel-title-group">
+                        <div class="lyrics-panel-label">Lyrics</div>
+                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
+                    </div>
+                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
+                </div>
+                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
+                <div class="lyrics-content" id="lyricsContent"></div>
+            </div>
+
+            <section class="music-history-panel" id="musicHistoryPanel" aria-labelledby="musicHistoryTitle"
+                style="display: none;">
                 <div class="music-history-header">
                     <div>
                         <h2 id="musicHistoryTitle">Music History & Cache</h2>
                         <p>Reload old lookups, combine known songs, and inspect cached YouTube conversions.</p>
                     </div>
-                    <button id="musicHistoryReloadBtn" class="quick-action-btn" type="button">Refresh</button>
+                    <button id="musicHistoryReloadBtn" class="secondary-btn" type="button">Refresh</button>
                 </div>
                 <div class="music-history-actions">
-                    <button id="historyLoadSelectedLookupsBtn" class="quick-action-btn" type="button">Load Selected Lookups</button>
-                    <button id="historyLoadSelectedSongsBtn" class="quick-action-btn" type="button">Load Selected Songs</button>
+                    <button id="historyLoadSelectedLookupsBtn" class="secondary-btn" type="button">Load Selected Lookups</button>
+                    <button id="historyLoadSelectedSongsBtn" class="secondary-btn" type="button">Load Selected Songs</button>
                 </div>
                 <div class="music-history-grid">
                     <section class="music-history-card">
@@ -213,7 +250,8 @@
                 </div>
             </section>
 
-            <section class="song-library-panel" aria-labelledby="songLibraryTitle">
+            <section class="song-library-panel" id="songLibraryPanel" aria-labelledby="songLibraryTitle"
+                style="display: none;">
                 <div class="song-library-header">
                     <div>
                         <h2 id="songLibraryTitle">Local Song Library</h2>
@@ -221,8 +259,8 @@
                     </div>
                     <div class="song-library-actions">
                         <input id="songLibraryImportInput" type="file" accept=".mid,.midi,.musicxml,.xml" multiple hidden>
-                        <button id="songLibraryImportBtn" class="quick-action-btn" type="button">Load Songs</button>
-                        <button id="songLibraryStopBtn" class="quick-action-btn song-library-stop" type="button">Stop Melody</button>
+                        <button id="songLibraryImportBtn" class="primary-btn" type="button">Load Songs</button>
+                        <button id="songLibraryStopBtn" class="secondary-btn danger" type="button">Stop Melody</button>
                     </div>
                 </div>
                 <div class="song-library-toolbar">
@@ -232,49 +270,6 @@
                 </div>
                 <div id="songLibraryList" class="song-library-list"></div>
             </section>
-
-            <div class="playlist-container" id="playlistContainer" style="display: none;">
-                <div class="playlist-header">
-                    <span class="playlist-label" id="playlistLabel">Playlist:</span>
-                    <button id="clearPlaylistBtn" class="clear-playlist-btn">Clear</button>
-                </div>
-                <table class="playlist-table" id="playlist">
-                    <thead>
-                        <tr>
-                            <th class="fav-col"></th>
-                            <th>Artist</th>
-                            <th>Song</th>
-                            <th>Year</th>
-                            <th>Album</th>
-                            <th>Length</th>
-                        </tr>
-                    </thead>
-                    <tbody id="playlistBody"></tbody>
-                </table>
-            </div>
-
-            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
-                <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous">&#9198;</button>
-                <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
-                <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next">&#9197;</button>
-                <div class="transport-bar-info" id="transportBarInfo">No song playing</div>
-                <button id="lyricsPanelBtn" class="transport-bar-btn lyrics-control-btn"
-                    aria-label="Show or hide lyrics">Lyrics</button>
-                <button id="lyricsOverlayBtn" class="transport-bar-btn big-lyrics-btn lyrics-unavailable"
-                    aria-label="Open large lyrics overlay">Big Lyrics</button>
-            </div>
-
-            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
-                <div class="lyrics-panel-header">
-                    <div class="lyrics-panel-title-group">
-                        <div class="lyrics-panel-label">Lyrics</div>
-                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
-                    </div>
-                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
-                </div>
-                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
-                <div class="lyrics-content" id="lyricsContent"></div>
-            </div>
 
             <div class="log-container collapsed" id="logContainer">
                 <div class="log-header" id="logHeader">
@@ -341,6 +336,7 @@
     <script src="voice-output.js?v=217"></script>
     <script src="voice-command-core.js?v=217"></script>
     <script src="media-session-core.js?v=217"></script>
+    <script src="player-songs.js?v=217"></script>
     <script src="player-storage.js?v=217"></script>
     <script src="player-playback-state.js?v=217"></script>
     <script src="player-history-db.js?v=217"></script>

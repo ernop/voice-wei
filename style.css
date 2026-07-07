@@ -777,6 +777,8 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-bottom: 6px;
     padding: 0 4px;
 }
@@ -788,25 +790,10 @@ h1 {
     margin: 0;
 }
 
-.clear-playlist-btn {
-    padding: 8px 16px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: rgba(239, 68, 68, 0.7);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.clear-playlist-btn:hover {
-    background: rgba(239, 68, 68, 0.9);
-}
-
-.clear-playlist-btn:active {
-    transform: scale(0.95);
+.playlist-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 /* Quick Actions Section */
@@ -879,12 +866,6 @@ h1 {
 .song-library-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
-}
-
-.song-library-stop {
-    background: rgba(239, 68, 68, 0.16);
-    border-color: rgba(239, 68, 68, 0.38);
-    color: #fca5a5;
 }
 
 .song-library-toolbar {
@@ -977,129 +958,143 @@ h1 {
     text-align: center;
 }
 
-.playlist-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: auto;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 8px;
-    overflow: hidden;
+/* Playlist rows - every datum has a fixed slot:
+   [star]   | song name .......... duration | [x]
+   [lyrics] | artist - year - album         |
+            | comment (its own full line)   |     */
+.playlist-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.playlist-table thead {
-    background: rgba(0, 0, 0, 0.4);
-}
-
-.playlist-table th {
-    padding: 10px 12px;
-    text-align: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba(74, 222, 128, 0.8);
-    border-bottom: 1px solid rgba(74, 222, 128, 0.2);
-}
-
-.playlist-table th.fav-col {
-    width: 40px;
-    text-align: center;
-    padding: 10px 4px;
-}
-
-.playlist-table tbody tr {
-    background: rgba(74, 222, 128, 0.04);
+.playlist-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(74, 222, 128, 0.05);
+    border: 1px solid rgba(74, 222, 128, 0.12);
+    border-radius: 10px;
     cursor: pointer;
 }
 
-.playlist-table tbody tr:nth-child(even) {
-    background: rgba(74, 222, 128, 0.08);
+.playlist-row:hover {
+    background: rgba(74, 222, 128, 0.12);
 }
 
-.playlist-table tbody tr:hover {
-    background: rgba(74, 222, 128, 0.15);
+.playlist-row:active {
+    background: rgba(74, 222, 128, 0.22);
 }
 
-.playlist-table tbody tr:active {
-    background: rgba(74, 222, 128, 0.25);
-}
-
-.playlist-table tbody tr.playing {
-    background: rgba(74, 222, 128, 0.2);
-}
-
-.playlist-table tbody tr.playing td:first-child {
+.playlist-row.playing {
+    background: rgba(74, 222, 128, 0.18);
     border-left: 3px solid #4ade80;
 }
 
-.playlist-table td {
-    padding: 7px 10px;
-    font-size: 0.84rem;
-    color: #e8f5e9;
-    line-height: 1.15;
-    white-space: normal;
-    word-wrap: break-word;
-    vertical-align: middle;
-    text-align: center;
+.playlist-row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 }
 
-.playlist-table td:nth-child(1) {
-    padding: 5px 4px;
+.playlist-row-main {
+    min-width: 0;
+    text-align: left;
 }
 
-.playlist-table td:nth-child(2) {
-    font-weight: 500;
-    color: #e8f5e9;
+.playlist-row-title-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
 }
 
-.playlist-table td:nth-child(3) {
-    font-weight: 600;
+.playlist-song-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.92rem;
+    font-weight: 650;
     color: #a7f3d0;
 }
 
-.playlist-table td:nth-child(4) {
-    font-size: 0.8rem;
-    color: #d1fae5;
-}
-
-.playlist-table td:nth-child(5) {
-    font-size: 0.85rem;
-    color: #d1fae5;
-}
-
-.playlist-table td:nth-child(6) {
-    font-size: 0.8rem;
+.playlist-song-duration {
+    flex-shrink: 0;
+    font-size: 0.78rem;
     font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
     color: #d1fae5;
     white-space: nowrap;
 }
 
-.playlist-song-cell {
+.playlist-row-meta-line {
     display: flex;
     align-items: baseline;
-    justify-content: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
+    margin-top: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: #d1fae5;
 }
 
-.playlist-song-name,
-.playlist-song-comment {
-    min-width: 0;
+.playlist-song-artist {
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 500;
 }
 
-.playlist-song-name {
-    flex: 0 1 auto;
+.playlist-song-year::before,
+.playlist-song-album::before {
+    content: '\00b7';
+    margin-right: 6px;
+    opacity: 0.5;
+}
+
+.playlist-song-year {
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.playlist-song-album {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.75;
 }
 
 .playlist-song-comment {
-    flex: 1 1 10rem;
-    max-width: 22rem;
-    color: #bbf7d0;
-    font-size: 0.74rem;
+    margin-top: 4px;
+    font-size: 0.76rem;
     font-weight: 500;
+    line-height: 1.35;
+    color: #bbf7d0;
+    overflow-wrap: anywhere;
+}
+
+.playlist-remove-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 7px;
+    background: rgba(239, 68, 68, 0.08);
+    color: rgba(252, 165, 165, 0.8);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.playlist-remove-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fecaca;
 }
 
 /* Favorite Button - Star */
@@ -1120,13 +1115,6 @@ h1 {
 .favorite-btn.favorited {
     color: #facc15;
     text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
-}
-
-.playlist-actions-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
 }
 
 .lyrics-row-btn {

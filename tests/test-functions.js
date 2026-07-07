@@ -1256,24 +1256,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 sourceLabel: 'Search: Search Artist Search Song',
                 sourceSearchTerm: 'Search Artist Search Song'
             });
-            const rows = Array.from(body.querySelectorAll('tr'));
-            const sourceRowCount = rows.filter(row => row.classList.contains('playlist-source-row')).length;
-            const dataRows = rows
-                .filter(row => !row.classList.contains('playlist-source-row'))
-                .map(row => row.dataset.itemId);
-            const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => ({
-                text: el.textContent,
-                title: el.getAttribute('title')
+            const rows = Array.from(body.querySelectorAll('.playlist-row'));
+            const dataRows = rows.map(row => row.dataset.itemId);
+            // Fixed slots: name + duration on the title line, artist on the
+            // meta line, comment on its own full-width line, remove button.
+            const slots = rows.map(row => ({
+                name: row.querySelector('.playlist-row-title-line .playlist-song-name')?.textContent || '',
+                duration: row.querySelector('.playlist-row-title-line .playlist-song-duration')?.textContent || '',
+                artist: row.querySelector('.playlist-row-meta-line .playlist-song-artist')?.textContent || '',
+                hasRemove: !!row.querySelector('.playlist-remove-btn')
             }));
+            const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => el.textContent);
             body.innerHTML = '';
-            return { sourceRowCount, dataRows, comments };
+            return { dataRows, slots, comments };
         });
-        report.check('player playlist keeps compact rows and inline comments',
-            playlistSourceGroups.sourceRowCount === 0
-            && playlistSourceGroups.dataRows.includes('501')
+        report.check('player playlist rows keep each datum in its fixed slot',
+            playlistSourceGroups.dataRows.includes('501')
             && playlistSourceGroups.dataRows.includes('502')
+            && playlistSourceGroups.slots.every(slot => slot.name && slot.duration && slot.artist && slot.hasRemove)
             && playlistSourceGroups.comments.some(comment =>
-                comment.text.includes('Included because') && comment.title.includes('matches the requested search')));
+                comment.includes('Included because it matches the requested search')));
 
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
@@ -1318,10 +1320,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 async searchAndAddToPlaylist(songList) { this.searchedTerms.push(...songList.map(song => song.searchTerm)); },
                 async processMusicSearch(requestText) { this.rerunRequest = requestText; },
                 hydrateItemLyricsFromCache() {},
-                addPlaylistItemToDOM(item) { this.playlist.push(item); },
+                appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
-                showTransportBar() {}
+                showPlaylistSurfaces() {}
             };
             PlayerHistoryUI.install(harness);
             harness.refreshMusicHistoryPanel = async () => {};
