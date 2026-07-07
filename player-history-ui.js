@@ -8,16 +8,30 @@ const PlayerHistoryUI = (function () {
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             setupMusicHistoryUI() {
-                const refreshBtn = document.getElementById('musicHistoryRefreshBtn');
+                const toggleBtn = document.getElementById('musicHistoryToggleBtn');
                 const reloadBtn = document.getElementById('musicHistoryReloadBtn');
                 const loadLookupsBtn = document.getElementById('historyLoadSelectedLookupsBtn');
                 const loadSongsBtn = document.getElementById('historyLoadSelectedSongsBtn');
 
-                refreshBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
+                toggleBtn?.addEventListener('click', () => this.toggleMusicHistoryPanel());
                 reloadBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
                 loadLookupsBtn?.addEventListener('click', () => this.loadSelectedHistoryLookups());
                 loadSongsBtn?.addEventListener('click', () => this.loadSelectedKnownSongs());
-                void this.refreshMusicHistoryPanel();
+            },
+
+            setMusicHistoryPanelVisible(visible) {
+                const panel = document.getElementById('musicHistoryPanel');
+                if (!panel) return;
+                panel.style.display = visible ? 'block' : 'none';
+                if (visible) {
+                    void this.refreshMusicHistoryPanel();
+                }
+            },
+
+            toggleMusicHistoryPanel() {
+                const panel = document.getElementById('musicHistoryPanel');
+                if (!panel) return;
+                this.setMusicHistoryPanelVisible(panel.style.display === 'none');
             },
 
             async refreshMusicHistoryPanel() {
@@ -187,24 +201,15 @@ const PlayerHistoryUI = (function () {
             },
 
             addKnownSongsToPlaylist(songs) {
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
+                this.showPlaylistSurfaces();
                 for (const song of songs) {
-                    if (!song.videoId || this.playlist.some(item => item.videoId === song.videoId)) continue;
-                    const item = {
-                        ...song,
-                        id: Date.now() + Math.random(),
+                    if (this.playlist.some(item => item.videoId === song.videoId)) continue;
+                    const item = PlayerSongs.createPlaylistItem(song, {
                         sourceKind: 'history',
-                        sourceLabel: 'Known songs',
-                        sourceSearchTerm: song.searchTerm || '',
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    this.hydrateItemLyricsFromCache(item);
-                    this.playlist.unshift(item);
-                    if (this.currentPlaylistIndex >= 0) this.currentPlaylistIndex++;
-                    this.addPlaylistItemToDOM(item);
+                        sourceLabel: 'Known songs'
+                    });
+                    if (!item) continue;
+                    this.appendPlaylistItem(item);
                 }
                 this.updatePlaylistLabel();
                 this.persistPlaylist();

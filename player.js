@@ -717,13 +717,31 @@ class VoiceMusicController {
             this.fastForward();
         });
 
-        // Clear playlist button
+        // Playlist header actions: order, shuffle, clear
         const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
         if (clearPlaylistBtn) {
             clearPlaylistBtn.addEventListener('click', () => {
                 this.clearPlaylist();
                 this.updateStatus('Playlist cleared');
             });
+        }
+
+        const shufflePlaylistBtn = document.getElementById('shufflePlaylistBtn');
+        if (shufflePlaylistBtn) {
+            shufflePlaylistBtn.addEventListener('click', () => {
+                this.shufflePlaylist();
+                this.updateStatus('Playlist shuffled');
+            });
+        }
+
+        const sortArtistBtn = document.getElementById('sortPlaylistArtistBtn');
+        if (sortArtistBtn) {
+            sortArtistBtn.addEventListener('click', () => this.sortPlaylist('artist'));
+        }
+
+        const sortYearBtn = document.getElementById('sortPlaylistYearBtn');
+        if (sortYearBtn) {
+            sortYearBtn.addEventListener('click', () => this.sortPlaylist('year'));
         }
 
         const loadFavoritesBtnMain = document.getElementById('loadFavoritesBtnMain');
@@ -991,7 +1009,9 @@ class VoiceMusicController {
             }
 
             this.updateStatus(`Found ${result.songList.length} song(s), searching YouTube...`);
-            const playlistResult = await this.searchAndAddToPlaylist(result.songList);
+            // A search defines the working playlist; explicit loads
+            // (favorites, history) append to it instead.
+            const playlistResult = await this.searchAndAddToPlaylist(result.songList, { replaceExisting: true });
             const addedCount = playlistResult?.addedCount || 0;
             const skippedCount = playlistResult?.skippedCount || 0;
             const attemptedTerms = playlistResult?.attemptedTerms || result.songList.map(s => s.searchTerm).filter(Boolean);
@@ -1096,24 +1116,13 @@ class VoiceMusicController {
             }
             return false;
         } else if (songData) {
-            // Add to favorites with full song data
-            this.favorites[videoId] = {
-                videoId: songData.videoId,
-                name: songData.name || songData.title || '',
-                artist: songData.artist || songData.channelTitle || '',
-                year: songData.year || '',
-                album: songData.album || '',
-                title: songData.title || '',
-                channelTitle: songData.channelTitle || '',
-                duration: songData.duration || '',
-                durationSeconds: songData.durationSeconds || this.parseDurationToSeconds(songData.duration || ''),
-                comment: songData.comment || '',
-                searchTerm: songData.searchTerm || '',
-                favoritedAt: Date.now()
-            };
+            // Add to favorites: the Song plus when it was favorited
+            const favorite = PlayerSongs.createFavorite(songData);
+            if (!favorite) return false;
+            this.favorites[videoId] = favorite;
             this.saveFavorites();
             if (window.PlayerHistoryDB) {
-                window.PlayerHistoryDB.recordFavorite(this.favorites[videoId], true);
+                window.PlayerHistoryDB.recordFavorite(favorite, true);
             }
             return true;
         }

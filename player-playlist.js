@@ -40,6 +40,29 @@ const PlayerPlaylist = (function () {
         });
 
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+            showPlaylistSurfaces() {
+                document.getElementById('playlistContainer').style.display = 'block';
+                document.getElementById('centralPlayer').style.display = 'block';
+                this.showTransportBar();
+            },
+
+            /**
+             * The one way a song enters the working playlist: append at the
+             * end, render its row, and (unless told otherwise) start its
+             * lyric lookup. Callers build the item via
+             * PlayerSongs.createPlaylistItem. Restore-at-load passes
+             * eagerLyrics false so a big saved playlist does not fire a
+             * provider request per song on every page load.
+             */
+            appendPlaylistItem(item, { eagerLyrics = true } = {}) {
+                this.hydrateItemLyricsFromCache(item);
+                this.playlist.push(item);
+                this.addPlaylistItemToDOM(item);
+                if (eagerLyrics && item.lyricsStatus === 'idle') {
+                    void this.ensureLyricsForItem(item);
+                }
+            },
+
             loadFavoritesToPlaylist() {
                 const favoritesList = Object.values(this.favorites);
                 if (favoritesList.length === 0) {
@@ -47,56 +70,23 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
+                this.showPlaylistSurfaces();
 
                 let addedCount = 0;
                 for (const favData of favoritesList) {
-                    // Minimal fallback: try to get at least artist and name
-                    const artistName = favData.artist || favData.channelTitle || 'Unknown';
-                    const songName = favData.name || favData.title || 'Unknown';
-
-                    // Skip if we don't have a videoId
-                    if (!favData.videoId) continue;
                     if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
 
-                    /** @type {PlaylistItem} */
-                    const playlistItem = {
-                        videoId: favData.videoId,
-                        name: songName,
-                        artist: artistName,
-                        year: favData.year || '',
-                        album: favData.album || '',
-                        title: favData.title || songName,
-                        channelTitle: favData.channelTitle || artistName,
-                        duration: favData.duration || '--:--',
-                        durationSeconds: favData.durationSeconds || this.parseDurationToSeconds(favData.duration || ''),
-                        comment: favData.comment || '',
-                        searchTerm: favData.searchTerm || '',
+                    const playlistItem = PlayerSongs.createPlaylistItem(favData, {
                         sourceKind: 'favorite',
-                        sourceLabel: 'Loaded favorites',
-                        sourceSearchTerm: favData.searchTerm || '',
-                        id: Date.now() + Math.random(),
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    this.hydrateItemLyricsFromCache(playlistItem);
+                        sourceLabel: 'Loaded favorites'
+                    });
+                    if (!playlistItem) continue;
                     if (window.PlayerHistoryDB) {
                         window.PlayerHistoryDB.recordSong(playlistItem, 'favorite-load');
                     }
 
-                    this.playlist.unshift(playlistItem);
-                    if (this.currentPlaylistIndex >= 0) {
-                        this.currentPlaylistIndex++;
-                    }
-                    this.addPlaylistItemToDOM(playlistItem);
+                    this.appendPlaylistItem(playlistItem);
                     addedCount++;
-
-                    // Eagerly fetch lyrics for favorites too
-                    if (playlistItem.lyricsStatus === 'idle') {
-                        void this.ensureLyricsForItem(playlistItem);
-                    }
                 }
 
                 this.updatePlaylistLabel();
@@ -105,28 +95,17 @@ const PlayerPlaylist = (function () {
                 this.persistPlaylist();
             },
 
-            shufflePlaylist() {
-                if (this.playlist.length === 0) return;
-                const currentPlayingId = this.currentPlayingId;
-
-                // Fisher-Yates shuffle
-                for (let i = this.playlist.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
-                }
-
-                // Re-render playlist table body
+            /** Re-draw every playlist row from the array, preserving the playing highlight. */
+            rerenderPlaylistDom() {
                 const playlistBody = document.getElementById('playlistBody');
                 playlistBody.innerHTML = '';
-
-                // Re-add items
-                for (let i = this.playlist.length - 1; i >= 0; i--) {
-                    this.addPlaylistItemToDOM(this.playlist[i]);
+                for (const item of this.playlist) {
+                    this.addPlaylistItemToDOM(item);
                 }
 
-                // Rebind current index to the currently playing item after shuffle
-                if (currentPlayingId != null) {
-                    this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentPlayingId);
+                // Rebind current index to the currently playing item after reorder
+                if (this.currentPlayingId != null) {
+                    this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === this.currentPlayingId);
                     const currentItem = this.playlist[this.currentPlaylistIndex];
                     if (currentItem) {
                         this.updateCentralPlayer(currentItem);
@@ -137,15 +116,51 @@ const PlayerPlaylist = (function () {
                 this.persistPlaylist();
             },
 
-            async searchAndAddToPlaylist(songList) {
-                const playlistContainer = document.getElementById('playlistContainer');
+            shufflePlaylist() {
+                if (this.playlist.length === 0) return;
 
-                playlistContainer.style.display = 'block';
-                this.showTransportBar();
-
-                if (songList.length > 0) {
-                    document.getElementById('centralPlayer').style.display = 'block';
+                // Fisher-Yates shuffle
+                for (let i = this.playlist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
                 }
+
+                this.rerenderPlaylistDom();
+            },
+
+            /** @param {PlaylistSortKey} key */
+            sortPlaylist(key) {
+                if (this.playlist.length < 2) return;
+
+                const text = (/** @type {string} */ value) => String(value || '').toLowerCase();
+                this.playlist.sort((a, b) => {
+                    if (key === 'year') {
+                        // Unknown years sort last; ties fall through to artist
+                        const yearA = Number(a.year) || Infinity;
+                        const yearB = Number(b.year) || Infinity;
+                        if (yearA !== yearB) return yearA - yearB;
+                    }
+                    const artistCompare = text(a.artist).localeCompare(text(b.artist));
+                    if (artistCompare !== 0) return artistCompare;
+                    return text(a.name).localeCompare(text(b.name));
+                });
+
+                this.rerenderPlaylistDom();
+                this.updateStatus(key === 'year' ? 'Sorted by year' : 'Sorted by artist');
+            },
+
+            async searchAndAddToPlaylist(songList, options = {}) {
+                // A new AI search starts a fresh working playlist. Nothing is
+                // lost: the lookup and every song already live in the durable
+                // history (IndexedDB) and can be reloaded from the History
+                // panel. Explicit loads (favorites, history) append instead.
+                if (options.replaceExisting && this.playlist.length > 0 && songList.length > 0) {
+                    const previousCount = this.playlist.length;
+                    this.clearPlaylistItems();
+                    this.addMessage('claude', 'New search', `Replaced the working playlist (${previousCount} song${previousCount === 1 ? '' : 's'} stay in Known Songs history)`);
+                }
+
+                this.showPlaylistSurfaces();
 
                 this.addMessage('claude', 'Processing', `Searching ${songList.length} songs (${YOUTUBE_SEARCH_CONCURRENCY} at a time)...`);
 
@@ -161,7 +176,7 @@ const PlayerPlaylist = (function () {
 
                 const results = await this.searchSongsWithConcurrency(validSongs);
 
-                // Add to playlist in original order (reversed so unshift preserves order)
+                // Add to playlist in the AI's order (appendPlaylistItem keeps it)
                 let addedCount = 0;
                 const attemptedTerms = validSongs.map(({ song }) => song.searchTerm);
                 const skippedTerms = [];
@@ -183,42 +198,35 @@ const PlayerPlaylist = (function () {
 
                     this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
 
-                    const itemId = Date.now() + Math.random();
                     const alternateVideos = videoData.alternateVideos || [];
                     const primaryVideoData = { ...videoData };
                     delete primaryVideoData.alternateVideos;
-                    const playlistItem = {
+                    const playlistItem = PlayerSongs.createPlaylistItem({
                         name: song.name ? this.decodeHtml(song.name) : '',
                         artist: song.artist ? this.decodeHtml(song.artist) : '',
                         year: song.year || '',
                         album: song.album ? this.decodeHtml(song.album) : '',
                         comment: song.comment ? this.decodeHtml(song.comment) : '',
                         searchTerm: song.searchTerm,
+                        ...primaryVideoData
+                    }, {
                         sourceKind: 'search',
                         sourceLabel: `Search: ${song.searchTerm}`,
-                        sourceSearchTerm: song.searchTerm,
-                        ...primaryVideoData,
-                        id: itemId,
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    if (alternateVideos.length > 0) {
-                        this.youtubeAlternateResults.set(itemId, alternateVideos);
+                        sourceSearchTerm: song.searchTerm
+                    });
+                    if (!playlistItem) {
+                        skippedCount++;
+                        skippedTerms.push(song.searchTerm);
+                        continue;
                     }
-                    this.hydrateItemLyricsFromCache(playlistItem);
+                    if (alternateVideos.length > 0) {
+                        this.youtubeAlternateResults.set(playlistItem.id, alternateVideos);
+                    }
                     if (window.PlayerHistoryDB) {
                         window.PlayerHistoryDB.recordSong(playlistItem, 'search');
                     }
-                    this.playlist.unshift(playlistItem);
-                    if (this.currentPlaylistIndex >= 0) {
-                        this.currentPlaylistIndex++;
-                    }
-                    this.addPlaylistItemToDOM(playlistItem);
+                    this.appendPlaylistItem(playlistItem);
                     addedCount++;
-
-                    if (playlistItem.lyricsStatus === 'idle') {
-                        void this.ensureLyricsForItem(playlistItem);
-                    }
                 }
 
                 this.updatePlaylistLabel();
@@ -347,39 +355,42 @@ const PlayerPlaylist = (function () {
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             },
 
+            // Every datum has a fixed slot in the row:
+            //   actions column: favorite star above the lyrics chip
+            //   line 1: song name (left) ... duration (right)
+            //   line 2: artist - year - album
+            //   line 3: comment (own full-width line, only when present)
+            //   remove column: the x, always top-right
             addPlaylistItemToDOM(item) {
                 const playlistBody = document.getElementById('playlistBody');
-                const row = document.createElement('tr');
+                const row = document.createElement('div');
+                row.className = 'playlist-row';
                 row.dataset.itemId = String(item.id);
                 row.dataset.videoId = item.videoId;
 
                 const isFav = this.isFavorite(item.videoId);
-                const artistName = item.artist || item.channelTitle || 'Unknown';
-                const songName = item.name || item.title || 'Unknown';
-                const yearText = item.year || '';
-                const albumText = item.album || '';
-                const commentText = item.comment || '';
                 const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
                 const lyricsLoading = item.lyricsStatus === 'loading';
                 const lyricsLabel = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
 
                 row.innerHTML = `
-                    <td>
-                        <div class="playlist-actions-cell">
-                            <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                            <button class="lyrics-row-btn ${lyricsReady ? 'ready' : ''}" data-item-id="${item.id}" aria-label="${lyricsReady ? 'Show cached lyrics' : 'Get lyrics'}">${lyricsLabel}</button>
+                    <div class="playlist-row-actions">
+                        <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
+                        <button class="lyrics-row-btn ${lyricsReady ? 'ready' : ''}" data-item-id="${item.id}" aria-label="${lyricsReady ? 'Show cached lyrics' : 'Get lyrics'}">${lyricsLabel}</button>
+                    </div>
+                    <div class="playlist-row-main">
+                        <div class="playlist-row-title-line">
+                            <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
+                            <span class="playlist-song-duration">${item.duration || '--:--'}</span>
                         </div>
-                    </td>
-                    <td>${this.escapeHtml(artistName)}</td>
-                    <td>
-                        <div class="playlist-song-cell">
-                            <span class="playlist-song-name">${this.escapeHtml(songName)}</span>
-                            ${commentText ? `<span class="playlist-song-comment" title="${this.escapeHtml(commentText)}">${this.escapeHtml(commentText)}</span>` : ''}
+                        <div class="playlist-row-meta-line">
+                            <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>
+                            ${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}
+                            ${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
                         </div>
-                    </td>
-                    <td>${yearText}</td>
-                    <td>${this.escapeHtml(albumText)}</td>
-                    <td>${item.duration || '--:--'}</td>
+                        ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
+                    </div>
+                    <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
                 `;
 
                 // Favorite button click - pass full song data
@@ -402,18 +413,69 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                // Tap/click to play (on the row, not the favorite button)
+                const removeBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.playlist-remove-btn'));
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.removePlaylistItem(item.id);
+                    });
+                }
+
+                // Tap/click to play (on the row, not its buttons)
                 row.addEventListener('click', (e) => {
                     const target = /** @type {HTMLElement} */ (e.target);
-                    if (target.closest('.favorite-btn') || target.closest('.lyrics-row-btn')) return;
+                    if (target.closest('button')) return;
                     this.playVideo(item);
                 });
 
-                playlistBody.insertBefore(row, playlistBody.firstChild);
+                playlistBody.appendChild(row);
 
                 // YouTube iframes are created on first play. Creating one for
                 // every playlist row up front is expensive on mobile and can
                 // leave hidden players stuck before onReady fires.
+            },
+
+            removePlaylistItem(itemId) {
+                const index = this.playlist.findIndex(entry => entry.id === itemId);
+                if (index < 0) return;
+
+                const item = this.playlist[index];
+                const wasCurrent = this.currentPlayingId === itemId;
+                const wasActivelyPlaying = wasCurrent && this.isPlaying && !this.isPaused;
+                if (wasCurrent) {
+                    this.stopPlayback();
+                }
+
+                this.playlist.splice(index, 1);
+                const row = document.querySelector(`.playlist-row[data-item-id="${itemId}"]`);
+                if (row) row.remove();
+                this.youtubeAlternateResults.delete(itemId);
+                if (this.currentLyricsItemId === itemId) {
+                    this.currentLyricsItemId = null;
+                    this.renderLyricsStateForItem(null);
+                }
+
+                if (this.playlist.length === 0) {
+                    this.clearPlaylist();
+                    this.updateStatus('Removed last song; playlist cleared');
+                    return;
+                }
+
+                if (index < this.currentPlaylistIndex) {
+                    this.currentPlaylistIndex--;
+                } else if (index === this.currentPlaylistIndex) {
+                    // The cursor slides onto the song that took this slot
+                    this.currentPlaylistIndex = Math.min(index, this.playlist.length - 1);
+                    if (wasActivelyPlaying) {
+                        void this.playVideo(this.playlist[this.currentPlaylistIndex]);
+                    } else if (wasCurrent) {
+                        this.updateCentralPlayer(null);
+                    }
+                }
+
+                this.updatePlaylistLabel();
+                this.persistPlaylist();
+                this.updateStatus(`Removed: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
             },
 
             createPlaylistPlayer(item) {
@@ -587,9 +649,9 @@ const PlayerPlaylist = (function () {
                     lyricsBtn.setAttribute('aria-label', 'Get lyrics');
                 }
 
-                const cells = row.querySelectorAll('td');
-                if (cells[5]) {
-                    cells[5].textContent = item.duration || '--:--';
+                const durationEl = row.querySelector('.playlist-song-duration');
+                if (durationEl) {
+                    durationEl.textContent = item.duration || '--:--';
                 }
             },
 
@@ -709,7 +771,7 @@ const PlayerPlaylist = (function () {
                         }
                     }
                     // Remove playing class from all rows
-                    document.querySelectorAll('#playlistBody tr').forEach(el => {
+                    document.querySelectorAll('#playlistBody .playlist-row').forEach(el => {
                         el.classList.remove('playing');
                     });
                 }
@@ -991,7 +1053,12 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            clearPlaylist() {
+            /**
+             * Empty the working playlist and its playback machinery (rows,
+             * the reused YouTube player, lyric state) WITHOUT hiding the
+             * player surfaces - the piece a replace-on-new-search reuses.
+             */
+            clearPlaylistItems() {
                 // Stop any playing video
                 if (this.currentPlayingId) {
                     const player = this.playback.player;
@@ -1014,9 +1081,6 @@ const PlayerPlaylist = (function () {
                 const playerDivs = container.querySelectorAll('.youtube-player');
                 playerDivs.forEach(div => div.remove());
 
-                document.getElementById('playlistContainer').style.display = 'none';
-                document.getElementById('centralPlayer').style.display = 'none';
-                this.hideTransportBar();
                 if (this.playback.player) {
                     try {
                         this.playback.player.destroy();
@@ -1032,10 +1096,19 @@ const PlayerPlaylist = (function () {
                 this.updatePlaylistLabel();
                 this.currentLyricsItemId = null;
                 this.currentLyricsLineIndex = -1;
+                this.renderLyricsStateForItem(null);
+                this.persistPlaylist();
+            },
+
+            clearPlaylist() {
+                this.clearPlaylistItems();
+
+                document.getElementById('playlistContainer').style.display = 'none';
+                document.getElementById('centralPlayer').style.display = 'none';
+                this.hideTransportBar();
                 this.setLyricsPanelVisible(false);
                 this.lyricsPanelDismissed = false;
                 this.closeLyricsOverlay();
-                this.renderLyricsStateForItem(null);
 
                 // Also hide transcript/response containers
                 this.hideClaudeResponse();
@@ -1044,11 +1117,15 @@ const PlayerPlaylist = (function () {
                 if (transcriptContainer) {
                     transcriptContainer.style.display = 'none';
                 }
-                this.persistPlaylist();
             },
 
             persistPlaylist() {
-                PlayerStorage.savePlaylist(this.playlist, this.currentPlaylistIndex);
+                // Persist the Songs + membership only, never the lyric
+                // runtime: full lyrics per item is what exceeded the
+                // localStorage quota. Lyrics re-hydrate from their one
+                // owner (the lyrics cache) at load.
+                const entries = this.playlist.map(item => PlayerSongs.persistedPlaylistEntry(item));
+                PlayerStorage.savePlaylist(entries, this.currentPlaylistIndex);
             },
 
             restoreSavedPlaylist() {
@@ -1057,31 +1134,23 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                this.playlist = saved.items.map(item => ({
-                    ...item,
-                    sourceKind: 'restored',
-                    sourceLabel: 'Known at load',
-                    sourceSearchTerm: item.searchTerm || '',
-                    lyricsStatus: item.lyricsStatus || 'idle',
-                    lyricsData: item.lyricsData || null
-                }));
+                this.showPlaylistSurfaces();
+
+                for (const entry of saved.items) {
+                    const item = PlayerSongs.createPlaylistItem(entry, {
+                        sourceKind: 'restored',
+                        sourceLabel: 'Known at load'
+                    });
+                    if (!item) continue;
+                    this.appendPlaylistItem(item, { eagerLyrics: false });
+                }
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordSongs(this.playlist, 'restored-at-load');
                 }
-                this.currentPlaylistIndex = saved.currentPlaylistIndex;
-
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
-
-                for (let i = this.playlist.length - 1; i >= 0; i--) {
-                    const item = this.playlist[i];
-                    this.hydrateItemLyricsFromCache(item);
-                    this.addPlaylistItemToDOM(item);
-                }
+                this.currentPlaylistIndex = Math.min(saved.currentPlaylistIndex, this.playlist.length - 1);
                 this.updatePlaylistLabel();
 
-                if (this.currentPlaylistIndex >= 0 && this.currentPlaylistIndex < this.playlist.length) {
+                if (this.currentPlaylistIndex >= 0) {
                     const current = this.playlist[this.currentPlaylistIndex];
                     this.updateCentralPlayer(current);
                     const row = document.querySelector(`[data-item-id="${current.id}"]`);
@@ -1324,9 +1393,7 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                /** @type {PlaylistItem} */
-                const demoItem = {
-                    id: Date.now() + Math.random(),
+                const demoItem = PlayerSongs.createPlaylistItem({
                     videoId: 'dQw4w9WgXcQ',
                     name: 'Never Gonna Give You Up',
                     artist: 'Rick Astley',
@@ -1337,38 +1404,26 @@ const PlayerPlaylist = (function () {
                     duration: '3:34',
                     durationSeconds: 214,
                     comment: 'Demo lyrics item',
-                    searchTerm: 'Rick Astley Never Gonna Give You Up',
-                    lyricsStatus: 'idle',
-                    lyricsData: null
-                };
+                    searchTerm: 'Rick Astley Never Gonna Give You Up'
+                }, {
+                    sourceKind: 'demo',
+                    sourceLabel: 'Demo song'
+                });
+                if (!demoItem) return;
 
-                this.hydrateItemLyricsFromCache(demoItem);
-                this.playlist.unshift(demoItem);
+                this.showPlaylistSurfaces();
+                this.appendPlaylistItem(demoItem);
                 this.currentPlaylistIndex = 0;
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
-                this.addPlaylistItemToDOM(demoItem);
                 this.currentLyricsItemId = demoItem.id;
                 this.updateCentralPlayer(demoItem);
                 this.updatePlaylistLabel();
                 this.setLyricsPanelVisible(true);
                 this.renderLyricsStateForItem(demoItem);
-                void this.ensureLyricsForItem(demoItem);
                 this.updateStatus('Demo lyrics song loaded');
             },
 
             parseDurationToSeconds(value) {
-                if (!value) return 0;
-                const parts = value.split(':').map(part => Number(part));
-                if (parts.some(Number.isNaN)) return 0;
-                if (parts.length === 3) {
-                    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-                }
-                if (parts.length === 2) {
-                    return (parts[0] * 60) + parts[1];
-                }
-                return parts[0] || 0;
+                return PlayerSongs.parseDurationToSeconds(value);
             }
         }));
     }
