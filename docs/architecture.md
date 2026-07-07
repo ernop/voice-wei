@@ -233,9 +233,9 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `TRACE_SETTINGS` | Trace page settings |
 | `PITCH_METER_SETTINGS` | Pitch tool settings |
 | `PLAYER_SETTINGS` | Music player voice/settings |
-| `PLAYER_PLAYLIST` | Music playlist + current index |
+| `PLAYER_PLAYLIST` | Working playlist (Songs + membership, no lyric runtime) + current index |
 | `PLAYER_FAVORITES` | Favorited tracks |
-| `PLAYER_LYRICS_CACHE` | Resolved lyrics records |
+| `PLAYER_LYRICS_CACHE` | Resolved lyrics: deduplicated records + alias keys, capped at 200 |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
@@ -279,6 +279,41 @@ string-only and commonly capped around 5-10 MB. IndexedDB quota is
 browser/device dependent; Books displays `navigator.storage.estimate()` and
 requests persistent storage by default where supported.
 
+### The Song primitive (music player)
+
+`player-songs.js` (`PlayerSongs`) is the single owner of the player's data
+vocabulary. A **Song** is: the YouTube `videoId` (identity - the key that
+plays it) plus always-present descriptive metadata (name, artist, year,
+album, comment, searchTerm, raw YouTube title/channel, duration). Every
+shape the player uses derives from it, and each derived shape has exactly
+one constructor in that module:
+
+| Shape | Constructor | Adds to Song |
+|-------|-------------|--------------|
+| `PlaylistItem` (working playlist) | `createPlaylistItem` | list id, source kind/label, runtime lyric state |
+| Persisted playlist entry | `persistedPlaylistEntry` | list id + source, **no lyric runtime** |
+| `FavoriteData` | `createFavorite` | `favoritedAt` |
+| Known-song history record (IndexedDB) | `historySongRecord` | `firstSeenAt`/`lastSeenAt`, sourceKind |
+
+No player code hand-builds song-shaped objects. Songs enter the playlist
+only through `appendPlaylistItem` (append at the end, render, lyric
+lookup); a new AI search **replaces** the working playlist
+(`searchAndAddToPlaylist` with `replaceExisting`), while explicit loads
+(favorites, history lookups, known songs) append. Replacement loses
+nothing: every song is recorded to the known-songs catalog when it is
+added, so the working playlist is a matter of convenience over durable
+data.
+
+**Lyrics are never persisted per playlist item.** The persisted playlist
+carries Songs only; `lyricsData`/`lyricsStatus` are runtime state
+re-hydrated from the lyrics cache at load. (Persisting full lyrics per
+item, times several alias copies in the lyrics cache, is what exceeded
+the localStorage quota at ~100 songs.) The lyrics cache itself is
+deduplicated: one record per lyrics result under a canonical key in
+`records`, with every lookup key that resolved to it mapping there via
+`aliases`, bounded at 200 records (oldest trimmed, logged). The legacy
+flat cache shape is migrated on first load.
+
 ### Music player durable history (`voice-wei-music`)
 
 The music player keeps unbounded/historical data in its own IndexedDB
@@ -287,7 +322,9 @@ never touches this DB directly. Stores:
 
 - `logs`: every in-app log line (append-only).
 - `lookups`: each natural-language music request and its resulting song list.
-- `songs`: the known-songs catalog, keyed by `videoId` (upsert on re-seeing).
+- `songs`: the known-songs catalog, keyed by `videoId` (upsert on re-seeing);
+  records are `historySongRecord` shapes (Song + timestamps), never raw
+  playlist items with lyric blobs.
 - `youtubeSearches`: the search-term -> results cache, keyed by normalized
   query; consulted as a fallback when the live proxy search fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.

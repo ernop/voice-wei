@@ -60,17 +60,21 @@ these dialects, all defined in style.css:
 
 | Dialect class | Job today | Resolution |
 |---------------|-----------|------------|
-| `quick-action-btn` | Mid-size actions (Load Favorites, History/Cache, Refresh, Load Selected, Load Songs, Stop Melody) | Retire -> `secondary-btn` |
-| `clear-playlist-btn` | Destructive playlist clear | Retire -> `panel-action-btn danger` |
 | `typed-command-submit-btn` | Send the typed request | Retire -> `secondary-btn` (or `submit-button-large` if it should carry primary weight) |
 | `close-settings-btn` | Close the settings panel | Retire -> `panel-action-btn` (shared with Books) |
 | `save-api-key-btn` | Save an API key | Retire -> `panel-action-btn` (shared with Books) |
 | `api-key-action-btn` (+ `.danger`) | Show/Change/Remove key | Retire -> `panel-action-btn` (shared with Books) |
-| `control-btn` / `control-btn-large` / `control-btn-small` | Central player transport (prev/play/stop/next, rewind/forward) | Keep as ONE named media-transport family (see below) |
+| `control-btn` / `control-btn-large` / `control-btn-small` | Central player transport (prev/play/stop/next, rewind/forward, lyrics launchers) | Keep as ONE named media-transport family (see below) |
 | `transport-bar-btn` (+ `transport-bar-playpause`) | Sticky bottom transport bar | Fold into the same media-transport family |
-| `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers in the transport bar | State classes on media-transport buttons, not separate button kinds |
+| `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers (now in the central player's secondary control row) | State classes on media-transport buttons, not separate button kinds |
 | `lyrics-overlay-transport-btn`, `lyrics-overlay-control-btn`, `lyrics-overlay-action-btn`, `lyrics-panel-hide-btn` | Overlay transport + view chips + hide | Three near-identical chip kinds; collapse to media-transport (transport) and `panel-action-btn` (view chips, hide) |
-| `favorite-btn`, `lyrics-row-btn` | Playlist row star / per-row lyrics status chip | Row-level gameplay surface; keep, document in architecture's distinct list |
+| `favorite-btn`, `lyrics-row-btn`, `playlist-remove-btn` | Playlist row star / per-row lyrics chip / per-row remove | Row-level gameplay surface; keep, document in architecture's distinct list |
+
+Retired in the playlist-organization pass (v218): `quick-action-btn` on the
+player (now `secondary-btn` / `primary-btn`; deploys.html still carries the
+class and CSS until its own pass) and `clear-playlist-btn` (now
+`panel-action-btn danger` in the playlist header alongside Shuffle and the
+sort chips).
 
 **Media transport is deliberately distinct, but it must be one family.**
 architecture.md already exempts the player's media transport bar from the

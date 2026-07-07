@@ -4,6 +4,47 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-07 (the Song primitive; quota bug as a data-model symptom)
+
+**Context**: Yui hit a QuotaExceededError saving the playlist (101 songs)
+and asked for the real fix: define what a song IS, then reorganize the
+playlist and page around it.
+
+**The base-design analysis**: the quota error was not a storage-size
+problem, it was a missing-primitive problem. There was no Song type -
+five hand-rolled song shapes (playlist item, favorite, IDB song record,
+AI item, YouTube result) built inline with `||` chains. Because
+PlaylistItem mixed the durable song with runtime lyric state, persisting
+"the playlist" persisted full lyrics per item; the lyrics cache stored
+another full copy under every alias key; recordSong spread a third into
+IndexedDB. Fix the model and the bug falls out: `player-songs.js` owns
+Song (videoId = identity + always-present metadata) and every derived
+shape has exactly one constructor; the persisted playlist entry
+constructor simply has no lyric fields, and the lyrics cache became
+records+aliases (one copy, capped at 200, trimmed loudly).
+
+**Semantics shipped with it**: the playlist is the working list for the
+current search - a new AI request REPLACES it, explicit loads (favorites,
+history, known songs) APPEND, rows are removable/sortable, ordering is
+append-at-end everywhere (the unshift + index++ dance is gone). Nothing
+is lost on replace because every added song is recorded to the IDB
+known-songs catalog at add time.
+
+**Layout lesson**: yui's complaints (comment jammed into the song cell,
+lyric toggle far from the controls) were both "data with no fixed home".
+The row is now a grid where every datum has one slot, and the comment -
+which the AI writes specifically to be read - got its own full-width
+line instead of an ellipsized suffix. Test asserts the slots.
+
+**For future mei**: when a page accumulates display variants of the same
+concept in different slots, look for the missing primitive first. Also:
+`docs/tools.md` still claimed the now-playing title moves song name to
+the artist slot - stale against the Jul 5 lyric-only directive; corrected
+here. Docs restating behavior drift silently; when touching a surface,
+re-read its doc paragraph.
+
+---
+
 ## 2026-07-05 (car title surfaces: the invented-requirement hedge, again)
 
 **Context**: Yui asked for the now-playing title (Bluetooth/car, lock screen,

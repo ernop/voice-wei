@@ -198,21 +198,38 @@ again while the response is read aloud.
 Requests can also be typed (the "Type a music request" box) when speaking
 is not an option.
 
+The playlist is the **working list for the current search**: a new AI
+request replaces it (the previous songs stay reloadable from History),
+while explicit loads - favorites, past lookups, known songs - append to
+it. Each row shows the song's data in fixed slots (name + duration on the
+first line, artist/year/album on the second, the AI's comment on its own
+line) with the favorite star and lyrics chip on the left and a remove
+button on the right; tap a row to play it. The playlist header offers
+Shuffle, Sort by Artist, Sort by Year, and Clear. Behind the working
+list, every song ever seen is recorded durably in the known-songs catalog
+(IndexedDB), so clearing or replacing the playlist never loses song
+information.
+
 Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
 settings) the current synced lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show -- the
-song name moves to the artist slot while a line is active.
+title is the lyric line and nothing else; song/artist names are never
+written there. The Lyrics panel toggle and Big Lyrics overlay button sit
+in the central player next to the rewind/forward controls.
 
 Other surfaces on the page:
 
-- **Load Favorites** rebuilds a playlist from the favorited tracks.
-- **History / Cache** opens past lookups, the known-songs catalog, and
-  the YouTube search cache (all from the `voice-wei-music` IndexedDB);
-  selected lookups or songs can be loaded back into the playlist.
-- **Local Song Library** imports `.mid`/`.midi`/`.musicxml`/`.xml` melody
-  files, keeps them in this browser, and plays their melodies on the
-  shared piano. Public-domain corpora to import are listed in
+- **Load Favorites** appends the favorited tracks to the playlist.
+- **History / Cache** toggles a panel with past lookups, the known-songs
+  catalog, and the YouTube search cache (all from the `voice-wei-music`
+  IndexedDB); selected lookups or songs can be loaded back into the
+  playlist. Hidden by default.
+- **Song Library** toggles the local song library: imports
+  `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
+  browser, and plays their melodies on the shared piano. Public-domain
+  corpora to import are listed in
   [public-domain-song-sources.md](public-domain-song-sources.md).
+  Hidden by default.
 
 ## Books
 
