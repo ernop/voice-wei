@@ -87,10 +87,17 @@ exits.
 
 `pitch-detect-core.js`: getUserMedia -> AnalyserNode (fft 2048) ->
 autocorrelation with parabolic interpolation -> glitch filter (jumps >5.5
-midi within 220ms need a confirming sample; out-of-range detections are
-discarded via per-page outlier gates) -> voice-gated clock (time advances
-only while singing when pause-on-silence is on). The trace line breaks
-across gaps >250ms.
+midi within 220ms need a confirming sample) -> voice-gated clock (time
+advances only while singing when pause-on-silence is on). The trace line
+breaks across gaps >250ms.
+
+The trace records and draws what was actually sung. The glitch filter is
+the only rejection (an unconfirmed one-frame jump is a detector artifact,
+not voice); there is no rails/target-based discarding, and the chart's
+vertical range in `pitch-trace-view.js` expands to cover the sung trace so
+off-rails singing (wrong octave, overshoot) draws at its true pitch
+instead of clamping to an edge or vanishing. Targets and rails are for
+comparison and scoring only - they never gate what is drawn.
 
 Consumers: the Trace page directly; Phrases, Scales, and Intervals through
 `pitch-test-panel.js`; pitch-meter through the same session plus its own

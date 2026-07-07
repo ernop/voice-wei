@@ -983,6 +983,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`phrases take records per-note results (${noteRecord.count} notes: ${noteRecord.labels})`,
             noteRecord.count === linkage.count && noteRecord.allGoodCentered);
 
+        // DRAW-WHAT-YOU-SING: pitch far outside the charted rails (the
+        // singer's real register an octave off, an overshoot) must still
+        // be recorded and drawn - rails and targets never gate the trace.
+        // A sustained (confirmed) off-rails note passes the glitch
+        // holdback and lands in the recorded history the chart draws.
+        const offRails = await tab.evaluate(() => {
+            const targets = window.phrasesDebug.testTargets();
+            const panel = window.phrasesDebug.panel;
+            const lowMidi = Math.min(...targets.map(t => t.midi)) - 12;
+            const t0 = targets[0].startMs + 5;
+            panel.recordSample(lowMidi, t0);
+            panel.recordSample(lowMidi, t0 + 50);
+            panel.recordSample(lowMidi, t0 + 100);
+            return {
+                lowMidi,
+                recorded: panel.history.filter(s => s.midi === lowMidi).length
+            };
+        });
+        report.check(`phrases trace keeps off-rails singing (${offRails.recorded} samples at midi ${offRails.lowMidi})`,
+            offRails.recorded === 3);
+
         // Weak-spot aggregation names the leaning degree and its direction.
         const weakLine = await tab.evaluate(() => {
             for (let i = 0; i < 3; i++) {

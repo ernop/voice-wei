@@ -64,15 +64,6 @@
             : scaleNotes();
     }
 
-    /** @param {number} midi */
-    function isExtremeOutlier(midi) {
-        const notes = chartScaleNotes();
-        if (!notes.length) return false;
-        const min = Math.min(...notes.map(note => note.midi));
-        const max = Math.max(...notes.map(note => note.midi));
-        return midi < min || midi > max;
-    }
-
     function setStatus(message) {
         textDiff.text('status', getEl('statusReadout'), message);
     }
@@ -96,7 +87,6 @@
 
     const session = PitchDetectCore.createTraceSession({
         pauseOnSilence: () => state.pauseOnSilence,
-        isOutlier: isExtremeOutlier,
         onAccepted: sample => {
             updatePitchReadout(sample.note, sample.cents, sample.freq);
             setStatus('Listening and drawing');

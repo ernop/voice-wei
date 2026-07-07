@@ -63,20 +63,8 @@ const PitchTestPanel = (function () {
             return config.rails({ expandRange: options.expandRange });
         }
 
-        // Pitches far outside the charted rails are detector artifacts,
-        // not notes; discard them before they reach the trace.
-        /** @param {number} midi */
-        function isOutlier(midi) {
-            const rails = railLines();
-            if (!rails.length) return false;
-            const min = Math.min(...rails.map(rail => rail.midi));
-            const max = Math.max(...rails.map(rail => rail.midi));
-            return midi < min || midi > max;
-        }
-
         const session = PitchDetectCore.createTraceSession({
             pauseOnSilence: () => options.pauseOnSilence,
-            isOutlier,
             onAccepted: sample => {
                 updateReadout(sample.note, sample.cents, sample.freq);
                 setStatus('Listening and drawing');
@@ -438,6 +426,8 @@ const PitchTestPanel = (function () {
                 view.draw();
             },
             resize: () => view.resize(),
+            /** Recorded samples (test seam) - the same list the trace draws. */
+            get history() { return session.history; },
             /**
              * Explicit sample ingestion (test seam): sing a pitch into
              * the session by name - midi and take-time, nothing implied.

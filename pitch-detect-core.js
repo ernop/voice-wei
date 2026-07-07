@@ -168,7 +168,6 @@ const PitchDetectCore = (function () {
      *
      * @param {{
      *   pauseOnSilence: () => boolean,
-     *   isOutlier?: (midi: number) => boolean,
      *   onAccepted?: (sample: PitchSample) => void,
      *   onSilence?: () => void,
      *   onFrame?: () => void,
@@ -178,7 +177,6 @@ const PitchDetectCore = (function () {
      */
     function createTraceSession(options) {
         const capture = createMicCapture({ audioConstraints: options.audioConstraints });
-        const isOutlier = options.isOutlier || null;
 
         let listening = false;
         /** @type {number | null} */
@@ -214,13 +212,14 @@ const PitchDetectCore = (function () {
             return voiceElapsedMs;
         }
 
+        // The trace records whatever the singer actually sang. The ONLY
+        // rejection is the glitch holdback below: a one-frame jump that
+        // is not confirmed by the next sample is a detector artifact,
+        // not voice. Never discard samples for being far from the
+        // chart's rails or targets - an off-octave note is real singing
+        // the person must see in order to correct it.
         /** @param {PitchSample} sample */
         function record(sample) {
-            if (isOutlier && isOutlier(sample.midi)) {
-                pendingJump = null;
-                return false;
-            }
-
             if (!lastAccepted) {
                 history.push(sample);
                 lastAccepted = sample;

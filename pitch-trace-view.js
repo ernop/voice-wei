@@ -102,8 +102,27 @@ const PitchTraceView = (function () {
             const rails = options.rails();
             if (!rails.length) return;
 
-            const minMidi = Math.min(...rails.map(rail => rail.midi));
-            const maxMidi = Math.max(...rails.map(rail => rail.midi));
+            const timeWindow = options.windowMs();
+            const windowStart = options.fixedWindow() ? Math.max(0, options.clockMs() - timeWindow) : 0;
+
+            const rawHistory = options.history();
+            const visibleHistory = options.fixedWindow()
+                ? rawHistory.filter(point => point.time >= windowStart - PitchDetectCore.TRACE_BREAK_MS && point.time <= windowStart + timeWindow)
+                : rawHistory;
+            const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
+            const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
+
+            // The chart is an instrument for showing what was actually
+            // sung: the vertical range covers the sung trace as well as
+            // the rails, so an off-rails note (wrong octave, overshoot)
+            // draws at its true pitch instead of pinning to a chart edge
+            // or vanishing.
+            let minMidi = Math.min(...rails.map(rail => rail.midi));
+            let maxMidi = Math.max(...rails.map(rail => rail.midi));
+            for (const point of history) {
+                if (point.midi < minMidi) minMidi = point.midi;
+                if (point.midi > maxMidi) maxMidi = point.midi;
+            }
             const midiRange = Math.max(maxMidi - minMidi, 1);
             const left = width < 520 ? 96 : 132;
             const right = 16;
@@ -111,14 +130,9 @@ const PitchTraceView = (function () {
             const bottom = 28;
             const graphWidth = Math.max(width - left - right, 1);
             const graphHeight = Math.max(height - top - bottom, 1);
-            const timeWindow = options.windowMs();
-            const windowStart = options.fixedWindow() ? Math.max(0, options.clockMs() - timeWindow) : 0;
 
             /** @param {number} midi */
-            const midiToY = (midi) => {
-                const clamped = Math.max(minMidi, Math.min(maxMidi, midi));
-                return top + (maxMidi - clamped) / midiRange * graphHeight;
-            };
+            const midiToY = (midi) => top + (maxMidi - midi) / midiRange * graphHeight;
             /** @param {number} ms */
             const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
 
@@ -182,12 +196,6 @@ const PitchTraceView = (function () {
                 }
             });
 
-            const rawHistory = options.history();
-            const visibleHistory = options.fixedWindow()
-                ? rawHistory.filter(point => point.time >= windowStart - PitchDetectCore.TRACE_BREAK_MS && point.time <= windowStart + timeWindow)
-                : rawHistory;
-            const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
-            const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
             if (history.length > 1) {
                 ctx.lineWidth = 2.4;
                 ctx.lineCap = 'round';
