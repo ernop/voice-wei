@@ -165,7 +165,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.evaluate(() => {
             localStorage.setItem('phrases-settings', JSON.stringify({
                 root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
-                startAtOne: false, rangeMode: 'within', minLength: 9, maxLength: 9,
+                startAtOne: false, rangeLow: 0, rangeHigh: 7, minLength: 9, maxLength: 9,
                 returnToInitial: true, returnToRoot: false,
                 hearTones: false, hearSpeech: false, singNumbers: false,
                 noteLengthMs: 500, gapMs: 0, showNumbers: true, showNoteNames: true,
@@ -600,13 +600,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.click('#playOnNextBtn');
         await tab.waitForTimeout(200);
 
-        // "just over" range: offsets bounded to two degrees past the octave
+        // Explicit range endpoints: offsets bounded to the chosen span
         const overBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
             for (const phraseAlgo of algos) {
                 for (let i = 0; i < 300; i++) {
                     const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'over',
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -2, rangeHigh: 9,
                         minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
                     });
                     if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
@@ -614,15 +614,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             return true;
         });
-        report.check('phrases algos keep "just over" bounded to 6-below..3-above', overBounded);
+        report.check('phrases algos honor range endpoints -2..9 (6-below..3-above)', overBounded);
 
-        // "around 1" range: the full octave 1..8 plus down to the 1 an octave below
+        // Low endpoint a full octave below unison, high capped at the octave
         const aroundBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
             for (const phraseAlgo of algos) {
                 for (let i = 0; i < 300; i++) {
                     const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'around',
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -7, rangeHigh: 7,
                         minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
                     });
                     if (Math.min(...offsets) < -7 || Math.max(...offsets) > 7) return false;
@@ -630,11 +630,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             return true;
         });
-        report.check('phrases algos keep "around 1" bounded to low-1..8', aroundBounded);
-        await tab.click('[data-range="over"]');
+        report.check('phrases algos honor range endpoints -7..7 (octave-below-1..8)', aroundBounded);
+
+        // Range endpoint steppers: one degree per step, endpoint labels
+        // name degrees, and both endpoints persist.
+        const rangeBefore = await tab.evaluate(() => {
+            const data = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS) || {};
+            return { low: data.rangeLow ?? 0, high: data.rangeHigh ?? 7 };
+        });
+        await tab.click('[data-step-key="rangeLow"][data-step-delta="-1"]');
+        await tab.click('[data-step-key="rangeHigh"][data-step-delta="1"]');
         await tab.waitForTimeout(200);
-        const savedRange = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.rangeMode);
-        report.check('phrases range mode persists', savedRange === 'over');
+        const rangeState = await tab.evaluate(() => ({
+            saved: (() => {
+                const data = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS) || {};
+                return { low: data.rangeLow, high: data.rangeHigh };
+            })(),
+            lowLabel: document.getElementById('rangeLowValue').textContent,
+            highLabel: document.getElementById('rangeHighValue').textContent
+        }));
+        report.check(`phrases range endpoints step and persist (low ${rangeState.lowLabel}, high ${rangeState.highLabel})`,
+            rangeState.saved.low === rangeBefore.low - 1
+            && rangeState.saved.high === rangeBefore.high + 1
+            && rangeState.lowLabel.length > 0 && rangeState.highLabel.length > 0);
         await tab.click('[data-phrase-algo="arch"]');
         await tab.waitForTimeout(200);
         const savedAlgo = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.phraseAlgo);
@@ -643,19 +661,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const lessonFamilies = await tab.evaluate(() => {
             const staff = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'staff', phraseLesson: 'staff_steps',
-                phraseAlgo: 'balanced', startAtOne: true, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: true, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
             const sight = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'sight', phraseLesson: 'sight_pentachord',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
             const barber = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_dominant',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
@@ -668,7 +686,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 40; i++) {
                 const offsets = PatternPracticeCore.generatePhraseOffsets({
                     scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_sevenths',
-                    phraseAlgo: 'balanced', startAtOne: true, rangeMode: 'within',
+                    phraseAlgo: 'balanced', startAtOne: true, rangeLow: 0, rangeHigh: 7,
                     minLength: 6, maxLength: 8, returnToInitial: false, returnToRoot: false,
                     accidentalRate: 0
                 });
@@ -708,7 +726,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const genreLesson = await tab.evaluate(() => {
             const phrase = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'genre', phraseLesson: 'genre_pop_hook',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
@@ -726,7 +744,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return lessons.every(phraseLesson => {
                 const phrase = PatternPracticeCore.generatePhraseOffsets({
                     scaleType: 'major', phraseStyle: 'genre', phraseLesson,
-                    phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                    phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                     minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                     accidentalRate: 0
                 });
@@ -745,7 +763,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 6; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'expanded', minLength: 8, maxLength: 10,
+                    rangeLow: -3, rangeHigh: 14, minLength: 8, maxLength: 10,
                     returnToInitial: false, returnToRoot: false, phraseAlgo: 'motif'
                 });
                 const o = phrase.notes.map(n => n.offset);
@@ -768,7 +786,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 12; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'within', minLength: 8, maxLength: 10,
+                    rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 10,
                     returnToInitial: false, returnToRoot: false, phraseAlgo: 'alto_gaps'
                 });
                 const offsets = phrase.notes.map(n => n.offset);
@@ -786,7 +804,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const returnToOne = await tab.evaluate(() => {
             for (let i = 0; i < 200; i++) {
                 const offsets = PatternPracticeCore.generatePhraseOffsets({
-                    scaleType: 'major', phraseAlgo: 'arch', startAtOne: false, rangeMode: 'within',
+                    scaleType: 'major', phraseAlgo: 'arch', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                     minLength: 5, maxLength: 8, returnToInitial: true, returnToRoot: false
                 });
                 if (offsets[offsets.length - 1] !== 0) return false;
@@ -802,7 +820,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const sorted = values => values.slice().sort((a, b) => a - b).join(',');
             const range = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
             const base = {
-                scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
                 minLength: 5, maxLength: 8, accidentalRate: 0, returnToRoot: false
             };
             for (let i = 0; i < 60; i++) {
@@ -816,7 +834,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 if (anchored[0] !== 0 || anchored[anchored.length - 1] !== 0) return 'anchors missing';
                 if (sorted(anchored.slice(1, -1)) !== sorted(range(1, 7))) return 'anchored interior broken';
                 const expanded = PatternPracticeCore.generatePhraseOffsets({
-                    ...base, startAtOne: false, returnToInitial: false, rangeMode: 'expanded'
+                    ...base, startAtOne: false, returnToInitial: false, rangeLow: -3, rangeHigh: 14
                 });
                 if (sorted(expanded) !== sorted(range(-3, 14))) return 'expanded range broken';
                 const doubled = PatternPracticeCore.generatePhraseOffsets({
@@ -839,7 +857,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             let inserted = 0;
             for (let i = 0; i < 60; i++) {
                 const offsets = PatternPracticeCore.generatePhraseOffsets({
-                    scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
                     minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
                     returnToRoot: false, accidentalRate: 1
                 });
@@ -901,7 +919,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 100; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'over', minLength: 16, maxLength: 16,
+                    rangeLow: -2, rangeHigh: 9, minLength: 16, maxLength: 16,
                     returnToInitial: false, returnToRoot: false,
                     phraseAlgo: 'stepwise', accidentalRate: 1
                 });
@@ -1081,8 +1099,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             testInterrupt.open && testInterrupt.voicesAfter === voicesAtTestTap);
 
         // Opening the test never auto-plays: the user is there to sing.
-        // Quiesce any playback still running from earlier checks first.
+        // Quiesce playback and close the panel (Stop no longer closes it)
+        // so the next Test tap is an OPEN.
         await tab.click('#stopBtn');
+        await tab.evaluate(() => {
+            if (!document.getElementById('phraseTestPanel').hidden) {
+                document.getElementById('phraseTestCloseBtn').click();
+            }
+        });
         await tab.waitForTimeout(500);
         const voicesBefore = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         await tab.click('#testBtn');
@@ -1090,26 +1114,47 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const voicesAfter = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         report.check(`phrases test open is silent (${voicesAfter - voicesBefore} voices started)`,
             voicesAfter === voicesBefore);
-        await tab.evaluate(() => {
-            window.phrasesDebug.mediaPlay();
-            window.phrasesDebug.mediaNext();
-            document.getElementById('playBtn').click();
-            document.getElementById('nextBtn').click();
-            document.querySelector('.phrase-note-play-token')?.click();
-            document.querySelector('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]')?.click();
-            document.querySelector('#historyList .history-play-btn')?.click();
+        // The Guide button plays the targets on demand.
+        const guideVoices = await tab.evaluate(async () => {
+            const voices = () => window.__trace.filter(e => e.type === 'voice-start').length;
+            const before = voices();
+            document.getElementById('phraseTestGuideBtn').click();
+            await new Promise(r => setTimeout(r, 2500));
+            return voices() - before;
         });
-        await tab.waitForTimeout(5200);
-        const voicesAfterMediaActions = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
-        report.check(`phrases playback entry points stay silent during Test (${voicesAfter}->${voicesAfterMediaActions} voices)`,
-            voicesAfterMediaActions === voicesAfter);
+        report.check(`phrases Guide button plays enabled targets (${guideVoices} voices)`,
+            guideVoices === plan.targetCount);
 
-        // The Guide button is the explicit way to hear the targets.
-        await tab.evaluate(() => document.getElementById('phraseTestGuideBtn').click());
-        await tab.waitForTimeout(2500);
-        const voicesGuide = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
-        report.check(`phrases Guide button plays enabled targets (${voicesGuide - voicesAfter} voices)`,
-            voicesGuide - voicesAfter === plan.targetCount);
+        // Playback and Test coexist: with the panel open and listening,
+        // Play sounds the phrase, Stop stops it WITHOUT closing the
+        // panel, single-note taps sound, and Next starts a fresh take
+        // for the new phrase with the panel still open.
+        const playDuringTest = await tab.evaluate(async () => {
+            const voices = () => window.__trace.filter(e => e.type === 'voice-start').length;
+            const panelOpen = () => !document.getElementById('phraseTestPanel').hidden;
+            const start = voices();
+            document.getElementById('playBtn').click();
+            await new Promise(r => setTimeout(r, 900));
+            const afterPlay = voices();
+            document.getElementById('stopBtn').click();
+            await new Promise(r => setTimeout(r, 400));
+            const openAfterStop = panelOpen();
+            const afterStop = voices();
+            document.querySelector('.phrase-note-play-token')?.click();
+            await new Promise(r => setTimeout(r, 400));
+            const afterToken = voices();
+            document.getElementById('nextBtn').click();
+            await new Promise(r => setTimeout(r, 1200));
+            return {
+                playSounds: afterPlay > start,
+                openAfterStop,
+                tokenSounds: afterToken > afterStop,
+                openAfterNext: panelOpen()
+            };
+        });
+        report.check('phrases playback works during Test; Stop and Next keep the panel open',
+            playDuringTest.playSounds && playDuringTest.openAfterStop
+            && playDuringTest.tokenSounds && playDuringTest.openAfterNext);
 
         // END-TO-END NOTE LINKAGE: with notes disabled, singing exactly
         // the displayed enabled notes must credit every one of them.

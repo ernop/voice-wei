@@ -59,7 +59,8 @@ chooses a question range, not a root) and keeps its own range.
 | phraseLesson | free_open | style-specific lesson buttons | bounds-next |
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
-| rangeMode | within | in octave / just over / around 1 / out octave | bounds-next |
+| rangeLow | 0 (degree 1) | Range Low stepper, one degree per step | bounds-next |
+| rangeHigh | 7 (degree 8) | Range High stepper, one degree per step | bounds-next |
 | chromaticRuns | false | toggle - sometimes pass through the chromatic note between whole-step degrees (4 #4 5 up, 6 b6 5 down); only where such a note exists | bounds-next |
 | minLength | 5 | 2..12, 14, 16 list | bounds-next |
 | maxLength | 8 | 3..12, 14, 16, then smaller long-phrase steps to 50 | bounds-next |
@@ -80,11 +81,16 @@ chooses a question range, not a root) and keeps its own range.
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
 | lessonLockedKeys | [] | setting-key array | UI marker only |
 
-Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
-past each end (down to 6 of the octave below, up to 3 of the octave above
-for seven-note scales); "around 1" allows the full octave 1-8 plus down to
-the 1 an octave below; "out octave" allows half an octave below to two
-octaves up.
+Range endpoints: the two steppers move the lower and upper ends of the
+degree palette phrases are built from, one scale degree per step, stored
+as scale offsets (0 = degree 1, degrees-per-octave = degree 8). Default
+1..8 (the octave). The low endpoint descends below unison (down to the 1
+an octave below, shown with the down-arrow degree labels, e.g. "6↓");
+the high endpoint climbs past the octave (up to two octaves, "2↑"
+style) or drops below 8 to shrink the palette (high 7 = degrees 1-7
+only, excluding the octave). The endpoints can never cross. One owner
+resolves and clamps them: `rangeBounds` / `phraseRangeLimits` in
+pattern-practice-core.js.
 
 Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
 "staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);
@@ -125,17 +131,17 @@ toggling it does not start or stop audio. Play on step controls whether add
 note (or auto step after a cycle) triggers playback. Fill notes are audible
 only between adjacent enabled phrase notes, never across breakdown gaps.
 
-Phrase Test is an exclusive singing/listening mode. Entering Test stops the
-phrase transport and cancels guide playback; while Test is open, Phrases page
-entry points that normally play audio (Play, Next, history replay, per-note
-play buttons, hardware/media-session play/next, Reflect replays, setting
-replays, and play-on-step) must not start phrase playback. The only sound
-allowed inside Test is the explicit `Play Guide` button owned by the pitch test
-panel. This is a product requirement, not an implementation detail: Test means
-"listen to my singing", not "play the phrase again". Enforcement should stay
-centralized: add future phrase playback routes through `runPhrasePlayback`
-and the page-owned `playMidi` boundary rather than scattering bespoke guards
-across handlers.
+Phrase Test coexists with playback (owner-directed reversal of the
+earlier exclusive-mode rule): while Test is open and listening, Play,
+Next, history replay, per-note play buttons, and hardware/media keys all
+work normally, so the user can hear notes and sing against them in one
+take. Entering Test still stops the transport (a take starts from
+silence), the panel itself never auto-plays, and Stop stops sound
+without closing the panel. Generating or switching phrases while the
+panel is open restarts the take for the new phrase (same targets on
+screen and under the score). Note the physics: the microphone hears the
+speakers, so played piano appears in the trace - the chart shows what
+reaches the mic.
 
 ## Trace (`trace-settings`)
 

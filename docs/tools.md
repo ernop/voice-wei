@@ -93,17 +93,23 @@ gap, play tones, return to degree 1.
 - **Output modes**: display only, say numbers, play tones, say + tones,
   sing numbers (speech pitch shaped toward each note), none.
 - **Test** opens the embedded pitch-trace panel for the current phrase
-  (see "Pitch test panel" below).
+  (see "Pitch test panel" below). Playback works while it listens: Play,
+  Next, and single-note taps all sound during a take, so you can hear
+  notes and sing against them; a new phrase restarts the take. (The mic
+  hears the speakers, so played piano appears in the trace.)
+- **Range Low / Range High** steppers move the endpoints of the degree
+  palette phrases are built from, one degree per step. Default 1..8 (the
+  octave); low descends below unison (down to the 1 an octave below,
+  labeled "6↓" style), high climbs to two octaves ("2↑" style) or drops
+  below 8 to shrink the palette (7 = degrees 1-7 only).
 - Hardware media keys: play/pause replay the phrase, next/seek generate
   the next one. (Chrome only routes media keys to pages with real media,
   so the page keeps a silent audio element active after the first tap.)
 
 Setting behaviors (the key design): root/scale changes **reproject** the
 current degree sequence into the new context; algorithm, min/max length,
-start, and range (in octave / just over / out octave) apply to the **next**
-generated phrase; return-to-1 regenerates; playback settings replay;
-show-names redraws. "Just over" lets phrases reach two degrees past the
-octave - down to 6 below, up to 3 above.
+start, and range endpoints apply to the **next** generated phrase;
+return-to-1 regenerates; playback settings replay; show-names redraws.
 
 Algorithm choices separate musical behavior from range: **arch** is the
 default rise/fall contour with a midpoint climax, **balanced** is the original

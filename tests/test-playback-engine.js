@@ -82,7 +82,7 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.evaluate(() => {
             localStorage.setItem('phrases-settings', JSON.stringify({
                 root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'arch',
-                startAtOne: true, rangeMode: 'within', minLength: 8, maxLength: 8,
+                startAtOne: true, rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 8,
                 returnToInitial: false, returnToRoot: false,
                 hearTones: true, hearSpeech: false, singNumbers: false,
                 noteLengthMs: 1000, gapMs: 0, showNoteNames: true

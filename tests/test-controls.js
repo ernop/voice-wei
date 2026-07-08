@@ -185,7 +185,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.evaluate(() => {
             localStorage.setItem('phrases-settings', JSON.stringify({
                 root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
-                startAtOne: false, rangeMode: 'expanded', minLength: 28, maxLength: 32,
+                startAtOne: false, rangeLow: -3, rangeHigh: 14, minLength: 28, maxLength: 32,
                 returnToInitial: true, returnToRoot: false,
                 hearTones: false, hearSpeech: false, singNumbers: false,
                 noteLengthMs: 300, gapMs: 0, showNoteNames: true, showStaff: true

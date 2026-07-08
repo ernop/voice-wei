@@ -155,12 +155,21 @@
                         <button class="vf-btn phrase-toggle-btn" id="returnAnchorBtn" type="button" aria-pressed="true"
                             title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
                     </div>
-                    <div class="segment-row">
-                        <button class="vf-btn" data-range="within">in octave</button>
-                        <button class="vf-btn" data-range="over">just over</button>
-                        <button class="vf-btn" data-range="around"
-                            title="The full octave 1-8 plus down to the 1 an octave below">around 1</button>
-                        <button class="vf-btn" data-range="expanded">out octave</button>
+                    <div class="segment-row phrase-range-row">
+                        <div class="step-field"
+                            title="Lowest degree phrases may use. Below 1 reaches under the unison (down to the 1 an octave below).">
+                            <span class="step-label">Range Low</span>
+                            <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="-1" aria-label="Lower range endpoint down one degree">-</button>
+                            <span class="step-value" id="rangeLowValue">1</span>
+                            <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="1" aria-label="Raise range endpoint up one degree">+</button>
+                        </div>
+                        <div class="step-field"
+                            title="Highest degree phrases may use. Below 8 shrinks the palette (7 = degrees 1-7); above 8 reaches past the octave (up to two octaves).">
+                            <span class="step-label">Range High</span>
+                            <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="-1" aria-label="Lower top endpoint down one degree">-</button>
+                            <span class="step-value" id="rangeHighValue">8</span>
+                            <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="1" aria-label="Raise top endpoint up one degree">+</button>
+                        </div>
                     </div>
                     <div class="segment-row phrase-algo-row">
                         <button class="vf-btn" data-phrase-algo="balanced" title="Mixed contour with local motion and occasional leaps">balanced</button>

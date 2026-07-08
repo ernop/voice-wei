@@ -198,27 +198,40 @@ const PatternPracticeCore = (function () {
     }
 
     /**
-     * Phrase range modes: how far offsets may wander beyond the octave.
-     * 'within' = degrees 1..8 only; 'over' = two degrees past each end
-     * (down to 6 of the octave below, up to 3 of the octave above for
-     * seven-note scales); 'around' = the full octave 1..8 plus down to
-     * the 1 an octave below; 'expanded' = half an octave below to two
-     * octaves up.
-     * @param {string} rangeMode
+     * The endpoints a phrase-range endpoint may reach, as scale offsets:
+     * the low endpoint may descend a full octave below unison, the high
+     * endpoint may climb to two octaves. One owner for the page steppers
+     * and the generator clamp.
+     * @param {string} scaleType
+     */
+    function phraseRangeLimits(scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        return { lowMin: -dp, highMax: dp * 2 };
+    }
+
+    /**
+     * Explicit phrase-range endpoints as scale offsets (0 = degree 1,
+     * dp = the octave). The user moves each endpoint independently:
+     * negative low reaches below unison, high past dp reaches above the
+     * octave, and high below dp shrinks the palette (e.g. high dp-1 =
+     * degrees 1..7 only). Sanity-clamped to phraseRangeLimits with
+     * low < high always.
+     * @param {{ rangeLow?: number, rangeHigh?: number, scaleType: string }} options
      * @param {number} dp - degrees per octave
      */
-    function rangeBounds(rangeMode, dp) {
-        if (rangeMode === 'expanded') return { min: -Math.floor(dp / 2), max: dp * 2 };
-        if (rangeMode === 'over') return { min: -2, max: dp + 2 };
-        if (rangeMode === 'around') return { min: -dp, max: dp };
-        return { min: 0, max: dp };
+    function rangeBounds(options, dp) {
+        const { lowMin, highMax } = phraseRangeLimits(options.scaleType);
+        const high = clamp(Math.round(options.rangeHigh ?? dp), lowMin + 1, highMax);
+        const low = clamp(Math.round(options.rangeLow ?? 0), lowMin, high - 1);
+        return { min: low, max: high };
     }
 
     /**
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -293,7 +306,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -303,7 +317,7 @@ const PatternPracticeCore = (function () {
      */
     function phraseSeed(options) {
         const dp = degreesPerOctave(options.scaleType);
-        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options, dp);
         const length = phraseLength(options);
         const initial = initialPhraseOffset(options, dp, minOffset, maxOffset);
         return { dp, minOffset, maxOffset, length, initial, offsets: [initial] };
@@ -315,7 +329,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -363,7 +378,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -386,7 +402,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -413,7 +430,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -447,7 +465,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -484,7 +503,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -543,7 +563,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -683,7 +704,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   returnToInitial: boolean,
      *   returnToRoot: boolean,
      *   accidentalRate?: number
@@ -694,7 +716,7 @@ const PatternPracticeCore = (function () {
     const REARRANGE_CANDIDATES = 24;
     function generateRearrangeOffsets(options, copies) {
         const dp = degreesPerOctave(options.scaleType);
-        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options, dp);
         const startAnchor = options.startAtOne;
         const endAnchor = options.returnToInitial || options.returnToRoot;
         const anchoredOnes = (startAnchor ? 1 : 0) + (endAnchor ? 1 : 0);
@@ -850,7 +872,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -897,7 +920,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -918,7 +942,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -948,7 +973,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -969,7 +995,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -1035,7 +1062,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -1067,7 +1095,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -1128,7 +1157,8 @@ const PatternPracticeCore = (function () {
      *   octave: number,
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -1189,6 +1219,7 @@ const PatternPracticeCore = (function () {
         clamp,
         positiveModulo,
         rangeBounds,
+        phraseRangeLimits,
         degreesPerOctave,
         baseIntervalsForScale,
         buildExtendedScale,

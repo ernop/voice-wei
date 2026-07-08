@@ -17,7 +17,7 @@
         phraseLesson: 'free_open',
         phraseAlgo: 'arch',
         startAtOne: true,
-        rangeMode: 'within',
+        rangeLow: 0, rangeHigh: 7,
         chromaticRuns: false,
         accidentalRate: 0,
         fillMode: 'none',
@@ -46,7 +46,7 @@
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
+        'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
         'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
@@ -56,7 +56,8 @@
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
     // affect the NEXT generated phrase (phraseStyle, phraseLesson,
-    // phraseAlgo, startAtOne, rangeMode, chromaticRuns, minLength, maxLength).
+    // phraseAlgo, startAtOne, rangeLow, rangeHigh, chromaticRuns,
+    // minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs']);
@@ -79,35 +80,35 @@
         genre: 'genre_folk_hymn'
     });
     const LESSON_PRESETS = Object.freeze({
-        free_open: { style: 'free', defaults: { scaleType: 'major', phraseAlgo: 'arch', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: [] },
-        staff_steps: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'minLength', 'maxLength', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_skips: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_mixed: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_landmarks: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_do_re: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_pentachord: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_triad: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_cadence: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        barber_tonic: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        barber_dominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_subdominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_thirds: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_sevenths: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_folk_hymn: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_pop_hook: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_theatre: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'startAtOne', 'returnToInitial'] },
-        genre_blackbird_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_hello_pop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_simon_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_scarborough_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_klezmer: { style: 'genre', defaults: { scaleType: 'harmonic_minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['scaleType', 'rangeMode', 'returnToInitial'] },
-        genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial'] }
+        free_open: { style: 'free', defaults: { scaleType: 'major', phraseAlgo: 'arch', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: [] },
+        staff_steps: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'minLength', 'maxLength', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_skips: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_mixed: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_landmarks: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_do_re: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 4, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_pentachord: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_triad: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_cadence: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        barber_tonic: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        barber_dominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_subdominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_thirds: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_sevenths: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_folk_hymn: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_pop_hook: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 4, maxLength: 8, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_theatre: { style: 'genre', defaults: { scaleType: 'major', rangeLow: -2, rangeHigh: 9, minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeLow: -2, rangeHigh: 9, minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeLow: -2, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial'] },
+        genre_blackbird_folk: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_hello_pop: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 10, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_simon_folk: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_scarborough_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_klezmer: { style: 'genre', defaults: { scaleType: 'harmonic_minor', rangeLow: -2, rangeHigh: 9, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeLow: -2, rangeHigh: 9, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] }
     });
 
     const phraseAudio = (() => {
@@ -123,7 +124,7 @@
             },
             /** @param {number} midi @param {number} durationSec */
             playPhraseMidi(midi, durationSec) {
-                if (!piano || !phrasePlaybackAllowed()) return false;
+                if (!piano) return false;
                 piano.playMidi(midi, durationSec);
                 return true;
             },
@@ -224,7 +225,8 @@
             phraseLesson: state.phraseLesson,
             phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
-            rangeMode: state.rangeMode,
+            rangeLow: state.rangeLow,
+            rangeHigh: state.rangeHigh,
             chromaticRuns: state.chromaticRuns || state.accidentalRate > 0,
             accidentalRate: state.accidentalRate,
             minLength: state.minLength,
@@ -354,10 +356,8 @@
 
     /** @param {number} midi */
     async function playSingleNote(midi) {
-        await runPhrasePlayback(async () => {
-            await PianoCore.ensureStarted();
-            playMidi(midi);
-        });
+        await PianoCore.ensureStarted();
+        playMidi(midi);
     }
 
     // Muted notes are simply not performed. Spoken output reads the plan
@@ -649,10 +649,6 @@
     }
 
     async function playPhrase() {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return;
-        }
         if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
         cancelCurrentSound();
@@ -807,39 +803,15 @@
         }
     }
 
-    async function playCurrentOrNewUnlocked() {
+    // Playback and the test panel coexist: the panel is a passive
+    // listening surface, so playing the phrase, single notes, or a new
+    // phrase while Listening is on is allowed (and the mic will chart
+    // whatever it hears, including the piano - the chart shows what
+    // reaches the microphone). The panel itself still never auto-plays.
+    async function playCurrentOrNew() {
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
         await playPhrase();
-    }
-
-    function phraseTestIsOpen() {
-        return Boolean(testPanel && testPanel.isOpen);
-    }
-
-    function phrasePlaybackAllowed() {
-        return !phraseTestIsOpen();
-    }
-
-    /**
-     * The one Phrases-page playback gate. Test mode is exclusively for
-     * listening to the user's singing; all page-level playback routes
-     * must enter through here before they can start transport, generate
-     * transport-side state, or use the Phrases MIDI boundary.
-     * @template T
-     * @param {() => T | Promise<T>} action
-     * @returns {Promise<T | null>}
-     */
-    async function runPhrasePlayback(action) {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return null;
-        }
-        return action();
-    }
-
-    async function playCurrentOrNew() {
-        await runPhrasePlayback(playCurrentOrNewUnlocked);
     }
 
     function handleMediaPlay() {
@@ -876,30 +848,34 @@
         syncBreakdownControls();
     }
 
-    async function playNextUnlocked() {
+    /**
+     * A new phrase while the test panel is open starts a fresh take for
+     * it: same targets on screen and under the score, listening
+     * uninterrupted.
+     */
+    async function restartTakeForNewPhrase() {
+        if (testPanel && testPanel.isOpen) await testPanel.open();
+    }
+
+    async function playNext() {
         await MediaSessionCore.activate();
-        testPanel.close();
         stopTransport();
         exitBreakdownMode();
         exitPowersetMode();
         generatePhrase();
+        await restartTakeForNewPhrase();
         // With play-on-next off, Next only reveals the phrase so it can be
         // worked out by eye/voice first; Play starts audio when ready.
         if (!state.playOnNext) return;
         await playPhrase();
     }
 
-    async function playNext() {
-        await runPhrasePlayback(playNextUnlocked);
-    }
-
     /**
      * Car back button: step back through the phrase history, one entry
      * per press, replaying each. At the oldest entry it replays that.
      */
-    async function playPreviousUnlocked() {
+    async function playPrevious() {
         await MediaSessionCore.activate();
-        testPanel.close();
         stopTransport();
         exitBreakdownMode();
         exitPowersetMode();
@@ -911,11 +887,8 @@
             setTakeFromPhrase(previous);
         }
         if (!currentPhrase) return;
+        await restartTakeForNewPhrase();
         await playPhrase();
-    }
-
-    async function playPrevious() {
-        await runPhrasePlayback(playPreviousUnlocked);
     }
 
     function toggleRepeatLoop() {
@@ -1171,11 +1144,10 @@
         playBtn.title = 'Play phrase';
         playBtn.textContent = '>';
         playBtn.addEventListener('click', async () => {
-            await runPhrasePlayback(async () => {
-                currentPhrase = phrase;
-                setTakeFromPhrase(phrase);
-                await playPhrase();
-            });
+            currentPhrase = phrase;
+            setTakeFromPhrase(phrase);
+            await restartTakeForNewPhrase();
+            await playPhrase();
         });
         const text = document.createElement('div');
         text.className = 'history-text';
@@ -1196,6 +1168,11 @@
         return item;
     }
 
+    /** Range endpoints display as the degree they sit on ("1", "8", "6↓", "3↑"). @param {number} offset */
+    function rangeEndpointLabel(offset) {
+        return describeScaleOffset(offset, PatternPracticeCore.degreesPerOctave(state.scaleType));
+    }
+
     function syncAdjusterControls() {
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
@@ -1203,13 +1180,34 @@
         PracticeControls.setValueText('accidentalRateValue', `${Math.round(state.accidentalRate * 100)}%`);
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
         PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
+        PracticeControls.setValueText('rangeLowValue', rangeEndpointLabel(state.rangeLow));
+        PracticeControls.setValueText('rangeHighValue', rangeEndpointLabel(state.rangeHigh));
 
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
+            if (key === 'rangeLow' || key === 'rangeHigh') {
+                return steppedRangeValue(key, delta) === null;
+            }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
+    }
+
+    /**
+     * The next value for a range-endpoint stepper, or null at a bound.
+     * Endpoints move one scale degree per step; the low end may reach a
+     * full octave below unison, the high end two octaves up, and the two
+     * can never cross (low < high always).
+     * @param {'rangeLow' | 'rangeHigh'} key @param {number} delta
+     */
+    function steppedRangeValue(key, delta) {
+        const { lowMin, highMax } = PatternPracticeCore.phraseRangeLimits(state.scaleType);
+        const next = state[key] + delta;
+        if (key === 'rangeLow') {
+            return (next >= lowMin && next < state.rangeHigh) ? next : null;
+        }
+        return (next > state.rangeLow && next <= highMax) ? next : null;
     }
 
     function syncAnchorControls() {
@@ -1263,7 +1261,6 @@
     function syncPresetControlledValues() {
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
         PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
-        PracticeControls.syncSingleSelect('data-range', state.rangeMode);
         syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncToggleControl('hearTonesToggle', state.hearTones);
@@ -1282,7 +1279,8 @@
         const selectorsByKey = {
             scaleType: '[data-scale]',
             phraseAlgo: '[data-phrase-algo]',
-            rangeMode: '[data-range]',
+            rangeLow: '[data-step-key="rangeLow"]',
+            rangeHigh: '[data-step-key="rangeHigh"]',
             startAtOne: '#startAnchorBtn',
             returnToInitial: '#returnAnchorBtn',
             fillMode: '#fillFullBtn, #fillChordBtn',
@@ -1341,6 +1339,8 @@
             return;
         }
         if (REPROJECT_KEYS.has(key) || REPLAY_KEYS.has(key)) {
+            // Range endpoint labels name degrees of the current scale.
+            if (key === 'scaleType') syncAdjusterControls();
             updatePhraseDisplay();
             if (currentPhrase) playCurrentOrNew();
         }
@@ -1407,6 +1407,12 @@
             return;
         }
 
+        if (key === 'rangeLow' || key === 'rangeHigh') {
+            const next = steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */ (key), delta);
+            if (next !== null) setAdjusterValue(key, next);
+            return;
+        }
+
         const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
         if (next !== null) setAdjusterValue(key, next);
     }
@@ -1442,7 +1448,6 @@
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
-        wireSetting('data-range', 'rangeMode', String);
         PracticeControls.wireSingleSelect('data-phrase-style', String, state.phraseStyle, setPhraseStyle);
         PracticeControls.wireSingleSelect('data-phrase-lesson', String, state.phraseLesson, setPhraseLesson);
         wireHearToggle('hearTonesToggle', 'hearTones');
@@ -1486,7 +1491,6 @@
         getEl('testBtn')?.addEventListener('click', togglePhraseTest);
         getEl('nextBtn')?.addEventListener('click', playNext);
         getEl('stopBtn')?.addEventListener('click', () => {
-            testPanel.close();
             stopPlayback();
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
