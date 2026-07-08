@@ -415,15 +415,24 @@ never touches this DB directly. Stores:
 - `lyricStates`: per-song lyric state keyed by videoId - the single
   permanent owner of lyrics (see "Lyric state has one permanent owner"
   above).
+- `librarySongs`: imported MIDI/MusicXML songs with their full note
+  arrays, keyed by id (migrated out of localStorage, which their bulk
+  was on course to exhaust).
 
-Store-by-lifetime is the dividing law (persistence principle P1):
-**localStorage** owns small, synchronous, boot-time state - settings,
-lyrics-view prefs, API keys, the live playlist + index, and the
-**authoritative favorites set** (`PLAYER_FAVORITES`). **IndexedDB** owns the
-unbounded/historical data above. No concept is authoritative in two stores
-(P2): favorites live in localStorage; `favoriteEvents` is history only, never
-read back as the source of truth. (An earlier schema also mirrored favorites
-into a `favorites` object store; database version 2 deletes it on upgrade.)
+Store-by-bulk is the dividing law (persistence principle P1):
+**localStorage** (a shared ~5MB quota) may hold only KB-scale state whose
+size does not grow with the library - settings, lyrics-view prefs, API
+keys, the live playlist + index, and the **authoritative favorites set**
+(`PLAYER_FAVORITES`, Song-sized records). Its one real benefit is
+synchronous availability at boot; nothing bulky may buy that
+convenience. **IndexedDB** (GB-scale quota) owns everything that grows
+with the library or with time: the stores above, per-song lyric states,
+and imported library songs. No concept is authoritative in two stores
+(P2): favorites live in localStorage; `favoriteEvents` is history only,
+never read back as the source of truth. (An earlier schema also mirrored
+favorites into a `favorites` object store; database version 2 deletes it
+on upgrade. Lyrics and imported songs also began in localStorage; v3/v4
+moved them out after quota blowouts.)
 
 Caps apply to time-streams only, never to library entities (P3). The
 append-only event streams grow with use forever, so they carry caps and

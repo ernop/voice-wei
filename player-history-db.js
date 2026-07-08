@@ -23,7 +23,9 @@ const PlayerHistoryDB = (function () {
     // v3 adds `lyricStates`: the single permanent owner of per-song lyric
     // state, keyed by videoId (a found record with the lyrics, or an
     // answered "none" with when it was checked).
-    const DB_VERSION = 3;
+    // v4 adds `librarySongs`: imported MIDI/MusicXML songs with their full
+    // note arrays - far too bulky for the ~5MB localStorage quota.
+    const DB_VERSION = 4;
     const LEGACY_FAVORITES_STORE = 'favorites';
     const STORES = Object.freeze({
         LOGS: 'logs',
@@ -31,7 +33,8 @@ const PlayerHistoryDB = (function () {
         SONGS: 'songs',
         YOUTUBE_SEARCHES: 'youtubeSearches',
         FAVORITE_EVENTS: 'favoriteEvents',
-        LYRIC_STATES: 'lyricStates'
+        LYRIC_STATES: 'lyricStates',
+        LIBRARY_SONGS: 'librarySongs'
     });
 
     // Caps for TIME-STREAM stores only (they grow with use, forever). When
@@ -107,6 +110,10 @@ const PlayerHistoryDB = (function () {
                 if (!db.objectStoreNames.contains(STORES.LYRIC_STATES)) {
                     const store = db.createObjectStore(STORES.LYRIC_STATES, { keyPath: 'videoId' });
                     store.createIndex('checkedAt', 'checkedAt');
+                }
+                if (!db.objectStoreNames.contains(STORES.LIBRARY_SONGS)) {
+                    const store = db.createObjectStore(STORES.LIBRARY_SONGS, { keyPath: 'id' });
+                    store.createIndex('importedAt', 'importedAt');
                 }
             };
             request.onsuccess = () => resolve(request.result);
@@ -311,6 +318,24 @@ const PlayerHistoryDB = (function () {
     }
 
     /**
+     * Persist one imported library song (full note array included). No cap:
+     * a library entity, naturally bounded by what the user imports.
+     * @param {SongLibrarySong} song
+     */
+    async function putLibrarySong(song) {
+        if (!song || !song.id) {
+            throw new Error('putLibrarySong requires an id');
+        }
+        await put(STORES.LIBRARY_SONGS, song);
+    }
+
+    /** @returns {Promise<SongLibrarySong[]>} newest import first */
+    async function listLibrarySongs() {
+        const records = /** @type {SongLibrarySong[]} */ (await getAll(STORES.LIBRARY_SONGS));
+        return records.sort((a, b) => (b.importedAt || 0) - (a.importedAt || 0));
+    }
+
+    /**
      * Record a favorite toggle as an append-only audit event. The authoritative
      * favorites set lives in localStorage (PlayerStorage); this is history only.
      * @param {FavoriteData | PlaylistItem | any} favorite @param {boolean} active
@@ -338,7 +363,9 @@ const PlayerHistoryDB = (function () {
         listYouTubeSearches,
         recordFavorite,
         putLyricState,
-        getLyricState
+        getLyricState,
+        putLibrarySong,
+        listLibrarySongs
     };
 })();
 

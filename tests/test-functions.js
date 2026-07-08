@@ -2597,6 +2597,38 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && storeWriteFailure.afterRetry.status === 'ready'
             && storeWriteFailure.afterRetry.storedStatus === 'found');
 
+        // Imported library songs (bulky note arrays) live in IndexedDB;
+        // hydration migrates anything stranded in the legacy localStorage
+        // blob and leaves that blob empty.
+        const songLibraryMigration = await tab.evaluate(async () => {
+            const legacySong = {
+                id: 'song_test_migrate', title: 'Migrate Me', sourceType: 'midi',
+                sourceName: 'migrate.mid', importedAt: Date.now(), favorite: false,
+                tempoBpm: 120, durationMs: 2000, noteCount: 2, lyricsText: '',
+                lyricLines: [],
+                notes: [
+                    { midi: 60, startMs: 0, endMs: 500 },
+                    { midi: 64, startMs: 500, endMs: 1000 }
+                ]
+            };
+            PlayerStorage.saveSongLibrary({ songs: [legacySong] });
+            const harness = {
+                songLibrary: { songs: [] },
+                addMessage() {}
+            };
+            PlayerSongLibrary.install(harness);
+            harness.renderSongLibrary = () => {}; // display is not under test
+            await harness.hydrateSongLibrary();
+            const inIdb = (await PlayerHistoryDB.listLibrarySongs())
+                .some(song => song.id === 'song_test_migrate');
+            const blob = SettingsStore.peekData(StorageKeys.PLAYER_SONG_LIBRARY);
+            const blobEmpty = !blob || !blob.songs || blob.songs.length === 0;
+            const inMemory = harness.songLibrary.songs.some(song => song.id === 'song_test_migrate');
+            return { inIdb, blobEmpty, inMemory };
+        });
+        report.check(`player imported songs migrate to IndexedDB (idb: ${songLibraryMigration.inIdb}, blob empty: ${songLibraryMigration.blobEmpty})`,
+            songLibraryMigration.inIdb && songLibraryMigration.blobEmpty && songLibraryMigration.inMemory);
+
         // Minimal display communication: identical repeat writes to the
         // now-playing surfaces are dropped at the core - one metadata
         // construction per distinct title, none for repeats.

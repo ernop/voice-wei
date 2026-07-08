@@ -13,6 +13,30 @@ const PlayerSongLibrary = (function () {
         let playbackToken = 0;
 
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+            /**
+             * Imported songs live in IndexedDB (full note arrays are far
+             * too bulky for localStorage). Loads them into memory, first
+             * migrating any songs stranded in the legacy localStorage blob.
+             */
+            async hydrateSongLibrary() {
+                const legacy = PlayerStorage.loadSongLibrary();
+                if (legacy.songs.length) {
+                    for (const song of legacy.songs) {
+                        try {
+                            await PlayerHistoryDB.putLibrarySong(song);
+                        } catch (error) {
+                            this.addMessage('error', 'Song library migration',
+                                `${song.title || song.id}: ${error instanceof Error ? error.message : String(error)}`);
+                            return; // keep the localStorage copy; retry next load
+                        }
+                    }
+                    PlayerStorage.saveSongLibrary({ songs: [] });
+                    this.addMessage('claude', 'Song library', `Moved ${legacy.songs.length} imported song${legacy.songs.length === 1 ? '' : 's'} to IndexedDB`);
+                }
+                this.songLibrary.songs = await PlayerHistoryDB.listLibrarySongs();
+                this.renderSongLibrary();
+            },
+
             setupSongLibraryUI() {
                 const importInput = /** @type {HTMLInputElement | null} */ (document.getElementById('songLibraryImportInput'));
                 const importBtn = document.getElementById('songLibraryImportBtn');
@@ -57,6 +81,8 @@ const PlayerSongLibrary = (function () {
                 for (const file of Array.from(files)) {
                     try {
                         const song = await importSongFile(file);
+                        // Save first, then show: the store is the owner.
+                        await PlayerHistoryDB.putLibrarySong(song);
                         this.songLibrary.songs.unshift(song);
                         imported.push(song);
                     } catch (error) {
@@ -66,7 +92,6 @@ const PlayerSongLibrary = (function () {
                 }
 
                 if (imported.length) {
-                    PlayerStorage.saveSongLibrary(this.songLibrary);
                     this.renderSongLibrary();
                     this.updateStatus(`Imported ${imported.length} song${imported.length === 1 ? '' : 's'} to local library`);
                 }
@@ -155,7 +180,9 @@ const PlayerSongLibrary = (function () {
                 const song = this.songLibrary.songs.find(entry => entry.id === songId);
                 if (!song) return;
                 song.favorite = !song.favorite;
-                PlayerStorage.saveSongLibrary(this.songLibrary);
+                PlayerHistoryDB.putLibrarySong(song).catch(error => {
+                    this.addMessage('error', 'Song library', `Could not save favorite: ${error instanceof Error ? error.message : String(error)}`);
+                });
                 this.renderSongLibrary();
             }
         }));

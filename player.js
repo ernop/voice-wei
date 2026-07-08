@@ -45,8 +45,8 @@ class VoiceMusicController {
         this.isDraggingProgress = false;
         /** @type {Record<string, FavoriteData>} */
         this.favorites = PlayerStorage.loadFavorites();
-        /** @type {SongLibraryStore} */
-        this.songLibrary = PlayerStorage.loadSongLibrary();
+        /** @type {SongLibraryStore} Hydrated from IndexedDB in init (hydrateSongLibrary) */
+        this.songLibrary = { songs: [] };
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
         /** @type {PlaylistItem[]} Items awaiting a background lyric lookup */
@@ -105,6 +105,7 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
+            await this.hydrateSongLibrary();
             // Per-song lyric reconciliation over the favorites library:
             // already-resolved songs settle from the permanent store,
             // unresolved ones get looked up through the bounded queue.

@@ -362,6 +362,7 @@ interface VoiceMusicController {
     refreshLyricsRowButton(item: PlaylistItem): void;
 
     songLibrary: SongLibraryStore;
+    hydrateSongLibrary(): Promise<void>;
     setupSongLibraryUI(): void;
     importSongLibraryFiles(files: FileList | File[]): Promise<void>;
     renderSongLibrary(): void;
