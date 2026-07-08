@@ -203,9 +203,25 @@ the deploys dashboard's remote refresh.
 
 `pitch-score.js` is the single definition of "did the singer hit this note,
 and how accurately?". The embedded sing/test panel, the Pitch tool's
-call-and-response, and Pitch free practice all call `PitchScore.scoreWindow`;
-no tool carries its own thresholds (they had previously drifted - a 1.5
+call-and-response, and Pitch free practice all go through it; no tool
+carries its own thresholds (they had previously drifted - a 1.5
 vs 1.5-but-`<` match window, 3 vs 5 minimum samples, 10/25 vs 15/30 bands).
+
+**Takes are scored as sequences, not clock windows**
+(`PitchScore.scoreSequence`): the sung history is segmented into held
+notes (split on time gaps and sustained pitch moves; fragments below
+`MIN_VOICED` are transition glides, dropped) and aligned in order to the
+target notes by minimal-cost dynamic alignment (tolerates false starts,
+skipped notes, and one hold serving repeated equal targets). Each
+aligned pair is graded by `scoreWindow`. The take clock never decides a
+verdict - holding a note twice its slot, or breathing between notes,
+scores identically. This is forced by the voice-gated clock: breaths are
+zero-width in voice time and note durations are the singer's own, so
+fixed windows misassign samples by construction. Fixed windows remain
+only where a window is physically real: the Pitch tool's timed
+call-and-response periods. In the panel, a matched note gets its verdict
+as soon as the singer moves on; an unmatched target stays pending until
+the take clock passes its slot.
 
 The model, from one consistent idea of correct:
 

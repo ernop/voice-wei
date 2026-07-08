@@ -25,9 +25,18 @@ const PitchTestPanel = (function () {
     const REQUIRED_CONFIG = ['hostId', 'idPrefix', 'title', 'subtitle', 'storageKey',
         'key', 'rails', 'targets', 'contentDurationMs', 'playNote'];
 
-    // Per-note correctness is owned by PitchScore (one definition everywhere).
-    // A window counts as scoreable shortly after its end.
+    // Per-note correctness is owned by PitchScore (one definition
+    // everywhere). Takes are scored as a SEQUENCE: the sung held notes
+    // aligned in order to the targets (PitchScore.scoreSequence), so
+    // holding a note longer than its slot or breathing between notes
+    // never shifts later notes onto the wrong target.
+    // A target the singer has not reached stays pending until the take
+    // clock is past its slot.
     const SCORE_GRACE_MS = 60;
+    // A note still sounding is not scored yet: the final segment stays
+    // open until the mic has been quiet this long (wall time - the voice
+    // clock freezes in silence and cannot tell holding from stopping).
+    const SEGMENT_CLOSE_IDLE_MS = 600;
 
     /** @param {PitchTestPanelConfig} config */
     function create(config) {
@@ -112,19 +121,28 @@ const PitchTestPanel = (function () {
         }
 
         /**
-         * Annotate each active target with a verdict once the clock has
-         * passed its window: 'good' / 'ok' / 'missed', or null while pending.
+         * Annotate each active target with a verdict: 'good' / 'ok' /
+         * 'missed', or null while pending. The sung history is aligned
+         * to the target sequence by PitchScore.scoreSequence - a matched
+         * note gets its verdict the moment the singer moves on; an
+         * unmatched target stays pending until the take clock passes its
+         * slot (then it was skipped or never sung: missed).
          * @returns {TargetSpan[]}
          */
         function scoreTargets() {
-            const history = session.history;
             const clock = session.clockMs();
-            return config.targets().map(target => {
+            const all = config.targets();
+            const activeTargets = all.filter(target => target.active);
+            const results = PitchScore.scoreSequence(session.history, activeTargets, {
+                finalSegmentOpen: session.msSinceLastAccepted() < SEGMENT_CLOSE_IDLE_MS
+            });
+            let resultIndex = 0;
+            return all.map(target => {
                 if (!target.active) return target;
-                if (clock < target.endMs + SCORE_GRACE_MS) return { ...target, result: null };
-
-                const samples = history.filter(s => s.time >= target.startMs && s.time <= target.endMs);
-                const score = PitchScore.scoreWindow(samples, target.midi);
+                const score = results[resultIndex++];
+                if (!score.attempted && clock < target.endMs + SCORE_GRACE_MS) {
+                    return { ...target, result: null };
+                }
                 return { ...target, result: score.verdict, avgCents: score.avgCents, biasCents: score.biasCents };
             });
         }

@@ -1063,6 +1063,62 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`phrases take records per-note results (${noteRecord.count} notes: ${noteRecord.labels})`,
             noteRecord.count === linkage.count && noteRecord.allGoodCentered);
 
+        // RUBATO: scoring aligns the sung note sequence to the targets,
+        // so holding every note far longer than its timeline slot (and
+        // breathing freely) still credits every note. Under the old
+        // fixed-window scoring this take misassigned every note after
+        // the first.
+        const rubato = await tab.evaluate(async () => {
+            const panel = window.phrasesDebug.panel;
+            await panel.open();
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click(); // deterministic: no mic
+            const targets = window.phrasesDebug.testTargets();
+            let t = 5;
+            for (const target of targets) {
+                for (let k = 0; k < 10; k++) { // ~550ms hold against a 300ms slot
+                    panel.recordSample(target.midi, t);
+                    t += 55;
+                }
+                t += 40;
+            }
+            await new Promise(r => setTimeout(r, 800)); // idle closes the final note
+            panel.draw();
+            return {
+                count: targets.length,
+                score: document.getElementById('phraseTestScore').textContent
+            };
+        });
+        report.check(`phrases rubato take credits held notes (${rubato.score})`,
+            rubato.score.includes(`${rubato.count}/${rubato.count}`));
+
+        // One wrong note misses exactly itself: neighbors stay credited
+        // (no cascade through the rest of the take).
+        const wrongNote = await tab.evaluate(async () => {
+            const panel = window.phrasesDebug.panel;
+            await panel.open();
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click();
+            const targets = window.phrasesDebug.testTargets();
+            let t = 5;
+            targets.forEach((target, index) => {
+                const midi = index === 1 ? target.midi + 2.5 : target.midi;
+                for (let k = 0; k < 6; k++) {
+                    panel.recordSample(midi, t);
+                    t += 55;
+                }
+                t += 30;
+            });
+            await new Promise(r => setTimeout(r, 800));
+            panel.draw();
+            return {
+                count: targets.length,
+                score: document.getElementById('phraseTestScore').textContent
+            };
+        });
+        report.check(`phrases wrong note misses only itself (${wrongNote.score})`,
+            wrongNote.score.includes(`${wrongNote.count - 1}/${wrongNote.count}`));
+
         // DRAW-WHAT-YOU-SING: pitch far outside the charted rails (the
         // singer's real register an octave off, an overshoot) must still
         // be recorded and drawn - rails and targets never gate the trace.

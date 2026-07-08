@@ -191,6 +191,8 @@ const PitchDetectCore = (function () {
         let lastAccepted = null;
         /** @type {PitchSample[]} Samples held back while a large jump awaits confirmation */
         let pendingJump = [];
+        /** @type {number} Wall time of the last accepted sample (0 = none yet) */
+        let lastAcceptedAtWall = 0;
         let startedAt = 0;
         let voiceElapsedMs = 0;
         /** @type {number | null} */
@@ -229,6 +231,7 @@ const PitchDetectCore = (function () {
             if (!lastAccepted) {
                 history.push(sample);
                 lastAccepted = sample;
+                lastAcceptedAtWall = performance.now();
                 return true;
             }
 
@@ -252,6 +255,7 @@ const PitchDetectCore = (function () {
 
                 history.push(...pendingJump);
                 lastAccepted = sample;
+                lastAcceptedAtWall = performance.now();
                 pendingJump = [];
                 return true;
             }
@@ -259,6 +263,7 @@ const PitchDetectCore = (function () {
             pendingJump = [];
             history.push(sample);
             lastAccepted = sample;
+            lastAcceptedAtWall = performance.now();
             return true;
         }
 
@@ -299,10 +304,21 @@ const PitchDetectCore = (function () {
             record,
             readPitch: () => capture.readPitch(),
 
+            /**
+             * Wall-clock ms since the last accepted sample (Infinity when
+             * none). Lets consumers tell "still holding a note" from
+             * "stopped singing" - the voice clock cannot, since it
+             * freezes during silence.
+             */
+            msSinceLastAccepted() {
+                return lastAcceptedAtWall ? performance.now() - lastAcceptedAtWall : Infinity;
+            },
+
             reset() {
                 history = [];
                 lastAccepted = null;
                 pendingJump = [];
+                lastAcceptedAtWall = 0;
                 voiceElapsedMs = 0;
                 lastVoiceAt = null;
                 startedAt = performance.now();
