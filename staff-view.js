@@ -70,7 +70,11 @@ const StaffView = (function () {
             const clef = NotationSpelling.clefForPhrase(keyContext.rootMidi, midis);
             const rootName = /** @type {string} */ (midiToNoteName(keyContext.rootMidi).name);
             const keySig = NotationSpelling.vexKeySignature(rootName, keyContext.scaleType);
-            const width = Math.max(MIN_WIDTH, STAVE_X * 2 + plan.length * NOTE_WIDTH + 80);
+            // The staff is metered 4/4 (one quarter per phrase note) and
+            // always spans whole measures: the final measure is completed
+            // with quarter rests after the last phrase note.
+            const totalBeats = Math.max(4, Math.ceil(plan.length / 4) * 4);
+            const width = Math.max(MIN_WIDTH, STAVE_X * 2 + totalBeats * NOTE_WIDTH + 110);
             const height = 72;
 
             surface.textContent = '';
@@ -82,11 +86,11 @@ const StaffView = (function () {
             context.setFont('Arial', 10);
 
             const stave = new VF.Stave(STAVE_X, STAVE_Y, width - STAVE_X * 2);
-            stave.addClef(clef).addKeySignature(keySig);
+            stave.addClef(clef).addKeySignature(keySig).addTimeSignature('4/4');
             stave.setContext(context).draw();
 
             /** @type {any[]} */
-            const tickables = plan.map((note, index) => {
+            const noteTickables = plan.map((note, index) => {
                 const accidental = NotationSpelling.passingAccidental(
                     note.offset,
                     PatternPracticeCore.degreesPerOctave(keyContext.scaleType),
@@ -114,27 +118,54 @@ const StaffView = (function () {
                 return staveNote;
             });
 
-            const beats = Math.max(4, plan.length);
-            const voice = new VF.Voice({ num_beats: beats, beat_value: 4 });
+            const restKey = clef === 'bass' ? 'd/3' : 'b/4';
+            const rests = [];
+            for (let beat = plan.length; beat < totalBeats; beat++) {
+                rests.push(new VF.StaveNote({ keys: [restKey], duration: 'qr', clef }));
+            }
+            const tickables = noteTickables.concat(rests);
+
+            const voice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 });
             voice.setStrict(false);
             voice.addTickables(tickables);
 
             VF.Accidental.applyAccidentals([voice], keySig);
-            new VF.Formatter().joinVoices([voice]).format([voice], width - STAVE_X * 2 - 40);
+            new VF.Formatter().joinVoices([voice]).format([voice], width - STAVE_X * 2 - 70);
             voice.draw(context, stave);
-            trimSvgSurface(surface, stave, tickables, SVG_PAD_X, SVG_PAD_Y);
+            drawMeasureBars(stave, tickables);
+            trimSvgSurface(surface, stave, noteTickables, tickables, SVG_PAD_X, SVG_PAD_Y);
+        }
+
+        /**
+         * Barlines every four quarters, drawn as plain verticals midway
+         * between the flanking beats. Drawing them directly (instead of
+         * inserting VF.BarNote tickables) keeps note spacing uniform, so
+         * the degree-number grid above the staff stays aligned.
+         * @param {any} stave
+         * @param {any[]} tickables
+         */
+        function drawMeasureBars(stave, tickables) {
+            for (let beat = 4; beat < tickables.length; beat += 4) {
+                const left = tickables[beat - 1].getBoundingBox();
+                const right = tickables[beat].getBoundingBox();
+                if (!left || !right) continue;
+                stave.drawVerticalBarFixed((left.getX() + left.getW() + right.getX()) / 2);
+            }
         }
 
         /**
          * Crop to stave lines plus note ink. svg.getBBox() includes VexFlow
          * voice layout padding even when no notes reach those extremes.
+         * Only real phrase notes feed the degree-number grid; padding rests
+         * count toward the crop box but own no number column.
          * @param {HTMLElement} root
          * @param {any} stave
-         * @param {any[]} tickables
+         * @param {any[]} noteTickables
+         * @param {any[]} allTickables
          * @param {number} padX
          * @param {number} padY
          */
-        function trimSvgSurface(root, stave, tickables, padX, padY) {
+        function trimSvgSurface(root, stave, noteTickables, allTickables, padX, padY) {
             const svg = root.querySelector('svg');
             if (!(svg instanceof SVGSVGElement)) return;
 
@@ -147,13 +178,15 @@ const StaffView = (function () {
             /** @type {number[]} */
             const noteCenters = [];
 
-            for (const tickable of tickables) {
+            for (const tickable of allTickables) {
                 if (typeof tickable.getBoundingBox !== 'function') continue;
                 const box = tickable.getBoundingBox();
                 if (!box) continue;
                 xMin = Math.min(xMin, box.getX());
                 xMax = Math.max(xMax, box.getX() + box.getW());
-                noteCenters.push(box.getX() + box.getW() / 2);
+                if (noteTickables.includes(tickable)) {
+                    noteCenters.push(box.getX() + box.getW() / 2);
+                }
                 const top = box.getY();
                 const bottom = box.getY() + box.getH();
                 if (top < staffTop) yMin = Math.min(yMin, top - padY);
