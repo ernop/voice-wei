@@ -482,6 +482,64 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && nextClearsBreakdown.breakdownEnabled === false
             && nextClearsBreakdown.enabled === nextClearsBreakdown.total);
 
+        // Powerset combos: ordered subsequences per size, stutters skipped,
+        // as-text duplicates produced once (1,2,5,2,1 is the worked example).
+        const powersetOrder = await tab.evaluate(() => {
+            const iterator = PatternPracticeCore.createUniqueSubsequenceIterator([0, 1, 4, 1, 0], 3);
+            const passes = [];
+            for (let pass = iterator.next(); pass; pass = iterator.next()) {
+                passes.push(pass.join(''));
+            }
+            return passes.join(' ');
+        });
+        report.check(`phrases powerset combos dedupe as-text and skip stutters (${powersetOrder})`,
+            powersetOrder === '012 014 023 024 123 124 234 0123 0124 0234 1234 01234');
+
+        // Powerset mode masks the take to the current combo, steps via the
+        // stage button, and is exclusive with breakdown.
+        await tab.click('#powersetBtn');
+        await tab.waitForTimeout(200);
+        const powersetOn = await tab.evaluate(() => ({
+            pressed: document.getElementById('powersetBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length,
+            addHidden: document.getElementById('addNoteBtn').hidden,
+            addLabel: document.getElementById('addNoteBtn').textContent,
+            mask: window.phrasesDebug.takePlan().map(note => (note.enabled ? 1 : 0)).join('')
+        }));
+        await tab.click('#addNoteBtn');
+        await tab.waitForTimeout(200);
+        const powersetStepped = await tab.evaluate(() => ({
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            mask: window.phrasesDebug.takePlan().map(note => (note.enabled ? 1 : 0)).join('')
+        }));
+        report.check(`phrases powerset masks 3-note combos and steps (${powersetOn.mask}->${powersetStepped.mask}, "${powersetOn.addLabel}")`,
+            powersetOn.pressed === 'true' && powersetOn.addHidden === false
+            && powersetOn.addLabel === 'next combo'
+            && powersetOn.total >= 4 && powersetOn.enabled === 3
+            && powersetStepped.enabled === 3 && powersetStepped.mask !== powersetOn.mask);
+
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(200);
+        const powersetExclusive = await tab.evaluate(() => ({
+            breakdown: window.phrasesDebug.settings().breakdownEnabled,
+            powerset: window.phrasesDebug.settings().powersetEnabled
+        }));
+        report.check('phrases breakdown and powerset are exclusive',
+            powersetExclusive.breakdown === true && powersetExclusive.powerset === false);
+
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(400);
+        const powersetCleared = await tab.evaluate(() => ({
+            breakdown: window.phrasesDebug.settings().breakdownEnabled,
+            powerset: window.phrasesDebug.settings().powersetEnabled,
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length
+        }));
+        report.check('phrases next exits powerset and breakdown modes',
+            powersetCleared.breakdown === false && powersetCleared.powerset === false
+            && powersetCleared.enabled === powersetCleared.total);
+
         await tab.evaluate(() => {
             const tones = document.getElementById('hearTonesToggle');
             if (tones instanceof HTMLInputElement && !tones.checked) tones.click();
@@ -797,6 +855,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check(`phrases rearrange inserts passing tones without dropping scale notes (${rearrangeChromatic} inserted)`,
             rearrangeChromatic > 0);
+
+        // Rearrange orderings are chosen for interval sequencing: leaps
+        // stacked in the same direction should be much rarer than in a
+        // naive shuffle (the notes themselves stay a full permutation).
+        const rearrangeShape = await tab.evaluate(() => {
+            const compoundLeaps = offsets => {
+                let count = 0;
+                for (let i = 2; i < offsets.length; i++) {
+                    const prev = offsets[i - 1] - offsets[i - 2];
+                    const next = offsets[i] - offsets[i - 1];
+                    if (Math.abs(prev) >= 3 && Math.abs(next) >= 3 && Math.sign(prev) === Math.sign(next)) count++;
+                }
+                return count;
+            };
+            const naiveShuffle = values => {
+                const out = values.slice();
+                for (let i = out.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [out[i], out[j]] = [out[j], out[i]];
+                }
+                return out;
+            };
+            let chosen = 0;
+            let naive = 0;
+            for (let i = 0; i < 200; i++) {
+                chosen += compoundLeaps(PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                    minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
+                    returnToRoot: false, accidentalRate: 0
+                }));
+                naive += compoundLeaps(naiveShuffle([0, 1, 2, 3, 4, 5, 6, 7]));
+            }
+            return { chosen, naive };
+        });
+        report.check(`phrases rearrange avoids same-direction leap stacks (${rearrangeShape.chosen} chosen vs ${rearrangeShape.naive} naive over 200)`,
+            rearrangeShape.chosen <= rearrangeShape.naive * 0.5 && rearrangeShape.naive > 0);
 
         // Chromatic choices: Acc replaces normal note slots with passing
         // tones, never lengthening the phrase beyond Min/Max.

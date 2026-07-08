@@ -645,6 +645,31 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * How unmusical an offset sequence sounds, judged only on how its
+     * intervals are SEQUENCED, never on their sizes - rearrangement
+     * phrases must keep their full variety of gaps. Penalized: leaps
+     * stacked in the same direction and back-to-back wide leaps.
+     * Rewarded: a leap resolved by contrary stepwise motion (the classic
+     * recovery the ear expects).
+     * @param {number[]} offsets
+     */
+    function melodicWildness(offsets) {
+        let cost = 0;
+        for (let i = 2; i < offsets.length; i++) {
+            const prev = offsets[i - 1] - offsets[i - 2];
+            const next = offsets[i] - offsets[i - 1];
+            const sameDirection = Math.sign(prev) === Math.sign(next);
+            if (Math.abs(prev) >= 3) {
+                if (sameDirection && Math.abs(next) >= 3) cost += 3;
+                else if (sameDirection) cost += 1;
+                else if (Math.abs(next) <= 2) cost -= 1;
+            }
+            if (Math.abs(prev) >= 5 && Math.abs(next) >= 5) cost += 2;
+        }
+        return cost;
+    }
+
+    /**
      * Rearrange: every scale note inside the selected range appears exactly
      * once (or `copies` times), in random order, with no immediate repeats.
      * Length is dictated by the range, not by Min/Max.
@@ -666,6 +691,7 @@ const PatternPracticeCore = (function () {
      * @param {number} copies
      * @returns {number[]}
      */
+    const REARRANGE_CANDIDATES = 24;
     function generateRearrangeOffsets(options, copies) {
         const dp = degreesPerOctave(options.scaleType);
         const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
@@ -681,16 +707,102 @@ const PatternPracticeCore = (function () {
             for (let c = 0; c < count; c++) pool.push(offset);
         }
 
-        const body = shuffledWithoutAdjacentRepeats(
-            pool,
-            startAnchor ? 0 : null,
-            endAnchor ? 0 : null
-        );
-        const offsets = [];
-        if (startAnchor) offsets.push(0);
-        offsets.push(...body);
-        if (endAnchor) offsets.push(0);
+        // Best-of-K shuffles: every permutation remains reachable (the
+        // gap coverage that makes rearrange worth practicing is intact),
+        // but among the candidates the least wild interval SEQUENCING
+        // wins, so the phrase sounds arranged rather than rolled.
+        let offsets = [];
+        let bestCost = Infinity;
+        for (let candidate = 0; candidate < REARRANGE_CANDIDATES; candidate++) {
+            const body = shuffledWithoutAdjacentRepeats(
+                pool,
+                startAnchor ? 0 : null,
+                endAnchor ? 0 : null
+            );
+            const attempt = [];
+            if (startAnchor) attempt.push(0);
+            attempt.push(...body);
+            if (endAnchor) attempt.push(0);
+            const cost = melodicWildness(attempt);
+            if (cost < bestCost) {
+                bestCost = cost;
+                offsets = attempt;
+            }
+        }
         return insertChromaticPassingTones(offsets, options);
+    }
+
+    /**
+     * Ordered note combinations ("subsequences") of a phrase for powerset
+     * practice: all size-minSize combinations in lexicographic position
+     * order, then all of the next size, up to the whole phrase. Two
+     * filters: combos whose values stutter (adjacent equal notes) are
+     * skipped, and combos that READ identically to one already produced
+     * at the same size are skipped - 1,2,1 drawn from a different pair
+     * of positions is still 1,2,1 and appears once.
+     *
+     * Lazy by necessity: combination counts grow combinatorially with
+     * phrase length, so passes are produced one at a time as the user
+     * advances, and only the visited texts are remembered.
+     * @param {number[]} values
+     * @param {number} minSize
+     * @returns {{ next: () => number[] | null }}
+     */
+    function createUniqueSubsequenceIterator(values, minSize) {
+        const n = values.length;
+        let size = Math.max(1, Math.min(minSize, n));
+        /** @type {number[] | null} */
+        let combo = null;
+        /** @type {Set<string>} */
+        const seenAtSize = new Set();
+
+        /** @param {number} k @returns {number[]} */
+        function firstCombo(k) {
+            return Array.from({ length: k }, (_, i) => i);
+        }
+
+        /**
+         * Advance to the next lexicographic index combination in place,
+         * or return null when the current size is exhausted.
+         * @param {number[]} c
+         */
+        function bumpCombo(c) {
+            let i = c.length - 1;
+            while (i >= 0 && c[i] === n - c.length + i) i--;
+            if (i < 0) return null;
+            c[i]++;
+            for (let j = i + 1; j < c.length; j++) c[j] = c[j - 1] + 1;
+            return c;
+        }
+
+        /** @returns {number[] | null} */
+        function nextRaw() {
+            if (size > n) return null;
+            if (combo === null) {
+                combo = firstCombo(size);
+                return combo;
+            }
+            if (bumpCombo(combo)) return combo;
+            size++;
+            seenAtSize.clear();
+            if (size > n) return null;
+            combo = firstCombo(size);
+            return combo;
+        }
+
+        return {
+            next() {
+                for (let raw = nextRaw(); raw !== null; raw = nextRaw()) {
+                    const picked = raw.map(index => values[index]);
+                    if (picked.some((value, i) => i > 0 && value === picked[i - 1])) continue;
+                    const text = picked.join(',');
+                    if (seenAtSize.has(text)) continue;
+                    seenAtSize.add(text);
+                    return raw.slice();
+                }
+                return null;
+            }
+        };
     }
 
     /** @param {number[]} values @param {number} min @param {number} max */
@@ -1098,6 +1210,8 @@ const PatternPracticeCore = (function () {
         generateClusteredOffsets,
         generateRearrangeOffsets,
         insertChromaticPassingTones,
+        melodicWildness,
+        createUniqueSubsequenceIterator,
         reflectOffsets,
         generatePhrase
     };
