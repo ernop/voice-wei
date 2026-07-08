@@ -289,8 +289,10 @@ Vital rules that have caused bugs before:
 - `getNotesAbove/Below` use modular arithmetic over the scale pattern, not
   array extension.
 - **Rising** transposes the whole scale by semitones each repeat;
-  **shifting** moves the start within the same scale. Mutually exclusive;
-  both imply repeat-forever.
+  **shifting** moves the start within the same scale; **chop head** drops
+  one more leading note each pass (12345678, 2345678, ...). Mutually
+  exclusive; rising and shifting imply repeat-forever, while chop head
+  plays one shrinking cycle per repeat.
 - Voice commands reset settings to defaults before applying modifiers.
 
 Exercise patterns are degree-offset templates with `'O'` as the

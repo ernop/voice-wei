@@ -22,7 +22,7 @@ Voice commands reset settings to defaults then apply your modifiers, so
 "D minor" always sounds the same regardless of previous UI state. Clicked
 settings persist per tab and restart playback live when something is playing.
 
-Features: direction / repeat / rising / shifting / movement styles /
+Features: direction / repeat / rising / shifting / chop head / movement styles /
 exercises / section width controls; note length and gap steppers (gap goes
 negative for overlap); piano keyboard preview; presets; command history;
 hardware media keys (play/pause); **Sing** opens the embedded pitch-trace

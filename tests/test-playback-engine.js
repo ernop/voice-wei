@@ -135,6 +135,50 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.close();
     }
 
+    // --- SCALES: chop head ---
+    // One repeat = a full shrinking cycle: 8-note scale plays 8 passes of
+    // 8, 7, 6, ... 1 notes (36 voices), with the section gap between passes.
+    {
+        const ctx = await browser.newContext();
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'scales-chop-head', report.errors);
+        await tab.goto(`${BASE_URL}/scales.html`, { waitUntil: 'networkidle' });
+        await tab.evaluate(() => {
+            localStorage.setItem('scales-settings', JSON.stringify({
+                root: 'C', octave: 4, scaleType: 'major', direction: 'ascending',
+                sectionLength: '1o', movementStyle: 'normal', exercise: 'none',
+                risingSemitones: 0, shiftingSteps: 0, chopHead: 1,
+                repeatCount: 1, repeatGapMs: 200, noteLengthMs: 100, gapMs: 0
+            }));
+        });
+        await tab.reload({ waitUntil: 'networkidle' });
+        await tab.waitForTimeout(2500);
+
+        const chopOnSelected = await tab.evaluate(() =>
+            document.querySelector('[data-chop-head="1"]')?.classList.contains('selected'));
+        report.check('scales chop head button reflects persisted setting', chopOnSelected === true);
+
+        await tab.evaluate(instrumentVoices);
+        await tab.click('#againBtn');
+        await tab.waitForTimeout(9000);
+
+        const result = await tab.evaluate(() => {
+            const starts = window.__trace.filter(e => e.type === 'voice-start').map(e => e.t);
+            const passBreaks = [];
+            for (let i = 1; i < starts.length; i++) {
+                if (starts[i] - starts[i - 1] > 220) passBreaks.push(i);
+            }
+            return { total: starts.length, passBreaks };
+        });
+        // Pass sizes come from the break positions: 8, 15, 21, 26, 30, 33, 35.
+        const expectedBreaks = [8, 15, 21, 26, 30, 33, 35];
+        const breaksOk = result.passBreaks.length === expectedBreaks.length
+            && result.passBreaks.every((b, i) => b === expectedBreaks[i]);
+        report.check(`scales chop head plays 36 shrinking notes (got ${result.total}, breaks ${result.passBreaks.join(',')})`,
+            result.total === 36 && breaksOk);
+        await ctx.close();
+    }
+
     // --- TRACE: guide playback spacing matches the drawn target spacing ---
     {
         const tab = await browser.newPage();

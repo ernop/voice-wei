@@ -181,6 +181,7 @@ its default, then apply the spoken modifiers.
 | repeatGapMs | 1000 | live-restart |
 | risingSemitones | 0 (forces forever when > 0) | live-restart |
 | shiftingSteps | 0 (forces forever when > 0; excludes rising) | live-restart |
+| chopHead | 0 (excludes rising/shifting/exercise/movement; each pass drops the leading note) | live-restart |
 | movementStyle | normal | live-restart |
 | rangeExpansion | 0 | live-restart |
 | octaveSpan | 1 | live-restart |
