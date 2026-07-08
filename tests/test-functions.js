@@ -948,6 +948,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const savedAccidental = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.accidentalRate);
         report.check('phrases accidental rate stepper persists', savedAccidental === 0.05);
 
+        // Section pause: the stepper adjusts the pause between repeat
+        // loops / breakdown passes / powerset combos and persists.
+        await tab.click('[data-step-key="sectionPauseMs"][data-step-delta="1"]');
+        await tab.waitForTimeout(200);
+        const sectionPause = await tab.evaluate(() => ({
+            saved: SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.sectionPauseMs,
+            shown: document.getElementById('sectionPauseValue')?.textContent
+        }));
+        report.check(`phrases section pause stepper persists (${sectionPause.saved}ms, "${sectionPause.shown}")`,
+            sectionPause.saved === 1500 && sectionPause.shown === '1.5s');
+        await tab.click('[data-step-key="sectionPauseMs"][data-step-delta="-1"]');
+        await tab.waitForTimeout(200);
+
         const extendedLabels = await tab.evaluate(() => {
             const dp = PatternPracticeCore.degreesPerOctave('major');
             return PatternPracticeCore.offsetToDegree(8, dp) === '2\u2191'

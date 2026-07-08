@@ -30,6 +30,7 @@
         singNumbers: false,
         noteLengthMs: 300,
         gapMs: 0,
+        sectionPauseMs: 1000,
         showNumbers: true,
         showNoteNames: true,
         showStaff: true,
@@ -48,7 +49,7 @@
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
+        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'sectionPauseMs', 'showNumbers', 'showNoteNames',
         'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
         'autoStep', 'playOnStep', 'playOnNext', 'lessonLockedKeys'
     ];
@@ -68,6 +69,7 @@
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
+        sectionPauseMs: [0, 300, 500, 650, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000],
         accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 45, 50]
@@ -660,9 +662,10 @@
             maybeAdvanceBreakdownPass();
             maybeAdvancePowersetPass();
             if (!state.loopCurrent) break;
-            // Powerset gets a longer pause: the newly highlighted combo is
-            // the sing-along hint and needs time to be read.
-            await sleep(state.powersetEnabled ? 1100 : 650);
+            // The next section's mask is applied BEFORE this pause, so the
+            // highlight always previews exactly the notes about to play.
+            // Read live each cycle so Sect changes apply immediately.
+            await sleep(state.sectionPauseMs);
         } while (token === playToken && state.loopCurrent);
         if (token === playToken) setTransportPlaying(false);
     }
@@ -1177,6 +1180,7 @@
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
+        PracticeControls.setValueText('sectionPauseValue', PracticeControls.formatSeconds(state.sectionPauseMs));
         PracticeControls.setValueText('accidentalRateValue', `${Math.round(state.accidentalRate * 100)}%`);
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
         PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
