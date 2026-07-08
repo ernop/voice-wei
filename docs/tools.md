@@ -127,10 +127,12 @@ generating anything first.
 - 20s window switches to a fixed-width scrolling viewport; Expand range
   adds rails an octave above and below.
 - The chart draws what you actually sing, wherever it lands: the vertical
-  range expands to cover your voice even outside the rails. The only
-  filtering is glitch confirmation (a large instant jump must sustain for
-  a few frames to be voice; brief detector scrapes never reach the chart,
-  and real leaps are recorded whole).
+  range expands to cover your voice even outside the rails. Filtering is
+  voice-physics only, never exercise-based: detections outside the
+  singable band (D2-C5, the full barbershop TTBB span) read as silence,
+  and a large instant jump must sustain for a few frames to count as
+  voice (brief detector scrapes never reach the chart; real leaps are
+  recorded whole).
 
 ## Pitch
 
@@ -386,13 +388,15 @@ is detected).
 **The chart draws what you sing.** Rails and targets are for comparison
 and scoring only; they never gate what is recorded or drawn. Off-rails
 singing (wrong octave, overshoot) draws at its true pitch - the chart's
-vertical range expands to cover it. The only rejection anywhere in the
-pipeline is glitch confirmation: a large instant jump must sustain for a
-few frames to be voice; brief detector scrapes never reach the trace,
-and confirmed jumps are recorded whole. Target bands are drawn at the
-real hit tolerance (about a third of a semitone either way), so singing
-inside the band is what scoring credits. (Architecture details: "Pitch
-pipeline" in [architecture.md](architecture.md).)
+vertical range expands to cover it. Rejection is voice-physics only:
+detections outside the singable band (D2-C5, the full barbershop TTBB
+span with headroom) are the room, not the singer, and read as silence;
+and a large instant jump must sustain for a few frames to be voice
+(brief detector scrapes never reach the trace, confirmed jumps are
+recorded whole). Target bands are drawn at the real hit tolerance (about
+a third of a semitone either way), so singing inside the band is what
+scoring credits. (Architecture details: "Pitch pipeline" in
+[architecture.md](architecture.md).)
 
 **Per-note scoring** (owned by `pitch-score.js`, one definition
 everywhere): the take is scored as a *sequence* - your held notes,

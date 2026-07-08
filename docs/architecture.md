@@ -107,9 +107,14 @@ to call getUserMedia - ast-grep enforced). `createMicCapture` owns the
 AudioContext, a 2048-sample analyser, and reusable buffers. `readPitch()`
 runs an autocorrelation detector (normalized difference with parabolic
 peak interpolation) over the time-domain buffer; it returns nothing when
-the signal is too quiet (RMS < 0.01) or above 2 kHz, otherwise fractional
-MIDI plus cents deviation. Accuracy is within ~5 cents on voice-like
-signals across the singing range.
+the signal is too quiet (RMS < 0.01) or outside the singable band
+(VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI C5 - the full barbershop TTBB span
+with headroom; out-of-band detections are the room and the gear, not the
+singer, and read as silence). Otherwise it returns fractional MIDI plus
+cents deviation. Accuracy is within ~5 cents on voice-like signals
+across the singing range. The band is deliberately the OWNER's
+instrument, not the exercise's: it never moves with the selected key,
+range, or targets, so it cannot re-introduce target-coupled filtering.
 
 **Recording** (`createTraceSession`, same file). A requestAnimationFrame
 loop reads a pitch every frame and appends accepted samples to `history`.

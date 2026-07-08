@@ -27,7 +27,14 @@ const PitchDetectCore = (function () {
     const TRACE_BREAK_MS = 250;
     // Pause-on-silence clock only advances across gaps up to this long.
     const VOICE_CLOCK_MAX_STEP_MS = 240;
-    const MAX_VALID_FREQ_HZ = 2000;
+    // The capture is a VOICE instrument: a detection outside the singable
+    // band is the room and the gear (harmonic locks, squeaks, hum,
+    // rumble), not the singer, and reads as silence - it never reaches
+    // the trace, the chart scale, scoring, or the voice clock. Band =
+    // the full barbershop TTBB span with headroom: D2 below a normal
+    // bass line's low notes, C5 above a tenor's falsetto top.
+    const VOICE_MIN_MIDI = 38; // D2, ~73 Hz
+    const VOICE_MAX_MIDI = 72; // C5, ~523 Hz
     const ANALYSER_FFT_SIZE = 2048;
     const DEFAULT_FRAME_CALLBACK_INTERVAL_MS = 50;
 
@@ -153,8 +160,9 @@ const PitchDetectCore = (function () {
                 }
                 analyser.getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (/** @type {unknown} */ (timeDomainBuffer)));
                 const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate, correlationBuffer || undefined);
-                if (freq <= 0 || freq >= MAX_VALID_FREQ_HZ) return null;
+                if (freq <= 0) return null;
                 const midi = freqToMidi(freq);
+                if (midi < VOICE_MIN_MIDI || midi > VOICE_MAX_MIDI) return null;
                 return {
                     freq,
                     midi,
@@ -350,6 +358,8 @@ const PitchDetectCore = (function () {
         GLITCH_JUMP_MIDI,
         GLITCH_WINDOW_MS,
         TRACE_BREAK_MS,
+        VOICE_MIN_MIDI,
+        VOICE_MAX_MIDI,
         detectPitch,
         createMicCapture,
         createTraceSession
