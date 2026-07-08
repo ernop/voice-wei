@@ -230,8 +230,8 @@ playback update, or lyric render without replaying anything.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | aiProvider | claude | claude / openai segment row | immediate (next request; shows that provider's model row and key panel) |
-| claudeModel | claude-opus-4-8 | segment row of current Claude models | immediate (next request) |
-| openaiModel | gpt-5.5 | segment row of current OpenAI models | immediate (next request) |
+| claudeModel | claude-opus-4-8 | claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5 | immediate (next request); retired ids alias forward on load (sonnet-4-6 to sonnet-5, opus-4-5 to opus-4-8) |
+| openaiModel | gpt-5.5 | gpt-5.5, gpt-5.4, gpt-4.1 | immediate (next request); retired ids alias forward on load (gpt-5.2 to gpt-5.4) |
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay current synced lyric into the media-session title) |

@@ -959,12 +959,14 @@ class VoiceMusicController {
         const claudeAliases = {
             'claude-opus-4-5-20251101': 'claude-opus-4-8',
             'claude-opus-4-5': 'claude-opus-4-8',
+            'claude-sonnet-4-6': 'claude-sonnet-5',
             'claude-haiku-4-5-20250514': 'claude-haiku-4-5',
             'claude-haiku-4-5-20251001': 'claude-haiku-4-5'
         };
         const openaiAliases = {
             'gpt-4o': 'gpt-5.5',
-            'gpt-4o-mini': 'gpt-4.1'
+            'gpt-4o-mini': 'gpt-4.1',
+            'gpt-5.2': 'gpt-5.4'
         };
         this.settings.claudeModel = claudeAliases[this.settings.claudeModel] || this.settings.claudeModel || 'claude-opus-4-8';
         this.settings.openaiModel = openaiAliases[this.settings.openaiModel] || this.settings.openaiModel || 'gpt-5.5';

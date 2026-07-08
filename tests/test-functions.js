@@ -1198,19 +1198,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const modelOptions = await tab.evaluate(() => {
             return {
+                hasClaudeFable5: !!document.querySelector('[data-claude-model="claude-fable-5"]'),
                 hasClaudeOpus48: !!document.querySelector('[data-claude-model="claude-opus-4-8"]'),
-                hasClaudeSonnet46: !!document.querySelector('[data-claude-model="claude-sonnet-4-6"]'),
+                hasClaudeSonnet5: !!document.querySelector('[data-claude-model="claude-sonnet-5"]'),
                 hasClaudeHaiku45: !!document.querySelector('[data-claude-model="claude-haiku-4-5"]'),
                 openaiModels: Array.from(document.querySelectorAll('[data-openai-model]'))
                     .map(btn => /** @type {HTMLElement} */ (btn).dataset.openaiModel)
             };
         });
         report.check('player exposes current LLM model options',
-            modelOptions.hasClaudeOpus48
-            && modelOptions.hasClaudeSonnet46
+            modelOptions.hasClaudeFable5
+            && modelOptions.hasClaudeOpus48
+            && modelOptions.hasClaudeSonnet5
             && modelOptions.hasClaudeHaiku45
             && modelOptions.openaiModels.includes('gpt-5.5')
-            && modelOptions.openaiModels.includes('gpt-5.2')
+            && modelOptions.openaiModels.includes('gpt-5.4')
             && modelOptions.openaiModels.includes('gpt-4.1'));
 
         const musicHistoryCache = await tab.evaluate(async () => {

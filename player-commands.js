@@ -255,7 +255,13 @@ const PlayerCommands = (function () {
                         if (truncated) {
                             this.addMessage('error', 'Claude response truncated', `stop_reason=max_tokens: the song list was cut off at the ${MUSIC_SEARCH_MAX_TOKENS}-token output limit; complete songs will be recovered.`);
                         }
-                        responseText = data.content[0].text.trim();
+                        // Adaptive-thinking models (Fable 5, Sonnet 5) may
+                        // return thinking blocks before the text block.
+                        const textBlock = data.content.find(block => block.type === 'text');
+                        if (!textBlock) {
+                            throw new Error('Claude response did not contain a text block');
+                        }
+                        responseText = textBlock.text.trim();
                     } catch (error) {
                         this.logError('Claude API Error', error);
                         throw error;
