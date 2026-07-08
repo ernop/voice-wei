@@ -408,14 +408,16 @@ scoring credits. (Architecture details: "Pitch pipeline" in
 everywhere): the take is scored as a *sequence* - your held notes,
 aligned in order to the target notes - so timing is yours: hold a note
 twice its slot, breathe whenever, and nothing shifts onto the wrong
-target. For each aligned note the sustained pitch is the *median* of its
-samples and must sit within 70 cents of the target with a majority of
-samples inside that band; accuracy is then graded green (within 15
-cents), yellow (within 30), red (missed: too far off, held too loosely,
-sung as a different note, or skipped). A note's band recolors as soon as
-you move on to the next one, and the readout keeps a running score
-("Score: 6/8 on pitch (avg 12c)"). Restart clears the scores with the
-trace.
+target. Only notes you have REACHED can change color: a note's band
+recolors as soon as you move on to the next one, and everything ahead of
+you stays pending blue until you get there (or until you stop singing
+with the take clock past it). For each aligned note the sustained pitch
+is the *median* of its samples and must sit within 140 cents of the
+target with a majority of samples inside that band; accuracy is then
+graded green (within 30 cents), yellow (within 60), red (missed: too far
+off, held too loosely, sung as a different note, or skipped). The
+readout keeps a running score ("Score: 6/8 on pitch (avg 12c)"). Restart
+clears the scores with the trace.
 
 **Progress over time**: each completed take (all notes scored) is recorded,
 and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)

@@ -22,9 +22,10 @@
 //   biasCents is always reported with sign (+ sharp, - flat) so degree-level
 //   weak-spot analysis can say "you overshoot the 6th" - the training goal.
 //
-// These thresholds are deliberately stricter than the old per-tool numbers
-// (which had drifted to a 1.5-semitone / 150-cent match window): a note sung
-// 90 cents off is musically a different note and should not read as a hit.
+// The good/ok bands decide what counts as a hit; identity separates
+// "this note, held loosely" from "a different note". A note sung 90
+// cents off still never reads as a hit (it exceeds OK_CENTS) - it reads
+// as this note, missed.
 //
 // scoreSequence is how the sing/test panels grade a whole take: the sung
 // history is segmented into held notes and aligned IN ORDER to the target
@@ -38,12 +39,15 @@
 const PitchScore = (function () {
     'use strict';
 
-    const MIN_VOICED = 3;          // samples needed to call the note attempted
-    const IDENTITY_CENTS = 70;     // within ~2/3 of a semitone = reaching for THIS note
-    const STEADY_RATIO = 0.5;      // majority of the window held within that band
-    const GOOD_CENTS = 15;         // clean, in-tune
-    const OK_CENTS = 30;           // acceptable
-    const ACCURACY_ZERO_CENTS = 50; // accuracy reaches 0% at half a semitone off
+    // Bands doubled 2026-07-08 (owner-directed): the tight bands read as
+    // punishing in real takes. good/ok grade the note; identity separates
+    // "this note, loosely" from "a different note".
+    const MIN_VOICED = 3;           // samples needed to call the note attempted
+    const IDENTITY_CENTS = 140;     // within ~1.4 semitones = reaching for THIS note
+    const STEADY_RATIO = 0.5;       // majority of the window held within that band
+    const GOOD_CENTS = 30;          // clean, in-tune
+    const OK_CENTS = 60;            // acceptable
+    const ACCURACY_ZERO_CENTS = 100; // accuracy reaches 0% at a semitone off
 
     // Sequence scoring (scoreSequence): the singer's held notes, aligned
     // in order to the target notes. Timing is free - a note may be held
@@ -176,14 +180,19 @@ const PitchScore = (function () {
      * minimal total cost) and grade each aligned pair with scoreWindow.
      * Timing never decides a verdict - only which pitches were sung, in
      * what order. A repeated equal-pitch target may share one held
-     * segment (its samples split between them). Targets left unmatched
-     * come back attempted:false; the CALLER decides whether that means
-     * "pending" (the singer has not reached it) or "missed".
+     * segment (its samples split between them).
+     *
+     * The alignment is a PREFIX: the sung segments consume only as many
+     * leading targets as they account for. Each result carries
+     * `reached` - true for targets inside the sung prefix (matched, or
+     * skipped over and therefore missed), false for targets the singer
+     * has not gotten to yet. Unreached targets never get a verdict here;
+     * the CALLER decides when "not yet sung" becomes "never sung".
      *
      * @param {{ time: number, midi: number }[]} history all voiced samples of the take
      * @param {{ midi: number }[]} targets active targets, in order
      * @param {{ finalSegmentOpen?: boolean }} [options] exclude the still-being-sung segment
-     * @returns {ReturnType<typeof scoreWindow>[]} one result per target
+     * @returns {(ReturnType<typeof scoreWindow> & { reached: boolean })[]} one result per target
      */
     function scoreSequence(history, targets, options = {}) {
         const voiced = (history || [])
@@ -245,10 +254,18 @@ const PitchScore = (function () {
             }
         }
 
+        // Prefix end: the alignment consumes all sung segments but only
+        // as many leading targets as they pay for - trailing targets are
+        // not-yet-reached, never "skipped". Ties keep the shorter prefix.
+        let prefixEnd = 0;
+        for (let j = 1; j <= nTgt; j++) {
+            if (cost[nSeg][j] < cost[nSeg][prefixEnd]) prefixEnd = j;
+        }
+
         /** @type {number[]} target index -> segment index (-1 = unmatched) */
         const segmentForTarget = new Array(nTgt).fill(-1);
         let i = nSeg;
-        let j = nTgt;
+        let j = prefixEnd;
         while (i > 0 || j > 0) {
             const step = action[i][j];
             if (step === 'match') { segmentForTarget[j - 1] = i - 1; i--; j--; }
@@ -268,17 +285,18 @@ const PitchScore = (function () {
         });
 
         return targets.map((target, tgtIndex) => {
+            const reached = tgtIndex < prefixEnd;
             const segIndex = segmentForTarget[tgtIndex];
-            if (segIndex < 0) return scoreWindow([], target.midi);
+            if (segIndex < 0) return { ...scoreWindow([], target.midi), reached };
             const shared = sharing.get(segIndex) || [tgtIndex];
             const segment = segments[segIndex];
-            if (shared.length === 1) return scoreWindow(segment.samples, target.midi);
+            if (shared.length === 1) return { ...scoreWindow(segment.samples, target.midi), reached };
             const per = Math.floor(segment.samples.length / shared.length);
             const position = shared.indexOf(tgtIndex);
             const slice = position === shared.length - 1
                 ? segment.samples.slice(position * per)
                 : segment.samples.slice(position * per, (position + 1) * per);
-            return scoreWindow(slice, target.midi);
+            return { ...scoreWindow(slice, target.midi), reached };
         });
     }
 

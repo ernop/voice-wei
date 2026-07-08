@@ -250,9 +250,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`intervals extended scale uses standard degree objects (${intervalScaleModel.labels})`,
             intervalScaleModel.spellsEb && intervalScaleModel.noSharpLeak);
         // Wall-clock mode so the windows pass; take should be recorded.
-        // Sing deterministically through the explicit sample seam (the
-        // fake mic's beeps are not reliable enough to count on).
+        // Stop the mic first (the fake device's endless beeps keep the
+        // voice "active", which keeps unreached targets pending), then
+        // sing deterministically through the explicit sample seam.
         await tab.evaluate(() => {
+            const listenBtn = document.getElementById('intervalsSingListenBtn');
+            if (listenBtn && listenBtn.textContent.includes('On')) listenBtn.click();
             document.getElementById('intervalsSingPauseToggle').click();
             for (let k = 0; k < 5; k++) {
                 window.intervalsDebug.panel.recordSample(60, 30 + k * 50);
@@ -1363,9 +1366,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(2500);
         await tab.click('#singBtn');
         await tab.waitForTimeout(1000);
-        // Wall-clock mode so all target windows pass deterministically
-        await tab.evaluate(() => document.getElementById('scalesSingPauseToggle').click());
+        // Wall-clock mode so all target windows pass deterministically.
+        // Stop the mic: with the fake device beeping forever, the voice
+        // never goes idle, so unsung targets would stay pending instead
+        // of resolving to missed.
+        await tab.evaluate(() => {
+            const listenBtn = document.getElementById('scalesSingListenBtn');
+            if (listenBtn && listenBtn.textContent.includes('On')) listenBtn.click();
+            document.getElementById('scalesSingPauseToggle').click();
+            // A take records only when something was sung: one
+            // deterministic note through the sample seam.
+            for (let k = 0; k < 5; k++) {
+                window.scalesController.singPanel.recordSample(60, 30 + k * 50);
+            }
+        });
         await tab.waitForTimeout(4500);
+        // With the mic stopped there are no frames; evaluate by name.
+        await tab.evaluate(() => window.scalesController.singPanel.draw());
         const score = await tab.textContent('#scalesSingScore');
         report.check(`sing panel scores after windows pass ("${score}")`,
             /Score: \d+\/\d+ on pitch/.test(score));

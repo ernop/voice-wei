@@ -123,24 +123,28 @@ const PitchTestPanel = (function () {
         /**
          * Annotate each active target with a verdict: 'good' / 'ok' /
          * 'missed', or null while pending. The sung history is aligned
-         * to the target sequence by PitchScore.scoreSequence - a matched
-         * note gets its verdict the moment the singer moves on; an
-         * unmatched target stays pending until the take clock passes its
-         * slot (then it was skipped or never sung: missed).
+         * to the target sequence by PitchScore.scoreSequence, which only
+         * ever scores the PREFIX the singer has reached: a note inside
+         * that prefix verdicts the moment the singer moves on (matched,
+         * or skipped over = missed), and every target beyond it stays
+         * pending - the future never changes color while singing
+         * continues. An unreached target resolves to missed only once
+         * the singer has gone quiet AND the take clock is past its slot.
          * @returns {TargetSpan[]}
          */
         function scoreTargets() {
             const clock = session.clockMs();
+            const voiceIdle = session.msSinceLastAccepted() >= SEGMENT_CLOSE_IDLE_MS;
             const all = config.targets();
             const activeTargets = all.filter(target => target.active);
             const results = PitchScore.scoreSequence(session.history, activeTargets, {
-                finalSegmentOpen: session.msSinceLastAccepted() < SEGMENT_CLOSE_IDLE_MS
+                finalSegmentOpen: !voiceIdle
             });
             let resultIndex = 0;
             return all.map(target => {
                 if (!target.active) return target;
                 const score = results[resultIndex++];
-                if (!score.attempted && clock < target.endMs + SCORE_GRACE_MS) {
+                if (!score.reached && !(voiceIdle && clock > target.endMs + SCORE_GRACE_MS)) {
                     return { ...target, result: null };
                 }
                 return { ...target, result: score.verdict, avgCents: score.avgCents, biasCents: score.biasCents };

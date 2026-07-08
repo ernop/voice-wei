@@ -156,6 +156,16 @@ same statement - the picture can never promise a tolerance the scoring
 does not honor. Redraws are throttled to 50ms ticks by `RateGate`
 (render-throttle.js).
 
+The detector also carries an octave-lock guard: when a signal's 2nd
+harmonic dominates (bright vowels, piano through the speakers while the
+panel listens), the first good correlation peak sits at half the true
+period and the note would read an octave high. The detector inspects the
+double-period candidate and prefers it only when it correlates CLEARLY
+better, so true notes never flip down while harmonic locks resolve to
+their real octave (validated synthetically: twelve 2nd-harmonic-dominant
+baits all read +1200c before the guard, <=5c after, with no change on
+normal voice-like signals).
+
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
 (Sing), and Intervals (Sing) embed the same component; a page supplies a
 typed `PitchTestPanelConfig` (key, rails, targets, content duration,
@@ -224,9 +234,14 @@ scores identically. This is forced by the voice-gated clock: breaths are
 zero-width in voice time and note durations are the singer's own, so
 fixed windows misassign samples by construction. Fixed windows remain
 only where a window is physically real: the Pitch tool's timed
-call-and-response periods. In the panel, a matched note gets its verdict
-as soon as the singer moves on; an unmatched target stays pending until
-the take clock passes its slot.
+call-and-response periods.
+
+The alignment is a PREFIX of the targets: only notes the singer has
+reached can carry a verdict. Inside the prefix, a matched note verdicts
+the moment the singer moves on and a skipped-over note is missed; every
+target beyond the prefix stays pending - the future never changes color
+while singing continues. An unreached target resolves to missed only
+once the voice has gone quiet AND the take clock is past its slot.
 
 The model, from one consistent idea of correct:
 
@@ -234,11 +249,13 @@ The model, from one consistent idea of correct:
    else it is "didn't sing it", not "wrong".
 2. **Identity** - the pitch actually sustained is the **median** of the voiced
    samples (robust to onset slide, release, and octave glitches, which a mean
-   is not). It must sit within `IDENTITY_CENTS` (70c) of the target, and a
+   is not). It must sit within `IDENTITY_CENTS` (140c) of the target, and a
    majority of samples must be within that band, so wobble around the target
    is not credited as a hold.
-3. **Accuracy** - graded from the sustained pitch's distance: good <= 15c,
-   ok <= 30c, otherwise missed (reached but too loose for a clean rep).
+3. **Accuracy** - graded from the sustained pitch's distance: good <= 30c,
+   ok <= 60c, otherwise missed (reached but too loose for a clean rep).
+   (Bands doubled 2026-07-08, owner-directed: the tight bands read as
+   punishing in real takes.)
 
 `biasCents` is always reported signed (+ sharp, - flat) so degree-level
 weak-spot analysis can say "you overshoot the 6th" - the training goal. Free
