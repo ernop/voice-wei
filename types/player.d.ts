@@ -244,6 +244,8 @@ interface VoiceMusicController {
     updateMediaSessionForItem(item: PlaylistItem): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
     updateCentralPlayer(item: PlaylistItem): void;
+    scrollToCurrentSong(): void;
+    updateTransportBarLyric(text: string): void;
     stopPlayback(): void;
     playPlaylist(): void;
     pausePlayback(): void;

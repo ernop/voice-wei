@@ -799,6 +799,12 @@ class VoiceMusicController {
             transportNextBtn.addEventListener('click', () => this.playNext());
         }
 
+        // The bar's current-song line navigates to that row in the list
+        const transportBarInfo = document.getElementById('transportBarInfo');
+        if (transportBarInfo) {
+            transportBarInfo.addEventListener('click', () => this.scrollToCurrentSong());
+        }
+
         const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
         if (lyricsPanelBtn) {
             lyricsPanelBtn.addEventListener('click', () => {

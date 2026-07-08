@@ -686,14 +686,33 @@ const PlayerLyrics = (function () {
                 if (!currentItem || currentItem.id !== this.currentPlayingId || !currentItem.lyricsData || currentItem.lyricsData.syncedLines.length === 0) {
                     this.applyActiveLyricsLine(-1);
                     this.relayLyricToNowPlaying(-1);
+                    this.updateTransportBarLyric('');
                     return;
                 }
 
                 const syncedLines = currentItem.lyricsData.syncedLines;
-                this.applyActiveLyricsLine(this.syncedLyricLineIndexAt(syncedLines, currentTime));
+                const activeIndex = this.syncedLyricLineIndexAt(syncedLines, currentTime);
+                this.applyActiveLyricsLine(activeIndex);
+                this.updateTransportBarLyric(this.lyricTitleLineAt(syncedLines, activeIndex));
                 this.relayLyricToNowPlaying(
                     this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS)
                 );
+            },
+
+            /**
+             * The sticky now-playing bar's lyric row: the sung (or next
+             * upcoming) line, always on screen while scrolling. Empty text
+             * collapses the row.
+             * @param {string} text
+             */
+            updateTransportBarLyric(text) {
+                const el = document.getElementById('transportBarLyric');
+                if (!el) return;
+                const line = String(text || '').trim();
+                if (el.textContent !== line) {
+                    el.textContent = line;
+                }
+                el.style.display = line ? 'block' : 'none';
             },
 
             /** @param {SyncedLyricLine[]} syncedLines @param {number} time */

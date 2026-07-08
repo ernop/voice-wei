@@ -918,7 +918,20 @@ const PlayerPlaylist = (function () {
                     artistEl.textContent = '';
                     if (transportInfo) transportInfo.textContent = 'No song playing';
                 }
+                // Song change or clear: the bar lyric belongs to the previous
+                // song until this song's synced position writes its own.
+                this.updateTransportBarLyric('');
                 this.updateBigLyricsAvailability();
+            },
+
+            /** Bring the current song's row into view (the bar's song line). */
+            scrollToCurrentSong() {
+                const item = this.playlist.find(entry => entry.id === this.currentPlayingId)
+                    || this.currentPlaylistItem();
+                if (!item) return;
+                const row = document.querySelector(`.playlist-row[data-item-id="${item.id}"]`);
+                if (!row) return;
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
 
             updateMediaSessionForItem(item) {

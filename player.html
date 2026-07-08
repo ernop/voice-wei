@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="practice-controls.css?v=224">
 </head>
 
-<body data-page="music" data-settings-button="true">
+<body data-page="music" data-settings-button="true" data-lyric-heading="true">
     <div class="container">
         <header id="siteHeader"></header>
 
@@ -214,13 +214,6 @@
                 <div class="playlist-list" id="playlistBody"></div>
             </div>
 
-            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
-                <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous">&#9198;</button>
-                <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
-                <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next">&#9197;</button>
-                <div class="transport-bar-info" id="transportBarInfo">No song playing</div>
-            </div>
-
             <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
                 <div class="lyrics-panel-header">
                     <div class="lyrics-panel-title-group">
@@ -303,6 +296,20 @@
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
                 <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
             </footer>
+
+            <!-- Sticky now-playing bar: last element in main so sticky-bottom
+                 keeps the lyric, transport, and current-song line visible at
+                 every scroll position. -->
+            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
+                <div class="transport-bar-lyric" id="transportBarLyric" style="display: none;"></div>
+                <div class="transport-bar-main">
+                    <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous">&#9198;</button>
+                    <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
+                    <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next">&#9197;</button>
+                    <button class="transport-bar-info" id="transportBarInfo" type="button"
+                        aria-label="Scroll to the current song in the playlist">No song playing</button>
+                </div>
+            </div>
         </main>
     </div>
 

@@ -135,7 +135,9 @@ const MediaSessionCore = (function () {
 
     /** @returns {HTMLElement | null} */
     function headerHeading() {
-        const heading = document.querySelector('#siteHeader .header-title-group h1');
+        // Both header layouts (title-in-top-row and the music page's
+        // full-width lyric line) expose exactly one h1 in the header.
+        const heading = document.querySelector('#siteHeader h1');
         return heading instanceof HTMLElement ? heading : null;
     }
 

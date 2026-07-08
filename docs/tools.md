@@ -217,8 +217,16 @@ Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
 settings) the current synced lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show -- the
 title is the lyric line and nothing else; song/artist names are never
-written there. The Lyrics panel toggle and Big Lyrics overlay button sit
-in the central player next to the rewind/forward controls.
+written there. On this page the header gives that lyric heading its own
+full-width line, with the nav tabs and the settings gear sharing one row
+beneath it. The Lyrics panel toggle and Big Lyrics overlay button sit in
+the central player next to the rewind/forward controls.
+
+The always-visible surface while scrolling is the sticky now-playing bar
+at the bottom: the current synced lyric line (own full row), the
+prev/play/next transport, and the current song line - tapping the song
+line scrolls the playlist to that row. The Listen button scrolls with
+the page like everything else.
 
 Other surfaces on the page:
 

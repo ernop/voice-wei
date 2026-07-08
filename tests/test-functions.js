@@ -293,7 +293,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
-                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
             };
         });
         const titleShape = /^[A-G][b#]?\d [a-z ]+ [^ ]+$/;
@@ -334,7 +334,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
-                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
             };
         });
         report.check('phrases title follows playable note mask',
@@ -2347,7 +2347,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const meta = () => navigator.mediaSession.metadata;
             const snap = () => ({
                 docTitle: document.title,
-                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || '',
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
                 metaTitle: meta() ? meta().title : '',
                 metaArtist: meta() ? meta().artist : '',
                 highlightIndex: harness.currentLyricsLineIndex
