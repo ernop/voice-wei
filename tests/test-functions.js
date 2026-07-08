@@ -2320,6 +2320,41 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && deadlineClock.idleReads <= 2
             && deadlineClock.titleAfterLead === 'clock line one');
 
+        // Have the song => have the lyrics: a failing cache write (e.g.
+        // localStorage quota) must never revoke successfully fetched
+        // lyrics from the live item.
+        const cacheWriteIsolation = await tab.evaluate(async () => {
+            const item = { id: 88, name: 'Quota Song', artist: 'Quota Artist', lyricsStatus: 'idle', lyricsData: null };
+            const harness = {
+                settings: { lyricsOnNowPlaying: true },
+                playlist: [item],
+                currentLyricsItemId: null,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsLyric: false,
+                isPlaying: false,
+                isPaused: false,
+                currentPlayingId: null,
+                lyricsCache: { records: {}, aliases: {}, misses: {} },
+                lyricsLookupCache: new Map(),
+                currentPlaylistItem() { return item; },
+                refreshLyricsRowButton() {},
+                resyncProgressClock() {},
+                parseDurationToSeconds() { return 90; },
+                addMessage() {}
+            };
+            PlayerLyrics.install(harness);
+            harness.lookupLyrics = async () => ({
+                provider: 'LRCLIB', trackName: 'Quota Song', artistName: 'Quota Artist',
+                albumName: '', duration: 90, instrumental: false, plainLyrics: 'la la',
+                syncedLyrics: '[00:01.00]la la', syncedLines: [{ time: 1, text: 'la la' }]
+            });
+            harness.persistLyricsForItem = () => { throw new Error('QuotaExceededError (simulated)'); };
+            await harness.ensureLyricsForItem(item);
+            return { status: item.lyricsStatus, hasData: !!item.lyricsData };
+        });
+        report.check(`player lyrics survive cache write failure (status ${cacheWriteIsolation.status})`,
+            cacheWriteIsolation.status === 'ready' && cacheWriteIsolation.hasData === true);
+
         // Minimal display communication: identical repeat writes to the
         // now-playing surfaces are dropped at the core - one metadata
         // construction per distinct title, none for repeats.

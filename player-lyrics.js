@@ -369,13 +369,13 @@ const PlayerLyrics = (function () {
                     this.renderLyricsStateForItem(item);
                 }
 
+                /** @type {LyricsResult | null} */
+                let lyricsData = null;
                 try {
-                    const lyricsData = await this.lookupLyrics(item);
+                    lyricsData = await this.lookupLyrics(item);
                     item.lyricsData = lyricsData;
                     item.lyricsStatus = lyricsData ? 'ready' : 'not_found';
-                    if (lyricsData) {
-                        this.persistLyricsForItem(item, lyricsData);
-                    } else {
+                    if (!lyricsData) {
                         this.recordLyricsMiss(item);
                     }
                 } catch (error) {
@@ -384,6 +384,18 @@ const PlayerLyrics = (function () {
                     this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (will retry on a later load)`);
                     item.lyricsData = null;
                     item.lyricsStatus = 'error';
+                }
+
+                // The cache write is a look-aside side effect at a system
+                // boundary (localStorage quota). It must never be able to
+                // revoke lyrics that were successfully fetched: the song
+                // has its lyrics whether or not the cache accepted them.
+                if (lyricsData && item.lyricsStatus === 'ready') {
+                    try {
+                        this.persistLyricsForItem(item, lyricsData);
+                    } catch (error) {
+                        console.warn('Lyrics cache write failed; lyrics still shown:', error);
+                    }
                 }
 
                 this.refreshLyricsRowButton(item);
