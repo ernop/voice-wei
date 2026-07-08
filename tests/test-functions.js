@@ -737,6 +737,67 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check('phrases return to 1 ends on degree 1 even with random start', returnToOne);
 
+        // Rearrange: every scale note inside the range exactly once (or
+        // twice for the double variant), anchors consume the pool's 1s,
+        // and no note stutters back-to-back.
+        const rearrange = await tab.evaluate(() => {
+            const sorted = values => values.slice().sort((a, b) => a - b).join(',');
+            const range = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
+            const base = {
+                scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                minLength: 5, maxLength: 8, accidentalRate: 0, returnToRoot: false
+            };
+            for (let i = 0; i < 60; i++) {
+                const plain = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: false, returnToInitial: false
+                });
+                if (sorted(plain) !== sorted(range(0, 7))) return 'plain permutation broken';
+                const anchored = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: true, returnToInitial: true
+                });
+                if (anchored[0] !== 0 || anchored[anchored.length - 1] !== 0) return 'anchors missing';
+                if (sorted(anchored.slice(1, -1)) !== sorted(range(1, 7))) return 'anchored interior broken';
+                const expanded = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: false, returnToInitial: false, rangeMode: 'expanded'
+                });
+                if (sorted(expanded) !== sorted(range(-3, 14))) return 'expanded range broken';
+                const doubled = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, phraseAlgo: 'rearrange_double', startAtOne: true, returnToInitial: true
+                });
+                if (doubled[0] !== 0 || doubled[doubled.length - 1] !== 0) return 'double anchors missing';
+                if (doubled.slice(1, -1).includes(0)) return 'double interior repeats 1';
+                if (sorted(doubled) !== sorted(range(0, 7).flatMap(value => [value, value]))) return 'double multiset broken';
+                if (doubled.slice(1).some((value, idx) => value === doubled[idx])) return 'double stutters';
+            }
+            return 'ok';
+        });
+        report.check(`phrases rearrange exhausts the range with anchor-managed 1s (${rearrange})`, rearrange === 'ok');
+
+        // Rearrange passing tones are inserted in addition to the notes
+        // they connect; the underlying permutation stays intact.
+        const rearrangeChromatic = await tab.evaluate(() => {
+            const sorted = values => values.slice().sort((a, b) => a - b).join(',');
+            const range = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
+            let inserted = 0;
+            for (let i = 0; i < 60; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                    minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
+                    returnToRoot: false, accidentalRate: 1
+                });
+                if (sorted(offsets.filter(Number.isInteger)) !== sorted(range(0, 7))) return -1;
+                for (let j = 0; j < offsets.length; j++) {
+                    if (Number.isInteger(offsets[j])) continue;
+                    inserted++;
+                    const between = PatternPracticeCore.chromaticBetween('major', offsets[j - 1], offsets[j + 1]);
+                    if (between !== offsets[j]) return -1;
+                }
+            }
+            return inserted;
+        });
+        report.check(`phrases rearrange inserts passing tones without dropping scale notes (${rearrangeChromatic} inserted)`,
+            rearrangeChromatic > 0);
+
         // Chromatic choices: Acc replaces normal note slots with passing
         // tones, never lengthening the phrase beyond Min/Max.
         const chromatic = await tab.evaluate(() => {
@@ -808,6 +869,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return Boolean(host && !host.classList.contains('phrase-staff-empty') && host.querySelector('svg'));
         });
         report.check('phrases staff renders svg for current phrase', staffRendered);
+
+        // The staff is metered 4/4: phrase notes plus padding rests always
+        // fill whole measures, and the padding never exceeds one measure.
+        const staffMeasures = await tab.evaluate(() => {
+            const planLength = window.phrasesDebug.takePlan().length;
+            const drawn = document.querySelectorAll('#phraseStaff .vf-stavenote').length;
+            return { planLength, drawn };
+        });
+        report.check(`phrases staff pads to whole 4/4 measures (${staffMeasures.planLength} notes -> ${staffMeasures.drawn} beats)`,
+            staffMeasures.drawn % 4 === 0
+            && staffMeasures.drawn >= staffMeasures.planLength
+            && staffMeasures.drawn - staffMeasures.planLength < 4);
 
         const fillPlans = await tab.evaluate(() => {
             const fullBtn = document.getElementById('fillFullBtn');

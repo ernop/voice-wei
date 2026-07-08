@@ -576,6 +576,123 @@ const PatternPracticeCore = (function () {
         return addPhraseAnchors(offsets, options);
     }
 
+    /**
+     * Fisher-Yates shuffle into a new array.
+     * @param {number[]} values
+     * @returns {number[]}
+     */
+    function shuffled(values) {
+        const out = values.slice();
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = randomInt(0, i);
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+
+    /**
+     * Shuffle with the no-stutter rule: no value may equal its neighbor,
+     * including the fixed boundary values around the shuffled section
+     * (the 1-anchors in rearrange phrases). After the shuffle, each
+     * conflicting position is repaired by swapping with a position where
+     * the swap resolves the conflict without creating a new one. Pools
+     * with a value in the majority (impossible to separate) keep the
+     * unavoidable repeats.
+     * @param {number[]} values
+     * @param {number | null} leftBoundary
+     * @param {number | null} rightBoundary
+     * @returns {number[]}
+     */
+    function shuffledWithoutAdjacentRepeats(values, leftBoundary, rightBoundary) {
+        const out = shuffled(values);
+        /** @param {number} index */
+        const conflicted = index => {
+            const left = index === 0 ? leftBoundary : out[index - 1];
+            const right = index === out.length - 1 ? rightBoundary : out[index + 1];
+            return out[index] === left || out[index] === right;
+        };
+        for (let i = 0; i < out.length; i++) {
+            if (!conflicted(i)) continue;
+            for (let j = 0; j < out.length; j++) {
+                if (j === i || out[j] === out[i]) continue;
+                [out[i], out[j]] = [out[j], out[i]];
+                if (!conflicted(i) && !conflicted(j)) break;
+                [out[i], out[j]] = [out[j], out[i]];
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Passing tones for rearrange phrases are INSERTED, never substituted:
+     * a rearrangement must still exhaust every scale note in the range, so
+     * the chromatic neighbor joins the phrase in addition to the notes it
+     * connects (contrast applyChromaticPassingChoices, which replaces).
+     * @param {number[]} offsets
+     * @param {{ scaleType: string, accidentalRate?: number }} options
+     * @returns {number[]}
+     */
+    function insertChromaticPassingTones(offsets, options) {
+        const chance = clamp(options.accidentalRate || 0, 0, 1);
+        if (chance <= 0 || !offsets.length) return offsets;
+        const out = [offsets[0]];
+        for (let i = 1; i < offsets.length; i++) {
+            const passing = chromaticBetween(options.scaleType, offsets[i - 1], offsets[i]);
+            if (passing !== null && Math.random() < chance) out.push(passing);
+            out.push(offsets[i]);
+        }
+        return out;
+    }
+
+    /**
+     * Rearrange: every scale note inside the selected range appears exactly
+     * once (or `copies` times), in random order, with no immediate repeats.
+     * Length is dictated by the range, not by Min/Max.
+     *
+     * The 1-anchors consume degree 1's copies from the pool: with
+     * 'start at 1' and/or 'return to 1' on, the anchored 1s are the pool's
+     * 1s, so 1 never also appears inside the body. Single rearrange with
+     * both anchors on is the one case where 1 sounds twice (both bookends)
+     * by design. Degree 8 (the octave) is its own note and stays in the
+     * body - only literal degree 1 (offset 0) is anchor-managed.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeMode: string,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   accidentalRate?: number
+     * }} options
+     * @param {number} copies
+     * @returns {number[]}
+     */
+    function generateRearrangeOffsets(options, copies) {
+        const dp = degreesPerOctave(options.scaleType);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+        const startAnchor = options.startAtOne;
+        const endAnchor = options.returnToInitial || options.returnToRoot;
+        const anchoredOnes = (startAnchor ? 1 : 0) + (endAnchor ? 1 : 0);
+        const bodyOnes = Math.max(0, copies - anchoredOnes);
+
+        /** @type {number[]} */
+        const pool = [];
+        for (let offset = minOffset; offset <= maxOffset; offset++) {
+            const count = offset === 0 ? bodyOnes : copies;
+            for (let c = 0; c < count; c++) pool.push(offset);
+        }
+
+        const body = shuffledWithoutAdjacentRepeats(
+            pool,
+            startAnchor ? 0 : null,
+            endAnchor ? 0 : null
+        );
+        const offsets = [];
+        if (startAnchor) offsets.push(0);
+        offsets.push(...body);
+        if (endAnchor) offsets.push(0);
+        return insertChromaticPassingTones(offsets, options);
+    }
+
     /** @param {number[]} values @param {number} min @param {number} max */
     function boundedDegreeSet(values, min, max) {
         const out = Array.from(new Set(values.map(value => clamp(value, min, max)))).sort((a, b) => a - b);
@@ -822,6 +939,8 @@ const PatternPracticeCore = (function () {
         if (options.phraseStyle === 'sight') return generateSightSingingOffsets(options);
         if (options.phraseStyle === 'barbershop') return generateBarbershopOffsets(options);
         if (options.phraseStyle === 'genre') return generateGenreOffsets(options);
+        if (options.phraseAlgo === 'rearrange') return generateRearrangeOffsets(options, 1);
+        if (options.phraseAlgo === 'rearrange_double') return generateRearrangeOffsets(options, 2);
         if (options.phraseAlgo === 'random') return generateRandomOffsets(options);
         if (options.phraseAlgo === 'stepwise') return generateStepwiseOffsets(options);
         if (options.phraseAlgo === 'leapy') return generateLeapyOffsets(options);
@@ -977,6 +1096,8 @@ const PatternPracticeCore = (function () {
         generateBarbershopOffsets,
         generateGenreOffsets,
         generateClusteredOffsets,
+        generateRearrangeOffsets,
+        insertChromaticPassingTones,
         reflectOffsets,
         generatePhrase
     };
