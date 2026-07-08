@@ -17,6 +17,9 @@ const StorageKeys = Object.freeze({
     PLAYER_PLAYLIST: 'voice-wei:player-playlist',
     PLAYER_FAVORITES: 'voice-wei:player-favorites',
     PLAYER_SONG_LIBRARY: 'voice-wei:player-song-library',
+    // Retired: per-song lyric state moved to IndexedDB (voice-wei-music
+    // `lyricStates`, keyed by videoId). The key remains registered so the
+    // name stays reserved; nothing reads or writes it anymore.
     PLAYER_LYRICS_CACHE: 'voice-wei:player-lyrics-cache',
     PLAYER_LYRICS_VIEW: 'voice-wei:player-lyrics-view',
     EBOOK_SETTINGS: 'voice-wei:ebook-settings',

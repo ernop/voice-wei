@@ -292,7 +292,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `PLAYER_SETTINGS` | Music player voice/settings |
 | `PLAYER_PLAYLIST` | Working playlist (Songs + membership, no lyric runtime) + current index |
 | `PLAYER_FAVORITES` | Favorited tracks |
-| `PLAYER_LYRICS_CACHE` | Resolved lyrics: deduplicated records + alias keys, capped at 200 |
+| `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
@@ -361,45 +361,42 @@ nothing: every song is recorded to the known-songs catalog when it is
 added, so the working playlist is a matter of convenience over durable
 data.
 
+**Lyric state has one permanent owner: IndexedDB `lyricStates`, keyed by
+videoId.** Each record is either `found` (carrying the LyricsResult) or
+`none` with `checkedAt` - and `none` may ONLY be written by a provider
+search that actually answered empty; failures (rate limit, network,
+timeout) save nothing, so the song stays unresolved and the next
+interaction retries. The write discipline is save-then-activate: the
+store write is awaited first, then the live playlist item is updated
+from that same record (`resolveLyricState` -> `applyLyricStateToItem`).
+A live item is therefore only ever 'ready' with data that came from or
+through the store - there is no second source that can disagree with it.
+(An earlier design kept a fuzzy artist/title-keyed cache in localStorage
+with alias and miss maps; keying by videoId in IndexedDB replaced it,
+and the `PLAYER_LYRICS_CACHE` localStorage key is retired.)
+
 **Lyrics are never persisted per playlist item.** The persisted playlist
 carries Songs only; `lyricsData`/`lyricsStatus` are runtime state
-re-hydrated from the lyrics cache at load. (Persisting full lyrics per
-item, times several alias copies in the lyrics cache, is what exceeded
-the localStorage quota at ~100 songs.) The lyrics cache itself is
-deduplicated: one record per lyrics result under a canonical key in
-`records`, with every lookup key that resolved to it mapping there via
-`aliases`, bounded at 200 records (oldest trimmed, logged). The legacy
-flat cache shape is migrated on first load.
+re-derived from `lyricStates`. (Persisting full lyrics per item is what
+exceeded the localStorage quota at ~100 songs.)
 
-**Lyric lookups run through one bounded queue.** Background lyric
-resolution (`queueLyricsLookup`/`pumpLyricsQueue` in player-lyrics.js)
-processes at most 2 songs at a time, so adding a large playlist never
-fires a provider request per song at once. Every add path - including
-restore-at-load - queues through it, which is also the interruption
-recovery: closing the page mid-fetch costs nothing, because on the next
-open cached songs hydrate instantly, remembered not-founds stay
-`not_found` (the cache's `misses` map, 7-day TTL, capped at 500), and
-only the unresolved remainder is re-queued. Direct user intent (playing
-a song, tapping its row chip) calls `ensureLyricsForItem` immediately
-and idempotently; tapping the chip on a remembered not-found clears its
-miss and forces a fresh lookup.
+**Every interaction verifies against the store.** Adding a song (search,
+favorites, history, restore-at-load) queues its resolution; playing a
+song or tapping its row chip resolves it immediately. Resolution runs as
+one shared in-flight promise per videoId - duplicate rows, the queue,
+and a direct play all await the same flight - and every provider fetch
+is bounded by a 12s timeout, so a lookup interrupted by a page
+suspension always settles and can never wedge a song in 'loading'.
+Background resolution goes through one bounded queue (2 songs at a
+time), so a 100-song add never fires 100 requests at once. Tapping the
+chip on a stored `none` forces a fresh provider recheck; a stored `none`
+also expires after 7 days.
 
-**A provider failure is never a miss.** Only a lyric search that
-actually answered may conclude not-found; if every candidate search
-fails (rate limit, network), the item lands in `error` and retries on a
-later load.
-
-**Library reconciliation is per song, not a one-time event.** On every
-load, `reconcileLibraryLyrics` checks each favorite for a resolved lyric
-state - cached lyrics or a fresh trustworthy miss - and queues detached
-`backfill` lookups for the unresolved rest. Resolved songs are pure
-cache checks (zero requests), so the pass is idempotent, and an
-interrupted or failed recheck simply resumes on the next open. The only
-global one-shot (marked by the cache's `backfilledAt`) is wiping misses
-recorded before the provider-failure rule, which as a set were
-untrustworthy. Reconciliation runs before playlist restore so restored
-songs hydrate against the cleaned cache and re-queue themselves
-normally.
+**Library reconciliation is per song, on every load.**
+`reconcileLibraryLyrics` queues every favorite for resolution before the
+playlist restore; songs already resolved in the store settle from one
+IndexedDB read with zero network, so the pass is idempotent and an
+interrupted or failed recheck resumes on the next open by construction.
 
 ### Music player durable history (`voice-wei-music`)
 
@@ -415,6 +412,9 @@ never touches this DB directly. Stores:
 - `youtubeSearches`: the search-term -> results cache, keyed by normalized
   query; consulted as a fallback when the live proxy search fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.
+- `lyricStates`: per-song lyric state keyed by videoId - the single
+  permanent owner of lyrics (see "Lyric state has one permanent owner"
+  above).
 
 Store-by-lifetime is the dividing law (persistence principle P1):
 **localStorage** owns small, synchronous, boot-time state - settings,

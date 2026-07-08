@@ -16,14 +16,18 @@ const PlayerHistoryDB = (function () {
     const DB_NAME = 'voice-wei-music';
     // v2 drops the legacy `favorites` store: the authoritative favorites set
     // lives in localStorage, so a second IndexedDB copy violated one-owner.
-    const DB_VERSION = 2;
+    // v3 adds `lyricStates`: the single permanent owner of per-song lyric
+    // state, keyed by videoId (a found record with the lyrics, or an
+    // answered "none" with when it was checked).
+    const DB_VERSION = 3;
     const LEGACY_FAVORITES_STORE = 'favorites';
     const STORES = Object.freeze({
         LOGS: 'logs',
         LOOKUPS: 'lookups',
         SONGS: 'songs',
         YOUTUBE_SEARCHES: 'youtubeSearches',
-        FAVORITE_EVENTS: 'favoriteEvents'
+        FAVORITE_EVENTS: 'favoriteEvents',
+        LYRIC_STATES: 'lyricStates'
     });
 
     // Per-store record caps. When a store reaches 90% the user is warned once;
@@ -33,14 +37,16 @@ const PlayerHistoryDB = (function () {
         [STORES.LOOKUPS]: 2000,
         [STORES.SONGS]: 5000,
         [STORES.YOUTUBE_SEARCHES]: 2000,
-        [STORES.FAVORITE_EVENTS]: 5000
+        [STORES.FAVORITE_EVENTS]: 5000,
+        [STORES.LYRIC_STATES]: 5000
     });
 
     // Oldest-first ordering for trimming. Keyed stores trim by their time
     // index; autoIncrement stores trim by primary key (monotonic = oldest).
     const ORDER_INDEX = Object.freeze({
         [STORES.SONGS]: 'lastSeenAt',
-        [STORES.YOUTUBE_SEARCHES]: 'updatedAt'
+        [STORES.YOUTUBE_SEARCHES]: 'updatedAt',
+        [STORES.LYRIC_STATES]: 'checkedAt'
     });
 
     /** @type {Promise<IDBDatabase> | null} */
@@ -99,6 +105,10 @@ const PlayerHistoryDB = (function () {
                     const store = db.createObjectStore(STORES.FAVORITE_EVENTS, { keyPath: 'id', autoIncrement: true });
                     store.createIndex('createdAt', 'createdAt');
                     store.createIndex('videoId', 'videoId');
+                }
+                if (!db.objectStoreNames.contains(STORES.LYRIC_STATES)) {
+                    const store = db.createObjectStore(STORES.LYRIC_STATES, { keyPath: 'videoId' });
+                    store.createIndex('checkedAt', 'checkedAt');
                 }
             };
             request.onsuccess = () => resolve(request.result);
@@ -285,6 +295,26 @@ const PlayerHistoryDB = (function () {
     }
 
     /**
+     * Persist a song's lyric state. This write is AWAITED by callers so the
+     * permanent store is updated before the live song object is activated
+     * (save first, then activate - the store is the single source of truth).
+     * @param {LyricStateRecord} record
+     */
+    async function putLyricState(record) {
+        if (!record || !record.videoId) {
+            throw new Error('putLyricState requires a videoId');
+        }
+        await put(STORES.LYRIC_STATES, record);
+        capture(enforceCap(STORES.LYRIC_STATES));
+    }
+
+    /** @param {string} videoId @returns {Promise<LyricStateRecord | null>} */
+    async function getLyricState(videoId) {
+        if (!videoId) return null;
+        return (await get(STORES.LYRIC_STATES, videoId)) || null;
+    }
+
+    /**
      * Record a favorite toggle as an append-only audit event. The authoritative
      * favorites set lives in localStorage (PlayerStorage); this is history only.
      * @param {FavoriteData | PlaylistItem | any} favorite @param {boolean} active
@@ -310,7 +340,9 @@ const PlayerHistoryDB = (function () {
         listLookups,
         listSongs,
         listYouTubeSearches,
-        recordFavorite
+        recordFavorite,
+        putLyricState,
+        getLyricState
     };
 })();
 

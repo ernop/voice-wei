@@ -250,11 +250,10 @@ Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 API keys are plain strings via `api-keys-store.js` (`API_CLAUDE`,
 `API_OPENAI`). The working playlist + current index persist in
 `PLAYER_PLAYLIST` as Songs + membership (never lyric runtime); favorites
-in `PLAYER_FAVORITES`; resolved lyrics in `PLAYER_LYRICS_CACHE`
-(deduplicated records + aliases, capped at 200 records). Unbounded
-history lives in the `voice-wei-music` IndexedDB (see "The Song
-primitive" and "Music player durable history" in
-[architecture.md](architecture.md)).
+in `PLAYER_FAVORITES`. Per-song lyric state lives in the
+`voice-wei-music` IndexedDB (`lyricStates`, keyed by videoId), alongside
+the unbounded history (see "The Song primitive" and "Music player
+durable history" in [architecture.md](architecture.md)).
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

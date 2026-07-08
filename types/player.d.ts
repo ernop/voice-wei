@@ -91,30 +91,19 @@ interface LyricsResult {
     syncedLines: SyncedLyricLine[];
 }
 
-interface LyricsCacheRecord {
-    lyrics: LyricsResult;
-    cachedAt: number;
-}
-
 /**
- * Deduplicated lyrics cache: each lyrics record is stored ONCE under a
- * canonical key in `records`; every lookup key that resolved to it maps
- * there via `aliases`. (The earlier flat shape stored a full copy of the
- * lyrics under every alias key, which multiplied localStorage use.)
- * `misses` remembers confirmed not-founds (lookup key -> epoch ms) so
- * resume-on-load does not re-query known-missing songs; entries expire
- * after a TTL and a chip tap clears them for a forced retry. Only a
- * provider search that actually answered may record a miss - failures
- * surface as the item's 'error' status and retry on a later load.
- * `backfilledAt` marks only the one-time wipe of pre-rule misses
- * (0 = pending); the library recheck itself is per-song reconciliation
- * on every load, keyed by each song's resolved state here.
+ * A song's lyric state in the permanent store (IndexedDB `lyricStates`,
+ * keyed by videoId - the single source of truth for lyrics). 'found'
+ * carries the lyrics; 'none' means a provider search ACTUALLY ANSWERED
+ * empty at checkedAt (failures save nothing and stay unresolved). Live
+ * playlist items are only ever activated from one of these records,
+ * after it is read from or saved to the store.
  */
-interface LyricsCacheStore {
-    records: { [canonicalKey: string]: LyricsCacheRecord };
-    aliases: { [aliasKey: string]: string };
-    misses: { [aliasKey: string]: number };
-    backfilledAt: number;
+interface LyricStateRecord {
+    videoId: string;
+    status: 'found' | 'none';
+    checkedAt: number;
+    lyrics?: LyricsResult;
 }
 
 interface SongLibraryNote {
@@ -172,6 +161,8 @@ interface PlayerHistoryDBApi {
     listSongs(): Promise<any[]>;
     listYouTubeSearches(): Promise<any[]>;
     recordFavorite(favorite: any, active: boolean): void;
+    putLyricState(record: LyricStateRecord): Promise<void>;
+    getLyricState(videoId: string): Promise<LyricStateRecord | null>;
 }
 
 interface AppConfig {
@@ -339,23 +330,18 @@ interface VoiceMusicController {
     relayLyricToNowPlaying(activeIndex: number): void;
     nowPlayingShowsLyric: boolean;
     mediaActionHandlersSet: boolean;
-    ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
+    ensureLyricsForItem(item: PlaylistItem, options?: { forceLookup?: boolean }): Promise<LyricsResult | null>;
+    resolveLyricState(item: PlaylistItem, forceLookup: boolean): Promise<LyricStateRecord>;
+    applyLyricStateToItem(item: PlaylistItem, state: LyricStateRecord): void;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
     searchLyricsProvider(title: string, artist: string, album: string): Promise<LyricsResult[]>;
-    hydrateItemLyricsFromCache(item: PlaylistItem): boolean;
-    cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
-    persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
-    trimLyricsCache(): void;
     lyricsFetchQueue: PlaylistItem[];
     lyricsFetchActive: number;
+    lyricsLookupsInFlight: Map<string, Promise<LyricStateRecord>>;
     queueLyricsLookup(item: PlaylistItem): void;
     pumpLyricsQueue(): void;
     reconcileLibraryLyrics(): void;
-    recordLyricsMiss(item: PlaylistItem): void;
-    clearLyricsMiss(item: PlaylistItem): void;
-    getLyricsCacheKeysForItem(item: PlaylistItem): string[];
-    buildLyricsCacheKey(artist: string, title: string, durationSeconds: number): string;
     refreshLyricsRowButton(item: PlaylistItem): void;
 
     songLibrary: SongLibraryStore;

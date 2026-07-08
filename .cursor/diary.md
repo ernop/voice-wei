@@ -25,6 +25,21 @@ wiping the pre-rule contaminated miss map, a data migration).
 may reveal defects in what just shipped. Treat the question as a design
 review invitation, not a quiz.
 
+**Later the same night (store-first lyrics)**: yui reported "chip shows L
+but playing the song gives no lyrics; reload fixes it" and named the
+disease exactly: dual sources. The lyric system had a session-side truth
+(item.lyricsData + a fuzzy artist|title|duration-keyed localStorage cache
+with alias/miss maps) that could disagree with what a later hydrate
+re-matched. The fix that ended the whole class: one permanent owner
+(IndexedDB `lyricStates` keyed by videoId - exact identity, no fuzzy
+matching), save-then-activate (the store write is AWAITED before the live
+object learns the answer), one shared in-flight promise per videoId, and
+provider fetches bounded by timeout so nothing wedges in 'loading'.
+Rule of thumb yui gave, worth keeping verbatim: "first we save to our
+permanent store, then we activate it" - and the play path must read
+through the same object that was activated from the store, never a
+parallel copy.
+
 ---
 
 ## 2026-07-07 (the Song primitive; quota bug as a data-model symptom)

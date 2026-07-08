@@ -9,11 +9,6 @@ const PlayerLyrics = (function () {
     // the line actually starts. The on-screen highlight stays unled.
     const LYRIC_TITLE_LEAD_SECONDS = 0.75;
 
-    // The lyrics cache is bounded by policy (persistence principle P3):
-    // past this many records the oldest are trimmed, loudly, in the log.
-    const LYRICS_CACHE_MAX_RECORDS = 200;
-    const LYRICS_CACHE_MAX_MISSES = 500;
-
     // Background lyric lookups run through one bounded queue: at most this
     // many songs are being resolved at a time (each may issue a few
     // candidate searches). Adding a 100-song playlist must not fire 100
@@ -21,10 +16,15 @@ const PlayerLyrics = (function () {
     // was interrupted through the same queue.
     const LYRICS_QUEUE_CONCURRENCY = 2;
 
-    // A confirmed "no lyrics found" is remembered this long so that
-    // resume-on-load does not re-query known-missing songs every open.
-    // The row chip force-retries an expired or user-tapped miss.
-    const LYRICS_MISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    // A stored answered "none" is trusted this long before a normal
+    // interaction rechecks the provider. The row chip force-retries a
+    // "none" immediately regardless of age.
+    const LYRICS_NONE_RECHECK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // Every provider fetch is bounded so a lookup left mid-air by a page
+    // suspension or a dead radio always settles - a song can never wedge
+    // in 'loading'.
+    const LYRICS_PROVIDER_TIMEOUT_MS = 12000;
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
@@ -298,32 +298,15 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * Library lyric reconciliation, run on every page load. The
-             * "done" state is per SONG, not a global event: a favorite is
-             * resolved when it has cached lyrics or a fresh trustworthy
-             * miss, and anything unresolved (never looked up, interrupted
-             * mid-recheck by closing the page, failed on a rate limit,
-             * or miss expired) is queued again. Resolved songs cost zero
-             * requests - reconciliation is pure cache checks - so this is
-             * idempotent and survives interruption by construction.
-             *
-             * The only global one-time piece is the miss wipe: misses
-             * recorded before the provider-failure rule could hold
-             * transient failures remembered as authoritative not-founds
-             * (the "my favorites have no lyrics" symptom), so as a set
-             * they are untrustworthy and are cleared once, marked by
-             * `backfilledAt`.
-             *
-             * Runs BEFORE the playlist restore, so restored songs hydrate
-             * against the cleaned cache and re-queue themselves normally.
+             * Library lyric reconciliation, run on every page load: every
+             * favorite is queued for resolution. Resolution is per song
+             * against the permanent store, so songs already resolved
+             * (found lyrics, or a fresh answered "none") settle from one
+             * IndexedDB read with zero network - the pass is idempotent
+             * and an interrupted or failed recheck resumes on the next
+             * open by construction.
              */
             reconcileLibraryLyrics() {
-                if (!this.lyricsCache.backfilledAt) {
-                    this.lyricsCache.backfilledAt = Date.now();
-                    this.lyricsCache.misses = {};
-                    PlayerStorage.saveLyricsCache(this.lyricsCache);
-                }
-
                 let queued = 0;
                 const seen = new Set();
                 for (const favorite of Object.values(this.favorites)) {
@@ -334,67 +317,65 @@ const PlayerLyrics = (function () {
                         sourceLabel: 'Library lyrics reconcile'
                     });
                     if (!item) continue;
-                    if (this.hydrateItemLyricsFromCache(item)) continue;
                     this.queueLyricsLookup(item);
                     queued++;
                 }
                 if (queued > 0) {
-                    this.addMessage('claude', 'Lyrics reconcile', `Rechecking lyrics for ${queued} favorite${queued === 1 ? '' : 's'} in the background`);
+                    this.addMessage('claude', 'Lyrics reconcile', `Verifying lyric state for ${queued} favorite${queued === 1 ? '' : 's'} (already-resolved songs cost nothing)`);
                 }
             },
 
-            async ensureLyricsForItem(item) {
-                if (this.hydrateItemLyricsFromCache(item)) {
-                    this.refreshLyricsRowButton(item);
+            /**
+             * Bring this song's lyric state onto the live item, from the
+             * permanent store outward. Used by every interaction with a
+             * song (queued add, restore, direct play, chip tap):
+             *
+             * - An item already activated ('ready' with data) is trusted:
+             *   activation only ever happens FROM the store or after an
+             *   awaited save TO it, so it cannot disagree with the store.
+             * - Otherwise resolution runs as one shared flight per videoId
+             *   (duplicate rows, the queue, and a direct play all await
+             *   the same promise), and the provider fetch is time-bounded,
+             *   so a lookup interrupted by a page suspension can never
+             *   leave the song wedged in 'loading' - the flight settles
+             *   and the next interaction verifies against the store again.
+             * @param {PlaylistItem} item
+             * @param {{ forceLookup?: boolean }} [options]
+             */
+            async ensureLyricsForItem(item, { forceLookup = false } = {}) {
+                if (!forceLookup && item.lyricsStatus === 'ready' && item.lyricsData) {
                     if (this.currentLyricsItemId === item.id) {
                         this.renderLyricsStateForItem(item);
                     }
                     return item.lyricsData;
                 }
 
-                if (item.lyricsStatus === 'ready') {
-                    if (this.currentLyricsItemId === item.id) {
-                        this.renderLyricsStateForItem(item);
-                    }
-                    return item.lyricsData;
-                }
-
-                if (item.lyricsStatus === 'loading') {
-                    return item.lyricsData || null;
+                let flight = this.lyricsLookupsInFlight.get(item.videoId);
+                if (!flight) {
+                    flight = this.resolveLyricState(item, forceLookup);
+                    this.lyricsLookupsInFlight.set(item.videoId, flight);
                 }
 
                 item.lyricsStatus = 'loading';
+                item.lyricsData = null;
                 this.refreshLyricsRowButton(item);
                 if (this.currentLyricsItemId === item.id) {
                     this.renderLyricsStateForItem(item);
                 }
 
-                /** @type {LyricsResult | null} */
-                let lyricsData = null;
                 try {
-                    lyricsData = await this.lookupLyrics(item);
-                    item.lyricsData = lyricsData;
-                    item.lyricsStatus = lyricsData ? 'ready' : 'not_found';
-                    if (!lyricsData) {
-                        this.recordLyricsMiss(item);
-                    }
+                    const state = await flight;
+                    this.applyLyricStateToItem(item, state);
                 } catch (error) {
-                    // Expected, handled external failure: reported to the log
-                    // panel, retried on a later load (the item is not a miss).
-                    this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (will retry on a later load)`);
+                    // Expected, handled external failure (provider or DB):
+                    // nothing was saved, the song stays unresolved, and the
+                    // next interaction with it retries.
+                    this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
                     item.lyricsData = null;
                     item.lyricsStatus = 'error';
-                }
-
-                // The cache write is a look-aside side effect at a system
-                // boundary (localStorage quota). It must never be able to
-                // revoke lyrics that were successfully fetched: the song
-                // has its lyrics whether or not the cache accepted them.
-                if (lyricsData && item.lyricsStatus === 'ready') {
-                    try {
-                        this.persistLyricsForItem(item, lyricsData);
-                    } catch (error) {
-                        console.warn('Lyrics cache write failed; lyrics still shown:', error);
+                } finally {
+                    if (this.lyricsLookupsInFlight.get(item.videoId) === flight) {
+                        this.lyricsLookupsInFlight.delete(item.videoId);
                     }
                 }
 
@@ -411,19 +392,65 @@ const PlayerLyrics = (function () {
                 return item.lyricsData;
             },
 
-            async showLyricsForItem(item) {
-                // Tapping the row chip is explicit user intent: a remembered
-                // not-found gets its miss cleared and a fresh lookup.
-                if (item.lyricsStatus === 'not_found') {
-                    this.clearLyricsMiss(item);
-                    item.lyricsStatus = 'idle';
-                    item.lyricsData = null;
+            /**
+             * Resolve a song's lyric state with the permanent store
+             * (IndexedDB `lyricStates`, keyed by videoId) as the single
+             * source of truth:
+             * 1. A stored found record, or a fresh answered "none",
+             *    settles it with zero network.
+             * 2. Otherwise ask the provider - only a search that actually
+             *    answered may conclude "none".
+             * 3. Save the answer to the store FIRST (awaited), then return
+             *    it for activation on the live object. Failures throw
+             *    without saving anything, so unresolved stays unresolved.
+             * @param {PlaylistItem} item
+             * @param {boolean} forceLookup ignore a stored "none" (user retry)
+             * @returns {Promise<LyricStateRecord>}
+             */
+            async resolveLyricState(item, forceLookup) {
+                const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
+                if (saved && saved.status === 'found' && saved.lyrics) {
+                    return saved;
                 }
+                if (!forceLookup && saved && saved.status === 'none'
+                    && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS) {
+                    return saved;
+                }
+
+                const lyrics = await this.lookupLyrics(item);
+                /** @type {LyricStateRecord} */
+                const state = lyrics
+                    ? { videoId: item.videoId, status: 'found', checkedAt: Date.now(), lyrics }
+                    : { videoId: item.videoId, status: 'none', checkedAt: Date.now() };
+                await window.PlayerHistoryDB.putLyricState(state);
+                return state;
+            },
+
+            /**
+             * Activation: the live object learns what the store just said.
+             * Only ever called with a state that was read from or saved to
+             * the permanent store.
+             * @param {PlaylistItem} item @param {LyricStateRecord} state
+             */
+            applyLyricStateToItem(item, state) {
+                if (state.status === 'found' && state.lyrics) {
+                    item.lyricsData = state.lyrics;
+                    item.lyricsStatus = 'ready';
+                } else {
+                    item.lyricsData = null;
+                    item.lyricsStatus = 'not_found';
+                }
+            },
+
+            async showLyricsForItem(item) {
+                // Tapping the row chip is explicit user intent: a stored
+                // answered "none" gets rechecked at the provider now.
+                const forceLookup = item.lyricsStatus === 'not_found';
                 this.currentLyricsItemId = item.id;
                 this.currentLyricsLineIndex = -1;
                 this.setLyricsPanelVisible(true);
                 this.renderLyricsStateForItem(item);
-                await this.ensureLyricsForItem(item);
+                await this.ensureLyricsForItem(item, { forceLookup });
             },
 
             async lookupLyrics(item) {
@@ -498,7 +525,9 @@ const PlayerLyrics = (function () {
                     params.set('q', [artist, album].filter(Boolean).join(' '));
                 }
 
-                const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
+                const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
+                    signal: AbortSignal.timeout(LYRICS_PROVIDER_TIMEOUT_MS)
+                });
                 if (!response.ok) {
                     throw new Error(`Lyrics search failed: HTTP ${response.status}`);
                 }
@@ -774,117 +803,6 @@ const PlayerLyrics = (function () {
                     this.nowPlayingShowsLyric = false;
                     MediaSessionCore.clearNowPlayingTitle();
                 }
-            },
-
-            hydrateItemLyricsFromCache(item) {
-                const cacheKeys = this.getLyricsCacheKeysForItem(item);
-                for (const key of cacheKeys) {
-                    const canonical = this.lyricsCache.aliases[key] || key;
-                    const record = this.lyricsCache.records[canonical];
-                    if (record && this.cachedLyricsMatchesItem(record.lyrics, item)) {
-                        item.lyricsData = record.lyrics;
-                        item.lyricsStatus = 'ready';
-                        return true;
-                    }
-                }
-                // A fresh remembered miss also resolves from cache: the song
-                // is known to have no lyrics, so no lookup is queued. Expired
-                // misses fall through to a normal retry.
-                for (const key of cacheKeys) {
-                    const missedAt = this.lyricsCache.misses[key];
-                    if (typeof missedAt === 'number' && (Date.now() - missedAt) < LYRICS_MISS_TTL_MS) {
-                        item.lyricsData = null;
-                        item.lyricsStatus = 'not_found';
-                        return true;
-                    }
-                }
-                return false;
-            },
-
-            recordLyricsMiss(item) {
-                const now = Date.now();
-                for (const key of this.getLyricsCacheKeysForItem(item)) {
-                    this.lyricsCache.misses[key] = now;
-                }
-                this.trimLyricsCache();
-                PlayerStorage.saveLyricsCache(this.lyricsCache);
-            },
-
-            clearLyricsMiss(item) {
-                for (const key of this.getLyricsCacheKeysForItem(item)) {
-                    delete this.lyricsCache.misses[key];
-                }
-                PlayerStorage.saveLyricsCache(this.lyricsCache);
-            },
-
-            cachedLyricsMatchesItem(cached, item) {
-                const candidates = this.buildLyricsLookupCandidates(item);
-                const expectedDuration = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                const cachedDuration = Math.round(cached.duration || 0);
-                const durationMatches = expectedDuration === 0 || cachedDuration === 0 || Math.abs(expectedDuration - cachedDuration) <= 8;
-
-                return candidates.some(candidate => {
-                    const titleScore = this.tokenSimilarity(cached.trackName || '', candidate.title);
-                    const artistScore = candidate.artist ? this.tokenSimilarity(cached.artistName || '', candidate.artist) : 0.55;
-                    return titleScore >= 0.72 && artistScore >= 0.5 && durationMatches;
-                });
-            },
-
-            persistLyricsForItem(item, lyricsData) {
-                const durationSeconds = Math.round(lyricsData.duration || item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                // One stored copy under the canonical key; every lookup key
-                // that should resolve to it becomes an alias.
-                const canonical = this.buildLyricsCacheKey(lyricsData.artistName, lyricsData.trackName, durationSeconds);
-                this.lyricsCache.records[canonical] = { lyrics: lyricsData, cachedAt: Date.now() };
-                for (const key of this.getLyricsCacheKeysForItem(item)) {
-                    this.lyricsCache.aliases[key] = canonical;
-                    delete this.lyricsCache.misses[key];
-                }
-                this.trimLyricsCache();
-                PlayerStorage.saveLyricsCache(this.lyricsCache);
-            },
-
-            trimLyricsCache() {
-                // Expired misses go quietly; they are due a retry anyway.
-                const now = Date.now();
-                for (const [key, missedAt] of Object.entries(this.lyricsCache.misses)) {
-                    if (typeof missedAt !== 'number' || (now - missedAt) >= LYRICS_MISS_TTL_MS) {
-                        delete this.lyricsCache.misses[key];
-                    }
-                }
-                const missKeys = Object.keys(this.lyricsCache.misses);
-                if (missKeys.length > LYRICS_CACHE_MAX_MISSES) {
-                    missKeys
-                        .sort((a, b) => this.lyricsCache.misses[a] - this.lyricsCache.misses[b])
-                        .slice(0, missKeys.length - LYRICS_CACHE_MAX_MISSES)
-                        .forEach(key => { delete this.lyricsCache.misses[key]; });
-                }
-
-                const keys = Object.keys(this.lyricsCache.records);
-                if (keys.length <= LYRICS_CACHE_MAX_RECORDS) return;
-                const oldestFirst = keys.sort((a, b) =>
-                    (this.lyricsCache.records[a].cachedAt || 0) - (this.lyricsCache.records[b].cachedAt || 0));
-                const removed = new Set(oldestFirst.slice(0, keys.length - LYRICS_CACHE_MAX_RECORDS));
-                for (const key of removed) {
-                    delete this.lyricsCache.records[key];
-                }
-                for (const [alias, canonical] of Object.entries(this.lyricsCache.aliases)) {
-                    if (removed.has(canonical)) {
-                        delete this.lyricsCache.aliases[alias];
-                    }
-                }
-                this.addMessage('claude', 'Lyrics cache', `Trimmed ${removed.size} oldest lyrics record${removed.size === 1 ? '' : 's'} (cap ${LYRICS_CACHE_MAX_RECORDS})`);
-            },
-
-            getLyricsCacheKeysForItem(item) {
-                const durationSeconds = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                return this.buildLyricsLookupCandidates(item).map(candidate =>
-                    this.buildLyricsCacheKey(candidate.artist, candidate.title, durationSeconds)
-                );
-            },
-
-            buildLyricsCacheKey(artist, title, durationSeconds) {
-                return `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}|${Math.max(0, Math.round(durationSeconds || 0))}`;
             },
 
             refreshLyricsRowButton(item) {

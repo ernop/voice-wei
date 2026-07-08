@@ -34,63 +34,6 @@ function isFavoritesRecord(value) {
     return isPlainObject(value);
 }
 
-/** @param {unknown} value @returns {value is LyricsCacheStore} */
-function isLyricsCacheStore(value) {
-    return isPlainObject(value)
-        && isPlainObject(/** @type {{ records?: unknown }} */(value).records)
-        && isPlainObject(/** @type {{ aliases?: unknown }} */(value).aliases);
-}
-
-/**
- * Fields added after records+aliases get defaults: `misses` (remembered
- * not-founds) and `backfilledAt` (0 = the one-time library lyric recheck
- * has not run yet).
- * @param {LyricsCacheStore} store
- * @returns {LyricsCacheStore}
- */
-function normalizeLyricsCacheStore(store) {
-    if (!isPlainObject(/** @type {{ misses?: unknown }} */(store).misses)) {
-        store.misses = {};
-    }
-    if (typeof store.backfilledAt !== 'number') {
-        store.backfilledAt = 0;
-    }
-    return store;
-}
-
-/**
- * Convert the legacy flat lyrics cache ({ [key]: LyricsResult }) into the
- * deduplicated records+aliases shape. Duplicate copies of the same lyrics
- * (same track/artist/duration) collapse to one record; every old key
- * becomes an alias so existing lookups keep hitting.
- * @param {Record<string, any>} flat
- * @returns {LyricsCacheStore}
- */
-function migrateFlatLyricsCache(flat) {
-    /** @type {LyricsCacheStore} */
-    const store = { records: {}, aliases: {}, misses: {}, backfilledAt: 0 };
-    /** @type {Map<string, string>} lyrics identity -> canonical key */
-    const canonicalByIdentity = new Map();
-    const now = Date.now();
-    for (const [key, lyrics] of Object.entries(flat)) {
-        if (!isPlainObject(lyrics)) continue;
-        const identity = [
-            lyrics.provider || '',
-            lyrics.trackName || '',
-            lyrics.artistName || '',
-            Math.round(Number(lyrics.duration) || 0)
-        ].join('|').toLowerCase();
-        let canonical = canonicalByIdentity.get(identity);
-        if (!canonical) {
-            canonical = key;
-            canonicalByIdentity.set(identity, canonical);
-            store.records[canonical] = { lyrics: /** @type {LyricsResult} */ (lyrics), cachedAt: now };
-        }
-        store.aliases[key] = canonical;
-    }
-    return store;
-}
-
 /** @param {unknown} value @returns {value is SongLibraryStore} */
 function isSongLibraryStore(value) {
     return isPlainObject(value) && Array.isArray(/** @type {{ songs?: unknown }} */ (value).songs);
@@ -125,31 +68,6 @@ const PlayerStorage = (function () {
     /** @param {SongLibraryStore} library */
     function saveSongLibrary(library) {
         SettingsStore.saveJson(StorageKeys.PLAYER_SONG_LIBRARY, library);
-    }
-
-    /** @returns {LyricsCacheStore} */
-    function loadLyricsCache() {
-        /** @type {LyricsCacheStore} */
-        const empty = { records: {}, aliases: {}, misses: {}, backfilledAt: 0 };
-        const raw = SettingsStore.loadJson(
-            StorageKeys.PLAYER_LYRICS_CACHE,
-            /** @type {Record<string, any>} */(empty),
-            isPlainObject
-        );
-        if (isLyricsCacheStore(raw)) {
-            return normalizeLyricsCacheStore(raw);
-        }
-        // Legacy flat shape: one full lyrics copy per lookup key. Collapse to
-        // the deduplicated store and re-save so the duplication never returns.
-        SettingsStore.logPersistence(`${StorageKeys.PLAYER_LYRICS_CACHE}: migrating flat lyrics cache to deduplicated records+aliases`);
-        const migrated = migrateFlatLyricsCache(/** @type {Record<string, any>} */(raw));
-        saveLyricsCache(migrated);
-        return migrated;
-    }
-
-    /** @param {LyricsCacheStore} cache */
-    function saveLyricsCache(cache) {
-        SettingsStore.saveJson(StorageKeys.PLAYER_LYRICS_CACHE, cache);
     }
 
     function loadLyricsViewSettings() {
@@ -207,8 +125,6 @@ const PlayerStorage = (function () {
         saveFavorites,
         loadSongLibrary,
         saveSongLibrary,
-        loadLyricsCache,
-        saveLyricsCache,
         loadLyricsViewSettings,
         saveLyricsViewSettings,
         loadSettings,

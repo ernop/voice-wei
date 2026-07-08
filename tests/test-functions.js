@@ -1277,18 +1277,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && playlistSourceGroups.comments.some(comment =>
                 comment.includes('Included because it matches the requested search')));
 
-        const lyricsQueueRecovery = await tab.evaluate(async () => {
-            const realSaveLyricsCache = PlayerStorage.saveLyricsCache;
-            PlayerStorage.saveLyricsCache = () => {};
-            const makeHarness = (lyricsCache) => {
+        const lyricsStoreChecks = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeHarness = (favorites = {}) => {
                 const harness = {
                     playlist: [],
-                    favorites: {},
+                    favorites,
                     youtubeAlternateResults: new Map(),
-                    lyricsCache,
                     lyricsLookupCache: new Map(),
                     lyricsFetchQueue: [],
                     lyricsFetchActive: 0,
+                    lyricsLookupsInFlight: new Map(),
                     currentLyricsItemId: null,
                     currentLyricsLineIndex: -1,
                     lyricsPanelVisible: false,
@@ -1326,81 +1325,88 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 return harness;
             };
             const makeItem = (name) => PlayerSongs.createPlaylistItem({
-                videoId: `lyr-${name.replace(/\s+/g, '-')}`,
+                videoId: `lyr-${run}-${name.replace(/\s+/g, '-')}`,
                 name, artist: 'Queue Artist', duration: '1:40', durationSeconds: 100,
                 searchTerm: `Queue Artist ${name}`
             }, { sourceKind: 'search', sourceLabel: 'test' });
-            const settle = async (harness) => {
-                for (let i = 0; i < 100; i++) {
-                    if (harness.playlist.every(item => item.lyricsStatus === 'ready' || item.lyricsStatus === 'not_found')) return true;
+            const drain = async (harness) => {
+                for (let i = 0; i < 200; i++) {
+                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0
+                        && harness.playlist.every(item => item.lyricsStatus !== 'idle' && item.lyricsStatus !== 'loading')) {
+                        return true;
+                    }
                     await new Promise(resolve => setTimeout(resolve, 25));
                 }
                 return false;
             };
 
-            // Session 1: six songs added at once; lookups must run through
-            // the bounded queue, and the not-found records a miss.
-            const cache = { records: {}, aliases: {}, misses: {} };
-            const first = makeHarness(cache);
+            // Session 1: six songs added at once resolve through the bounded
+            // queue; each answer is saved to the permanent store (IndexedDB
+            // lyricStates) as it arrives.
+            const first = makeHarness();
             ['Song One', 'Song Two', 'Song Three', 'Song Four', 'Song Five', 'Missing Song']
                 .forEach(name => first.appendPlaylistItem(makeItem(name)));
-            const firstSettled = await settle(first);
-            const missRemembered = Object.keys(cache.misses).length > 0;
+            const firstSettled = await drain(first);
+            const missingState = await PlayerHistoryDB.getLyricState(`lyr-${run}-Missing-Song`);
+            const foundState = await PlayerHistoryDB.getLyricState(`lyr-${run}-Song-One`);
+            const storedPerSong = !!missingState && missingState.status === 'none'
+                && !!foundState && foundState.status === 'found'
+                && !!foundState.lyrics && foundState.lyrics.plainLyrics === 'la la';
 
-            // Session 2 (the "interrupted, reopened later" case): same cache,
-            // fresh page state. Cached songs hydrate, the known miss stays
-            // not_found, and only the genuinely unresolved song hits the
-            // provider again.
-            const second = makeHarness(cache);
+            // Session 2 (interrupted-then-reopened): fresh page state, same
+            // permanent store. Resolved songs settle from the store with
+            // ZERO provider lookups; only the never-seen song hits it.
+            const second = makeHarness();
             second.appendPlaylistItem(makeItem('Song One'));
             second.appendPlaylistItem(makeItem('Missing Song'));
-            const resumedFromCache = second.playlist[0].lyricsStatus === 'ready'
+            await drain(second);
+            const resumedFromStore = second.playlist[0].lyricsStatus === 'ready'
+                && !!second.playlist[0].lyricsData
                 && second.playlist[1].lyricsStatus === 'not_found'
                 && second.lookups === 0;
             second.appendPlaylistItem(makeItem('Song Never Seen'));
-            const secondSettled = await settle(second);
+            const secondSettled = await drain(second);
             const newSongLookups = second.lookups;
 
-            // Tapping the chip on a remembered miss forces a fresh lookup.
+            // Tapping the chip on a stored "none" forces a provider recheck.
             const missingItem = second.playlist[1];
             await second.showLyricsForItem(missingItem);
             const chipRetried = second.lookups === 2 && missingItem.lyricsStatus === 'not_found';
             second.setLyricsPanelVisible(false);
 
-            PlayerStorage.saveLyricsCache = realSaveLyricsCache;
             return {
                 firstSettled,
                 maxInFlight: first.maxInFlight,
                 firstLookups: first.lookups,
-                missRemembered,
-                resumedFromCache,
+                storedPerSong,
+                resumedFromStore,
                 secondSettled,
                 newSongLookups,
                 chipRetried
             };
         });
-        report.check(`player lyric queue is bounded and resumes after reload (max in-flight ${lyricsQueueRecovery.maxInFlight}, resume lookups ${lyricsQueueRecovery.newSongLookups})`,
-            lyricsQueueRecovery.firstSettled
-            && lyricsQueueRecovery.maxInFlight === 2
-            && lyricsQueueRecovery.firstLookups === 6
-            && lyricsQueueRecovery.missRemembered
-            && lyricsQueueRecovery.resumedFromCache
-            && lyricsQueueRecovery.secondSettled
-            && lyricsQueueRecovery.newSongLookups === 1
-            && lyricsQueueRecovery.chipRetried);
+        report.check(`player lyric queue is bounded and resumes from the store after reload (max in-flight ${lyricsStoreChecks.maxInFlight}, resume lookups ${lyricsStoreChecks.newSongLookups})`,
+            lyricsStoreChecks.firstSettled
+            && lyricsStoreChecks.maxInFlight === 2
+            && lyricsStoreChecks.firstLookups === 6
+            && lyricsStoreChecks.storedPerSong
+            && lyricsStoreChecks.resumedFromStore
+            && lyricsStoreChecks.secondSettled
+            && lyricsStoreChecks.newSongLookups === 1
+            && lyricsStoreChecks.chipRetried);
 
-        const lyricsFailureAndBackfill = await tab.evaluate(async () => {
-            const realSaveLyricsCache = PlayerStorage.saveLyricsCache;
-            PlayerStorage.saveLyricsCache = () => {};
-            const makeHarness = (lyricsCache, favorites) => {
+        const lyricsIntegrityChecks = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeHarness = (favorites = {}) => {
                 const harness = {
                     playlist: [],
                     favorites,
                     youtubeAlternateResults: new Map(),
-                    lyricsCache,
                     lyricsLookupCache: new Map(),
                     lyricsFetchQueue: [],
                     lyricsFetchActive: 0,
+                    lyricsLookupsInFlight: new Map(),
                     currentLyricsItemId: null,
                     currentLyricsLineIndex: -1,
                     lyricsPanelVisible: false,
@@ -1422,100 +1428,95 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 return harness;
             };
             const makeItem = (name) => PlayerSongs.createPlaylistItem({
-                videoId: `fb-${name.replace(/\s+/g, '-')}`,
-                name, artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100,
-                searchTerm: `Backfill Artist ${name}`
+                videoId: `int-${run}-${name.replace(/\s+/g, '-')}`,
+                name, artist: 'Integrity Artist', duration: '1:40', durationSeconds: 100,
+                searchTerm: `Integrity Artist ${name}`
             }, { sourceKind: 'search', sourceLabel: 'test' });
+            const drain = async (harness) => {
+                for (let i = 0; i < 200; i++) {
+                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0) return true;
+                    await new Promise(resolve => setTimeout(resolve, 25));
+                }
+                return false;
+            };
 
-            // Provider FAILURE (rate limit / network) must land in 'error'
-            // and record no miss; only an answered search may conclude
-            // not-found (which does record one).
-            const failCache = { records: {}, aliases: {}, misses: {}, backfilledAt: Date.now() };
-            const failing = makeHarness(failCache, {});
+            // Provider FAILURE saves nothing and lands in 'error' (retried
+            // on next use); an ANSWERED empty saves a durable 'none'.
+            const failing = makeHarness();
             failing.searchLyricsProvider = async () => { throw new Error('HTTP 429'); };
             const failedItem = makeItem('Rate Limited Song');
             failing.playlist.push(failedItem);
             await failing.ensureLyricsForItem(failedItem);
-            const failureIsError = failedItem.lyricsStatus === 'error'
-                && Object.keys(failCache.misses).length === 0;
+            const failedState = await PlayerHistoryDB.getLyricState(failedItem.videoId);
+            const failureIsError = failedItem.lyricsStatus === 'error' && failedState === null;
             failing.searchLyricsProvider = async () => [];
             failing.lyricsLookupCache.clear();
             const emptyItem = makeItem('Truly Missing Song');
             failing.playlist.push(emptyItem);
             await failing.ensureLyricsForItem(emptyItem);
-            const answeredEmptyIsMiss = emptyItem.lyricsStatus === 'not_found'
-                && Object.keys(failCache.misses).length > 0;
+            const emptyState = await PlayerHistoryDB.getLyricState(emptyItem.videoId);
+            const answeredEmptyIsNone = emptyItem.lyricsStatus === 'not_found'
+                && !!emptyState && emptyState.status === 'none';
 
-            // Library reconciliation: the miss wipe happens once (marked by
-            // backfilledAt), but the recheck itself is per song - resolved
-            // favorites (cached lyrics or fresh miss) cost no lookups, and
-            // unresolved ones are queued on EVERY load, so an interrupted
-            // recheck resumes next open instead of being lost.
-            const backfillCache = {
-                records: {}, aliases: {},
-                misses: { 'contaminated|miss|0': Date.now() },
-                backfilledAt: 0
+            // Save-then-activate: at the moment the store write happens the
+            // live item must NOT yet be activated (status still 'loading').
+            const ordering = makeHarness();
+            ordering.lookupLyrics = async (item) => ({
+                provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                albumName: '', duration: 100, instrumental: false,
+                plainLyrics: 'order', syncedLyrics: null, syncedLines: []
+            });
+            const orderedItem = makeItem('Ordering Song');
+            ordering.playlist.push(orderedItem);
+            const realPut = PlayerHistoryDB.putLyricState;
+            let statusAtSaveTime = '';
+            PlayerHistoryDB.putLyricState = async (record) => {
+                statusAtSaveTime = orderedItem.lyricsStatus;
+                return realPut(record);
             };
-            const favorites = {
-                'fav-1': { videoId: 'fav-1', name: 'Popular Song A', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'a' },
-                'fav-2': { videoId: 'fav-2', name: 'Popular Song B', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'b' }
-            };
-            const stubLookup = (harness) => {
-                harness.lookups = 0;
-                harness.lookupLyrics = async (item) => {
-                    harness.lookups++;
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                    return {
-                        provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
-                        albumName: '', duration: 100, instrumental: false,
-                        plainLyrics: 'la', syncedLyrics: null, syncedLines: []
-                    };
+            await ordering.ensureLyricsForItem(orderedItem);
+            PlayerHistoryDB.putLyricState = realPut;
+            const savedBeforeActivated = statusAtSaveTime === 'loading'
+                && orderedItem.lyricsStatus === 'ready';
+
+            // Reconcile is per song against the store: first pass resolves
+            // both favorites at the provider; a later pass with one new
+            // favorite looks up exactly that one.
+            const fav = (name) => ({
+                videoId: `int-${run}-fav-${name}`,
+                name: `Favorite ${name}`, artist: 'Integrity Artist',
+                duration: '1:40', durationSeconds: 100, searchTerm: name
+            });
+            const reconcile = makeHarness({ a: fav('A'), b: fav('B') });
+            reconcile.lookups = 0;
+            reconcile.lookupLyrics = async (item) => {
+                reconcile.lookups++;
+                await new Promise(resolve => setTimeout(resolve, 20));
+                return {
+                    provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                    albumName: '', duration: 100, instrumental: false,
+                    plainLyrics: 'la', syncedLyrics: null, syncedLines: []
                 };
             };
-            const drain = async (harness) => {
-                for (let i = 0; i < 100; i++) {
-                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0) return;
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                }
-            };
-            const reconcile = makeHarness(backfillCache, favorites);
-            stubLookup(reconcile);
-            reconcile.reconcileLibraryLyrics();
-            const missesWipedAndMarked = !('contaminated|miss|0' in backfillCache.misses)
-                && backfillCache.backfilledAt > 0;
-            await drain(reconcile);
-            const reconcileLookups = reconcile.lookups;
-            const cachedAfterReconcile = Object.keys(backfillCache.records).length;
-            // Resolved library: reconciling again is free.
             reconcile.reconcileLibraryLyrics();
             await drain(reconcile);
-            const resolvedIsFree = reconcile.lookups === reconcileLookups;
-
-            // Interruption recovery: a later "page load" (fresh harness,
-            // same cache, marker already set) with a new unresolved
-            // favorite rechecks exactly that one song.
-            const favoritesLater = {
-                ...favorites,
-                'fav-3': { videoId: 'fav-3', name: 'Interrupted Song C', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'c' }
-            };
-            const nextLoad = makeHarness(backfillCache, favoritesLater);
-            stubLookup(nextLoad);
+            const firstPassLookups = reconcile.lookups;
+            const nextLoad = makeHarness({ a: fav('A'), b: fav('B'), c: fav('C') });
+            nextLoad.lookups = 0;
+            nextLoad.lookupLyrics = reconcile.lookupLyrics;
             nextLoad.reconcileLibraryLyrics();
             await drain(nextLoad);
-            const interruptedResumes = nextLoad.lookups === 1
-                && Object.keys(backfillCache.records).length === 3;
+            const secondPassLookups = reconcile.lookups - firstPassLookups;
 
-            PlayerStorage.saveLyricsCache = realSaveLyricsCache;
-            return { failureIsError, answeredEmptyIsMiss, missesWipedAndMarked, reconcileLookups, cachedAfterReconcile, resolvedIsFree, interruptedResumes };
+            return { failureIsError, answeredEmptyIsNone, savedBeforeActivated, firstPassLookups, secondPassLookups };
         });
-        report.check(`player lyric failures retry instead of becoming misses; per-song reconcile resumes interrupted rechecks (${lyricsFailureAndBackfill.reconcileLookups} lookups, resumed: ${lyricsFailureAndBackfill.interruptedResumes})`,
-            lyricsFailureAndBackfill.failureIsError
-            && lyricsFailureAndBackfill.answeredEmptyIsMiss
-            && lyricsFailureAndBackfill.missesWipedAndMarked
-            && lyricsFailureAndBackfill.reconcileLookups === 2
-            && lyricsFailureAndBackfill.cachedAfterReconcile === 2
-            && lyricsFailureAndBackfill.resolvedIsFree
-            && lyricsFailureAndBackfill.interruptedResumes);
+        report.check(`player lyric store integrity: failures unsaved, save-before-activate, per-song reconcile (${lyricsIntegrityChecks.firstPassLookups}+${lyricsIntegrityChecks.secondPassLookups} lookups)`,
+            lyricsIntegrityChecks.failureIsError
+            && lyricsIntegrityChecks.answeredEmptyIsNone
+            && lyricsIntegrityChecks.savedBeforeActivated
+            && lyricsIntegrityChecks.firstPassLookups === 2
+            && lyricsIntegrityChecks.secondPassLookups === 1);
 
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
@@ -1559,7 +1560,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateStatus(message) { this.statuses.push(message); },
                 async searchAndAddToPlaylist(songList) { this.searchedTerms.push(...songList.map(song => song.searchTerm)); },
                 async processMusicSearch(requestText) { this.rerunRequest = requestText; },
-                hydrateItemLyricsFromCache() {},
                 appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
@@ -1741,7 +1741,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateStatus() {},
                 showTransportBar() {},
                 decodeHtml(value) { return value; },
-                hydrateItemLyricsFromCache() {},
                 addPlaylistItemToDOM() {},
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
@@ -2320,11 +2319,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && deadlineClock.idleReads <= 2
             && deadlineClock.titleAfterLead === 'clock line one');
 
-        // Have the song => have the lyrics: a failing cache write (e.g.
-        // localStorage quota) must never revoke successfully fetched
-        // lyrics from the live item.
-        const cacheWriteIsolation = await tab.evaluate(async () => {
-            const item = { id: 88, name: 'Quota Song', artist: 'Quota Artist', lyricsStatus: 'idle', lyricsData: null };
+        // Save-then-activate under a failing store write: the live item is
+        // never activated with lyrics the permanent store does not hold
+        // (that session-only state was the "L shows but reload loses it"
+        // class). The song stays unresolved and heals on the next attempt.
+        const storeWriteFailure = await tab.evaluate(async () => {
+            const item = PlayerSongs.createPlaylistItem({
+                videoId: `store-fail-${Date.now()}`,
+                name: 'Store Fail Song', artist: 'Store Artist',
+                duration: '1:30', durationSeconds: 90, searchTerm: 'x'
+            }, { sourceKind: 'search', sourceLabel: 'test' });
             const harness = {
                 settings: { lyricsOnNowPlaying: true },
                 playlist: [item],
@@ -2334,26 +2338,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 isPlaying: false,
                 isPaused: false,
                 currentPlayingId: null,
-                lyricsCache: { records: {}, aliases: {}, misses: {} },
                 lyricsLookupCache: new Map(),
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
                 currentPlaylistItem() { return item; },
                 refreshLyricsRowButton() {},
                 resyncProgressClock() {},
+                renderLyricsStateForItem() {},
+                describePlaylistItem() { return 'Store Fail Song'; },
                 parseDurationToSeconds() { return 90; },
                 addMessage() {}
             };
             PlayerLyrics.install(harness);
             harness.lookupLyrics = async () => ({
-                provider: 'LRCLIB', trackName: 'Quota Song', artistName: 'Quota Artist',
+                provider: 'LRCLIB', trackName: 'Store Fail Song', artistName: 'Store Artist',
                 albumName: '', duration: 90, instrumental: false, plainLyrics: 'la la',
                 syncedLyrics: '[00:01.00]la la', syncedLines: [{ time: 1, text: 'la la' }]
             });
-            harness.persistLyricsForItem = () => { throw new Error('QuotaExceededError (simulated)'); };
+            const realPut = PlayerHistoryDB.putLyricState;
+            PlayerHistoryDB.putLyricState = async () => { throw new Error('IndexedDB write failed (simulated)'); };
             await harness.ensureLyricsForItem(item);
-            return { status: item.lyricsStatus, hasData: !!item.lyricsData };
+            const afterFailure = {
+                status: item.lyricsStatus,
+                hasData: !!item.lyricsData,
+                stored: await PlayerHistoryDB.getLyricState(item.videoId)
+            };
+            PlayerHistoryDB.putLyricState = realPut;
+            await harness.ensureLyricsForItem(item);
+            const afterRetry = {
+                status: item.lyricsStatus,
+                storedStatus: (await PlayerHistoryDB.getLyricState(item.videoId))?.status || 'absent'
+            };
+            return { afterFailure, afterRetry };
         });
-        report.check(`player lyrics survive cache write failure (status ${cacheWriteIsolation.status})`,
-            cacheWriteIsolation.status === 'ready' && cacheWriteIsolation.hasData === true);
+        report.check(`player store write failure leaves song unresolved, retry heals (then ${storeWriteFailure.afterRetry.status})`,
+            storeWriteFailure.afterFailure.status === 'error'
+            && storeWriteFailure.afterFailure.hasData === false
+            && storeWriteFailure.afterFailure.stored === null
+            && storeWriteFailure.afterRetry.status === 'ready'
+            && storeWriteFailure.afterRetry.storedStatus === 'found');
 
         // Minimal display communication: identical repeat writes to the
         // now-playing surfaces are dropped at the core - one metadata

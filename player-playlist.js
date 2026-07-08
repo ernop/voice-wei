@@ -48,15 +48,14 @@ const PlayerPlaylist = (function () {
 
             /**
              * The one way a song enters the working playlist: append at the
-             * end, render its row, and queue its lyric lookup. The bounded
-             * queue (player-lyrics.js) keeps big adds polite, and because
-             * restore-at-load takes this same path, lyric fetching that was
+             * end, render its row, and queue its lyric resolution. The
+             * bounded queue (player-lyrics.js) keeps big adds polite, and
+             * because restore-at-load takes this same path, lyric work
              * interrupted by closing the page resumes on the next open -
-             * cached songs hydrate instantly, remembered misses stay
-             * not_found, and only the truly unresolved ones are re-queued.
+             * songs resolved in the permanent store settle from one
+             * IndexedDB read, and only the unresolved ones hit the provider.
              */
             appendPlaylistItem(item) {
-                this.hydrateItemLyricsFromCache(item);
                 this.playlist.push(item);
                 this.addPlaylistItemToDOM(item);
                 this.queueLyricsLookup(item);

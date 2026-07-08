@@ -42,14 +42,14 @@ class VoiceMusicController {
         this.favorites = PlayerStorage.loadFavorites();
         /** @type {SongLibraryStore} */
         this.songLibrary = PlayerStorage.loadSongLibrary();
-        /** @type {LyricsCacheStore} */
-        this.lyricsCache = PlayerStorage.loadLyricsCache();
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
         /** @type {PlaylistItem[]} Items awaiting a background lyric lookup */
         this.lyricsFetchQueue = [];
         /** @type {number} Lyric lookups currently in flight (bounded) */
         this.lyricsFetchActive = 0;
+        /** @type {Map<string, Promise<LyricStateRecord>>} One shared resolution flight per videoId */
+        this.lyricsLookupsInFlight = new Map();
         this.lyricsViewSettings = PlayerStorage.loadLyricsViewSettings();
         /** @type {boolean} */
         this.lyricsPanelVisible = false;
@@ -81,10 +81,6 @@ class VoiceMusicController {
         PlayerStorage.saveFavorites(this.favorites);
     }
 
-    saveLyricsCache() {
-        PlayerStorage.saveLyricsCache(this.lyricsCache);
-    }
-
     saveLyricsViewSettings() {
         PlayerStorage.saveLyricsViewSettings(this.lyricsViewSettings);
     }
@@ -104,10 +100,9 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
-            // Before restore: per-song lyric reconciliation over the
-            // favorites library (plus the one-time miss wipe), so restored
-            // songs hydrate against the cleaned cache and re-queue their
-            // own lookups through the normal path.
+            // Per-song lyric reconciliation over the favorites library:
+            // already-resolved songs settle from the permanent store,
+            // unresolved ones get looked up through the bounded queue.
             this.reconcileLibraryLyrics();
             this.restoreSavedPlaylist();
             this.loadDemoSongIfRequested();
