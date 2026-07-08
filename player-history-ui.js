@@ -12,11 +12,18 @@ const PlayerHistoryUI = (function () {
                 const reloadBtn = document.getElementById('musicHistoryReloadBtn');
                 const loadLookupsBtn = document.getElementById('historyLoadSelectedLookupsBtn');
                 const loadSongsBtn = document.getElementById('historyLoadSelectedSongsBtn');
+                const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('knownSongsSearchInput'));
+                const loadShownBtn = document.getElementById('knownSongsLoadShownBtn');
 
                 toggleBtn?.addEventListener('click', () => this.toggleMusicHistoryPanel());
                 reloadBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
                 loadLookupsBtn?.addEventListener('click', () => this.loadSelectedHistoryLookups());
                 loadSongsBtn?.addEventListener('click', () => this.loadSelectedKnownSongs());
+                searchInput?.addEventListener('input', () => {
+                    this.knownSongsQuery = PlayerSongs.normalizeSearchQuery(searchInput.value);
+                    this.renderKnownSongsHistory(this.musicHistorySongs || []);
+                });
+                loadShownBtn?.addEventListener('click', () => this.loadShownKnownSongs());
             },
 
             setMusicHistoryPanelVisible(visible) {
@@ -80,6 +87,12 @@ const PlayerHistoryUI = (function () {
                 });
             },
 
+            /** The Known Songs rows currently shown: the same live search the playlist filter uses. */
+            shownKnownSongs() {
+                const query = this.knownSongsQuery || '';
+                return (this.musicHistorySongs || []).filter(song => PlayerSongs.songMatchesQuery(song, query));
+            },
+
             renderKnownSongsHistory(songs) {
                 const host = document.getElementById('musicKnownSongsList');
                 if (!host) return;
@@ -88,7 +101,13 @@ const PlayerHistoryUI = (function () {
                     host.innerHTML = '<div class="music-history-empty">No known songs recorded yet.</div>';
                     return;
                 }
-                songs.forEach(record => {
+                const query = this.knownSongsQuery || '';
+                const shown = songs.filter(song => PlayerSongs.songMatchesQuery(song, query));
+                if (!shown.length) {
+                    host.innerHTML = '<div class="music-history-empty">No known songs match that search.</div>';
+                    return;
+                }
+                shown.forEach(record => {
                     const title = record.name || record.title || record.searchTerm || record.videoId;
                     const artist = record.artist || record.channelTitle || '';
                     const item = document.createElement('div');
@@ -184,6 +203,16 @@ const PlayerHistoryUI = (function () {
             async loadSelectedKnownSongs() {
                 const ids = this.selectedSongIds();
                 await this.loadKnownSongs(ids);
+            },
+
+            /** Load every Known Songs row the current search shows into the playlist. */
+            async loadShownKnownSongs() {
+                const shown = this.shownKnownSongs();
+                if (!shown.length) {
+                    this.updateStatus('No known songs to load for this search');
+                    return;
+                }
+                await this.loadKnownSongs(shown.map(song => song.videoId));
             },
 
             async loadKnownSongByVideoId(videoId) {

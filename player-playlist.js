@@ -58,6 +58,7 @@ const PlayerPlaylist = (function () {
             appendPlaylistItem(item) {
                 this.playlist.push(item);
                 this.addPlaylistItemToDOM(item);
+                if (this.playlistFilterQuery) this.applyPlaylistFilter();
                 this.queueLyricsLookup(item);
             },
 
@@ -100,6 +101,7 @@ const PlayerPlaylist = (function () {
                 for (const item of this.playlist) {
                     this.addPlaylistItemToDOM(item);
                 }
+                if (this.playlistFilterQuery) this.applyPlaylistFilter();
 
                 // Rebind current index to the currently playing item after reorder
                 if (this.currentPlayingId != null) {
@@ -268,6 +270,57 @@ const PlayerPlaylist = (function () {
                 if (label) {
                     const count = this.playlist.length;
                     label.textContent = `Playlist (${count})`;
+                }
+            },
+
+            /**
+             * Live view filter over the working playlist. Purely visual:
+             * rows that do not match are hidden, the array and playback
+             * order are untouched (next/previous still traverse the full
+             * list). The status line names the active query and counts so
+             * a filtered view is never mistaken for the whole playlist.
+             * @param {string} value raw input text
+             */
+            setPlaylistFilter(value) {
+                this.playlistFilterQuery = PlayerSongs.normalizeSearchQuery(value);
+                this.applyPlaylistFilter();
+            },
+
+            clearPlaylistFilter() {
+                const input = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
+                if (input) input.value = '';
+                this.setPlaylistFilter('');
+            },
+
+            /** Re-apply the current filter to every row and refresh the status line. */
+            applyPlaylistFilter() {
+                const query = this.playlistFilterQuery || '';
+                let shownCount = 0;
+                for (const item of this.playlist) {
+                    const row = /** @type {HTMLElement | null} */ (document.querySelector(`.playlist-row[data-item-id="${item.id}"]`));
+                    if (!row) continue;
+                    const matches = PlayerSongs.songMatchesQuery(item, query);
+                    row.hidden = !matches;
+                    if (matches) shownCount++;
+                }
+
+                const status = document.getElementById('playlistFilterStatus');
+                const statusText = document.getElementById('playlistFilterStatusText');
+                if (status) status.style.display = query ? 'flex' : 'none';
+                if (statusText && query) {
+                    statusText.textContent = `Filtering for "${query}" - ${shownCount} of ${this.playlist.length} shown`;
+                }
+            },
+
+            /**
+             * Song notes (the per-song comments) are a display option:
+             * one class on the container, CSS does the rest - toggling is
+             * instant, no re-render.
+             */
+            applySongNotesVisibility() {
+                const container = document.getElementById('playlistContainer');
+                if (container) {
+                    container.classList.toggle('playlist-notes-on', !!this.settings.showSongNotes);
                 }
             },
 
@@ -472,6 +525,7 @@ const PlayerPlaylist = (function () {
                 }
 
                 this.updatePlaylistLabel();
+                if (this.playlistFilterQuery) this.applyPlaylistFilter();
                 this.persistPlaylist();
                 this.updateStatus(`Removed: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
             },
@@ -1073,6 +1127,7 @@ const PlayerPlaylist = (function () {
                 this.stopProgressUpdates();
                 this.playlist = [];
                 document.getElementById('playlistBody').innerHTML = '';
+                this.clearPlaylistFilter();
 
                 // Remove any player divs that were appended to the container
                 const container = document.getElementById('playlistContainer');

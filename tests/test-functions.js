@@ -948,6 +948,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // the displayed enabled notes must credit every one of them.
         // Sing via the explicit sample seam at each target's window.
         const linkage = await tab.evaluate(async () => {
+            // Deterministic take: stop the mic BEFORE resetting. The trace
+            // records everything sung - including the fake device's beep
+            // tones - so a live mic would contaminate the injected samples.
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click();
             document.getElementById('phraseTestPauseToggle').click(); // wall clock + session reset
             const targets = window.phrasesDebug.testTargets();
             const panel = window.phrasesDebug.panel;
@@ -958,6 +963,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             const lastEnd = targets[targets.length - 1].endMs;
             await new Promise(r => setTimeout(r, lastEnd + 800));
+            // With the mic stopped there are no frames; evaluate by name.
+            panel.draw();
             return {
                 count: targets.length,
                 score: document.getElementById('phraseTestScore').textContent
@@ -1518,6 +1525,84 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricsIntegrityChecks.firstPassLookups === 2
             && lyricsIntegrityChecks.secondPassLookups === 1);
 
+        // Live playlist filter: as-you-type hides non-matching rows, the
+        // status line names the query and counts, Cancel restores all.
+        // Song notes are a CSS display toggle on the container.
+        const playlistFilterAndNotes = await tab.evaluate(() => {
+            const harness = {
+                favorites: {},
+                playlist: [],
+                settings: { showSongNotes: false },
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {}
+            };
+            PlayerPlaylist.install(harness);
+            const body = document.getElementById('playlistBody');
+            const container = document.getElementById('playlistContainer');
+            const savedDisplay = container.style.display;
+            container.style.display = 'block';
+            body.innerHTML = '';
+            const items = [
+                { id: 601, videoId: 'v-sunset', name: 'Sunset Drive', artist: 'Evening Band', year: '1984', album: '', title: 'Sunset Drive', channelTitle: 'Evening Band', duration: '3:00', comment: 'A sunset note', searchTerm: 'Evening Band Sunset Drive' },
+                { id: 602, videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', album: '', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', comment: 'A morning note', searchTerm: 'Dawn Crew Morning Run' }
+            ];
+            for (const item of items) {
+                harness.playlist.push(item);
+                harness.addPlaylistItemToDOM(item);
+            }
+
+            const rowHidden = id => document.querySelector(`.playlist-row[data-item-id="${id}"]`).hidden;
+            const status = document.getElementById('playlistFilterStatus');
+            const statusText = document.getElementById('playlistFilterStatusText');
+
+            harness.setPlaylistFilter('sunset');
+            const filtered = {
+                sunsetShown: !rowHidden(601),
+                morningHidden: rowHidden(602),
+                statusVisible: status.style.display !== 'none',
+                statusText: statusText.textContent
+            };
+            // Year matching too: "1984" should match the sunset song only
+            harness.setPlaylistFilter('1984');
+            const yearFiltered = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
+
+            harness.clearPlaylistFilter();
+            const cancelled = {
+                bothShown: !rowHidden(601) && !rowHidden(602),
+                statusHidden: status.style.display === 'none'
+            };
+
+            // Notes toggle: comments hidden by default, instantly shown by class
+            const comment = body.querySelector('.playlist-song-comment');
+            const hiddenByDefault = getComputedStyle(comment).display === 'none';
+            harness.settings.showSongNotes = true;
+            harness.applySongNotesVisibility();
+            const shownWhenOn = getComputedStyle(comment).display !== 'none';
+            harness.settings.showSongNotes = false;
+            harness.applySongNotesVisibility();
+            const hiddenWhenOff = getComputedStyle(comment).display === 'none';
+
+            body.innerHTML = '';
+            container.style.display = savedDisplay;
+            return { filtered, yearFiltered, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
+        });
+        report.check(`player playlist filter live-hides rows ("${playlistFilterAndNotes.filtered.statusText}")`,
+            playlistFilterAndNotes.filtered.sunsetShown
+            && playlistFilterAndNotes.filtered.morningHidden
+            && playlistFilterAndNotes.filtered.statusVisible
+            && playlistFilterAndNotes.filtered.statusText.includes('"sunset"')
+            && playlistFilterAndNotes.filtered.statusText.includes('1 of 2')
+            && playlistFilterAndNotes.yearFiltered.sunsetShown
+            && playlistFilterAndNotes.yearFiltered.morningHidden);
+        report.check('player playlist filter cancel restores the full list',
+            playlistFilterAndNotes.cancelled.bothShown
+            && playlistFilterAndNotes.cancelled.statusHidden);
+        report.check('player song notes toggle shows/hides comments instantly',
+            playlistFilterAndNotes.hiddenByDefault
+            && playlistFilterAndNotes.shownWhenOn
+            && playlistFilterAndNotes.hiddenWhenOff);
+
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
                 musicHistoryLookups: [{
@@ -1595,6 +1680,61 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryWorkflows.searchedTerms === 'old one|old two'
             && musicHistoryWorkflows.rerunRequest === 'old lookup request'
             && musicHistoryWorkflows.loadedKnown === 'history');
+
+        // Known Songs live search: the list filters with the same matcher
+        // as the playlist filter, and Load All Shown loads exactly the
+        // matching songs into the working playlist.
+        const knownSongsSearch = await tab.evaluate(async () => {
+            const harness = {
+                musicHistoryLookups: [],
+                musicHistorySongs: [
+                    { videoId: 'v-sunset', name: 'Sunset Boulevard', artist: 'Evening Band', year: '1984', title: 'Sunset Boulevard', channelTitle: 'Evening Band', duration: '3:00', searchTerm: 'Evening Band Sunset Boulevard', sourceKind: 'search', lastSeenAt: '2026-01-02' },
+                    { videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', searchTerm: 'Dawn Crew Morning Run', sourceKind: 'search', lastSeenAt: '2026-01-03' }
+                ],
+                musicHistorySearches: [],
+                playlist: [],
+                knownSongsQuery: '',
+                statuses: [],
+                messages: [],
+                escapeHtml(value) { return String(value || ''); },
+                truncateForStatus(value) { return String(value || ''); },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.statuses.push(message); },
+                hydrateItemLyricsFromCache() {},
+                appendPlaylistItem(item) { this.playlist.push(item); },
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                showPlaylistSurfaces() {}
+            };
+            PlayerHistoryUI.install(harness);
+            harness.refreshMusicHistoryPanel = async () => {};
+
+            const host = document.getElementById('musicKnownSongsList');
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const unfilteredRows = host.querySelectorAll('.music-history-item').length;
+
+            harness.knownSongsQuery = 'evening sunset';
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const filteredText = host.textContent;
+            const filteredRows = host.querySelectorAll('.music-history-item').length;
+
+            await harness.loadShownKnownSongs();
+            const loadedIds = harness.playlist.map(item => item.videoId).join('|');
+
+            harness.knownSongsQuery = 'no such song anywhere';
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const emptyMessage = host.textContent;
+
+            host.innerHTML = '';
+            return { unfilteredRows, filteredRows, filteredText, loadedIds, emptyMessage };
+        });
+        report.check(`player known songs search filters and loads shown (loaded: ${knownSongsSearch.loadedIds})`,
+            knownSongsSearch.unfilteredRows === 2
+            && knownSongsSearch.filteredRows === 1
+            && knownSongsSearch.filteredText.includes('Sunset Boulevard')
+            && !knownSongsSearch.filteredText.includes('Morning Run')
+            && knownSongsSearch.loadedIds === 'v-sunset'
+            && knownSongsSearch.emptyMessage.includes('No known songs match'));
 
         const musicHistoryRefreshOverride = await tab.evaluate(async () => {
             const query = `refresh cache ${Date.now()}`;
@@ -2437,6 +2577,28 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const panelClosed = await tab.evaluate(() =>
             getComputedStyle(document.getElementById('settingsPanel')).display === 'none');
         report.check('player with key: overlay gone, settings open/close', overlayGone && panelOpen && panelClosed);
+
+        // The Notes toggle is wired to the real controller: default off,
+        // checking it flips the setting and the container class instantly.
+        const notesToggleWiring = await tab.evaluate(() => {
+            const controller = window.musicController;
+            const container = document.getElementById('playlistContainer');
+            const toggle = document.getElementById('playlistNotesToggle');
+            const defaultOff = controller.settings.showSongNotes === false
+                && toggle.checked === false
+                && !container.classList.contains('playlist-notes-on');
+            toggle.checked = true;
+            toggle.dispatchEvent(new Event('change'));
+            const onAfterClick = controller.settings.showSongNotes === true
+                && container.classList.contains('playlist-notes-on');
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change'));
+            const offAgain = controller.settings.showSongNotes === false
+                && !container.classList.contains('playlist-notes-on');
+            return { defaultOff, onAfterClick, offAgain };
+        });
+        report.check('player notes toggle defaults off and applies instantly',
+            notesToggleWiring.defaultOff && notesToggleWiring.onAfterClick && notesToggleWiring.offAgain);
         await ctx.close();
     }
 

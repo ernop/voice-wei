@@ -235,6 +235,16 @@ playback update, or lyric render without replaying anything.
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay current synced lyric into the media-session title) |
+| showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
+
+The playlist filter box and the Known Songs search box are live view
+filters, not settings: they are never persisted and reset to "show all"
+on reload. Both use the one matcher in `player-songs.js`
+(`songMatchesQuery`: every query word must appear in the song's name,
+artist, year, album, comment, title, channel, or search term). The
+playlist filter only hides rows - the playlist array, playback order,
+and next/previous are untouched - and an active filter always shows a
+status line ("Filtering for "x" - 3 of 12 shown") with a Cancel button.
 
 Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 (re-render of the open overlay):

@@ -129,6 +129,28 @@ const PlayerSongs = (function () {
         return { ...song, favoritedAt: Date.now() };
     }
 
+    /** Canonical live-search normalization: trimmed, lowercased. @param {string} value */
+    function normalizeSearchQuery(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    /**
+     * The one matcher behind every song search surface (playlist filter,
+     * Known Songs search): every whitespace-separated word of the query
+     * must appear somewhere in the song's descriptive fields.
+     * @param {Record<string, any>} song song-shaped input
+     * @param {string} query normalized via normalizeSearchQuery
+     */
+    function songMatchesQuery(song, query) {
+        if (!query) return true;
+        if (!song) return false;
+        const haystack = [
+            song.name, song.artist, song.year, song.album,
+            song.comment, song.title, song.channelTitle, song.searchTerm
+        ].join(' ').toLowerCase();
+        return query.split(/\s+/).every(word => haystack.includes(word));
+    }
+
     /**
      * The known-songs history record (IndexedDB `songs` store): the Song
      * plus seen timestamps and how it arrived. Never lyric blobs.
@@ -154,7 +176,9 @@ const PlayerSongs = (function () {
         createPlaylistItem,
         persistedPlaylistEntry,
         createFavorite,
-        historySongRecord
+        historySongRecord,
+        normalizeSearchQuery,
+        songMatchesQuery
     };
 })();
 

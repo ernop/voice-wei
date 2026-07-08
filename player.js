@@ -22,15 +22,20 @@ class VoiceMusicController {
         this.config = null;
         /** @type {PlaylistItem[]} */
         this.playlist = [];
-        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string, lyricsOnNowPlaying: boolean }} */
+        /** @type {PlayerAppSettings} */
         this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-8',
             openaiModel: 'gpt-5.5',
             aiProvider: 'claude',
-            lyricsOnNowPlaying: true
+            lyricsOnNowPlaying: true,
+            showSongNotes: false
         });
+        /** @type {string} Live playlist view filter (normalized; never persisted) */
+        this.playlistFilterQuery = '';
+        /** @type {string} Live Known Songs search query (normalized; never persisted) */
+        this.knownSongsQuery = '';
         this.normalizeLlmSettings();
         /** @type {ReturnType<typeof setTimeout> | null} Deadline-clock wake-up (see scheduleNextProgressRender) */
         this.progressUpdateTimer = null;
@@ -747,6 +752,28 @@ class VoiceMusicController {
         if (sortYearBtn) {
             sortYearBtn.addEventListener('click', () => this.sortPlaylist('year'));
         }
+
+        // Live playlist view filter: filter as you type, cancel to see all
+        const playlistFilterInput = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
+        if (playlistFilterInput) {
+            playlistFilterInput.addEventListener('input', () => {
+                this.setPlaylistFilter(playlistFilterInput.value);
+            });
+        }
+        const playlistFilterCancelBtn = document.getElementById('playlistFilterCancelBtn');
+        if (playlistFilterCancelBtn) {
+            playlistFilterCancelBtn.addEventListener('click', () => {
+                this.clearPlaylistFilter();
+            });
+        }
+
+        // Song notes display toggle: instant, CSS-driven
+        PracticeControls.wireToggle('playlistNotesToggle', this.settings.showSongNotes, checked => {
+            this.settings.showSongNotes = checked;
+            this.saveSettings();
+            this.applySongNotesVisibility();
+        });
+        this.applySongNotesVisibility();
 
         const loadFavoritesBtnMain = document.getElementById('loadFavoritesBtnMain');
         if (loadFavoritesBtnMain) {

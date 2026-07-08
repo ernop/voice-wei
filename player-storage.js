@@ -12,7 +12,8 @@ const PLAYER_SETTINGS_KEYS = [
     'claudeModel',
     'openaiModel',
     'aiProvider',
-    'lyricsOnNowPlaying'
+    'lyricsOnNowPlaying',
+    'showSongNotes'
 ];
 
 /** @type {LyricsViewSettings} */

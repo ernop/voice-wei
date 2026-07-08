@@ -193,11 +193,23 @@
                 <div class="playlist-header">
                     <span class="playlist-label" id="playlistLabel">Playlist:</span>
                     <div class="playlist-header-actions">
+                        <label class="display-toggle">
+                            <input type="checkbox" id="playlistNotesToggle">
+                            <span>Notes</span>
+                        </label>
                         <button id="shufflePlaylistBtn" class="panel-action-btn" type="button">Shuffle</button>
                         <button id="sortPlaylistArtistBtn" class="panel-action-btn" type="button">Sort: Artist</button>
                         <button id="sortPlaylistYearBtn" class="panel-action-btn" type="button">Sort: Year</button>
                         <button id="clearPlaylistBtn" class="panel-action-btn danger" type="button">Clear</button>
                     </div>
+                </div>
+                <div class="playlist-filter-row">
+                    <input type="search" id="playlistFilterInput" class="text-input playlist-filter-input"
+                        placeholder="Filter songs (name, artist, year...)" aria-label="Filter playlist">
+                </div>
+                <div class="playlist-filter-status" id="playlistFilterStatus" style="display: none;">
+                    <span id="playlistFilterStatusText"></span>
+                    <button id="playlistFilterCancelBtn" class="panel-action-btn" type="button">Cancel</button>
                 </div>
                 <div class="playlist-list" id="playlistBody"></div>
             </div>
@@ -241,6 +253,11 @@
                     </section>
                     <section class="music-history-card">
                         <h3>Known Songs</h3>
+                        <div class="music-history-toolbar">
+                            <input type="search" id="knownSongsSearchInput" class="text-input music-history-search"
+                                placeholder="Search known songs" aria-label="Search known songs">
+                            <button id="knownSongsLoadShownBtn" class="panel-action-btn" type="button">Load All Shown</button>
+                        </div>
                         <div id="musicKnownSongsList" class="music-history-list"></div>
                     </section>
                     <section class="music-history-card">

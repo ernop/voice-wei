@@ -222,11 +222,23 @@ in the central player next to the rewind/forward controls.
 
 Other surfaces on the page:
 
+- **Playlist filter**: type in the filter box above the playlist to
+  live-filter the loaded songs by name, artist, year, album, comment, or
+  search term. An active filter shows a status line ("Filtering for
+  \"sunset\" - 3 of 12 shown") with a Cancel button that restores the
+  full list. Filtering is a view: playback order and next/previous still
+  use the whole playlist.
+- **Notes toggle** (playlist header): shows or hides every song's comment
+  line instantly. Off by default; rows stay compact until you want the
+  AI's per-song notes.
 - **Load Favorites** appends the favorited tracks to the playlist.
 - **History / Cache** toggles a panel with past lookups, the known-songs
   catalog, and the YouTube search cache (all from the `voice-wei-music`
   IndexedDB); selected lookups or songs can be loaded back into the
-  playlist. Hidden by default.
+  playlist. Hidden by default. The Known Songs card has the same live
+  search as the playlist filter, with per-row Load buttons and a "Load
+  All Shown" button that loads every matching song into the working
+  playlist.
 - **Song Library** toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
   browser, and plays their melodies on the shared piano. Public-domain

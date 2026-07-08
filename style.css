@@ -624,6 +624,20 @@ h1 {
     background: rgba(0, 0, 0, 0.16);
 }
 
+.music-history-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.music-history-search {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+
 .music-history-list {
     display: grid;
     gap: 8px;
@@ -793,7 +807,47 @@ h1 {
 .playlist-header-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
+}
+
+.playlist-filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding: 0 4px;
+}
+
+.playlist-filter-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+
+.playlist-filter-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding: 4px 8px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 8px;
+    background: rgba(74, 222, 128, 0.08);
+    font-size: 0.8rem;
+    color: #bbf7d0;
+}
+
+/* The row grid sets display, which beats the UA [hidden] default. */
+.playlist-row[hidden] {
+    display: none;
+}
+
+/* Song notes (per-song comments) are a display toggle: hidden unless
+   the container carries playlist-notes-on (the Notes checkbox). */
+.playlist-container:not(.playlist-notes-on) .playlist-song-comment {
+    display: none;
 }
 
 /* Quick Actions Section */

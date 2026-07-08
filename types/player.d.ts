@@ -10,6 +10,7 @@ interface PlayerAppSettings {
     openaiModel: string;
     aiProvider: string;
     lyricsOnNowPlaying: boolean;
+    showSongNotes: boolean;
 }
 
 interface LyricsViewSettings {
@@ -211,6 +212,11 @@ interface VoiceMusicController {
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
     sortPlaylist(key: PlaylistSortKey): void;
+    playlistFilterQuery: string;
+    setPlaylistFilter(value: string): void;
+    clearPlaylistFilter(): void;
+    applyPlaylistFilter(): void;
+    applySongNotesVisibility(): void;
     rerenderPlaylistDom(): void;
     removePlaylistItem(itemId: number): void;
     appendPlaylistItem(item: PlaylistItem): void;
@@ -283,6 +289,9 @@ interface VoiceMusicController {
     renderLookupHistory(lookups: any[]): void;
     renderKnownSongsHistory(songs: any[]): void;
     renderSearchCacheHistory(searches: any[]): void;
+    knownSongsQuery: string;
+    shownKnownSongs(): any[];
+    loadShownKnownSongs(): Promise<void>;
     selectedLookupIds(): number[];
     selectedSongIds(): string[];
     loadSelectedHistoryLookups(): Promise<void>;
