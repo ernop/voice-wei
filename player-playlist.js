@@ -1400,60 +1400,66 @@ const PlayerPlaylist = (function () {
                 if (bar) bar.style.display = 'none';
             },
 
+            // Two seek surfaces, one behavior: the central player's track
+            // and the sticky bar's strip both click/drag-seek through
+            // seekToPercentage.
             setupProgressBar() {
-                const progressTrack = document.getElementById('progressBarTrack');
-                if (!progressTrack) return;
+                const strips = [
+                    document.getElementById('progressBarTrack'),
+                    document.getElementById('transportProgressTrack')
+                ].filter(strip => strip !== null);
 
-                /** @param {MouseEvent | TouchEvent} e */
-                const handleSeek = (e) => {
-                    const rect = progressTrack.getBoundingClientRect();
-                    const clientX = 'clientX' in e ? e.clientX : (e.touches && e.touches[0]?.clientX) || 0;
+                /** @param {HTMLElement} strip @param {number} clientX */
+                const seekAt = (strip, clientX) => {
+                    const rect = strip.getBoundingClientRect();
                     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
                     this.seekToPercentage(percentage);
                 };
 
-                // Mouse events
-                progressTrack.addEventListener('mousedown', (e) => {
-                    this.isDraggingProgress = true;
-                    progressTrack.classList.add('dragging');
-                    handleSeek(e);
-                });
+                for (const strip of strips) {
+                    strip.addEventListener('mousedown', (e) => {
+                        this.isDraggingProgress = true;
+                        this.activeSeekStrip = strip;
+                        strip.classList.add('dragging');
+                        seekAt(strip, e.clientX);
+                    });
+
+                    strip.addEventListener('touchstart', (e) => {
+                        this.isDraggingProgress = true;
+                        this.activeSeekStrip = strip;
+                        strip.classList.add('dragging');
+                        seekAt(strip, e.touches[0]?.clientX || 0);
+                    });
+
+                    strip.addEventListener('touchmove', (e) => {
+                        if (this.isDraggingProgress && this.activeSeekStrip === strip) {
+                            e.preventDefault();
+                            seekAt(strip, e.touches[0]?.clientX || 0);
+                        }
+                    });
+
+                    strip.addEventListener('touchend', () => {
+                        this.isDraggingProgress = false;
+                        this.activeSeekStrip = null;
+                        strip.classList.remove('dragging');
+                    });
+
+                    strip.addEventListener('click', (e) => seekAt(strip, e.clientX));
+                }
 
                 document.addEventListener('mousemove', (e) => {
-                    if (this.isDraggingProgress) {
-                        handleSeek(e);
+                    if (this.isDraggingProgress && this.activeSeekStrip) {
+                        seekAt(this.activeSeekStrip, e.clientX);
                     }
                 });
 
                 document.addEventListener('mouseup', () => {
                     if (this.isDraggingProgress) {
                         this.isDraggingProgress = false;
-                        const progressTrack = document.getElementById('progressBarTrack');
-                        if (progressTrack) progressTrack.classList.remove('dragging');
+                        this.activeSeekStrip?.classList.remove('dragging');
+                        this.activeSeekStrip = null;
                     }
                 });
-
-                // Touch events
-                progressTrack.addEventListener('touchstart', (e) => {
-                    this.isDraggingProgress = true;
-                    progressTrack.classList.add('dragging');
-                    handleSeek(e);
-                });
-
-                progressTrack.addEventListener('touchmove', (e) => {
-                    if (this.isDraggingProgress) {
-                        e.preventDefault();
-                        handleSeek(e);
-                    }
-                });
-
-                progressTrack.addEventListener('touchend', () => {
-                    this.isDraggingProgress = false;
-                    progressTrack.classList.remove('dragging');
-                });
-
-                // Click to seek
-                progressTrack.addEventListener('click', handleSeek);
             },
 
             seekToPercentage(percentage) {
@@ -1539,18 +1545,28 @@ const PlayerPlaylist = (function () {
             },
 
             updateProgressBar(currentTime, duration) {
+                if (!this.progressDiff) this.progressDiff = new ValueDiff();
+                const percentage = `${(currentTime / duration) * 100}%`;
+
                 const fill = document.getElementById('progressBarFill');
                 const handle = document.getElementById('progressBarHandle');
                 const currentTimeEl = document.getElementById('currentTime');
                 const totalTimeEl = document.getElementById('totalTime');
-
                 if (fill && handle && currentTimeEl && totalTimeEl) {
-                    if (!this.progressDiff) this.progressDiff = new ValueDiff();
-                    const percentage = `${(currentTime / duration) * 100}%`;
                     this.progressDiff.style('fillWidth', fill, 'width', percentage);
                     this.progressDiff.style('handleLeft', handle, 'left', percentage);
                     this.progressDiff.text('currentTime', currentTimeEl, this.formatTime(currentTime));
                     this.progressDiff.text('totalTime', totalTimeEl, this.formatTime(duration));
+                }
+
+                // The sticky bar's strip mirrors the same truth.
+                const barFill = document.getElementById('transportProgressFill');
+                const barCurrent = document.getElementById('transportBarTimeCurrent');
+                const barTotal = document.getElementById('transportBarTimeTotal');
+                if (barFill && barCurrent && barTotal) {
+                    this.progressDiff.style('barFillWidth', barFill, 'width', percentage);
+                    this.progressDiff.text('barTimeCurrent', barCurrent, this.formatTime(currentTime));
+                    this.progressDiff.text('barTimeTotal', barTotal, this.formatTime(duration));
                 }
 
                 this.updateSyncedLyricsPosition(currentTime);

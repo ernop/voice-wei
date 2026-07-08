@@ -186,6 +186,7 @@ interface VoiceMusicController {
     currentPlaylistIndex: number;
     wasPlayingBeforeListening: boolean;
     progressDiff: ValueDiff;
+    activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
 

@@ -45,6 +45,8 @@ class VoiceMusicController {
         this.lastRenderedMediaTime = null;
         /** @type {boolean} */
         this.isDraggingProgress = false;
+        /** @type {HTMLElement | null} The seek strip currently being dragged */
+        this.activeSeekStrip = null;
         /** @type {Record<string, FavoriteData>} */
         this.favorites = PlayerStorage.loadFavorites();
         /** @type {SongLibraryStore} Hydrated from IndexedDB in init (hydrateSongLibrary) */
@@ -815,11 +817,19 @@ class VoiceMusicController {
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
 
-        // The sticky control line: play/pause, seek jumps, and the
-        // current-song button that navigates to its row in the list.
+        // The sticky control line: prev/play-pause/next, seek jumps, and
+        // the current-song button that navigates to its row in the list.
+        const transportPrevBtn = document.getElementById('transportPrevBtn');
+        if (transportPrevBtn) {
+            transportPrevBtn.addEventListener('click', () => this.playPrevious());
+        }
         const transportPlayPauseBtn = document.getElementById('transportPlayPauseBtn');
         if (transportPlayPauseBtn) {
             transportPlayPauseBtn.addEventListener('click', () => this.togglePlayPause());
+        }
+        const transportNextBtn = document.getElementById('transportNextBtn');
+        if (transportNextBtn) {
+            transportNextBtn.addEventListener('click', () => this.playNext());
         }
         /** @type {Array<[string, number]>} */
         const seekBindings = [

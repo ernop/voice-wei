@@ -158,9 +158,18 @@
             <!-- The always-reachable control line: scrolls with the page
                  until it reaches the top, then hooks there (sticky). -->
             <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
+                <div class="transport-bar-progress">
+                    <span class="transport-bar-time" id="transportBarTimeCurrent">0:00</span>
+                    <div class="transport-progress-track" id="transportProgressTrack" aria-label="Seek">
+                        <div class="transport-progress-fill" id="transportProgressFill"></div>
+                    </div>
+                    <span class="transport-bar-time" id="transportBarTimeTotal">0:00</span>
+                </div>
                 <div class="transport-bar-lyric" id="transportBarLyric" style="display: none;"></div>
                 <div class="transport-bar-main">
+                    <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous track">&#9198;</button>
                     <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
+                    <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next track">&#9197;</button>
                     <button id="transportBack30Btn" class="transport-bar-btn" aria-label="Back 30 seconds">-30</button>
                     <button id="transportBack10Btn" class="transport-bar-btn" aria-label="Back 10 seconds">&#9194;</button>
                     <button id="transportFwd10Btn" class="transport-bar-btn" aria-label="Forward 10 seconds">&#9193;</button>

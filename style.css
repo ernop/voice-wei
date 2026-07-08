@@ -1369,6 +1369,48 @@ h1 {
     -webkit-backdrop-filter: blur(8px);
 }
 
+/* The bar's clickable track-position strip: times at the ends, a thin
+   full-width seek track between them. */
+.transport-bar-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.transport-bar-time {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    color: rgba(209, 250, 229, 0.75);
+}
+
+.transport-progress-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    touch-action: none;
+    /* A slim visual, but a comfortable touch target */
+    padding: 0;
+}
+
+.transport-progress-track::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
+}
+
+.transport-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+    border-radius: 4px 0 0 4px;
+    pointer-events: none;
+}
+
 .transport-bar-lyric {
     width: 100%;
     text-align: center;

@@ -260,10 +260,12 @@ controls.
 
 The always-reachable surface is the now-playing control line under the
 central player: it scrolls with the page until it reaches the top, then
-hooks there. It carries the current timed lyric line (own full row),
-play/pause, -30/-10/+10/+30 second jumps, the Big Lyrics button, and the
-current song line - tapping the song line scrolls the playlist to that
-row. The Listen button scrolls with the page like everything else.
+hooks there. It carries a clickable track-position strip (current and
+total time at the ends; click or drag anywhere to jump), the current
+timed lyric line (own full row), previous/play-pause/next,
+-30/-10/+10/+30 second jumps, the Big Lyrics button, and the current
+song line - tapping the song line scrolls the playlist to that row. The
+Listen button scrolls with the page like everything else.
 
 Other surfaces on the page:
 
