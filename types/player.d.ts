@@ -162,6 +162,7 @@ interface PlayerHistoryDBApi {
     recordSongs(songs: any[], sourceKind: string): void;
     recordYouTubeSearch(query: string, results: any[], meta?: Record<string, any>): void;
     getYouTubeSearch(query: string): Promise<any | null>;
+    listRecentLogs(limit: number): Promise<any[]>;
     listLookups(): Promise<any[]>;
     listSongs(): Promise<any[]>;
     listYouTubeSearches(): Promise<any[]>;

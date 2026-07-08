@@ -1018,9 +1018,12 @@ const PlayerPlaylist = (function () {
                         // Start progress bar updates
                         this.startProgressUpdates();
 
-                        // Log the play action
+                        // Log the play action; the status line gets fresh
+                        // truth on every track so stale "Player loading"
+                        // text can never outlive the load it described.
                         const songTitle = item.name || item.title || 'Unknown';
                         this.addMessage('user', 'Now Playing', `${songTitle}`);
+                        this.updateStatus(`Playing: ${this.truncateForStatus(this.describePlaylistItem(item), 100)}`);
                         this.persistPlaylist();
                     } catch (e) {
                         console.error('Error playing video:', e);

@@ -83,6 +83,17 @@ main {
     white-space: pre-wrap;
 }
 
+/* Earlier-session lines replayed from the durable store */
+.log-line.log-history {
+    opacity: 0.55;
+}
+
+.log-line.log-history-divider {
+    opacity: 0.8;
+    color: #facc15;
+    font-weight: 700;
+}
+
 .log-user {
     color: #86efac;
 }

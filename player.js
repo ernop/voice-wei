@@ -2,10 +2,17 @@
 // Voice music controller — composes player-storage, player-api-keys,
 // player-commands, player-playlist, and player-lyrics modules.
 
+// How many stored log lines from earlier sessions replay into the panel
+const HISTORICAL_LOG_LINES = 300;
+
 class VoiceMusicController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
+        /** @type {string} ISO time this page session began (splits stored logs into earlier/current) */
+        this.sessionStartedAt = new Date().toISOString();
+        /** @type {boolean} Earlier-session log lines already replayed into the panel */
+        this.historicalLogsLoaded = false;
         // The single authoritative location for all playback state: status,
         // the reused YouTube player handle and its readiness, the active/
         // current item, the playlist cursor, and playback intents all live
@@ -207,6 +214,42 @@ class VoiceMusicController {
         if (selectBtn) selectBtn.style.display = isCollapsed ? 'none' : '';
         if (copyBtn) copyBtn.style.display = isCollapsed ? 'none' : '';
         if (clearBtn) clearBtn.style.display = isCollapsed ? 'none' : '';
+        if (!isCollapsed) {
+            void this.loadHistoricalLogs();
+        }
+    }
+
+    /**
+     * Replay stored log lines from earlier sessions (IndexedDB `logs`,
+     * where every line is recorded) into the top of the panel, once, the
+     * first time it is opened. Lines carry their date and render dimmer
+     * so the current session stays visually distinct.
+     */
+    async loadHistoricalLogs() {
+        if (this.historicalLogsLoaded || !window.PlayerHistoryDB) return;
+        this.historicalLogsLoaded = true;
+        const logContent = document.getElementById('logContent');
+        if (!logContent) return;
+
+        const records = await window.PlayerHistoryDB.listRecentLogs(HISTORICAL_LOG_LINES);
+        // Everything recorded before this page opened belongs to earlier
+        // sessions; the current session's lines are already in the DOM.
+        const earlier = records.filter(record => record.createdAt < this.sessionStartedAt);
+        if (earlier.length === 0) return;
+
+        const fragment = document.createDocumentFragment();
+        for (const record of earlier) {
+            const line = document.createElement('div');
+            line.className = `log-line log-${record.type || 'claude'} log-history`;
+            const day = String(record.createdAt || '').slice(0, 10);
+            line.textContent = `[${day}] ${record.line || `${record.label}: ${record.text}`}`;
+            fragment.appendChild(line);
+        }
+        const divider = document.createElement('div');
+        divider.className = 'log-line log-history-divider';
+        divider.textContent = `--- earlier sessions above (last ${earlier.length} stored lines) / current session below ---`;
+        fragment.appendChild(divider);
+        logContent.insertBefore(fragment, logContent.firstChild);
     }
 
     clearLog() {

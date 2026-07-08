@@ -281,6 +281,17 @@ const PlayerHistoryDB = (function () {
         return (await get(STORES.YOUTUBE_SEARCHES, normalized)) || null;
     }
 
+    /**
+     * The most recent stored log lines (oldest first), for replaying
+     * earlier sessions into the log panel. Ids are autoIncrement, so key
+     * order is chronological.
+     * @param {number} limit
+     */
+    async function listRecentLogs(limit) {
+        const records = /** @type {any[]} */ (await getAll(STORES.LOGS));
+        return records.slice(-Math.max(0, limit));
+    }
+
     async function listLookups() {
         const records = /** @type {any[]} */ (await getAll(STORES.LOOKUPS));
         return records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
@@ -358,6 +369,7 @@ const PlayerHistoryDB = (function () {
         recordSongs,
         recordYouTubeSearch,
         getYouTubeSearch,
+        listRecentLogs,
         listLookups,
         listSongs,
         listYouTubeSearches,

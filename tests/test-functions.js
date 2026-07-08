@@ -1367,6 +1367,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryCache.videoId === 'cached-video'
             && musicHistoryCache.source === 'test');
 
+        // Log lines persist across sessions: recorded to IndexedDB as they
+        // happen, and the panel replays earlier-session lines on first open.
+        const logHistory = await tab.evaluate(async () => {
+            const stamp = `log history probe ${Date.now()}`;
+            PlayerHistoryDB.recordLog({ type: 'claude', label: 'Probe', text: stamp, line: `[00:00:00] Probe: ${stamp}` });
+            await new Promise(resolve => setTimeout(resolve, 120));
+            const recent = await PlayerHistoryDB.listRecentLogs(50);
+            const c = window.musicController;
+            // Pretend this session started after the probe was written, so
+            // the replay path treats it as an earlier session's line.
+            c.sessionStartedAt = new Date(Date.now() + 1000).toISOString();
+            c.historicalLogsLoaded = false;
+            await c.loadHistoricalLogs();
+            const replayed = Array.from(document.querySelectorAll('#logContent .log-line.log-history'))
+                .some(line => line.textContent.includes(stamp));
+            const divider = !!document.querySelector('#logContent .log-history-divider');
+            return { stored: recent.some(record => record.text === stamp), replayed, divider };
+        });
+        report.check('player log lines persist and replay from earlier sessions',
+            logHistory.stored && logHistory.replayed && logHistory.divider);
+
         const playlistSourceGroups = await tab.evaluate(() => {
             const harness = {
                 favorites: {},
