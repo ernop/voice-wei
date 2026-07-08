@@ -1866,6 +1866,40 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && !aiParsing.prompt.includes('5-25')
             && aiParsing.longTextPromptCount > 1
             && aiParsing.longTextPromptHasContinuationNote);
+        // A response cut off mid-list by the output token limit must not
+        // fail the whole request: every complete song is recovered and the
+        // partial trailing object is dropped. Braces/quotes inside values
+        // cannot fool the scanner.
+        const truncatedRecovery = await tab.evaluate(() => {
+            const harness = { messages: [], addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }, logClaudeMessage() {} };
+            PlayerCommands.install(harness);
+            harness.addMessage = (kind, label, text) => harness.messages.push({ kind, label, text });
+            harness.logClaudeMessage = () => {};
+            const truncated = `[
+                { "name": "Feel It All Around", "artist": "Washed Out", "year": "2009", "album": "Life of Leisure", "comment": "Chillwave with a { brace } and \\"quotes\\" inside", "searchTerm": "Washed Out Feel It All Around" },
+                { "name": "Electric Feel", "artist": "MGMT", "year": "2007", "album": "Oracular Spectacular", "comment": "Psych-pop", "searchTerm": "MGMT Electric Feel" },
+                { "name": "It Is Not Meant to Be", "artist": "Tame Impala",`;
+            const recovered = harness.parseAIResponse(truncated, 'p', { allowEmpty: true, truncated: true });
+            let unrecoverableThrew = false;
+            try {
+                harness.parseAIResponse('complete garbage, no array here', 'p', { allowEmpty: true });
+            } catch (error) {
+                unrecoverableThrew = error instanceof SyntaxError;
+            }
+            return {
+                count: recovered.songList.length,
+                terms: recovered.songList.map(song => song.searchTerm).join('|'),
+                recoveryLogged: harness.messages.some(message =>
+                    message.label === 'Truncated response recovered' && message.text.includes('Kept 2 complete songs')),
+                unrecoverableThrew
+            };
+        });
+        report.check(`player recovers complete songs from a truncated AI response (${truncatedRecovery.count} kept)`,
+            truncatedRecovery.count === 2
+            && truncatedRecovery.terms === 'Washed Out Feel It All Around|MGMT Electric Feel'
+            && truncatedRecovery.recoveryLogged
+            && truncatedRecovery.unrecoverableThrew);
+
         report.check('player infers TV Tropes Regional Riff page without pasted URL',
             aiParsing.inferredUrls[0] === 'https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'
             && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))

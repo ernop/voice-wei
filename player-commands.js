@@ -230,6 +230,7 @@ const PlayerCommands = (function () {
                     this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel}) batch ${i + 1}/${prompts.length}`);
                     this.addMessage('claude', `Claude request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(requestBody, null, 2));
 
+                    let truncated = false;
                     try {
                         const response = await fetch('https://api.anthropic.com/v1/messages', {
                             method: 'POST',
@@ -250,13 +251,17 @@ const PlayerCommands = (function () {
 
                         const data = await response.json();
                         this.addMessage('claude', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
+                        truncated = data.stop_reason === 'max_tokens';
+                        if (truncated) {
+                            this.addMessage('error', 'Claude response truncated', `stop_reason=max_tokens: the song list was cut off at the ${MUSIC_SEARCH_MAX_TOKENS}-token output limit; complete songs will be recovered.`);
+                        }
                         responseText = data.content[0].text.trim();
                     } catch (error) {
                         this.logError('Claude API Error', error);
                         throw error;
                     }
 
-                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
                 return this.mergeAIResponseBatches(songLists, prompts);
@@ -279,6 +284,7 @@ const PlayerCommands = (function () {
                     this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
                     this.addMessage('claude', `OpenAI request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(request.body, null, 2));
 
+                    let truncated = false;
                     try {
                         const response = await fetch(request.url, {
                             method: 'POST',
@@ -297,13 +303,17 @@ const PlayerCommands = (function () {
 
                         const data = await response.json();
                         this.addMessage('claude', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
+                        truncated = data.status === 'incomplete';
+                        if (truncated) {
+                            this.addMessage('error', 'OpenAI response truncated', `status=incomplete (${data.incomplete_details?.reason || 'unknown reason'}): the song list was cut off at the ${MUSIC_SEARCH_MAX_TOKENS}-token output limit; complete songs will be recovered.`);
+                        }
                         responseText = this.extractOpenAIResponseText(data);
                     } catch (error) {
                         this.logError('OpenAI API Error', error);
                         throw error;
                     }
 
-                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
                 return this.mergeAIResponseBatches(songLists, prompts);
@@ -483,7 +493,24 @@ If the request is not about music, return an empty array [].`;
 
                 this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
 
-                const parsed = JSON.parse(jsonText);
+                let parsed;
+                try {
+                    parsed = JSON.parse(jsonText);
+                } catch (parseError) {
+                    // A response cut off mid-list (output token limit) is
+                    // still mostly usable: keep every complete item, drop
+                    // the broken tail, and say so loudly in the log.
+                    const salvaged = this.salvageJsonArrayItems(responseText);
+                    if (!salvaged || salvaged.length === 0) {
+                        throw parseError;
+                    }
+                    const cause = options.truncated
+                        ? 'The provider reports the response hit its output token limit.'
+                        : 'The response JSON did not parse whole.';
+                    this.addMessage('error', 'Truncated response recovered', `${cause} Kept ${salvaged.length} complete song${salvaged.length === 1 ? '' : 's'} and dropped the incomplete tail.`);
+                    parsed = salvaged;
+                }
+
                 const songList = this.normalizeAISongList(parsed);
                 this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
 
@@ -494,6 +521,72 @@ If the request is not about music, return an empty array [].`;
                 }
 
                 return { songList, prompt };
+            },
+
+            /**
+             * Recover the complete top-level objects of the first JSON
+             * array in the text. Handles responses truncated mid-item by
+             * an output token limit: every fully closed object is kept,
+             * the partial trailing one is dropped. String contents
+             * (quotes, braces, escapes) are tracked so lyric-like values
+             * cannot fool the scan. Returns null when no array starts.
+             * @param {string} text
+             * @returns {any[] | null}
+             */
+            salvageJsonArrayItems(text) {
+                const source = String(text || '');
+                const start = source.indexOf('[');
+                if (start === -1) return null;
+
+                /** @type {string[]} */
+                const rawItems = [];
+                let depth = 0;
+                let inString = false;
+                let escaped = false;
+                let itemStart = -1;
+                for (let i = start + 1; i < source.length; i++) {
+                    const ch = source[i];
+                    if (inString) {
+                        if (escaped) {
+                            escaped = false;
+                        } else if (ch === '\\') {
+                            escaped = true;
+                        } else if (ch === '"') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+                    if (ch === '"') {
+                        inString = true;
+                        continue;
+                    }
+                    if (ch === '{') {
+                        if (depth === 0) itemStart = i;
+                        depth++;
+                        continue;
+                    }
+                    if (ch === '}') {
+                        depth--;
+                        if (depth === 0 && itemStart !== -1) {
+                            rawItems.push(source.slice(itemStart, i + 1));
+                            itemStart = -1;
+                        }
+                        continue;
+                    }
+                    if (ch === ']' && depth === 0) {
+                        break; // array closed properly
+                    }
+                }
+
+                const items = [];
+                for (const raw of rawItems) {
+                    try {
+                        items.push(JSON.parse(raw));
+                    } catch (_ignored) {
+                        // An item that does not parse on its own is dropped.
+                    }
+                }
+                return items;
             },
 
             mergeAIResponseBatches(songLists, prompts) {

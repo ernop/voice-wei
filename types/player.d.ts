@@ -203,7 +203,8 @@ interface VoiceMusicController {
     buildMusicSourceChunks(transcript: string, linkedPages: any[]): any[];
     chunkMusicSource(text: string, label: string, meta: string): any[];
     buildMusicSearchPrompt(transcript: string, sourceContext: string): string;
-    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean }): any;
+    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean; truncated?: boolean }): any;
+    salvageJsonArrayItems(text: string): any[] | null;
     mergeAIResponseBatches(songLists: any[][], prompts: string[]): any;
     extractAIJson(responseText: string): string;
     normalizeAISongList(parsed: any): any[];
