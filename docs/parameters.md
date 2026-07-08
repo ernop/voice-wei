@@ -90,7 +90,12 @@ the high endpoint climbs past the octave (up to two octaves, "2↑"
 style) or drops below 8 to shrink the palette (high 7 = degrees 1-7
 only, excluding the octave). The endpoints can never cross. One owner
 resolves and clamps them: `rangeBounds` / `phraseRangeLimits` in
-pattern-practice-core.js.
+pattern-practice-core.js. The endpoints are the degree WORKSPACE, and
+every surface reads the same two state values: the generator draws notes
+from them and the test chart draws its rails across them (the take can
+only widen the rails - a replayed or reflected phrase may hold notes
+from outside the current palette, and notes on screen always sit on
+rails).
 
 Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
 "staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);

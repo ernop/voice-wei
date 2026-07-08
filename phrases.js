@@ -395,6 +395,11 @@
     }
 
     /**
+     * The chart's rails ARE the working range: the same rangeLow/rangeHigh
+     * endpoints the generator draws notes from, read from the same state.
+     * The take can only widen the span (a replayed or reflected phrase may
+     * hold notes from outside the current palette, and those notes must
+     * sit on rails too); the expand-range toggle adds an octave each way.
      * @param {boolean} expandRange
      * @returns {Array<{ offset: number, midi: number, label: string, noteName: string }>}
      */
@@ -406,8 +411,8 @@
         const lines = [];
         const planOffsets = plan.map(note => note.offset);
         const extraRange = expandRange ? degreesPerOctave : 0;
-        const lowerOffset = Math.min(-1, ...planOffsets) - 1 - extraRange;
-        const upperOffset = Math.max(degreesPerOctave + 1, ...planOffsets) + 1 + extraRange;
+        const lowerOffset = Math.min(state.rangeLow, ...planOffsets) - extraRange;
+        const upperOffset = Math.max(state.rangeHigh, ...planOffsets) + extraRange;
         const rootInfo = midiToNoteName(root);
         for (let offset = Math.floor(lowerOffset); offset <= Math.ceil(upperOffset); offset++) {
             const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
