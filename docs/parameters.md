@@ -237,6 +237,10 @@ playback update, or lyric render without replaying anything.
 | lyricsOnNowPlaying | true | toggle | immediate (relay current synced lyric into the media-session title) |
 | showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
 
+The per-query Model pills under the request box set the same settings
+(provider + that provider's model) in one tap; the settings panel
+pickers and the query pills always mirror each other.
+
 The playlist filter box and the Known Songs search box are live view
 filters, not settings: they are never persisted and reset to "show all"
 on reload. Both use the one matcher in `player-songs.js`

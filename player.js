@@ -430,12 +430,14 @@ class VoiceMusicController {
             this.settings.aiProvider = value;
             this.saveSettings();
             this.updateProviderVisibility();
+            this.syncQueryModelPills();
         });
 
         PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
         PracticeControls.wireSingleSelect('data-openai-model', String, this.settings.openaiModel, value => {
             this.settings.openaiModel = value;
             this.saveSettings();
+            this.syncQueryModelPills();
         });
 
         // Overlay save buttons
@@ -626,6 +628,7 @@ class VoiceMusicController {
         PracticeControls.wireSingleSelect('data-claude-model', String, this.settings.claudeModel, value => {
             this.settings.claudeModel = value;
             this.saveSettings();
+            this.syncQueryModelPills();
         });
 
         // Mode toggle button (if it exists in the UI). Listen and Submit
@@ -641,6 +644,30 @@ class VoiceMusicController {
                 }
             });
             this.updateModeToggle();
+        }
+
+        // Per-query model chooser: the same persisted provider/model
+        // settings, reachable at the request box. Both surfaces stay in
+        // sync through syncQueryModelPills / the settings-panel pickers.
+        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+        PracticeControls.wireSingleSelect('data-query-model', String, this.activeQueryModelValue(), value => {
+            const [provider, model] = String(value).split('|');
+            this.settings.aiProvider = provider;
+            if (provider === 'claude') {
+                this.settings.claudeModel = model;
+            } else {
+                this.settings.openaiModel = model;
+            }
+            this.saveSettings();
+            this.updateProviderVisibility();
+            PracticeControls.syncSingleSelect('data-ai-provider', provider);
+            PracticeControls.syncSingleSelect('data-claude-model', this.settings.claudeModel);
+            PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
+        });
+
+        const apiKeyProblemDismissBtn = document.getElementById('apiKeyProblemDismissBtn');
+        if (apiKeyProblemDismissBtn) {
+            apiKeyProblemDismissBtn.addEventListener('click', () => this.hideApiKeyProblem());
         }
 
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
@@ -955,6 +982,47 @@ class VoiceMusicController {
         PlayerStorage.saveSettings(this.settings);
     }
 
+    /** The provider|model pair the next request will use (query pills). */
+    activeQueryModelValue() {
+        return this.settings.aiProvider === 'openai'
+            ? `openai|${this.settings.openaiModel}`
+            : `claude|${this.settings.claudeModel}`;
+    }
+
+    /** The exact model id the next request will use, for status/log lines. */
+    activeModelLabel() {
+        return this.settings.aiProvider === 'openai' ? this.settings.openaiModel : this.settings.claudeModel;
+    }
+
+    syncQueryModelPills() {
+        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+    }
+
+    /**
+     * A key-level provider failure (invalid key, spend/rate limit,
+     * billing) must be unmissable: the status line scrolls away and log
+     * lines are easy to miss, so this shows a persistent banner naming
+     * the provider, the exact error, and where to fix it.
+     * @param {Error & { provider?: string, status?: number }} error
+     */
+    showApiKeyProblem(error) {
+        const banner = document.getElementById('apiKeyProblemBanner');
+        const text = document.getElementById('apiKeyProblemText');
+        if (!banner || !text) return;
+        const provider = error.provider === 'openai' ? 'OpenAI' : 'Claude';
+        const consoleUrl = error.provider === 'openai' ? 'platform.openai.com' : 'console.anthropic.com';
+        text.textContent = `${provider} API key problem${error.status ? ` (HTTP ${error.status})` : ''}: ${error.message} - check limits/billing at ${consoleUrl}`;
+        banner.style.display = 'flex';
+        if (this.settings.readClaudeResponse) {
+            this.speakText(`Your ${provider} API key hit a problem: ${error.message}`);
+        }
+    }
+
+    hideApiKeyProblem() {
+        const banner = document.getElementById('apiKeyProblemBanner');
+        if (banner) banner.style.display = 'none';
+    }
+
     normalizeLlmSettings() {
         const claudeAliases = {
             'claude-opus-4-5-20251101': 'claude-opus-4-8',
@@ -1019,10 +1087,11 @@ class VoiceMusicController {
         this.isProcessingCommand = true;
         this.updateSubmitButton(true);
         this.updateTypedCommandUI(true);
-        this.updateStatus('Processing with Claude...');
+        this.updateStatus(`Processing with ${this.activeModelLabel()}...`);
 
         try {
             const result = await this.processCommandWithLLM(requestText);
+            this.hideApiKeyProblem();
 
             // Music that resumed during the Claude wait keeps playing while
             // the YouTube searches run and the new playlist fills in.
@@ -1105,10 +1174,12 @@ class VoiceMusicController {
             }
             this.logError('Music Lookup Error', error);
             this.updateStatus(`Music lookup failed: ${message}`);
-            this.hidePrompt();
-            if (this.settings.readClaudeResponse) {
+            if (error && error.name === 'ApiKeyError') {
+                this.showApiKeyProblem(error);
+            } else if (this.settings.readClaudeResponse) {
                 this.speakText(`Music lookup failed: ${message}`);
             }
+            this.hidePrompt();
         } finally {
             this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;

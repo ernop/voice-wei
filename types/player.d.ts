@@ -213,6 +213,7 @@ interface VoiceMusicController {
     extractAIJson(responseText: string): string;
     normalizeAISongList(parsed: any): any[];
     normalizeAISongItem(item: any): any;
+    classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
 
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
@@ -230,7 +231,10 @@ interface VoiceMusicController {
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
-    searchYouTube(query: string): Promise<any>;
+    searchYouTube(query: string, context?: { artist?: string }): Promise<any>;
+    unwantedVersionMarkers(): Array<{ pattern: RegExp; term: string }>;
+    scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string }): number;
+    rankYouTubeResults(videos: YouTubeVideoCandidate[], context: { searchTerm?: string; artist?: string }): YouTubeVideoCandidate[];
     searchSongsWithConcurrency(
         validSongs: any[],
         options?: { onResult?: (result: any) => void; concurrency?: number }

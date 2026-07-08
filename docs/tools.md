@@ -211,6 +211,18 @@ complete, and a song that is already playing carries over as entry 1
 and keeps playing with the new songs queued behind it. The raw AI
 request and response JSON are logged to the Log panel for every batch.
 
+Searches target the original studio recording unless you ask otherwise:
+the AI is told never to add "live" to search terms, and YouTube results
+are re-ranked before the first is taken - " - Topic" (auto-generated
+album track) and Vevo/official uploads score up, while live / cover /
+remix / karaoke / reaction / sped-up markers in the title score down
+unless your request contained that word. The per-query Model pills under
+the request box pick the exact AI model (Claude or OpenAI) for the next
+request, and the status line names it ("Processing with
+claude-opus-4-8..."). Key-level provider failures - invalid key, spend
+or rate limits, billing - show a persistent red banner naming the
+provider and where to fix it, on top of the raw error in the Log.
+
 Each playlist row is one compact data line with fixed slots: favorite
 star, the lyric marker (T = timed lyrics, S = simple lyrics, - = none
 found; tap it to view or retry), song name, artist - year - album,

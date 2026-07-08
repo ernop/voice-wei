@@ -68,6 +68,46 @@ and deliver a weaker version of the requested change.
 - **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step,
   no backend beyond the YouTube proxy.
 
+## Music player: intended behavior and user needs
+
+The accumulated product intent for the Music tab, stated as the user's
+needs (behavior reference: [tools.md](tools.md); construction:
+[architecture.md](architecture.md)). Changes to the player should be
+checked against this list, and new standing intent gets added here.
+
+1. **"Play me the song I meant."** A normal request means the ORIGINAL
+   STUDIO RECORDING - never live, cover, remix, acoustic, karaoke, or
+   reaction versions unless explicitly asked for. (Live versions also
+   break the timed-lyrics replay.) The AI prompt says so and YouTube
+   results are re-ranked studio-first (Topic/Vevo/official preferred,
+   version markers penalized).
+2. **Timed lyrics whenever they exist.** Two kinds, named everywhere:
+   timed lyrics (line-synced) and simple lyrics (text only). Timed is
+   always preferred; a song holding only simple lyrics gets a serious
+   re-search, and an upgrade can never downgrade what is already held.
+3. **Sing along from any display.** The now-playing title (car
+   Bluetooth, lock screen, tab, header) is the sung lyric line, with a
+   short song-identity intro at track start and a countdown before a
+   late first line. Never song/artist outside the identity intro.
+4. **Nothing is ever lost.** Every song seen, every lookup, every lyric
+   state is durably recorded (IndexedDB); the playlist is a convenience
+   view over that. Interruption at ANY point (page evicted mid-search,
+   mid-lyric-fetch, mid-backfill) resumes on the next open.
+5. **The playlist is the working list.** A new search replaces it
+   gently: nothing dropped until the first found song lands, results
+   stream in as found, and the currently playing song keeps playing.
+   Loads (favorites, history) append. Rows are compact single data
+   lines - vertical space is precious.
+6. **Hands and eyes stay free.** Voice in, spoken feedback out, one
+   always-reachable control line (sticks to the top when scrolling),
+   hardware media keys, and playable-video recovery (fresh alternates
+   are searched when a video refuses to embed).
+7. **Problems must be visible.** Raw AI requests/responses are logged
+   readably; truncated responses recover their complete songs and say
+   so; key-level provider failures (spend/rate limits, billing) show a
+   persistent banner naming the provider and where to fix it; the exact
+   model in use is named at request time and choosable per query.
+
 ## Current priorities (deduplicated from the idea pool)
 
 1. **Deeper judgment**: per-note scoring in the shared sing panel (v86),

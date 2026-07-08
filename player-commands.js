@@ -206,6 +206,31 @@ const PlayerCommands = (function () {
                 }
             },
 
+            /**
+             * Provider errors that mean "your key/account, not this
+             * request": invalid key, spend or rate limits, billing. These
+             * get a distinguishable name so the UI can show a persistent,
+             * actionable banner instead of a generic lookup failure.
+             * @param {'claude' | 'openai'} provider
+             * @param {number} status HTTP status
+             * @param {any} errorBody parsed provider error JSON
+             * @returns {Error & { provider?: string, status?: number }}
+             */
+            classifyProviderError(provider, status, errorBody) {
+                const type = errorBody?.error?.type || '';
+                const message = errorBody?.error?.message || `${provider} API request failed (HTTP ${status})`;
+                /** @type {Error & { provider?: string, status?: number }} */
+                const error = new Error(message);
+                const keyLevel = [401, 402, 403, 429].includes(status)
+                    || /quota|billing|credit|insufficient|rate.?limit|spend/i.test(`${type} ${message}`);
+                if (keyLevel) {
+                    error.name = 'ApiKeyError';
+                    error.provider = provider;
+                    error.status = status;
+                }
+                return error;
+            },
+
             async processCommandWithClaude(transcript) {
                 if (!this.config || !this.config.claudeApiKey) {
                     throw new Error('Claude API key not configured');
@@ -244,9 +269,9 @@ const PlayerCommands = (function () {
                         });
 
                         if (!response.ok) {
-                            const error = await response.json();
+                            const error = await response.json().catch(() => ({}));
                             this.addMessage('error', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
-                            throw new Error(error.error?.message || 'Claude API request failed');
+                            throw this.classifyProviderError('claude', response.status, error);
                         }
 
                         const data = await response.json();
@@ -302,9 +327,9 @@ const PlayerCommands = (function () {
                         });
 
                         if (!response.ok) {
-                            const error = await response.json();
+                            const error = await response.json().catch(() => ({}));
                             this.addMessage('error', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
-                            throw new Error(error.error?.message || 'OpenAI API request failed');
+                            throw this.classifyProviderError('openai', response.status, error);
                         }
 
                         const data = await response.json();
@@ -478,6 +503,8 @@ ${sourceContext}
 Return a JSON array of music search items that match this request. If the user asks for "all", "every", a complete list, or page extraction, return every distinct music item you can identify from the supplied request/page text. Do not impose a small recommendation cap. For very large lists, keep fields compact rather than summarizing or dropping items.
 
 If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
+
+Unless the user explicitly asks for live, acoustic, cover, or remix versions, every item means the ORIGINAL STUDIO RECORDING: never add words like "live" to the search term, and do not select live albums or concert recordings.
 
 Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
 [{

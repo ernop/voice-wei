@@ -295,7 +295,7 @@ const PlayerPlaylist = (function () {
                         const { song, index } = validSongs[queueIndex];
                         this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
                         try {
-                            const videoData = await this.searchYouTube(song.searchTerm);
+                            const videoData = await this.searchYouTube(song.searchTerm, { artist: song.artist || '' });
                             results[queueIndex] = { song, index, videoData, error: null };
                         } catch (error) {
                             results[queueIndex] = { song, index, videoData: null, error };
@@ -371,7 +371,77 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            async searchYouTube(query) {
+            /**
+             * Version markers that make a video the WRONG recording for a
+             * normal request (the lyrics replay is timed against the studio
+             * track). A marker is only penalized when the search itself did
+             * not ask for it ("shins live kexp" keeps live versions).
+             */
+            unwantedVersionMarkers() {
+                return [
+                    { pattern: /\blive\b|\bconcert\b|\bunplugged\b/i, term: 'live' },
+                    { pattern: /\bcover(s|ed)?\b|\btribute\b/i, term: 'cover' },
+                    { pattern: /\bremix(es|ed)?\b|\bmashup\b/i, term: 'remix' },
+                    { pattern: /\bkaraoke\b|\binstrumental\b/i, term: 'karaoke' },
+                    { pattern: /\breacts?\b|\breaction\b/i, term: 'reaction' },
+                    { pattern: /\bsped.?up\b|\bslowed\b|\bnightcore\b|\b8d\b/i, term: 'sped up' },
+                    { pattern: /\bacoustic\b/i, term: 'acoustic' },
+                    { pattern: /\bdemo\b|\brehearsal\b/i, term: 'demo' }
+                ];
+            },
+
+            /**
+             * How much this search result looks like the original studio
+             * recording of the requested song. Signals, not guesses:
+             * " - Topic" channels are YouTube's auto-generated album tracks
+             * (the studio version by construction), Vevo/official uploads
+             * are next best, and live/cover/remix/reaction markers in the
+             * title are strong negatives unless the request asked for them.
+             * @param {YouTubeVideoCandidate} video
+             * @param {{ searchTerm?: string, artist?: string }} context
+             */
+            scoreVideoCandidate(video, context) {
+                const title = String(video.title || '');
+                const channel = String(video.channelTitle || '');
+                const requested = `${context.searchTerm || ''}`.toLowerCase();
+                let score = 0;
+
+                for (const marker of this.unwantedVersionMarkers()) {
+                    if (!marker.pattern.test(title)) continue;
+                    // An explicitly requested version dominates: "shins live
+                    // kexp" must rank live recordings above the studio track
+                    // channel signals would otherwise prefer.
+                    score += requested.includes(marker.term) ? 0.8 : -0.6;
+                }
+
+                if (/- topic$/i.test(channel.trim())) score += 0.5;
+                if (/vevo/i.test(channel)) score += 0.35;
+                if (/official audio/i.test(title)) score += 0.3;
+                else if (/official (music )?video/i.test(title)) score += 0.2;
+
+                const simplify = (/** @type {string} */ value) =>
+                    String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+                const artist = simplify(context.artist || '');
+                if (artist && simplify(channel).includes(artist)) {
+                    score += 0.2;
+                }
+                return score;
+            },
+
+            /**
+             * Order search results studio-version-first (stable: the
+             * proxy's relevance order breaks ties).
+             * @param {YouTubeVideoCandidate[]} videos
+             * @param {{ searchTerm?: string, artist?: string }} context
+             */
+            rankYouTubeResults(videos, context) {
+                return videos
+                    .map((video, index) => ({ video, index, score: this.scoreVideoCandidate(video, context) }))
+                    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+                    .map(entry => entry.video);
+            },
+
+            async searchYouTube(query, context = {}) {
                 // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
                 // Server-side avoids CORS issues and doesn't need third-party CORS proxies
                 const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
@@ -415,9 +485,12 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                const videos = results
-                    .filter(result => result.videoId)
-                    .map(result => this.formatYouTubeResult(result));
+                const videos = this.rankYouTubeResults(
+                    results
+                        .filter(result => result.videoId)
+                        .map(result => this.formatYouTubeResult(result)),
+                    { searchTerm: query, ...context }
+                );
                 if (videos.length > 0) {
                     const [firstVideo, ...alternateVideos] = videos;
                     this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
@@ -842,7 +915,7 @@ const PlayerPlaylist = (function () {
                 if (this.alternateVideoSearchAttempts.has(item.id)) return false;
                 this.alternateVideoSearchAttempts.add(item.id);
                 try {
-                    const videoData = await this.searchYouTube(item.searchTerm);
+                    const videoData = await this.searchYouTube(item.searchTerm, { artist: item.artist || '' });
                     if (!videoData) return false;
                     const candidates = [videoData, ...(videoData.alternateVideos || [])]
                         .filter(video => video.videoId && video.videoId !== item.videoId)

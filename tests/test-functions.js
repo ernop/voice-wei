@@ -2256,6 +2256,43 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateSearchResult.alternate === 'good-video'
             && alternateSearchResult.message.includes('Bad Result'));
 
+        // Studio-version-first ranking: live/cover/remix markers lose to
+        // the studio upload unless the request asked for them, and Topic
+        // (auto-generated album) uploads win outright. Key-level provider
+        // errors are classified for the persistent banner.
+        const versionRanking = await tab.evaluate(() => {
+            const harness = { addMessage() {} };
+            PlayerPlaylist.install(harness);
+            PlayerCommands.install(harness);
+            const videos = [
+                { videoId: 'live-1', title: 'New Slang (Live at KEXP)', channelTitle: 'KEXP', duration: '4:10', durationSeconds: 250 },
+                { videoId: 'cover-1', title: 'New Slang - cover by somebody', channelTitle: 'Somebody', duration: '3:50', durationSeconds: 230 },
+                { videoId: 'studio-1', title: 'New Slang', channelTitle: 'The Shins - Topic', duration: '3:51', durationSeconds: 231 },
+                { videoId: 'video-1', title: 'The Shins - New Slang (Official Music Video)', channelTitle: 'Sub Pop', duration: '3:52', durationSeconds: 232 }
+            ];
+            const normal = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang', artist: 'The Shins' })
+                .map(video => video.videoId);
+            const liveRequested = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang live kexp', artist: 'The Shins' })
+                .map(video => video.videoId);
+            const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
+            const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
+            return {
+                normalFirst: normal[0],
+                normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
+                liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
+                quotaName: quotaError.name,
+                quotaProvider: quotaError.provider,
+                plainName: plainError.name
+            };
+        });
+        report.check(`player ranks studio versions first (${versionRanking.normalFirst}) and classifies key-level errors`,
+            versionRanking.normalFirst === 'studio-1'
+            && versionRanking.normalLiveLast
+            && versionRanking.liveRequestedFirstIsLive
+            && versionRanking.quotaName === 'ApiKeyError'
+            && versionRanking.quotaProvider === 'claude'
+            && versionRanking.plainName === 'Error');
+
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {
                 players: new Map(),
