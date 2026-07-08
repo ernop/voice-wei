@@ -453,12 +453,10 @@ const PlayerPlaylist = (function () {
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             },
 
-            // Every datum has a fixed slot in the row:
-            //   actions column: favorite star above the lyrics chip
-            //   line 1: song name (left) ... duration (right)
-            //   line 2: artist - year - album
-            //   line 3: comment (own full-width line, only when present)
-            //   remove column: the x, always top-right
+            // One compact data line per song, Excel-tight - every datum in a
+            // fixed slot on the SAME line:
+            //   [star][lyric marker] Name  Artist - Year - Album  3:59 [x]
+            // The AI note is a second line only when the Notes toggle is on.
             addPlaylistItemToDOM(item) {
                 const playlistBody = document.getElementById('playlistBody');
                 const row = document.createElement('div');
@@ -467,28 +465,18 @@ const PlayerPlaylist = (function () {
                 row.dataset.videoId = item.videoId;
 
                 const isFav = this.isFavorite(item.videoId);
-                const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-                const lyricsLoading = item.lyricsStatus === 'loading';
-                const lyricsLabel = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
+                const marker = this.lyricsRowMarker(item);
 
                 row.innerHTML = `
-                    <div class="playlist-row-actions">
-                        <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                        <button class="lyrics-row-btn ${lyricsReady ? 'ready' : ''}" data-item-id="${item.id}" aria-label="${lyricsReady ? 'Show cached lyrics' : 'Get lyrics'}">${lyricsLabel}</button>
-                    </div>
-                    <div class="playlist-row-main">
-                        <div class="playlist-row-title-line">
-                            <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
-                            <span class="playlist-song-duration">${item.duration || '--:--'}</span>
-                        </div>
-                        <div class="playlist-row-meta-line">
-                            <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>
-                            ${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}
-                            ${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
-                        </div>
-                        ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
-                    </div>
+                    <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
+                    <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${marker.aria}" title="${marker.aria}">${marker.label}</button>
+                    <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
+                    <span class="playlist-row-meta">
+                        <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
+                    </span>
+                    <span class="playlist-song-duration">${item.duration || '--:--'}</span>
                     <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
+                    ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
                 `;
 
                 // Favorite button click - pass full song data
@@ -662,7 +650,7 @@ const PlayerPlaylist = (function () {
                                     const reportNow = !entry || entry.settled;
                                     settleReady({ ok: false, error: detail, errorCode: event.data });
                                     if (reportNow) {
-                                        this.reportPlayerLoadFailure(activeItem, { error: detail, errorCode: event.data });
+                                        void this.reportPlayerLoadFailure(activeItem, { error: detail, errorCode: event.data });
                                     }
                                 }
                             }
@@ -840,10 +828,50 @@ const PlayerPlaylist = (function () {
                 return Promise.race([entry.promise, timeout]);
             },
 
-            reportPlayerLoadFailure(item, failure) {
+            /**
+             * Alternate video candidates only live in session memory, so a
+             * playlist restored after a reload has none. When a video turns
+             * out unplayable (embed disabled, removed), re-run the YouTube
+             * search for the song's search term once and stock fresh
+             * alternates, excluding the video that just failed.
+             * @param {PlaylistItem} item
+             * @returns {Promise<boolean>} whether alternates were stocked
+             */
+            async refreshAlternatesFromSearch(item) {
+                if (!item.searchTerm) return false;
+                if (this.alternateVideoSearchAttempts.has(item.id)) return false;
+                this.alternateVideoSearchAttempts.add(item.id);
+                try {
+                    const videoData = await this.searchYouTube(item.searchTerm);
+                    if (!videoData) return false;
+                    const candidates = [videoData, ...(videoData.alternateVideos || [])]
+                        .filter(video => video.videoId && video.videoId !== item.videoId)
+                        .map(video => {
+                            const candidate = { ...video };
+                            delete candidate.alternateVideos;
+                            return candidate;
+                        });
+                    if (!candidates.length) return false;
+                    this.youtubeAlternateResults.set(item.id, candidates);
+                    this.addMessage('claude', 'Fresh video candidates', `${candidates.length} alternate video${candidates.length === 1 ? '' : 's'} for: ${this.describePlaylistItem(item)}`);
+                    return true;
+                } catch (error) {
+                    // External search failure; the load-failure report stands.
+                    return false;
+                }
+            },
+
+            async reportPlayerLoadFailure(item, failure) {
                 const description = this.describePlaylistItem(item);
-                const { detail } = this.playerLoadFailureInfo(failure);
-                if (this.tryNextVideoResult(item, failure)) {
+                const { detail, errorCode } = this.playerLoadFailureInfo(failure);
+                let retrying = this.tryNextVideoResult(item, failure);
+                if (!retrying && this.shouldRetryWithAlternateVideo(errorCode)) {
+                    this.updateStatus(`Finding an alternate video for: ${this.truncateForStatus(description, 80)}`);
+                    if (await this.refreshAlternatesFromSearch(item)) {
+                        retrying = this.tryNextVideoResult(item, failure);
+                    }
+                }
+                if (retrying) {
                     this.updateStatus(`Retrying another video for: ${this.truncateForStatus(description, 80)}`);
                     void this.playVideo(item);
                     return;
@@ -943,7 +971,7 @@ const PlayerPlaylist = (function () {
                     if (item.videoId !== loadingVideoId) {
                         return;
                     }
-                    this.reportPlayerLoadFailure(item, ready.error);
+                    void this.reportPlayerLoadFailure(item, ready.error);
                 }
             },
 
@@ -1103,34 +1131,27 @@ const PlayerPlaylist = (function () {
                 this.playVideo(this.playlist[prevIndex]);
             },
 
-            fastForward() {
-                if (this.currentPlayingId) {
-                    const player = this.playback.player;
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                        try {
-                            const currentTime = player.getCurrentTime();
-                            player.seekTo(currentTime + SEEK_JUMP_SECONDS, true);
-                            this.resyncProgressClock();
-                        } catch (e) {
-                            console.error('Error fast forwarding:', e);
-                        }
+            /** @param {number} seconds positive = forward, negative = back */
+            seekBy(seconds) {
+                if (!this.currentPlayingId) return;
+                const player = this.playback.player;
+                if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
+                    try {
+                        const currentTime = player.getCurrentTime();
+                        player.seekTo(Math.max(0, currentTime + seconds), true);
+                        this.resyncProgressClock();
+                    } catch (e) {
+                        console.error('Error seeking:', e);
                     }
                 }
             },
 
+            fastForward() {
+                this.seekBy(SEEK_JUMP_SECONDS);
+            },
+
             rewind() {
-                if (this.currentPlayingId) {
-                    const player = this.playback.player;
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                        try {
-                            const currentTime = player.getCurrentTime();
-                            player.seekTo(Math.max(0, currentTime - SEEK_JUMP_SECONDS), true);
-                            this.resyncProgressClock();
-                        } catch (e) {
-                            console.error('Error rewinding:', e);
-                        }
-                    }
-                }
+                this.seekBy(-SEEK_JUMP_SECONDS);
             },
 
             updateTransportPauseLabel() {
@@ -1203,6 +1224,7 @@ const PlayerPlaylist = (function () {
                 }
                 this.playerReadyPromises.clear();
                 this.youtubeAlternateResults.clear();
+                this.alternateVideoSearchAttempts.clear();
                 // Drop queued lookups for the discarded rows; detached
                 // backfill items are not playlist-bound and keep going.
                 this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');

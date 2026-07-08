@@ -18,6 +18,8 @@ class VoiceMusicController {
         this.playerReadyPromises = new Map();
         /** @type {Map<number, YouTubeVideoCandidate[]>} */
         this.youtubeAlternateResults = new Map();
+        /** @type {Set<number>} Items that already got one fresh-alternates search after a load failure */
+        this.alternateVideoSearchAttempts = new Set();
         /** @type {AppConfig | null} */
         this.config = null;
         /** @type {PlaylistItem[]} */
@@ -786,21 +788,23 @@ class VoiceMusicController {
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
 
-        // Transport bar buttons (sticky playlist controls)
-        const transportPrevBtn = document.getElementById('transportPrevBtn');
-        if (transportPrevBtn) {
-            transportPrevBtn.addEventListener('click', () => this.playPrevious());
-        }
+        // The sticky control line: play/pause, seek jumps, and the
+        // current-song button that navigates to its row in the list.
         const transportPlayPauseBtn = document.getElementById('transportPlayPauseBtn');
         if (transportPlayPauseBtn) {
             transportPlayPauseBtn.addEventListener('click', () => this.togglePlayPause());
         }
-        const transportNextBtn = document.getElementById('transportNextBtn');
-        if (transportNextBtn) {
-            transportNextBtn.addEventListener('click', () => this.playNext());
+        /** @type {Array<[string, number]>} */
+        const seekBindings = [
+            ['transportBack30Btn', -30],
+            ['transportBack10Btn', -10],
+            ['transportFwd10Btn', 10],
+            ['transportFwd30Btn', 30]
+        ];
+        for (const [id, seconds] of seekBindings) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => this.seekBy(seconds));
         }
-
-        // The bar's current-song line navigates to that row in the list
         const transportBarInfo = document.getElementById('transportBarInfo');
         if (transportBarInfo) {
             transportBarInfo.addEventListener('click', () => this.scrollToCurrentSong());

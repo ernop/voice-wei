@@ -104,6 +104,10 @@ interface LyricStateRecord {
     videoId: string;
     status: 'found' | 'none';
     checkedAt: number;
+    /** LYRICS_SEARCH_VERSION that produced this record. Simple-only or
+     *  "none" records from an older search get one re-search under the
+     *  current algorithm; timed-lyrics records are final. */
+    searchVersion?: number;
     lyrics?: LyricsResult;
 }
 
@@ -244,7 +248,9 @@ interface VoiceMusicController {
     tryNextVideoResult(item: PlaylistItem, failure: any): boolean;
     describePlaylistItem(item: PlaylistItem): string;
     waitForPlayerReady(item: PlaylistItem, timeoutMs?: number): Promise<any>;
-    reportPlayerLoadFailure(item: PlaylistItem, failure: any): void;
+    reportPlayerLoadFailure(item: PlaylistItem, failure: any): Promise<void>;
+    refreshAlternatesFromSearch(item: PlaylistItem): Promise<boolean>;
+    alternateVideoSearchAttempts: Set<number>;
     playVideo(item: PlaylistItem): Promise<void>;
     updateMediaSessionForItem(item: PlaylistItem): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
@@ -259,6 +265,8 @@ interface VoiceMusicController {
     playPrevious(): void;
     fastForward(): void;
     rewind(): void;
+    seekBy(seconds: number): void;
+    lyricsRowMarker(item: PlaylistItem): { label: string; className: string; aria: string };
     updateTransportPauseLabel(): void;
     restartCurrentTrack(): void;
     updatePlayPauseButton(): void;

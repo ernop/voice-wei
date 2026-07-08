@@ -36,6 +36,12 @@ const PlayerLyrics = (function () {
     // in 'loading'.
     const LYRICS_PROVIDER_TIMEOUT_MS = 12000;
 
+    // Bumped whenever the lyric search gets smarter. Stored records from an
+    // older search that did NOT land timed lyrics (simple-only or none) get
+    // exactly one re-search under the new algorithm; records that already
+    // hold timed lyrics are final. v2: timed-lyrics-first record selection.
+    const LYRICS_SEARCH_VERSION = 2;
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
@@ -123,17 +129,21 @@ const PlayerLyrics = (function () {
                 btn.classList.remove('lyrics-available', 'lyrics-unavailable', 'lyrics-loading');
                 if (!currentItem) {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = 'Big Lyrics';
+                    btn.textContent = 'Big';
+                    btn.title = 'Big Lyrics overlay';
                 } else if (currentItem.lyricsStatus === 'loading') {
                     btn.classList.add('lyrics-loading');
-                    btn.textContent = 'Big Lyrics ...';
+                    btn.textContent = 'Big ...';
+                    btn.title = 'Looking up lyrics';
                 } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
                     btn.classList.add('lyrics-available');
-                    const synced = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
-                    btn.textContent = synced ? 'Big Lyrics (synced)' : 'Big Lyrics (plain)';
+                    const timed = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
+                    btn.textContent = timed ? 'Big (timed)' : 'Big (simple)';
+                    btn.title = timed ? 'Big Lyrics overlay - timed lyrics' : 'Big Lyrics overlay - simple lyrics';
                 } else {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No Lyrics' : 'Big Lyrics';
+                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No lyrics' : 'Big';
+                    btn.title = currentItem.lyricsStatus === 'not_found' ? 'No lyrics found' : 'Big Lyrics overlay';
                 }
             },
 
@@ -223,17 +233,17 @@ const PlayerLyrics = (function () {
 
                 if (item.lyricsStatus === 'ready' && item.lyricsData) {
                     const lyricsData = item.lyricsData;
-                    const isSynced = lyricsData.syncedLines.length > 0;
+                    const isTimed = lyricsData.syncedLines.length > 0;
                     if (lyricsData.instrumental) {
                         this.updateLyricsStatus(item, 'Track appears to be instrumental.');
-                    } else if (isSynced) {
-                        this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName} (synced)`);
+                    } else if (isTimed) {
+                        this.updateLyricsStatus(item, `Timed lyrics: ${lyricsData.artistName} - ${lyricsData.trackName} (LRCLIB)`);
                     } else {
-                        this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName}`);
+                        this.updateLyricsStatus(item, `Simple lyrics: ${lyricsData.artistName} - ${lyricsData.trackName} (LRCLIB)`);
                     }
                     this.renderLyricsLines(this.getRenderableLyricsLines(lyricsData));
                     const overlay = document.getElementById('lyricsOverlay');
-                    if (overlay) overlay.classList.toggle('has-synced-lyrics', isSynced);
+                    if (overlay) overlay.classList.toggle('has-synced-lyrics', isTimed);
                     return;
                 }
 
@@ -353,7 +363,13 @@ const PlayerLyrics = (function () {
              * @param {{ forceLookup?: boolean }} [options]
              */
             async ensureLyricsForItem(item, { forceLookup = false } = {}) {
-                if (!forceLookup && item.lyricsStatus === 'ready' && item.lyricsData) {
+                // Timed lyrics in hand settle the session. Simple-only
+                // lyrics stay upgrade-eligible: fall through to resolution,
+                // which is one cheap store read when the record is current
+                // and only re-searches when an upgrade attempt is due.
+                const hasTimedLyrics = item.lyricsStatus === 'ready' && !!item.lyricsData
+                    && item.lyricsData.syncedLines.length > 0;
+                if (!forceLookup && hasTimedLyrics) {
                     if (this.currentLyricsItemId === item.id) {
                         this.renderLyricsStateForItem(item);
                     }
@@ -366,11 +382,17 @@ const PlayerLyrics = (function () {
                     this.lyricsLookupsInFlight.set(item.videoId, flight);
                 }
 
-                item.lyricsStatus = 'loading';
-                item.lyricsData = null;
-                this.refreshLyricsRowButton(item);
-                if (this.currentLyricsItemId === item.id) {
-                    this.renderLyricsStateForItem(item);
+                // A simple-lyrics upgrade check keeps showing what it has;
+                // only a song with nothing yet enters the visible loading
+                // state.
+                const upgradingSimple = item.lyricsStatus === 'ready' && !!item.lyricsData;
+                if (!upgradingSimple) {
+                    item.lyricsStatus = 'loading';
+                    item.lyricsData = null;
+                    this.refreshLyricsRowButton(item);
+                    if (this.currentLyricsItemId === item.id) {
+                        this.renderLyricsStateForItem(item);
+                    }
                 }
 
                 try {
@@ -378,11 +400,14 @@ const PlayerLyrics = (function () {
                     this.applyLyricStateToItem(item, state);
                 } catch (error) {
                     // Expected, handled external failure (provider or DB):
-                    // nothing was saved, the song stays unresolved, and the
-                    // next interaction with it retries.
-                    this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
-                    item.lyricsData = null;
-                    item.lyricsStatus = 'error';
+                    // nothing was saved. A song with simple lyrics keeps
+                    // them (the upgrade just did not happen); a song with
+                    // nothing stays unresolved and retries on next use.
+                    if (!upgradingSimple) {
+                        this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
+                        item.lyricsData = null;
+                        item.lyricsStatus = 'error';
+                    }
                 } finally {
                     if (this.lyricsLookupsInFlight.get(item.videoId) === flight) {
                         this.lyricsLookupsInFlight.delete(item.videoId);
@@ -406,32 +431,52 @@ const PlayerLyrics = (function () {
              * Resolve a song's lyric state with the permanent store
              * (IndexedDB `lyricStates`, keyed by videoId) as the single
              * source of truth:
-             * 1. A stored found record, or a fresh answered "none",
-             *    settles it with zero network.
-             * 2. Otherwise ask the provider - only a search that actually
-             *    answered may conclude "none".
-             * 3. Save the answer to the store FIRST (awaited), then return
-             *    it for activation on the live object. Failures throw
-             *    without saving anything, so unresolved stays unresolved.
+             * 1. A stored record with TIMED lyrics is final - zero network.
+             * 2. A stored simple-only or "none" record settles from the
+             *    store while it is fresh AND was produced by the current
+             *    search algorithm; otherwise it gets one serious re-search
+             *    aimed at timed lyrics.
+             * 3. The provider answer is saved FIRST (awaited), then
+             *    returned for activation. An upgrade attempt that finds
+             *    nothing better keeps the existing simple lyrics - a
+             *    re-search can never downgrade what we already have.
+             *    Failures throw without saving anything.
              * @param {PlaylistItem} item
              * @param {boolean} forceLookup ignore a stored "none" (user retry)
              * @returns {Promise<LyricStateRecord>}
              */
             async resolveLyricState(item, forceLookup) {
                 const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
-                if (saved && saved.status === 'found' && saved.lyrics) {
+                const savedHasTimed = !!saved && saved.status === 'found' && !!saved.lyrics
+                    && Array.isArray(saved.lyrics.syncedLines) && saved.lyrics.syncedLines.length > 0;
+                if (savedHasTimed) {
                     return saved;
                 }
-                if (!forceLookup && saved && saved.status === 'none'
-                    && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS) {
+                const savedFresh = !!saved && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS;
+                const savedCurrentSearch = !!saved && saved.searchVersion === LYRICS_SEARCH_VERSION;
+                if (!forceLookup && saved && savedFresh && savedCurrentSearch) {
                     return saved;
                 }
 
                 const lyrics = await this.lookupLyrics(item);
                 /** @type {LyricStateRecord} */
-                const state = lyrics
-                    ? { videoId: item.videoId, status: 'found', checkedAt: Date.now(), lyrics }
-                    : { videoId: item.videoId, status: 'none', checkedAt: Date.now() };
+                let state;
+                if (lyrics) {
+                    const foundTimed = lyrics.syncedLines.length > 0;
+                    const keepExistingSimple = !foundTimed
+                        && !!saved && saved.status === 'found' && !!saved.lyrics;
+                    state = keepExistingSimple
+                        ? { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION }
+                        : { videoId: item.videoId, status: 'found', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION, lyrics };
+                    if (foundTimed && saved && !savedHasTimed) {
+                        this.addMessage('claude', 'Timed lyrics found', `Upgraded from simple lyrics: ${this.describePlaylistItem(item)}`);
+                    }
+                } else if (saved && saved.status === 'found' && saved.lyrics) {
+                    // Upgrade attempt answered empty: keep the simple lyrics.
+                    state = { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                } else {
+                    state = { videoId: item.videoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                }
                 await window.PlayerHistoryDB.putLyricState(state);
                 return state;
             },
@@ -494,20 +539,30 @@ const PlayerLyrics = (function () {
                     throw new Error(`All ${searches.length} lyric search${searches.length === 1 ? '' : 'es'} failed: ${firstError ? firstError.message : 'unknown error'}`);
                 }
 
+                // Timed lyrics first: among records that match the song well
+                // enough, one carrying timed (synced) lyrics always beats a
+                // simple-only one, even at a slightly lower match score.
+                /** @type {{ score: number, record: any } | null} */
+                let bestTimedMatch = null;
                 for (const { candidate, results } of answered) {
                     for (const record of results) {
                         const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
                         if (!bestMatch || score > bestMatch.score) {
                             bestMatch = { score, record };
                         }
+                        const hasTimed = typeof record.syncedLyrics === 'string' && record.syncedLyrics.trim();
+                        if (hasTimed && (!bestTimedMatch || score > bestTimedMatch.score)) {
+                            bestTimedMatch = { score, record };
+                        }
                     }
                 }
 
-                if (!bestMatch || bestMatch.score < 0.58) {
+                const chosen = (bestTimedMatch && bestTimedMatch.score >= 0.58) ? bestTimedMatch : bestMatch;
+                if (!chosen || chosen.score < 0.58) {
                     return null;
                 }
 
-                const record = bestMatch.record;
+                const record = chosen.record;
                 return {
                     provider: 'LRCLIB',
                     trackName: record.trackName || record.name || '',
@@ -886,28 +941,42 @@ const PlayerLyrics = (function () {
                 }
             },
 
+            /**
+             * The row's lyric state marker, one compact character:
+             * T = timed lyrics, S = simple lyrics, ... = looking,
+             * - = none found, ! = lookup failed, dot = not looked up yet.
+             * @param {PlaylistItem} item
+             * @returns {{ label: string, className: string, aria: string }}
+             */
+            lyricsRowMarker(item) {
+                if (item.lyricsStatus === 'loading') {
+                    return { label: '\u2026', className: '', aria: 'Looking up lyrics' };
+                }
+                if (item.lyricsStatus === 'ready' && item.lyricsData) {
+                    return item.lyricsData.syncedLines.length > 0
+                        ? { label: 'T', className: 'timed', aria: 'Timed lyrics - tap to view' }
+                        : { label: 'S', className: 'simple', aria: 'Simple lyrics - tap to view' };
+                }
+                if (item.lyricsStatus === 'not_found') {
+                    return { label: '\u2013', className: 'none', aria: 'No lyrics found - tap to retry' };
+                }
+                if (item.lyricsStatus === 'error') {
+                    return { label: '!', className: 'none', aria: 'Lyrics lookup failed - tap to retry' };
+                }
+                return { label: '\u00b7', className: '', aria: 'Get lyrics' };
+            },
+
             refreshLyricsRowButton(item) {
                 const row = document.querySelector(`[data-item-id="${item.id}"]`);
                 const button = /** @type {HTMLButtonElement | null} */ (row?.querySelector('.lyrics-row-btn'));
                 if (!button) return;
-                const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-                const lyricsLoading = item.lyricsStatus === 'loading';
-                const lyricsNotFound = item.lyricsStatus === 'not_found';
-                const lyricsError = item.lyricsStatus === 'error';
-                button.classList.toggle('ready', lyricsReady);
-                button.classList.toggle('not-found', lyricsNotFound || lyricsError);
-                if (lyricsLoading) {
-                    button.textContent = '...';
-                } else if (lyricsReady) {
-                    button.textContent = 'L';
-                } else if (lyricsNotFound) {
-                    button.textContent = '--';
-                } else if (lyricsError) {
-                    button.textContent = '!';
-                } else {
-                    button.textContent = 'Get';
-                }
-                button.setAttribute('aria-label', lyricsReady ? 'Show cached lyrics' : (lyricsNotFound ? 'Lyrics not found' : 'Get lyrics'));
+                const marker = this.lyricsRowMarker(item);
+                button.classList.toggle('timed', marker.className === 'timed');
+                button.classList.toggle('simple', marker.className === 'simple');
+                button.classList.toggle('none', marker.className === 'none');
+                button.textContent = marker.label;
+                button.setAttribute('aria-label', marker.aria);
+                button.title = marker.aria;
                 if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
                     this.updateBigLyricsAvailability();
                 }

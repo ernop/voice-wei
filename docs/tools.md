@@ -209,17 +209,29 @@ song is actually added (a search that finds nothing leaves the list
 untouched), results appear one by one as their YouTube searches
 complete, and a song that is already playing carries over as entry 1
 and keeps playing with the new songs queued behind it. The raw AI
-request and response JSON are logged to the Log panel for every batch. Each row shows the song's data in fixed slots (name + duration on the
-first line, artist/year/album on the second, the AI's comment on its own
-line) with the favorite star and lyrics chip on the left and a remove
-button on the right; tap a row to play it. The playlist header offers
-Shuffle, Sort by Artist, Sort by Year, and Clear. Behind the working
-list, every song ever seen is recorded durably in the known-songs catalog
-(IndexedDB), so clearing or replacing the playlist never loses song
-information.
+request and response JSON are logged to the Log panel for every batch.
 
-Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
-settings) the current synced lyric line is relayed into the now-playing
+Each playlist row is one compact data line with fixed slots: favorite
+star, the lyric marker (T = timed lyrics, S = simple lyrics, - = none
+found; tap it to view or retry), song name, artist - year - album,
+duration, and remove. The AI's note appears as a second line only when
+the Notes toggle is on. Tap a row to play it. The playlist header offers
+Notes, Shuffle, Sort by Artist, Sort by Year, Clear, and a live filter.
+Behind the working list, every song ever seen is recorded durably in the
+known-songs catalog (IndexedDB), so clearing or replacing the playlist
+never loses song information. When a video refuses to play (embed
+disabled, removed), the player retries its remembered alternates and,
+when none are left - e.g. after a reload - re-runs the YouTube search
+once for fresh candidates before giving up.
+
+Lyrics come in two kinds, named everywhere in the UI: **timed lyrics**
+(line-synced; the T marker, the highlight, and the title relay) and
+**simple lyrics** (text only; the S marker). The search prefers timed
+lyrics: among plausible LRCLIB matches a timed record beats a simple-only
+one, and a song stored with only simple lyrics gets one serious re-search
+for timed ones (keeping the simple text if nothing better exists).
+LRCLIB lookup renders in the panel and overlay, and (on by default, in
+settings) the current timed lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show. The
 title spots follow one sequence per song: for the first 2 seconds the
 song's identity (artist - name - year - album, so you know who and what
@@ -234,11 +246,12 @@ sharing one row beneath it. The Lyrics panel toggle and Big Lyrics
 overlay button sit in the central player next to the rewind/forward
 controls.
 
-The always-visible surface while scrolling is the sticky now-playing bar
-at the bottom: the current synced lyric line (own full row), the
-prev/play/next transport, and the current song line - tapping the song
-line scrolls the playlist to that row. The Listen button scrolls with
-the page like everything else.
+The always-reachable surface is the now-playing control line under the
+central player: it scrolls with the page until it reaches the top, then
+hooks there. It carries the current timed lyric line (own full row),
+play/pause, -30/-10/+10/+30 second jumps, the Big Lyrics button, and the
+current song line - tapping the song line scrolls the playlist to that
+row. The Listen button scrolls with the page like everything else.
 
 Other surfaces on the page:
 

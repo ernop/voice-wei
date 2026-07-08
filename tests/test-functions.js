@@ -1227,7 +1227,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 favorites: {},
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
-                showLyricsForItem() {}
+                showLyricsForItem() {},
+                lyricsRowMarker(item) {
+                    return item.lyricsStatus === 'ready'
+                        ? { label: 'T', className: 'timed', aria: 'Timed lyrics - tap to view' }
+                        : { label: '\u00b7', className: '', aria: 'Get lyrics' };
+                }
             };
             PlayerPlaylist.install(harness);
             const body = document.getElementById('playlistBody');
@@ -1265,22 +1270,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             });
             const rows = Array.from(body.querySelectorAll('.playlist-row'));
             const dataRows = rows.map(row => row.dataset.itemId);
-            // Fixed slots: name + duration on the title line, artist on the
-            // meta line, comment on its own full-width line, remove button.
+            // One flat data line per row: star, lyric marker, name, meta,
+            // duration, and remove are all DIRECT children in fixed order;
+            // the note is the only extra element (own line, Notes toggle).
             const slots = rows.map(row => ({
-                name: row.querySelector('.playlist-row-title-line .playlist-song-name')?.textContent || '',
-                duration: row.querySelector('.playlist-row-title-line .playlist-song-duration')?.textContent || '',
-                artist: row.querySelector('.playlist-row-meta-line .playlist-song-artist')?.textContent || '',
-                hasRemove: !!row.querySelector('.playlist-remove-btn')
+                name: row.querySelector(':scope > .playlist-song-name')?.textContent || '',
+                duration: row.querySelector(':scope > .playlist-song-duration')?.textContent || '',
+                artist: row.querySelector(':scope > .playlist-row-meta .playlist-song-artist')?.textContent || '',
+                hasStar: !!row.querySelector(':scope > .favorite-btn'),
+                hasMarker: !!row.querySelector(':scope > .lyrics-row-btn'),
+                hasRemove: !!row.querySelector(':scope > .playlist-remove-btn'),
+                nestedWrappers: row.querySelectorAll(':scope > div:not(.playlist-song-comment)').length
             }));
             const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => el.textContent);
             body.innerHTML = '';
             return { dataRows, slots, comments };
         });
-        report.check('player playlist rows keep each datum in its fixed slot',
+        report.check('player playlist rows are one flat data line with fixed slots',
             playlistSourceGroups.dataRows.includes('501')
             && playlistSourceGroups.dataRows.includes('502')
-            && playlistSourceGroups.slots.every(slot => slot.name && slot.duration && slot.artist && slot.hasRemove)
+            && playlistSourceGroups.slots.every(slot => slot.name && slot.duration && slot.artist
+                && slot.hasStar && slot.hasMarker && slot.hasRemove && slot.nestedWrappers === 0)
             && playlistSourceGroups.comments.some(comment =>
                 comment.includes('Included because it matches the requested search')));
 
@@ -1535,7 +1545,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 settings: { showSongNotes: false },
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
-                showLyricsForItem() {}
+                showLyricsForItem() {},
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; }
             };
             PlayerPlaylist.install(harness);
             const body = document.getElementById('playlistBody');
@@ -2110,6 +2121,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
             };
             PlayerPlaylist.install(harness);

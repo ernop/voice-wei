@@ -398,6 +398,15 @@ playlist restore; songs already resolved in the store settle from one
 IndexedDB read with zero network, so the pass is idempotent and an
 interrupted or failed recheck resumes on the next open by construction.
 
+**Timed lyrics first.** The two lyric kinds are named in every
+user-facing surface: timed (line-synced) and simple (text only). The
+LRCLIB record selection prefers a timed record over a simple-only one
+among plausible matches; a stored record holding timed lyrics is final,
+while simple-only and "none" records carry the `searchVersion` that
+produced them and get exactly one re-search when the algorithm improves
+(plus the normal TTL recheck), never downgrading - an upgrade attempt
+that finds nothing better keeps the simple lyrics it has.
+
 ### Music player durable history (`voice-wei-music`)
 
 The music player keeps unbounded/historical data in its own IndexedDB

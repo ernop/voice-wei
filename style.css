@@ -1043,136 +1043,113 @@ h1 {
     text-align: center;
 }
 
-/* Playlist rows - every datum has a fixed slot:
-   [star]   | song name .......... duration | [x]
-   [lyrics] | artist - year - album         |
-            | comment (its own full line)   |     */
+/* Playlist rows - Excel-tight: one data line per song, every datum in a
+   fixed slot on the SAME line, a single hairline between rows:
+   [star][T] Name  Artist - Year - Album ......... 3:59 [x]
+   The AI note is a second line only when Notes is toggled on. */
 .playlist-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
 }
 
 .playlist-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 8px;
-    padding: 8px 10px;
-    background: rgba(74, 222, 128, 0.05);
-    border: 1px solid rgba(74, 222, 128, 0.12);
-    border-radius: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    min-height: 26px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.14);
     cursor: pointer;
 }
 
 .playlist-row:hover {
-    background: rgba(74, 222, 128, 0.12);
+    background: rgba(74, 222, 128, 0.1);
 }
 
 .playlist-row:active {
-    background: rgba(74, 222, 128, 0.22);
+    background: rgba(74, 222, 128, 0.2);
 }
 
 .playlist-row.playing {
-    background: rgba(74, 222, 128, 0.18);
-    border-left: 3px solid #4ade80;
-}
-
-.playlist-row-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
-.playlist-row-main {
-    min-width: 0;
-    text-align: left;
-}
-
-.playlist-row-title-line {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    min-width: 0;
+    background: rgba(74, 222, 128, 0.16);
+    box-shadow: inset 3px 0 0 #4ade80;
 }
 
 .playlist-song-name {
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 48%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 650;
     color: #a7f3d0;
 }
 
-.playlist-song-duration {
-    flex-shrink: 0;
-    font-size: 0.78rem;
-    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
-    color: #d1fae5;
+.playlist-row-meta {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.78rem;
+    color: #d1fae5;
+    text-align: left;
 }
 
-.playlist-row-meta-line {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
-    margin-top: 2px;
-    overflow: hidden;
+.playlist-song-duration {
+    flex-shrink: 0;
+    font-size: 0.74rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    color: rgba(209, 250, 229, 0.8);
     white-space: nowrap;
-    font-size: 0.8rem;
-    color: #d1fae5;
 }
 
 .playlist-song-artist {
-    overflow: hidden;
-    text-overflow: ellipsis;
     font-weight: 500;
 }
 
 .playlist-song-year::before,
 .playlist-song-album::before {
     content: '\00b7';
-    margin-right: 6px;
+    margin: 0 4px;
     opacity: 0.5;
 }
 
 .playlist-song-year {
-    flex-shrink: 0;
     opacity: 0.85;
 }
 
 .playlist-song-album {
-    overflow: hidden;
-    text-overflow: ellipsis;
     opacity: 0.75;
 }
 
 .playlist-song-comment {
-    margin-top: 4px;
-    font-size: 0.76rem;
+    flex-basis: 100%;
+    padding: 0 0 2px 40px;
+    font-size: 0.74rem;
     font-weight: 500;
-    line-height: 1.35;
+    line-height: 1.3;
     color: #bbf7d0;
     overflow-wrap: anywhere;
+    text-align: left;
 }
 
 .playlist-remove-btn {
-    width: 28px;
-    height: 28px;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    border-radius: 7px;
-    background: rgba(239, 68, 68, 0.08);
-    color: rgba(252, 165, 165, 0.8);
-    font-size: 1.05rem;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: rgba(252, 165, 165, 0.55);
+    font-size: 0.95rem;
     line-height: 1;
     cursor: pointer;
 }
@@ -1187,8 +1164,10 @@ h1 {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.3rem;
-    padding: 4px;
+    font-size: 1rem;
+    width: 20px;
+    flex-shrink: 0;
+    padding: 0;
     color: rgba(255, 255, 255, 0.35);
     line-height: 1;
 }
@@ -1202,33 +1181,35 @@ h1 {
     text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
 }
 
+/* The lyric state marker: one compact character, no pill, so the whole
+   row stays a single tight data line. T timed / S simple / - none. */
 .lyrics-row-btn {
-    min-width: 38px;
-    padding: 4px 6px;
-    border: 1px solid rgba(74, 222, 128, 0.22);
-    border-radius: 6px;
-    background: rgba(74, 222, 128, 0.08);
-    color: #a7f3d0;
-    font-size: 0.72rem;
-    font-weight: 700;
+    flex-shrink: 0;
+    width: 16px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: rgba(167, 243, 208, 0.5);
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1;
     cursor: pointer;
 }
 
 .lyrics-row-btn:hover {
-    background: rgba(74, 222, 128, 0.18);
+    color: #d1fae5;
 }
 
-.lyrics-row-btn.ready {
-    background: rgba(20, 184, 166, 0.18);
-    border-color: rgba(20, 184, 166, 0.35);
-    color: #99f6e4;
+.lyrics-row-btn.timed {
+    color: #4ade80;
 }
 
-.lyrics-row-btn.not-found {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.3);
-    cursor: default;
+.lyrics-row-btn.simple {
+    color: rgba(94, 234, 212, 0.75);
+}
+
+.lyrics-row-btn.none {
+    color: rgba(255, 255, 255, 0.28);
 }
 
 .youtube-player {
@@ -1336,18 +1317,20 @@ h1 {
     overflow: hidden;
 }
 
-/* Sticky now-playing bar - the always-visible cluster while scrolling:
-   current lyric line (own full row), transport, current song line. */
+/* The now-playing control line: sits under the central player and hooks
+   to the top of the viewport when it would scroll off, so the lyric,
+   the transport, and the current-song line stay reachable everywhere. */
 .playlist-transport-bar {
     position: sticky;
-    bottom: 0;
+    top: 0;
     z-index: 50;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 6px 10px 8px;
-    background: rgba(10, 22, 16, 0.94);
-    border-top: 1px solid rgba(74, 222, 128, 0.2);
+    padding: 5px 8px 6px;
+    margin: 0 -4px;
+    background: rgba(10, 22, 16, 0.96);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.2);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
@@ -1364,8 +1347,13 @@ h1 {
 
 .transport-bar-main {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
+}
+
+.transport-bar-main .transport-bar-info {
+    min-width: 110px;
 }
 
 .transport-bar-btn {
