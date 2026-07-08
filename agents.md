@@ -133,3 +133,29 @@ parameters (setting behaviors), tools (user-visible behavior).
    the next dev/cache-bust cycle. Do not bump immediately before pushing.
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
+
+## Cursor Cloud specific instructions
+
+Dependency install is handled automatically by the startup update script
+(`./setup-cloud-agent.sh`: apt `php-cli`/`php-curl`/`python3-pip`, npm dev
+deps, Playwright Chromium). Do not re-run it by hand unless a tool is missing.
+
+Running the app (this is a static front-end, no build step):
+
+- `php -S 127.0.0.1:8000` from the repo root is the preferred way to serve
+  locally, because it serves the static pages **and** executes `proxy.php`
+  (the YouTube search backend used by `player.html`). `python3 -m http.server
+  8000` also works but only serves static files - `proxy.php` will download as
+  text instead of running.
+- The test suite starts its own server on port 8000 (or reuses one already
+  running), so stop a manually-started server before `npm test`/`test:full`
+  if you hit a port clash.
+
+API keys are entered in the UI and kept in `localStorage` (per
+`config.example.json`), never in a config/env file. Only `player.html`
+(Claude) and `ebook.html` (OpenAI) need keys; every practice tool
+(`scales`, `intervals`, `phrases`, `trace`, `pitch-meter`, `ears`) is fully
+functional offline, so `scales.html` is the quickest no-key smoke check.
+
+Standard lint/test/build/run commands and the shipping order live above under
+"Shipping" and in `README.md`; don't duplicate them here.
