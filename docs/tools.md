@@ -135,7 +135,8 @@ generating anything first.
 - The chart draws what you actually sing, wherever it lands: the vertical
   range expands to cover your voice even outside the rails. Filtering is
   voice-physics only, never exercise-based: detections outside the
-  singable band (D2-C5, the full barbershop TTBB span) read as silence,
+  singable band (D2-Bb4: barbershop bass low up to just above a lead's
+  top) read as silence,
   and a large instant jump must sustain for a few frames to count as
   voice (brief detector scrapes never reach the chart; real leaps are
   recorded whole).
@@ -395,8 +396,9 @@ is detected).
 and scoring only; they never gate what is recorded or drawn. Off-rails
 singing (wrong octave, overshoot) draws at its true pitch - the chart's
 vertical range expands to cover it. Rejection is voice-physics only:
-detections outside the singable band (D2-C5, the full barbershop TTBB
-span with headroom) are the room, not the singer, and read as silence;
+detections outside the singable band (D2-Bb4: barbershop bass low up to
+just above a lead's top) are the room, not the singer, and read as
+silence;
 and a large instant jump must sustain for a few frames to be voice
 (brief detector scrapes never reach the trace, confirmed jumps are
 recorded whole). Target bands are drawn at the real hit tolerance (about

@@ -108,9 +108,10 @@ AudioContext, a 2048-sample analyser, and reusable buffers. `readPitch()`
 runs an autocorrelation detector (normalized difference with parabolic
 peak interpolation) over the time-domain buffer; it returns nothing when
 the signal is too quiet (RMS < 0.01) or outside the singable band
-(VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI C5 - the full barbershop TTBB span
-with headroom; out-of-band detections are the room and the gear, not the
-singer, and read as silence). Otherwise it returns fractional MIDI plus
+(VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's range: below a
+barbershop bass line's low notes up to just above a lead line's top;
+out-of-band detections are the room and the gear, not the singer, and
+read as silence). Otherwise it returns fractional MIDI plus
 cents deviation. Accuracy is within ~5 cents on voice-like signals
 across the singing range. The band is deliberately the OWNER's
 instrument, not the exercise's: it never moves with the selected key,
@@ -156,15 +157,17 @@ same statement - the picture can never promise a tolerance the scoring
 does not honor. Redraws are throttled to 50ms ticks by `RateGate`
 (render-throttle.js).
 
-The detector also carries an octave-lock guard: when a signal's 2nd
-harmonic dominates (bright vowels, piano through the speakers while the
-panel listens), the first good correlation peak sits at half the true
-period and the note would read an octave high. The detector inspects the
-double-period candidate and prefers it only when it correlates CLEARLY
-better, so true notes never flip down while harmonic locks resolve to
-their real octave (validated synthetically: twelve 2nd-harmonic-dominant
-baits all read +1200c before the guard, <=5c after, with no change on
-normal voice-like signals).
+The detector also carries a harmonic-lock guard: when a signal's
+2nd/3rd/4th harmonic dominates (bright vowels, piano through the
+speakers while the panel listens), the first good correlation peak sits
+at a fraction of the true period and the note would read an octave,
+octave+fifth, or two octaves high. The detector inspects the 2x and 3x
+period candidates (iterated once, reaching 4x) and prefers one only when
+it correlates CLEARLY better, so true notes never flip down while
+harmonic locks resolve to their real pitch (validated synthetically:
+2nd/3rd/4th-harmonic-dominant baits across the singing range read
++1200..+2400c unguarded, <=10c guarded, with no change on normal
+voice-like signals).
 
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
 (Sing), and Intervals (Sing) embed the same component; a page supplies a

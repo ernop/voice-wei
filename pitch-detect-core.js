@@ -31,26 +31,29 @@ const PitchDetectCore = (function () {
     // band is the room and the gear (harmonic locks, squeaks, hum,
     // rumble), not the singer, and reads as silence - it never reaches
     // the trace, the chart scale, scoring, or the voice clock. Band =
-    // the full barbershop TTBB span with headroom: D2 below a normal
-    // bass line's low notes, C5 above a tenor's falsetto top.
+    // the owner's range: D2 below a normal barbershop bass line's low
+    // notes, Bb4 just above a lead line's top (the owner sings lead/bari;
+    // the downward extension covers all four parts).
     const VOICE_MIN_MIDI = 38; // D2, ~73 Hz
-    const VOICE_MAX_MIDI = 72; // C5, ~523 Hz
+    const VOICE_MAX_MIDI = 70; // Bb4, ~466 Hz
     const ANALYSER_FFT_SIZE = 2048;
     const DEFAULT_FRAME_CALLBACK_INTERVAL_MS = 50;
 
     /** @typedef {{ time: number, freq: number, midi: number, cents: number, note: string }} PitchSample */
 
-    // Octave-lock guard: when a voice's 2nd harmonic dominates, the
-    // first good correlation peak sits at HALF the true period and the
-    // note reads an octave high. Before trusting the found peak, look at
-    // double its period: for a true detection the doubled shift
-    // correlates about equally, so only a CLEARLY better double (by this
-    // margin) pulls the note down to its real octave.
-    const OCTAVE_DOWN_MARGIN = 0.015;
+    // Harmonic-lock guard: when a voice's 2nd/3rd/4th harmonic dominates,
+    // the first good correlation peak sits at a FRACTION of the true
+    // period and the note reads an octave (or octave+fifth, or two
+    // octaves) high. Before trusting the found peak, inspect the
+    // candidates at 2x and 3x its period (iterated once, which reaches
+    // 4x): for a true detection those shifts correlate about equally, so
+    // only a CLEARLY better candidate (by this margin) pulls the note
+    // down to its real pitch.
+    const HARMONIC_DOWN_MARGIN = 0.015;
 
     /**
      * Autocorrelation pitch detector with parabolic peak interpolation
-     * and an octave-lock guard.
+     * and a harmonic-lock guard.
      * @param {Float32Array} buffer
      * @param {number} sampleRate
      * @param {any} [correlations]
@@ -62,49 +65,63 @@ const PitchDetectCore = (function () {
         let bestOffset = -1;
         let bestCorrelation = 0;
         let foundGoodCorrelation = false;
-        let peakLocked = false;
 
         let rms = 0;
         for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
         rms = Math.sqrt(rms / size);
         if (rms < 0.01) return -1;
 
-        let lastCorrelation = 1;
-        for (let offset = 0; offset < maxSamples; offset++) {
+        /** Normalized difference correlation for one shift. @param {number} offset */
+        const corrAt = (offset) => {
             let correlation = 0;
             for (let i = 0; i < maxSamples; i++) {
                 correlation += Math.abs(buffer[i] - buffer[i + offset]);
             }
-            correlation = 1 - correlation / maxSamples;
+            return 1 - correlation / maxSamples;
+        };
+
+        let lastCorrelation = 1;
+        for (let offset = 0; offset < maxSamples; offset++) {
+            const correlation = corrAt(offset);
             correlations[offset] = correlation;
 
-            if (!peakLocked && correlation > 0.9 && correlation > lastCorrelation) {
+            if (correlation > 0.9 && correlation > lastCorrelation) {
                 foundGoodCorrelation = true;
                 if (correlation > bestCorrelation) {
                     bestCorrelation = correlation;
                     bestOffset = offset;
                 }
-            } else if (!peakLocked && foundGoodCorrelation) {
-                // Past the peak: freeze it, but keep scanning far enough
-                // to inspect the octave-down candidate at double period.
-                peakLocked = true;
+            } else if (foundGoodCorrelation) {
+                break; // past the peak; the harmonic guard decides the octave
             }
             lastCorrelation = correlation;
-            if (peakLocked && offset >= Math.min(bestOffset * 2 + 3, maxSamples - 1)) break;
         }
 
         if (foundGoodCorrelation) {
-            const doubled = bestOffset * 2;
-            if (doubled + 2 < maxSamples) {
-                let sub = doubled;
-                for (let k = Math.max(1, doubled - 2); k <= doubled + 2; k++) {
-                    if (correlations[k] > correlations[sub]) sub = k;
+            for (let pass = 0; pass < 2; pass++) {
+                let improved = false;
+                for (const multiple of [2, 3]) {
+                    const around = bestOffset * multiple;
+                    if (around + 2 >= maxSamples) continue;
+                    let candidate = -1;
+                    let candidateCorr = -Infinity;
+                    for (let k = around - 2; k <= around + 2; k++) {
+                        const c = corrAt(k);
+                        if (c > candidateCorr) {
+                            candidateCorr = c;
+                            candidate = k;
+                        }
+                    }
+                    if (candidateCorr > bestCorrelation + HARMONIC_DOWN_MARGIN) {
+                        bestOffset = candidate;
+                        bestCorrelation = candidateCorr;
+                        improved = true;
+                        break;
+                    }
                 }
-                if (correlations[sub] > bestCorrelation + OCTAVE_DOWN_MARGIN) {
-                    bestOffset = sub;
-                }
+                if (!improved) break;
             }
-            const shift = (correlations[bestOffset + 1] - correlations[bestOffset - 1]) / correlations[bestOffset];
+            const shift = (corrAt(bestOffset + 1) - corrAt(bestOffset - 1)) / corrAt(bestOffset);
             return sampleRate / (bestOffset + 8 * shift);
         }
 
