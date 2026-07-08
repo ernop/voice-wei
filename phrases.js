@@ -248,9 +248,32 @@
      * notes share one timeline that starts at 0 with the FIRST ENABLED
      * note; disabled notes own no time at all - exactly how playback
      * sounds.
+     * Memoized on its actual inputs: the live loop reads the plan many
+     * times per second (targets, rails, duration), and rebuilding the
+     * spelled note names each time was measurable work. A pure-function
+     * memo keyed by the inputs cannot go stale - any change to key,
+     * timing, reflection, or the take notes changes the key.
      * @returns {PhrasePlanNote[]}
      */
+    let takePlanKey = '';
+    /** @type {PhrasePlanNote[]} */
+    let takePlanCache = [];
+
     function buildTakePlan() {
+        const key = [
+            state.root, state.octave, state.scaleType,
+            state.reflected ? 'r' : '', state.noteLengthMs, state.gapMs,
+            takeNotes.map(note => `${note.offset}${note.enabled ? '' : 'x'}`).join(',')
+        ].join('|');
+        if (key !== takePlanKey) {
+            takePlanCache = computeTakePlan();
+            takePlanKey = key;
+        }
+        return takePlanCache;
+    }
+
+    /** @returns {PhrasePlanNote[]} */
+    function computeTakePlan() {
         const root = rootMidi();
         if (root === null || !takeNotes.length) return [];
         const sourceOffsets = takeNotes.map(note => note.offset);

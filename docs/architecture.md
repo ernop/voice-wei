@@ -182,6 +182,21 @@ exclusivity and never-auto-play rules.
 `progress-store.js` with per-note verdicts and signed cents bias, feeding
 the trend line and weak-spot line.
 
+**Live-loop budget: never re-chew the take.** Per-sample work happens
+once, when the sample arrives; per-tick (50ms) work is bounded by the
+number of held notes and targets, never by take length. Concretely: the
+panel segments incrementally (`PitchScore.createSegmenter`, pulled from
+`session.history` as it grows) and each tick only re-runs the alignment
+(`alignSegments`); the phrases take plan is memoized on its input key
+(targets, rails, and duration all read it every tick); the view finds a
+fixed window's visible slice by scanning back from the end of the
+time-ordered history; and the detector stops scanning at the deepest
+singable period, which caps the cost of pitchless frames (breath noise
+used to trigger a full scan). Measured on a simulated 10-minute take:
+the old per-tick scoring re-chewed 36k samples in ~15ms per tick (plus
+allocation/GC pressure, the felt "grinding"); the incremental path is
+~1.4ms.
+
 Consumers: the Trace page uses session + view directly; Phrases, Scales,
 and Intervals go through `pitch-test-panel.js`; pitch-meter uses the same
 session plus its own call-and-response/play-along modes (scored through

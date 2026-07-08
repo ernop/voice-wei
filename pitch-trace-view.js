@@ -115,10 +115,17 @@ const PitchTraceView = (function () {
             const timeWindow = options.windowMs();
             const windowStart = options.fixedWindow() ? Math.max(0, options.clockMs() - timeWindow) : 0;
 
+            // History is time-ordered, so the visible slice of a fixed
+            // window is found by scanning back from the end - no
+            // per-point predicate over the whole take every frame.
             const rawHistory = options.history();
-            const visibleHistory = options.fixedWindow()
-                ? rawHistory.filter(point => point.time >= windowStart - PitchDetectCore.TRACE_BREAK_MS && point.time <= windowStart + timeWindow)
-                : rawHistory;
+            let visibleHistory = rawHistory;
+            if (options.fixedWindow()) {
+                const earliest = windowStart - PitchDetectCore.TRACE_BREAK_MS;
+                let startIndex = rawHistory.length;
+                while (startIndex > 0 && rawHistory[startIndex - 1].time >= earliest) startIndex--;
+                visibleHistory = startIndex === 0 ? rawHistory : rawHistory.slice(startIndex);
+            }
             const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
             const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
 

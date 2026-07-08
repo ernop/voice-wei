@@ -97,6 +97,26 @@ const PitchTestPanel = (function () {
         // its verdict, cleared by Restart.
         let takeRecorded = false;
 
+        // Incremental segmentation: every accepted sample is segmented
+        // exactly once (pulled from session.history as it grows); the
+        // 50ms scoring tick only aligns the few dozen resulting held
+        // notes. A shrunken history means the session was reset - start
+        // a fresh segmenter.
+        let segmenter = PitchScore.createSegmenter();
+        let segmentedCount = 0;
+
+        function currentSegments() {
+            const history = session.history;
+            if (segmentedCount > history.length) {
+                segmenter = PitchScore.createSegmenter();
+                segmentedCount = 0;
+            }
+            while (segmentedCount < history.length) {
+                segmenter.push(history[segmentedCount++]);
+            }
+            return segmenter.segments();
+        }
+
         // The guide is sequenced here, from the same TargetSpans that are
         // drawn: identical notes, key, and timing by construction.
         let guideToken = 0;
@@ -137,7 +157,7 @@ const PitchTestPanel = (function () {
             const voiceIdle = session.msSinceLastAccepted() >= SEGMENT_CLOSE_IDLE_MS;
             const all = config.targets();
             const activeTargets = all.filter(target => target.active);
-            const results = PitchScore.scoreSequence(session.history, activeTargets, {
+            const results = PitchScore.alignSegments(currentSegments(), activeTargets, {
                 finalSegmentOpen: !voiceIdle
             });
             let resultIndex = 0;

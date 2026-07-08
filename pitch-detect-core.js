@@ -80,8 +80,15 @@ const PitchDetectCore = (function () {
             return 1 - correlation / maxSamples;
         };
 
+        // No shift longer than the deepest singable note's period can be
+        // a voice, so the scan stops there - this caps the cost of a
+        // pitchless frame (breath noise used to trigger a full scan
+        // every frame). Short shifts stay in: harmonic locks start
+        // there, and the guard below walks them down to the real pitch.
+        const maxOffset = Math.min(maxSamples - 1, Math.ceil(sampleRate / midiToFreq(VOICE_MIN_MIDI)) + 4);
+
         let lastCorrelation = 1;
-        for (let offset = 0; offset < maxSamples; offset++) {
+        for (let offset = 0; offset <= maxOffset; offset++) {
             const correlation = corrAt(offset);
             correlations[offset] = correlation;
 

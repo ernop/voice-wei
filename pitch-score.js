@@ -127,52 +127,113 @@ const PitchScore = (function () {
     }
 
     /**
-     * Segment voiced samples into held notes: a new segment starts at a
-     * time gap (wall-clock mode; the voice clock compresses breaths to
-     * zero) or when the pitch moves off the running anchor and stays
-     * there. Fragments shorter than MIN_VOICED are transition glides or
-     * scrapes, not held notes, and are dropped.
-     * @param {{ time: number, midi: number }[]} samples time-sorted
-     * @returns {{ midi: number, samples: { time: number, midi: number }[] }[]}
+     * Incremental held-note segmenter: each sample is processed exactly
+     * once as it arrives (the live loop must never re-chew the whole
+     * take per tick). A new segment starts at a time gap (wall-clock
+     * mode; the voice clock compresses breaths to zero) or when the
+     * pitch moves off the running anchor - the median of the last few
+     * samples, maintained by insertion into a small sorted window, no
+     * per-sample allocation - and stays there. Fragments shorter than
+     * MIN_VOICED are transition glides or scrapes, not held notes, and
+     * are dropped.
      */
-    function segmentSamples(samples) {
-        /** @type {{ time: number, midi: number }[][]} */
-        const rawSegments = [];
+    function createSegmenter() {
+        /** @type {{ midi: number, samples: { time: number, midi: number }[] }[]} */
+        const closed = [];
         /** @type {{ time: number, midi: number }[]} */
         let current = [];
         /** @type {{ time: number, midi: number }[]} */
         let shiftRun = [];
+        /** @type {number[]} arrival order of the anchor window */
+        const anchorQueue = [];
+        /** @type {number[]} the same midis kept sorted */
+        const anchorSorted = [];
 
-        for (const sample of samples) {
-            if (!current.length) {
-                current = [sample];
-                continue;
+        /** @param {number} midi */
+        function anchorPush(midi) {
+            anchorQueue.push(midi);
+            let at = 0;
+            while (at < anchorSorted.length && anchorSorted[at] < midi) at++;
+            anchorSorted.splice(at, 0, midi);
+            if (anchorQueue.length > SEGMENT_ANCHOR_SPAN) {
+                const evicted = anchorQueue.shift();
+                anchorSorted.splice(anchorSorted.indexOf(/** @type {number} */(evicted)), 1);
             }
-            const previous = current[current.length - 1];
-            if (Math.abs(sample.time - previous.time) > SEGMENT_BREAK_MS) {
-                rawSegments.push(current);
-                current = [sample];
-                shiftRun = [];
-                continue;
-            }
-            const anchor = median(current.slice(-SEGMENT_ANCHOR_SPAN).map(s => s.midi));
-            if (Math.abs(sample.midi - anchor) > SEGMENT_SHIFT_MIDI) {
-                shiftRun.push(sample);
-                if (shiftRun.length >= SEGMENT_SHIFT_CONFIRM) {
-                    rawSegments.push(current);
-                    current = shiftRun.slice();
-                    shiftRun = [];
-                }
-                continue;
-            }
-            shiftRun = [];
-            current.push(sample);
         }
-        if (current.length) rawSegments.push(current);
 
-        return rawSegments
-            .filter(segment => segment.length >= MIN_VOICED)
-            .map(segment => ({ midi: median(segment.map(s => s.midi)), samples: segment }));
+        function anchorMedian() {
+            const mid = Math.floor(anchorSorted.length / 2);
+            return anchorSorted.length % 2 === 1
+                ? anchorSorted[mid]
+                : (anchorSorted[mid - 1] + anchorSorted[mid]) / 2;
+        }
+
+        /** @param {{ time: number, midi: number }[]} samples */
+        function anchorReset(samples) {
+            anchorQueue.length = 0;
+            anchorSorted.length = 0;
+            for (const sample of samples.slice(-SEGMENT_ANCHOR_SPAN)) anchorPush(sample.midi);
+        }
+
+        function closeCurrent() {
+            if (current.length >= MIN_VOICED) {
+                closed.push({ midi: median(current.map(s => s.midi)), samples: current });
+            }
+        }
+
+        return {
+            /** @param {{ time: number, midi: number }} sample */
+            push(sample) {
+                if (!sample || !Number.isFinite(sample.midi)) return;
+                if (!current.length) {
+                    current = [sample];
+                    anchorReset(current);
+                    return;
+                }
+                const previous = current[current.length - 1];
+                if (Math.abs(sample.time - previous.time) > SEGMENT_BREAK_MS) {
+                    closeCurrent();
+                    current = [sample];
+                    shiftRun = [];
+                    anchorReset(current);
+                    return;
+                }
+                if (Math.abs(sample.midi - anchorMedian()) > SEGMENT_SHIFT_MIDI) {
+                    shiftRun.push(sample);
+                    if (shiftRun.length >= SEGMENT_SHIFT_CONFIRM) {
+                        closeCurrent();
+                        current = shiftRun.slice();
+                        shiftRun = [];
+                        anchorReset(current);
+                    }
+                    return;
+                }
+                shiftRun = [];
+                current.push(sample);
+                anchorPush(sample.midi);
+            },
+
+            /** Closed segments plus the still-open hold (when big enough), in order. */
+            segments() {
+                const out = closed.slice();
+                if (current.length >= MIN_VOICED) {
+                    out.push({ midi: median(current.map(s => s.midi)), samples: current });
+                }
+                return out;
+            }
+        };
+    }
+
+    /**
+     * One-shot segmentation of a full take (the incremental segmenter is
+     * the single implementation; this feeds it in time order).
+     * @param {{ time: number, midi: number }[]} samples time-sorted
+     * @returns {{ midi: number, samples: { time: number, midi: number }[] }[]}
+     */
+    function segmentSamples(samples) {
+        const segmenter = createSegmenter();
+        for (const sample of samples) segmenter.push(sample);
+        return segmenter.segments();
     }
 
     /**
@@ -199,7 +260,20 @@ const PitchScore = (function () {
             .filter(s => s && Number.isFinite(s.midi))
             .slice()
             .sort((a, b) => a.time - b.time);
-        let segments = segmentSamples(voiced);
+        return alignSegments(segmentSamples(voiced), targets, options);
+    }
+
+    /**
+     * The alignment behind scoreSequence, taking segments directly so a
+     * live loop with an incremental segmenter never re-segments the take.
+     * Same contract: one result per target, with `reached`.
+     * @param {{ midi: number, samples: { time: number, midi: number }[] }[]} allSegments
+     * @param {{ midi: number }[]} targets active targets, in order
+     * @param {{ finalSegmentOpen?: boolean }} [options] exclude the still-being-sung segment
+     * @returns {(ReturnType<typeof scoreWindow> & { reached: boolean })[]}
+     */
+    function alignSegments(allSegments, targets, options = {}) {
+        let segments = allSegments;
         if (options.finalSegmentOpen && segments.length) {
             segments = segments.slice(0, -1);
         }
@@ -303,6 +377,8 @@ const PitchScore = (function () {
     return {
         scoreWindow,
         scoreSequence,
+        alignSegments,
+        createSegmenter,
         segmentSamples,
         verdictFor,
         accuracyFor,
