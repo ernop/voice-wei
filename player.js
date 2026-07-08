@@ -46,7 +46,7 @@ class VoiceMusicController {
         this.lyricsCache = PlayerStorage.loadLyricsCache();
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
-        /** @type {number[]} Item ids awaiting a background lyric lookup */
+        /** @type {PlaylistItem[]} Items awaiting a background lyric lookup */
         this.lyricsFetchQueue = [];
         /** @type {number} Lyric lookups currently in flight (bounded) */
         this.lyricsFetchActive = 0;
@@ -104,6 +104,10 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
+            // Before restore: clean the miss map once and queue favorite
+            // lyric rechecks, so restored songs hydrate against the cleaned
+            // cache and re-queue their own lookups through the normal path.
+            this.backfillLibraryLyricsOnce();
             this.restoreSavedPlaylist();
             this.loadDemoSongIfRequested();
         } catch (error) {

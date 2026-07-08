@@ -1089,7 +1089,9 @@ const PlayerPlaylist = (function () {
                 }
                 this.playerReadyPromises.clear();
                 this.youtubeAlternateResults.clear();
-                this.lyricsFetchQueue.length = 0;
+                // Drop queued lookups for the discarded rows; detached
+                // backfill items are not playlist-bound and keep going.
+                this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');
                 this.playback.reset();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);

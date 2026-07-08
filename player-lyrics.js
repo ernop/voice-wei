@@ -275,24 +275,60 @@ const PlayerLyrics = (function () {
              */
             queueLyricsLookup(item) {
                 if (item.lyricsStatus !== 'idle') return;
-                if (this.lyricsFetchQueue.includes(item.id)) return;
-                this.lyricsFetchQueue.push(item.id);
+                if (this.lyricsFetchQueue.includes(item)) return;
+                this.lyricsFetchQueue.push(item);
                 this.pumpLyricsQueue();
             },
 
             pumpLyricsQueue() {
                 while (this.lyricsFetchActive < LYRICS_QUEUE_CONCURRENCY && this.lyricsFetchQueue.length > 0) {
-                    const itemId = this.lyricsFetchQueue.shift();
-                    // The playlist may have changed since enqueue (row
-                    // removed, list cleared/replaced, song already resolved
-                    // by a direct play) - re-check at dequeue time.
-                    const item = this.playlist.find(entry => entry.id === itemId);
-                    if (!item || item.lyricsStatus !== 'idle') continue;
+                    const item = this.lyricsFetchQueue.shift();
+                    // Re-check at dequeue: the song may have resolved via a
+                    // direct play, and a playlist row may have been removed.
+                    // Backfill items are detached from the playlist by design
+                    // and always run.
+                    if (item.lyricsStatus !== 'idle') continue;
+                    if (item.sourceKind !== 'backfill' && !this.playlist.some(entry => entry.id === item.id)) continue;
                     this.lyricsFetchActive++;
                     void this.ensureLyricsForItem(item).finally(() => {
                         this.lyricsFetchActive--;
                         this.pumpLyricsQueue();
                     });
+                }
+            },
+
+            /**
+             * One-time library recheck. Two jobs: (1) wipe the miss map -
+             * misses recorded before the provider-failure fix could hold
+             * transient failures remembered as authoritative not-founds
+             * (the "my favorites have no lyrics" symptom); (2) queue lyric
+             * lookups for every favorite without cached lyrics, as detached
+             * backfill items whose results land in the shared lyrics cache.
+             * Runs BEFORE the playlist restore, so restored songs hydrate
+             * against the cleaned cache and re-queue themselves normally.
+             */
+            backfillLibraryLyricsOnce() {
+                if (this.lyricsCache.backfilledAt) return;
+                this.lyricsCache.backfilledAt = Date.now();
+                this.lyricsCache.misses = {};
+                PlayerStorage.saveLyricsCache(this.lyricsCache);
+
+                let queued = 0;
+                const seen = new Set();
+                for (const favorite of Object.values(this.favorites)) {
+                    if (seen.has(favorite.videoId)) continue;
+                    seen.add(favorite.videoId);
+                    const item = PlayerSongs.createPlaylistItem(favorite, {
+                        sourceKind: 'backfill',
+                        sourceLabel: 'Lyrics backfill'
+                    });
+                    if (!item) continue;
+                    if (this.hydrateItemLyricsFromCache(item)) continue;
+                    this.queueLyricsLookup(item);
+                    queued++;
+                }
+                if (queued > 0) {
+                    this.addMessage('claude', 'Lyrics backfill', `Rechecking lyrics for ${queued} favorite${queued === 1 ? '' : 's'} in the background`);
                 }
             },
 
@@ -332,7 +368,9 @@ const PlayerLyrics = (function () {
                         this.recordLyricsMiss(item);
                     }
                 } catch (error) {
-                    console.error('Lyrics lookup failed:', error);
+                    // Expected, handled external failure: reported to the log
+                    // panel, retried on a later load (the item is not a miss).
+                    this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (will retry on a later load)`);
                     item.lyricsData = null;
                     item.lyricsStatus = 'error';
                 }
@@ -371,16 +409,32 @@ const PlayerLyrics = (function () {
                 /** @type {{ score: number, record: any } | null} */
                 let bestMatch = null;
 
-                // Search all candidates in parallel
-                const allResults = await Promise.all(
+                // Search all candidates in parallel, keeping failures
+                // distinct from genuine empty answers.
+                const searches = await Promise.all(
                     candidates.map(candidate =>
                         this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '')
-                            .then(results => ({ candidate, results: results || [] }))
-                            .catch(() => ({ candidate, results: [] }))
+                            .then(results => ({ candidate, results: results || [], error: /** @type {Error | null} */ (null) }))
+                            .catch(error => ({
+                                candidate,
+                                results: /** @type {any[]} */ ([]),
+                                error: error instanceof Error ? error : new Error(String(error))
+                            }))
                     )
                 );
 
-                for (const { candidate, results } of allResults) {
+                // A provider failure (rate limit, network) is NOT "no lyrics
+                // exist". Only searches that actually answered may conclude
+                // not-found; if every candidate search failed, throw so the
+                // item lands in 'error' and is retried on the next load -
+                // never recorded as a durable miss.
+                const answered = searches.filter(search => !search.error);
+                if (answered.length === 0) {
+                    const firstError = searches[0] ? searches[0].error : null;
+                    throw new Error(`All ${searches.length} lyric search${searches.length === 1 ? '' : 'es'} failed: ${firstError ? firstError.message : 'unknown error'}`);
+                }
+
+                for (const { candidate, results } of answered) {
                     for (const record of results) {
                         const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
                         if (!bestMatch || score > bestMatch.score) {

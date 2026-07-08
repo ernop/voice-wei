@@ -384,6 +384,16 @@ a song, tapping its row chip) calls `ensureLyricsForItem` immediately
 and idempotently; tapping the chip on a remembered not-found clears its
 miss and forces a fresh lookup.
 
+**A provider failure is never a miss.** Only a lyric search that
+actually answered may conclude not-found; if every candidate search
+fails (rate limit, network), the item lands in `error` and retries on a
+later load. Misses recorded before this rule existed could hold
+transient failures remembered as not-founds, so a one-time backfill
+(`backfillLibraryLyricsOnce`, keyed by the cache's `backfilledAt`) wipes
+the miss map and queues lyric rechecks for all favorites as detached
+`backfill` items; it runs before playlist restore so restored songs
+hydrate against the cleaned cache and re-queue themselves normally.
+
 ### Music player durable history (`voice-wei-music`)
 
 The music player keeps unbounded/historical data in its own IndexedDB

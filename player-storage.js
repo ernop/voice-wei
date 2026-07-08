@@ -42,14 +42,18 @@ function isLyricsCacheStore(value) {
 }
 
 /**
- * The `misses` map (remembered not-founds) arrived after records+aliases;
- * stores saved without it get an empty one.
+ * Fields added after records+aliases get defaults: `misses` (remembered
+ * not-founds) and `backfilledAt` (0 = the one-time library lyric recheck
+ * has not run yet).
  * @param {LyricsCacheStore} store
  * @returns {LyricsCacheStore}
  */
-function withLyricsMisses(store) {
+function normalizeLyricsCacheStore(store) {
     if (!isPlainObject(/** @type {{ misses?: unknown }} */(store).misses)) {
         store.misses = {};
+    }
+    if (typeof store.backfilledAt !== 'number') {
+        store.backfilledAt = 0;
     }
     return store;
 }
@@ -64,7 +68,7 @@ function withLyricsMisses(store) {
  */
 function migrateFlatLyricsCache(flat) {
     /** @type {LyricsCacheStore} */
-    const store = { records: {}, aliases: {}, misses: {} };
+    const store = { records: {}, aliases: {}, misses: {}, backfilledAt: 0 };
     /** @type {Map<string, string>} lyrics identity -> canonical key */
     const canonicalByIdentity = new Map();
     const now = Date.now();
@@ -126,14 +130,14 @@ const PlayerStorage = (function () {
     /** @returns {LyricsCacheStore} */
     function loadLyricsCache() {
         /** @type {LyricsCacheStore} */
-        const empty = { records: {}, aliases: {}, misses: {} };
+        const empty = { records: {}, aliases: {}, misses: {}, backfilledAt: 0 };
         const raw = SettingsStore.loadJson(
             StorageKeys.PLAYER_LYRICS_CACHE,
             /** @type {Record<string, any>} */(empty),
             isPlainObject
         );
         if (isLyricsCacheStore(raw)) {
-            return withLyricsMisses(raw);
+            return normalizeLyricsCacheStore(raw);
         }
         // Legacy flat shape: one full lyrics copy per lookup key. Collapse to
         // the deduplicated store and re-save so the duplication never returns.

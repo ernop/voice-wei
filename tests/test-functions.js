@@ -1389,6 +1389,110 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricsQueueRecovery.newSongLookups === 1
             && lyricsQueueRecovery.chipRetried);
 
+        const lyricsFailureAndBackfill = await tab.evaluate(async () => {
+            const realSaveLyricsCache = PlayerStorage.saveLyricsCache;
+            PlayerStorage.saveLyricsCache = () => {};
+            const makeHarness = (lyricsCache, favorites) => {
+                const harness = {
+                    playlist: [],
+                    favorites,
+                    youtubeAlternateResults: new Map(),
+                    lyricsCache,
+                    lyricsLookupCache: new Map(),
+                    lyricsFetchQueue: [],
+                    lyricsFetchActive: 0,
+                    currentLyricsItemId: null,
+                    currentLyricsLineIndex: -1,
+                    lyricsPanelVisible: false,
+                    lyricsPanelDismissed: false,
+                    nowPlayingShowsLyric: false,
+                    settings: { lyricsOnNowPlaying: false },
+                    isFavorite() { return false; },
+                    escapeHtml(value) { return String(value || ''); },
+                    truncateForStatus(value) { return String(value || ''); },
+                    addMessage() {},
+                    updateStatus() {},
+                    persistPlaylist() {},
+                    updatePlaylistLabel() {},
+                    showPlaylistSurfaces() {}
+                };
+                PlayerPlaylist.install(harness);
+                PlayerLyrics.install(harness);
+                harness.addPlaylistItemToDOM = () => {};
+                return harness;
+            };
+            const makeItem = (name) => PlayerSongs.createPlaylistItem({
+                videoId: `fb-${name.replace(/\s+/g, '-')}`,
+                name, artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100,
+                searchTerm: `Backfill Artist ${name}`
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+
+            // Provider FAILURE (rate limit / network) must land in 'error'
+            // and record no miss; only an answered search may conclude
+            // not-found (which does record one).
+            const failCache = { records: {}, aliases: {}, misses: {}, backfilledAt: Date.now() };
+            const failing = makeHarness(failCache, {});
+            failing.searchLyricsProvider = async () => { throw new Error('HTTP 429'); };
+            const failedItem = makeItem('Rate Limited Song');
+            failing.playlist.push(failedItem);
+            await failing.ensureLyricsForItem(failedItem);
+            const failureIsError = failedItem.lyricsStatus === 'error'
+                && Object.keys(failCache.misses).length === 0;
+            failing.searchLyricsProvider = async () => [];
+            failing.lyricsLookupCache.clear();
+            const emptyItem = makeItem('Truly Missing Song');
+            failing.playlist.push(emptyItem);
+            await failing.ensureLyricsForItem(emptyItem);
+            const answeredEmptyIsMiss = emptyItem.lyricsStatus === 'not_found'
+                && Object.keys(failCache.misses).length > 0;
+
+            // One-time backfill: wipes the (possibly contaminated) miss map
+            // and queues lookups for favorites without cached lyrics; runs
+            // exactly once per cache.
+            const backfillCache = {
+                records: {}, aliases: {},
+                misses: { 'contaminated|miss|0': Date.now() },
+                backfilledAt: 0
+            };
+            const favorites = {
+                'fav-1': { videoId: 'fav-1', name: 'Popular Song A', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'a' },
+                'fav-2': { videoId: 'fav-2', name: 'Popular Song B', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'b' }
+            };
+            const backfill = makeHarness(backfillCache, favorites);
+            backfill.lookups = 0;
+            backfill.lookupLyrics = async (item) => {
+                backfill.lookups++;
+                await new Promise(resolve => setTimeout(resolve, 20));
+                return {
+                    provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                    albumName: '', duration: 100, instrumental: false,
+                    plainLyrics: 'la', syncedLyrics: null, syncedLines: []
+                };
+            };
+            backfill.backfillLibraryLyricsOnce();
+            const missesWipedAndMarked = !('contaminated|miss|0' in backfillCache.misses)
+                && backfillCache.backfilledAt > 0;
+            for (let i = 0; i < 100; i++) {
+                if (backfill.lyricsFetchActive === 0 && backfill.lyricsFetchQueue.length === 0) break;
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            const backfillLookups = backfill.lookups;
+            const cachedAfterBackfill = Object.keys(backfillCache.records).length;
+            backfill.backfillLibraryLyricsOnce();
+            await new Promise(resolve => setTimeout(resolve, 80));
+            const ranOnce = backfill.lookups === backfillLookups;
+
+            PlayerStorage.saveLyricsCache = realSaveLyricsCache;
+            return { failureIsError, answeredEmptyIsMiss, missesWipedAndMarked, backfillLookups, cachedAfterBackfill, ranOnce };
+        });
+        report.check(`player lyric failures retry instead of becoming misses; backfill rechecks favorites once (${lyricsFailureAndBackfill.backfillLookups} lookups)`,
+            lyricsFailureAndBackfill.failureIsError
+            && lyricsFailureAndBackfill.answeredEmptyIsMiss
+            && lyricsFailureAndBackfill.missesWipedAndMarked
+            && lyricsFailureAndBackfill.backfillLookups === 2
+            && lyricsFailureAndBackfill.cachedAfterBackfill === 2
+            && lyricsFailureAndBackfill.ranOnce);
+
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
                 musicHistoryLookups: [{

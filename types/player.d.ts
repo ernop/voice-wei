@@ -48,7 +48,7 @@ interface Song {
     durationSeconds: number;
 }
 
-type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'demo';
+type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'demo' | 'backfill';
 
 type PlaylistSortKey = 'artist' | 'year';
 
@@ -103,12 +103,16 @@ interface LyricsCacheRecord {
  * lyrics under every alias key, which multiplied localStorage use.)
  * `misses` remembers confirmed not-founds (lookup key -> epoch ms) so
  * resume-on-load does not re-query known-missing songs; entries expire
- * after a TTL and a chip tap clears them for a forced retry.
+ * after a TTL and a chip tap clears them for a forced retry. Only a
+ * provider search that actually answered may record a miss - failures
+ * surface as the item's 'error' status and retry on a later load.
+ * `backfilledAt` marks the one-time library lyric recheck (0 = pending).
  */
 interface LyricsCacheStore {
     records: { [canonicalKey: string]: LyricsCacheRecord };
     aliases: { [aliasKey: string]: string };
     misses: { [aliasKey: string]: number };
+    backfilledAt: number;
 }
 
 interface SongLibraryNote {
@@ -341,10 +345,11 @@ interface VoiceMusicController {
     cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
     persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
     trimLyricsCache(): void;
-    lyricsFetchQueue: number[];
+    lyricsFetchQueue: PlaylistItem[];
     lyricsFetchActive: number;
     queueLyricsLookup(item: PlaylistItem): void;
     pumpLyricsQueue(): void;
+    backfillLibraryLyricsOnce(): void;
     recordLyricsMiss(item: PlaylistItem): void;
     clearLyricsMiss(item: PlaylistItem): void;
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];
