@@ -37,6 +37,7 @@
         reflected: false,
         loopCurrent: false,
         breakdownEnabled: false,
+        powersetEnabled: false,
         autoStep: false,
         playOnStep: false,
         playOnNext: true,
@@ -48,8 +49,8 @@
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
-        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep',
-        'playOnNext', 'lessonLockedKeys'
+        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
+        'autoStep', 'playOnStep', 'playOnNext', 'lessonLockedKeys'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
@@ -149,6 +150,14 @@
     let pointerToggleValue = true;
     let breakdownPassIndex = 0;
     let syncingPhraseStageScroll = false;
+    /**
+     * Powerset practice: lazily walks every unique-as-text ordered note
+     * combination of the current phrase (all 3-note combos, then 4, ...).
+     * Each pass is an enable mask over the take, like breakdown passes.
+     * @type {{ next: () => number[] | null } | null}
+     */
+    let powersetIterator = null;
+    let powersetExhausted = false;
 
     function hasHearOutput() {
         return state.hearTones || state.hearSpeech || state.singNumbers;
@@ -569,6 +578,30 @@
     function setTakeFromPhrase(phrase) {
         takeNotes = phrase.notes.map(note => ({ offset: note.offset, enabled: true }));
         resetBreakdownForPhrase();
+        if (state.powersetEnabled) resetPowersetForPhrase();
+    }
+
+    /**
+     * Start (or restart) the powerset walk over the current take and show
+     * the first combination as the enable mask.
+     */
+    function resetPowersetForPhrase() {
+        powersetExhausted = false;
+        if (!takeNotes.length) {
+            powersetIterator = null;
+            return;
+        }
+        powersetIterator = PatternPracticeCore.createUniqueSubsequenceIterator(
+            takeNotes.map(note => note.offset),
+            3
+        );
+        const first = powersetIterator.next();
+        if (first) {
+            applyNoteMask(first);
+        } else {
+            powersetExhausted = true;
+            updatePhraseDisplay();
+        }
     }
 
     async function playPhraseOnce(token) {
@@ -596,6 +629,25 @@
         return true;
     }
 
+    /**
+     * Powerset always auto-advances: after each play-through the next
+     * combination becomes the mask, so its highlight is the advance hint
+     * during the inter-pass pause. The last pass (the whole phrase) just
+     * repeats once the walk is exhausted.
+     */
+    function maybeAdvancePowersetPass() {
+        if (!state.powersetEnabled || !powersetIterator || powersetExhausted) return false;
+        const next = powersetIterator.next();
+        if (!next) {
+            powersetExhausted = true;
+            syncBreakdownControls();
+            return false;
+        }
+        applyNoteMask(next);
+        syncBreakdownControls();
+        return true;
+    }
+
     async function playPhrase() {
         if (!phrasePlaybackAllowed()) {
             stopTransport();
@@ -610,8 +662,11 @@
             await playPhraseOnce(token);
             if (token !== playToken) break;
             maybeAdvanceBreakdownPass();
+            maybeAdvancePowersetPass();
             if (!state.loopCurrent) break;
-            await sleep(650);
+            // Powerset gets a longer pause: the newly highlighted combo is
+            // the sing-along hint and needs time to be read.
+            await sleep(state.powersetEnabled ? 1100 : 650);
         } while (token === playToken && state.loopCurrent);
         if (token === playToken) setTransportPlaying(false);
     }
@@ -812,11 +867,21 @@
         syncBreakdownControls();
     }
 
+    function exitPowersetMode() {
+        if (!state.powersetEnabled) return;
+        state.powersetEnabled = false;
+        powersetIterator = null;
+        powersetExhausted = false;
+        saveSettings();
+        syncBreakdownControls();
+    }
+
     async function playNextUnlocked() {
         await MediaSessionCore.activate();
         testPanel.close();
         stopTransport();
         exitBreakdownMode();
+        exitPowersetMode();
         generatePhrase();
         // With play-on-next off, Next only reveals the phrase so it can be
         // worked out by eye/voice first; Play starts audio when ready.
@@ -837,6 +902,7 @@
         testPanel.close();
         stopTransport();
         exitBreakdownMode();
+        exitPowersetMode();
         const entries = history ? history.entries : [];
         if (entries.length) {
             const index = entries.indexOf(currentPhrase);
@@ -950,12 +1016,37 @@
 
     function toggleBreakdownEnabled() {
         state.breakdownEnabled = !state.breakdownEnabled;
+        if (state.breakdownEnabled && state.powersetEnabled) {
+            state.powersetEnabled = false;
+            powersetIterator = null;
+            powersetExhausted = false;
+        }
         saveSettings();
         if (!currentPhrase && state.breakdownEnabled) generatePhrase();
         if (state.breakdownEnabled) {
             resetBreakdownForPhrase();
         } else {
             breakdownPassIndex = 0;
+            setAllNotes(true);
+        }
+        syncBreakdownControls();
+    }
+
+    function togglePowersetEnabled() {
+        state.powersetEnabled = !state.powersetEnabled;
+        if (state.powersetEnabled && state.breakdownEnabled) {
+            state.breakdownEnabled = false;
+            breakdownPassIndex = 0;
+            breakdownPasses = [];
+        }
+        saveSettings();
+        if (state.powersetEnabled) {
+            // generatePhrase seeds the take, which starts the walk itself.
+            if (!currentPhrase) generatePhrase();
+            else resetPowersetForPhrase();
+        } else {
+            powersetIterator = null;
+            powersetExhausted = false;
             setAllNotes(true);
         }
         syncBreakdownControls();
@@ -996,11 +1087,35 @@
         }
     }
 
+    /** Manual powerset step: show the next combination, optionally play it. */
+    async function advancePowersetCombo() {
+        if (!state.powersetEnabled) return;
+        if (!currentPhrase) generatePhrase();
+        if (!powersetIterator) resetPowersetForPhrase();
+
+        stopTransport();
+        if (!maybeAdvancePowersetPass()) return;
+
+        if (state.playOnStep) {
+            await playPhrase();
+        }
+    }
+
+    function advanceStagePass() {
+        if (state.powersetEnabled) return advancePowersetCombo();
+        return advanceBreakdownNote();
+    }
+
     function syncBreakdownControls() {
         const breakdownBtn = getEl('breakdownBtn');
         if (breakdownBtn) {
             breakdownBtn.classList.toggle('selected', state.breakdownEnabled);
             breakdownBtn.setAttribute('aria-pressed', String(state.breakdownEnabled));
+        }
+        const powersetBtn = getEl('powersetBtn');
+        if (powersetBtn) {
+            powersetBtn.classList.toggle('selected', state.powersetEnabled);
+            powersetBtn.setAttribute('aria-pressed', String(state.powersetEnabled));
         }
         const autoBtn = getEl('autoStepBtn');
         if (autoBtn) {
@@ -1019,9 +1134,11 @@
         }
         const addBtn = getEl('addNoteBtn');
         if (addBtn instanceof HTMLButtonElement) {
-            addBtn.hidden = !state.breakdownEnabled;
-            addBtn.disabled = !state.breakdownEnabled
-                || breakdownPassIndex >= breakdownPasses.length - 1;
+            addBtn.hidden = !state.breakdownEnabled && !state.powersetEnabled;
+            addBtn.textContent = state.powersetEnabled ? 'next combo' : 'add note';
+            addBtn.disabled = state.powersetEnabled
+                ? powersetExhausted
+                : (!state.breakdownEnabled || breakdownPassIndex >= breakdownPasses.length - 1);
         }
     }
 
@@ -1377,10 +1494,11 @@
         getEl('fillFullBtn')?.addEventListener('click', () => toggleFillMode('full'));
         getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
         getEl('breakdownBtn')?.addEventListener('click', toggleBreakdownEnabled);
+        getEl('powersetBtn')?.addEventListener('click', togglePowersetEnabled);
         getEl('autoStepBtn')?.addEventListener('click', toggleAutoStep);
         getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
         getEl('playOnNextBtn')?.addEventListener('click', togglePlayOnNext);
-        getEl('addNoteBtn')?.addEventListener('click', () => { advanceBreakdownNote(); });
+        getEl('addNoteBtn')?.addEventListener('click', () => { advanceStagePass(); });
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',
@@ -1424,6 +1542,8 @@
             state.autoStep = Boolean(saved.breakdownAutoAdvance);
         }
         if (!Array.isArray(state.lessonLockedKeys)) state.lessonLockedKeys = [];
+        // Breakdown and powerset are exclusive pass modes over the take.
+        if (state.powersetEnabled && state.breakdownEnabled) state.breakdownEnabled = false;
     }
 
     async function boot() {
@@ -1454,6 +1574,8 @@
             mediaPrevious: handleMediaPrevious,
             settings: () => ({
                 breakdownEnabled: state.breakdownEnabled,
+                powersetEnabled: state.powersetEnabled,
+                powersetExhausted,
                 autoStep: state.autoStep,
                 playOnStep: state.playOnStep,
                 playOnNext: state.playOnNext,
