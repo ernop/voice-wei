@@ -116,20 +116,26 @@ loop reads a pitch every frame and appends accepted samples to `history`.
 Two mechanisms sit between detection and history:
 
 - *Glitch holdback*: a jump > 5.5 midi arriving within 220ms of the
-  previous sample is held back one frame; if the next sample confirms it
-  (within 1.2 midi, inside 260ms) both are recorded. A one-frame spike
-  that instantly reverts - the classic octave misdetection - never
-  reaches the trace. This is the ONLY rejection in the pipeline.
+  previous sample is held back until 3 consecutive samples agree at the
+  new level (within 1.2 midi, inside 260ms), then all held samples are
+  flushed together - a real leap loses nothing. Voices cannot leap that
+  far and settle within a frame or two; brief detector scrapes (octave
+  errors, harmonic locks, breath transients) can, and never reach the
+  trace. This is the ONLY rejection in the pipeline.
 - *Voice-gated clock*: with pause-on-silence on (the default), time only
   advances while voice is detected, so a take does not scroll away while
   the singer breathes. Off means wall-clock from the last reset.
 
-**The chart draws what was actually sung.** There is no rails/target-based
-discarding, and the chart's vertical range in `pitch-trace-view.js`
-expands to cover the sung trace, so off-rails singing (wrong octave,
-overshoot) draws at its true pitch instead of clamping to an edge or
-vanishing. Targets and rails are for comparison and scoring only - they
-never gate what is recorded or drawn. (This is load-bearing: the singer
+**The instrument law: the chart draws what was actually sung.** The
+voice line and its dots derive only from the sung history. There is no
+rails/target-based discarding, and the chart's vertical range in
+`pitch-trace-view.js` expands to cover the sung trace, so off-rails
+singing (wrong octave, overshoot) draws at its true pitch instead of
+clamping to an edge or vanishing. The exercise sets only the chart's
+FRAME - which rails are drawn as grid lines and how far the time axis
+zooms - never the position, color, or visibility of the voice line. Dot
+colors are cents from the nearest chromatic note (key- and
+target-independent intonation). (This is load-bearing: the singer
 adjusts by seeing their real pitch. A regression test records samples an
 octave below the rails and asserts they stay in the trace.)
 
@@ -138,8 +144,12 @@ everything through provider callbacks: `rails()`, `targets()`,
 `history()`, `clockMs()`, windowing options. The sung line breaks across
 silences > 250ms and across unconfirmed fast jumps; dots along it are
 colored by cents deviation. Target bands recolor from blue (pending) to
-green/yellow/red once scored. Redraws are throttled to 50ms ticks by
-`RateGate` (render-throttle.js).
+green/yellow/red once scored, and their HEIGHT is the real hit tolerance
+(PitchScore.OK_CENTS mapped through the same pitch scale as the voice
+line), so "the trace is inside the band" and "this note counts" are the
+same statement - the picture can never promise a tolerance the scoring
+does not honor. Redraws are throttled to 50ms ticks by `RateGate`
+(render-throttle.js).
 
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
 (Sing), and Intervals (Sing) embed the same component; a page supplies a

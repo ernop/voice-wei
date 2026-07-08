@@ -128,9 +128,9 @@ generating anything first.
   adds rails an octave above and below.
 - The chart draws what you actually sing, wherever it lands: the vertical
   range expands to cover your voice even outside the rails. The only
-  filtering is glitch confirmation (a one-frame jump the next sample does
-  not confirm is a detector artifact, not voice, and never reaches the
-  chart).
+  filtering is glitch confirmation (a large instant jump must sustain for
+  a few frames to be voice; brief detector scrapes never reach the chart,
+  and real leaps are recorded whole).
 
 ## Pitch
 
@@ -373,9 +373,12 @@ is detected).
 and scoring only; they never gate what is recorded or drawn. Off-rails
 singing (wrong octave, overshoot) draws at its true pitch - the chart's
 vertical range expands to cover it. The only rejection anywhere in the
-pipeline is glitch confirmation: a one-frame detector spike that the next
-sample does not confirm never reaches the trace. (Architecture details:
-"Pitch pipeline" in [architecture.md](architecture.md).)
+pipeline is glitch confirmation: a large instant jump must sustain for a
+few frames to be voice; brief detector scrapes never reach the trace,
+and confirmed jumps are recorded whole. Target bands are drawn at the
+real hit tolerance (about a third of a semitone either way), so singing
+inside the band is what scoring credits. (Architecture details: "Pitch
+pipeline" in [architecture.md](architecture.md).)
 
 **Per-note scoring** (owned by `pitch-score.js`, one definition
 everywhere): a note is *attempted* with at least 3 voiced samples in its

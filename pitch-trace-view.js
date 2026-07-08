@@ -4,7 +4,17 @@
 // Canvas renderer for sung-pitch traces: scale-degree rails, target
 // bars, the yellow voice line with glitch-aware breaks, accuracy dots,
 // and the playhead. Pages supply data through provider callbacks.
-// Requires pitch-detect-core.js (glitch/break constants).
+//
+// Instrument law: the voice line and its dots derive ONLY from the sung
+// history. Targets and rails are chart furniture - they set the frame
+// (grid, zoom) and are drawn alongside, but no target or exercise datum
+// may move, hide, or recolor the voice line.
+//
+// Target bars are drawn at the REAL scoring tolerance (+/- PitchScore
+// OK_CENTS in pitch space), so "the trace is inside the box" and "this
+// note counts as a hit" are the same statement by construction.
+// Requires pitch-detect-core.js (glitch/break constants) and
+// pitch-score.js (the drawn tolerance).
 //-----------------------------------------------------------------------
 
 const PitchTraceView = (function () {
@@ -169,6 +179,12 @@ const PitchTraceView = (function () {
             ctx.textAlign = 'left';
             /** @type {Map<number, number>} label row y -> right edge of last label */
             const labelCursor = new Map();
+            // The bar's height IS the hit tolerance (PitchScore.OK_CENTS)
+            // mapped through the same pitch scale as the voice line, so
+            // the picture cannot disagree with the verdict. Only a small
+            // minimum keeps bars visible on very tall pitch ranges.
+            const pxPerMidi = graphHeight / midiRange;
+            const bandHalfPx = Math.max(3, (PitchScore.OK_CENTS / 100) * pxPerMidi);
             options.targets().forEach(target => {
                 const y = midiToY(target.midi);
                 const x1 = timeToX(target.startMs);
@@ -180,12 +196,12 @@ const PitchTraceView = (function () {
                 ctx.fillStyle = colors.fill;
                 ctx.strokeStyle = colors.stroke;
                 ctx.lineWidth = target.active ? 2 : 1;
-                ctx.fillRect(x1, y - 8, targetWidth, 16);
-                ctx.strokeRect(x1, y - 8, targetWidth, 16);
+                ctx.fillRect(x1, y - bandHalfPx, targetWidth, bandHalfPx * 2);
+                ctx.strokeRect(x1, y - bandHalfPx, targetWidth, bandHalfPx * 2);
 
                 // Band the cursor by ~one text height so labels on the
                 // same or neighboring rails share collision space.
-                const labelY = y - 16;
+                const labelY = y - bandHalfPx - 8;
                 const band = Math.round(labelY / 12);
                 const labelWidth = ctx.measureText(target.label).width;
                 const cursor = labelCursor.get(band) ?? -Infinity;

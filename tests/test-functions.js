@@ -1003,13 +1003,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             panel.recordSample(lowMidi, t0);
             panel.recordSample(lowMidi, t0 + 50);
             panel.recordSample(lowMidi, t0 + 100);
+            const sustained = panel.history.filter(s => s.midi === lowMidi).length;
+
+            // A brief scrape - a large jump that does NOT sustain for the
+            // confirmation frames - never reaches the trace; the return
+            // to the held pitch does. The scrape pitch sits above every
+            // target so no other injected sample can share its midi.
+            const scrapeMidi = Math.max(...targets.map(t => t.midi)) + 15;
+            panel.recordSample(scrapeMidi, t0 + 150);
+            panel.recordSample(scrapeMidi, t0 + 180);
+            panel.recordSample(lowMidi, t0 + 210);
             return {
                 lowMidi,
-                recorded: panel.history.filter(s => s.midi === lowMidi).length
+                recorded: sustained,
+                scrapeRecorded: panel.history.filter(s => s.midi === scrapeMidi).length,
+                returnRecorded: panel.history.filter(s => s.midi === lowMidi).length
             };
         });
         report.check(`phrases trace keeps off-rails singing (${offRails.recorded} samples at midi ${offRails.lowMidi})`,
             offRails.recorded === 3);
+        report.check(`phrases trace drops unconfirmed scrapes (${offRails.scrapeRecorded} scrape samples, ${offRails.returnRecorded} held)`,
+            offRails.scrapeRecorded === 0 && offRails.returnRecorded === 4);
 
         // Weak-spot aggregation names the leaning degree and its direction.
         const weakLine = await tab.evaluate(() => {

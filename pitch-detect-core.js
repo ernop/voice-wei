@@ -12,12 +12,16 @@ const PitchDetectCore = (function () {
     'use strict';
 
     // A detected jump bigger than GLITCH_JUMP_MIDI within GLITCH_WINDOW_MS
-    // is held back until a second sample confirms it; one-frame detector
-    // spikes (usually octave errors) never reach the trace.
+    // is held back until GLITCH_CONFIRM_SAMPLES consecutive samples agree
+    // at the new level; the held samples are then flushed together so a
+    // real leap loses nothing. Voices cannot leap that far and settle
+    // within a frame or two - brief detector scrapes (octave errors,
+    // harmonic locks, breath transients) can, and never reach the trace.
     const GLITCH_JUMP_MIDI = 5.5;
     const GLITCH_WINDOW_MS = 220;
     const GLITCH_CONFIRM_MS = 260;
     const GLITCH_CONFIRM_MIDI = 1.2;
+    const GLITCH_CONFIRM_SAMPLES = 3;
     // Canonical trace gap: the drawn line breaks across silences longer
     // than this (trace page used 260, phrases 240; unified at 250).
     const TRACE_BREAK_MS = 250;
@@ -185,8 +189,8 @@ const PitchDetectCore = (function () {
         let history = [];
         /** @type {PitchSample | null} */
         let lastAccepted = null;
-        /** @type {PitchSample | null} */
-        let pendingJump = null;
+        /** @type {PitchSample[]} Samples held back while a large jump awaits confirmation */
+        let pendingJump = [];
         let startedAt = 0;
         let voiceElapsedMs = 0;
         /** @type {number | null} */
@@ -213,11 +217,13 @@ const PitchDetectCore = (function () {
         }
 
         // The trace records whatever the singer actually sang. The ONLY
-        // rejection is the glitch holdback below: a one-frame jump that
-        // is not confirmed by the next sample is a detector artifact,
-        // not voice. Never discard samples for being far from the
-        // chart's rails or targets - an off-octave note is real singing
-        // the person must see in order to correct it.
+        // rejection is the glitch holdback below: a large instant jump
+        // must sustain for GLITCH_CONFIRM_SAMPLES consecutive frames to
+        // be voice; unconfirmed scrapes (octave errors, harmonic locks,
+        // breath transients) are dropped, confirmed jumps are flushed
+        // whole so nothing real is lost. Never discard samples for being
+        // far from the chart's rails or targets - an off-octave note is
+        // real singing the person must see in order to correct it.
         /** @param {PitchSample} sample */
         function record(sample) {
             if (!lastAccepted) {
@@ -229,23 +235,28 @@ const PitchDetectCore = (function () {
             const elapsedFromLast = sample.time - lastAccepted.time;
             const jumpFromLast = Math.abs(sample.midi - lastAccepted.midi);
             if (elapsedFromLast <= GLITCH_WINDOW_MS && jumpFromLast > GLITCH_JUMP_MIDI) {
-                const confirmsPendingJump = pendingJump
-                    && sample.time - pendingJump.time <= GLITCH_CONFIRM_MS
-                    && Math.abs(sample.midi - pendingJump.midi) <= GLITCH_CONFIRM_MIDI;
+                const lastPending = pendingJump[pendingJump.length - 1];
+                const continuesPendingJump = lastPending
+                    && sample.time - pendingJump[0].time <= GLITCH_CONFIRM_MS
+                    && Math.abs(sample.midi - lastPending.midi) <= GLITCH_CONFIRM_MIDI;
 
-                if (!confirmsPendingJump) {
-                    pendingJump = sample;
+                if (!continuesPendingJump) {
+                    pendingJump = [sample];
                     return false;
                 }
 
-                history.push(pendingJump);
-                history.push(sample);
+                pendingJump.push(sample);
+                if (pendingJump.length < GLITCH_CONFIRM_SAMPLES) {
+                    return false;
+                }
+
+                history.push(...pendingJump);
                 lastAccepted = sample;
-                pendingJump = null;
+                pendingJump = [];
                 return true;
             }
 
-            pendingJump = null;
+            pendingJump = [];
             history.push(sample);
             lastAccepted = sample;
             return true;
@@ -265,7 +276,7 @@ const PitchDetectCore = (function () {
                 };
                 if (record(sample) && options.onAccepted) options.onAccepted(sample);
             } else {
-                pendingJump = null;
+                pendingJump = [];
                 lastVoiceAt = null;
                 if (options.onSilence) options.onSilence();
             }
@@ -291,7 +302,7 @@ const PitchDetectCore = (function () {
             reset() {
                 history = [];
                 lastAccepted = null;
-                pendingJump = null;
+                pendingJump = [];
                 voiceElapsedMs = 0;
                 lastVoiceAt = null;
                 startedAt = performance.now();
