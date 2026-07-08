@@ -104,10 +104,11 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
-            // Before restore: clean the miss map once and queue favorite
-            // lyric rechecks, so restored songs hydrate against the cleaned
-            // cache and re-queue their own lookups through the normal path.
-            this.backfillLibraryLyricsOnce();
+            // Before restore: per-song lyric reconciliation over the
+            // favorites library (plus the one-time miss wipe), so restored
+            // songs hydrate against the cleaned cache and re-queue their
+            // own lookups through the normal path.
+            this.reconcileLibraryLyrics();
             this.restoreSavedPlaylist();
             this.loadDemoSongIfRequested();
         } catch (error) {

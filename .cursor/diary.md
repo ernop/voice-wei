@@ -4,6 +4,29 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-08 (done-flags vs per-item resolved state)
+
+**Context**: Shipped a "one-time lyrics backfill" gated by a global
+`backfilledAt` marker. Yui asked one question: should that be global or
+per song? The question exposed two real flaws: the marker was set when
+the recheck was QUEUED, so closing the page mid-backfill (or a rate-limit
+failure) permanently lost the remainder - the exact interruption bug this
+same session had just fixed for playlist lyric fetching.
+
+**The lesson**: a global "done" flag written at the start of an async
+batch is a lie about per-item work. When the underlying question is
+per-item ("does this song have a resolved lyric state?"), represent it
+per-item and reconcile against it on every load - resolved items cost
+nothing, unresolved ones re-queue, and interruption recovery falls out by
+construction. Reserve one-shot markers for genuinely global events (here:
+wiping the pre-rule contaminated miss map, a data migration).
+
+**Also**: when yui asks "should X be A or B - think about it", the answer
+may reveal defects in what just shipped. Treat the question as a design
+review invitation, not a quiz.
+
+---
+
 ## 2026-07-07 (the Song primitive; quota bug as a data-model symptom)
 
 **Context**: Yui hit a QuotaExceededError saving the playlist (101 songs)

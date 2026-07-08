@@ -1446,9 +1446,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const answeredEmptyIsMiss = emptyItem.lyricsStatus === 'not_found'
                 && Object.keys(failCache.misses).length > 0;
 
-            // One-time backfill: wipes the (possibly contaminated) miss map
-            // and queues lookups for favorites without cached lyrics; runs
-            // exactly once per cache.
+            // Library reconciliation: the miss wipe happens once (marked by
+            // backfilledAt), but the recheck itself is per song - resolved
+            // favorites (cached lyrics or fresh miss) cost no lookups, and
+            // unresolved ones are queued on EVERY load, so an interrupted
+            // recheck resumes next open instead of being lost.
             const backfillCache = {
                 records: {}, aliases: {},
                 misses: { 'contaminated|miss|0': Date.now() },
@@ -1458,40 +1460,62 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 'fav-1': { videoId: 'fav-1', name: 'Popular Song A', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'a' },
                 'fav-2': { videoId: 'fav-2', name: 'Popular Song B', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'b' }
             };
-            const backfill = makeHarness(backfillCache, favorites);
-            backfill.lookups = 0;
-            backfill.lookupLyrics = async (item) => {
-                backfill.lookups++;
-                await new Promise(resolve => setTimeout(resolve, 20));
-                return {
-                    provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
-                    albumName: '', duration: 100, instrumental: false,
-                    plainLyrics: 'la', syncedLyrics: null, syncedLines: []
+            const stubLookup = (harness) => {
+                harness.lookups = 0;
+                harness.lookupLyrics = async (item) => {
+                    harness.lookups++;
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    return {
+                        provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                        albumName: '', duration: 100, instrumental: false,
+                        plainLyrics: 'la', syncedLyrics: null, syncedLines: []
+                    };
                 };
             };
-            backfill.backfillLibraryLyricsOnce();
+            const drain = async (harness) => {
+                for (let i = 0; i < 100; i++) {
+                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0) return;
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                }
+            };
+            const reconcile = makeHarness(backfillCache, favorites);
+            stubLookup(reconcile);
+            reconcile.reconcileLibraryLyrics();
             const missesWipedAndMarked = !('contaminated|miss|0' in backfillCache.misses)
                 && backfillCache.backfilledAt > 0;
-            for (let i = 0; i < 100; i++) {
-                if (backfill.lyricsFetchActive === 0 && backfill.lyricsFetchQueue.length === 0) break;
-                await new Promise(resolve => setTimeout(resolve, 20));
-            }
-            const backfillLookups = backfill.lookups;
-            const cachedAfterBackfill = Object.keys(backfillCache.records).length;
-            backfill.backfillLibraryLyricsOnce();
-            await new Promise(resolve => setTimeout(resolve, 80));
-            const ranOnce = backfill.lookups === backfillLookups;
+            await drain(reconcile);
+            const reconcileLookups = reconcile.lookups;
+            const cachedAfterReconcile = Object.keys(backfillCache.records).length;
+            // Resolved library: reconciling again is free.
+            reconcile.reconcileLibraryLyrics();
+            await drain(reconcile);
+            const resolvedIsFree = reconcile.lookups === reconcileLookups;
+
+            // Interruption recovery: a later "page load" (fresh harness,
+            // same cache, marker already set) with a new unresolved
+            // favorite rechecks exactly that one song.
+            const favoritesLater = {
+                ...favorites,
+                'fav-3': { videoId: 'fav-3', name: 'Interrupted Song C', artist: 'Backfill Artist', duration: '1:40', durationSeconds: 100, searchTerm: 'c' }
+            };
+            const nextLoad = makeHarness(backfillCache, favoritesLater);
+            stubLookup(nextLoad);
+            nextLoad.reconcileLibraryLyrics();
+            await drain(nextLoad);
+            const interruptedResumes = nextLoad.lookups === 1
+                && Object.keys(backfillCache.records).length === 3;
 
             PlayerStorage.saveLyricsCache = realSaveLyricsCache;
-            return { failureIsError, answeredEmptyIsMiss, missesWipedAndMarked, backfillLookups, cachedAfterBackfill, ranOnce };
+            return { failureIsError, answeredEmptyIsMiss, missesWipedAndMarked, reconcileLookups, cachedAfterReconcile, resolvedIsFree, interruptedResumes };
         });
-        report.check(`player lyric failures retry instead of becoming misses; backfill rechecks favorites once (${lyricsFailureAndBackfill.backfillLookups} lookups)`,
+        report.check(`player lyric failures retry instead of becoming misses; per-song reconcile resumes interrupted rechecks (${lyricsFailureAndBackfill.reconcileLookups} lookups, resumed: ${lyricsFailureAndBackfill.interruptedResumes})`,
             lyricsFailureAndBackfill.failureIsError
             && lyricsFailureAndBackfill.answeredEmptyIsMiss
             && lyricsFailureAndBackfill.missesWipedAndMarked
-            && lyricsFailureAndBackfill.backfillLookups === 2
-            && lyricsFailureAndBackfill.cachedAfterBackfill === 2
-            && lyricsFailureAndBackfill.ranOnce);
+            && lyricsFailureAndBackfill.reconcileLookups === 2
+            && lyricsFailureAndBackfill.cachedAfterReconcile === 2
+            && lyricsFailureAndBackfill.resolvedIsFree
+            && lyricsFailureAndBackfill.interruptedResumes);
 
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {

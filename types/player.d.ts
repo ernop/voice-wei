@@ -106,7 +106,9 @@ interface LyricsCacheRecord {
  * after a TTL and a chip tap clears them for a forced retry. Only a
  * provider search that actually answered may record a miss - failures
  * surface as the item's 'error' status and retry on a later load.
- * `backfilledAt` marks the one-time library lyric recheck (0 = pending).
+ * `backfilledAt` marks only the one-time wipe of pre-rule misses
+ * (0 = pending); the library recheck itself is per-song reconciliation
+ * on every load, keyed by each song's resolved state here.
  */
 interface LyricsCacheStore {
     records: { [canonicalKey: string]: LyricsCacheRecord };
@@ -349,7 +351,7 @@ interface VoiceMusicController {
     lyricsFetchActive: number;
     queueLyricsLookup(item: PlaylistItem): void;
     pumpLyricsQueue(): void;
-    backfillLibraryLyricsOnce(): void;
+    reconcileLibraryLyrics(): void;
     recordLyricsMiss(item: PlaylistItem): void;
     clearLyricsMiss(item: PlaylistItem): void;
     getLyricsCacheKeysForItem(item: PlaylistItem): string[];

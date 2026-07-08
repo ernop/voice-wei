@@ -298,20 +298,31 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * One-time library recheck. Two jobs: (1) wipe the miss map -
-             * misses recorded before the provider-failure fix could hold
+             * Library lyric reconciliation, run on every page load. The
+             * "done" state is per SONG, not a global event: a favorite is
+             * resolved when it has cached lyrics or a fresh trustworthy
+             * miss, and anything unresolved (never looked up, interrupted
+             * mid-recheck by closing the page, failed on a rate limit,
+             * or miss expired) is queued again. Resolved songs cost zero
+             * requests - reconciliation is pure cache checks - so this is
+             * idempotent and survives interruption by construction.
+             *
+             * The only global one-time piece is the miss wipe: misses
+             * recorded before the provider-failure rule could hold
              * transient failures remembered as authoritative not-founds
-             * (the "my favorites have no lyrics" symptom); (2) queue lyric
-             * lookups for every favorite without cached lyrics, as detached
-             * backfill items whose results land in the shared lyrics cache.
+             * (the "my favorites have no lyrics" symptom), so as a set
+             * they are untrustworthy and are cleared once, marked by
+             * `backfilledAt`.
+             *
              * Runs BEFORE the playlist restore, so restored songs hydrate
              * against the cleaned cache and re-queue themselves normally.
              */
-            backfillLibraryLyricsOnce() {
-                if (this.lyricsCache.backfilledAt) return;
-                this.lyricsCache.backfilledAt = Date.now();
-                this.lyricsCache.misses = {};
-                PlayerStorage.saveLyricsCache(this.lyricsCache);
+            reconcileLibraryLyrics() {
+                if (!this.lyricsCache.backfilledAt) {
+                    this.lyricsCache.backfilledAt = Date.now();
+                    this.lyricsCache.misses = {};
+                    PlayerStorage.saveLyricsCache(this.lyricsCache);
+                }
 
                 let queued = 0;
                 const seen = new Set();
@@ -320,7 +331,7 @@ const PlayerLyrics = (function () {
                     seen.add(favorite.videoId);
                     const item = PlayerSongs.createPlaylistItem(favorite, {
                         sourceKind: 'backfill',
-                        sourceLabel: 'Lyrics backfill'
+                        sourceLabel: 'Library lyrics reconcile'
                     });
                     if (!item) continue;
                     if (this.hydrateItemLyricsFromCache(item)) continue;
@@ -328,7 +339,7 @@ const PlayerLyrics = (function () {
                     queued++;
                 }
                 if (queued > 0) {
-                    this.addMessage('claude', 'Lyrics backfill', `Rechecking lyrics for ${queued} favorite${queued === 1 ? '' : 's'} in the background`);
+                    this.addMessage('claude', 'Lyrics reconcile', `Rechecking lyrics for ${queued} favorite${queued === 1 ? '' : 's'} in the background`);
                 }
             },
 
