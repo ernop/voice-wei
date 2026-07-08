@@ -1936,6 +1936,67 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
 
+        // Replace-on-search keeps the playing song: the old list is only
+        // dropped when the first found song is actually added, the current
+        // song carries over as entry 0 still playing, and a search that
+        // finds nothing leaves the playlist untouched.
+        const keepPlayingReplace = await tab.evaluate(async () => {
+            const makeHarness = () => {
+                const harness = { playlist: [], youtubeAlternateResults: new Map(), lyricsFetchQueue: [] };
+                PlayerPlaylist.install(harness);
+                Object.assign(harness, {
+                    addMessage() {},
+                    updateStatus() {},
+                    showPlaylistSurfaces() {},
+                    decodeHtml(value) { return value; },
+                    addPlaylistItemToDOM() {},
+                    updatePlaylistLabel() {},
+                    persistPlaylist() {},
+                    queueLyricsLookup() {},
+                    renderLyricsStateForItem() {},
+                    speakText() {}
+                });
+                return harness;
+            };
+            const song = (videoId, name) => PlayerSongs.createPlaylistItem({
+                videoId, name, artist: 'Keep Artist', duration: '1:00', durationSeconds: 60, searchTerm: name
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+
+            const harness = makeHarness();
+            const oldA = song('old-a', 'Old A');
+            const oldB = song('old-b', 'Old B');
+            harness.playlist.push(oldA, oldB);
+            harness.playback.markPlaying(oldB.id);
+            harness.currentPlaylistIndex = 1;
+            harness.searchYouTube = async () => ({
+                videoId: 'new-1', title: 'New One', channelTitle: 'Y', duration: '2:00', durationSeconds: 120
+            });
+            await harness.searchAndAddToPlaylist(
+                [{ searchTerm: 'new one', name: 'New One', artist: 'Y' }],
+                { replaceExisting: true }
+            );
+            const afterReplace = {
+                ids: harness.playlist.map(entry => entry.videoId).join('|'),
+                cursor: harness.currentPlaylistIndex,
+                stillPlaying: harness.isPlaying && harness.currentPlayingId === oldB.id
+            };
+
+            // A replace search that finds nothing must not touch the list.
+            const untouched = makeHarness();
+            untouched.playlist.push(song('keep-1', 'Keep One'));
+            untouched.searchYouTube = async () => null;
+            await untouched.searchAndAddToPlaylist(
+                [{ searchTerm: 'nothing', name: 'Nothing', artist: 'Z' }],
+                { replaceExisting: true }
+            );
+            return { afterReplace, untouchedIds: untouched.playlist.map(entry => entry.videoId).join('|') };
+        });
+        report.check(`player replace keeps the playing song and defers clearing (${keepPlayingReplace.afterReplace.ids})`,
+            keepPlayingReplace.afterReplace.ids === 'old-b|new-1'
+            && keepPlayingReplace.afterReplace.cursor === 0
+            && keepPlayingReplace.afterReplace.stillPlaying === true
+            && keepPlayingReplace.untouchedIds === 'keep-1');
+
         const boundedSearch = await tab.evaluate(async () => {
             const harness = {
                 active: 0,
@@ -1958,17 +2019,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 index,
                 song: { searchTerm: `term-${index}` }
             }));
-            const results = await harness.searchSongsWithConcurrency(validSongs, 3);
+            const incrementalOrder = [];
+            const results = await harness.searchSongsWithConcurrency(validSongs, {
+                concurrency: 3,
+                onResult: result => incrementalOrder.push(result.videoData.videoId)
+            });
             return {
                 count: results.length,
                 order: results.map(result => result.videoData.videoId).join('|'),
+                incrementalCount: incrementalOrder.length,
                 maxActive: harness.maxActive,
                 status: harness.status
             };
         });
-        report.check('player searches every YouTube term with bounded concurrency',
+        report.check('player searches every YouTube term with bounded concurrency and per-result delivery',
             boundedSearch.count === 9
             && boundedSearch.order === 'term-0|term-1|term-2|term-3|term-4|term-5|term-6|term-7|term-8'
+            && boundedSearch.incrementalCount === 9
             && boundedSearch.maxActive <= 3
             && boundedSearch.status.includes('Searched 9/9'));
 
@@ -2313,28 +2380,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`transcript collapses cumulative finals across indices ("${collapsed}")`,
             collapsed === 'there was a guy play it');
 
-        // Synced lyric lines relay into the now-playing title (car / lock
-        // screen / tab): bare lyric only - never song/artist - led ahead
-        // of the sung moment so Bluetooth propagation lands on time.
-        // Intros show the upcoming first line; pause clears the lyric
-        // without ever writing the song name.
+        // The now-playing title (car / lock screen / tab / header line):
+        // song identity for the first seconds, a countdown prefix before
+        // a late first lyric line, then the bare lyric led ahead of the
+        // sung moment - and outside the identity window, never song or
+        // artist. Pause clears the surfaces.
         const lyricRelay = await tab.evaluate(() => {
             const item = {
-                id: 77, name: 'Test Song', artist: 'Test Artist',
+                id: 77, name: 'Test Song', artist: 'Test Artist', year: '1999', album: 'Test Album',
                 lyricsStatus: 'ready',
                 lyricsData: {
                     provider: 'LRCLIB', trackName: 'Test Song', artistName: 'Test Artist',
                     albumName: '', duration: 100, instrumental: false, plainLyrics: '',
-                    syncedLyrics: '[00:02.00]first line here\n[00:05.00]second line here',
+                    syncedLyrics: '[00:12.00]late first line\n[00:15.00]second line here',
                     syncedLines: [
-                        { time: 2, text: 'first line here' },
-                        { time: 5, text: 'second line here' }
+                        { time: 12, text: 'late first line' },
+                        { time: 15, text: 'second line here' }
                     ]
                 }
             };
             const harness = {
                 settings: { lyricsOnNowPlaying: true },
                 playlist: [item],
+                playback: { player: null },
                 currentLyricsItemId: 77,
                 currentLyricsLineIndex: -1,
                 nowPlayingShowsLyric: false,
@@ -2350,41 +2418,51 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
                 metaTitle: meta() ? meta().title : '',
                 metaArtist: meta() ? meta().artist : '',
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 highlightIndex: harness.currentLyricsLineIndex
             });
-            // 0s: nothing sung yet (first line at 2s) - the intro shows
-            // the upcoming first line so the singer can get ready.
-            harness.updateSyncedLyricsPosition(0);
-            const intro = snap();
-            // 4.5s: line 1 (at 5s) is not sung yet, but within the title
-            // lead window, so the title runs ahead of the highlight.
-            harness.updateSyncedLyricsPosition(4.5);
+            // 0.5s: the song identity intro - who and what is playing.
+            harness.updateSyncedLyricsPosition(0.5);
+            const identity = snap();
+            // 3s: first line is 9s away (>5s from song start), so the
+            // title counts down in front of the upcoming line.
+            harness.updateSyncedLyricsPosition(3);
+            const countdown = snap();
+            // 11.5s: line 1 (at 12s) not sung yet but inside the title
+            // lead window - the title runs ahead of the highlight.
+            harness.updateSyncedLyricsPosition(11.5);
             const led = snap();
-            harness.updateSyncedLyricsPosition(6);
+            harness.updateSyncedLyricsPosition(13);
             const during = snap();
             harness.isPaused = true;
-            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex);
+            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex, 13);
             const after = snap();
-            return { intro, led, during, after };
+            harness.updateTransportBarLyric('');
+            return { identity, countdown, led, during, after };
         });
-        const neverSongArtist = [lyricRelay.intro, lyricRelay.led, lyricRelay.during, lyricRelay.after]
+        const identityText = 'Test Artist - Test Song - 1999 - Test Album';
+        const neverSongArtistPastIntro = [lyricRelay.countdown, lyricRelay.led, lyricRelay.during, lyricRelay.after]
             .every(snap => !snap.metaTitle.includes('Test Song') && !snap.metaArtist.includes('Test Artist')
                 && !snap.docTitle.includes('Test Song'));
-        report.check(`player titles sing-along lyrics only ("${lyricRelay.intro.metaTitle}" -> "${lyricRelay.led.metaTitle}", never song/artist: ${neverSongArtist})`,
-            lyricRelay.intro.metaTitle === 'first line here'
-            && lyricRelay.intro.docTitle === 'first line here'
-            && lyricRelay.intro.headerTitle === 'first line here'
-            && lyricRelay.intro.highlightIndex === -1
-            && lyricRelay.led.metaTitle === 'second line here'
-            && lyricRelay.led.docTitle === 'second line here'
-            && lyricRelay.led.headerTitle === 'second line here'
-            && lyricRelay.led.highlightIndex === 0
-            && lyricRelay.during.metaTitle === 'second line here'
-            && lyricRelay.during.highlightIndex === 1
+        report.check(`player titles: identity intro, countdown, then lyric only ("${lyricRelay.identity.metaTitle}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}", clean past intro: ${neverSongArtistPastIntro})`,
+            lyricRelay.identity.metaTitle === identityText
+            && lyricRelay.identity.docTitle === identityText
+            && lyricRelay.identity.headerTitle === identityText
+            && lyricRelay.identity.barLyric === identityText
+            && lyricRelay.identity.highlightIndex === -1
+            && lyricRelay.countdown.metaTitle === '9 late first line'
+            && lyricRelay.countdown.barLyric === '9 late first line'
+            && lyricRelay.led.metaTitle === 'late first line'
+            && lyricRelay.led.docTitle === 'late first line'
+            && lyricRelay.led.headerTitle === 'late first line'
+            && lyricRelay.led.highlightIndex === -1
+            && lyricRelay.during.metaTitle === 'late first line'
+            && lyricRelay.during.barLyric === 'late first line'
+            && lyricRelay.during.highlightIndex === 0
             && lyricRelay.after.metaTitle === ''
-            && lyricRelay.after.docTitle !== 'second line here'
+            && lyricRelay.after.docTitle !== 'late first line'
             && lyricRelay.after.headerTitle === 'Music'
-            && neverSongArtist);
+            && neverSongArtistPastIntro);
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric

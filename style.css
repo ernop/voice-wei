@@ -78,6 +78,9 @@ main {
 .log-line {
     padding: 2px 0;
     word-wrap: break-word;
+    /* Raw request/response dumps are pretty-printed JSON; keep the line
+       breaks and indentation readable. */
+    white-space: pre-wrap;
 }
 
 .log-user {

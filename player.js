@@ -982,8 +982,9 @@ class VoiceMusicController {
             this.stopListening();
         }
 
+        // No refocus after the search returns: grabbing the text box would
+        // pop the keyboard / steal focus mid-listen on the results.
         await this.processMusicSearch(textToSubmit);
-        typedCommandInput.focus();
     }
 
     updateStatus(message) {
@@ -1016,9 +1017,8 @@ class VoiceMusicController {
         try {
             const result = await this.processCommandWithLLM(requestText);
 
-            if (this.wasPlayingBeforeListening && this.isPlaying) {
-                this.pausePlayback();
-            }
+            // Music that resumed during the Claude wait keeps playing while
+            // the YouTube searches run and the new playlist fills in.
             this.wasPlayingBeforeListening = false;
 
             if (!result || !result.songList || result.songList.length === 0) {
@@ -1067,7 +1067,11 @@ class VoiceMusicController {
                 await this.speakTextAsync(announcement);
             }
 
-            this.playPlaylist();
+            // A song already playing keeps playing (the new songs queue up
+            // behind it); otherwise start the new playlist.
+            if (!this.isPlaying) {
+                this.playPlaylist();
+            }
             this.updateStatus(skippedCount > 0
                 ? `Playing ${addedCount} song${addedCount > 1 ? 's' : ''}; ${skippedCount} not added`
                 : 'Playing');

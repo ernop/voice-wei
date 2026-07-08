@@ -150,15 +150,14 @@ const PlayerPlaylist = (function () {
             },
 
             async searchAndAddToPlaylist(songList, options = {}) {
-                // A new AI search starts a fresh working playlist. Nothing is
-                // lost: the lookup and every song already live in the durable
-                // history (IndexedDB) and can be reloaded from the History
-                // panel. Explicit loads (favorites, history) append instead.
-                if (options.replaceExisting && this.playlist.length > 0 && songList.length > 0) {
-                    const previousCount = this.playlist.length;
-                    this.clearPlaylistItems();
-                    this.addMessage('claude', 'New search', `Replaced the working playlist (${previousCount} song${previousCount === 1 ? '' : 's'} stay in Known Songs history)`);
-                }
+                // A new AI search defines a fresh working playlist, but
+                // nothing is discarded until the FIRST found song is actually
+                // added - a search that finds nothing on YouTube leaves the
+                // current playlist untouched. If a song is playing (or paused
+                // mid-song) it is carried over as the first entry and keeps
+                // playing; when it ends, playback advances into the new
+                // songs. Replaced songs stay reloadable from history.
+                let replacePending = options.replaceExisting === true && this.playlist.length > 0 && songList.length > 0;
 
                 this.showPlaylistSurfaces();
 
@@ -174,26 +173,26 @@ const PlayerPlaylist = (function () {
                         return true;
                     });
 
-                const results = await this.searchSongsWithConcurrency(validSongs);
-
-                // Add to playlist in the AI's order (appendPlaylistItem keeps it)
                 let addedCount = 0;
                 const attemptedTerms = validSongs.map(({ song }) => song.searchTerm);
                 const skippedTerms = [];
                 let skippedCount = songList.length - validSongs.length;
-                for (const { song, index, videoData, error } of results) {
+
+                // Each song is added the moment its search completes (the
+                // list fills in while later searches are still running),
+                // so rows appear in completion order.
+                const handleSearchResult = ({ song, index, videoData, error }) => {
                     if (error) {
-                        console.error(`Error searching for "${song.searchTerm}":`, error);
                         skippedCount++;
                         skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `${song.searchTerm}: ${error.message}`);
-                        continue;
+                        return;
                     }
                     if (!videoData) {
                         skippedCount++;
                         skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `No YouTube results for: ${song.searchTerm}`);
-                        continue;
+                        return;
                     }
 
                     this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
@@ -217,8 +216,17 @@ const PlayerPlaylist = (function () {
                     if (!playlistItem) {
                         skippedCount++;
                         skippedTerms.push(song.searchTerm);
-                        continue;
+                        return;
                     }
+
+                    if (replacePending) {
+                        replacePending = false;
+                        const previousCount = this.playlist.length;
+                        const keptCurrent = this.replacePlaylistItemsKeepingCurrent();
+                        const droppedCount = previousCount - (keptCurrent ? 1 : 0);
+                        this.addMessage('claude', 'New search', `Replaced the working playlist (${droppedCount} song${droppedCount === 1 ? '' : 's'} stay in Known Songs history${keptCurrent ? '; current song keeps playing' : ''})`);
+                    }
+
                     if (alternateVideos.length > 0) {
                         this.youtubeAlternateResults.set(playlistItem.id, alternateVideos);
                     }
@@ -227,7 +235,11 @@ const PlayerPlaylist = (function () {
                     }
                     this.appendPlaylistItem(playlistItem);
                     addedCount++;
-                }
+                    this.updatePlaylistLabel();
+                    this.persistPlaylist();
+                };
+
+                await this.searchSongsWithConcurrency(validSongs, { onResult: handleSearchResult });
 
                 this.updatePlaylistLabel();
                 this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);
@@ -239,7 +251,39 @@ const PlayerPlaylist = (function () {
                 return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
             },
 
-            async searchSongsWithConcurrency(validSongs, concurrency = YOUTUBE_SEARCH_CONCURRENCY) {
+            /**
+             * Replace the working playlist while a song is bound to the
+             * player: every entry EXCEPT the current one is dropped (they
+             * stay in the durable history) and the current song keeps
+             * playing as entry 0, so the new songs queue up behind it.
+             * With no current song this is a plain clear.
+             * @returns {boolean} whether the current song was carried over
+             */
+            replacePlaylistItemsKeepingCurrent() {
+                const current = this.playlist.find(entry => entry.id === this.currentPlayingId);
+                const keep = current && (this.isPlaying || this.isPaused) ? current : null;
+                if (!keep) {
+                    this.clearPlaylistItems();
+                    return false;
+                }
+
+                for (const item of this.playlist) {
+                    if (item !== keep) this.youtubeAlternateResults.delete(item.id);
+                }
+                this.playlist = [keep];
+                document.querySelectorAll('#playlistBody .playlist-row').forEach(row => {
+                    if (/** @type {HTMLElement} */ (row).dataset.itemId !== String(keep.id)) row.remove();
+                });
+                this.currentPlaylistIndex = 0;
+                this.currentLyricsItemId = keep.id;
+                // Queued lyric lookups for dropped rows skip at dequeue
+                // (they are no longer in the playlist).
+                this.updatePlaylistLabel();
+                this.persistPlaylist();
+                return true;
+            },
+
+            async searchSongsWithConcurrency(validSongs, { onResult = null, concurrency = YOUTUBE_SEARCH_CONCURRENCY } = {}) {
                 const results = new Array(validSongs.length);
                 let nextIndex = 0;
                 let completed = 0;
@@ -258,6 +302,9 @@ const PlayerPlaylist = (function () {
                         }
                         completed++;
                         this.updateStatus(`Searched ${completed}/${validSongs.length} YouTube term${validSongs.length === 1 ? '' : 's'}...`);
+                        if (onResult) {
+                            onResult(results[queueIndex]);
+                        }
                     }
                 });
 

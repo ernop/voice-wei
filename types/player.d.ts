@@ -226,7 +226,11 @@ interface VoiceMusicController {
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
     searchYouTube(query: string): Promise<any>;
-    searchSongsWithConcurrency(validSongs: any[], concurrency?: number): Promise<any[]>;
+    searchSongsWithConcurrency(
+        validSongs: any[],
+        options?: { onResult?: (result: any) => void; concurrency?: number }
+    ): Promise<any[]>;
+    replacePlaylistItemsKeepingCurrent(): boolean;
     createPlaylistPlayer(item: PlaylistItem): void;
     ensurePlaylistPlayer(item: PlaylistItem): void;
     recreatePlaylistPlayer(item: PlaylistItem): void;
@@ -337,8 +341,10 @@ interface VoiceMusicController {
     updateSyncedLyricsPosition(currentTime: number): void;
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
+    describeSongIdentity(item: PlaylistItem): string;
+    lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
-    relayLyricToNowPlaying(activeIndex: number): void;
+    relayLyricToNowPlaying(activeIndex: number, currentTime?: number): void;
     nowPlayingShowsLyric: boolean;
     mediaActionHandlersSet: boolean;
     ensureLyricsForItem(item: PlaylistItem, options?: { forceLookup?: boolean }): Promise<LyricsResult | null>;

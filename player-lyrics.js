@@ -9,6 +9,16 @@ const PlayerLyrics = (function () {
     // the line actually starts. The on-screen highlight stays unled.
     const LYRIC_TITLE_LEAD_SECONDS = 0.75;
 
+    // For the first moments of every song the title spots show WHO and
+    // WHAT is playing (artist - song - year - album) before lyric duty
+    // begins.
+    const SONG_IDENTITY_INTRO_SECONDS = 2;
+
+    // When a song's first lyric line starts later than this, the title
+    // spots prefix the upcoming line with a per-second countdown so the
+    // singer knows when to come in.
+    const FIRST_LYRIC_COUNTDOWN_MIN_SECONDS = 5;
+
     // Background lyric lookups run through one bounded queue: at most this
     // many songs are being resolved at a time (each may issue a few
     // candidate searches). Adding a 100-song playlist must not fire 100
@@ -685,17 +695,22 @@ const PlayerLyrics = (function () {
                 const currentItem = this.currentLyricsItem();
                 if (!currentItem || currentItem.id !== this.currentPlayingId || !currentItem.lyricsData || currentItem.lyricsData.syncedLines.length === 0) {
                     this.applyActiveLyricsLine(-1);
-                    this.relayLyricToNowPlaying(-1);
-                    this.updateTransportBarLyric('');
+                    // Songs without synced lyrics still get the identity
+                    // intro in the title spots for the first seconds.
+                    this.relayLyricToNowPlaying(-1, currentTime);
+                    this.updateTransportBarLyric(currentItem && currentItem.id === this.currentPlayingId
+                        ? this.lyricDisplayTextAt(currentItem, [], -1, currentTime)
+                        : '');
                     return;
                 }
 
                 const syncedLines = currentItem.lyricsData.syncedLines;
                 const activeIndex = this.syncedLyricLineIndexAt(syncedLines, currentTime);
                 this.applyActiveLyricsLine(activeIndex);
-                this.updateTransportBarLyric(this.lyricTitleLineAt(syncedLines, activeIndex));
+                this.updateTransportBarLyric(this.lyricDisplayTextAt(currentItem, syncedLines, activeIndex, currentTime));
                 this.relayLyricToNowPlaying(
-                    this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS)
+                    this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS),
+                    currentTime
                 );
             },
 
@@ -777,6 +792,46 @@ const PlayerLyrics = (function () {
                 }
             },
 
+            /** @param {PlaylistItem} item "Artist - Song - Year - Album", skipping unknowns */
+            describeSongIdentity(item) {
+                return [item.artist, item.name, item.year, item.album]
+                    .map(part => String(part || '').trim())
+                    .filter(Boolean)
+                    .join(' - ');
+            },
+
+            /**
+             * What the title spots (car/lock-screen metadata, tab title,
+             * header lyric line, sticky-bar lyric row) show at a moment:
+             * - First seconds of a song: the song's identity, so the
+             *   listener knows who and what it is.
+             * - Waiting for a late first lyric line (starts past the
+             *   countdown threshold): the upcoming line prefixed with the
+             *   seconds remaining, counting down.
+             * - Otherwise: the sung/upcoming lyric line.
+             * @param {PlaylistItem} item
+             * @param {SyncedLyricLine[]} lines
+             * @param {number} index active (or led) line index
+             * @param {number} currentTime
+             */
+            lyricDisplayTextAt(item, lines, index, currentTime) {
+                if (currentTime < SONG_IDENTITY_INTRO_SECONDS) {
+                    return this.describeSongIdentity(item);
+                }
+                if (!lines.length) return '';
+                const line = this.lyricTitleLineAt(lines, index);
+                if (index < 0 && line) {
+                    const firstLine = lines.find(candidate => candidate.text.trim());
+                    if (firstLine && firstLine.time > FIRST_LYRIC_COUNTDOWN_MIN_SECONDS) {
+                        const wait = Math.ceil(firstLine.time - currentTime);
+                        if (wait >= 1) {
+                            return `${wait} ${line}`;
+                        }
+                    }
+                }
+                return line;
+            },
+
             /**
              * The singer's title line: the line at the (led) index when it
              * has text, otherwise the next upcoming line - so intros and
@@ -798,20 +853,27 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * Relay the sung/upcoming lyric into the now-playing surfaces
+             * PUSH the current display text into the now-playing surfaces
              * (Media Session metadata for car/lock-screen displays plus
-             * the tab title). The point is singing along while driving:
-             * the title is the lyric line and nothing else. Song/artist
-             * names are NEVER written here - when there is no lyric to
-             * show, the surfaces are cleared instead.
+             * the tab title). Writes are event-driven - the deadline clock
+             * wakes exactly at lyric-line boundaries and display seconds -
+             * and identical repeats are dropped by the core, so the car
+             * gets one push per distinct text. The text is the sung lyric
+             * line, except: the song-identity intro for a song's first
+             * seconds, and the countdown prefix before a late first line
+             * (see lyricDisplayTextAt). Outside those, song/artist names
+             * are never written; with nothing to show the surfaces clear.
+             * @param {number} activeIndex
+             * @param {number} [currentTime]
              */
-            relayLyricToNowPlaying(activeIndex) {
+            relayLyricToNowPlaying(activeIndex, currentTime) {
+                const now = typeof currentTime === 'number' ? currentTime : this.currentPlaybackTime();
                 const item = this.currentLyricsItem();
                 const playingThisItem = !!item && item.id === this.currentPlayingId
                     && this.isPlaying && !this.isPaused;
                 const lines = (playingThisItem && item.lyricsData) ? item.lyricsData.syncedLines : [];
-                const line = (this.settings.lyricsOnNowPlaying && lines.length)
-                    ? this.lyricTitleLineAt(lines, activeIndex)
+                const line = (this.settings.lyricsOnNowPlaying && playingThisItem)
+                    ? this.lyricDisplayTextAt(item, lines, activeIndex, now)
                     : '';
 
                 if (line) {

@@ -228,6 +228,7 @@ const PlayerCommands = (function () {
                     };
 
                     this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel}) batch ${i + 1}/${prompts.length}`);
+                    this.addMessage('claude', `Claude request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(requestBody, null, 2));
 
                     try {
                         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -243,13 +244,14 @@ const PlayerCommands = (function () {
 
                         if (!response.ok) {
                             const error = await response.json();
+                            this.addMessage('error', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
                             throw new Error(error.error?.message || 'Claude API request failed');
                         }
 
                         const data = await response.json();
+                        this.addMessage('claude', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
                         responseText = data.content[0].text.trim();
                     } catch (error) {
-                        console.error('Claude API error:', error);
                         this.logError('Claude API Error', error);
                         throw error;
                     }
@@ -275,6 +277,7 @@ const PlayerCommands = (function () {
                     const request = this.buildOpenAIRequest(prompt);
 
                     this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
+                    this.addMessage('claude', `OpenAI request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(request.body, null, 2));
 
                     try {
                         const response = await fetch(request.url, {
@@ -288,13 +291,14 @@ const PlayerCommands = (function () {
 
                         if (!response.ok) {
                             const error = await response.json();
+                            this.addMessage('error', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
                             throw new Error(error.error?.message || 'OpenAI API request failed');
                         }
 
                         const data = await response.json();
+                        this.addMessage('claude', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
                         responseText = this.extractOpenAIResponseText(data);
                     } catch (error) {
-                        console.error('OpenAI API error:', error);
                         this.logError('OpenAI API Error', error);
                         throw error;
                     }

@@ -204,7 +204,12 @@ is not an option.
 The playlist is the **working list for the current search**: a new AI
 request replaces it (the previous songs stay reloadable from History),
 while explicit loads - favorites, past lookups, known songs - append to
-it. Each row shows the song's data in fixed slots (name + duration on the
+it. The replacement is gentle: nothing is dropped until the first found
+song is actually added (a search that finds nothing leaves the list
+untouched), results appear one by one as their YouTube searches
+complete, and a song that is already playing carries over as entry 1
+and keeps playing with the new songs queued behind it. The raw AI
+request and response JSON are logged to the Log panel for every batch. Each row shows the song's data in fixed slots (name + duration on the
 first line, artist/year/album on the second, the AI's comment on its own
 line) with the favorite star and lyrics chip on the left and a remove
 button on the right; tap a row to play it. The playlist header offers
@@ -215,12 +220,19 @@ information.
 
 Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
 settings) the current synced lyric line is relayed into the now-playing
-title that Bluetooth/car displays, lock screens, and the tab show -- the
-title is the lyric line and nothing else; song/artist names are never
-written there. On this page the header gives that lyric heading its own
-full-width line, with the nav tabs and the settings gear sharing one row
-beneath it. The Lyrics panel toggle and Big Lyrics overlay button sit in
-the central player next to the rewind/forward controls.
+title that Bluetooth/car displays, lock screens, and the tab show. The
+title spots follow one sequence per song: for the first 2 seconds the
+song's identity (artist - name - year - album, so you know who and what
+it is), then -- when the first lyric line starts more than 5 seconds in
+-- the upcoming line prefixed with a per-second countdown, then the bare
+sung lyric line and nothing else (song/artist are never written outside
+the identity intro). Writes are pushed into the OS media session exactly
+when the text changes (line boundaries / countdown seconds); the car
+pulls its redraw from that. On this page the header gives the lyric
+heading its own full-width line, with the nav tabs and the settings gear
+sharing one row beneath it. The Lyrics panel toggle and Big Lyrics
+overlay button sit in the central player next to the rewind/forward
+controls.
 
 The always-visible surface while scrolling is the sticky now-playing bar
 at the bottom: the current synced lyric line (own full row), the
