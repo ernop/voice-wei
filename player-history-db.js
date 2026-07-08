@@ -3,12 +3,16 @@
 //
 // Persistence principles this module enforces:
 // - One owner per concept. IndexedDB owns unbounded/historical data: the log,
-//   lookup history, the known-songs catalog, the YouTube-search cache, and the
-//   append-only favorite-event audit. The authoritative favorites SET lives in
-//   localStorage (PlayerStorage); this module never stores a second copy of it.
-// - Bounded by policy, truncated loudly. Every store has a cap; when a store
-//   approaches it the user is notified once, then the oldest records are
-//   trimmed. "Permanent" means "kept until we warn you and trim".
+//   lookup history, the known-songs catalog, the YouTube-search cache, the
+//   append-only favorite-event audit, and per-song lyric states. The
+//   authoritative favorites SET lives in localStorage (PlayerStorage); this
+//   module never stores a second copy of it.
+// - Time-streams are capped, library entities are not. Event streams (logs,
+//   lookups, favorite events) grow with time, so they carry caps and trim
+//   loudly. Stores that mirror the LIBRARY (songs, lyric states) are never
+//   capped: trimming them would mean partial coverage - some songs with
+//   state, some silently without - and the library itself is their natural
+//   bound. IndexedDB quota is GB-scale; record counts are not the risk.
 
 const PlayerHistoryDB = (function () {
     'use strict';
@@ -30,23 +34,17 @@ const PlayerHistoryDB = (function () {
         LYRIC_STATES: 'lyricStates'
     });
 
-    // Per-store record caps. When a store reaches 90% the user is warned once;
-    // past 100% the oldest records are trimmed back to the cap.
+    // Caps for TIME-STREAM stores only (they grow with use, forever). When
+    // one reaches 90% the user is warned once; past 100% the oldest records
+    // are trimmed back to the cap. Library-entity stores (songs, lyric
+    // states) and the re-fetchable search cache deliberately have no cap:
+    // every song the user has must have its state, with no silent partial
+    // coverage. All capped stores are autoIncrement, so "oldest" is simply
+    // the lowest primary key.
     const STORE_CAPS = Object.freeze({
         [STORES.LOGS]: 5000,
         [STORES.LOOKUPS]: 2000,
-        [STORES.SONGS]: 5000,
-        [STORES.YOUTUBE_SEARCHES]: 2000,
-        [STORES.FAVORITE_EVENTS]: 5000,
-        [STORES.LYRIC_STATES]: 5000
-    });
-
-    // Oldest-first ordering for trimming. Keyed stores trim by their time
-    // index; autoIncrement stores trim by primary key (monotonic = oldest).
-    const ORDER_INDEX = Object.freeze({
-        [STORES.SONGS]: 'lastSeenAt',
-        [STORES.YOUTUBE_SEARCHES]: 'updatedAt',
-        [STORES.LYRIC_STATES]: 'checkedAt'
+        [STORES.FAVORITE_EVENTS]: 5000
     });
 
     /** @type {Promise<IDBDatabase> | null} */
@@ -169,9 +167,9 @@ const PlayerHistoryDB = (function () {
     }
 
     /**
-     * Warn once when a store nears its cap, then trim the oldest records back
-     * to the cap. Oldest = lowest primary key (autoIncrement) or lowest value
-     * on the store's time index (keyed stores).
+     * Warn once when a capped store nears its cap, then trim the oldest
+     * records back to the cap (lowest primary key; all capped stores are
+     * autoIncrement). Uncapped stores return immediately.
      * @param {string} storeName
      */
     async function enforceCap(storeName) {
@@ -189,12 +187,9 @@ const PlayerHistoryDB = (function () {
         if (total <= cap) return;
 
         const writable = await store(storeName, 'readwrite');
-        const source = ORDER_INDEX[storeName]
-            ? writable.index(ORDER_INDEX[storeName])
-            : writable;
         let toDelete = total - cap;
         await new Promise((resolve, reject) => {
-            const cursorRequest = source.openCursor();
+            const cursorRequest = writable.openCursor();
             cursorRequest.onsuccess = () => {
                 const cursor = cursorRequest.result;
                 if (!cursor || toDelete <= 0) {
@@ -304,8 +299,9 @@ const PlayerHistoryDB = (function () {
         if (!record || !record.videoId) {
             throw new Error('putLyricState requires a videoId');
         }
+        // No cap: lyric states mirror the library, one per song, and every
+        // song must keep its state (no silent partial coverage).
         await put(STORES.LYRIC_STATES, record);
-        capture(enforceCap(STORES.LYRIC_STATES));
     }
 
     /** @param {string} videoId @returns {Promise<LyricStateRecord | null>} */

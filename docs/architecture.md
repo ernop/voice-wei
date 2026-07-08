@@ -425,12 +425,16 @@ unbounded/historical data above. No concept is authoritative in two stores
 read back as the source of truth. (An earlier schema also mirrored favorites
 into a `favorites` object store; database version 2 deletes it on upgrade.)
 
-Every store is bounded by policy and trimmed loudly (P3): each has a record
-cap (`logs`/`songs`/`favoriteEvents` 5000, `lookups`/`youtubeSearches` 2000).
-On nearing 90% the player posts a one-time "History storage" notice via the
-log panel; past the cap the oldest records are trimmed (lowest primary key for
-append-only stores, lowest time-index value for keyed stores). "Permanent"
-means kept until the user is warned and the oldest entries are trimmed.
+Caps apply to time-streams only, never to library entities (P3). The
+append-only event streams grow with use forever, so they carry caps and
+trim loudly (`logs`/`favoriteEvents` 5000, `lookups` 2000): on nearing 90%
+the player posts a one-time "History storage" notice via the log panel;
+past the cap the oldest records (lowest primary key) are trimmed. Stores
+that mirror the library - `songs`, `lyricStates` - and the re-fetchable
+`youtubeSearches` cache have NO cap: trimming a library store would mean
+silent partial coverage (some songs with state, some without), and the
+library itself is their natural bound. IndexedDB quota is GB-scale;
+record counts are not the risk.
 
 ## External resilience vs. internal fallbacks
 
