@@ -899,7 +899,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             let naive = 0;
             for (let i = 0; i < 200; i++) {
                 chosen += compoundLeaps(PatternPracticeCore.generatePhraseOffsets({
-                    scaleType: 'major', phraseAlgo: 'rearrange', rangeMode: 'within',
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
                     minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
                     returnToRoot: false, accidentalRate: 0
                 }));
