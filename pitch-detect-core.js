@@ -1,10 +1,10 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // PITCH DETECT CORE
-// Single owner of microphone pitch detection: the autocorrelation
-// detector, the glitch-aware sample recorder, the voice-elapsed clock,
-// and the mic capture pipeline. Pages must not call getUserMedia or
-// implement their own detector; they consume this module.
+// Single owner of microphone pitch detection: the band-limited McLeod
+// (MPM) detector, the glitch-aware sample recorder, the voice-elapsed
+// clock, and the mic capture pipeline. Pages must not call getUserMedia
+// or implement their own detector; they consume this module.
 // Requires music-constants.js.
 //-----------------------------------------------------------------------
 
@@ -43,110 +43,155 @@ const PitchDetectCore = (function () {
 
     /** @typedef {{ time: number, freq: number, midi: number, cents: number, note: string }} PitchSample */
 
-    // Harmonic-lock guard: when a voice's 2nd/3rd/4th harmonic dominates,
-    // the first good correlation peak sits at a FRACTION of the true
-    // period and the note reads an octave (or octave+fifth, or two
-    // octaves) high. Before trusting the found peak, inspect the
-    // candidates at 2x and 3x its period (iterated once, which reaches
-    // 4x): for a true detection those shifts correlate about equally, so
-    // only a CLEARLY better candidate (by this margin) pulls the note
-    // down to its real pitch.
-    const HARMONIC_DOWN_MARGIN = 0.015;
+    // The detector is the McLeod Pitch Method (MPM, "A Smarter Way to
+    // Find Pitch", McLeod & Wyvill 2005) - the standard tuner algorithm,
+    // designed against exactly the octave/harmonic locks that plagued
+    // the naive autocorrelation it replaced. It evaluates ONLY the
+    // periods a voice in the singable band can produce, on a half-rate
+    // copy of the signal: candidates outside the band never cost a
+    // multiply, and a frame's cost is fixed (~280 lags), voiced or not.
+    const MPM_CLARITY_MIN = 0.80;          // NSDF peak below this is not a voiced pitch
+    const MPM_PEAK_RATIO = 0.90;           // pick the first peak within 90% of the tallest
+    const MPM_SUBHARMONIC_MARGIN = 0.015;  // walk down only when clearly more periodic
+    const DETECT_DECIMATE = 2;             // detect at half rate: Bb4's period is still ~51 samples
+
+    /** @type {Float32Array} half-rate signal scratch (detector only) */
+    let mpmSignal = new Float32Array(0);
+    /** @type {Float32Array} NSDF scratch, indexed by lag */
+    let mpmNsdf = new Float32Array(0);
 
     /**
-     * Autocorrelation pitch detector with parabolic peak interpolation
-     * and a harmonic-lock guard.
-     * @param {Float32Array} buffer
+     * Band-limited MPM pitch detector with parabolic peak interpolation.
+     * @param {Float32Array} buffer time-domain samples
      * @param {number} sampleRate
-     * @param {any} [correlations]
-     * @param {{ guardFromHz?: number, guardToHz?: number }} [diag] set when the guard re-octaves a lock
-     * @returns {number} Frequency in Hz, or -1 when no pitch found
+     * @returns {number} Frequency in Hz, or -1 when no voiced pitch found
      */
-    function detectPitch(buffer, sampleRate, correlations = [], diag = undefined) {
+    function detectPitch(buffer, sampleRate) {
         const size = buffer.length;
-        const maxSamples = Math.floor(size / 2);
-        let bestOffset = -1;
-        let bestCorrelation = 0;
-        let foundGoodCorrelation = false;
 
         let rms = 0;
         for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
         rms = Math.sqrt(rms / size);
         if (rms < 0.01) return -1;
 
-        /** Normalized difference correlation for one shift. @param {number} offset */
-        const corrAt = (offset) => {
-            let correlation = 0;
-            for (let i = 0; i < maxSamples; i++) {
-                correlation += Math.abs(buffer[i] - buffer[i + offset]);
+        // Half-rate copy (pair averaging): the band tops out at Bb4
+        // (~466 Hz), far below the decimated Nyquist, and the cost of
+        // every lag halves twice over.
+        const rate = sampleRate / DETECT_DECIMATE;
+        const len = Math.floor(size / DETECT_DECIMATE);
+        if (mpmSignal.length < len) mpmSignal = new Float32Array(len);
+        for (let i = 0; i < len; i++) {
+            mpmSignal[i] = (buffer[2 * i] + buffer[2 * i + 1]) * 0.5;
+        }
+
+        // Selectable periods are only the singable ones; the NSDF is
+        // still computed from small lags so peak lobes are well formed
+        // (the band's shortest period can sit mid-lobe otherwise).
+        const tauStart = 2;
+        const tauMin = Math.max(tauStart + 1, Math.floor(rate / midiToFreq(VOICE_MAX_MIDI)) - 2);
+        const tauMax = Math.min(Math.floor(len / 2) - 1, Math.ceil(rate / midiToFreq(VOICE_MIN_MIDI)) + 2);
+        if (tauMax <= tauMin) return -1;
+        const window = len - tauMax;
+        if (mpmNsdf.length < tauMax + 2) mpmNsdf = new Float32Array(tauMax + 2);
+
+        // NSDF: n(tau) = 2*r(tau) / m(tau), in [-1, 1]; 1 = perfect
+        // periodicity at that lag. Computed over a fixed window so all
+        // lags are comparable.
+        for (let tau = tauStart; tau <= tauMax; tau++) {
+            let r = 0;
+            let m = 0;
+            for (let i = 0; i < window; i++) {
+                const a = mpmSignal[i];
+                const b = mpmSignal[i + tau];
+                r += a * b;
+                m += a * a + b * b;
             }
-            return 1 - correlation / maxSamples;
+            mpmNsdf[tau] = m > 0 ? (2 * r) / m : 0;
+        }
+
+        // Key maxima: the tallest NSDF point per positive region,
+        // skipping the trivial opening lobe (contiguous with lag 0).
+        /** @type {number[]} */
+        const peaks = [];
+        let tau = tauStart;
+        while (tau <= tauMax && mpmNsdf[tau] > 0) tau++;
+        while (tau <= tauMax) {
+            while (tau <= tauMax && mpmNsdf[tau] <= 0) tau++;
+            let best = -1;
+            while (tau <= tauMax && mpmNsdf[tau] > 0) {
+                if (best < 0 || mpmNsdf[tau] > mpmNsdf[best]) best = tau;
+                tau++;
+            }
+            if (best > 0) peaks.push(best);
+        }
+        if (!peaks.length) return -1;
+
+        // All peak comparisons use the parabola-fitted maximum, not the
+        // raw bin: a period midway between integer lags reads lower on
+        // the grid than one sitting on a lag, which otherwise skews
+        // every choice toward on-grid (often subharmonic) candidates.
+        /** @param {number} peak */
+        const peakValue = (peak) => {
+            if (peak <= tauStart || peak >= tauMax) return mpmNsdf[peak];
+            const left = mpmNsdf[peak - 1];
+            const mid = mpmNsdf[peak];
+            const right = mpmNsdf[peak + 1];
+            const denom = 2 * (2 * mid - left - right);
+            if (denom === 0) return mid;
+            const shift = (right - left) / denom;
+            return mid + ((right - left) * shift) / 4;
         };
 
-        // No shift longer than the deepest singable note's period can be
-        // a voice, so the scan stops there - this caps the cost of a
-        // pitchless frame (breath noise used to trigger a full scan
-        // every frame). Short shifts stay in: harmonic locks start
-        // there, and the guard below walks them down to the real pitch.
-        const maxOffset = Math.min(maxSamples - 1, Math.ceil(sampleRate / midiToFreq(VOICE_MIN_MIDI)) + 4);
+        let tallest = 0;
+        for (const peak of peaks) tallest = Math.max(tallest, peakValue(peak));
+        if (tallest < MPM_CLARITY_MIN) return -1;
 
-        let lastCorrelation = 1;
-        for (let offset = 0; offset <= maxOffset; offset++) {
-            const correlation = corrAt(offset);
-            correlations[offset] = correlation;
-
-            if (correlation > 0.9 && correlation > lastCorrelation) {
-                foundGoodCorrelation = true;
-                if (correlation > bestCorrelation) {
-                    bestCorrelation = correlation;
-                    bestOffset = offset;
-                }
-            } else if (foundGoodCorrelation) {
-                break; // past the peak; the harmonic guard decides the octave
+        // First peak within MPM_PEAK_RATIO of the tallest (classic MPM
+        // selection), then the subharmonic walk-down: when a longer
+        // period at 1.5x/2x/3x the pick is CLEARLY more periodic (a
+        // dominant harmonic was masquerading as the note), step down to
+        // it - but never below the singable band. For a true pick, the
+        // longer multiples correlate about equally, never clearly
+        // better, so real notes stay put.
+        let chosen = peaks[0];
+        for (const peak of peaks) {
+            if (peakValue(peak) >= tallest * MPM_PEAK_RATIO) {
+                chosen = peak;
+                break;
             }
-            lastCorrelation = correlation;
         }
-
-        if (foundGoodCorrelation) {
-            const preGuardOffset = bestOffset;
-            for (let pass = 0; pass < 2; pass++) {
-                let improved = false;
-                for (const multiple of [2, 3]) {
-                    const around = bestOffset * multiple;
-                    if (around + 2 >= maxSamples) continue;
-                    // The guard exists to find the true VOICE pitch: a
-                    // candidate below the singable band is not a voice,
-                    // so a real low note (A2) can never be walked down
-                    // to its sub-band octave (A1) and read as silence.
-                    if (around > maxOffset) continue;
-                    let candidate = -1;
-                    let candidateCorr = -Infinity;
-                    for (let k = around - 2; k <= around + 2; k++) {
-                        const c = corrAt(k);
-                        if (c > candidateCorr) {
-                            candidateCorr = c;
-                            candidate = k;
-                        }
-                    }
-                    if (candidateCorr > bestCorrelation + HARMONIC_DOWN_MARGIN) {
-                        bestOffset = candidate;
-                        bestCorrelation = candidateCorr;
-                        improved = true;
-                        break;
+        for (let pass = 0; pass < 3; pass++) {
+            let improved = false;
+            for (const multiple of [2, 1.5, 3]) {
+                const target = Math.round(chosen * multiple);
+                if (target > tauMax) continue;
+                /** @type {number} */
+                let candidate = -1;
+                for (const peak of peaks) {
+                    if (Math.abs(peak - target) <= 3 && (candidate < 0 || peakValue(peak) > peakValue(candidate))) {
+                        candidate = peak;
                     }
                 }
-                if (!improved) break;
+                if (candidate > 0 && peakValue(candidate) > peakValue(chosen) + MPM_SUBHARMONIC_MARGIN) {
+                    chosen = candidate;
+                    improved = true;
+                    break;
+                }
             }
-            if (diag && bestOffset !== preGuardOffset) {
-                diag.guardFromHz = sampleRate / preGuardOffset;
-                diag.guardToHz = sampleRate / bestOffset;
-            }
-            const shift = (corrAt(bestOffset + 1) - corrAt(bestOffset - 1)) / corrAt(bestOffset);
-            return sampleRate / (bestOffset + 8 * shift);
+            if (!improved) break;
         }
+        if (chosen < tauMin) return -1; // above the singable band
 
-        if (bestCorrelation > 0.01 && bestOffset > 0) return sampleRate / bestOffset;
-        return -1;
+        // Parabolic interpolation for sub-sample period precision.
+        let period = chosen;
+        if (chosen > tauStart && chosen < tauMax) {
+            const left = mpmNsdf[chosen - 1];
+            const mid = mpmNsdf[chosen];
+            const right = mpmNsdf[chosen + 1];
+            const denom = 2 * (2 * mid - left - right);
+            if (denom !== 0) period = chosen + (right - left) / denom;
+        }
+        return rate / period;
     }
 
     /**
@@ -167,9 +212,7 @@ const PitchDetectCore = (function () {
         let stream = null;
         /** @type {Float32Array | null} */
         let timeDomainBuffer = null;
-        /** @type {Float32Array | null} */
-        let correlationBuffer = null;
-        /** @type {{ rms: number, freq: number, rejected: string | null, guardFromHz: number, guardToHz: number } | null} */
+        /** @type {{ rms: number, freq: number, rejected: string | null } | null} */
         let lastRead = null;
 
         return {
@@ -190,7 +233,6 @@ const PitchDetectCore = (function () {
                     analyser = audioContext.createAnalyser();
                     analyser.fftSize = ANALYSER_FFT_SIZE;
                     timeDomainBuffer = new Float32Array(analyser.fftSize);
-                    correlationBuffer = new Float32Array(Math.floor(analyser.fftSize / 2));
                     microphone.connect(analyser);
                     return true;
                 } catch (err) {
@@ -211,7 +253,6 @@ const PitchDetectCore = (function () {
                 }
                 analyser = null;
                 timeDomainBuffer = null;
-                correlationBuffer = null;
             },
 
             /** Why the previous readPitch returned what it did - the raw
@@ -226,7 +267,6 @@ const PitchDetectCore = (function () {
                 if (!analyser || !audioContext) return null;
                 if (!timeDomainBuffer || timeDomainBuffer.length !== analyser.fftSize) {
                     timeDomainBuffer = new Float32Array(analyser.fftSize);
-                    correlationBuffer = new Float32Array(Math.floor(analyser.fftSize / 2));
                 }
                 analyser.getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (/** @type {unknown} */ (timeDomainBuffer)));
 
@@ -234,10 +274,8 @@ const PitchDetectCore = (function () {
                 for (let i = 0; i < timeDomainBuffer.length; i++) rms += timeDomainBuffer[i] * timeDomainBuffer[i];
                 rms = Math.sqrt(rms / timeDomainBuffer.length);
 
-                /** @type {{ guardFromHz?: number, guardToHz?: number }} */
-                const diag = {};
-                const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate, correlationBuffer || undefined, diag);
-                lastRead = { rms, freq, rejected: null, guardFromHz: diag.guardFromHz || 0, guardToHz: diag.guardToHz || 0 };
+                const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate);
+                lastRead = { rms, freq, rejected: null };
                 if (freq <= 0) {
                     lastRead.rejected = rms >= 0.01 ? 'no-pitch' : 'quiet';
                     return null;
@@ -293,7 +331,7 @@ const PitchDetectCore = (function () {
         const frameCallbackIntervalMs = Math.max(0, options.frameCallbackIntervalMs ?? DEFAULT_FRAME_CALLBACK_INTERVAL_MS);
         // Rolling mic diagnostics: what happened to every frame since the
         // consumer last asked (the on-page log renders these as summaries).
-        const diagCounts = { frames: 0, voiced: 0, quiet: 0, noPitch: 0, belowBand: 0, aboveBand: 0, guardFlips: 0, held: 0 };
+        const diagCounts = { frames: 0, voiced: 0, quiet: 0, noPitch: 0, belowBand: 0, aboveBand: 0, held: 0 };
 
         function clockMs() {
             if (options.pauseOnSilence()) return voiceElapsedMs;
@@ -368,7 +406,6 @@ const PitchDetectCore = (function () {
             const info = capture.readPitch();
             diagCounts.frames++;
             const read = capture.lastRead;
-            if (read && read.guardFromHz) diagCounts.guardFlips++;
             if (info) {
                 diagCounts.voiced++;
                 const sample = {

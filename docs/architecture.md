@@ -105,17 +105,26 @@ progress-store.js - takes, trend lines, weak-spot analysis
 **Capture and detection** (`pitch-detect-core.js`, the only file allowed
 to call getUserMedia - ast-grep enforced). `createMicCapture` owns the
 AudioContext, a 2048-sample analyser, and reusable buffers. `readPitch()`
-runs an autocorrelation detector (normalized difference with parabolic
-peak interpolation) over the time-domain buffer; it returns nothing when
-the signal is too quiet (RMS < 0.01) or outside the singable band
-(VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's range: below a
-barbershop bass line's low notes up to just above a lead line's top;
-out-of-band detections are the room and the gear, not the singer, and
-read as silence). Otherwise it returns fractional MIDI plus
-cents deviation. Accuracy is within ~5 cents on voice-like signals
-across the singing range. The band is deliberately the OWNER's
-instrument, not the exercise's: it never moves with the selected key,
-range, or targets, so it cannot re-introduce target-coupled filtering.
+runs the McLeod Pitch Method (MPM: NSDF key-maxima with a clarity
+threshold and parabolic interpolation - the standard tuner algorithm,
+designed against octave/harmonic locks) on a half-rate copy of the
+buffer, evaluating ONLY the periods a voice in the singable band can
+produce (~280 lags; a frame costs ~0.3ms whether voiced or not, and
+nothing outside the band ever costs a multiply). A subharmonic check
+steps a pick down to a 1.5x/2x/3x-period peak only when that peak is
+clearly more periodic (a dominant harmonic masquerading as the note),
+and never below the band. It returns nothing when the signal is too
+quiet (RMS < 0.01), unclear (NSDF clarity < 0.8), or outside the
+singable band (VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's
+range: below a barbershop bass line's low notes up to just above a lead
+line's top; out-of-band detections are the room and the gear, not the
+singer, and read as silence). Otherwise it returns fractional MIDI plus
+cents deviation. Validated synthetically: sub-cent accuracy on clean and
+harmonic-dominant signals across the band, zero octave errors on
+jittered low notes, zero false positives on noise. The band is
+deliberately the OWNER's instrument, not the exercise's: it never moves
+with the selected key, range, or targets, so it cannot re-introduce
+target-coupled filtering.
 
 **Recording** (`createTraceSession`, same file). A requestAnimationFrame
 loop reads a pitch every frame and appends accepted samples to `history`.
@@ -162,18 +171,6 @@ alternates 3- and 4-frame steps), so live surfaces redraw every
 animation frame - the draw itself is cheap and bounded (decimated trace,
 a dozen rails and bands). `RateGate` throttles apply only to ANALYSIS
 (scoring, ~100ms) and TEXT readouts (~50ms), never to the pixels.
-
-The detector also carries a harmonic-lock guard: when a signal's
-2nd/3rd/4th harmonic dominates (bright vowels, piano through the
-speakers while the panel listens), the first good correlation peak sits
-at a fraction of the true period and the note would read an octave,
-octave+fifth, or two octaves high. The detector inspects the 2x and 3x
-period candidates (iterated once, reaching 4x) and prefers one only when
-it correlates CLEARLY better, so true notes never flip down while
-harmonic locks resolve to their real pitch (validated synthetically:
-2nd/3rd/4th-harmonic-dominant baits across the singing range read
-+1200..+2400c unguarded, <=10c guarded, with no change on normal
-voice-like signals).
 
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
 (Sing), and Intervals (Sing) embed the same component; a page supplies a

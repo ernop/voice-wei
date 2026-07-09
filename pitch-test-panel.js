@@ -100,13 +100,12 @@ const PitchTestPanel = (function () {
         /** A 2s mic summary, logged only when something needs explaining. */
         function logMicSummary() {
             const d = session.diagnostics();
-            const issues = d.noPitch + d.belowBand + d.aboveBand + d.guardFlips + d.held;
+            const issues = d.noPitch + d.belowBand + d.aboveBand + d.held;
             if (!d.frames || issues === 0) return;
             const parts = [`${d.voiced} voiced`, `${d.quiet} quiet`];
             if (d.noPitch) parts.push(`${d.noPitch} signal-but-no-pitch`);
             if (d.belowBand) parts.push(`${d.belowBand} below-band(<D2)`);
             if (d.aboveBand) parts.push(`${d.aboveBand} above-band(>Bb4)`);
-            if (d.guardFlips) parts.push(`${d.guardFlips} octave-guard-flips`);
             if (d.held) parts.push(`${d.held} scrape-held`);
             log(`mic ${d.frames} frames: ${parts.join(', ')}`);
         }
