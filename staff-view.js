@@ -74,8 +74,30 @@ const StaffView = (function () {
             // always spans whole measures: the final measure is completed
             // with quarter rests after the last phrase note.
             const totalBeats = Math.max(4, Math.ceil(plan.length / 4) * 4);
-            const width = Math.max(MIN_WIDTH, STAVE_X * 2 + totalBeats * NOTE_WIDTH + 110);
             const height = 72;
+
+            /** @type {any[]} */
+            const noteTickables = buildNoteTickables(plan, keyContext, clef);
+            const restKey = clef === 'bass' ? 'd/3' : 'b/4';
+            const rests = [];
+            for (let beat = plan.length; beat < totalBeats; beat++) {
+                rests.push(new VF.StaveNote({ keys: [restKey], duration: 'qr', clef }));
+            }
+            const tickables = noteTickables.concat(rests);
+
+            const voice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 });
+            voice.setStrict(false);
+            voice.addTickables(tickables);
+            VF.Accidental.applyAccidentals([voice], keySig);
+
+            // Width comes from the content: accidental-heavy phrases (a
+            // chromatic typed series, passing tones) need real glyph room,
+            // which a fixed per-beat width cannot know. The formatter's
+            // minimum already includes the accidental modifiers.
+            const formatter = new VF.Formatter().joinVoices([voice]);
+            const minNotesWidth = Math.ceil(formatter.preCalculateMinTotalWidth([voice]) * 1.2);
+            const notesWidth = Math.max(totalBeats * NOTE_WIDTH, minNotesWidth);
+            const width = Math.max(MIN_WIDTH, STAVE_X * 2 + notesWidth + 110);
 
             surface.textContent = '';
             host.classList.remove('phrase-staff-empty');
@@ -89,8 +111,21 @@ const StaffView = (function () {
             stave.addClef(clef).addKeySignature(keySig).addTimeSignature('4/4');
             stave.setContext(context).draw();
 
-            /** @type {any[]} */
-            const noteTickables = plan.map((note, index) => {
+            formatter.format([voice], width - STAVE_X * 2 - 70);
+            voice.draw(context, stave);
+            drawMeasureBars(stave, tickables);
+            trimSvgSurface(surface, stave, noteTickables, tickables, SVG_PAD_X, SVG_PAD_Y);
+        }
+
+        /**
+         * @param {PhrasePlanNote[]} plan
+         * @param {KeyContext} keyContext
+         * @param {'treble' | 'bass'} clef
+         * @returns {any[]}
+         */
+        function buildNoteTickables(plan, keyContext, clef) {
+            const VF = Vex.Flow;
+            return plan.map((note, index) => {
                 const accidental = NotationSpelling.passingAccidental(
                     note.offset,
                     PatternPracticeCore.degreesPerOctave(keyContext.scaleType),
@@ -117,23 +152,6 @@ const StaffView = (function () {
                 }
                 return staveNote;
             });
-
-            const restKey = clef === 'bass' ? 'd/3' : 'b/4';
-            const rests = [];
-            for (let beat = plan.length; beat < totalBeats; beat++) {
-                rests.push(new VF.StaveNote({ keys: [restKey], duration: 'qr', clef }));
-            }
-            const tickables = noteTickables.concat(rests);
-
-            const voice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 });
-            voice.setStrict(false);
-            voice.addTickables(tickables);
-
-            VF.Accidental.applyAccidentals([voice], keySig);
-            new VF.Formatter().joinVoices([voice]).format([voice], width - STAVE_X * 2 - 70);
-            voice.draw(context, stave);
-            drawMeasureBars(stave, tickables);
-            trimSvgSurface(surface, stave, noteTickables, tickables, SVG_PAD_X, SVG_PAD_Y);
         }
 
         /**

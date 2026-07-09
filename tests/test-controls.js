@@ -237,6 +237,41 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
+    // PHRASES: an accidental-heavy typed series gets real glyph room on
+    // the staff - the width follows the formatter's minimum, so noteheads
+    // and accidentals never collapse into each other.
+    {
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'phrases-series-staff', report.errors);
+        await tab.goto(`${BASE_URL}/phrases.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1000);
+        await tab.evaluate(() => {
+            const tones = document.getElementById('hearTonesToggle');
+            if (tones instanceof HTMLInputElement && tones.checked) tones.click();
+        });
+        await tab.fill('#seriesInput', '1 2# 3 4# 5 5b 4 3b 2 7bv 7v 1');
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(600);
+        await tab.click('#stopBtn');
+        const staff = await tab.evaluate(() => {
+            const heads = Array.from(document.querySelectorAll('#phraseStaff .vf-notehead'))
+                .map(el => el.getBoundingClientRect())
+                .sort((a, b) => a.left - b.left);
+            let minCenterStep = Infinity;
+            let overlaps = 0;
+            for (let i = 1; i < heads.length; i++) {
+                const step = (heads[i].left + heads[i].width / 2) - (heads[i - 1].left + heads[i - 1].width / 2);
+                minCenterStep = Math.min(minCenterStep, step);
+                if (heads[i].left < heads[i - 1].right - 1) overlaps++;
+            }
+            return { count: heads.length, minCenterStep, overlaps };
+        });
+        report.check(`phrases series staff gives accidentals room (n=${staff.count}, minStep=${staff.minCenterStep.toFixed(1)}, overlaps=${staff.overlaps})`,
+            staff.count === 12 && staff.overlaps === 0 && staff.minCenterStep >= 14);
+        await ctx.close();
+    }
+
     // PHRASES: test panel options persist through the shared component
     {
         const ctx = await browser.newContext({ permissions: ['microphone'] });
