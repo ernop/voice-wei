@@ -4,6 +4,48 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-08 (song voice lines; two grammars born the same night)
+
+**Context**: Yui is preparing a barbershop chart ("Ain't We Got Fun",
+Bob Meyer TTBB, in G) and wants each of the four voice lines as a
+typed degree series the app can play. Shipped the phrases Series input:
+`parseDegreeSeries` in pattern-practice-core (digits, v/d/arrows for
+octaves, #/b for chromatic passing notes as half-integer offsets),
+`phraseFromOffsets` as the one Phrase constructor, and a Set action
+that is the manual twin of Next (honors play-on-next, joins history).
+Errors list under the input and change nothing - no guessing.
+
+**Same-night collision**: while this session built the Series grammar
+(5v, 2^), a parallel session shipped the trace pattern octave grammar
+(5d, 2u). Same concept, two mark vocabularies, hours apart. The merge
+lesson: before inventing any input token grammar, grep for sibling
+grammars (trace's patternInput existed all along, octave-blind). Both
+inputs now accept v/d/arrow down and ^/u/arrow up. If a third degree
+grammar ever appears, extract ONE owner.
+
+**Design fix found by demo review**: the staff crammed accidental-heavy
+phrases because width was a fixed 21px/beat guess. Base fix: build and
+measure the voice first (applyAccidentals, preCalculateMinTotalWidth),
+then size the renderer - content decides width, plus the white staff
+band now hugs the SVG (fit-content) instead of spanning the stage.
+
+**Demo recording craft (for future mei)**: the computerUse agent's
+zoom/magnifier shows up in screen recordings as jump cuts and white
+flashes - record keyboard-only segments (the Series input commits on
+Enter partly for this reason); the VM screensaver cuts in after a few
+idle seconds, so keep recorded takes short or trim with ffmpeg; and the
+videoReview agent catches real bugs (it found the staff cramming), so
+believe it and fix rather than re-shoot around defects.
+
+**Open thread**: only the top half of page 1 of the chart was
+photographed (intro + chorus mm. 5-9). The baritone intro reading in
+tokens: `5v 1 1 7bv 7bv 7v 7v 2# 2# 2# 2# 2`. The lead chorus from the
+published melody: `5v 3 3b 3 | 5v 3 3b 3 | 4 4 3 4 | 5v 4 3 4`. Tenor
+and bass lines for those measures, plus everything after m. 9, need
+clearer/full-page photos from yui.
+
+---
+
 ## 2026-07-08 (done-flags vs per-item resolved state)
 
 **Context**: Shipped a "one-time lyrics backfill" gated by a global
