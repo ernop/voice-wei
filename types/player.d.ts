@@ -233,10 +233,10 @@ interface VoiceMusicController {
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
-    searchYouTube(query: string, context?: { artist?: string }): Promise<any>;
-    unwantedVersionMarkers(): Array<{ pattern: RegExp; term: string }>;
-    scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string }): number;
-    rankYouTubeResults(videos: YouTubeVideoCandidate[], context: { searchTerm?: string; artist?: string }): YouTubeVideoCandidate[];
+    searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
+    unwantedVersionMarkers(): RegExp[];
+    scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
+    rankYouTubeResults(videos: YouTubeVideoCandidate[], context: { searchTerm?: string; artist?: string; name?: string }): YouTubeVideoCandidate[];
     searchSongsWithConcurrency(
         validSongs: any[],
         options?: { onResult?: (result: any) => void; concurrency?: number }

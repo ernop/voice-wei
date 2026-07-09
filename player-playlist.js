@@ -295,7 +295,7 @@ const PlayerPlaylist = (function () {
                         const { song, index } = validSongs[queueIndex];
                         this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
                         try {
-                            const videoData = await this.searchYouTube(song.searchTerm, { artist: song.artist || '' });
+                            const videoData = await this.searchYouTube(song.searchTerm, { artist: song.artist || '', name: song.name || '' });
                             results[queueIndex] = { song, index, videoData, error: null };
                         } catch (error) {
                             results[queueIndex] = { song, index, videoData: null, error };
@@ -379,14 +379,17 @@ const PlayerPlaylist = (function () {
              */
             unwantedVersionMarkers() {
                 return [
-                    { pattern: /\blive\b|\bconcert\b|\bunplugged\b/i, term: 'live' },
-                    { pattern: /\bcover(s|ed)?\b|\btribute\b/i, term: 'cover' },
-                    { pattern: /\bremix(es|ed)?\b|\bmashup\b/i, term: 'remix' },
-                    { pattern: /\bkaraoke\b|\binstrumental\b/i, term: 'karaoke' },
-                    { pattern: /\breacts?\b|\breaction\b/i, term: 'reaction' },
-                    { pattern: /\bsped.?up\b|\bslowed\b|\bnightcore\b|\b8d\b/i, term: 'sped up' },
-                    { pattern: /\bacoustic\b/i, term: 'acoustic' },
-                    { pattern: /\bdemo\b|\brehearsal\b/i, term: 'demo' }
+                    /\blive\b|\bconcert\b|\bunplugged\b/i,
+                    /\bcover(s|ed)?\b|\btribute\b/i,
+                    /\bremix(es|ed)?\b|\bmashup\b/i,
+                    /\bkaraoke\b|\binstrumental\b/i,
+                    /\breacts?\b|\breaction\b/i,
+                    /\bsped.?up\b|\bslowed\b|\bnightcore\b|\b8d\b/i,
+                    /\bacoustic\b/i,
+                    /\bdemo\b|\brehearsal\b/i,
+                    /\bsessions?\b/i,
+                    /\bmedley\b/i,
+                    /\bfull (album|concert|set|show|performance)\b/i
                 ];
             },
 
@@ -395,23 +398,34 @@ const PlayerPlaylist = (function () {
              * recording of the requested song. Signals, not guesses:
              * " - Topic" channels are YouTube's auto-generated album tracks
              * (the studio version by construction), Vevo/official uploads
-             * are next best, and live/cover/remix/reaction markers in the
-             * title are strong negatives unless the request asked for them.
+             * are next best, live/cover/remix/reaction markers in the
+             * title are strong negatives unless the request asked for them,
+             * and a result that names neither the artist in its channel nor
+             * its title is likely someone else's recording of the song.
              * @param {YouTubeVideoCandidate} video
-             * @param {{ searchTerm?: string, artist?: string }} context
+             * @param {{ searchTerm?: string, artist?: string, name?: string }} context
              */
             scoreVideoCandidate(video, context) {
                 const title = String(video.title || '');
                 const channel = String(video.channelTitle || '');
-                const requested = `${context.searchTerm || ''}`.toLowerCase();
+                const simplify = (/** @type {string} */ value) =>
+                    String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+                // Marker words inside the song's own name ("Cover Me Up",
+                // "Live and Let Die") are not version requests: strip the
+                // name before reading what the search itself asked for.
+                const songName = simplify(context.name || '');
+                const requested = songName
+                    ? simplify(context.searchTerm || '').replace(songName, ' ')
+                    : simplify(context.searchTerm || '');
                 let score = 0;
 
                 for (const marker of this.unwantedVersionMarkers()) {
-                    if (!marker.pattern.test(title)) continue;
+                    if (!marker.test(title)) continue;
                     // An explicitly requested version dominates: "shins live
                     // kexp" must rank live recordings above the studio track
                     // channel signals would otherwise prefer.
-                    score += requested.includes(marker.term) ? 0.8 : -0.6;
+                    score += marker.test(requested) ? 1.2 : -0.6;
                 }
 
                 if (/- topic$/i.test(channel.trim())) score += 0.5;
@@ -419,12 +433,15 @@ const PlayerPlaylist = (function () {
                 if (/official audio/i.test(title)) score += 0.3;
                 else if (/official (music )?video/i.test(title)) score += 0.2;
 
-                const simplify = (/** @type {string} */ value) =>
-                    String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
                 const artist = simplify(context.artist || '');
-                if (artist && simplify(channel).includes(artist)) {
-                    score += 0.2;
+                if (artist) {
+                    if (simplify(channel).includes(artist)) score += 0.2;
+                    else if (!simplify(title).includes(artist)) score -= 0.3;
                 }
+
+                // A known song is a few minutes long: a 12-minute-plus hit
+                // for it is a full set, album, or compilation, not the track.
+                if (songName && Number(video.durationSeconds) > 720) score -= 0.4;
                 return score;
             },
 
@@ -915,7 +932,7 @@ const PlayerPlaylist = (function () {
                 if (this.alternateVideoSearchAttempts.has(item.id)) return false;
                 this.alternateVideoSearchAttempts.add(item.id);
                 try {
-                    const videoData = await this.searchYouTube(item.searchTerm, { artist: item.artist || '' });
+                    const videoData = await this.searchYouTube(item.searchTerm, { artist: item.artist || '', name: item.name || '' });
                     if (!videoData) return false;
                     const candidates = [videoData, ...(videoData.alternateVideos || [])]
                         .filter(video => video.videoId && video.videoId !== item.videoId)

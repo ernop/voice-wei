@@ -2548,27 +2548,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 { videoId: 'live-1', title: 'New Slang (Live at KEXP)', channelTitle: 'KEXP', duration: '4:10', durationSeconds: 250 },
                 { videoId: 'cover-1', title: 'New Slang - cover by somebody', channelTitle: 'Somebody', duration: '3:50', durationSeconds: 230 },
                 { videoId: 'studio-1', title: 'New Slang', channelTitle: 'The Shins - Topic', duration: '3:51', durationSeconds: 231 },
-                { videoId: 'video-1', title: 'The Shins - New Slang (Official Music Video)', channelTitle: 'Sub Pop', duration: '3:52', durationSeconds: 232 }
+                { videoId: 'video-1', title: 'The Shins - New Slang (Official Music Video)', channelTitle: 'Sub Pop', duration: '3:52', durationSeconds: 232 },
+                { videoId: 'full-1', title: 'The Shins - Full Performance', channelTitle: 'KEXP', duration: '40:58', durationSeconds: 2458 }
             ];
-            const normal = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang', artist: 'The Shins' })
+            const normal = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang', artist: 'The Shins', name: 'New Slang' })
                 .map(video => video.videoId);
-            const liveRequested = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang live kexp', artist: 'The Shins' })
+            const liveRequested = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang live kexp', artist: 'The Shins', name: 'New Slang' })
                 .map(video => video.videoId);
+            // A marker word inside the song's own name must not read as a
+            // version request: "Cover Me Up" wants the studio track.
+            const nameCollision = harness.rankYouTubeResults([
+                { videoId: 'cmu-live', title: 'Jason Isbell - Cover Me Up | Live From Austin City Limits TV', channelTitle: 'ACL', duration: '5:00', durationSeconds: 300 },
+                { videoId: 'cmu-studio', title: 'Cover Me Up', channelTitle: 'Jason Isbell - Topic', duration: '5:20', durationSeconds: 320 }
+            ], { searchTerm: 'Jason Isbell Cover Me Up', artist: 'Jason Isbell', name: 'Cover Me Up' }).map(video => video.videoId);
+            // A clean-titled recording that names the artist nowhere is
+            // probably someone else's version (movie-cast covers).
+            const wrongArtist = harness.rankYouTubeResults([
+                { videoId: 'castcover-1', title: 'I Want To Hold Your Hand (Tracks On The Tracks Sessions)', channelTitle: 'Himesh Patel', duration: '3:20', durationSeconds: 200 },
+                { videoId: 'plain-1', title: 'The Beatles - I Want To Hold Your Hand', channelTitle: 'SomeUploader', duration: '2:25', durationSeconds: 145 }
+            ], { searchTerm: 'The Beatles I Want to Hold Your Hand', artist: 'The Beatles', name: 'I Want to Hold Your Hand' }).map(video => video.videoId);
             const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
             const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
             return {
                 normalFirst: normal[0],
                 normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
+                normalFullSetLast: normal[normal.length - 1] === 'full-1',
                 liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
+                nameCollisionFirst: nameCollision[0],
+                wrongArtistFirst: wrongArtist[0],
                 quotaName: quotaError.name,
                 quotaProvider: quotaError.provider,
                 plainName: plainError.name
             };
         });
-        report.check(`player ranks studio versions first (${versionRanking.normalFirst}) and classifies key-level errors`,
+        report.check(`player ranks studio versions first (${versionRanking.normalFirst}, name-collision pick ${versionRanking.nameCollisionFirst}, wrong-artist pick ${versionRanking.wrongArtistFirst}) and classifies key-level errors`,
             versionRanking.normalFirst === 'studio-1'
             && versionRanking.normalLiveLast
+            && versionRanking.normalFullSetLast
             && versionRanking.liveRequestedFirstIsLive
+            && versionRanking.nameCollisionFirst === 'cmu-studio'
+            && versionRanking.wrongArtistFirst === 'plain-1'
             && versionRanking.quotaName === 'ApiKeyError'
             && versionRanking.quotaProvider === 'claude'
             && versionRanking.plainName === 'Error');
