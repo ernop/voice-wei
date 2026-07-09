@@ -189,14 +189,14 @@ const PatternPracticeCore = (function () {
 
     /**
      * Parse a typed degree series ("5v 1 1 7bv 7v 2# 2") into scale
-     * offsets. Token grammar, matching the display vocabulary: degree
-     * digits (1..8 in-octave, 9+ keeps climbing), then any mix of
-     * accidental and octave marks - "#" / "b" pick the chromatic passing
-     * note above / below the degree, "v" or "\u2193" drop an octave, "^" or
-     * "\u2191" raise one. Marks may repeat ("3vv") and come in any order
-     * ("7bv" = "7vb"). Unknown tokens and accidentals that name no
-     * chromatic note in the scale (e.g. "3#" in major, a half-step gap)
-     * are reported as errors, never guessed at.
+     * offsets. Token grammar, matching the display vocabulary and the
+     * trace pattern input: degree digits (1..8 in-octave, 9+ keeps
+     * climbing), then any mix of accidental and octave marks - "#" / "b"
+     * pick the chromatic passing note above / below the degree, "v", "d"
+     * or "\u2193" drop an octave, "^", "u" or "\u2191" raise one. Marks may repeat
+     * ("3vv") and come in any order ("7bv" = "7vb"). Unknown tokens and
+     * accidentals that name no chromatic note in the scale (e.g. "3#" in
+     * major, a half-step gap) are reported as errors, never guessed at.
      * @param {string} text @param {string} scaleType
      * @returns {{ offsets: number[], errors: string[] }}
      */
@@ -209,7 +209,7 @@ const PatternPracticeCore = (function () {
         const tokens = String(text || '').trim().split(/[\s,;/|-]+/).filter(Boolean);
         for (const raw of tokens) {
             const token = raw.toLowerCase();
-            const match = /^([0-9]+)([#b^v\u2191\u2193]*)$/.exec(token);
+            const match = /^([0-9]+)([#bdu^v\u2191\u2193]*)$/.exec(token);
             const degree = match ? Number(match[1]) : 0;
             if (!match || degree < 1) {
                 errors.push(`"${raw}" is not a degree token`);
@@ -224,8 +224,8 @@ const PatternPracticeCore = (function () {
             }
             let offset = degree - 1;
             for (const mark of marks) {
-                if (mark === 'v' || mark === '\u2193') offset -= dp;
-                if (mark === '^' || mark === '\u2191') offset += dp;
+                if (mark === 'v' || mark === 'd' || mark === '\u2193') offset -= dp;
+                if (mark === '^' || mark === 'u' || mark === '\u2191') offset += dp;
             }
             if (sharps || flats) {
                 const passing = sharps

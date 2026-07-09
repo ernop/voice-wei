@@ -63,12 +63,14 @@ gap, play tones, return to degree 1.
   loops it, **Next** generates a new one, **Stop** stops everything.
 - **Series** input loads a typed degree series as the current phrase -
   the manual twin of Next, for exact material like a song voice line.
-  Tokens are degree digits with optional marks: `v`/`↓` = an octave
-  lower, `^`/`↑` = an octave higher, `#`/`b` = the chromatic note
-  above/below that degree (`5v 1 1 7bv 7v 2# 2`). Separators are
-  spaces, commas, or `|` barlines. Bad tokens list under the input and
-  nothing changes until the whole series parses. A loaded series joins
-  Phrase History, so several voice lines can be re-played from there.
+  Tokens are degree digits with optional marks, the same octave grammar
+  as the Trace pattern input: `v`/`d`/`↓` per octave lower, `^`/`u`/`↑`
+  per octave higher (stackable), 9+ keeps climbing, plus `#`/`b` for
+  the chromatic note above/below that degree (`5v 1 1 7bv 7v 2# 2`).
+  Separators are spaces, commas, or `|` barlines. Bad tokens list under
+  the input and nothing changes until the whole series parses. A loaded
+  series joins Phrase History, so several voice lines can be re-played
+  from there.
 - **Reflect** flips the current phrase around the octave (up-from-1
   becomes down-from-8). A view/playback transform, not a regeneration.
 - **Style + Lesson** selects the generator family: **free** keeps the older

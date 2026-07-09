@@ -634,7 +634,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // Typed degree series: the token grammar parses to exact offsets
         // (octave marks, chromatic passing accidentals), errors never guess.
         const seriesParse = await tab.evaluate(() => {
-            const good = PatternPracticeCore.parseDegreeSeries('5v 1, 1 | 7bv 7v 2# 2 9 6\u2193', 'major');
+            const good = PatternPracticeCore.parseDegreeSeries('5d 1, 1 | 7bv 7v 2# 2 9 6\u2193', 'major');
             const badToken = PatternPracticeCore.parseDegreeSeries('1 2 zz', 'major');
             const badAccidental = PatternPracticeCore.parseDegreeSeries('3# 1', 'major');
             const empty = PatternPracticeCore.parseDegreeSeries('   ', 'major');
