@@ -171,7 +171,14 @@
 
     // Drawing is never throttled: the chart redraws every animation
     // frame so the scroll steps evenly (throttles are for readouts).
-    function drawChart() {
+    // But identical frames are skipped: with the voice clock frozen and
+    // no new samples, the picture cannot have changed.
+    let lastDrawKey = '';
+
+    function drawChart(force = false) {
+        const key = `${session.history.length}|${session.clockMs() | 0}`;
+        if (!force && key === lastDrawKey) return;
+        lastDrawKey = key;
         view.draw();
     }
     function resizeCanvas() { view.resize(); }
@@ -181,7 +188,7 @@
         session.reset();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
-        drawChart();
+        drawChart(true);
     }
 
     /**
@@ -221,7 +228,7 @@
         session.stop();
         syncControls();
         setStatus('Stopped');
-        drawChart();
+        drawChart(true);
     }
 
     async function toggleListening() {
@@ -309,7 +316,7 @@
             patternInput.addEventListener('input', () => {
                 state.patternText = patternInput.value;
                 saveSettings();
-                drawChart();
+                drawChart(true);
             });
         }
         getEl('startBtn')?.addEventListener('click', toggleListening);
@@ -326,12 +333,12 @@
         PracticeControls.wireToggle('fixedWindowToggle', state.fixedWindow, checked => {
             state.fixedWindow = checked;
             saveSettings();
-            drawChart();
+            drawChart(true);
         });
         PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
             state.expandRange = checked;
             saveSettings();
-            drawChart();
+            drawChart(true);
         });
         window.addEventListener('resize', resizeCanvas);
         syncControls();

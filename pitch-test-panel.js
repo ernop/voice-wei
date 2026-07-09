@@ -61,7 +61,13 @@ const PitchTestPanel = (function () {
         // Throttles apply only to analysis (scoring) and text readouts.
         const scoreGate = new RateGate(100);
         const readoutGate = new RateGate(50);
+        const logGate = new RateGate(2000);
         const panelDiff = new ValueDiff();
+
+        /** Page diagnostics log (optional): what the mic path is doing. @param {string} text */
+        function log(text) {
+            if (config.logLine) config.logLine(text);
+        }
 
         /** @returns {HTMLElement | null} */
         function getEl(suffix) {
@@ -85,10 +91,38 @@ const PitchTestPanel = (function () {
             onSilence: () => clearReadout(),
             onFrame: () => {
                 if (scoreGate.ready()) refreshScores();
-                view.draw();
+                if (config.logLine && logGate.ready()) logMicSummary();
+                drawIfChanged();
             },
             frameCallbackIntervalMs: 0
         });
+
+        /** A 2s mic summary, logged only when something needs explaining. */
+        function logMicSummary() {
+            const d = session.diagnostics();
+            const issues = d.noPitch + d.belowBand + d.aboveBand + d.guardFlips + d.held;
+            if (!d.frames || issues === 0) return;
+            const parts = [`${d.voiced} voiced`, `${d.quiet} quiet`];
+            if (d.noPitch) parts.push(`${d.noPitch} signal-but-no-pitch`);
+            if (d.belowBand) parts.push(`${d.belowBand} below-band(<D2)`);
+            if (d.aboveBand) parts.push(`${d.aboveBand} above-band(>Bb4)`);
+            if (d.guardFlips) parts.push(`${d.guardFlips} octave-guard-flips`);
+            if (d.held) parts.push(`${d.held} scrape-held`);
+            log(`mic ${d.frames} frames: ${parts.join(', ')}`);
+        }
+
+        // Repaint only when the picture would differ: a new sample, the
+        // clock moving (scroll), or fresh verdicts. During a breath with
+        // the voice clock frozen every frame is identical - skipping the
+        // raster there is free smoothness on machines without GPU raster.
+        let lastDrawKey = '';
+
+        function drawIfChanged() {
+            const key = `${session.history.length}|${session.clockMs() | 0}|${scoreVersion}`;
+            if (key === lastDrawKey) return;
+            lastDrawKey = key;
+            view.draw();
+        }
 
         function windowMs() {
             if (options.fixedWindow) return FIXED_WINDOW_MS;
@@ -108,17 +142,37 @@ const PitchTestPanel = (function () {
         // a fresh segmenter.
         let segmenter = PitchScore.createSegmenter();
         let segmentedCount = 0;
+        let loggedSegments = 0;
 
         function currentSegments() {
             const history = session.history;
             if (segmentedCount > history.length) {
                 segmenter = PitchScore.createSegmenter();
                 segmentedCount = 0;
+                loggedSegments = 0;
             }
             while (segmentedCount < history.length) {
                 segmenter.push(history[segmentedCount++]);
             }
             return segmenter.segments();
+        }
+
+        /**
+         * Log each held note once it can no longer change (a later note
+         * exists, or the voice went idle).
+         * @param {ReturnType<typeof segmenter.segments>} segments
+         * @param {boolean} voiceIdle
+         */
+        function logClosedSegments(segments, voiceIdle) {
+            if (!config.logLine) return;
+            const closedCount = voiceIdle ? segments.length : Math.max(0, segments.length - 1);
+            for (; loggedSegments < closedCount; loggedSegments++) {
+                const segment = segments[loggedSegments];
+                const first = segment.samples[0];
+                const last = segment.samples[segment.samples.length - 1];
+                log(`sung: ${midiToNoteName(segment.midi).full} ${midiToFreq(segment.midi).toFixed(1)}Hz, `
+                    + `${Math.round(last.time - first.time)}ms, ${segment.samples.length} samples`);
+            }
         }
 
         // The guide is sequenced here, from the same TargetSpans that are
@@ -161,7 +215,9 @@ const PitchTestPanel = (function () {
             const voiceIdle = session.msSinceLastAccepted() >= SEGMENT_CLOSE_IDLE_MS;
             const all = config.targets();
             const activeTargets = all.filter(target => target.active);
-            const results = PitchScore.alignSegments(currentSegments(), activeTargets, {
+            const segments = currentSegments();
+            logClosedSegments(segments, voiceIdle);
+            const results = PitchScore.alignSegments(segments, activeTargets, {
                 finalSegmentOpen: !voiceIdle
             });
             let resultIndex = 0;
@@ -240,11 +296,31 @@ const PitchTestPanel = (function () {
                 }))
             });
             takeRecorded = true;
+            log(`take recorded: ${hit.length}/${active.length} on pitch`);
             updateProgressLine();
         }
 
+        let scoreVersion = 0;
+        let lastScoreSignature = '';
+
         function refreshScores() {
+            const previous = scoredTargets;
             scoredTargets = scoreTargets();
+            const signature = scoredTargets.map(target => target.result || '.').join('');
+            if (signature !== lastScoreSignature) {
+                lastScoreSignature = signature;
+                scoreVersion++;
+                if (config.logLine) {
+                    scoredTargets.forEach((target, index) => {
+                        if (!target.active || !target.result) return;
+                        const before = previous[index];
+                        if (before && before.result === target.result) return;
+                        const bias = Number.isFinite(target.biasCents)
+                            ? ` (${formatCents(/** @type {number} */(target.biasCents))}c)` : '';
+                        log(`note "${target.label}": ${target.result}${bias}`);
+                    });
+                }
+            }
             updateScoreReadout();
             maybeRecordTake();
         }
@@ -372,6 +448,7 @@ const PitchTestPanel = (function () {
             takeRecorded = false;
             clearReadout();
             setStatus('Sing to start time');
+            log('take started (trace cleared)');
             refreshScores();
             view.draw();
         }

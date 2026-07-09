@@ -73,7 +73,9 @@ const PitchTraceView = (function () {
             const rect = container.getBoundingClientRect();
             if (rect.width <= 0) return;
 
-            const dpr = window.devicePixelRatio || 1;
+            // Cap the backing store at 2x: beyond that, raster cost
+            // quadruples for detail a dark chart cannot show.
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
             const cssHeight = canvas.getBoundingClientRect().height || options.defaultHeightPx;
             canvas.width = Math.floor(rect.width * dpr);
             canvas.height = Math.floor(cssHeight * dpr);
@@ -92,7 +94,7 @@ const PitchTraceView = (function () {
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            const dpr = window.devicePixelRatio || 1;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
             const width = canvas.width / dpr;
             const height = canvas.height / dpr;
             if (width <= 0 || height <= 0) return;

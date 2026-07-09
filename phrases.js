@@ -469,6 +469,11 @@
             }));
     }
 
+    // On-page diagnostics: the panel narrates what the mic path heard
+    // (held notes, band rejections, guard flips) so a take can be
+    // debugged by pasting the log lines back.
+    const diagLog = DiagLog.create({ hostId: 'phraseLog', title: 'Log' });
+
     testPanel = PitchTestPanel.create({
         hostId: 'phraseTestPanel',
         idPrefix: 'phraseTest',
@@ -491,7 +496,8 @@
         contentDurationMs: () => phraseTestDurationMs(),
         playNote: (midi, durationSec) => { phraseAudio.playGuideMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
-        progressTool: 'phrases-test'
+        progressTool: 'phrases-test',
+        logLine: line => diagLog.add('test', line)
     });
     staffView = StaffView.create({
         hostId: 'phraseStaff',
@@ -1411,11 +1417,13 @@
             updatePhraseDisplay();
             return;
         }
+        // Setting changes NEVER start playback. If something is already
+        // playing (repeat mode), it keeps going and picks the new key or
+        // timing up live - tone playback reads the take plan per note.
         if (REPROJECT_KEYS.has(key) || REPLAY_KEYS.has(key)) {
             // Range endpoint labels name degrees of the current scale.
             if (key === 'scaleType') syncAdjusterControls();
             updatePhraseDisplay();
-            if (currentPhrase) playCurrentOrNew();
         }
     }
 
@@ -1499,7 +1507,6 @@
             btn.textContent = state.reflected ? 'Reflect On' : 'Reflect Off';
         }
         updatePhraseDisplay();
-        if (currentPhrase) playCurrentOrNew();
     }
 
     /** @param {'full' | 'chord'} mode */

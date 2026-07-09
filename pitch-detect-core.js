@@ -59,9 +59,10 @@ const PitchDetectCore = (function () {
      * @param {Float32Array} buffer
      * @param {number} sampleRate
      * @param {any} [correlations]
+     * @param {{ guardFromHz?: number, guardToHz?: number }} [diag] set when the guard re-octaves a lock
      * @returns {number} Frequency in Hz, or -1 when no pitch found
      */
-    function detectPitch(buffer, sampleRate, correlations = []) {
+    function detectPitch(buffer, sampleRate, correlations = [], diag = undefined) {
         const size = buffer.length;
         const maxSamples = Math.floor(size / 2);
         let bestOffset = -1;
@@ -107,11 +108,17 @@ const PitchDetectCore = (function () {
         }
 
         if (foundGoodCorrelation) {
+            const preGuardOffset = bestOffset;
             for (let pass = 0; pass < 2; pass++) {
                 let improved = false;
                 for (const multiple of [2, 3]) {
                     const around = bestOffset * multiple;
                     if (around + 2 >= maxSamples) continue;
+                    // The guard exists to find the true VOICE pitch: a
+                    // candidate below the singable band is not a voice,
+                    // so a real low note (A2) can never be walked down
+                    // to its sub-band octave (A1) and read as silence.
+                    if (around > maxOffset) continue;
                     let candidate = -1;
                     let candidateCorr = -Infinity;
                     for (let k = around - 2; k <= around + 2; k++) {
@@ -129,6 +136,10 @@ const PitchDetectCore = (function () {
                     }
                 }
                 if (!improved) break;
+            }
+            if (diag && bestOffset !== preGuardOffset) {
+                diag.guardFromHz = sampleRate / preGuardOffset;
+                diag.guardToHz = sampleRate / bestOffset;
             }
             const shift = (corrAt(bestOffset + 1) - corrAt(bestOffset - 1)) / corrAt(bestOffset);
             return sampleRate / (bestOffset + 8 * shift);
@@ -158,6 +169,8 @@ const PitchDetectCore = (function () {
         let timeDomainBuffer = null;
         /** @type {Float32Array | null} */
         let correlationBuffer = null;
+        /** @type {{ rms: number, freq: number, rejected: string | null, guardFromHz: number, guardToHz: number } | null} */
+        let lastRead = null;
 
         return {
             get running() { return microphone !== null; },
@@ -201,6 +214,10 @@ const PitchDetectCore = (function () {
                 correlationBuffer = null;
             },
 
+            /** Why the previous readPitch returned what it did - the raw
+             *  material for the on-page diagnostics log. */
+            get lastRead() { return lastRead; },
+
             /**
              * Read the current pitch from the live analyser.
              * @returns {{ freq: number, midi: number, cents: number, note: string } | null}
@@ -212,10 +229,24 @@ const PitchDetectCore = (function () {
                     correlationBuffer = new Float32Array(Math.floor(analyser.fftSize / 2));
                 }
                 analyser.getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (/** @type {unknown} */ (timeDomainBuffer)));
-                const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate, correlationBuffer || undefined);
-                if (freq <= 0) return null;
+
+                let rms = 0;
+                for (let i = 0; i < timeDomainBuffer.length; i++) rms += timeDomainBuffer[i] * timeDomainBuffer[i];
+                rms = Math.sqrt(rms / timeDomainBuffer.length);
+
+                /** @type {{ guardFromHz?: number, guardToHz?: number }} */
+                const diag = {};
+                const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate, correlationBuffer || undefined, diag);
+                lastRead = { rms, freq, rejected: null, guardFromHz: diag.guardFromHz || 0, guardToHz: diag.guardToHz || 0 };
+                if (freq <= 0) {
+                    lastRead.rejected = rms >= 0.01 ? 'no-pitch' : 'quiet';
+                    return null;
+                }
                 const midi = freqToMidi(freq);
-                if (midi < VOICE_MIN_MIDI || midi > VOICE_MAX_MIDI) return null;
+                if (midi < VOICE_MIN_MIDI || midi > VOICE_MAX_MIDI) {
+                    lastRead.rejected = midi < VOICE_MIN_MIDI ? 'below-band' : 'above-band';
+                    return null;
+                }
                 return {
                     freq,
                     midi,
@@ -260,6 +291,9 @@ const PitchDetectCore = (function () {
         let lastVoiceAt = null;
         let lastFrameCallbackAt = 0;
         const frameCallbackIntervalMs = Math.max(0, options.frameCallbackIntervalMs ?? DEFAULT_FRAME_CALLBACK_INTERVAL_MS);
+        // Rolling mic diagnostics: what happened to every frame since the
+        // consumer last asked (the on-page log renders these as summaries).
+        const diagCounts = { frames: 0, voiced: 0, quiet: 0, noPitch: 0, belowBand: 0, aboveBand: 0, guardFlips: 0, held: 0 };
 
         function clockMs() {
             if (options.pauseOnSilence()) return voiceElapsedMs;
@@ -332,7 +366,11 @@ const PitchDetectCore = (function () {
             if (!listening) return;
 
             const info = capture.readPitch();
+            diagCounts.frames++;
+            const read = capture.lastRead;
+            if (read && read.guardFromHz) diagCounts.guardFlips++;
             if (info) {
+                diagCounts.voiced++;
                 const sample = {
                     time: options.pauseOnSilence() ? nextVoiceTime() : clockMs(),
                     freq: info.freq,
@@ -340,8 +378,16 @@ const PitchDetectCore = (function () {
                     cents: info.cents,
                     note: info.note
                 };
-                if (record(sample) && options.onAccepted) options.onAccepted(sample);
+                const accepted = record(sample);
+                if (!accepted) diagCounts.held++;
+                if (accepted && options.onAccepted) options.onAccepted(sample);
             } else {
+                if (read) {
+                    if (read.rejected === 'quiet') diagCounts.quiet++;
+                    else if (read.rejected === 'no-pitch') diagCounts.noPitch++;
+                    else if (read.rejected === 'below-band') diagCounts.belowBand++;
+                    else if (read.rejected === 'above-band') diagCounts.aboveBand++;
+                }
                 pendingJump = [];
                 lastVoiceAt = null;
                 if (options.onSilence) options.onSilence();
@@ -373,6 +419,18 @@ const PitchDetectCore = (function () {
              */
             msSinceLastAccepted() {
                 return lastAcceptedAtWall ? performance.now() - lastAcceptedAtWall : Infinity;
+            },
+
+            /**
+             * Mic-frame outcomes since the last call (delta semantics):
+             * how many frames were voiced, too quiet, pitchless despite
+             * signal, outside the singable band, re-octaved by the
+             * harmonic guard, or held back by the glitch filter.
+             */
+            diagnostics() {
+                const snapshot = { ...diagCounts };
+                for (const key of Object.keys(diagCounts)) diagCounts[key] = 0;
+                return snapshot;
             },
 
             reset() {

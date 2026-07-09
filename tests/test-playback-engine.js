@@ -27,10 +27,13 @@ const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = re
         await tab.waitForTimeout(1200);
         const trace = await tab.evaluate(() => window.__trace);
 
-        const kills = trace.filter(e => e.type === 'kill' && e.t >= tChange);
+        // Setting changes never start or restart playback: the running
+        // loop continues uninterrupted (no kill burst at the change) and
+        // picks the new key up live on its next note.
+        const kills = trace.filter(e => e.type === 'kill' && e.t >= tChange && e.t < tChange + 150);
         const newStarts = trace.filter(e => e.type === 'voice-start' && e.t >= tChange);
-        report.check(`phrases root+: ${kills.length} kills then ${newStarts.length} voices, kill-first`,
-            kills.length > 0 && newStarts.length > 0 && kills[0].t <= newStarts[0].t);
+        report.check(`phrases root+ mid-playback: no restart (${kills.length} kills at change), playback continues (${newStarts.length} voices)`,
+            kills.length === 0 && newStarts.length > 0);
 
         const degreesAfter = await tab.evaluate(() =>
             Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));

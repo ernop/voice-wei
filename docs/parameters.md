@@ -12,9 +12,9 @@ persist is in [architecture.md](architecture.md) "Persistence".)
 | Behavior | Meaning |
 |----------|---------|
 | `bounds-next` | Constrains only the NEXT generated item. Current content untouched, nothing replays. |
-| `reproject` | Current content is kept and re-expressed in the new context (e.g. same degrees, new key), then replayed if something was generated. |
+| `reproject` | Current content is kept and re-expressed in the new context (e.g. same degrees, new key). Never starts playback; ongoing playback continues and picks the change up live. |
 | `regenerate` | Current content is discarded and regenerated (no auto-play). |
-| `replay` | Current content kept; replayed with the new sound settings. |
+| `replay` | Current content kept; new sound settings apply to whatever plays next. Never starts playback (on Phrases, ongoing playback reads timing live per note). |
 | `redraw` | Display refresh only; no audio. |
 | `live-restart` | If playing, stop and restart playback with the new settings; if idle, just store. |
 | `next-round` | Takes effect when the running loop generates its next item (or the next question/session starts). |

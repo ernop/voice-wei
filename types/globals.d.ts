@@ -64,6 +64,7 @@ interface Window {
     PlayerHistoryUI?: typeof PlayerHistoryUI;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
+    DiagLog?: any;
     ProgressStore?: any;
     HistoryList?: any;
     NotationSpelling?: {

@@ -232,4 +232,6 @@ interface PitchTestPanelConfig {
     onOpenChange?: (open: boolean) => void;
     /** ProgressStore tool id; takes are recorded when set */
     progressTool?: string;
+    /** Page diagnostics sink: the panel narrates mic-path events into it */
+    logLine?: (text: string) => void;
 }
