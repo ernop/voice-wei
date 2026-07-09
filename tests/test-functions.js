@@ -157,6 +157,34 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.close();
     }
 
+    // ============ TRACE: degree patterns reach other octaves ============
+    {
+        const tab = await browser.newPage();
+        collectErrors(tab, 'trace-pattern', report.errors);
+        await tab.goto(`${BASE_URL}/trace.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1500);
+        const pattern = await tab.evaluate(() => {
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('patternInput'));
+            input.value = '5d 1 3 8 2u 9 5dd x';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const entries = window.traceDebug.patternEntries();
+            const targets = window.traceDebug.guideTargets();
+            const rails = window.traceDebug.rails();
+            return {
+                intervals: entries.map(entry => entry.interval).join(','),
+                labels: entries.map(entry => entry.label).join(','),
+                targetsOnRails: targets.length === entries.length
+                    && targets.every(target => rails.some(rail => rail.midi === target.midi)),
+                labelsMatchTokens: targets.every((target, i) => target.label === entries[i].label)
+            };
+        });
+        report.check(`trace pattern suffixes reach other octaves (${pattern.intervals} | ${pattern.labels})`,
+            pattern.intervals === '-5,0,4,12,14,14,-17'
+            && pattern.labels === '5d,1,3,8,2u,9,5dd'
+            && pattern.targetsOnRails && pattern.labelsMatchTokens);
+        await tab.close();
+    }
+
     // ============ PHRASES: stored sharp root displays as conventional flat key ============
     {
         const tab = await browser.newPage();

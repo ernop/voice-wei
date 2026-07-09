@@ -119,6 +119,11 @@ interface Window {
         panel: any;
     };
     intervalsDebug?: { panel: any };
+    traceDebug?: {
+        patternEntries: () => Array<{ interval: number; label: string }>;
+        guideTargets: () => TargetSpan[];
+        rails: () => ScaleDegreeNote[];
+    };
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;
     normalizeModifier?: (spoken: string | null | undefined) => string | null;

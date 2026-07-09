@@ -127,7 +127,11 @@ generating anything first.
   typed pattern as guides - off by default).
 - Root/octave/scale draw the scale-degree rails.
 - Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
-  guide interval stepper sets their horizontal spacing.
+  guide interval stepper sets their horizontal spacing. Octave suffixes
+  reach outside the home octave: `5d` (or `5v`/`5↓`) is the 5 an octave
+  below the root, `2u` (or `2↑`) the 2 an octave above, stackable as
+  `5dd`; numbers past the octave keep climbing (`9` = the 2 above).
+  Rails extend automatically to cover every typed target.
 - Guide sound: piano (default) or sine beep.
 - Pause on silence (default on): the clock only advances while you sing.
 - 20s window switches to a fixed-width scrolling viewport; Expand range
