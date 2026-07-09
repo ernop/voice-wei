@@ -6,8 +6,12 @@
 // their own bookkeeping:
 //
 //   RateGate(ms)  - "run at most once per ms". gate.ready() returns true at
-//                   most that often; used to cap chart redraws and readout
-//                   updates to a sustainable rate.
+//                   most that often; used to cap ANALYSIS (scoring) and
+//                   text-readout updates. Never gate canvas drawing with
+//                   it: a scrolling chart stepped at uneven intervals
+//                   (a 50ms gate polled from a 60Hz loop alternates 3-
+//                   and 4-frame steps) reads as twitching - live charts
+//                   redraw every animation frame.
 //   ValueDiff     - "write the DOM only when the value changed". Keyed by a
 //                   caller-chosen string so several fields (text + style)
 //                   can share one differ. Avoids redundant textContent/style

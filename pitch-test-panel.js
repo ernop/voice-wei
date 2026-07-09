@@ -55,7 +55,11 @@ const PitchTestPanel = (function () {
         SettingsStore.load(config.storageKey, options, OPTION_KEYS);
 
         let panelOpen = false;
-        const renderGate = new RateGate(50);
+        // Drawing is NEVER throttled: a scrolling chart stepped at
+        // uneven intervals reads as twitching, so the canvas redraws
+        // every animation frame (the draw itself is cheap and bounded).
+        // Throttles apply only to analysis (scoring) and text readouts.
+        const scoreGate = new RateGate(100);
         const readoutGate = new RateGate(50);
         const panelDiff = new ValueDiff();
 
@@ -80,10 +84,10 @@ const PitchTestPanel = (function () {
             },
             onSilence: () => clearReadout(),
             onFrame: () => {
-                if (!renderGate.ready()) return;
-                refreshScores();
+                if (scoreGate.ready()) refreshScores();
                 view.draw();
-            }
+            },
+            frameCallbackIntervalMs: 0
         });
 
         function windowMs() {

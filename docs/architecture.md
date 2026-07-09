@@ -154,8 +154,14 @@ green/yellow/red once scored, and their HEIGHT is the real hit tolerance
 (PitchScore.OK_CENTS mapped through the same pitch scale as the voice
 line), so "the trace is inside the band" and "this note counts" are the
 same statement - the picture can never promise a tolerance the scoring
-does not honor. Redraws are throttled to 50ms ticks by `RateGate`
-(render-throttle.js).
+does not honor.
+
+**Drawing is never throttled.** A scrolling chart stepped at uneven
+intervals reads as twitching (a 50ms gate polled from a 60Hz frame loop
+alternates 3- and 4-frame steps), so live surfaces redraw every
+animation frame - the draw itself is cheap and bounded (decimated trace,
+a dozen rails and bands). `RateGate` throttles apply only to ANALYSIS
+(scoring, ~100ms) and TEXT readouts (~50ms), never to the pixels.
 
 The detector also carries a harmonic-lock guard: when a signal's
 2nd/3rd/4th harmonic dominates (bright vowels, piano through the

@@ -40,7 +40,6 @@
     let guideSine = null;
     let guidePlaybackToken = 0;
     const readoutGate = new RateGate(50);
-    const chartGate = new RateGate(50);
     const textDiff = new ValueDiff();
 
     const getEl = PracticeControls.getEl;
@@ -169,12 +168,9 @@
         showPlayhead: () => session.startedAt > 0
     });
 
-    function drawChart(force = false) {
-        if (force) {
-            chartGate.stamp();
-        } else if (!chartGate.ready()) {
-            return;
-        }
+    // Drawing is never throttled: the chart redraws every animation
+    // frame so the scroll steps evenly (throttles are for readouts).
+    function drawChart() {
         view.draw();
     }
     function resizeCanvas() { view.resize(); }
@@ -184,7 +180,7 @@
         session.reset();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
-        drawChart(true);
+        drawChart();
     }
 
     /**
@@ -224,7 +220,7 @@
         session.stop();
         syncControls();
         setStatus('Stopped');
-        drawChart(true);
+        drawChart();
     }
 
     async function toggleListening() {
@@ -312,7 +308,7 @@
             patternInput.addEventListener('input', () => {
                 state.patternText = patternInput.value;
                 saveSettings();
-                drawChart(true);
+                drawChart();
             });
         }
         getEl('startBtn')?.addEventListener('click', toggleListening);
@@ -329,12 +325,12 @@
         PracticeControls.wireToggle('fixedWindowToggle', state.fixedWindow, checked => {
             state.fixedWindow = checked;
             saveSettings();
-            drawChart(true);
+            drawChart();
         });
         PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
             state.expandRange = checked;
             saveSettings();
-            drawChart(true);
+            drawChart();
         });
         window.addEventListener('resize', resizeCanvas);
         syncControls();

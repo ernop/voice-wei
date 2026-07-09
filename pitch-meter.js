@@ -97,7 +97,6 @@ class PitchMeterController {
         this.currentFreqEl = null;
         /** @type {HTMLElement | null} */
         this.centsMarkerEl = null;
-        this.chartGate = new RateGate(50);
         this.pitchDisplayGate = new RateGate(50);
         this.pitchDisplayDiff = new ValueDiff();
 
@@ -255,8 +254,9 @@ class PitchMeterController {
         this.traceView.resize();
     }
 
+    // Drawing is never throttled (uneven redraw cadence reads as
+    // twitching); this is sample-driven, so idle means no draws anyway.
     drawChart() {
-        if (!this.chartGate.ready()) return;
         this.traceView.draw();
     }
 

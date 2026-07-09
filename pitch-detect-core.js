@@ -37,7 +37,9 @@ const PitchDetectCore = (function () {
     const VOICE_MIN_MIDI = 38; // D2, ~73 Hz
     const VOICE_MAX_MIDI = 70; // Bb4, ~466 Hz
     const ANALYSER_FFT_SIZE = 2048;
-    const DEFAULT_FRAME_CALLBACK_INTERVAL_MS = 50;
+    // onFrame fires every animation frame by default: live surfaces draw
+    // per frame (smooth scroll); consumers throttle their own analysis.
+    const DEFAULT_FRAME_CALLBACK_INTERVAL_MS = 0;
 
     /** @typedef {{ time: number, freq: number, midi: number, cents: number, note: string }} PitchSample */
 
