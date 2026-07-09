@@ -37,8 +37,13 @@ page that shows them:
 | Picker | Presets |
 |--------|---------|
 | root pitch | semitone steps, C2..B5 (MIDI 36..83) |
-| noteLengthMs | 100, 150, 200, 250, 300, 350, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 3000, 5000 |
-| gapMs | -50%, -10%, -5%, 0, 50, 100, 150, 250, 300, 500, 1000, 1500, 2000, 3000, 5000 |
+| time ladder (`TIME_VALUES_MS`) | 0 then tenths to 2s (0.1, 0.2, ... 1.9), quarters to 4s (2.25, 2.5, ... 4), halves to 5s, wholes to 10s |
+| noteLengthMs | the time ladder from 0.1s up (a zero-length note is silence) |
+| gapMs | -50%, -10%, -5%, then the full time ladder from 0 |
+
+Every seconds-valued stepper walks the same shared ladder: note length,
+gap, the Phrases section pause (Sect), the Trace guide interval, and the
+Pitch page match window all step through the same numbers.
 
 Negative gap presets are overlap ratios of the note length (-50% starts
 the next note halfway through the current one); they display as
@@ -76,6 +81,7 @@ chooses a question range, not a root) and keeps its own range.
 | playOnNext | true | toggle - when off, Next generates and shows the phrase silently (work it out first, then press Play) | immediate (preference) |
 | noteLengthMs | 300 | shared note-length list | replay |
 | gapMs | 0 | shared gap list | replay |
+| sectionPauseMs | 1000 | shared time ladder; pause between repeat loops / breakdown passes / powerset combos | live (read each cycle) |
 | showNoteNames | true | toggle | redraw |
 | fillMode | none | off / full fill / 1358 fill | redraw |
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
@@ -162,7 +168,7 @@ meaningful for one configuration).
 |---------|---------|--------|----------|
 | root / octave | D#3 | root pitch stepper (shared C2-B5) | redraw + trace reset |
 | scaleType | major | six scales | redraw + trace reset |
-| guideIntervalMs | 1000 | 500..3000 list | redraw + trace reset |
+| guideIntervalMs | 1000 | shared time ladder from 0.1s | redraw + trace reset |
 | guideSound | piano | piano / beep | immediate (next guide tone) |
 | patternText | empty | degree string | redraw |
 | playGuidesOnReset | false | toggle | immediate |
@@ -220,7 +226,7 @@ The play loop reads settings when it generates each pattern.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | mode | call-response | free / call-response / play-along segment row | next-round (next session) |
-| responseTime | 2s | 1..5s stepper | next-round |
+| responseTime | 2s | shared time ladder from 0.5s (stored in seconds) | next-round |
 | instrument | voice | voice / violin / bass segment row | immediate (sets octave preset, redraws targets) |
 | rootNote + octave | C4 | root pitch stepper (shared C2-B5) | immediate (redraws targets) |
 | scaleType | major | major, minor, chromatic, pentatonic, blues | immediate (redraws targets) |

@@ -26,7 +26,11 @@ const INSTRUMENT_PRESETS = Object.freeze({
 class PitchMeterController {
     static STORAGE_KEY = StorageKeys.PITCH_METER_SETTINGS;
     static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
-    static RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5];
+    // Stored in seconds; the choices are the shared time ladder (a match
+    // window under half a second is unplayable, so it starts at 0.5s).
+    static RESPONSE_TIME_VALUES = PracticeControls.TIME_VALUES_MS
+        .filter(ms => ms >= 500)
+        .map(ms => ms / 1000);
 
     constructor() {
         /** @type {boolean} */

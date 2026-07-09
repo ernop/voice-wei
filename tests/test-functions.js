@@ -1042,7 +1042,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             shown: document.getElementById('sectionPauseValue')?.textContent
         }));
         report.check(`phrases section pause stepper persists (${sectionPause.saved}ms, "${sectionPause.shown}")`,
-            sectionPause.saved === 1500 && sectionPause.shown === '1.5s');
+            sectionPause.saved === 1100 && sectionPause.shown === '1.1s');
         await tab.click('[data-step-key="sectionPauseMs"][data-step-delta="-1"]');
         await tab.waitForTimeout(200);
 

@@ -30,7 +30,8 @@
     ];
 
     const ADJUSTER_VALUES = {
-        guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
+        // Zero spacing would stack every guide target at t=0.
+        guideIntervalMs: PracticeControls.NOTE_LENGTH_VALUES
     };
     const FIXED_WINDOW_MS = 20000;
 

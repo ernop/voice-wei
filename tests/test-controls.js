@@ -95,19 +95,25 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             return data || {};
         });
         report.check(`intervals steppers saved ${saved.lengthMs}/${saved.gapMs}`,
-            saved.lengthMs === 500 && saved.gapMs === 1500);
+            saved.lengthMs === 500 && saved.gapMs === 1900);
 
         // The trio of shared pickers exposes the same preset lists on every
         // page: one step from the shared defaults lands on shared values.
+        // Every seconds-valued stepper derives from ONE time ladder.
         const presets = await tab.evaluate(() => ({
-            lengths: PracticeControls.NOTE_LENGTH_VALUES,
-            gaps: PracticeControls.GAP_VALUES,
+            ladder: Array.from(PracticeControls.TIME_VALUES_MS),
+            lengths: Array.from(PracticeControls.NOTE_LENGTH_VALUES),
+            gaps: Array.from(PracticeControls.GAP_VALUES),
             rootMin: PracticeControls.ROOT_PITCH_MIN_MIDI,
             rootMax: PracticeControls.ROOT_PITCH_MAX_MIDI
         }));
-        report.check(`shared step presets exposed (lengths=${presets.lengths.length}, gaps=${presets.gaps.length}, root=${presets.rootMin}-${presets.rootMax})`,
-            presets.lengths.length > 0 && presets.gaps.length > 0
-            && presets.rootMin === 36 && presets.rootMax === 83);
+        const ladderOk = presets.ladder[0] === 0
+            && [100, 900, 1100, 1900, 2250, 4500, 10000].every(v => presets.ladder.includes(v))
+            && presets.lengths.join(',') === presets.ladder.filter(v => v >= 100).join(',')
+            && presets.gaps.slice(0, 3).join(',') === '-0.5,-0.1,-0.05'
+            && presets.gaps.slice(3).join(',') === presets.ladder.join(',');
+        report.check(`shared step presets expose one time ladder (ladder=${presets.ladder.length}, lengths=${presets.lengths.length}, gaps=${presets.gaps.length}, root=${presets.rootMin}-${presets.rootMax})`,
+            ladderOk && presets.rootMin === 36 && presets.rootMax === 83);
         await ctx.close();
     }
 
