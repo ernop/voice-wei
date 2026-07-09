@@ -2297,6 +2297,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && aiParsing.linkedTitle === 'Regional riffs'
             && aiParsing.status.includes('Reading 1 linked page')
             && aiParsing.prompt.includes('return every distinct music item')
+            && aiParsing.prompt.includes('never substitute a different better-known artist')
             && aiParsing.prompt.includes('truncated from 1000 chars')
             && !aiParsing.prompt.includes('5-25')
             && aiParsing.longTextPromptCount > 1

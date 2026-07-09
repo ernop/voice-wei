@@ -504,6 +504,8 @@ Return a JSON array of music search items that match this request. If the user a
 
 If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
 
+Names in the request may be misheard by voice transcription or slightly misspelled (for example "mayu ongaku" for the band Maya Ongaku). If the request looks like an artist, band, or song name you do not confidently recognize, never substitute a different better-known artist that partially matches or reinterpret the words. Return the user's literal words as a searchTerm item (YouTube search tolerates small misspellings and will find the artist); if you suspect the name is a near-miss spelling of a real artist, also include items using that corrected name.
+
 Unless the user explicitly asks for live, acoustic, cover, or remix versions, every item means the ORIGINAL STUDIO RECORDING: never add words like "live" to the search term, and do not select live albums or concert recordings.
 
 Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
