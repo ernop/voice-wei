@@ -49,7 +49,10 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 }
 
 .phrase-staff-scroll {
-    width: 100%;
+    /* Shrink to the drawn staff: a short phrase should not leave a long
+       empty white band to its right. */
+    width: fit-content;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
