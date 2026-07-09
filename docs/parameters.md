@@ -79,6 +79,7 @@ chooses a question range, not a root) and keeps its own range.
 | showNoteNames | true | toggle | redraw |
 | fillMode | none | off / full fill / 1358 fill | redraw |
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
+| seriesText | '' | last successfully loaded Series input text | convenience only (restores the input on reload) |
 | lessonLockedKeys | [] | setting-key array | UI marker only |
 
 Range endpoints: the two steppers move the lower and upper ends of the
@@ -129,7 +130,11 @@ lock `full fill` / `1358 fill`, because those are playback modifiers rather
 than genre or pedagogy choices.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
-octave), per-note on/off mask, add note (advance breakdown pass). The mask is
+octave), per-note on/off mask, add note (advance breakdown pass), and Series
+Set (parse the typed degree series - `parseDegreeSeries` in
+pattern-practice-core.js - and load it as the current phrase; honors
+playOnNext, joins history; parse errors show under the input and change
+nothing). The mask is
 `immediate` for display; tone and sing playback read it live. Spoken output
 reads the mask once when a play cycle starts. Repeat is a preference only:
 toggling it does not start or stop audio. Play on step controls whether add

@@ -631,6 +631,63 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.click('#playOnNextBtn');
         await tab.waitForTimeout(200);
 
+        // Typed degree series: the token grammar parses to exact offsets
+        // (octave marks, chromatic passing accidentals), errors never guess.
+        const seriesParse = await tab.evaluate(() => {
+            const good = PatternPracticeCore.parseDegreeSeries('5v 1, 1 | 7bv 7v 2# 2 9 6\u2193', 'major');
+            const badToken = PatternPracticeCore.parseDegreeSeries('1 2 zz', 'major');
+            const badAccidental = PatternPracticeCore.parseDegreeSeries('3# 1', 'major');
+            const empty = PatternPracticeCore.parseDegreeSeries('   ', 'major');
+            return {
+                offsets: good.offsets.join(','),
+                goodErrors: good.errors.length,
+                badTokenErrors: badToken.errors.length,
+                badTokenOffsets: badToken.offsets.join(','),
+                badAccidentalErrors: badAccidental.errors.length,
+                emptyErrors: empty.errors.length
+            };
+        });
+        report.check(`phrases series parser maps tokens to offsets (${seriesParse.offsets})`,
+            seriesParse.offsets === '-3,0,0,-1.5,-1,1.5,1,8,-2'
+            && seriesParse.goodErrors === 0
+            && seriesParse.badTokenErrors === 1 && seriesParse.badTokenOffsets === '0,1'
+            && seriesParse.badAccidentalErrors === 1
+            && seriesParse.emptyErrors === 1);
+
+        // Series Set loads the typed series as the current take (honoring
+        // play on next), and it joins phrase history.
+        await tab.fill('#seriesInput', '5v 1 1 7bv 7v 2# 2');
+        const seriesVoices0 = await tab.evaluate(() => window.__voiceStarts);
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(7 * 320 + 900);
+        const seriesLoaded = await tab.evaluate(() => ({
+            offsets: window.phrasesDebug.takePlan().map(note => note.offset).join(','),
+            degrees: window.phrasesDebug.takePlan().map(note => note.degree).join(' '),
+            voices: window.__voiceStarts,
+            errorHidden: document.getElementById('seriesError').hidden,
+            historyDegrees: document.querySelector('#historyList .phrase-history-degrees')?.textContent || ''
+        }));
+        report.check(`phrases series loads as the take and plays (${seriesLoaded.degrees}, ${seriesLoaded.voices - seriesVoices0} voices)`,
+            seriesLoaded.offsets === '-3,0,0,-1.5,-1,1.5,1'
+            && seriesLoaded.voices - seriesVoices0 === 7
+            && seriesLoaded.errorHidden === true
+            && seriesLoaded.historyDegrees.split(' ').length === 7);
+
+        // Bad tokens list under the input and change nothing.
+        await tab.fill('#seriesInput', '1 2 zz 3#');
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(300);
+        const seriesError = await tab.evaluate(() => ({
+            hidden: document.getElementById('seriesError').hidden,
+            text: document.getElementById('seriesError').textContent,
+            offsets: window.phrasesDebug.takePlan().map(note => note.offset).join(',')
+        }));
+        report.check(`phrases series errors leave the take unchanged ("${seriesError.text}")`,
+            seriesError.hidden === false
+            && seriesError.text.includes('zz') && seriesError.text.includes('3#')
+            && seriesError.offsets === '-3,0,0,-1.5,-1,1.5,1');
+        await tab.click('#stopBtn');
+
         // Explicit range endpoints: offsets bounded to the chosen span
         const overBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];

@@ -42,6 +42,7 @@
         autoStep: false,
         playOnStep: false,
         playOnNext: true,
+        seriesText: '',
         lessonLockedKeys: []
     };
 
@@ -51,7 +52,7 @@
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'sectionPauseMs', 'showNumbers', 'showNoteNames',
         'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
-        'autoStep', 'playOnStep', 'playOnNext', 'lessonLockedKeys'
+        'autoStep', 'playOnStep', 'playOnNext', 'seriesText', 'lessonLockedKeys'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
@@ -902,6 +903,46 @@
     }
 
     /**
+     * Load the typed degree series as the current phrase - the manual
+     * twin of Next. Parse errors show under the input and change
+     * nothing; a valid series becomes the take (and a history entry),
+     * so breakdown, repeat, test, and per-note muting all apply to it.
+     */
+    async function applySeriesFromInput() {
+        const input = getEl('seriesInput');
+        const errorEl = getEl('seriesError');
+        if (!(input instanceof HTMLInputElement) || !(errorEl instanceof HTMLElement)) return;
+        const parsed = PatternPracticeCore.parseDegreeSeries(input.value, state.scaleType);
+        if (parsed.errors.length) {
+            errorEl.hidden = false;
+            errorEl.textContent = parsed.errors.join(' \u00b7 ');
+            return;
+        }
+        errorEl.hidden = true;
+        errorEl.textContent = '';
+        state.seriesText = input.value;
+        saveSettings();
+
+        await MediaSessionCore.activate();
+        stopTransport();
+        exitBreakdownMode();
+        exitPowersetMode();
+        const phrase = PatternPracticeCore.phraseFromOffsets({
+            offsets: parsed.offsets,
+            root: state.root,
+            octave: state.octave,
+            scaleType: state.scaleType
+        });
+        if (!phrase) return;
+        currentPhrase = phrase;
+        setTakeFromPhrase(phrase);
+        if (history) history.add(phrase);
+        await restartTakeForNewPhrase();
+        if (!state.playOnNext) return;
+        await playPhrase();
+    }
+
+    /**
      * Car back button: step back through the phrase history, one entry
      * per press, replaying each. At the oldest entry it replays that.
      */
@@ -1535,6 +1576,17 @@
         getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
         getEl('playOnNextBtn')?.addEventListener('click', togglePlayOnNext);
         getEl('addNoteBtn')?.addEventListener('click', () => { advanceStagePass(); });
+        const seriesInput = getEl('seriesInput');
+        if (seriesInput instanceof HTMLInputElement) {
+            seriesInput.value = state.seriesText;
+            seriesInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applySeriesFromInput();
+                }
+            });
+        }
+        getEl('seriesSetBtn')?.addEventListener('click', () => { applySeriesFromInput(); });
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',

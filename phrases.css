@@ -255,6 +255,31 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     order: 2;
 }
 
+.phrase-control-card-series {
+    order: 0;
+    flex-basis: 100%;
+    gap: 4px 8px;
+}
+
+.phrase-series-label {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+/* Sizing only; the look comes from the shared .text-input */
+.phrase-series-input {
+    flex: 1 1 220px;
+    min-width: 160px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+}
+
+.phrase-series-error {
+    flex-basis: 100%;
+    color: #fca5a5;
+    font-size: 0.78rem;
+}
+
 .phrase-control-card-numbers {
     order: 1;
     flex-basis: 100%;

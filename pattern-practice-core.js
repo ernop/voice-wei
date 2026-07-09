@@ -188,6 +188,62 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * Parse a typed degree series ("5v 1 1 7bv 7v 2# 2") into scale
+     * offsets. Token grammar, matching the display vocabulary: degree
+     * digits (1..8 in-octave, 9+ keeps climbing), then any mix of
+     * accidental and octave marks - "#" / "b" pick the chromatic passing
+     * note above / below the degree, "v" or "\u2193" drop an octave, "^" or
+     * "\u2191" raise one. Marks may repeat ("3vv") and come in any order
+     * ("7bv" = "7vb"). Unknown tokens and accidentals that name no
+     * chromatic note in the scale (e.g. "3#" in major, a half-step gap)
+     * are reported as errors, never guessed at.
+     * @param {string} text @param {string} scaleType
+     * @returns {{ offsets: number[], errors: string[] }}
+     */
+    function parseDegreeSeries(text, scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        /** @type {number[]} */
+        const offsets = [];
+        /** @type {string[]} */
+        const errors = [];
+        const tokens = String(text || '').trim().split(/[\s,;/|-]+/).filter(Boolean);
+        for (const raw of tokens) {
+            const token = raw.toLowerCase();
+            const match = /^([0-9]+)([#b^v\u2191\u2193]*)$/.exec(token);
+            const degree = match ? Number(match[1]) : 0;
+            if (!match || degree < 1) {
+                errors.push(`"${raw}" is not a degree token`);
+                continue;
+            }
+            const marks = match[2];
+            const sharps = (marks.match(/#/g) || []).length;
+            const flats = (marks.match(/b/g) || []).length;
+            if (sharps + flats > 1) {
+                errors.push(`"${raw}" has more than one accidental`);
+                continue;
+            }
+            let offset = degree - 1;
+            for (const mark of marks) {
+                if (mark === 'v' || mark === '\u2193') offset -= dp;
+                if (mark === '^' || mark === '\u2191') offset += dp;
+            }
+            if (sharps || flats) {
+                const passing = sharps
+                    ? chromaticBetween(scaleType, offset, offset + 1)
+                    : chromaticBetween(scaleType, offset - 1, offset);
+                if (passing === null) {
+                    errors.push(`"${raw}": no chromatic note ${sharps ? 'above' : 'below'} degree ${degree} in ${scaleType}`);
+                    continue;
+                }
+                offset = passing;
+            }
+            offsets.push(offset);
+        }
+        if (!tokens.length) errors.push('empty series');
+        return { offsets, errors };
+    }
+
+    /**
      * Native speech pitch is approximate. This mapping keeps spoken numbers
      * moving in the same direction as the exact piano target underneath them.
      * @param {number} midi
@@ -1204,8 +1260,20 @@ const PatternPracticeCore = (function () {
             : (options.chromaticRuns ? DEFAULT_CHROMATIC_PASSING_CHANCE : 0);
         const offsets = generatePhraseOffsets({ ...options, accidentalRate });
 
+        return phraseFromOffsets({ ...options, offsets });
+    }
+
+    /**
+     * The one Phrase constructor: explicit offsets (generated, or typed
+     * as a degree series) projected into a key.
+     * @param {{ offsets: number[], root: string, octave: number, scaleType: string }} options
+     * @returns {Phrase | null}
+     */
+    function phraseFromOffsets(options) {
+        const rootMidi = noteNameToMidi(options.root, options.octave);
+        if (rootMidi === null) return null;
         return {
-            notes: buildSequenceNotes(offsets, rootMidi, options.scaleType),
+            notes: buildSequenceNotes(options.offsets, rootMidi, options.scaleType),
             root: options.root,
             scaleType: options.scaleType,
             octave: options.octave,
@@ -1228,6 +1296,7 @@ const PatternPracticeCore = (function () {
         offsetToSpoken,
         offsetsToDisplay,
         offsetsToSpoken,
+        parseDegreeSeries,
         chromaticBetween,
         addChromaticPassingTones,
         applyChromaticPassingChoices,
@@ -1244,7 +1313,8 @@ const PatternPracticeCore = (function () {
         melodicWildness,
         createUniqueSubsequenceIterator,
         reflectOffsets,
-        generatePhrase
+        generatePhrase,
+        phraseFromOffsets
     };
 })();
 
