@@ -144,7 +144,7 @@ const PlayerCommands = (function () {
                             this.updateStatus('Nothing is playing');
                         } else {
                             this.fastForward();
-                            this.updateStatus('Skipped forward 10 seconds');
+                            this.updateStatus('Skipped forward 5 seconds');
                         }
                         break;
                     case 'rewind':
@@ -152,7 +152,7 @@ const PlayerCommands = (function () {
                             this.updateStatus('Nothing is playing');
                         } else {
                             this.rewind();
-                            this.updateStatus('Rewound 10 seconds');
+                            this.updateStatus('Rewound 5 seconds');
                         }
                         break;
                 }

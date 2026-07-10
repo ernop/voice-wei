@@ -13,7 +13,8 @@ const PLAYER_SETTINGS_KEYS = [
     'openaiModel',
     'aiProvider',
     'lyricsOnNowPlaying',
-    'showSongNotes'
+    'showSongNotes',
+    'playlistTimedOnly'
 ];
 
 /** @type {LyricsViewSettings} */

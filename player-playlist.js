@@ -1,7 +1,9 @@
 // @ts-check
 // Playlist DOM, YouTube search/playback, and transport controls.
 
-const SEEK_JUMP_SECONDS = 10;
+const SEEK_JUMP_SECONDS = 5;
+/** Seconds before the first timed lyric line that "1st" jumps to. */
+const FIRST_LYRIC_LEAD_SECONDS = 1;
 const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const PLAYER_READY_TIMEOUT_MS = 8000;
@@ -42,7 +44,9 @@ const PlayerPlaylist = (function () {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             showPlaylistSurfaces() {
                 document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
+                // Sticky transport is the now-playing surface. The older
+                // central player duplicated song/seek controls above it.
+                document.getElementById('centralPlayer').style.display = 'none';
                 this.showTransportBar();
             },
 
@@ -58,7 +62,7 @@ const PlayerPlaylist = (function () {
             appendPlaylistItem(item) {
                 this.playlist.push(item);
                 this.addPlaylistItemToDOM(item);
-                if (this.playlistFilterQuery) this.applyPlaylistFilter();
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
                 this.queueLyricsLookup(item);
             },
 
@@ -101,7 +105,7 @@ const PlayerPlaylist = (function () {
                 for (const item of this.playlist) {
                     this.addPlaylistItemToDOM(item);
                 }
-                if (this.playlistFilterQuery) this.applyPlaylistFilter();
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
 
                 // Rebind current index to the currently playing item after reorder
                 if (this.currentPlayingId != null) {
@@ -324,7 +328,8 @@ const PlayerPlaylist = (function () {
              * Live view filter over the working playlist. Purely visual:
              * rows that do not match are hidden, the array and playback
              * order are untouched (next/previous still traverse the full
-             * list). The status line names the active query and counts so
+             * list). Text query and "Timed only" combine: both must pass.
+             * The status line names the active constraints and counts so
              * a filtered view is never mistaken for the whole playlist.
              * @param {string} value raw input text
              */
@@ -336,26 +341,49 @@ const PlayerPlaylist = (function () {
             clearPlaylistFilter() {
                 const input = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
                 if (input) input.value = '';
-                this.setPlaylistFilter('');
+                this.playlistFilterQuery = '';
+                if (this.settings.playlistTimedOnly) {
+                    this.settings.playlistTimedOnly = false;
+                    this.saveSettings();
+                    const timedToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistTimedOnlyToggle'));
+                    if (timedToggle) timedToggle.checked = false;
+                }
+                this.applyPlaylistFilter();
+            },
+
+            /** @param {PlaylistItem} item */
+            itemHasTimedLyrics(item) {
+                return !!item
+                    && item.lyricsStatus === 'ready'
+                    && !!item.lyricsData
+                    && Array.isArray(item.lyricsData.syncedLines)
+                    && item.lyricsData.syncedLines.length > 0;
             },
 
             /** Re-apply the current filter to every row and refresh the status line. */
             applyPlaylistFilter() {
                 const query = this.playlistFilterQuery || '';
+                const timedOnly = !!this.settings.playlistTimedOnly;
                 let shownCount = 0;
                 for (const item of this.playlist) {
                     const row = /** @type {HTMLElement | null} */ (document.querySelector(`.playlist-row[data-item-id="${item.id}"]`));
                     if (!row) continue;
-                    const matches = PlayerSongs.songMatchesQuery(item, query);
+                    const matchesQuery = PlayerSongs.songMatchesQuery(item, query);
+                    const matchesTimed = !timedOnly || this.itemHasTimedLyrics(item);
+                    const matches = matchesQuery && matchesTimed;
                     row.hidden = !matches;
                     if (matches) shownCount++;
                 }
 
                 const status = document.getElementById('playlistFilterStatus');
                 const statusText = document.getElementById('playlistFilterStatusText');
-                if (status) status.style.display = query ? 'flex' : 'none';
-                if (statusText && query) {
-                    statusText.textContent = `Filtering for "${query}" - ${shownCount} of ${this.playlist.length} shown`;
+                const filtering = !!(query || timedOnly);
+                if (status) status.style.display = filtering ? 'flex' : 'none';
+                if (statusText && filtering) {
+                    const parts = [];
+                    if (timedOnly) parts.push('timed lyrics only');
+                    if (query) parts.push(`"${query}"`);
+                    statusText.textContent = `Filtering for ${parts.join(' + ')} - ${shownCount} of ${this.playlist.length} shown`;
                 }
             },
 
@@ -650,7 +678,7 @@ const PlayerPlaylist = (function () {
                 }
 
                 this.updatePlaylistLabel();
-                if (this.playlistFilterQuery) this.applyPlaylistFilter();
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
                 this.persistPlaylist();
                 this.updateStatus(`Removed: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
             },
@@ -1090,6 +1118,7 @@ const PlayerPlaylist = (function () {
                 // song until this song's synced position writes its own.
                 this.updateTransportBarLyric('');
                 this.updateBigLyricsAvailability();
+                this.updateFirstLyricButton();
             },
 
             /** Bring the current song's row into view (the bar's song line). */
@@ -1237,6 +1266,37 @@ const PlayerPlaylist = (function () {
                         console.error('Error seeking:', e);
                     }
                 }
+            },
+
+            /**
+             * Jump to just before the first timed lyric line of the
+             * current song. No-op when the playing item has no synced lines.
+             */
+            seekToFirstLyric() {
+                if (!this.currentPlayingId) return;
+                const item = this.currentPlaylistItem();
+                if (!item || !this.itemHasTimedLyrics(item) || !item.lyricsData) return;
+                const firstLine = item.lyricsData.syncedLines.find(line => String(line.text || '').trim());
+                if (!firstLine) return;
+                const player = this.playback.player;
+                if (player && typeof player.seekTo === 'function') {
+                    try {
+                        player.seekTo(Math.max(0, firstLine.time - FIRST_LYRIC_LEAD_SECONDS), true);
+                        this.resyncProgressClock();
+                    } catch (e) {
+                        console.error('Error seeking to first lyric:', e);
+                    }
+                }
+            },
+
+            /** Show the within-song "1st" jump only while the playing track has timed lyrics. */
+            updateFirstLyricButton() {
+                const btn = document.getElementById('transportFirstLyricBtn');
+                if (!btn) return;
+                const item = this.currentPlaylistItem();
+                const show = !!this.currentPlayingId && this.itemHasTimedLyrics(item)
+                    && item.id === this.currentPlayingId;
+                btn.style.display = show ? '' : 'none';
             },
 
             fastForward() {

@@ -282,27 +282,33 @@ the identity intro). Writes are pushed into the OS media session exactly
 when the text changes (line boundaries / countdown seconds); the car
 pulls its redraw from that. On this page the header gives the lyric
 heading its own full-width line, with the nav tabs and the settings gear
-sharing one row beneath it. The Lyrics panel toggle and Big Lyrics
-overlay button sit in the central player next to the rewind/forward
-controls.
+sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
+button (the older central-player secondary row is hidden).
 
 The always-reachable surface is the now-playing control line under the
-central player: it scrolls with the page until it reaches the top, then
-hooks there. It carries a clickable track-position strip (current and
-total time at the ends; click or drag anywhere to jump), the current
-timed lyric line (own full row), previous/play-pause/next,
--30/-10/+10/+30 second jumps, the Big Lyrics button, and the current
-song line - tapping the song line scrolls the playlist to that row. The
-Listen button scrolls with the page like everything else.
+header: it scrolls with the page until it reaches the top, then hooks
+there. It carries a clickable track-position strip (current and total
+time at the ends; click or drag anywhere to jump), the current timed
+lyric line (own full row when present), a song-nav row
+(previous/play-pause/next, Big Lyrics, and the current song line -
+tapping the song line scrolls the playlist to that row), and a
+within-song seek row (-30/-5/+5/+30, plus a "1st" jump to just before
+the first lyric that appears only on timed-lyric tracks). The older
+central player block is kept in the DOM for progress wiring but stays
+hidden; the sticky bar is the only on-screen transport. The Listen
+button scrolls with the page like everything else.
 
 Other surfaces on the page:
 
 - **Playlist filter**: type in the filter box above the playlist to
   live-filter the loaded songs by name, artist, year, album, comment, or
-  search term. An active filter shows a status line ("Filtering for
-  \"sunset\" - 3 of 12 shown") with a Cancel button that restores the
-  full list. Filtering is a view: playback order and next/previous still
-  use the whole playlist.
+  search term. **Timed only** (playlist header toggle) further hides
+  rows that do not yet hold timed (synced) lyrics. Text and Timed only
+  combine. An active filter shows a status line ("Filtering for timed
+  lyrics only + \"sunset\" - 3 of 12 shown") with a Cancel button that
+  restores the full list (clears the text query and turns Timed only
+  off). Filtering is a view: playback order and next/previous still use
+  the whole playlist.
 - **Notes toggle** (playlist header): shows or hides every song's comment
   line instantly. Off by default; rows stay compact until you want the
   AI's per-song notes.

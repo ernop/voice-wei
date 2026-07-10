@@ -145,6 +145,7 @@ const PlayerLyrics = (function () {
                     btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No lyrics' : 'Big';
                     btn.title = currentItem.lyricsStatus === 'not_found' ? 'No lyrics found' : 'Big Lyrics overlay';
                 }
+                this.updateFirstLyricButton();
             },
 
             adjustLyricsFontScale(delta) {
@@ -980,6 +981,8 @@ const PlayerLyrics = (function () {
                 if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
                     this.updateBigLyricsAvailability();
                 }
+                // Timed-only filter depends on lyric state; refresh when a row settles.
+                if (this.settings.playlistTimedOnly) this.applyPlaylistFilter();
             }
         }));
     }

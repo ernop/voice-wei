@@ -32,14 +32,15 @@ class VoiceMusicController {
         /** @type {PlaylistItem[]} */
         this.playlist = [];
         /** @type {PlayerAppSettings} */
-        this.settings = PlayerStorage.loadSettings({
+            this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-8',
             openaiModel: 'gpt-5.5',
             aiProvider: 'claude',
             lyricsOnNowPlaying: true,
-            showSongNotes: false
+            showSongNotes: false,
+            playlistTimedOnly: false
         });
         /** @type {string} Live playlist view filter (normalized; never persisted) */
         this.playlistFilterQuery = '';
@@ -842,6 +843,13 @@ class VoiceMusicController {
             });
         }
 
+        // Timed-only view: hide rows that do not yet hold synced lyrics
+        PracticeControls.wireToggle('playlistTimedOnlyToggle', this.settings.playlistTimedOnly, checked => {
+            this.settings.playlistTimedOnly = checked;
+            this.saveSettings();
+            this.applyPlaylistFilter();
+        });
+
         // Song notes display toggle: instant, CSS-driven
         PracticeControls.wireToggle('playlistNotesToggle', this.settings.showSongNotes, checked => {
             this.settings.showSongNotes = checked;
@@ -860,8 +868,8 @@ class VoiceMusicController {
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
 
-        // The sticky control line: prev/play-pause/next, seek jumps, and
-        // the current-song button that navigates to its row in the list.
+        // The sticky control line: song nav (prev/play/next), within-song
+        // seek (±5/±30 + jump-to-first-lyric), and the current-song button.
         const transportPrevBtn = document.getElementById('transportPrevBtn');
         if (transportPrevBtn) {
             transportPrevBtn.addEventListener('click', () => this.playPrevious());
@@ -877,13 +885,17 @@ class VoiceMusicController {
         /** @type {Array<[string, number]>} */
         const seekBindings = [
             ['transportBack30Btn', -30],
-            ['transportBack10Btn', -10],
-            ['transportFwd10Btn', 10],
+            ['transportBack5Btn', -5],
+            ['transportFwd5Btn', 5],
             ['transportFwd30Btn', 30]
         ];
         for (const [id, seconds] of seekBindings) {
             const btn = document.getElementById(id);
             if (btn) btn.addEventListener('click', () => this.seekBy(seconds));
+        }
+        const transportFirstLyricBtn = document.getElementById('transportFirstLyricBtn');
+        if (transportFirstLyricBtn) {
+            transportFirstLyricBtn.addEventListener('click', () => this.seekToFirstLyric());
         }
         const transportBarInfo = document.getElementById('transportBarInfo');
         if (transportBarInfo) {

@@ -11,6 +11,7 @@ interface PlayerAppSettings {
     aiProvider: string;
     lyricsOnNowPlaying: boolean;
     showSongNotes: boolean;
+    playlistTimedOnly: boolean;
 }
 
 interface LyricsViewSettings {
@@ -224,6 +225,7 @@ interface VoiceMusicController {
     setPlaylistFilter(value: string): void;
     clearPlaylistFilter(): void;
     applyPlaylistFilter(): void;
+    itemHasTimedLyrics(item: PlaylistItem | null | undefined): boolean;
     applySongNotesVisibility(): void;
     rerenderPlaylistDom(): void;
     removePlaylistItem(itemId: number): void;
@@ -272,6 +274,8 @@ interface VoiceMusicController {
     fastForward(): void;
     rewind(): void;
     seekBy(seconds: number): void;
+    seekToFirstLyric(): void;
+    updateFirstLyricButton(): void;
     lyricsRowMarker(item: PlaylistItem): { label: string; className: string; aria: string };
     updateTransportPauseLabel(): void;
     restartCurrentTrack(): void;

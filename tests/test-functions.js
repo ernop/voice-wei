@@ -1971,16 +1971,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         // Live playlist filter: as-you-type hides non-matching rows, the
         // status line names the query and counts, Cancel restores all.
-        // Song notes are a CSS display toggle on the container.
+        // Timed only hides rows without synced lyrics. Song notes are a
+        // CSS display toggle on the container.
         const playlistFilterAndNotes = await tab.evaluate(() => {
             const harness = {
                 favorites: {},
                 playlist: [],
-                settings: { showSongNotes: false },
+                settings: { showSongNotes: false, playlistTimedOnly: false },
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
-                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; }
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
+                saveSettings() {}
             };
             PlayerPlaylist.install(harness);
             const body = document.getElementById('playlistBody');
@@ -1989,8 +1991,20 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             container.style.display = 'block';
             body.innerHTML = '';
             const items = [
-                { id: 601, videoId: 'v-sunset', name: 'Sunset Drive', artist: 'Evening Band', year: '1984', album: '', title: 'Sunset Drive', channelTitle: 'Evening Band', duration: '3:00', comment: 'A sunset note', searchTerm: 'Evening Band Sunset Drive' },
-                { id: 602, videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', album: '', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', comment: 'A morning note', searchTerm: 'Dawn Crew Morning Run' }
+                {
+                    id: 601, videoId: 'v-sunset', name: 'Sunset Drive', artist: 'Evening Band', year: '1984', album: '',
+                    title: 'Sunset Drive', channelTitle: 'Evening Band', duration: '3:00', comment: 'A sunset note',
+                    searchTerm: 'Evening Band Sunset Drive',
+                    lyricsStatus: 'ready',
+                    lyricsData: { syncedLines: [{ time: 12, text: 'sunset line' }], plainLyrics: '' }
+                },
+                {
+                    id: 602, videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', album: '',
+                    title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', comment: 'A morning note',
+                    searchTerm: 'Dawn Crew Morning Run',
+                    lyricsStatus: 'ready',
+                    lyricsData: { syncedLines: [], plainLyrics: 'simple only' }
+                }
             ];
             for (const item of items) {
                 harness.playlist.push(item);
@@ -2013,9 +2027,20 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const yearFiltered = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
 
             harness.clearPlaylistFilter();
+            harness.settings.playlistTimedOnly = true;
+            harness.applyPlaylistFilter();
+            const timedOnly = {
+                sunsetShown: !rowHidden(601),
+                morningHidden: rowHidden(602),
+                statusVisible: status.style.display !== 'none',
+                statusText: statusText.textContent
+            };
+
+            harness.clearPlaylistFilter();
             const cancelled = {
                 bothShown: !rowHidden(601) && !rowHidden(602),
-                statusHidden: status.style.display === 'none'
+                statusHidden: status.style.display === 'none',
+                timedOnlyOff: harness.settings.playlistTimedOnly === false
             };
 
             // Notes toggle: comments hidden by default, instantly shown by class
@@ -2030,7 +2055,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
             body.innerHTML = '';
             container.style.display = savedDisplay;
-            return { filtered, yearFiltered, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
+            return { filtered, yearFiltered, timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
         });
         report.check(`player playlist filter live-hides rows ("${playlistFilterAndNotes.filtered.statusText}")`,
             playlistFilterAndNotes.filtered.sunsetShown
@@ -2040,9 +2065,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && playlistFilterAndNotes.filtered.statusText.includes('1 of 2')
             && playlistFilterAndNotes.yearFiltered.sunsetShown
             && playlistFilterAndNotes.yearFiltered.morningHidden);
+        report.check(`player timed-only filter hides non-timed rows ("${playlistFilterAndNotes.timedOnly.statusText}")`,
+            playlistFilterAndNotes.timedOnly.sunsetShown
+            && playlistFilterAndNotes.timedOnly.morningHidden
+            && playlistFilterAndNotes.timedOnly.statusVisible
+            && playlistFilterAndNotes.timedOnly.statusText.includes('timed lyrics only'));
         report.check('player playlist filter cancel restores the full list',
             playlistFilterAndNotes.cancelled.bothShown
-            && playlistFilterAndNotes.cancelled.statusHidden);
+            && playlistFilterAndNotes.cancelled.statusHidden
+            && playlistFilterAndNotes.cancelled.timedOnlyOff);
         report.check('player song notes toggle shows/hides comments instantly',
             playlistFilterAndNotes.hiddenByDefault
             && playlistFilterAndNotes.shownWhenOn
