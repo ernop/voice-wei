@@ -252,10 +252,13 @@ or rate limits, billing - show a persistent red banner naming the
 provider and where to fix it, on top of the raw error in the Log.
 
 Each playlist row is one compact data line with fixed slots: favorite
-star, the lyric marker (T = timed lyrics, S = simple lyrics, - = none
-found; tap it to view or retry), song name, artist - year - album,
-duration, and remove. The AI's note appears as a second line only when
-the Notes toggle is on. Tap a row to play it. The playlist header offers
+star and lyric marker in a padded leading gutter (so a near-miss on the
+star favorites instead of starting the song), then song name, artist -
+year - album, duration, and remove. The lyric marker spells the kind:
+**sync** = timed/line-synced lyrics, **text** = simple/unsynced lyrics,
+– = none found (tap it to view or retry). The AI's note appears as a
+second line only when the Notes toggle is on. Tap the row body (not the
+leading gutter) to play it. The playlist header offers Timed only,
 Notes, Shuffle, Sort by Artist, Sort by Year, Clear, and a live filter.
 Behind the working list, every song ever seen is recorded durably in the
 known-songs catalog (IndexedDB), so clearing or replacing the playlist
@@ -265,8 +268,8 @@ when none are left - e.g. after a reload - re-runs the YouTube search
 once for fresh candidates before giving up.
 
 Lyrics come in two kinds, named everywhere in the UI: **timed lyrics**
-(line-synced; the T marker, the highlight, and the title relay) and
-**simple lyrics** (text only; the S marker). The search prefers timed
+(line-synced; the sync marker, the highlight, and the title relay) and
+**simple lyrics** (text only; the text marker). The search prefers timed
 lyrics: among plausible LRCLIB matches a timed record beats a simple-only
 one, and a song stored with only simple lyrics gets one serious re-search
 for timed ones (keeping the simple text if nothing better exists).
@@ -291,9 +294,10 @@ there. It carries a clickable track-position strip (current and total
 time at the ends; click or drag anywhere to jump), the current timed
 lyric line (own full row when present), a song-nav row
 (previous/play-pause/next, Big Lyrics, and the current song line -
-tapping the song line scrolls the playlist to that row), and a
-within-song seek row (-30/-5/+5/+30, plus a "1st" jump to just before
-the first lyric that appears only on timed-lyric tracks). The older
+tapping the song line scrolls the playlist to that row; green controls =
+between-song / track actions), and a within-song seek row (-30/-5/+5/+30,
+plus a "1st" jump to just before the first lyric that appears only on
+timed-lyric tracks; teal controls = within-song seek). The older
 central player block is kept in the DOM for progress wiring but stays
 hidden; the sticky bar is the only on-screen transport. The Listen
 button scrolls with the page like everything else.

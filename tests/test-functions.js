@@ -1664,7 +1664,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 showLyricsForItem() {},
                 lyricsRowMarker(item) {
                     return item.lyricsStatus === 'ready'
-                        ? { label: 'T', className: 'timed', aria: 'Timed lyrics - tap to view' }
+                        ? { label: 'sync', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
                         : { label: '\u00b7', className: '', aria: 'Get lyrics' };
                 }
             };
@@ -1704,17 +1704,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             });
             const rows = Array.from(body.querySelectorAll('.playlist-row'));
             const dataRows = rows.map(row => row.dataset.itemId);
-            // One flat data line per row: star, lyric marker, name, meta,
-            // duration, and remove are all DIRECT children in fixed order;
-            // the note is the only extra element (own line, Notes toggle).
+            // One flat data line per row: leading gutter (star + lyric
+            // marker), name, meta, duration, and remove; the note is the
+            // only extra element (own line, Notes toggle).
             const slots = rows.map(row => ({
                 name: row.querySelector(':scope > .playlist-song-name')?.textContent || '',
                 duration: row.querySelector(':scope > .playlist-song-duration')?.textContent || '',
                 artist: row.querySelector(':scope > .playlist-row-meta .playlist-song-artist')?.textContent || '',
-                hasStar: !!row.querySelector(':scope > .favorite-btn'),
-                hasMarker: !!row.querySelector(':scope > .lyrics-row-btn'),
+                hasLeading: !!row.querySelector(':scope > .playlist-row-leading'),
+                hasStar: !!row.querySelector('.playlist-row-leading > .favorite-btn'),
+                hasMarker: !!row.querySelector('.playlist-row-leading > .lyrics-row-btn'),
                 hasRemove: !!row.querySelector(':scope > .playlist-remove-btn'),
-                nestedWrappers: row.querySelectorAll(':scope > div:not(.playlist-song-comment)').length
+                nestedWrappers: row.querySelectorAll(':scope > div:not(.playlist-song-comment):not(.playlist-row-leading)').length
             }));
             const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => el.textContent);
             body.innerHTML = '';
@@ -1724,9 +1725,63 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             playlistSourceGroups.dataRows.includes('501')
             && playlistSourceGroups.dataRows.includes('502')
             && playlistSourceGroups.slots.every(slot => slot.name && slot.duration && slot.artist
-                && slot.hasStar && slot.hasMarker && slot.hasRemove && slot.nestedWrappers === 0)
+                && slot.hasLeading && slot.hasStar && slot.hasMarker && slot.hasRemove && slot.nestedWrappers === 0)
             && playlistSourceGroups.comments.some(comment =>
                 comment.includes('Included because it matches the requested search')));
+
+        // Leading gutter (star + lyric marker): taps there must not start
+        // playback; only the row body plays. Markers read "sync"/"text".
+        const starGutterAndMarkers = await tab.evaluate(() => {
+            const harness = {
+                favorites: {},
+                playlist: [],
+                playedIds: /** @type {number[]} */ ([]),
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {},
+                playVideo(item) { this.playedIds.push(item.id); },
+                lyricsRowMarker(item) {
+                    if (item.lyricsStatus === 'ready' && item.lyricsData?.syncedLines?.length) {
+                        return { label: 'sync', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' };
+                    }
+                    if (item.lyricsStatus === 'ready') {
+                        return { label: 'text', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
+                    }
+                    return { label: '\u00b7', className: '', aria: 'Get lyrics' };
+                }
+            };
+            PlayerPlaylist.install(harness);
+            const body = document.getElementById('playlistBody');
+            body.innerHTML = '';
+            const timed = {
+                id: 701, videoId: 'v-sync', name: 'Sync Song', artist: 'A', year: '', album: '',
+                title: 'Sync Song', channelTitle: 'A', duration: '1:00', comment: '', searchTerm: '',
+                lyricsStatus: 'ready', lyricsData: { syncedLines: [{ time: 1, text: 'hi' }], plainLyrics: '' }
+            };
+            const simple = {
+                id: 702, videoId: 'v-text', name: 'Text Song', artist: 'B', year: '', album: '',
+                title: 'Text Song', channelTitle: 'B', duration: '1:00', comment: '', searchTerm: '',
+                lyricsStatus: 'ready', lyricsData: { syncedLines: [], plainLyrics: 'hi' }
+            };
+            harness.addPlaylistItemToDOM(timed);
+            harness.addPlaylistItemToDOM(simple);
+            const row1 = document.querySelector('.playlist-row[data-item-id="701"]');
+            const leading = row1.querySelector('.playlist-row-leading');
+            leading.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            const afterLeading = harness.playedIds.slice();
+            row1.querySelector('.playlist-song-name').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            const afterName = harness.playedIds.slice();
+            const markers = Array.from(body.querySelectorAll('.lyrics-row-btn')).map(btn => btn.textContent);
+            body.innerHTML = '';
+            return { afterLeading, afterName, markers };
+        });
+        report.check('player star gutter taps do not play; row body does',
+            starGutterAndMarkers.afterLeading.length === 0
+            && starGutterAndMarkers.afterName.length === 1
+            && starGutterAndMarkers.afterName[0] === 701);
+        report.check('player lyric markers read sync/text instead of T/S',
+            starGutterAndMarkers.markers.includes('sync')
+            && starGutterAndMarkers.markers.includes('text'));
 
         const lyricsStoreChecks = await tab.evaluate(async () => {
             const run = Date.now();

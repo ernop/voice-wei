@@ -575,6 +575,8 @@ const PlayerPlaylist = (function () {
             // fixed slot on the SAME line:
             //   [star][lyric marker] Name  Artist - Year - Album  3:59 [x]
             // The AI note is a second line only when the Notes toggle is on.
+            // Star + lyric marker sit in a padded leading gutter so a near
+            // miss on the star favorites instead of starting the song.
             addPlaylistItemToDOM(item) {
                 const playlistBody = document.getElementById('playlistBody');
                 const row = document.createElement('div');
@@ -586,8 +588,10 @@ const PlayerPlaylist = (function () {
                 const marker = this.lyricsRowMarker(item);
 
                 row.innerHTML = `
-                    <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                    <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${marker.aria}" title="${marker.aria}">${marker.label}</button>
+                    <div class="playlist-row-leading">
+                        <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
+                        <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${marker.aria}" title="${marker.aria}">${marker.label}</button>
+                    </div>
                     <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
                     <span class="playlist-row-meta">
                         <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
@@ -625,10 +629,18 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                // Tap/click to play (on the row, not its buttons)
+                // Leading gutter (star + lyric marker): taps here never play.
+                const leading = row.querySelector('.playlist-row-leading');
+                if (leading) {
+                    leading.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                    });
+                }
+
+                // Tap/click to play (on the row body, not leading controls)
                 row.addEventListener('click', (e) => {
                     const target = /** @type {HTMLElement} */ (e.target);
-                    if (target.closest('button')) return;
+                    if (target.closest('button, .playlist-row-leading')) return;
                     this.playVideo(item);
                 });
 

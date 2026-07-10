@@ -943,9 +943,10 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * The row's lyric state marker, one compact character:
-             * T = timed lyrics, S = simple lyrics, ... = looking,
-             * - = none found, ! = lookup failed, dot = not looked up yet.
+             * The row's lyric state marker. Labels spell the two lyric
+             * kinds (timed = line-synced, text = simple/unsynced) so the
+             * chip is readable without a legend. … = looking, – = none,
+             * ! = failed, · = not looked up yet.
              * @param {PlaylistItem} item
              * @returns {{ label: string, className: string, aria: string }}
              */
@@ -955,8 +956,8 @@ const PlayerLyrics = (function () {
                 }
                 if (item.lyricsStatus === 'ready' && item.lyricsData) {
                     return item.lyricsData.syncedLines.length > 0
-                        ? { label: 'T', className: 'timed', aria: 'Timed lyrics - tap to view' }
-                        : { label: 'S', className: 'simple', aria: 'Simple lyrics - tap to view' };
+                        ? { label: 'sync', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
+                        : { label: 'text', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
                 }
                 if (item.lyricsStatus === 'not_found') {
                     return { label: '\u2013', className: 'none', aria: 'No lyrics found - tap to retry' };
