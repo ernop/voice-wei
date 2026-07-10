@@ -60,6 +60,7 @@ existing doc or deleted - never left dangling.
 | agents.md (this file) | Agent entry point: working method, doc tree, shipping steps |
 | [README.md](README.md) | Human-facing overview, dev setup, testing, version system |
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
+| [groks-view.md](groks-view.md) | First-pass map: user stories/UX + technical design (orientation only) |
 
 **Reference (the system as it is)**
 
