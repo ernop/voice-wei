@@ -4,6 +4,22 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (faster deploys: cache + telemetry off critical path)
+
+**Context**: Yui asked what makes deploys ~1 min; ~28s was cold
+`npm install` + Playwright every run, ~10s telemetry after rsync.
+
+**Change**: `deploy.yml` caches `node_modules` and Playwright browsers
+(keyed on `package.json`; lockfile still gitignored). Warm path skips npm
+install and browser download; still runs `playwright install-deps` for OS
+libs on hosted runners. Telemetry is a separate job after `deploy`, so the
+site is live when rsync finishes.
+
+**Expect**: first run after this change still cold (fills caches); next
+deploys should land in roughly the 30–40s range for the deploy job.
+
+---
+
 ## 2026-07-10 (dev/deploy loop untangled)
 
 **Context**: After fixing version bump to ship-with-change, yui asked whether

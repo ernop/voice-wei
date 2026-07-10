@@ -35,7 +35,8 @@ Python proxy + livereload). Details: `.cursor/rules/04-local-tooling.mdc`.
 Push to master (deployable paths)
   → GitHub Actions
   → typecheck + lint + npm test
-  → rsync --delete to fuseki.net
+  → rsync --delete to fuseki.net   ← site is live here
+  → (parallel job) deploy-telemetry.json for the Deploys page
   → reload; check header version
 ```
 
@@ -47,12 +48,14 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 Defined in `.github/workflows/deploy.yml`:
 
-1. Checkout; install npm deps + Playwright Chromium
+1. Checkout; restore cached `node_modules` + Playwright Chromium when possible
 2. `npm run typecheck`, `npm run lint`, `npm test`
-3. rsync `--delete` to the server (excludes below)
-4. Generate and upload `deploy-telemetry.json`
+3. rsync `--delete` to the server (excludes below) — **site live**
+4. Separate `telemetry` job uploads `deploy-telemetry.json` (does not delay ship)
 
-Concurrency: one deploy at a time; newer pushes cancel in-flight older ones.
+Warm deploys skip `npm install` and the Chromium browser download (OS libs for
+Chromium still install each run on hosted runners). Cold deploys populate the
+caches. Concurrency: one deploy at a time; newer pushes cancel in-flight older ones.
 
 ### rsync excludes (CI and `deploy.sh` must match)
 
