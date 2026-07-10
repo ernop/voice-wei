@@ -656,12 +656,13 @@ blocks the push from reaching the live site.
 
 ## Deploy
 
-Push to master -> GitHub Actions runs the gates (typecheck, lint, fast browser
-suite) and then rsyncs to production (`--delete`; docs, tests, tooling
-excluded). For user-facing ships, run `./bump-version.sh` once and include the
-version files in that same push so reload shows a new header `?v=` build.
-Skip bumps for docs/tests-only commits; never push bump-only commits. Full
-rules: `.cursor/rules/10-deploy-workflow.mdc`. Manual deploy: `./deploy.sh`.
+Push to master (when not paths-ignored for docs/rules-only) → GitHub Actions
+runs typecheck, lint, and the fast browser suite, then rsyncs `--delete` to
+production (excludes docs, tests, tooling; list shared with `deploy.sh`). For
+user-facing ships, run `./bump-version.sh` once in the same push so reload
+shows a new header/`?v=` build. Skip bumps for docs/tests-only commits; never
+push bump-only commits. Full rules: `.cursor/rules/10-deploy-workflow.mdc`.
+Manual deploy: `./deploy.sh`.
 
 ## How to decide what a control looks like
 

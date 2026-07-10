@@ -6,7 +6,7 @@ intent lives in [docs/product-goals.md](docs/product-goals.md); behavior in
 [docs/architecture.md](docs/architecture.md). This file is orientation, not
 the source of truth.
 
-Live site: https://fuseki.net/music8899b/ · Repo: https://github.com/ernop/voice-wei · Version at writing: v254
+Live site: https://fuseki.net/music8899b/ · Repo: https://github.com/ernop/voice-wei · Version at writing: v256
 
 ---
 
@@ -108,8 +108,9 @@ confirms the live build after reload).
 The only server-side piece in the product path is `proxy.php` (YouTube
 search via Piped/Invidious, plus URL-read for Books web import). Claude and
 OpenAI calls go from the browser with keys in localStorage
-(`api-keys-store.js`). Deploy: push `master` → GitHub Actions
-(typecheck, lint, fast browser suite) → rsync to production.
+(`api-keys-store.js`). Deploy: push `master` (user-facing paths) → GitHub
+Actions (typecheck, lint, fast tests) → rsync → live; reload and check the
+header version. Docs/rules-only pushes are skipped by Actions.
 
 Browser target: Chrome / Edge / Safari (Web Speech API). HTTPS required
 for mic.

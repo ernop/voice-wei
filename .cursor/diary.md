@@ -4,6 +4,30 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (dev/deploy loop untangled)
+
+**Context**: After fixing version bump to ship-with-change, yui asked whether
+the whole dev→deploy system was as simple as it could be. Audit found the
+version policy was fine; the remaining fights were elsewhere.
+
+**What changed**:
+- Actions: `paths-ignore` for docs/rules/demos (no CI on non-shipping
+  pushes); `concurrency` cancel-in-progress; tighter rsync excludes
+  (no types/tsconfig/dev-servers/screenshots/etc on the server).
+- `deploy.sh` matches CI (`--delete` + same excludes); dropped the false
+  "put Claude key in server config.json" line.
+- Local run: README + setup + `04-local-tooling.mdc` agree on `php -S` as
+  canonical; Python static is practice-only; retired Windows/venv rule file.
+- `03-project.mdc` rewritten for the multi-tool suite + localStorage keys;
+  `00-absolute-rules` config pattern matches reality.
+- `10-deploy-workflow`: goals first; empty Cursor PR diff expected;
+  bump-only called out as *misleading version*, not just wasted CI.
+
+**Left alone (optional later)**: `php -l` in CI; promote `test:full` to
+deploy; npm cache/lockfile; collapsing three local servers into one.
+
+---
+
 ## 2026-07-10 (version bump: ship-with-change, not post-push)
 
 **Context**: First Grok session wrote `groks-view.md`, then followed the

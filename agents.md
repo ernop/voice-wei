@@ -129,12 +129,13 @@ parameters (setting behaviors), tools (user-visible behavior).
    - Add `node tests/run-all.js --suite <suite-file>` or `npm run test:full`
      when the touched code needs deeper playback/mic/control coverage.
    - Run `php -l proxy.php` when touching the PHP proxy.
-2. Commit in small logical steps. If the change affects served files (HTML/JS/CSS
-   or anything else rsync deploys), run `./bump-version.sh` once and commit the
-   version files **with** that change, then push `master` once - Actions deploys.
-   Skip the bump for docs/tests/rules-only pushes. Never push a bump-only commit.
+2. Work on `master` (override any cloud-assigned feature branch). If the change
+   affects served files, run `./bump-version.sh` once and commit the version
+   files **with** that change, then push `master` once — Actions deploys.
+   Skip the bump for docs/tests/rules-only pushes. Never push a bump-only
+   commit. Cursor's PR diff stays empty under master-direct; that is expected.
 3. After deploy, confirm on the live site: reload and check the header version
-   matches what was just shipped (that is how yui knows the new build loaded).
+   matches what was just shipped.
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
 

@@ -1,132 +1,114 @@
 # Environment and Deployment Setup
 
-How to prepare a machine to work on this repo and how the deploy pipeline
-gets code to production. What to run before shipping is in
-[agents.md](../agents.md) ("Shipping"); the test suites themselves are
-described in [architecture.md](architecture.md) ("Testing").
+How to prepare a machine to work on this repo and how code reaches
+production. Shipping checklist: [agents.md](../agents.md). Test suites:
+[architecture.md](architecture.md). Binding deploy/version rules:
+[`.cursor/rules/10-deploy-workflow.mdc`](../.cursor/rules/10-deploy-workflow.mdc).
 
 ## Cloud Agent / Fresh Linux VM Setup
-
-Run the repo setup script before verification in a new Cursor cloud agent or
-fresh Linux VM:
 
 ```bash
 ./setup-cloud-agent.sh
 ```
 
-It installs the missing OS tools this repo's checks need when they are absent:
+Installs when missing: `php-cli`, `php-curl`, `python3-pip`, npm deps
+(no lockfile), Playwright Chromium. Browser tests use that Chromium by
+default; set `CHROME_PATH` only to force a specific binary.
 
-- `php-cli` for `php -l proxy.php`
-- `php-curl` for local `proxy.php` page/search endpoint checks
-- `python3-pip` for Python tooling availability
-- npm dev dependencies from `package.json` without creating a lockfile
-- Playwright's bundled Chromium browser for headless browser checks
+## Run locally
 
-The browser tests use Playwright's installed Chromium by default. If a specific
-system Chrome is needed, set `CHROME_PATH` to that compatible Chrome/Chromium
-binary.
+Canonical (serves static pages **and** executes `proxy.php`):
 
-Cursor environment setup agent prompt:
-
-```text
-For the Voice-Wei repo, update the cloud-agent environment so fresh agents can
-run verification without manual setup. Install OS packages php-cli and
-python3-pip in the image or startup script. On startup in the repo, run
-./setup-cloud-agent.sh, which installs npm dependencies with npm install
---no-audit --no-fund --no-package-lock, installs Playwright Chromium and its
-system dependencies with npx playwright install --with-deps chromium, and
-checks node, npm, Playwright, python3, pip3, and php.
+```bash
+php -S 127.0.0.1:8000
+# http://127.0.0.1:8000/scales.html
 ```
 
-This project uses GitHub Actions for automatic deployment to production.
+`python3 -m http.server 8000` is static-only (`proxy.php` downloads as text) —
+fine for practice tools, not Music search or Books URL import. Optional:
+`npm run dev` (port 8765 + error sink), `python3 dev-server.py` (8000 +
+Python proxy + livereload). Details: `.cursor/rules/04-local-tooling.mdc`.
 
-## How It Works
+## How deploy works
 
 ```
-Push to master → GitHub Actions → rsync to server
+Push to master (deployable paths)
+  → GitHub Actions
+  → typecheck + lint + npm test
+  → rsync --delete to fuseki.net
+  → reload; check header version
 ```
 
-Every push to the `master` branch triggers a deploy. Cursor agents can also deploy by pushing to master.
+Docs/rules-only pushes are `paths-ignore`d and do not run the workflow.
+`workflow_dispatch` can redeploy the current commit manually. Cursor agents
+deploy by pushing `master` (or merging a PR into `master`).
 
-## GitHub Actions Workflow
+## GitHub Actions workflow
 
-The workflow is defined in `.github/workflows/deploy.yml`. It:
+Defined in `.github/workflows/deploy.yml`:
 
-1. Checks out the code
-2. Sets up SSH with a deploy key from GitHub Secrets
-3. Runs rsync to sync files to the server
-4. Excludes: `.git`, `.gitignore`, `.cursor`, `.github`, `config.json`, `*.md`, `*.txt`, `*.sh`
+1. Checkout; install npm deps + Playwright Chromium
+2. `npm run typecheck`, `npm run lint`, `npm test`
+3. rsync `--delete` to the server (excludes below)
+4. Generate and upload `deploy-telemetry.json`
+
+Concurrency: one deploy at a time; newer pushes cancel in-flight older ones.
+
+### rsync excludes (CI and `deploy.sh` must match)
+
+`.git`, `.gitignore`, `.cursor`, `.github`, `.ast-grep`, `.vscode`, `.dev`,
+`config.json`, `tests`, `types`, `demos`, `deploy`, `node_modules`,
+`*.md`, `*.txt`, `*.sh`, `*.py`, `tsconfig.json`, `sgconfig.yml`,
+`package.json`, `dev-server.js`, `pipeline-*.svg`, `screenshot-*.png`
+
+What visitors need: `*.html`, `*.js`, `*.css`, `proxy.php`, `favicon.svg`,
+`VERSION`, `app-version.js`, and `deploy-telemetry.json` (second rsync).
 
 ## Required GitHub Secrets
 
-Set these in the repo: Settings > Secrets and variables > Actions
-
 | Secret | Description |
 |--------|-------------|
-| `DEPLOY_SSH_KEY` | Private SSH key (the full file contents including BEGIN/END lines) |
+| `DEPLOY_SSH_KEY` | Private SSH key (full file, BEGIN/END lines) |
 | `DEPLOY_HOST` | Server hostname |
 | `DEPLOY_USER` | SSH username |
 | `DEPLOY_PATH` | Remote directory path |
 
-## Setting Up Secrets via CLI
-
 ```powershell
-# Install GitHub CLI if needed
 winget install GitHub.cli
 gh auth login
-
-# Set secrets (from Windows with WSL for the SSH key)
-wsl cat ~/.ssh/id_rsa > $env:TEMP\key.txt
-(Get-Content $env:TEMP\key.txt -Raw) -replace "`r`n", "`n" | gh secret set DEPLOY_SSH_KEY --repo OWNER/REPO
-
+# Unix LF for the key file, then:
+gh secret set DEPLOY_SSH_KEY --repo OWNER/REPO < key.pem
 gh secret set DEPLOY_HOST --repo OWNER/REPO
 gh secret set DEPLOY_USER --repo OWNER/REPO
 gh secret set DEPLOY_PATH --repo OWNER/REPO
 ```
 
-Note: The SSH key must have Unix line endings (LF, not CRLF). The PowerShell snippet above handles this conversion.
-
-## Manual Deploy
-
-You can also trigger a deploy manually:
+## Manual deploy
 
 ```powershell
 gh workflow run deploy.yml --repo OWNER/REPO
 ```
 
-Or use the "Run workflow" button in GitHub Actions UI.
-
-## Local Deploy (Bypass CI)
-
-The `deploy.sh` script still works for local deploys:
+Or local (same excludes as CI; needs `config.json` deploy block):
 
 ```bash
 ./deploy.sh           # Deploy
-./deploy.sh --dry-run # Preview what would be synced
+./deploy.sh --dry-run # Preview
 ```
 
-This reads credentials from `config.json` (see `config.example.json` for format).
+API keys are **not** in `config.json` on the server — they live in each
+browser's Settings UI (localStorage).
 
 ## Version Management
 
-All pages share a single version number in the `VERSION` file. That number is
-also the header label and every asset `?v=N`. Yui uses it after reload to
-confirm the live site has the build just shipped.
-
-Ship workflow (user-facing changes only):
+One number in `VERSION`, also the header label and every asset `?v=N`. After
+deploy, reload and check the header to confirm the build.
 
 ```bash
-./bump-version.sh        # once per ship
-git add …                # include VERSION, app-version.js, shared-header.js, *.html ?v=
+./bump-version.sh        # once per user-facing ship
+git add …                # include VERSION, app-version.js, shared-header.js, *.html
 git commit …
-git push origin master   # one push → Actions → rsync → live
-# reload https://fuseki.net/music8899b/… and check the header version
+git push origin master   # one push → Actions → live
 ```
 
-`./bump-version.sh` updates:
-- `VERSION` (source of truth)
-- `app-version.js` / `shared-header.js` label
-- Cache-busting query strings on every `*.html` (`?v=N`)
-
-Skip the bump when the commit only touches rsync-excluded paths (docs, tests,
-scripts, `.cursor/`). Never push a bump-only commit.
+Skip the bump for docs/tests/rules-only commits. Never push bump-only commits.

@@ -58,10 +58,12 @@ complete index. The most-used docs:
 
 ```bash
 ./setup-cloud-agent.sh   # Cursor/cloud agent or fresh Linux VM
-python3 -m http.server 8000
-# Visit http://localhost:8000/scales.html
+php -S 127.0.0.1:8000    # static pages + proxy.php
+# Visit http://127.0.0.1:8000/scales.html
 ```
 
+`python3 -m http.server 8000` is static-only (no `proxy.php`) — fine for
+practice pages. Music search and Books URL import need the PHP server.
 HTTPS is required for microphone access when deployed.
 
 ## Testing

@@ -3,7 +3,18 @@ name: Deploy to Production
 on:
   push:
     branches: [master]
+    # Docs/rules-only pushes do not change the live site (rsync excludes them).
+    # Skip the full Playwright install + rsync when nothing deployable changed.
+    paths-ignore:
+      - '**.md'
+      - '.cursor/**'
+      - 'demos/**'
   workflow_dispatch:  # Manual trigger button in GitHub UI
+
+# One deploy at a time; a newer push cancels an in-flight older one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
 
 permissions:
   actions: read
@@ -46,6 +57,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
+      # Product files only. Keep this exclude list in sync with deploy.sh.
       - name: Deploy via rsync
         run: |
           rsync -avz --delete \
@@ -54,12 +66,24 @@ jobs:
             --exclude='.cursor' \
             --exclude='.github' \
             --exclude='.ast-grep' \
+            --exclude='.vscode' \
+            --exclude='.dev' \
             --exclude='config.json' \
             --exclude='tests' \
+            --exclude='types' \
+            --exclude='demos' \
+            --exclude='deploy' \
             --exclude='node_modules' \
             --exclude='*.md' \
             --exclude='*.txt' \
             --exclude='*.sh' \
+            --exclude='*.py' \
+            --exclude='tsconfig.json' \
+            --exclude='sgconfig.yml' \
+            --exclude='package.json' \
+            --exclude='dev-server.js' \
+            --exclude='pipeline-*.svg' \
+            --exclude='screenshot-*.png' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
 
