@@ -4,6 +4,20 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (live-change requirements: signal ≠ version UI)
+
+**Context**: Yui reframed ship/version. The 99% loop is: driving → voice
+note to agent → agent ships → yui knows it’s live (often reload phone).
+The header integer exists only as a glanceable signal; SHA fails that.
+Out-of-band notify (chat after Actions green, Signal/SMS, etc.) is in
+scope and could make the on-page number unnecessary. Repo + auto-deploy
+to fuseki stay; elegance of CI is not a goal.
+
+**Doc**: `docs/live-change.md` (R1 live / R2 signal / R3 repo). Linked
+from agents.md, product-goals, and 10-deploy-workflow.
+
+---
+
 ## 2026-07-10 (Trace twitch: growing time axis, not missing library)
 
 **Context**: Yui said Trace is still jumpy/twitchy, Phrases Test is not the

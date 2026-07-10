@@ -7,12 +7,20 @@ alwaysApply: true
 
 ## What yui needs
 
-1. **New code reaches the live site.** A change that affects served files must
-   land on `master` (direct push or merged PR). That triggers GitHub Actions →
-   rsync → https://fuseki.net/music8899b/. Reload the page to see it.
-2. **Know which build is loaded.** The header version label and every asset
-   `?v=N` share one number from `VERSION` / `app-version.js`. After deploy,
-   reload and check the header.
+The real ship contract is the **car loop** (voice-note an agent → change
+on the phone → yui knows it is live). Full requirements vs mechanisms:
+[docs/live-change.md](../docs/live-change.md).
+
+Operationally today:
+
+1. **New code reaches the live site.** A change that affects served files
+   must land on `master` (direct push or merged PR). That triggers GitHub
+   Actions → rsync → https://fuseki.net/music8899b/. Reload to load it.
+2. **Yui gets a signal that it is live.** The current mechanism is an
+   **incrementing** header build id (not a SHA — yui glances and compares).
+   `?v=N` cache-busts assets so the reload actually shows the new code.
+   Other signals (agent confirmation after Actions succeeds, SMS/Signal,
+   etc.) are valid and may replace or outrank the header later.
 
 Docs/rules-only pushes are skipped by Actions (`paths-ignore`); they never
 change the live site.

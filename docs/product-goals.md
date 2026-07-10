@@ -67,6 +67,10 @@ and deliver a weaker version of the requested change.
   fixed vocabulary in docs/parameters.md and persists per tab.
 - **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step,
   no backend beyond the YouTube proxy.
+- **Agent change → live → yui knows**: the car-loop ship contract is only
+  “the fix is on the phone,” “yui gets a trustworthy signal,” and “it’s in
+  git.” The header version is one signal, not the goal — see
+  [live-change.md](live-change.md).
 
 ## Music player: intended behavior and user needs
 

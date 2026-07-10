@@ -102,8 +102,10 @@ and resilience (PWA / proxy health). Full idea pool stays in
 Static multi-page site, **no build step**. Each tool is an `.html` + `.js`
 (+ `.css`) trio loading shared libraries via script tags. Cache busting is
 a single `VERSION` / `?v=NN` / `app-version.js` number, bumped once per
-user-facing ship in the same push as the change (header label is how yui
-confirms the live build after reload).
+user-facing ship in the same push as the change. That integer is only a
+**glanceable “it’s live” signal** for the car loop (reload → number went
+up); see [docs/live-change.md](docs/live-change.md). Cache-busting is a
+side effect so the reload actually loads new JS/CSS.
 
 The only server-side piece in the product path is `proxy.php` (YouTube
 search via Piped/Invidious, plus URL-read for Books web import). Claude and
