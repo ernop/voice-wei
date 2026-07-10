@@ -1,20 +1,18 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // PITCH TRACE VIEW
-// Canvas renderer for sung-pitch traces: scale-degree rails, target
-// bars, the yellow voice line with glitch-aware breaks, accuracy dots,
-// and the playhead. Pages supply data through provider callbacks.
+// Canvas renderer for sung-pitch traces: scale-degree rails, optional
+// guide/target outlines, the yellow voice line, and the playhead.
+// Pages supply data through provider callbacks.
 //
-// Instrument law: the voice line and its dots derive ONLY from the sung
-// history. Targets and rails are chart furniture - they set the frame
-// (grid, zoom) and are drawn alongside, but no target or exercise datum
-// may move, hide, or recolor the voice line.
+// Instrument law: the voice line derives ONLY from the sung history.
+// Targets and rails are chart furniture - they set the frame (grid,
+// zoom) and are drawn alongside, but no target, score, or exercise
+// datum may move, hide, or recolor the voice line.
 //
-// Target bars are drawn at the REAL scoring tolerance (+/- PitchScore
-// OK_CENTS in pitch space), so "the trace is inside the box" and "this
-// note counts as a hit" are the same statement by construction.
-// Requires pitch-detect-core.js (glitch/break constants) and
-// pitch-score.js (the drawn tolerance).
+// Target bands are bare outlines of the hit zone (+/- BAND_CENTS).
+// Scoring verdicts never recolor them - judgment lives in readouts,
+// not in the chart. This module does not import pitch-score.js.
 //-----------------------------------------------------------------------
 
 const PitchTraceView = (function () {
@@ -26,21 +24,28 @@ const PitchTraceView = (function () {
     const RAIL_LABEL_EMPHASIZED = 'rgba(216, 252, 225, 0.92)';
     const RAIL_LABEL_DIMMED = 'rgba(216, 252, 225, 0.55)';
     const TRACE_COLOR = '#facc15';
-    const CENTS_GOOD = 12;
-    const CENTS_OK = 30;
     const MAX_TRACE_POINTS = 1200;
 
-    // Target band colors by scoring verdict (pending = not yet sung)
-    const TARGET_COLORS = {
-        pending: { fill: 'rgba(96, 165, 250, 0.3)', stroke: 'rgba(147, 197, 253, 0.9)', label: '#dbeafe' },
-        good: { fill: 'rgba(74, 222, 128, 0.32)', stroke: '#4ade80', label: '#bbf7d0' },
-        ok: { fill: 'rgba(250, 204, 21, 0.3)', stroke: '#facc15', label: '#fef08a' },
-        missed: { fill: 'rgba(251, 113, 133, 0.22)', stroke: '#fb7185', label: '#fecdd3' }
+    // Hit-zone half-height in cents. Matches PitchScore.OK_CENTS by
+    // convention so "inside the outline" means the same thing as a hit,
+    // but the view owns the constant so Trace does not load scoring.
+    const BAND_CENTS = 60;
+
+    // Bare outline only - never green/yellow/red from a verdict.
+    const TARGET_OUTLINE = {
+        fill: 'rgba(96, 165, 250, 0.12)',
+        stroke: 'rgba(147, 197, 253, 0.75)',
+        label: 'rgba(219, 234, 254, 0.85)'
+    };
+    const TARGET_INACTIVE = {
+        fill: 'rgba(148, 163, 184, 0.08)',
+        stroke: 'rgba(148, 163, 184, 0.35)',
+        label: 'rgba(226, 232, 240, 0.4)'
     };
 
     /**
      * @typedef {{ midi: number, label: string, emphasized: boolean }} Rail
-     * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active: boolean, result?: 'good' | 'ok' | 'missed' | null }} Target
+     * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active?: boolean }} Target
      *
      * @param {{
      *   canvasId: string,
@@ -52,17 +57,30 @@ const PitchTraceView = (function () {
      *   history: () => Array<{ time: number, midi: number, cents: number }>,
      *   clockMs: () => number,
      *   windowMs: () => number,
-     *   fixedWindow: () => boolean,
+     *   fixedWindow?: () => boolean,
      *   showPlayhead: () => boolean
      * }} options
      */
     function create(options) {
+        // Vertical range hysteresis: expand immediately to cover sung
+        // pitch, shrink only when history is cleared. Stops the chart
+        // from bouncing when a brief extreme leaves the visible window.
+        /** @type {number | null} */
+        let heldMinMidi = null;
+        /** @type {number | null} */
+        let heldMaxMidi = null;
+
         function canvasEl() {
             return /** @type {HTMLCanvasElement | null} */ (document.getElementById(options.canvasId));
         }
 
         function visible() {
             return options.isVisible ? options.isVisible() : true;
+        }
+
+        function resetVerticalRange() {
+            heldMinMidi = null;
+            heldMaxMidi = null;
         }
 
         function resize() {
@@ -114,33 +132,42 @@ const PitchTraceView = (function () {
             const rails = options.rails();
             if (!rails.length) return;
 
+            // Time axis width is STABLE (caller supplies a fixed window
+            // size). The window always scrolls with the playhead - never
+            // grow the axis with the clock (that continuously squeezes
+            // the whole chart and reads as twitch).
             const timeWindow = options.windowMs();
-            const windowStart = options.fixedWindow() ? Math.max(0, options.clockMs() - timeWindow) : 0;
+            const clock = options.clockMs();
+            const windowStart = Math.max(0, clock - timeWindow);
 
-            // History is time-ordered, so the visible slice of a fixed
-            // window is found by scanning back from the end - no
-            // per-point predicate over the whole take every frame.
+            // History is time-ordered, so the visible slice is found by
+            // scanning back from the end - no per-point predicate over
+            // the whole take every frame.
             const rawHistory = options.history();
-            let visibleHistory = rawHistory;
-            if (options.fixedWindow()) {
-                const earliest = windowStart - PitchDetectCore.TRACE_BREAK_MS;
-                let startIndex = rawHistory.length;
-                while (startIndex > 0 && rawHistory[startIndex - 1].time >= earliest) startIndex--;
-                visibleHistory = startIndex === 0 ? rawHistory : rawHistory.slice(startIndex);
-            }
+            if (!rawHistory.length) resetVerticalRange();
+
+            const earliest = windowStart - PitchDetectCore.TRACE_BREAK_MS;
+            let startIndex = rawHistory.length;
+            while (startIndex > 0 && rawHistory[startIndex - 1].time >= earliest) startIndex--;
+            const visibleHistory = startIndex === 0 ? rawHistory : rawHistory.slice(startIndex);
             const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
             const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
 
-            // The chart is an instrument for showing what was actually
-            // sung: the vertical range covers the sung trace as well as
-            // the rails, so an off-rails note (wrong octave, overshoot)
-            // draws at its true pitch instead of pinning to a chart edge
-            // or vanishing.
+            // Frame from rails; expand to cover what was sung so an
+            // off-rails note draws at its true pitch. Held min/max never
+            // shrink mid-take (avoids vertical bounce when extremes
+            // scroll out of the visible window).
             let minMidi = Math.min(...rails.map(rail => rail.midi));
             let maxMidi = Math.max(...rails.map(rail => rail.midi));
-            for (const point of history) {
+            for (const point of rawHistory) {
                 if (point.midi < minMidi) minMidi = point.midi;
                 if (point.midi > maxMidi) maxMidi = point.midi;
+            }
+            if (rawHistory.length) {
+                if (heldMinMidi === null || minMidi < heldMinMidi) heldMinMidi = minMidi;
+                if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
+                minMidi = /** @type {number} */ (heldMinMidi);
+                maxMidi = /** @type {number} */ (heldMaxMidi);
             }
             const midiRange = Math.max(maxMidi - minMidi, 1);
             const left = width < 520 ? 96 : 132;
@@ -182,34 +209,26 @@ const PitchTraceView = (function () {
             ctx.stroke();
 
             // Labels have no layout engine: keep a per-row cursor so a
-            // wide label ("7d") on a narrow span never collides with its
-            // neighbors - it is skipped instead (the box still shows).
+            // wide label on a narrow span is skipped instead of colliding.
             ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
             ctx.textAlign = 'left';
             /** @type {Map<number, number>} label row y -> right edge of last label */
             const labelCursor = new Map();
-            // The bar's height IS the hit tolerance (PitchScore.OK_CENTS)
-            // mapped through the same pitch scale as the voice line, so
-            // the picture cannot disagree with the verdict. Only a small
-            // minimum keeps bars visible on very tall pitch ranges.
             const pxPerMidi = graphHeight / midiRange;
-            const bandHalfPx = Math.max(3, (PitchScore.OK_CENTS / 100) * pxPerMidi);
+            const bandHalfPx = Math.max(3, (BAND_CENTS / 100) * pxPerMidi);
             options.targets().forEach(target => {
                 const y = midiToY(target.midi);
                 const x1 = timeToX(target.startMs);
                 const x2 = timeToX(target.endMs);
                 const targetWidth = Math.max(x2 - x1, 5);
-                const colors = target.active
-                    ? TARGET_COLORS[target.result || 'pending'] || TARGET_COLORS.pending
-                    : { fill: 'rgba(148, 163, 184, 0.15)', stroke: 'rgba(148, 163, 184, 0.38)', label: 'rgba(226, 232, 240, 0.45)' };
+                // Ignore any scoring `result` field - outlines only.
+                const colors = target.active === false ? TARGET_INACTIVE : TARGET_OUTLINE;
                 ctx.fillStyle = colors.fill;
                 ctx.strokeStyle = colors.stroke;
-                ctx.lineWidth = target.active ? 2 : 1;
+                ctx.lineWidth = 1.5;
                 ctx.fillRect(x1, y - bandHalfPx, targetWidth, bandHalfPx * 2);
                 ctx.strokeRect(x1, y - bandHalfPx, targetWidth, bandHalfPx * 2);
 
-                // Band the cursor by ~one text height so labels on the
-                // same or neighboring rails share collision space.
                 const labelY = y - bandHalfPx - 8;
                 const band = Math.round(labelY / 12);
                 const labelWidth = ctx.measureText(target.label).width;
@@ -241,19 +260,10 @@ const PitchTraceView = (function () {
                     previous = point;
                 }
                 ctx.stroke();
-
-                for (let i = 0; i < history.length; i += 3) {
-                    const point = history[i];
-                    const absCents = Math.abs(point.cents);
-                    ctx.fillStyle = absCents < CENTS_GOOD ? '#4ade80' : absCents < CENTS_OK ? '#facc15' : '#fb7185';
-                    ctx.beginPath();
-                    ctx.arc(timeToX(point.time), midiToY(point.midi), 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
             }
 
             if (options.showPlayhead()) {
-                const x = timeToX(options.clockMs());
+                const x = timeToX(clock);
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([3, 5]);
@@ -265,10 +275,10 @@ const PitchTraceView = (function () {
             }
         }
 
-        return { resize, draw };
+        return { resize, draw, resetVerticalRange };
     }
 
-    return { create };
+    return { create, BAND_CENTS };
 })();
 
 window.PitchTraceView = PitchTraceView;

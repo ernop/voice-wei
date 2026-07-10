@@ -144,13 +144,16 @@ generating anything first.
   Rails extend automatically to cover every typed target.
 - Guide sound: piano (default) or sine beep.
 - Pause on silence (default on): the clock only advances while you sing.
-- 20s window switches to a fixed-width scrolling viewport; Expand range
-  adds rails an octave above and below.
+- 20s window switches to a fixed 20-second scrolling viewport (default is
+  a content-sized scrolling viewport - the width never grows with the
+  clock, which used to squeeze the chart every frame).
+- Expand range adds rails an octave above and below.
 - The chart draws what you actually sing, wherever it lands: the vertical
-  range expands to cover your voice even outside the rails. Filtering is
-  voice-physics only, never exercise-based: detections outside the
-  singable band (D2-Bb4: barbershop bass low up to just above a lead's
-  top) read as silence,
+  range expands to cover your voice even outside the rails. Guide bands
+  are bare outlines of the hit zone; they do not recolor from scoring
+  (Trace has no scoring). Filtering is voice-physics only, never
+  exercise-based: detections outside the singable band (D2-Bb4:
+  barbershop bass low up to just above a lead's top) read as silence,
   and a large instant jump must sustain for a few frames to count as
   voice (brief detector scrapes never reach the chart; real leaps are
   recorded whole).
@@ -402,37 +405,34 @@ OpenAI.
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing), and
 Intervals (Sing):
-scale-degree rails, target bands, your sung pitch as a yellow trace with
-cents-colored dots, and a voice-gated timeline (time starts when singing
-is detected).
+scale-degree rails, target-band outlines, your sung pitch as a yellow
+trace, and a voice-gated timeline (time starts when singing is detected).
 
 **The chart draws what you sing.** Rails and targets are for comparison
-and scoring only; they never gate what is recorded or drawn. Off-rails
-singing (wrong octave, overshoot) draws at its true pitch - the chart's
-vertical range expands to cover it. Rejection is voice-physics only:
-detections outside the singable band (D2-Bb4: barbershop bass low up to
-just above a lead's top) are the room, not the singer, and read as
-silence;
-and a large instant jump must sustain for a few frames to be voice
-(brief detector scrapes never reach the trace, confirmed jumps are
-recorded whole). Target bands are drawn at the real hit tolerance (about
-a third of a semitone either way), so singing inside the band is what
-scoring credits. (Architecture details: "Pitch pipeline" in
+only; they never gate what is recorded or drawn, and scoring verdicts
+never recolor the chart (judgment lives in the readout and progress
+line). Off-rails singing (wrong octave, overshoot) draws at its true
+pitch - the chart's vertical range expands to cover it. Rejection is
+voice-physics only: detections outside the singable band (D2-Bb4:
+barbershop bass low up to just above a lead's top) are the room, not the
+singer, and read as silence; and a large instant jump must sustain for a
+few frames to be voice (brief detector scrapes never reach the trace,
+confirmed jumps are recorded whole). Target bands are bare outlines of
+the hit zone (about 60 cents either way), so singing inside the outline
+is what scoring credits. (Architecture details: "Pitch pipeline" in
 [architecture.md](architecture.md).)
 
 **Per-note scoring** (owned by `pitch-score.js`, one definition
 everywhere): the take is scored as a *sequence* - your held notes,
 aligned in order to the target notes - so timing is yours: hold a note
 twice its slot, breathe whenever, and nothing shifts onto the wrong
-target. Only notes you have REACHED can change color: a note's band
-recolors as soon as you move on to the next one, and everything ahead of
-you stays pending blue until you get there (or until you stop singing
-with the take clock past it). For each aligned note the sustained pitch
-is the *median* of its samples and must sit within 140 cents of the
-target with a majority of samples inside that band; accuracy is then
-graded green (within 30 cents), yellow (within 60), red (missed: too far
-off, held too loosely, sung as a different note, or skipped). The
-readout keeps a running score ("Score: 6/8 on pitch (avg 12c)"). Restart
+target. Verdicts update the score readout as you move through the
+phrase; the chart itself stays an instrument. For each aligned note the
+sustained pitch is the *median* of its samples and must sit within 140
+cents of the target with a majority of samples inside that band;
+accuracy is then graded good (within 30 cents), ok (within 60), or
+missed (too far off, held too loosely, sung as a different note, or
+skipped). The readout keeps a running score ("Score: 6/8 on pitch (avg 12c)"). Restart
 clears the scores with the trace.
 
 **Progress over time**: each completed take (all notes scored) is recorded,

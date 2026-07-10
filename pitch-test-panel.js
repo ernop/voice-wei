@@ -110,22 +110,23 @@ const PitchTestPanel = (function () {
             log(`mic ${d.frames} frames: ${parts.join(', ')}`);
         }
 
-        // Repaint only when the picture would differ: a new sample, the
-        // clock moving (scroll), or fresh verdicts. During a breath with
-        // the voice clock frozen every frame is identical - skipping the
-        // raster there is free smoothness on machines without GPU raster.
+        // Repaint only when the picture would differ: a new sample or
+        // the clock moving (scroll). Scoring updates the readout only -
+        // verdicts never recolor the chart, so they are not in this key.
         let lastDrawKey = '';
 
         function drawIfChanged() {
-            const key = `${session.history.length}|${session.clockMs() | 0}|${scoreVersion}`;
+            const key = `${session.history.length}|${session.clockMs() | 0}`;
             if (key === lastDrawKey) return;
             lastDrawKey = key;
             view.draw();
         }
 
+        // Stable width only - never grow with the clock (that squeezes
+        // the chart every frame). The view scrolls; 20s vs content-sized.
         function windowMs() {
             if (options.fixedWindow) return FIXED_WINDOW_MS;
-            return Math.max(4000, config.contentDurationMs() + 700, session.clockMs() + 250);
+            return Math.max(4000, config.contentDurationMs() + 700);
         }
 
         /** @type {TargetSpan[]} */
@@ -299,7 +300,6 @@ const PitchTestPanel = (function () {
             updateProgressLine();
         }
 
-        let scoreVersion = 0;
         let lastScoreSignature = '';
 
         function refreshScores() {
@@ -308,7 +308,6 @@ const PitchTestPanel = (function () {
             const signature = scoredTargets.map(target => target.result || '.').join('');
             if (signature !== lastScoreSignature) {
                 lastScoreSignature = signature;
-                scoreVersion++;
                 if (config.logLine) {
                     scoredTargets.forEach((target, index) => {
                         if (!target.active || !target.result) return;
@@ -388,10 +387,10 @@ const PitchTestPanel = (function () {
                     <canvas id="${prefix}Canvas" class="pitch-test-canvas"></canvas>
                 </div>
                 <div class="pitch-test-legend">
-                    <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'}</span>
+                    <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'} (outline = &plusmn;${PitchTraceView.BAND_CENTS}c zone)</span>
                     <span><i class="legend-sung"></i> sung pitch</span>
                     <span><i class="legend-scale"></i> scale degree rails</span>
-                    <span><i class="legend-scored"></i> scored: green &le;${PitchScore.GOOD_CENTS}c, yellow &le;${PitchScore.OK_CENTS}c, red missed</span>
+                    <span>score lives in the readout above, not on the chart</span>
                 </div>
             `;
         }
@@ -444,6 +443,7 @@ const PitchTestPanel = (function () {
 
         function resetSession() {
             session.reset();
+            view.resetVerticalRange();
             takeRecorded = false;
             clearReadout();
             setStatus('Sing to start time');

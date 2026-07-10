@@ -142,28 +142,31 @@ Two mechanisms sit between detection and history:
   the singer breathes. Off means wall-clock from the last reset.
 
 **The instrument law: the chart draws what was actually sung.** The
-voice line and its dots derive only from the sung history. There is no
+voice line derives only from the sung history. There is no
 rails/target-based discarding, and the chart's vertical range in
-`pitch-trace-view.js` expands to cover the sung trace, so off-rails
-singing (wrong octave, overshoot) draws at its true pitch instead of
-clamping to an edge or vanishing. The exercise sets only the chart's
-FRAME - which rails are drawn as grid lines and how far the time axis
-zooms - never the position, color, or visibility of the voice line. Dot
-colors are cents from the nearest chromatic note (key- and
-target-independent intonation). (This is load-bearing: the singer
-adjusts by seeing their real pitch. A regression test records samples an
-octave below the rails and asserts they stay in the trace.)
+`pitch-trace-view.js` expands to cover the sung trace (held for the
+take - it does not shrink when extremes scroll out of view), so
+off-rails singing (wrong octave, overshoot) draws at its true pitch
+instead of clamping to an edge or vanishing. The exercise sets only the
+chart's FRAME - which rails are drawn as grid lines and how wide the
+time axis is - never the position, color, or visibility of the voice
+line. (This is load-bearing: the singer adjusts by seeing their real
+pitch. A regression test records samples an octave below the rails and
+asserts they stay in the trace.)
 
 **Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
 everything through provider callbacks: `rails()`, `targets()`,
 `history()`, `clockMs()`, windowing options. The sung line breaks across
-silences > 250ms and across unconfirmed fast jumps; dots along it are
-colored by cents deviation. Target bands recolor from blue (pending) to
-green/yellow/red once scored, and their HEIGHT is the real hit tolerance
-(PitchScore.OK_CENTS mapped through the same pitch scale as the voice
-line), so "the trace is inside the band" and "this note counts" are the
-same statement - the picture can never promise a tolerance the scoring
-does not honor.
+silences > 250ms and across unconfirmed fast jumps. Target bands are
+bare outlines of the hit zone (`BAND_CENTS`, matching scoring's OK
+tolerance by convention) - scoring verdicts never recolor them;
+judgment lives in readouts and progress, not in the chart. The view
+does not load `pitch-score.js`.
+
+**Time axis is stable.** Window WIDTH comes from the page (content
+duration, or a 20s toggle) and does not grow with the clock. Growing it
+used to continuously squeeze the whole chart - the classic Trace twitch.
+The playhead always scrolls inside that fixed width.
 
 **Drawing is never throttled.** A scrolling chart stepped at uneven
 intervals reads as twitching (a 50ms gate polled from a 60Hz frame loop

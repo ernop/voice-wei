@@ -173,7 +173,7 @@ meaningful for one configuration).
 | patternText | empty | degree string | redraw |
 | playGuidesOnReset | false | toggle | immediate |
 | pauseOnSilence | true | toggle | immediate + trace reset |
-| fixedWindow | false | toggle | redraw |
+| fixedWindow | false | toggle | redraw (20s scroll width; off = content-sized scroll width; never grows with clock) |
 | expandRange | false | toggle | redraw |
 
 ## Scales (`scales-settings`)
@@ -350,7 +350,7 @@ Per page key (`phrases-test-panel`, `scales-sing-panel`,
 |--------|---------|----------|
 | showTargets | true | redraw |
 | pauseOnSilence | true | immediate + trace reset |
-| fixedWindow | false | redraw |
+| fixedWindow | false | redraw (20s scroll width; off = content-sized; width never grows with clock) |
 | expandRange | false | redraw |
 
 The panel NEVER auto-plays: the test exists for the user to sing, so

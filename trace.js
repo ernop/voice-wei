@@ -136,9 +136,12 @@
         return count ? count * state.guideIntervalMs : 0;
     }
 
+    // Window WIDTH is stable. Growing it with the clock continuously
+    // squeezes the whole chart (the classic Trace twitch). The view
+    // scrolls the playhead; this only picks 20s vs content-sized.
     function timeWindowMs() {
         if (state.fixedWindow) return FIXED_WINDOW_MS;
-        return Math.max(8000, patternDurationMs() + 1000, session.clockMs() + 500);
+        return Math.max(8000, patternDurationMs() + 1000);
     }
 
     function buildGuideTargets() {
@@ -186,6 +189,7 @@
     function resetTrace() {
         guidePlaybackToken++;
         session.reset();
+        view.resetVerticalRange();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
         drawChart(true);

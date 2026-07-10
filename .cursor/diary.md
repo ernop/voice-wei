@@ -4,6 +4,37 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (Trace twitch: growing time axis, not missing library)
+
+**Context**: Yui said Trace is still jumpy/twitchy, Phrases Test is not the
+priority, and asked again why wei keep writing a chart from scratch when
+libraries exist. Bet that targets still feed the draw path.
+
+**What was actually wrong (code audit)**:
+1. **Time window grew with `clockMs()`** every frame (`trace.js` /
+   `pitch-test-panel.js`). Width changed continuously → whole chart
+   squeezed → classic twitch. Fixed: stable width + always-scroll.
+2. **Target bands recolored from scoring verdicts** (`result` →
+   green/yellow/red). That is feedback from the interval product into
+   the display. Fixed: bare outlines only; ignore `result`.
+3. **Cents-colored dots on the voice line** were judgment baked into
+   the instrument. Removed.
+4. View required `pitch-score.js` only for band height. Decoupled;
+   Trace no longer loads scoring.
+
+**Libraries (honest answer for next time)**: There is no drop-in npm
+package that is "our Trace" (key rails + degree guides + voice-gated
+clock + static no-build site). Detector algorithms exist (YIN/MPM via
+Pitchy etc.) and wei already use MPM. Full apps (MercuryPitch, karaoke
+UIs) are products to fork, not a chart widget. The canvas renderer is
+small; the failures were product coupling and a bad time-axis policy,
+not "we should have imported a viz framework."
+
+**Still true**: instrument law - history alone drives the yellow line;
+rails/targets are furniture.
+
+---
+
 ## 2026-07-10 (faster deploys: cache + telemetry off critical path)
 
 **Context**: Yui asked what makes deploys ~1 min; ~28s was cold
