@@ -145,3 +145,72 @@ If the answer is only “the pipeline is prettier,” stop.
 
 Record the choice here when yui picks one; until then, keep the working
 header-integer path and do not invent SHA-based glance signals.
+
+## Multi-model review (2026-07-10)
+
+Reviewed by Fable, GPT-5.5, Opus 4.8, and GPT-5.6 Sol (Gemini not
+available in this agent environment). Consensus and dissent below.
+
+### Strong consensus
+
+1. **R1/R2/R3 framing is right.** Keep it. Header integer is a mechanism.
+2. **False “live” is worse than a slow signal.** This should drive policy
+   harder than the open-choices section currently does.
+3. **Agent must not say “live” until verified.** Promote from open choice
+   to standing decision: wait for Actions success **and** public origin
+   serves the expected integer (`curl` live `VERSION` / `app-version.js`
+   with cache bypass) before claiming live in chat. On failure, say
+   **NOT LIVE** with the reason — silence is a failure mode.
+4. **HTML document cache is an under-named R1 risk.** `?v=N` busts
+   assets; stale `player.html` (no Cache-Control) can keep old `?v=` and
+   an old header forever. Fix: HTML/VERSION revalidate or no-cache;
+   assets can stay long-cache + `?v=`.
+5. **Phone notify is best car-native R2**, but only **after** origin
+   attestation — a lying buzz is worse than none. ntfy (or similar) is
+   enough; Signal automation is optional later.
+6. **Direct `./deploy.sh` is not a normal car-loop path** (blast radius
+   with `--delete`, skips CI gates). Emergency-only, from clean
+   `origin/master`, if ever.
+7. **Do not chase pipeline elegance** ahead of the car loop.
+
+### Important additions the doc under-weighted
+
+| Gap | Why it matters | Cheap fix |
+|-----|----------------|-----------|
+| No negative signal | Failed CI = eternal silence while yui reloads in traffic | Agent reports NOT LIVE; optional ntfy on failure |
+| “A deploy happened” ≠ “**my** change” | Concurrent agents; header only says number went up | Chat names the change + `vN` |
+| Green ≠ live | rsync exit 0 ≠ public URL serves new bits | Post-rsync `curl` assert in CI |
+| Open tab never reloads | Header can’t reach “keep using” | Poll live `VERSION`; toast / optional TTS “vN ready — reload” (respect practice-test silence) |
+| `cancel-in-progress` | Second push can cancel first mid-rsync / drop notify | Don’t cancel after rsync starts; or atomic release dirs |
+| In-page poll mis-costed | Doc called audible/push-into-page “non-trivial”; polling static `VERSION` is ~30 lines and matches `deploys.js` | Add poll + “tap to reload” |
+
+### Divergent / heavier ideas (not consensus)
+
+- **Atomic releases** (`releases/<sha>/` + `current` symlink) — Sol’s
+  strongest correctness push; kills partial-rsync and cancel mid-write.
+  More server layout change; high value if concurrent agents are common.
+- **`release.json`** (version + sha + summary) — shared by CI verify,
+  page poll, and notify body.
+- **Car Bluetooth / media-session flash** (“vN ready”) — clever, bends
+  Music’s lyric-title rule; needs yui sign-off.
+- **Drop header integer once notify+verify exist** — allowed by R2; keep
+  as backup until notify is trusted in the car.
+- **Trim Playwright from blocking path** — speeds R1; trade gate safety.
+
+### Recommended sequence (synthesis)
+
+Do these in order; stop when the car loop feels trustworthy:
+
+1. **Standing rule:** agent done = Actions green + live `VERSION` matches
+   ship; else explicit NOT LIVE (chat).
+2. **CI post-rsync probe:** fail the job if public `VERSION` ≠ shipped.
+3. **HTML/VERSION cache headers** (no-cache or revalidate).
+4. **In-page poll** of live `VERSION` → persistent “vN ready — reload”
+   (optional TTS when not in test/playback).
+5. **Optional:** ntfy (or similar) on verified success **and** failure.
+6. **Later if needed:** atomic publish dirs; `release.json`; tighten
+   paths so non-ship pushes don’t look like deploys.
+
+Until yui picks notify-primary vs header-primary: **keep the integer
+header as backup; make verified agent chat the primary R2 for the
+voice-note loop.**
