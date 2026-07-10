@@ -762,10 +762,11 @@ owned by practice-controls.css. The concrete class-by-class inventory
 Settings appear in the same order on every practice page, following the
 most recent reviewed page (phrases):
 
-1. **Timing** - note length, then gap
-2. **Root** - the root pitch stepper
-3. **Shape** - the page's own pattern settings (range, algorithm,
-   direction, movement, repeat, exercise...)
+1. **Timing** - note length, then gap (Root may sit on this same stepper
+   row when the page clusters numeric choosers, as Phrases and Scales do)
+2. **Root** - the root pitch stepper (own row only when not clustered above)
+3. **Shape** - the page's own pattern settings. On Scales, section width
+   comes first (define the range), then direction/movement/repeat/exercise.
 4. **Output/display options** - output mode chips, display toggles
 5. **Scale type** - the scale chip row
 6. **Actions** - reset/random rows close the block

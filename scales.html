@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=256">
-    <link rel="stylesheet" href="practice-controls.css?v=256">
-    <link rel="stylesheet" href="scales.css?v=256">
+    <link rel="stylesheet" href="style.css?v=257">
+    <link rel="stylesheet" href="practice-controls.css?v=257">
+    <link rel="stylesheet" href="scales.css?v=257">
 </head>
 
 <body data-page="scales">
@@ -80,6 +80,7 @@
                 <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
                     click directly. <button class="vf-dismiss" id="dismissInstruction">x</button></p>
 
+                <!-- Timing + Root steppers share one row (same cluster as Phrases). -->
                 <div class="vf-row">
                     <span class="vf-label" data-full="Note Length" data-abbr="Len">Note Length</span>
                     <div class="vf-options">
@@ -97,15 +98,29 @@
                             <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
                         </div>
                     </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label" data-full="Root" data-abbr="Rt">Root</span>
+                    <span class="vf-label vf-label-inline" data-full="Root" data-abbr="Rt">Root</span>
                     <div class="vf-options">
                         <div class="step-field step-field-bare">
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
                             <span class="step-value" id="rootPitchValue">C4</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section width before movement styles (define the range, then how you move). -->
+                <div class="vf-row">
+                    <span class="vf-label" data-full="Section Width" data-abbr="Wid">Section Width</span>
+                    <div class="vf-options">
+                        <div class="segment-row">
+                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
+                            octave</button>
+                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
+                            data-abbr="1o+3">octave+3rd</button>
+                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th"
+                            data-abbr="1o+5">octave+5th</button>
+                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
+                            octaves</button>
                         </div>
                     </div>
                 </div>
@@ -216,22 +231,6 @@
                         <div class="segment-row">
                         <button class="vf-btn" data-chop-head="0" data-full="off" data-abbr="off">off</button>
                         <button class="vf-btn" data-chop-head="1" data-full="on" data-abbr="on">on</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="vf-row">
-                    <span class="vf-label" data-full="Section Width" data-abbr="Wid">Section Width</span>
-                    <div class="vf-options">
-                        <div class="segment-row">
-                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1
-                            octave</button>
-                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd"
-                            data-abbr="1o+3">octave+3rd</button>
-                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th"
-                            data-abbr="1o+5">octave+5th</button>
-                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2
-                            octaves</button>
                         </div>
                     </div>
                 </div>
@@ -358,27 +357,27 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=256"></script>
-    <script src="app-version.js?v=256"></script>
-    <script src="storage-keys.js?v=256"></script>
-    <script src="shared-header.js?v=256"></script>
-    <script src="music-constants.js?v=256"></script>
-    <script src="voice-output.js?v=256"></script>
-    <script src="voice-command-core.js?v=256"></script>
-    <script src="scales-playback.js?v=256"></script>
-    <script src="scales-voice-maps.js?v=256"></script>
-    <script src="piano-core.js?v=256"></script>
-    <script src="pitch-detect-core.js?v=256"></script>
-    <script src="pitch-score.js?v=256"></script>
-    <script src="pitch-trace-view.js?v=256"></script>
-    <script src="render-throttle.js?v=256"></script>
-    <script src="practice-controls.js?v=256"></script>
-    <script src="history-list.js?v=256"></script>
-    <script src="settings-store.js?v=256"></script>
-    <script src="progress-store.js?v=256"></script>
-    <script src="media-session-core.js?v=256"></script>
-    <script src="pitch-test-panel.js?v=256"></script>
-    <script src="scales.js?v=256"></script>
+    <script src="dev-error-monitor.js?v=257"></script>
+    <script src="app-version.js?v=257"></script>
+    <script src="storage-keys.js?v=257"></script>
+    <script src="shared-header.js?v=257"></script>
+    <script src="music-constants.js?v=257"></script>
+    <script src="voice-output.js?v=257"></script>
+    <script src="voice-command-core.js?v=257"></script>
+    <script src="scales-playback.js?v=257"></script>
+    <script src="scales-voice-maps.js?v=257"></script>
+    <script src="piano-core.js?v=257"></script>
+    <script src="pitch-detect-core.js?v=257"></script>
+    <script src="pitch-score.js?v=257"></script>
+    <script src="pitch-trace-view.js?v=257"></script>
+    <script src="render-throttle.js?v=257"></script>
+    <script src="practice-controls.js?v=257"></script>
+    <script src="history-list.js?v=257"></script>
+    <script src="settings-store.js?v=257"></script>
+    <script src="progress-store.js?v=257"></script>
+    <script src="media-session-core.js?v=257"></script>
+    <script src="pitch-test-panel.js?v=257"></script>
+    <script src="scales.js?v=257"></script>
 </body>
 
 </html>
