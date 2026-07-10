@@ -66,9 +66,9 @@ jobs:
 
       - name: Set up SSH
         run: |
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
       # Product files only. Keep this exclude list in sync with deploy.sh.
@@ -98,12 +98,12 @@ jobs:
             --exclude='dev-server.js' \
             --exclude='pipeline-*.svg' \
             --exclude='screenshot-*.png' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
 
       - name: Cleanup
         if: always()
-        run: rm -f ~/.ssh/deploy_key
+        run: rm -f /tmp/deploy_key
 
   # Deploys page data — after the site is already live, so it cannot delay ship.
   telemetry:
