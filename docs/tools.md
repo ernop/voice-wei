@@ -254,8 +254,8 @@ provider and where to fix it, on top of the raw error in the Log.
 Each playlist row is one compact data line with fixed slots: favorite
 star and lyric marker in a padded leading gutter (so a near-miss on the
 star favorites instead of starting the song), then song name, artist -
-year - album, duration, and remove. The lyric marker spells the kind:
-**sync** = timed/line-synced lyrics, **text** = simple/unsynced lyrics,
+year - album, duration, and remove. The lyric marker is a small chip:
+**✓** = timed/line-synced (best), **~** = non-timed/simple text only,
 – = none found (tap it to view or retry). The AI's note appears as a
 second line only when the Notes toggle is on. Tap the row body (not the
 leading gutter) to play it. The playlist header offers Timed only,
@@ -268,8 +268,8 @@ when none are left - e.g. after a reload - re-runs the YouTube search
 once for fresh candidates before giving up.
 
 Lyrics come in two kinds, named everywhere in the UI: **timed lyrics**
-(line-synced; the sync marker, the highlight, and the title relay) and
-**simple lyrics** (text only; the text marker). The search prefers timed
+(line-synced; the ✓ marker, the highlight, and the title relay) and
+**simple lyrics** (text only; the ~ marker). The search prefers timed
 lyrics: among plausible LRCLIB matches a timed record beats a simple-only
 one, and a song stored with only simple lyrics gets one serious re-search
 for timed ones (keeping the simple text if nothing better exists).

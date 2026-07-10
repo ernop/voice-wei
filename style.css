@@ -1244,45 +1244,43 @@ h1 {
     text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
 }
 
-/* Lyric state chip: sync = timed/line-synced, text = simple/unsynced. */
+/* Lyric state chip: ✓ = timed (best), ~ = non-timed/simple text. */
 .lyrics-row-btn {
     flex-shrink: 0;
-    min-width: 28px;
+    min-width: 22px;
     height: 28px;
-    padding: 0 3px;
+    padding: 0 2px;
     border: none;
     border-radius: 4px;
-    background: rgba(74, 222, 128, 0.08);
+    background: transparent;
     color: rgba(167, 243, 208, 0.55);
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    font-size: 0.78rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    text-transform: lowercase;
 }
 
 .lyrics-row-btn:hover {
     color: #d1fae5;
-    background: rgba(74, 222, 128, 0.16);
+    background: rgba(74, 222, 128, 0.12);
 }
 
 .lyrics-row-btn.timed {
     color: #4ade80;
-    background: rgba(74, 222, 128, 0.18);
+    font-size: 0.72rem;
 }
 
 .lyrics-row-btn.simple {
-    color: #5eead4;
-    background: rgba(20, 184, 166, 0.14);
+    color: rgba(148, 163, 184, 0.85);
+    font-size: 0.95rem;
+    font-weight: 600;
 }
 
 .lyrics-row-btn.none {
     color: rgba(255, 255, 255, 0.28);
-    background: transparent;
 }
 
 .youtube-player {

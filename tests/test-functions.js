@@ -1664,7 +1664,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 showLyricsForItem() {},
                 lyricsRowMarker(item) {
                     return item.lyricsStatus === 'ready'
-                        ? { label: 'sync', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
+                        ? { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
                         : { label: '\u00b7', className: '', aria: 'Get lyrics' };
                 }
             };
@@ -1730,7 +1730,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 comment.includes('Included because it matches the requested search')));
 
         // Leading gutter (star + lyric marker): taps there must not start
-        // playback; only the row body plays. Markers read "sync"/"text".
+        // playback; only the row body plays. Markers: ✓ timed, ~ non-timed.
         const starGutterAndMarkers = await tab.evaluate(() => {
             const harness = {
                 favorites: {},
@@ -1742,10 +1742,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 playVideo(item) { this.playedIds.push(item.id); },
                 lyricsRowMarker(item) {
                     if (item.lyricsStatus === 'ready' && item.lyricsData?.syncedLines?.length) {
-                        return { label: 'sync', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' };
+                        return { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' };
                     }
                     if (item.lyricsStatus === 'ready') {
-                        return { label: 'text', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
+                        return { label: '~', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
                     }
                     return { label: '\u00b7', className: '', aria: 'Get lyrics' };
                 }
@@ -1779,9 +1779,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             starGutterAndMarkers.afterLeading.length === 0
             && starGutterAndMarkers.afterName.length === 1
             && starGutterAndMarkers.afterName[0] === 701);
-        report.check('player lyric markers read sync/text instead of T/S',
-            starGutterAndMarkers.markers.includes('sync')
-            && starGutterAndMarkers.markers.includes('text'));
+        report.check('player lyric markers are check for timed and tilde for simple',
+            starGutterAndMarkers.markers.includes('\u2713')
+            && starGutterAndMarkers.markers.includes('~'));
 
         const lyricsStoreChecks = await tab.evaluate(async () => {
             const run = Date.now();
