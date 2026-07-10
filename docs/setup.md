@@ -48,14 +48,14 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 Defined in `.github/workflows/deploy.yml`:
 
-1. Checkout; restore cached `node_modules` + Playwright Chromium when possible
+1. Checkout in the Playwright container (Chromium preinstalled; image tag
+   matches `package.json`'s playwright version); restore cached `node_modules`
 2. `npm run typecheck`, `npm run lint`, `npm test`
 3. rsync `--delete` to the server (excludes below) — **site live**
 4. Separate `telemetry` job uploads `deploy-telemetry.json` (does not delay ship)
 
-Warm deploys skip `npm install` and the Chromium browser download (OS libs for
-Chromium still install each run on hosted runners). Cold deploys populate the
-caches. Concurrency: one deploy at a time; newer pushes cancel in-flight older ones.
+Warm deploys skip `npm install` when `node_modules` cache hits. Concurrency:
+one deploy at a time; newer pushes cancel in-flight older ones.
 
 ### rsync excludes (CI and `deploy.sh` must match)
 

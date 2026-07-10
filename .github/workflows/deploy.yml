@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     # Docs/rules-only pushes do not change the live site (rsync excludes them).
-    # Skip the full Playwright install + rsync when nothing deployable changed.
+    # Skip the full install + rsync when nothing deployable changed.
     paths-ignore:
       - '**.md'
       - '.cursor/**'
@@ -20,23 +20,21 @@ permissions:
   actions: read
   contents: read
 
-# Skip Playwright's postinstall browser download; we install Chromium explicitly
-# (and cache it) in the steps below.
+# Skip Playwright postinstall browser download; the job container already
+# ships Chromium matching the pinned playwright version in package.json.
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
 jobs:
   # Gates + rsync. Site is live when this job finishes.
+  # Keep the image tag in sync with package.json's playwright version.
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-jammy
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
 
       # package-lock.json is gitignored (project choice). Cache node_modules by
       # package.json so warm deploys skip npm install entirely.
@@ -45,31 +43,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package.json') }}
+          key: node-modules-${{ runner.os }}-pw1611-${{ hashFiles('package.json') }}
 
       - name: Install npm deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install --no-audit --no-fund
 
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
-
-      # Hosted runners are fresh VMs: OS libraries are not in the browser cache.
-      # Warm path: install-deps only (apt). Cold path: full --with-deps download.
-      - name: Install Playwright Chromium
-        run: |
-          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install-deps chromium
-          else
-            npx playwright install --with-deps chromium
-          fi
-
-      # Static gates: typed contracts and lint guards must hold before
-      # anything reaches the live site. Zero tolerated errors.
+      # Static gates before anything reaches the live site. Zero tolerated errors.
       - name: Typecheck (typed contracts)
         run: npm run typecheck
 
@@ -78,6 +58,11 @@ jobs:
 
       - name: Fast browser suite
         run: npm test
+
+      - name: Install rsync and OpenSSH
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends rsync openssh-client
 
       - name: Set up SSH
         run: |
