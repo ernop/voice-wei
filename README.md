@@ -85,15 +85,18 @@ progress recording, media session behavior, or cross-tab flows. Also:
 
 ## Version system
 
-All pages share one version number:
+All pages share one version number (header label + `?v=` cache busters). After
+a deploy, reload the live page and check the header to confirm you have that
+build.
 
 ```bash
 cat VERSION              # Current version
 ./bump-version.sh        # Increment; updates header label + all ?v= cache busters
 ```
 
-When a significant change ships, bump the version and push `master` in the
-same change.
+When shipping a change that reaches the server, bump once and include the
+version files in the **same** push as the change. Do not bump for
+docs/tests-only commits, and do not push bump-only commits.
 
 ## Deployment
 

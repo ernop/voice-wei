@@ -24,24 +24,38 @@ If mei have already committed to a feature branch before seeing this rule, merge
 - If yui explicitly ask for a PR or branch, do that instead.
 - If mei are genuinely uncertain about a change, ask before pushing to master.
 
-## Version bump cycle
+## Version + deploy (what yui actually needs)
 
-Cache-bust version (`VERSION`, `?v=` on assets, `app-version.js`) follows the
-**push boundary**, not the commit boundary.
+Two goals only:
 
-**After every push to `master`:** run `./bump-version.sh` immediately. That
-opens the next dev cycle — all subsequent work uses the new version in HTML.
+1. **New code reaches the live site.** A change that affects served files must
+   land on `master` (direct push or merged PR). That triggers GitHub Actions →
+   rsync → https://fuseki.net/music8899b/. Reload the page to see it.
+2. **Yui can tell which build is loaded.** The header version label and every
+   asset `?v=N` are the same number from `VERSION` / `app-version.js`. After a
+   deploy, reload and check the header: if it shows the version just shipped,
+   the browser has the new build; if not, hard-reload or wait for the Action.
 
-**While working:** do not bump mid-session. Commits may pile up at the same
-version until the next push.
+### When to bump
 
-**When ready to deploy:** push to `master` (deploy pipeline ships what is
-committed). **Right after the push succeeds,** run `./bump-version.sh` again
-so local is already on the version for the *next* batch of work.
+Run `./bump-version.sh` **once per ship**, in the **same push** as the
+user-facing change. Never push a bump-only commit (it burns a deploy and
+races other agents). Never bump after a successful push "to open the next
+cycle" — the next ship bumps when it ships.
 
 ```
-push v127 live  →  bump → v128  →  work, commit, commit…  →  push v128 live  →  bump → v129  →  …
+work, commit…  →  ./bump-version.sh  →  commit version files with the change  →  push master once  →  deploy live as vN
+                                                                                                      →  reload; header shows vN
 ```
 
-Never bump immediately before a push as the old habit was; the post-push bump
-is what separates live from in-progress cache keys.
+### When not to bump
+
+Skip the bump when the push touches only files rsync excludes (docs `*.md`,
+tests, `.cursor/`, scripts, etc.). Those never reach the server, so a new
+`?v=` does nothing for visitors.
+
+### Concurrent agents
+
+Before the ship push: `git fetch origin master` and rebase (or reset+cherry-pick
+onto origin). If `VERSION` moved, re-run `./bump-version.sh` so the ship is
+exactly one past origin, then push once with content + version together.

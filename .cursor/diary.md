@@ -4,6 +4,26 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (version bump: ship-with-change, not post-push)
+
+**Context**: First Grok session wrote `groks-view.md`, then followed the
+old "bump after every push" rule and pushed standalone v255 and v256
+bumps — two empty deploys after a docs-only change. Yui clarified the
+only real goals: (1) new code reaches the live site so a reload shows
+it, (2) the header version proves which build is loaded.
+
+**Rule rewrite**: `.cursor/rules/10-deploy-workflow.mdc` version section
+(and agents.md / README / setup / architecture / bump-version.sh /
+groks-view) now say: bump **once per user-facing ship, same push as the
+change**; never bump-only pushes; skip bump when only rsync-excluded
+paths change. Post-push "open the next cycle" is retired.
+
+**Still open (not this change)**: cloud agent PR-branch prompt vs
+direct-to-master — yui is fine with either as long as auto-deploy on
+master push remains. Cursor PR diff stays empty under master-direct.
+
+---
+
 ## 2026-07-08 (song voice lines; two grammars born the same night)
 
 **Context**: Yui is preparing a barbershop chart ("Ain't We Got Fun",

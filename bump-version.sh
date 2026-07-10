@@ -1,14 +1,16 @@
 #!/bin/bash
 # Bump version number across all pages and shared assets.
 #
-# Workflow (see .cursor/rules/10-deploy-workflow.mdc):
-#   1. After every push to master — bump (start dev cycle at new ?v=)
-#   2. Work and commit without bumping
-#   3. Push — deploys that version
-#   4. After push succeeds — bump again (prep next dev cycle)
+# Goals (see .cursor/rules/10-deploy-workflow.mdc):
+#   - Live site gets new code when master is pushed (Actions → rsync).
+#   - Header label + ?v=N tell yui which build is loaded after reload.
 #
-# Usage: ./bump-version.sh [new_version]
-# If no version provided, increments current version by 1.
+# Usage: run ONCE per ship, in the SAME push as the user-facing change.
+#   ./bump-version.sh              # increment VERSION by 1
+#   ./bump-version.sh [new_version]
+#
+# Do NOT: push a bump-only commit; bump after push "for the next cycle";
+# bump for docs/tests/rules-only changes (rsync excludes them).
 
 set -e
 
@@ -45,3 +47,4 @@ for file in *.html; do
 done
 
 echo "Done. Version is now v$NEW"
+echo "Commit these version files with your change, then push master once."

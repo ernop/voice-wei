@@ -109,19 +109,24 @@ This reads credentials from `config.json` (see `config.example.json` for format)
 
 ## Version Management
 
-All pages share a single version number in the `VERSION` file. The active
-workflow is post-push bumping:
+All pages share a single version number in the `VERSION` file. That number is
+also the header label and every asset `?v=N`. Yui uses it after reload to
+confirm the live site has the build just shipped.
+
+Ship workflow (user-facing changes only):
 
 ```bash
-git push origin master   # deploys the committed version
-./bump-version.sh        # opens the next dev/cache-bust cycle
+./bump-version.sh        # once per ship
+git add …                # include VERSION, app-version.js, shared-header.js, *.html ?v=
+git commit …
+git push origin master   # one push → Actions → rsync → live
+# reload https://fuseki.net/music8899b/… and check the header version
 ```
 
-This updates:
-- `VERSION` file (single source of truth)
-- `shared-header.js` version label (v30)
-- Cache-busting query strings (?v=30)
+`./bump-version.sh` updates:
+- `VERSION` (source of truth)
+- `app-version.js` / `shared-header.js` label
+- Cache-busting query strings on every `*.html` (`?v=N`)
 
-The version appears in the top-right of each page and ensures browsers fetch
-updated CSS/JS files. Work after the bump should include the bumped cache keys
-in the next deploy commit; after that push succeeds, bump again.
+Skip the bump when the commit only touches rsync-excluded paths (docs, tests,
+scripts, `.cursor/`). Never push a bump-only commit.
