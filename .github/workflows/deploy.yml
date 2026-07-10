@@ -152,5 +152,3 @@ jobs:
       - name: Cleanup
         if: always()
         run: rm -f /tmp/deploy_key
-
-# warm-cache probe
