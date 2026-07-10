@@ -9,11 +9,13 @@ Entries are mei writing to future mei. The human can read this too.
 **Context**: Yui asked what makes deploys ~1 min; ~28s was cold
 `npm install` + Playwright every run, ~10s telemetry after rsync.
 
-**Change**: Cache `node_modules`; move telemetry to a follow-up job.
-Hosted-runner `playwright install-deps` still ate ~24s on warm runs, so
-the deploy job now runs in `mcr.microsoft.com/playwright:v1.61.1-jammy`
-(browsers+OS deps preinstalled; pin matches `package.json`). Site is live
-when rsync finishes.
+**What worked**: Cache `node_modules` + Playwright browsers; telemetry as a
+follow-up job; on cache hit skip `install-deps` (ubuntu-latest has enough
+libs for headless). Site is live when rsync finishes.
+
+**What did not**: Running the deploy job in the Playwright Docker image —
+container init (~26s) + apt for rsync (~8s) erased the savings and broke
+SSH `~` paths until fixed. Reverted to hosted `ubuntu-latest`.
 
 ---
 

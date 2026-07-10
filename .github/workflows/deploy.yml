@@ -4,14 +4,12 @@ on:
   push:
     branches: [master]
     # Docs/rules-only pushes do not change the live site (rsync excludes them).
-    # Skip the full install + rsync when nothing deployable changed.
     paths-ignore:
       - '**.md'
       - '.cursor/**'
       - 'demos/**'
-  workflow_dispatch:  # Manual trigger button in GitHub UI
+  workflow_dispatch:
 
-# One deploy at a time; a newer push cancels an in-flight older one.
 concurrency:
   group: deploy-production
   cancel-in-progress: true
@@ -20,21 +18,23 @@ permissions:
   actions: read
   contents: read
 
-# Skip Playwright postinstall browser download; the job container already
-# ships Chromium matching the pinned playwright version in package.json.
+# Skip Playwright postinstall browser download; we install Chromium explicitly
+# (and cache it) below.
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
 jobs:
   # Gates + rsync. Site is live when this job finishes.
-  # Keep the image tag in sync with package.json's playwright version.
   deploy:
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-jammy
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       # package-lock.json is gitignored (project choice). Cache node_modules by
       # package.json so warm deploys skip npm install entirely.
@@ -43,13 +43,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-pw1611-${{ hashFiles('package.json') }}
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package.json') }}
 
       - name: Install npm deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install --no-audit --no-fund
 
-      # Static gates before anything reaches the live site. Zero tolerated errors.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # Cold: download Chromium + OS deps. Warm: browsers restored from cache;
+      # skip install-deps (ubuntu-latest already has the libs headless needs).
+      - name: Install Playwright Chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
       - name: Typecheck (typed contracts)
         run: npm run typecheck
 
@@ -58,11 +74,6 @@ jobs:
 
       - name: Fast browser suite
         run: npm test
-
-      - name: Install rsync and OpenSSH
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends rsync openssh-client
 
       - name: Set up SSH
         run: |
@@ -105,7 +116,7 @@ jobs:
         if: always()
         run: rm -f /tmp/deploy_key
 
-  # Deploys page data — after the site is already live, so it cannot delay ship.
+  # Deploys page data — after the site is already live.
   telemetry:
     needs: deploy
     runs-on: ubuntu-latest
@@ -127,17 +138,17 @@ jobs:
 
       - name: Set up SSH
         run: |
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
       - name: Upload deploy telemetry
         run: |
           rsync -avz \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
 
       - name: Cleanup
         if: always()
-        run: rm -f ~/.ssh/deploy_key
+        run: rm -f /tmp/deploy_key
