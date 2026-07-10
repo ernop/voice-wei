@@ -71,3 +71,5 @@ echo ""
 echo "Files deployed."
 echo "Visit $PUBLIC_URL and confirm the header version matches this ship."
 echo "API keys are entered in the browser Settings UI (localStorage), not config.json."
+
+# cache-warm probe 20260710T152043Z
