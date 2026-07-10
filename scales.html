@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=258">
-    <link rel="stylesheet" href="practice-controls.css?v=258">
-    <link rel="stylesheet" href="scales.css?v=258">
+    <link rel="stylesheet" href="style.css?v=259">
+    <link rel="stylesheet" href="practice-controls.css?v=259">
+    <link rel="stylesheet" href="scales.css?v=259">
 </head>
 
 <body data-page="scales">
@@ -31,10 +31,6 @@
                     <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
                 </button>
-                <button id="singBtn" class="play-button pitch-test-launch-button" aria-label="Open sing test">
-                    <span class="button-text">Sing</span>
-                    <span class="button-icon">&#9835;</span>
-                </button>
                 <button id="submitBtn" class="submit-button-large" style="display: none;"
                     aria-label="Submit">Submit</button>
             </div>
@@ -43,8 +39,6 @@
                 <p class="transcript-label">You said:</p>
                 <p class="transcript" id="transcript"></p>
             </div>
-
-            <section id="scalesSingPanel" aria-label="Sing test" hidden></section>
 
             <!-- Piano Keyboard -->
             <div class="piano-container">
@@ -98,12 +92,12 @@
                             <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
                         </div>
                     </div>
-                    <span class="vf-label vf-label-inline" data-full="Root" data-abbr="Rt">Root</span>
+                    <span class="vf-label vf-label-inline" data-full="Key" data-abbr="Key">Key</span>
                     <div class="vf-options">
                         <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                             <span class="step-value" id="rootPitchValue">C4</span>
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                         </div>
                     </div>
                 </div>
@@ -356,28 +350,36 @@
         </main>
     </div>
 
+    <aside class="pitch-test-dock" id="scalesSingDock" aria-label="Sing test">
+        <div class="pitch-test-dock-bar">
+            <button id="singBtn" class="pitch-test-launch-button" type="button" aria-label="Toggle sing test" aria-pressed="false">Sing</button>
+            <span class="pitch-test-dock-hint">Sing the scale against the chart</span>
+        </div>
+        <section id="scalesSingPanel" hidden></section>
+    </aside>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=258"></script>
-    <script src="app-version.js?v=258"></script>
-    <script src="storage-keys.js?v=258"></script>
-    <script src="shared-header.js?v=258"></script>
-    <script src="music-constants.js?v=258"></script>
-    <script src="voice-output.js?v=258"></script>
-    <script src="voice-command-core.js?v=258"></script>
-    <script src="scales-playback.js?v=258"></script>
-    <script src="scales-voice-maps.js?v=258"></script>
-    <script src="piano-core.js?v=258"></script>
-    <script src="pitch-detect-core.js?v=258"></script>
-    <script src="pitch-score.js?v=258"></script>
-    <script src="pitch-trace-view.js?v=258"></script>
-    <script src="render-throttle.js?v=258"></script>
-    <script src="practice-controls.js?v=258"></script>
-    <script src="history-list.js?v=258"></script>
-    <script src="settings-store.js?v=258"></script>
-    <script src="progress-store.js?v=258"></script>
-    <script src="media-session-core.js?v=258"></script>
-    <script src="pitch-test-panel.js?v=258"></script>
-    <script src="scales.js?v=258"></script>
+    <script src="dev-error-monitor.js?v=259"></script>
+    <script src="app-version.js?v=259"></script>
+    <script src="storage-keys.js?v=259"></script>
+    <script src="shared-header.js?v=259"></script>
+    <script src="music-constants.js?v=259"></script>
+    <script src="voice-output.js?v=259"></script>
+    <script src="voice-command-core.js?v=259"></script>
+    <script src="scales-playback.js?v=259"></script>
+    <script src="scales-voice-maps.js?v=259"></script>
+    <script src="piano-core.js?v=259"></script>
+    <script src="pitch-detect-core.js?v=259"></script>
+    <script src="pitch-score.js?v=259"></script>
+    <script src="pitch-trace-view.js?v=259"></script>
+    <script src="render-throttle.js?v=259"></script>
+    <script src="practice-controls.js?v=259"></script>
+    <script src="history-list.js?v=259"></script>
+    <script src="settings-store.js?v=259"></script>
+    <script src="progress-store.js?v=259"></script>
+    <script src="media-session-core.js?v=259"></script>
+    <script src="pitch-test-panel.js?v=259"></script>
+    <script src="scales.js?v=259"></script>
 </body>
 
 </html>

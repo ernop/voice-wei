@@ -4,6 +4,23 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (Phrases/Intervals layout: Test is a bottom dock)
+
+**Context**: Yui asked for a top-to-bottom layout pass — Test does not
+belong in transport; pill labels were inconsistent (boxed vs not); Root
+vs Key naming drifted across pages.
+
+**Shipped**:
+- Test/Sing moved to `.pitch-test-dock` (fixed bottom sheet) on Phrases,
+  Intervals, and Scales. Transport is playback only.
+- Key is the user-facing label everywhere for the root-pitch stepper.
+- Phrases steppers use external `vf-label` + `step-field-bare` (same as
+  Intervals/Scales). Intervals got `vf-compact` + segment shells on
+  Level/Scale; Go renamed Play.
+- Scale card order fixed (explicit flex order 4). Stage labels lowercased.
+
+---
+
 ## 2026-07-10 (live-change requirements: signal ≠ version UI)
 
 **Context**: Yui reframed ship/version. The 99% loop is: driving → voice

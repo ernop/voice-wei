@@ -550,18 +550,6 @@
         });
     }
 
-    /**
-     * The test panel's action row pins below the sticky transport+stage;
-     * the stage height varies with the phrase, so measure it.
-     */
-    function updateStickyOffset() {
-        const transport = document.querySelector('.voice-controls-row');
-        const stage = document.querySelector('.phrase-stage');
-        const top = (transport instanceof HTMLElement ? transport.offsetHeight : 0)
-            + (stage instanceof HTMLElement ? stage.offsetHeight : 0) + 6;
-        document.body.style.setProperty('--pitch-test-actions-top', `${top}px`);
-    }
-
     function updatePhraseDisplay() {
         const degreesEl = getEl('phraseDegrees');
         const notesEl = getEl('phraseNotes');
@@ -574,7 +562,6 @@
             notesEl.textContent = '';
             drawPhraseStaff();
             drawPhraseTest();
-            updateStickyOffset();
             return;
         }
         syncPhraseTitle(plan);
@@ -582,7 +569,6 @@
         notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
         drawPhraseStaff();
         drawPhraseTest();
-        updateStickyOffset();
     }
 
     function generatePhrase() {
@@ -1199,9 +1185,10 @@
         if (!btn) return;
         btn.classList.toggle('selected', open);
         btn.setAttribute('aria-pressed', String(open));
+        document.getElementById('phraseTestDock')?.classList.toggle('open', open);
     }
 
-    /** The Test button is a toggle: open the panel, or dismiss it. */
+    /** The dock Test button is a toggle: open the panel, or dismiss it. */
     async function togglePhraseTest() {
         if (testPanel.isOpen) {
             testPanel.close();
@@ -1504,7 +1491,7 @@
         if (btn) {
             btn.classList.toggle('selected', state.reflected);
             btn.setAttribute('aria-pressed', String(state.reflected));
-            btn.textContent = state.reflected ? 'Reflect On' : 'Reflect Off';
+            btn.textContent = state.reflected ? 'reflect on' : 'reflect off';
         }
         updatePhraseDisplay();
     }
@@ -1653,8 +1640,6 @@
             console.error('Error loading piano samples:', err);
         }
         initUI();
-        updateStickyOffset();
-        window.addEventListener('resize', updateStickyOffset);
         // Named state inspection for the test suite: the explicit take
         // plan, the test timeline derived from it, and the panel itself
         // (for end-to-end scoring tests via recordSample).

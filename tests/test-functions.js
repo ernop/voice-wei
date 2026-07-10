@@ -1410,14 +1410,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`weak spots name the sharp degree ("${weakLine}")`,
             weakLine.includes('6:') && weakLine.includes('sharp') && !weakLine.includes('1:'));
 
-        // The action row stays visible while scrolled mid-take.
+        // The action row lives in the fixed bottom dock sheet.
         await tab.evaluate(() => window.scrollTo(0, 700));
         await tab.waitForTimeout(300);
         const pinned = await tab.evaluate(() => {
-            const rect = document.querySelector('#phraseTestPanel .pitch-test-actions').getBoundingClientRect();
-            return { top: rect.top, visible: rect.top >= 0 && rect.bottom <= window.innerHeight };
+            const dock = document.getElementById('phraseTestDock');
+            const actions = document.querySelector('#phraseTestPanel .pitch-test-actions');
+            if (!dock || !actions) return { ok: false };
+            const dockRect = dock.getBoundingClientRect();
+            const actionsRect = actions.getBoundingClientRect();
+            return {
+                ok: true,
+                dockOpen: dock.classList.contains('open'),
+                dockAtBottom: Math.abs(dockRect.bottom - window.innerHeight) < 4,
+                actionsVisible: actionsRect.top >= 0 && actionsRect.bottom <= window.innerHeight
+            };
         });
-        report.check(`phrases test actions stay visible when scrolled (top=${pinned.top.toFixed(0)}px)`, pinned.visible);
+        report.check(`phrases test dock stays fixed at bottom when scrolled (open=${pinned.dockOpen})`,
+            pinned.ok && pinned.dockOpen && pinned.dockAtBottom && pinned.actionsVisible);
         await tab.close();
     }
 

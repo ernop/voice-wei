@@ -264,10 +264,18 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     gap: 4px 8px;
 }
 
-.phrase-series-label {
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.78rem;
-    font-weight: 700;
+.phrase-control-card-numbers {
+    order: 1;
+    flex-basis: 100%;
+}
+
+.phrase-control-card-output {
+    order: 3;
+}
+
+.phrase-control-card-scale {
+    order: 4;
+    flex-basis: 100%;
 }
 
 /* Sizing only; the look comes from the shared .text-input */
@@ -283,21 +291,8 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     font-size: 0.78rem;
 }
 
-.phrase-control-card-numbers {
-    order: 1;
-    flex-basis: 100%;
-}
-
-.phrase-control-card-output {
-    order: 3;
-}
-
 .phrase-lesson-row[hidden] {
     display: none;
-}
-
-.phrase-pitch-step-field {
-    margin-bottom: 0;
 }
 
 .phrase-algo-row,

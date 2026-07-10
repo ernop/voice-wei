@@ -318,6 +318,7 @@ class ScalesController {
         if (!btn) return;
         btn.classList.toggle('selected', open);
         btn.setAttribute('aria-pressed', String(open));
+        document.getElementById('scalesSingDock')?.classList.toggle('open', open);
     }
 
     /** @param {boolean} expandRange */

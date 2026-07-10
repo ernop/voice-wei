@@ -25,8 +25,8 @@ settings persist per tab and restart playback live when something is playing.
 Features: direction / repeat / rising / shifting / chop head / movement styles /
 exercises / section width controls; note length and gap steppers (gap goes
 negative for overlap); piano keyboard preview; presets; command history;
-hardware media keys (play/pause); **Sing** opens the embedded pitch-trace
-panel seeded with the current scale.
+hardware media keys (play/pause); **Sing** is a bottom-dock toggle that
+opens the pitch-trace sheet seeded with the current scale.
 
 Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" =
 Bb). See [scales-commands.md](scales-commands.md) for the full grammar.
@@ -45,7 +45,8 @@ names), optionally speaks the numbers, plays the notes, then generates the
 next pattern after the gap. Repeat holds the current pattern; Next advances
 immediately; Stop is immediate. Media keys map to Go / Stop / Next.
 
-**Sing** opens the shared pitch-trace panel seeded with the current pattern
+**Sing** is a bottom-dock toggle that opens the shared pitch-trace sheet
+seeded with the current pattern
 (targets at the pattern's note timing, rails around its range with the
 pattern notes highlighted). Turn Repeat on to hold one pattern while
 drilling it; takes are scored and recorded like Phrases and Scales.
@@ -102,11 +103,12 @@ gap, play tones, return to degree 1.
   including direct and neighbor approaches around those pairs.
 - **Output modes**: display only, say numbers, play tones, say + tones,
   sing numbers (speech pitch shaped toward each note), none.
-- **Test** opens the embedded pitch-trace panel for the current phrase
-  (see "Pitch test panel" below). Playback works while it listens: Play,
-  Next, and single-note taps all sound during a take, so you can hear
-  notes and sing against them; a new phrase restarts the take. (The mic
-  hears the speakers, so played piano appears in the trace.)
+- **Test** is a fixed bottom-dock toggle (not in the transport row). It
+  opens the pitch-trace sheet for the current phrase (see "Pitch test
+  panel" below). Playback still works while it listens: Play, Next, and
+  single-note taps all sound during a take; a new phrase restarts the
+  take. (The mic hears the speakers, so played piano appears in the
+  trace.)
 - **Range Low / Range High** steppers move the endpoints of the degree
   palette phrases are built from, one degree per step. Default 1..8 (the
   octave); low descends below unison (down to the 1 an octave below,
@@ -135,7 +137,7 @@ generating anything first.
 
 - Start begins listening; Reset clears the trace (and optionally plays the
   typed pattern as guides - off by default).
-- Root/octave/scale draw the scale-degree rails.
+- Key/octave/scale draw the scale-degree rails.
 - Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
   guide interval stepper sets their horizontal spacing. Octave suffixes
   reach outside the home octave: `5d` (or `5v`/`5↓`) is the 5 an octave
@@ -404,9 +406,10 @@ OpenAI.
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing), and
-Intervals (Sing):
-scale-degree rails, target-band outlines, your sung pitch as a yellow
-trace, and a voice-gated timeline (time starts when singing is detected).
+Intervals (Sing). Each page launches it from a fixed **bottom dock**
+(independent of the transport row): scale-degree rails, target-band
+outlines, your sung pitch as a yellow trace, and a voice-gated timeline
+(time starts when singing is detected).
 
 **The chart draws what you sing.** Rails and targets are for comparison
 only; they never gate what is recorded or drawn, and scoring verdicts

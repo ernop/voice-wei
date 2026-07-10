@@ -765,9 +765,10 @@ owned by practice-controls.css. The concrete class-by-class inventory
 Settings appear in the same order on every practice page, following the
 most recent reviewed page (phrases):
 
-1. **Timing** - note length, then gap (Root may sit on this same stepper
+1. **Timing** - note length, then gap (Key may sit on this same stepper
    row when the page clusters numeric choosers, as Phrases and Scales do)
-2. **Root** - the root pitch stepper (own row only when not clustered above)
+2. **Key** - the root-pitch stepper (own row only when not clustered above;
+   user-facing label is always "Key", never mixed with "Root")
 3. **Shape** - the page's own pattern settings. On Scales, section width
    comes first (define the range), then direction/movement/repeat/exercise.
 4. **Output/display options** - output mode chips, display toggles
@@ -777,6 +778,10 @@ most recent reviewed page (phrases):
 A page may omit groups it doesn't have, but never reorders the ones it
 shares. Page-unique surfaces that are not settings (scales' piano, the
 phrase stage) sit outside this order.
+
+**Pitch Test / Sing** is not transport. It is a fixed bottom dock
+(`.pitch-test-dock`) that opens and closes independently of Play/Stop/Next.
+Transport rows hold playback only.
 
 ## Deliberately distinct surfaces
 

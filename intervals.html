@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Intervals - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=258">
-    <link rel="stylesheet" href="practice-controls.css?v=258">
-    <link rel="stylesheet" href="intervals.css?v=258">
+    <link rel="stylesheet" href="style.css?v=259">
+    <link rel="stylesheet" href="practice-controls.css?v=259">
+    <link rel="stylesheet" href="intervals.css?v=259">
 </head>
 
 <body data-page="intervals">
@@ -28,37 +28,31 @@
             </div>
 
             <section id="patternsPanel">
-            <!-- Transport controls -->
+            <!-- Transport: playback only. Sing lives in the bottom dock. -->
             <div class="voice-controls-row">
                 <button id="stopBtn" class="stop-button" aria-label="Stop">
                     <span class="button-text">Stop</span>
                     <span class="button-icon">&#9632;</span>
                 </button>
                 <button id="playBtn" class="play-button" aria-label="Play">
-                    <span class="button-text">Go</span>
+                    <span class="button-text">Play</span>
                     <span class="button-icon">&#9654;</span>
                 </button>
                 <button id="nextBtn" class="next-button" aria-label="Next">
                     <span class="button-text">Next</span>
                     <span class="button-icon">&#9197;</span>
                 </button>
-                <button id="singBtn" class="play-button pitch-test-launch-button" aria-label="Open sing test">
-                    <span class="button-text">Sing</span>
-                    <span class="button-icon">&#9835;</span>
-                </button>
             </div>
 
             <!-- Current pattern display -->
             <div class="pattern-display-card">
                 <div id="currentDisplay" class="pattern-display">
-                    Press Go to start
+                    Press Play to start
                 </div>
             </div>
 
-            <section id="intervalsSingPanel" aria-label="Sing test" hidden></section>
-
-            <!-- Settings (canonical order: timing, root, shape, output, scale) -->
-            <div class="voice-first-ui">
+            <!-- Settings (canonical order: timing, key, shape, output, scale) -->
+            <div class="voice-first-ui vf-compact">
 
                 <!-- Note length / gap between patterns -->
                 <div class="vf-row">
@@ -80,14 +74,14 @@
                     </div>
                 </div>
 
-                <!-- Root / Octave -->
+                <!-- Key (root pitch) -->
                 <div class="vf-row">
-                    <span class="vf-label">Root</span>
+                    <span class="vf-label">Key</span>
                     <div class="vf-options">
                         <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                             <span class="step-value" id="rootPitchValue">C4</span>
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                         </div>
                     </div>
                 </div>
@@ -106,8 +100,10 @@
                 <!-- Level selection -->
                 <div class="vf-row">
                     <span class="vf-label">Level</span>
-                    <div class="vf-options" id="levelOptions">
-                        <!-- Filled by JS -->
+                    <div class="vf-options">
+                        <div class="segment-row" id="levelOptions">
+                            <!-- Filled by JS -->
+                        </div>
                     </div>
                 </div>
 
@@ -117,27 +113,27 @@
                     <div class="vf-options">
                         <label class="display-toggle">
                             <input type="checkbox" id="toggleSpeak" checked>
-                            <span>Speak numbers</span>
+                            <span>speak numbers</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="togglePlayNotes" checked>
-                            <span>Play notes</span>
+                            <span>play notes</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="toggleShowNames" checked>
-                            <span>Show note names</span>
+                            <span>show note names</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="toggleExpandRange">
-                            <span>Expand range</span>
+                            <span>expand range</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="toggleReverse">
-                            <span>Reverse</span>
+                            <span>reverse</span>
                         </label>
                         <label class="display-toggle">
                             <input type="checkbox" id="toggleRepeat">
-                            <span>Repeat</span>
+                            <span>repeat</span>
                         </label>
                     </div>
                 </div>
@@ -146,12 +142,14 @@
                 <div class="vf-row">
                     <span class="vf-label">Scale</span>
                     <div class="vf-options">
-                        <button class="vf-btn" data-scale="major">major</button>
-                        <button class="vf-btn" data-scale="minor">minor</button>
-                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
-                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
-                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
-                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
+                        <div class="segment-row">
+                            <button class="vf-btn" data-scale="major">major</button>
+                            <button class="vf-btn" data-scale="minor">minor</button>
+                            <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                            <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                            <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
+                            <button class="vf-btn" data-scale="melodic_minor">m minor</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -393,29 +391,37 @@
         </main>
     </div>
 
+    <aside class="pitch-test-dock" id="intervalsSingDock" aria-label="Sing test">
+        <div class="pitch-test-dock-bar">
+            <button id="singBtn" class="pitch-test-launch-button" type="button" aria-label="Toggle sing test" aria-pressed="false">Sing</button>
+            <span class="pitch-test-dock-hint">Sing the pattern against the chart</span>
+        </div>
+        <section id="intervalsSingPanel" hidden></section>
+    </aside>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=258"></script>
-    <script src="app-version.js?v=258"></script>
-    <script src="storage-keys.js?v=258"></script>
-    <script src="shared-header.js?v=258"></script>
-    <script src="music-constants.js?v=258"></script>
-    <script src="voice-output.js?v=258"></script>
-    <script src="voice-command-core.js?v=258"></script>
-    <script src="pattern-practice-core.js?v=258"></script>
-    <script src="piano-core.js?v=258"></script>
-    <script src="pitch-detect-core.js?v=258"></script>
-    <script src="pitch-score.js?v=258"></script>
-    <script src="pitch-trace-view.js?v=258"></script>
-    <script src="practice-audio.js?v=258"></script>
-    <script src="render-throttle.js?v=258"></script>
-    <script src="practice-controls.js?v=258"></script>
-    <script src="history-list.js?v=258"></script>
-    <script src="settings-store.js?v=258"></script>
-    <script src="progress-store.js?v=258"></script>
-    <script src="media-session-core.js?v=258"></script>
-    <script src="pitch-test-panel.js?v=258"></script>
-    <script src="ear-training.js?v=258"></script>
-    <script src="intervals.js?v=258"></script>
+    <script src="dev-error-monitor.js?v=259"></script>
+    <script src="app-version.js?v=259"></script>
+    <script src="storage-keys.js?v=259"></script>
+    <script src="shared-header.js?v=259"></script>
+    <script src="music-constants.js?v=259"></script>
+    <script src="voice-output.js?v=259"></script>
+    <script src="voice-command-core.js?v=259"></script>
+    <script src="pattern-practice-core.js?v=259"></script>
+    <script src="piano-core.js?v=259"></script>
+    <script src="pitch-detect-core.js?v=259"></script>
+    <script src="pitch-score.js?v=259"></script>
+    <script src="pitch-trace-view.js?v=259"></script>
+    <script src="practice-audio.js?v=259"></script>
+    <script src="render-throttle.js?v=259"></script>
+    <script src="practice-controls.js?v=259"></script>
+    <script src="history-list.js?v=259"></script>
+    <script src="settings-store.js?v=259"></script>
+    <script src="progress-store.js?v=259"></script>
+    <script src="media-session-core.js?v=259"></script>
+    <script src="pitch-test-panel.js?v=259"></script>
+    <script src="ear-training.js?v=259"></script>
+    <script src="intervals.js?v=259"></script>
 </body>
 
 </html>

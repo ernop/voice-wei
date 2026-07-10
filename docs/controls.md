@@ -22,7 +22,8 @@ surfaces" in architecture.md with its reasoning.
 | Small action chip (Copy, Clear, Save, Apply...) | `panel-action-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size neutral action | `secondary-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size primary action (Import, Generate, Play) | `primary-btn` | practice-controls.css |
-| Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`), `pitch-test-launch-button` | practice-controls.css / style.css |
+| Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`) | practice-controls.css / style.css |
+| Pitch test / sing launch | `pitch-test-launch-button` in `.pitch-test-dock` (bottom sheet; not in the transport row) | practice-controls.css |
 | Primary submit | `submit-button-large` | style.css |
 | On/off toggle | `display-toggle` chip checkbox | practice-controls.css |
 | Text field | `text-input` (pages size it, never re-skin) | style.css |
@@ -151,3 +152,14 @@ control language.
   shared vocabulary and blocked by `tests/test-controls.js`.
 - `display-toggles` and `echo-toggle` (scales.css) - Scales' display
   toggles moved into the voice-first settings block as a labeled row.
+
+## Stepper and Key labeling
+
+Numeric steppers use an external `vf-label` (or row label) plus
+`step-field-bare` — the label is never boxed inside the green pill.
+The user-facing name for the root-pitch chooser is **Key** on every
+practice page (state keys may still say `root` / `rootPitch`).
+
+Pitch Test / Sing launches from a fixed bottom dock (`.pitch-test-dock`),
+not from the transport row. Transport is playback only
+(Listen/Stop/Play/Next/Repeat).
