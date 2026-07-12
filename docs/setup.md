@@ -17,31 +17,24 @@ default; set `CHROME_PATH` only to force a specific binary.
 
 ## Run locally
 
-Canonical (serves static pages **and** executes the Books URL importer):
+Canonical (serves static pages, keyless music search, and the Books URL importer):
 
 ```bash
 php -S 127.0.0.1:8000
 # http://127.0.0.1:8000/scales.html
 ```
 
-`python3 -m http.server 8000` is static-only — fine for practice tools and
-Music, not Books URL import. Optional: `npm run dev` (port 8765 + error sink),
+`python3 -m http.server 8000` is static-only — fine for practice tools, not
+Music search or Books URL import. Optional: `npm run dev` (port 8765 + error sink),
 `python3 dev-server.py` (8000 + livereload). Details:
 `.cursor/rules/04-local-tooling.mdc`.
 
 ## Browser API keys
 
-Music needs one Claude or OpenAI key for request interpretation and a YouTube
-Data API v3 key for video search. Books needs OpenAI for generated speech.
-Each key is entered in Settings and stored only in that browser.
-
-Restrict the YouTube key in Google Cloud Console:
-
-- API restriction: YouTube Data API v3
-- Website restriction: `https://fuseki.net/voice-wei/*`
-
-YouTube search consumes the project's API quota; the IndexedDB search cache
-remains available when the external API is unavailable.
+Music needs one Claude or OpenAI key for request interpretation. Books needs
+OpenAI for generated speech. Each AI key is entered in Settings and stored
+only in that browser. YouTube search needs no key: the same-origin PHP endpoint
+queries Piped/Invidious, with IndexedDB search results retained for outages.
 
 ## How deploy works
 
@@ -65,7 +58,7 @@ deploy by pushing `master` (or merging a PR into `master`).
 - Document root: `/srv/voice-wei/site`
 - GitHub's deploy key is restricted against forwarding and interactive shells
 - nginx maps `/voice-wei/` to the dedicated document root, rate-limits
-  `/voice-wei/proxy.php`, and sends only that
+  `/voice-wei/proxy.php` for search and remote imports, and sends only that
   exact path to the `voicewei` PHP-FPM pool; every other `.php` request
   returns 404
 - The pool runs as `voicewei`, allows four on-demand workers, confines PHP

@@ -639,11 +639,12 @@ application had disappeared.
 - GitHub Actions now targets a dedicated `voicewei` account/root and uses a
   pinned known-hosts secret. Deletion includes excluded artifacts but cannot
   escape the dedicated root.
-- Music search uses the official YouTube Data API directly with a
-  browser-stored, referrer-restricted key. Piped/Invidious search was removed.
-- `proxy.php` remains only for remote webpage/PDF import. It validates and
-  pins every public DNS hop, revalidates redirects, verifies TLS, limits
-  response types/sizes, and cannot search music.
+- Music search briefly moved to the official YouTube Data API with a
+  browser-stored key, but yui rejected the new key requirement. Keyless
+  Piped/Invidious search was restored immediately.
+- `proxy.php` handles keyless music search and remote webpage/PDF import. It
+  validates and pins every public DNS hop, revalidates redirects, verifies
+  TLS, and limits response sizes.
 - The importer runs in its own on-demand PHP-FPM pool as `voicewei`; nginx
   exposes only the exact endpoint and rate-limits it. Other PHP paths return
   404.
@@ -652,6 +653,8 @@ application had disappeared.
 - Owning the server makes PHP-FPM safer and simpler than introducing a new
   service daemon for one endpoint. The language was not the original risk;
   the broad proxy contract and shared-host defaults were.
+- Do not replace a keyless product path with a user-managed API key without
+  explicit approval, even when the replacement API is more official.
 - URL namespace and filesystem ownership are separate decisions. A friendly
   path under `fuseki.net` can still have a fully isolated deploy root.
 - A deploy exclude list needs `--delete-excluded` when the target must contain

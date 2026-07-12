@@ -9,7 +9,7 @@ modules. Page code must not call `localStorage` directly.
 |------|--------|------|
 | Settings objects (typed field lists) | `settings-store.js` `load` / `save` | `StorageKeys.*` |
 | JSON blobs (arrays, maps, playlist) | `settings-store.js` `loadJson` / `saveJson` | `StorageKeys.*` |
-| API keys | `api-keys-store.js` | `StorageKeys.API_CLAUDE`, `API_OPENAI`, `API_YOUTUBE` |
+| API keys | `api-keys-store.js` | `StorageKeys.API_CLAUDE`, `API_OPENAI` |
 | Scored take history | `progress-store.js` | `StorageKeys.PRACTICE_PROGRESS` |
 
 Key names live only in `storage-keys.js`. Legacy keys migrate automatically.

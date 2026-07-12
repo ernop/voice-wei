@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 Local dev server for voice-music-control.
-Serves static files and auto-reloads on changes.
+Serves static files, proxies YouTube searches, and auto-reloads on changes.
 
 Usage: python dev-server.py
 Then open: http://localhost:8000/player.html
 """
 
 import http.server
+import urllib.request
 import urllib.parse
 import json
+import ssl
 import os
 import threading
 import time
@@ -17,6 +19,17 @@ import time
 PORT = 8000
 WATCH_EXTENSIONS = {'.html', '.js', '.css', '.php'}
 WATCH_INTERVAL = 0.5  # seconds
+
+PIPED_INSTANCES = [
+    'https://api.piped.private.coffee',
+    'https://pipedapi.kavin.rocks',
+    'https://pipedapi.adminforge.de',
+]
+
+INVIDIOUS_INSTANCES = [
+    'https://invidious.private.coffee',
+    'https://inv.nadeko.net',
+]
 
 # Global state for file watching
 file_versions = {}
@@ -78,6 +91,9 @@ class DevHandler(http.server.SimpleHTTPRequestHandler):
         # Handle livereload check
         if self.path.startswith('/__livereload'):
             self.handle_livereload()
+        # Handle proxy requests
+        elif self.path.startswith('/proxy.php'):
+            self.handle_proxy()
         # Serve HTML with reload script injected
         elif self.path.endswith('.html') or self.path == '/':
             self.serve_html_with_reload()
@@ -120,6 +136,80 @@ class DevHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(encoded)
         except Exception as e:
             self.send_error(500, str(e))
+
+    def handle_proxy(self):
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+
+        # Test mode
+        if 'test' in params:
+            self.send_json({'status': 'Proxy is working', 'server': 'Python dev server'})
+            return
+
+        query = params.get('q', [''])[0]
+        if not query:
+            self.send_json({'error': 'No query provided'}, 400)
+            return
+
+        # Try Piped instances
+        for instance in PIPED_INSTANCES:
+            url = f"{instance}/search?q={urllib.parse.quote(query)}&filter=videos"
+            result = self.fetch_url(url)
+            if result:
+                try:
+                    data = json.loads(result)
+                    items = data.get('items', [])
+                    if items:
+                        videos = []
+                        for item in items[:10]:
+                            if item.get('type') == 'stream':
+                                vid = item.get('url', '').replace('/watch?v=', '')
+                                videos.append({
+                                    'videoId': vid,
+                                    'title': item.get('title', ''),
+                                    'channelTitle': item.get('uploaderName', ''),
+                                    'thumbnail': item.get('thumbnail', ''),
+                                })
+                        if videos:
+                            self.send_json({'videos': videos, 'source': 'piped', 'instance': instance})
+                            return
+                except json.JSONDecodeError:
+                    continue
+
+        # Try Invidious instances
+        for instance in INVIDIOUS_INSTANCES:
+            url = f"{instance}/api/v1/search?q={urllib.parse.quote(query)}&type=video"
+            result = self.fetch_url(url)
+            if result:
+                try:
+                    data = json.loads(result)
+                    if isinstance(data, list) and data:
+                        videos = []
+                        for item in data[:10]:
+                            if item.get('type') == 'video':
+                                videos.append({
+                                    'videoId': item.get('videoId', ''),
+                                    'title': item.get('title', ''),
+                                    'channelTitle': item.get('author', ''),
+                                    'thumbnail': item.get('videoThumbnails', [{}])[0].get('url', ''),
+                                })
+                        if videos:
+                            self.send_json({'videos': videos, 'source': 'invidious', 'instance': instance})
+                            return
+                except json.JSONDecodeError:
+                    continue
+
+        self.send_json({'error': 'All instances failed'}, 502)
+
+    def fetch_url(self, url):
+        try:
+            ctx = ssl.create_default_context()
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                return resp.read().decode('utf-8')
+        except Exception as e:
+            print(f"  Failed: {url} - {e}")
+            return None
 
     def send_json(self, data, status=200):
         self.send_response(status)

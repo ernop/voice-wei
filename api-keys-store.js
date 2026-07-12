@@ -7,17 +7,11 @@
 const ApiKeysStore = (function () {
     'use strict';
 
-    /** @typedef {'claude' | 'openai' | 'youtube'} ApiProvider */
-
-    const PROVIDER_STORAGE_KEYS = Object.freeze({
-        claude: StorageKeys.API_CLAUDE,
-        openai: StorageKeys.API_OPENAI,
-        youtube: StorageKeys.API_YOUTUBE
-    });
+    /** @typedef {'claude' | 'openai'} ApiProvider */
 
     /** @param {ApiProvider} provider */
     function storageKey(provider) {
-        return PROVIDER_STORAGE_KEYS[provider];
+        return provider === 'claude' ? StorageKeys.API_CLAUDE : StorageKeys.API_OPENAI;
     }
 
     /** @param {ApiProvider} provider */

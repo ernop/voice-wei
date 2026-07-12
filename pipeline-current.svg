@@ -60,10 +60,10 @@
 
   <line x1="400" y1="425" x2="400" y2="455" stroke="#4ade80" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- YouTube Search -->
+  <!-- YouTube Search via Proxy -->
   <rect x="280" y="455" width="240" height="50" rx="10" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5"/>
-  <text x="400" y="477" text-anchor="middle" font-size="13" font-weight="600" fill="#fca5a5">YouTube Data API</text>
-  <text x="400" y="493" text-anchor="middle" font-size="10" fill="#888">Direct browser request, user key</text>
+  <text x="400" y="477" text-anchor="middle" font-size="13" font-weight="600" fill="#fca5a5">proxy.php (Piped/Invidious)</text>
+  <text x="400" y="493" text-anchor="middle" font-size="10" fill="#888">YouTube search, no API key</text>
 
   <line x1="400" y1="505" x2="400" y2="535" stroke="#4ade80" stroke-width="2" marker-end="url(#arrow)"/>
 

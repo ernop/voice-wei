@@ -22,9 +22,9 @@ Product intent: [docs/product-goals.md](docs/product-goals.md). Construction:
   browser via `api-keys-store.js` (localStorage). Never commit keys.
 - **`config.json`** (gitignored; see `config.example.json`): local
   `./deploy.sh` credentials only. Production deploy uses GitHub Actions Secrets.
-- Server does **not** need API keys in a file. Music calls the official YouTube
-  Data API with a browser-stored key. `proxy.php` only imports remote
-  webpages/PDFs for Books and linked-page music requests.
+- Server does **not** need API keys in a file. `proxy.php` provides keyless
+  YouTube search through Piped/Invidious and imports remote webpages/PDFs for
+  Books and linked-page music requests.
 
 ## Deploy (summary)
 

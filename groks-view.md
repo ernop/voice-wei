@@ -107,10 +107,10 @@ user-facing ship in the same push as the change. That integer is only a
 up); see [docs/live-change.md](docs/live-change.md). Cache-busting is a
 side effect so the reload actually loads new JS/CSS.
 
-The only server-side piece in the product path is `proxy.php` (remote
-webpage/PDF import for Books and linked-page requests). Claude, OpenAI, and
-YouTube Data API calls go from the browser with keys in localStorage
-(`api-keys-store.js`). Deploy: push `master` (user-facing paths) → GitHub
+The only server-side piece in the product path is `proxy.php` (keyless
+Piped/Invidious music search plus remote webpage/PDF import for Books and
+linked-page requests). Claude and OpenAI calls go from the browser with keys
+in localStorage (`api-keys-store.js`). Deploy: push `master` (user-facing paths) → GitHub
 Actions (typecheck, lint, fast tests) → rsync → live; reload and check the
 header version. Docs/rules-only pushes are skipped by Actions.
 
@@ -126,7 +126,7 @@ Voice / click / media keys
         |
    Web Audio / Speech / YouTube iframe / IndexedDB / localStorage
         |
-   proxy.php  (remote webpage/PDF import only)
+   proxy.php  (keyless music search + remote webpage/PDF import)
 ```
 
 ### Tool map (code)
@@ -192,7 +192,7 @@ tokens so superseded playback exits.
 
 ```
 Voice/typed request → Claude (or OpenAI) → song list
-   → official YouTube Data API (browser, user key)
+   → proxy.php → Piped/Invidious search (no YouTube key)
    → playlist (working list) + IndexedDB catalog (durable)
    → YouTube IFrame playback
    → LRCLIB lyrics (timed preferred) → overlay + car title relay

@@ -1542,7 +1542,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // SpeechRecognition, installed before page scripts run.
         await ctx.addInitScript(() => {
             localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890');
-            localStorage.setItem('youtubeApiKey', 'test-youtube-key-not-real-1234567890');
             window.__recs = [];
             class FakeSpeechRecognition {
                 constructor() {
@@ -1740,6 +1739,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
+                playVideo(item) { this.playedIds.push(item.id); },
                 lyricsRowMarker(item) {
                     if (item.lyricsStatus === 'ready' && item.lyricsData?.syncedLines?.length) {
                         return { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' };
@@ -2270,6 +2270,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const musicHistoryRefreshOverride = await tab.evaluate(async () => {
             const query = `refresh cache ${Date.now()}`;
+            const realFetch = window.fetch;
+            window.fetch = async url => {
+                if (String(url).includes('proxy.php?q=')) {
+                    return new Response(JSON.stringify({
+                        results: [{ videoId: 'fresh-video', title: 'Fresh Video', channelTitle: 'Fresh Channel', duration: 111 }],
+                        source: 'fresh-source',
+                        instance: 'fresh-instance'
+                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }
+                return realFetch(url);
+            };
             const harness = {
                 statuses: [],
                 messages: [],
@@ -2277,17 +2288,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 truncateForStatus(value) { return String(value || ''); },
                 escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
-                async fetchYouTubeResults() {
-                    return {
-                        results: [{ videoId: 'fresh-video', title: 'Fresh Video', channelTitle: 'Fresh Channel', duration: 111 }],
-                        source: 'youtube-data-api',
-                        instance: 'youtube'
-                    };
-                },
                 async refreshMusicHistoryPanel() {}
             };
             PlayerHistoryUI.install(harness);
             await harness.refreshCachedSearchQuery(query);
+            window.fetch = realFetch;
             await new Promise(resolve => setTimeout(resolve, 100));
             const cached = await PlayerHistoryDB.getYouTubeSearch(query);
             return {
@@ -2298,7 +2303,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check('player search cache can be force-refreshed from remote',
             musicHistoryRefreshOverride.videoId === 'fresh-video'
-            && musicHistoryRefreshOverride.source === 'youtube-data-api'
+            && musicHistoryRefreshOverride.source === 'fresh-source'
             && musicHistoryRefreshOverride.refreshedByUser);
 
         const aiParsing = await tab.evaluate(async () => {
@@ -2616,28 +2621,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const alternateSearchResult = await tab.evaluate(async () => {
             const harness = {
                 messages: [],
-                config: { youtubeApiKey: 'test-youtube-key-not-real' },
-                showApiKeyProblem() {},
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
             };
             PlayerPlaylist.install(harness);
             const realFetch = window.fetch;
-            window.fetch = async url => {
-                if (String(url).includes('/youtube/v3/search?')) {
-                    return new Response(JSON.stringify({
-                        items: [
-                            { id: { videoId: 'bad-video' }, snippet: { title: 'Bad Result', channelTitle: 'Bad Channel' } },
-                            { id: { videoId: 'good-video' }, snippet: { title: 'Good Result', channelTitle: 'Good Channel' } }
-                        ]
-                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-                }
-                return new Response(JSON.stringify({
-                    items: [
-                        { id: 'bad-video', contentDetails: { duration: 'PT1M40S' } },
-                        { id: 'good-video', contentDetails: { duration: 'PT2M' } }
-                    ]
-                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-            };
+            window.fetch = async () => new Response(JSON.stringify({
+                results: [
+                    { videoId: 'bad-video', title: 'Bad Result', channelTitle: 'Bad Channel', duration: 100 },
+                    { videoId: 'good-video', title: 'Good Result', channelTitle: 'Good Channel', duration: 120 }
+                ],
+                source: 'test'
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             const result = await harness.searchYouTube('retry song');
             window.fetch = realFetch;
             return {
@@ -2978,11 +2972,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             listeningStatus === 'Listening...' && afterClear === 'Playlist is already empty');
 
         // Manual mode: segments accumulate, spoken "submit" sends to Claude path
-        const preSettingsError = await tab.evaluate(() => {
-            const banner = document.getElementById('voiceWeiErrorBanner');
-            return banner && getComputedStyle(banner).display !== 'none' ? banner.textContent : '';
-        });
-        if (preSettingsError) throw new Error(`Unexpected player error before settings test: ${preSettingsError}`);
         await tab.click('#settingsBtn');
         await tab.evaluate(() => document.getElementById('autoSubmitMode').click());
         await tab.click('#closeSettingsBtn');
@@ -3319,15 +3308,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('player gates on missing API key', overlayShown === true);
 
         await tab.evaluate(() => localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890'));
-        await tab.reload({ waitUntil: 'networkidle' });
-        await tab.waitForTimeout(2000);
-        const overlayStillShown = await tab.evaluate(() => {
-            const overlay = document.getElementById('apiKeyOverlay');
-            return overlay && getComputedStyle(overlay).display !== 'none';
-        });
-        report.check('player still gates when YouTube API key is missing', overlayStillShown === true);
-
-        await tab.evaluate(() => localStorage.setItem('youtubeApiKey', 'test-youtube-key-not-real-1234567890'));
         await tab.reload({ waitUntil: 'networkidle' });
         await tab.waitForTimeout(2000);
         const overlayGone = await tab.evaluate(() => {

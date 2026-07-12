@@ -150,15 +150,16 @@ Running the app (this is a static front-end, no build step):
 
 - `php -S 127.0.0.1:8000` from the repo root is the preferred way to serve
   locally, because it serves the static pages **and** executes `proxy.php`
-   (the Books webpage/PDF import backend). `python3 -m http.server 8000` also
-   works for all practice tools and Music, but Books URL import will not run.
+   (keyless music search plus the Books webpage/PDF import backend).
+   `python3 -m http.server 8000` works for the practice tools, but Music search
+   and Books URL import will not run.
 - The test suite starts its own server on port 8000 (or reuses one already
   running), so stop a manually-started server before `npm test`/`test:full`
   if you hit a port clash.
 
 API keys are entered in the UI and kept in `localStorage` (per
 `config.example.json`), never in a config/env file. `player.html` needs one AI
-provider key plus a YouTube Data API key; `ebook.html` needs OpenAI. Every practice tool
+provider key; YouTube search is keyless through `proxy.php`. `ebook.html` needs OpenAI. Every practice tool
 (`scales`, `intervals`, `phrases`, `trace`, `pitch-meter`, `ears`) is fully
 functional offline, so `scales.html` is the quickest no-key smoke check.
 

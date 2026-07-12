@@ -1,6 +1,7 @@
 <?php
-// Same-origin Books URL importer. Every network hop is resolved and pinned
-// before cURL connects so redirects and DNS rebinding cannot reach private hosts.
+// Same-origin keyless YouTube search and Books URL importer. Every network hop
+// is resolved and pinned before cURL connects so redirects and DNS rebinding
+// cannot reach private hosts.
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -169,6 +170,10 @@ function makePageRequest($url) {
         8000000,
         20
     );
+}
+
+function makeSearchRequest($url) {
+    return requestPublicUrl($url, 'application/json', 2000000, 15);
 }
 
 function extractPageTitle($html) {
@@ -422,7 +427,7 @@ if (isset($_GET['assetUrl'])) {
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([
-        'status' => 'Books URL import is working',
+        'status' => 'Search and Books URL import are working',
         'php_version' => PHP_VERSION,
         'curl_available' => function_exists('curl_init'),
         'openssl_version' => defined('OPENSSL_VERSION_TEXT') ? OPENSSL_VERSION_TEXT : 'unknown',
@@ -431,5 +436,93 @@ if (isset($_GET['test'])) {
     exit;
 }
 
+$query = trim($_GET['q'] ?? '');
+if ($query !== '') {
+    if (strlen($query) > 500) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Search query is too long']);
+        exit;
+    }
+
+    $pipedInstances = [
+        'https://api.piped.private.coffee',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.adminforge.de'
+    ];
+    $invidiousInstances = [
+        'https://invidious.private.coffee',
+        'https://inv.nadeko.net'
+    ];
+    $lastError = '';
+    $triedInstances = [];
+
+    foreach ($pipedInstances as $instance) {
+        $triedInstances[] = $instance;
+        $result = makeSearchRequest($instance . '/search?q=' . urlencode($query) . '&filter=videos');
+        if ($result['httpCode'] === 200 && $result['response']) {
+            $data = json_decode($result['response'], true);
+            $results = [];
+            foreach (($data['items'] ?? []) as $item) {
+                if (($item['type'] ?? '') !== 'stream') {
+                    continue;
+                }
+                $videoId = str_replace('/watch?v=', '', $item['url'] ?? '');
+                if ($videoId === '') {
+                    continue;
+                }
+                $results[] = [
+                    'videoId' => $videoId,
+                    'title' => $item['title'] ?? 'Unknown',
+                    'channelTitle' => $item['uploaderName'] ?? 'Unknown',
+                    'duration' => $item['duration'] ?? 0,
+                    'source' => 'piped',
+                    'instance' => $instance
+                ];
+            }
+            if ($results) {
+                echo json_encode(['results' => $results, 'source' => 'piped', 'instance' => $instance]);
+                exit;
+            }
+        }
+        $lastError = $result['error'] ?: "HTTP {$result['httpCode']} from $instance";
+    }
+
+    foreach ($invidiousInstances as $instance) {
+        $triedInstances[] = $instance;
+        $result = makeSearchRequest($instance . '/api/v1/search?q=' . urlencode($query) . '&type=video');
+        if ($result['httpCode'] === 200 && $result['response']) {
+            $data = json_decode($result['response'], true);
+            $results = [];
+            foreach ((is_array($data) ? $data : []) as $item) {
+                if (!isset($item['videoId'])) {
+                    continue;
+                }
+                $results[] = [
+                    'videoId' => $item['videoId'],
+                    'title' => $item['title'] ?? 'Unknown',
+                    'channelTitle' => $item['author'] ?? 'Unknown',
+                    'duration' => $item['lengthSeconds'] ?? 0,
+                    'source' => 'invidious',
+                    'instance' => $instance
+                ];
+            }
+            if ($results) {
+                echo json_encode(['results' => $results, 'source' => 'invidious', 'instance' => $instance]);
+                exit;
+            }
+        }
+        $lastError = $result['error'] ?: "HTTP {$result['httpCode']} from $instance";
+    }
+
+    http_response_code(503);
+    echo json_encode([
+        'error' => 'All search instances unavailable',
+        'lastError' => $lastError,
+        'triedInstances' => $triedInstances,
+        'suggestion' => 'Try again in a few minutes'
+    ]);
+    exit;
+}
+
 http_response_code(400);
-echo json_encode(['error' => 'Use readUrl for webpages or assetUrl for PDFs']);
+echo json_encode(['error' => 'Use q for music search, readUrl for webpages, or assetUrl for PDFs']);

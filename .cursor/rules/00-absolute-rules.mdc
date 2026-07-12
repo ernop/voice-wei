@@ -38,7 +38,7 @@ This extends to all code:
 
 ## Configuration Pattern
 - Never use environment variables for application configuration.
-- **Browser API keys** (Claude, OpenAI, YouTube): entered in the page Settings UI;
+- **Browser API keys** (Claude, OpenAI): entered in the page Settings UI;
   stored via `api-keys-store.js` (localStorage). Never commit keys.
 - **Local deploy credentials**: gitignored `config.json` with checked-in
   `config.example.json` — used by `./deploy.sh` only. Production deploy uses

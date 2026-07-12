@@ -2,8 +2,7 @@
   "_note": "API keys are managed via the UI and stored in localStorage. No config file needed for API keys.",
   "_api_keys": {
     "claude": "Managed in player.html Settings - stored in localStorage as 'claudeApiKey'",
-    "openai": "Managed in player.html / ebook.html Settings - stored in localStorage as 'openaiApiKey'",
-    "youtube": "Managed in player.html Settings - stored in localStorage as 'youtubeApiKey'"
+    "openai": "Managed in player.html / ebook.html Settings - stored in localStorage as 'openaiApiKey'"
   },
   "deploy": {
     "user": "voicewei",

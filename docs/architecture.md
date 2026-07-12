@@ -8,9 +8,9 @@ How the system is built. Product intent lives in
 
 Static site, no build step. Each tab is an `.html` + `.js` (+ `.css`) trio
 loading shared libraries via script tags. Cache busting via `?v=NN`
-(see Version System in the README). Music search calls the official YouTube
-Data API directly from the browser. The only server-side piece is `proxy.php`,
-a same-origin webpage/PDF importer used by Books and linked-page requests.
+(see Version System in the README). `proxy.php` is the only server-side piece:
+it provides keyless Piped/Invidious music search plus same-origin webpage/PDF
+imports for Books and linked-page requests.
 
 ```
 index.html               # Home: cards for every tool
@@ -502,7 +502,7 @@ never touches this DB directly. Stores:
   records are `historySongRecord` shapes (Song + timestamps), never raw
   playlist items with lyric blobs.
 - `youtubeSearches`: the search-term -> results cache, keyed by normalized
-  query; consulted when the live YouTube Data API request fails.
+  query; consulted when live Piped/Invidious search fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.
 - `lyricStates`: per-song lyric state keyed by videoId - the single
   permanent owner of lyrics (see "Lyric state has one permanent owner"
@@ -545,10 +545,10 @@ hope", no parallel code paths for one job, no retry loops where one
 deterministic path belongs. That rule is about systems we own.
 
 It does **not** forbid resilience against genuinely external, flaky services we
-do not control. `searchYouTube` has one live source, the official YouTube Data
-API, and consults the IndexedDB search cache if that external request fails.
-This recovery uses our own recorded data and is surfaced explicitly in the log
-("Search Cache"), not swallowed.
+do not control. The server tries independent Piped instances, then independent
+Invidious instances; `searchYouTube` consults the IndexedDB search cache if all
+external providers fail. This recovery uses our own recorded data and is
+surfaced explicitly in the log ("Search Cache"), not swallowed.
 
 Internal cascades are still banned and have been removed. YouTube player
 creation now waits on exactly one shared API-ready promise (`ensureYouTubeApi`)

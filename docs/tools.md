@@ -203,11 +203,10 @@ playlist.**
 - "Play some jazz" - five tracks with comments explaining each match
 - "That Beatles song with the submarine" - Claude figures it out
 
-Claude or OpenAI interprets the request; the browser then calls the official
-YouTube Data API to find videos. Music requires one AI-provider key and one
-YouTube Data API key, both stored in localStorage; the page gates until both
-roles are configured. Settings cover keys, auto-submit vs manual voice mode,
-model selection, and spoken responses.
+Claude or OpenAI interprets the request; the same-origin PHP endpoint then
+queries Piped/Invidious to find videos without a YouTube API key. Music
+requires one AI-provider key stored in localStorage. Settings cover keys,
+auto-submit vs manual voice mode, model selection, and spoken responses.
 
 Transport voice commands:
 

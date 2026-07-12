@@ -33,7 +33,7 @@ by choosing continuity as an unspoken constraint.
 | [Trace](https://fuseki.net/voice-wei/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
 | [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
 | [Ears](https://fuseki.net/voice-wei/ears.html) | Interval ear training: identify them, sing them, drone matching |
-| [Music](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (AI-provider and YouTube keys required) |
+| [Music](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (one AI-provider key required) |
 | [Books](https://fuseki.net/voice-wei/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
 
 Full usage details per tool: [docs/tools.md](docs/tools.md).
@@ -58,12 +58,12 @@ complete index. The most-used docs:
 
 ```bash
 ./setup-cloud-agent.sh   # Cursor/cloud agent or fresh Linux VM
-php -S 127.0.0.1:8000    # static pages + Books URL import
+php -S 127.0.0.1:8000    # static pages + music search + Books URL import
 # Visit http://127.0.0.1:8000/scales.html
 ```
 
-`python3 -m http.server 8000` is static-only — fine for practice and Music.
-Books webpage/PDF URL import needs the PHP server.
+`python3 -m http.server 8000` is static-only — fine for practice tools.
+Music search and Books webpage/PDF URL import need the PHP server.
 HTTPS is required for microphone access when deployed.
 
 ## Testing
