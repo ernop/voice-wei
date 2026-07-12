@@ -163,5 +163,11 @@ provider key; YouTube search is keyless through `proxy.php`. `ebook.html` needs 
 (`scales`, `intervals`, `phrases`, `trace`, `pitch-meter`, `ears`) is fully
 functional offline, so `scales.html` is the quickest no-key smoke check.
 
+Infrastructure migrations must preserve the product contract. A host, path,
+runtime, or deployment move may not add user-managed keys, billing, quotas,
+accounts, setup steps, or other product dependencies without explicit user
+approval. In particular, keyless music search must remain keyless. See
+`.cursor/rules/12-migration-contract.mdc`.
+
 Standard lint/test/build/run commands and the shipping order live above under
 "Shipping" and in `README.md`; don't duplicate them here.
