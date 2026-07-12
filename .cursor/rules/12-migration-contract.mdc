@@ -1,0 +1,23 @@
+---
+description: Preserve product behavior and dependencies during migrations
+alwaysApply: true
+---
+
+# Migration Contract
+
+A hosting, deployment, path, runtime, or infrastructure migration preserves
+the existing product contract unless the user explicitly approves a product
+change.
+
+- Do not add user-managed keys, accounts, billing, quota exposure, setup
+  steps, paid services, or new runtime dependencies as part of a migration.
+- Do not replace a working capability merely because another implementation
+  is more official, modern, or architecturally attractive.
+- Separate migration work from redesign proposals. Describe any proposed
+  behavior or dependency change and obtain approval before implementing it.
+- Before shipping, compare old and new user-visible requirements, external
+  dependencies, URLs, persistence, and failure behavior.
+- Test the preserved end-to-end user path, not only infrastructure health.
+
+Example: moving keyless music search to a new host must remain keyless. A
+browser YouTube API key is a product redesign, not migration work.
