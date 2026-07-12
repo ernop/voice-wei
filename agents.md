@@ -10,7 +10,7 @@ the repo is reachable from here.
 ## Project Links
 
 - **GitHub**: https://github.com/ernop/voice-wei
-- **Live**: https://fuseki.net/music8899b/scales.html
+- **Live**: https://fuseki.net/voice-wei/scales.html
 
 ## The working method (standing guidance from yui)
 
@@ -150,16 +150,15 @@ Running the app (this is a static front-end, no build step):
 
 - `php -S 127.0.0.1:8000` from the repo root is the preferred way to serve
   locally, because it serves the static pages **and** executes `proxy.php`
-  (the YouTube search backend used by `player.html`). `python3 -m http.server
-  8000` also works but only serves static files - `proxy.php` will download as
-  text instead of running.
+   (the Books webpage/PDF import backend). `python3 -m http.server 8000` also
+   works for all practice tools and Music, but Books URL import will not run.
 - The test suite starts its own server on port 8000 (or reuses one already
   running), so stop a manually-started server before `npm test`/`test:full`
   if you hit a port clash.
 
 API keys are entered in the UI and kept in `localStorage` (per
-`config.example.json`), never in a config/env file. Only `player.html`
-(Claude) and `ebook.html` (OpenAI) need keys; every practice tool
+`config.example.json`), never in a config/env file. `player.html` needs one AI
+provider key plus a YouTube Data API key; `ebook.html` needs OpenAI. Every practice tool
 (`scales`, `intervals`, `phrases`, `trace`, `pitch-meter`, `ears`) is fully
 functional offline, so `scales.html` is the quickest no-key smoke check.
 

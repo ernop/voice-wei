@@ -15,7 +15,7 @@ Operationally today:
 
 1. **New code reaches the live site.** A change that affects served files
    must land on `master` (direct push or merged PR). That triggers GitHub
-   Actions → rsync → https://fuseki.net/music8899b/. Reload to load it.
+   Actions → rsync → https://fuseki.net/voice-wei/. Reload to load it.
 2. **Yui gets a signal that it is live.** The current mechanism is an
    **incrementing** header build id (not a SHA — yui glances and compares).
    `?v=N` cache-busts assets so the reload actually shows the new code.

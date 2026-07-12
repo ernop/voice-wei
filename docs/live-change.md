@@ -29,7 +29,7 @@ ceremony.
 ### R1 — The change becomes what the phone loads
 
 After the agent finishes, a normal load/reload of the relevant live URL
-(`https://fuseki.net/music8899b/…`) must serve the new HTML/JS/CSS/PHP
+(`https://fuseki.net/voice-wei/…`) must serve the new HTML/JS/CSS/PHP
 behavior (modulo ordinary browser cache, which we must defeat or bypass
 when we claim “it’s live”).
 

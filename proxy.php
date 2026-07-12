@@ -1,45 +1,56 @@
 <?php
-// Server-side YouTube search proxy - NO CORS PROXY NEEDED (server-to-server)
-// This proxy allows the browser to search YouTube via Piped/Invidious without API keys
+// Same-origin Books URL importer. Every network hop is resolved and pinned
+// before cURL connects so redirects and DNS rebinding cannot reach private hosts.
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
+    echo json_encode(['error' => 'Only GET requests are accepted']);
     exit;
 }
 
-function isPublicHttpUrl($url) {
+function publicUrlTarget($url) {
     $parts = parse_url($url);
     if (!$parts || !isset($parts['scheme']) || !isset($parts['host'])) {
-        return false;
+        return null;
     }
 
     $scheme = strtolower($parts['scheme']);
     if ($scheme !== 'http' && $scheme !== 'https') {
-        return false;
+        return null;
     }
 
+    if (isset($parts['user']) || isset($parts['pass'])) {
+        return null;
+    }
     $host = strtolower($parts['host']);
     if ($host === 'localhost' || substr($host, -6) === '.local') {
-        return false;
+        return null;
     }
 
+    $port = isset($parts['port']) ? (int) $parts['port'] : ($scheme === 'https' ? 443 : 80);
+    if (($scheme === 'https' && $port !== 443) || ($scheme === 'http' && $port !== 80)) {
+        return null;
+    }
     $ips = gethostbynamel($host);
     if (!$ips || count($ips) === 0) {
-        return false;
+        return null;
     }
 
     foreach ($ips as $ip) {
         if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-            return false;
+            return null;
         }
     }
 
-    return true;
+    return ['host' => $host, 'port' => $port, 'ip' => $ips[0]];
+}
+
+function isPublicHttpUrl($url) {
+    return publicUrlTarget($url) !== null;
 }
 
 function resolveReadablePageUrl($url) {
@@ -71,35 +82,93 @@ function resolveReadablePageUrl($url) {
     return $url;
 }
 
+function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds) {
+    $currentUrl = $url;
+    for ($redirects = 0; $redirects <= 3; $redirects++) {
+        $target = publicUrlTarget($currentUrl);
+        if ($target === null) {
+            return ['response' => false, 'httpCode' => 0, 'contentType' => '', 'error' => 'URL resolved to a non-public host'];
+        }
+
+        $response = '';
+        $location = '';
+        $tooLarge = false;
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $currentUrl,
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => $timeoutSeconds,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_USERAGENT => 'Voice-Wei URL Import/1.0',
+            CURLOPT_HTTPHEADER => [
+                'Accept: ' . $accept,
+                'Accept-Language: en-US,en;q=0.9'
+            ],
+            CURLOPT_RESOLVE => [
+                "{$target['host']}:{$target['port']}:{$target['ip']}"
+            ],
+            CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$location, &$tooLarge, $maxBytes) {
+                $length = strlen($header);
+                if (stripos($header, 'Location:') === 0) {
+                    $location = trim(substr($header, 9));
+                }
+                if (stripos($header, 'Content-Length:') === 0
+                    && (int) trim(substr($header, 15)) > $maxBytes) {
+                    $tooLarge = true;
+                }
+                return $length;
+            },
+            CURLOPT_WRITEFUNCTION => function ($curl, $chunk) use (&$response, &$tooLarge, $maxBytes) {
+                if ($tooLarge || strlen($response) + strlen($chunk) > $maxBytes) {
+                    $tooLarge = true;
+                    return 0;
+                }
+                $response .= $chunk;
+                return strlen($chunk);
+            }
+        ]);
+
+        $ok = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: '';
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($tooLarge) {
+            return ['response' => false, 'httpCode' => 413, 'contentType' => $contentType, 'error' => 'Remote content exceeds the import size limit'];
+        }
+        if ($ok === false) {
+            return ['response' => false, 'httpCode' => $httpCode, 'contentType' => $contentType, 'error' => $error];
+        }
+        if ($httpCode >= 300 && $httpCode < 400) {
+            if ($location === '') {
+                return ['response' => false, 'httpCode' => $httpCode, 'contentType' => $contentType, 'error' => 'Remote redirect had no Location header'];
+            }
+            $currentUrl = absolutizeUrl($location, $currentUrl);
+            continue;
+        }
+
+        return [
+            'response' => $response,
+            'httpCode' => $httpCode,
+            'contentType' => $contentType,
+            'error' => '',
+            'finalUrl' => $currentUrl
+        ];
+    }
+
+    return ['response' => false, 'httpCode' => 0, 'contentType' => '', 'error' => 'Remote URL exceeded the redirect limit'];
+}
+
 function makePageRequest($url) {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
-        'Accept-Language: en-US,en;q=0.9'
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    return [
-        'response' => $response,
-        'httpCode' => $httpCode,
-        'contentType' => $contentType ?: '',
-        'error' => $error
-    ];
+    return requestPublicUrl(
+        $url,
+        'text/html,application/xhtml+xml,text/plain,application/pdf;q=0.9',
+        8000000,
+        20
+    );
 }
 
 function extractPageTitle($html) {
@@ -255,10 +324,11 @@ if (isset($_GET['readUrl'])) {
 
     $result = makePageRequest($url);
     if ($result['httpCode'] < 200 || $result['httpCode'] >= 300 || !$result['response']) {
-        http_response_code(502);
+        http_response_code($result['httpCode'] === 413 ? 413 : 502);
         echo json_encode(['error' => $result['error'] ?: "Could not read page: HTTP {$result['httpCode']}"]);
         exit;
     }
+    $url = $result['finalUrl'] ?? $url;
 
     // PDFs cannot be turned into readable text by tag stripping; tell the
     // client to fetch the bytes (via assetUrl) and parse them with PDF.js.
@@ -275,6 +345,15 @@ if (isset($_GET['readUrl'])) {
             'isBinary' => true,
             'contentType' => $result['contentType'] ?: 'application/pdf'
         ]);
+        exit;
+    }
+    $readableContentType = $result['contentType'] === ''
+        || stripos($result['contentType'], 'text/html') !== false
+        || stripos($result['contentType'], 'application/xhtml+xml') !== false
+        || stripos($result['contentType'], 'text/plain') !== false;
+    if (!$readableContentType) {
+        http_response_code(415);
+        echo json_encode(['error' => 'Remote URL is not a readable webpage or PDF']);
         exit;
     }
 
@@ -319,36 +398,22 @@ if (isset($_GET['assetUrl'])) {
         exit;
     }
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $assetUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 45);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: */*']);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-    $bytes = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
+    $result = requestPublicUrl($assetUrl, 'application/pdf', 60000000, 45);
+    $bytes = $result['response'];
+    $httpCode = $result['httpCode'];
+    $contentType = $result['contentType'];
     if ($httpCode < 200 || $httpCode >= 300 || $bytes === false || $bytes === '') {
-        http_response_code(502);
-        echo json_encode(['error' => $error ?: "Could not fetch asset: HTTP {$httpCode}"]);
+        http_response_code($httpCode === 413 ? 413 : 502);
+        echo json_encode(['error' => $result['error'] ?: "Could not fetch PDF: HTTP {$httpCode}"]);
         exit;
     }
-    if (strlen($bytes) > 60000000) {
-        http_response_code(413);
-        echo json_encode(['error' => 'Asset is too large to proxy']);
+    if (stripos($contentType, 'application/pdf') === false && substr($bytes, 0, 5) !== '%PDF-') {
+        http_response_code(415);
+        echo json_encode(['error' => 'Remote asset is not a PDF']);
         exit;
     }
 
-    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header('Content-Type: application/pdf');
     header('Content-Length: ' . strlen($bytes));
     echo $bytes;
     exit;
@@ -357,7 +422,7 @@ if (isset($_GET['assetUrl'])) {
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([
-        'status' => 'Proxy is working',
+        'status' => 'Books URL import is working',
         'php_version' => PHP_VERSION,
         'curl_available' => function_exists('curl_init'),
         'openssl_version' => defined('OPENSSL_VERSION_TEXT') ? OPENSSL_VERSION_TEXT : 'unknown',
@@ -366,132 +431,5 @@ if (isset($_GET['test'])) {
     exit;
 }
 
-$query = isset($_GET['q']) ? $_GET['q'] : '';
-if (empty($query)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'No query provided. Use ?q=search+term']);
-    exit;
-}
-
-// Piped instances - tested and working as of Dec 2024
-// IMPORTANT: api.piped.private.coffee is CONFIRMED WORKING - put it first!
-$pipedInstances = [
-    'https://api.piped.private.coffee',  // Confirmed working Dec 2024
-    'https://pipedapi.kavin.rocks',
-    'https://pipedapi.adminforge.de'
-];
-
-// Invidious instances as backup  
-$invidiousInstances = [
-    'https://invidious.private.coffee',
-    'https://inv.nadeko.net'
-];
-
-$lastError = '';
-$triedInstances = [];
-
-// Helper function to make curl request with SSL fixes for DreamHost
-function makeCurlRequest($url) {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: application/json',
-        'Accept-Language: en-US,en;q=0.9'
-    ]);
-    
-    // SSL options to fix TLS handshake issues on older servers
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);  // Disable for compatibility
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-    
-    return ['response' => $response, 'httpCode' => $httpCode, 'error' => $error];
-}
-
-// Try Piped instances first (better API format)
-foreach ($pipedInstances as $instance) {
-    $url = $instance . '/search?q=' . urlencode($query) . '&filter=videos';
-    $triedInstances[] = $instance;
-    
-    $result = makeCurlRequest($url);
-    
-    if ($result['httpCode'] === 200 && $result['response']) {
-        $data = json_decode($result['response'], true);
-        if (isset($data['items']) && count($data['items']) > 0) {
-            // Convert Piped format to our standard format
-            $results = [];
-            foreach ($data['items'] as $item) {
-                if (isset($item['type']) && $item['type'] === 'stream') {
-                    $videoId = isset($item['url']) ? str_replace('/watch?v=', '', $item['url']) : '';
-                    if ($videoId) {
-                        $results[] = [
-                            'videoId' => $videoId,
-                            'title' => $item['title'] ?? 'Unknown',
-                            'channelTitle' => $item['uploaderName'] ?? 'Unknown',
-                            'duration' => $item['duration'] ?? 0,
-                            'source' => 'piped',
-                            'instance' => $instance
-                        ];
-                    }
-                }
-            }
-            if (count($results) > 0) {
-                echo json_encode(['results' => $results, 'source' => 'piped', 'instance' => $instance]);
-                exit;
-            }
-        }
-    }
-    $lastError = $result['error'] ?: "HTTP {$result['httpCode']} from $instance";
-}
-
-// Try Invidious instances as backup
-foreach ($invidiousInstances as $instance) {
-    $url = $instance . '/api/v1/search?q=' . urlencode($query) . '&type=video';
-    $triedInstances[] = $instance;
-    
-    $result = makeCurlRequest($url);
-    
-    if ($result['httpCode'] === 200 && $result['response']) {
-        $data = json_decode($result['response'], true);
-        if (is_array($data) && count($data) > 0) {
-            // Convert Invidious format to our standard format
-            $results = [];
-            foreach ($data as $item) {
-                if (isset($item['videoId'])) {
-                    $results[] = [
-                        'videoId' => $item['videoId'],
-                        'title' => $item['title'] ?? 'Unknown',
-                        'channelTitle' => $item['author'] ?? 'Unknown',
-                        'duration' => $item['lengthSeconds'] ?? 0,
-                        'source' => 'invidious',
-                        'instance' => $instance
-                    ];
-                }
-            }
-            if (count($results) > 0) {
-                echo json_encode(['results' => $results, 'source' => 'invidious', 'instance' => $instance]);
-                exit;
-            }
-        }
-    }
-    $lastError = $result['error'] ?: "HTTP {$result['httpCode']} from $instance";
-}
-
-// All instances failed
-http_response_code(503);
-echo json_encode([
-    'error' => 'All search instances unavailable',
-    'lastError' => $lastError,
-    'triedInstances' => $triedInstances,
-    'suggestion' => 'Try again in a few minutes'
-]);
+http_response_code(400);
+echo json_encode(['error' => 'Use readUrl for webpages or assetUrl for PDFs']);

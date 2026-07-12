@@ -8,6 +8,7 @@ const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const PLAYER_READY_TIMEOUT_MS = 8000;
 const YOUTUBE_SEARCH_CONCURRENCY = 4;
+const YOUTUBE_SEARCH_RESULT_LIMIT = 10;
 
 const PlayerPlaylist = (function () {
     'use strict';
@@ -483,25 +484,98 @@ const PlayerPlaylist = (function () {
                     .map(entry => entry.video);
             },
 
-            async searchYouTube(query, context = {}) {
-                // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
-                // Server-side avoids CORS issues and doesn't need third-party CORS proxies
-                const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
+            parseYouTubeDuration(value) {
+                const match = String(value || '').match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+                if (!match) return 0;
+                return (Number(match[1]) || 0) * 3600
+                    + (Number(match[2]) || 0) * 60
+                    + (Number(match[3]) || 0);
+            },
 
+            decodeYouTubeText(value) {
+                const element = document.createElement('textarea');
+                element.innerHTML = String(value || '');
+                return element.value;
+            },
+
+            async fetchYouTubeApiJson(url) {
+                const response = await fetch(url);
+                const data = await response.json().catch(() => ({}));
+                if (response.ok) return data;
+
+                const message = data?.error?.message || `HTTP ${response.status}`;
+                const error = /** @type {Error & { provider?: string, status?: number }} */ (
+                    new Error(`YouTube API request failed: ${message}`)
+                );
+                error.provider = 'youtube';
+                error.status = response.status;
+                if (response.status === 400 || response.status === 403) {
+                    this.showApiKeyProblem(error);
+                }
+                throw error;
+            },
+
+            async fetchYouTubeResults(query) {
+                const apiKey = this.config?.youtubeApiKey || '';
+                if (!apiKey) {
+                    const error = /** @type {Error & { provider?: string }} */ (
+                        new Error('Add a YouTube Data API key in Settings')
+                    );
+                    error.provider = 'youtube';
+                    this.showApiKeyProblem(error);
+                    throw error;
+                }
+
+                const searchParams = new URLSearchParams({
+                    part: 'snippet',
+                    type: 'video',
+                    maxResults: String(YOUTUBE_SEARCH_RESULT_LIMIT),
+                    q: query,
+                    key: apiKey
+                });
+                const searchData = await this.fetchYouTubeApiJson(
+                    `https://www.googleapis.com/youtube/v3/search?${searchParams}`
+                );
+                const searchItems = Array.isArray(searchData.items) ? searchData.items : [];
+                const videoIds = searchItems
+                    .map(item => item?.id?.videoId || '')
+                    .filter(Boolean);
+                if (videoIds.length === 0) {
+                    return { results: [], source: 'youtube-data-api', instance: 'youtube' };
+                }
+
+                const detailsParams = new URLSearchParams({
+                    part: 'contentDetails',
+                    id: videoIds.join(','),
+                    key: apiKey
+                });
+                const detailsData = await this.fetchYouTubeApiJson(
+                    `https://www.googleapis.com/youtube/v3/videos?${detailsParams}`
+                );
+                const durationById = new Map(
+                    (Array.isArray(detailsData.items) ? detailsData.items : [])
+                        .map(item => [
+                            item?.id || '',
+                            this.parseYouTubeDuration(item?.contentDetails?.duration)
+                        ])
+                );
+                const results = searchItems
+                    .filter(item => item?.id?.videoId)
+                    .map(item => ({
+                        videoId: item.id.videoId,
+                        title: this.decodeYouTubeText(item.snippet?.title || ''),
+                        channelTitle: this.decodeYouTubeText(item.snippet?.channelTitle || ''),
+                        duration: durationById.get(item.id.videoId) || 0
+                    }));
+                return { results, source: 'youtube-data-api', instance: 'youtube' };
+            },
+
+            async searchYouTube(query, context = {}) {
                 this.addMessage('claude', 'Search', `Searching for: ${query}`);
 
                 let data;
                 try {
-                    const response = await fetch(proxyUrl);
-
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        const errorMsg = errorData.error || `HTTP ${response.status}`;
-                        this.addMessage('error', 'Search Failed', errorMsg);
-                        throw new Error(`Search failed: ${errorMsg}`);
-                    }
-
-                    data = await response.json();
+                    data = await this.fetchYouTubeResults(query);
                 } catch (error) {
                     const cached = window.PlayerHistoryDB ? await window.PlayerHistoryDB.getYouTubeSearch(query) : null;
                     if (cached && Array.isArray(cached.results)) {
@@ -512,13 +586,6 @@ const PlayerPlaylist = (function () {
                     }
                 }
 
-                // Check for error response
-                if (data.error) {
-                    this.addMessage('error', 'Search Error', data.error);
-                    throw new Error(data.error);
-                }
-
-                // Get results from our standardized proxy response
                 const results = data.results || [];
                 if (window.PlayerHistoryDB && results.length > 0) {
                     window.PlayerHistoryDB.recordYouTubeSearch(query, results, {
@@ -535,7 +602,7 @@ const PlayerPlaylist = (function () {
                 );
                 if (videos.length > 0) {
                     const [firstVideo, ...alternateVideos] = videos;
-                    this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
+                    this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source})`);
                     return {
                         ...firstVideo,
                         alternateVideos

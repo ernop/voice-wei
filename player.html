@@ -9,8 +9,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Music - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=262">
-    <link rel="stylesheet" href="practice-controls.css?v=262">
+    <link rel="stylesheet" href="style.css?v=263">
+    <link rel="stylesheet" href="practice-controls.css?v=263">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -61,6 +61,23 @@
                     leaves your device except to call OpenAI's API directly.</p>
             </div>
 
+            <div class="setting-item api-key-section" id="youtubeApiSection">
+                <label for="youtubeApiKeyInput">YouTube Data API Key:</label>
+                <div class="api-key-status" id="youtubeApiKeyStatus"></div>
+                <div class="api-key-input-row" id="youtubeApiKeyInputRow" style="display: none;">
+                    <input type="password" id="youtubeApiKeyInput" placeholder="AIza..."
+                        class="text-input api-key-input" />
+                    <button id="saveYoutubeApiKeyBtn" class="save-api-key-btn">Save</button>
+                </div>
+                <div class="api-key-actions" id="youtubeApiKeyActions" style="display: none;">
+                    <button id="showYoutubeApiKeyBtn" class="api-key-action-btn">Show</button>
+                    <button id="changeYoutubeApiKeyBtn" class="api-key-action-btn">Change</button>
+                    <button id="removeYoutubeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                </div>
+                <p class="setting-description">Used directly from this browser to find playable videos. Restrict the
+                    key to the YouTube Data API and this site's HTTPS origin in Google Cloud Console.</p>
+            </div>
+
             <div class="setting-item">
                 <label class="display-toggle">
                     <input type="checkbox" id="readClaudeResponse" />
@@ -103,17 +120,15 @@
             <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
         </div>
 
-        <!-- API Key Setup Overlay (shown when no key is configured) -->
+        <!-- API Key Setup Overlay (shown until an AI key and YouTube key are configured) -->
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
-                <h2>Claude API Key Required</h2>
-                <p>This app uses Claude AI to understand your music requests. You'll need your own API key from <a
-                        href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
-                </p>
+                <h2>Music API Keys Required</h2>
+                <p>Add a Claude or OpenAI key to interpret requests, plus a YouTube Data API key to find videos.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
                         class="text-input api-key-input" />
-                    <button id="saveClaudeApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveClaudeApiKeyOverlayBtn" class="save-api-key-btn">Save Claude</button>
                 </div>
                 <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call Claude's API directly.</p>
@@ -121,6 +136,11 @@
                     <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..."
                         class="text-input api-key-input" />
                     <button id="saveOpenaiApiKeyOverlayBtn" class="save-api-key-btn">Save OpenAI</button>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="youtubeApiKeyOverlayInput" placeholder="AIza..."
+                        class="text-input api-key-input" />
+                    <button id="saveYoutubeApiKeyOverlayBtn" class="save-api-key-btn">Save YouTube</button>
                 </div>
             </div>
         </div>
@@ -384,30 +404,30 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=262"></script>
-    <script src="app-version.js?v=262"></script>
-    <script src="storage-keys.js?v=262"></script>
-    <script src="shared-header.js?v=262"></script>
-    <script src="settings-store.js?v=262"></script>
-    <script src="music-constants.js?v=262"></script>
-    <script src="piano-core.js?v=262"></script>
-    <script src="api-keys-store.js?v=262"></script>
-    <script src="render-throttle.js?v=262"></script>
-    <script src="practice-controls.js?v=262"></script>
-    <script src="voice-output.js?v=262"></script>
-    <script src="voice-command-core.js?v=262"></script>
-    <script src="media-session-core.js?v=262"></script>
-    <script src="player-songs.js?v=262"></script>
-    <script src="player-storage.js?v=262"></script>
-    <script src="player-playback-state.js?v=262"></script>
-    <script src="player-history-db.js?v=262"></script>
-    <script src="player-api-keys.js?v=262"></script>
-    <script src="player-commands.js?v=262"></script>
-    <script src="player-playlist.js?v=262"></script>
-    <script src="player-lyrics.js?v=262"></script>
-    <script src="player-song-library.js?v=262"></script>
-    <script src="player-history-ui.js?v=262"></script>
-    <script src="player.js?v=262"></script>
+    <script src="dev-error-monitor.js?v=263"></script>
+    <script src="app-version.js?v=263"></script>
+    <script src="storage-keys.js?v=263"></script>
+    <script src="shared-header.js?v=263"></script>
+    <script src="settings-store.js?v=263"></script>
+    <script src="music-constants.js?v=263"></script>
+    <script src="piano-core.js?v=263"></script>
+    <script src="api-keys-store.js?v=263"></script>
+    <script src="render-throttle.js?v=263"></script>
+    <script src="practice-controls.js?v=263"></script>
+    <script src="voice-output.js?v=263"></script>
+    <script src="voice-command-core.js?v=263"></script>
+    <script src="media-session-core.js?v=263"></script>
+    <script src="player-songs.js?v=263"></script>
+    <script src="player-storage.js?v=263"></script>
+    <script src="player-playback-state.js?v=263"></script>
+    <script src="player-history-db.js?v=263"></script>
+    <script src="player-api-keys.js?v=263"></script>
+    <script src="player-commands.js?v=263"></script>
+    <script src="player-playlist.js?v=263"></script>
+    <script src="player-lyrics.js?v=263"></script>
+    <script src="player-song-library.js?v=263"></script>
+    <script src="player-history-ui.js?v=263"></script>
+    <script src="player.js?v=263"></script>
 </body>
 
 </html>

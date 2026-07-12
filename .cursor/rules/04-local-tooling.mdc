@@ -15,12 +15,12 @@ php -S 127.0.0.1:8000
 # open http://127.0.0.1:8000/scales.html
 ```
 
-- `python3 -m http.server 8000` — static only; `proxy.php` will download as text.
-  Fine for practice pages; not for Music search or Books URL import.
+- `python3 -m http.server 8000` — static only. Fine for practice pages and
+  Music; not for Books URL import.
 - `npm run dev` — Node static server on **8765** plus frontend error sink
   (used by `dev-error-monitor.js`). No PHP proxy.
-- `python3 dev-server.py` — alternate on 8000 with a Python Piped/Invidious
-  proxy and livereload. Optional; not the documented default.
+- `python3 dev-server.py` — alternate static server on 8000 with livereload.
+  Optional; not the documented default.
 
 Fresh cloud VM: `./setup-cloud-agent.sh` once (php, npm deps, Playwright).
 

@@ -80,25 +80,30 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       # Product files only. Keep this exclude list in sync with deploy.sh.
       - name: Deploy via rsync
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete --delete-excluded --prune-empty-dirs \
             --exclude='.git' \
             --exclude='.gitignore' \
+            --exclude='.cursorignore' \
             --exclude='.cursor' \
             --exclude='.github' \
             --exclude='.ast-grep' \
             --exclude='.vscode' \
             --exclude='.dev' \
             --exclude='config.json' \
+            --exclude='config.example.json' \
             --exclude='tests' \
             --exclude='types' \
             --exclude='demos' \
             --exclude='deploy' \
             --exclude='node_modules' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
             --exclude='*.md' \
             --exclude='*.txt' \
             --exclude='*.sh' \
@@ -106,11 +111,15 @@ jobs:
             --exclude='tsconfig.json' \
             --exclude='sgconfig.yml' \
             --exclude='package.json' \
+            --exclude='package-lock.json' \
             --exclude='dev-server.js' \
             --exclude='pipeline-*.svg' \
             --exclude='screenshot-*.png' \
-            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+      - name: Verify deployment
+        run: curl --fail --silent --show-error https://fuseki.net/voice-wei/VERSION
 
       - name: Cleanup
         if: always()
@@ -141,12 +150,13 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Upload deploy telemetry
         run: |
           rsync -avz \
-            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
             deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
 
       - name: Cleanup

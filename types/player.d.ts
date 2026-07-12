@@ -175,6 +175,7 @@ interface PlayerHistoryDBApi {
 interface AppConfig {
     claudeApiKey?: string;
     openaiApiKey?: string;
+    youtubeApiKey?: string;
 }
 
 interface VoiceMusicController {
@@ -191,6 +192,7 @@ interface VoiceMusicController {
     activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
+    config: AppConfig | null;
 
     parseControlCommand(transcript: string): string | null;
     executeControlCommand(command: string): void;
@@ -235,6 +237,10 @@ interface VoiceMusicController {
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
+    parseYouTubeDuration(value: string): number;
+    decodeYouTubeText(value: string): string;
+    fetchYouTubeApiJson(url: string): Promise<any>;
+    fetchYouTubeResults(query: string): Promise<{ results: any[]; source: string; instance: string }>;
     searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
     unwantedVersionMarkers(): RegExp[];
     scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
@@ -329,6 +335,7 @@ interface VoiceMusicController {
     addKnownSongsToPlaylist(songs: any[]): void;
     loadCachedSearchFirstResult(query: string): Promise<void>;
     refreshCachedSearchQuery(query: string): Promise<void>;
+    showApiKeyProblem(error: Error & { provider?: string; status?: number }): void;
 
     currentLyricsItem(): PlaylistItem | null;
     toggleLyricsPanel(): void;

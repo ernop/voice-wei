@@ -6,7 +6,7 @@
 // tests may still seed legacy claudeApiKey — ApiKeysStore migrates on read.
 //-----------------------------------------------------------------------
 
-/** @typedef {'claude' | 'openai'} ApiProvider */
+/** @typedef {'claude' | 'openai' | 'youtube'} ApiProvider */
 
 const PlayerApiKeys = (function () {
     'use strict';
@@ -37,11 +37,15 @@ const PlayerApiKeys = (function () {
         const config = {};
         const claudeKey = get('claude');
         const openaiKey = get('openai');
+        const youtubeKey = get('youtube');
         if (claudeKey.length > 10) {
             config.claudeApiKey = claudeKey;
         }
         if (openaiKey.length > 10) {
             config.openaiApiKey = openaiKey;
+        }
+        if (youtubeKey.length > 10) {
+            config.youtubeApiKey = youtubeKey;
         }
         return config;
     }

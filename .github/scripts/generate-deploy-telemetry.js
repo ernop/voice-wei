@@ -11,7 +11,7 @@ const maxPages = Number(process.env.DEPLOY_TELEMETRY_PAGES || 5);
 const perPage = 100;
 const outputPath = process.env.DEPLOY_TELEMETRY_OUTPUT || 'deploy-telemetry.json';
 const currentRunId = Number(process.env.GITHUB_RUN_ID || 0);
-const existingTelemetryUrl = process.env.DEPLOY_TELEMETRY_EXISTING_URL || 'https://fuseki.net/music8899b/deploy-telemetry.json';
+const existingTelemetryUrl = process.env.DEPLOY_TELEMETRY_EXISTING_URL || 'https://fuseki.net/voice-wei/deploy-telemetry.json';
 
 function headers() {
     return {

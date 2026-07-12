@@ -286,25 +286,6 @@ class VoiceMusicController {
         }
     }
 
-    async testProxy() {
-        // Test if the server-side proxy is available
-        try {
-            const response = await fetch('proxy.php?test=1');
-            if (response.ok) {
-                const data = await response.json();
-                if (data.status === 'Proxy is working') {
-                    this.addMessage('claude', 'Proxy Test', 'Server-side proxy is working');
-                } else {
-                    this.addMessage('error', 'Proxy Test', 'Unexpected response from proxy');
-                }
-            } else {
-                this.addMessage('error', 'Proxy Test', `Proxy returned HTTP ${response.status}`);
-            }
-        } catch (error) {
-            this.addMessage('error', 'Proxy Test', `Could not reach proxy: ${error.message}`);
-        }
-    }
-
     async loadConfig() {
         this.config = PlayerApiKeys.loadConfig();
 
@@ -316,10 +297,14 @@ class VoiceMusicController {
             const keyPreview = this.config.openaiApiKey.substring(0, 10) + '...';
             this.addMessage('claude', 'OpenAI API Key', `Loaded (${keyPreview})`);
         }
+        if (this.config.youtubeApiKey) {
+            const keyPreview = this.config.youtubeApiKey.substring(0, 10) + '...';
+            this.addMessage('claude', 'YouTube API Key', `Loaded (${keyPreview})`);
+        }
 
         const hasAnyKey = this.config.claudeApiKey || this.config.openaiApiKey;
 
-        if (hasAnyKey) {
+        if (hasAnyKey && this.config.youtubeApiKey) {
             this.updateStatus('Ready');
             this.hideApiKeyOverlay();
 
@@ -327,14 +312,17 @@ class VoiceMusicController {
                 this.settings.aiProvider = 'openai';
             }
         } else {
-            this.addMessage('claude', 'API Keys', 'Not configured - please enter an API key');
-            this.updateStatus('API key required');
+            const missing = [
+                !hasAnyKey ? 'Claude or OpenAI' : '',
+                !this.config.youtubeApiKey ? 'YouTube' : ''
+            ].filter(Boolean).join(' and ');
+            this.addMessage('claude', 'API Keys', `Missing ${missing} API key`);
+            this.updateStatus('API keys required');
             this.showApiKeyOverlay();
         }
 
         this.updateAllApiKeyUI();
-        this.addMessage('claude', 'YouTube Search', `Using server-side proxy (proxy.php) - no API key needed`);
-        this.testProxy();
+        this.addMessage('claude', 'YouTube Search', 'Using the official YouTube Data API directly');
     }
 
     showApiKeyOverlay() {
@@ -352,11 +340,9 @@ class VoiceMusicController {
     }
 
     updateAllApiKeyUI() {
-        // Update Claude API key UI
         this.updateApiKeyUIForProvider('claude', !!this.config?.claudeApiKey);
-        // Update OpenAI API key UI
         this.updateApiKeyUIForProvider('openai', !!this.config?.openaiApiKey);
-        // Update provider visibility
+        this.updateApiKeyUIForProvider('youtube', !!this.config?.youtubeApiKey);
         this.updateProviderVisibility();
     }
 
@@ -404,25 +390,30 @@ class VoiceMusicController {
 
         PlayerApiKeys.set(provider, apiKey);
 
-        if (provider === 'claude') {
-            this.config.claudeApiKey = apiKey;
-        } else {
-            this.config.openaiApiKey = apiKey;
-        }
+        if (provider === 'claude') this.config.claudeApiKey = apiKey;
+        if (provider === 'openai') this.config.openaiApiKey = apiKey;
+        if (provider === 'youtube') this.config.youtubeApiKey = apiKey;
 
         const keyPreview = apiKey.substring(0, 10) + '...';
-        this.addMessage('claude', `${provider === 'claude' ? 'Claude' : 'OpenAI'} API Key`, `Saved (${keyPreview})`);
-        this.updateStatus('Ready');
-        this.hideApiKeyOverlay();
+        const providerName = provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : 'YouTube';
+        this.addMessage('claude', `${providerName} API Key`, `Saved (${keyPreview})`);
         this.updateApiKeyUIForProvider(provider, true);
 
-        // Set this provider as active if it wasn't already
-        this.settings.aiProvider = provider;
-        this.saveSettings();
-        this.updateProviderVisibility();
+        if (provider !== 'youtube') {
+            this.settings.aiProvider = provider;
+            this.saveSettings();
+            this.updateProviderVisibility();
+            PracticeControls.syncSingleSelect('data-ai-provider', provider);
+        }
 
-        // Reflect the active provider in the segmented pill control
-        PracticeControls.syncSingleSelect('data-ai-provider', provider);
+        const hasAnyAiKey = this.config.claudeApiKey || this.config.openaiApiKey;
+        if (hasAnyAiKey && this.config.youtubeApiKey) {
+            this.updateStatus('Ready');
+            this.hideApiKeyOverlay();
+        } else {
+            this.updateStatus('API keys required');
+            this.showApiKeyOverlay();
+        }
 
         return true;
     }
@@ -430,22 +421,20 @@ class VoiceMusicController {
     removeApiKeyForProvider(provider) {
         PlayerApiKeys.remove(provider);
 
-        if (provider === 'claude') {
-            delete this.config.claudeApiKey;
-        } else {
-            delete this.config.openaiApiKey;
-        }
+        if (provider === 'claude') delete this.config.claudeApiKey;
+        if (provider === 'openai') delete this.config.openaiApiKey;
+        if (provider === 'youtube') delete this.config.youtubeApiKey;
 
-        this.addMessage('claude', `${provider === 'claude' ? 'Claude' : 'OpenAI'} API Key`, 'Removed');
+        const providerName = provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : 'YouTube';
+        this.addMessage('claude', `${providerName} API Key`, 'Removed');
         this.updateApiKeyUIForProvider(provider, false);
 
-        // Check if we still have at least one key
         const hasAnyKey = this.config?.claudeApiKey || this.config?.openaiApiKey;
-        if (!hasAnyKey) {
-            this.updateStatus('API key required');
+        if (!hasAnyKey || !this.config?.youtubeApiKey) {
+            this.updateStatus('API keys required');
             this.showApiKeyOverlay();
-        } else {
-            // Switch to the other provider
+        }
+        if (provider !== 'youtube' && hasAnyKey) {
             this.settings.aiProvider = provider === 'claude' ? 'openai' : 'claude';
             this.saveSettings();
             this.updateProviderVisibility();
@@ -465,9 +454,9 @@ class VoiceMusicController {
     }
 
     setupApiKeyUI() {
-        // Setup for both Claude and OpenAI providers
         this.setupProviderApiKeyUI('claude');
         this.setupProviderApiKeyUI('openai');
+        this.setupProviderApiKeyUI('youtube');
 
         // AI provider and OpenAI model use the canonical segmented pill control
         // (same as the Claude model picker), not raw selects.
@@ -517,12 +506,26 @@ class VoiceMusicController {
             });
         }
 
-        // Initialize visibility
+        const youtubeOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('youtubeApiKeyOverlayInput'));
+        const youtubeOverlaySaveBtn = document.getElementById('saveYoutubeApiKeyOverlayBtn');
+        if (youtubeOverlaySaveBtn && youtubeOverlayInput) {
+            youtubeOverlaySaveBtn.addEventListener('click', () => {
+                this.saveApiKeyForProvider('youtube', youtubeOverlayInput.value.trim());
+                youtubeOverlayInput.value = '';
+            });
+            youtubeOverlayInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveApiKeyForProvider('youtube', youtubeOverlayInput.value.trim());
+                    youtubeOverlayInput.value = '';
+                }
+            });
+        }
+
         this.updateProviderVisibility();
     }
 
     setupProviderApiKeyUI(provider) {
-        const prefix = provider === 'claude' ? 'Claude' : 'Openai';
+        const prefix = provider === 'claude' ? 'Claude' : provider === 'openai' ? 'Openai' : 'Youtube';
 
         const saveBtn = document.getElementById(`save${prefix}ApiKeyBtn`);
         const showBtn = document.getElementById(`show${prefix}ApiKeyBtn`);
@@ -568,7 +571,8 @@ class VoiceMusicController {
 
         if (removeBtn) {
             removeBtn.addEventListener('click', () => {
-                if (confirm(`Remove your ${provider === 'claude' ? 'Claude' : 'OpenAI'} API key from localStorage?`)) {
+                const providerName = provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : 'YouTube';
+                if (confirm(`Remove your ${providerName} API key from localStorage?`)) {
                     this.removeApiKeyForProvider(provider);
                 }
             });
@@ -1074,8 +1078,14 @@ class VoiceMusicController {
         const banner = document.getElementById('apiKeyProblemBanner');
         const text = document.getElementById('apiKeyProblemText');
         if (!banner || !text) return;
-        const provider = error.provider === 'openai' ? 'OpenAI' : 'Claude';
-        const consoleUrl = error.provider === 'openai' ? 'platform.openai.com' : 'console.anthropic.com';
+        const providers = {
+            claude: { name: 'Claude', consoleUrl: 'console.anthropic.com' },
+            openai: { name: 'OpenAI', consoleUrl: 'platform.openai.com' },
+            youtube: { name: 'YouTube', consoleUrl: 'console.cloud.google.com/apis/credentials' }
+        };
+        const details = providers[error.provider] || providers.claude;
+        const provider = details.name;
+        const consoleUrl = details.consoleUrl;
         text.textContent = `${provider} API key problem${error.status ? ` (HTTP ${error.status})` : ''}: ${error.message} - check limits/billing at ${consoleUrl}`;
         banner.style.display = 'flex';
         if (this.settings.readClaudeResponse) {

@@ -6,7 +6,7 @@ intent lives in [docs/product-goals.md](docs/product-goals.md); behavior in
 [docs/architecture.md](docs/architecture.md). This file is orientation, not
 the source of truth.
 
-Live site: https://fuseki.net/music8899b/ · Repo: https://github.com/ernop/voice-wei · Version at writing: v256
+Live site: https://fuseki.net/voice-wei/ · Repo: https://github.com/ernop/voice-wei · Version at writing: v263
 
 ---
 
@@ -107,9 +107,9 @@ user-facing ship in the same push as the change. That integer is only a
 up); see [docs/live-change.md](docs/live-change.md). Cache-busting is a
 side effect so the reload actually loads new JS/CSS.
 
-The only server-side piece in the product path is `proxy.php` (YouTube
-search via Piped/Invidious, plus URL-read for Books web import). Claude and
-OpenAI calls go from the browser with keys in localStorage
+The only server-side piece in the product path is `proxy.php` (remote
+webpage/PDF import for Books and linked-page requests). Claude, OpenAI, and
+YouTube Data API calls go from the browser with keys in localStorage
 (`api-keys-store.js`). Deploy: push `master` (user-facing paths) → GitHub
 Actions (typecheck, lint, fast tests) → rsync → live; reload and check the
 header version. Docs/rules-only pushes are skipped by Actions.
@@ -126,7 +126,7 @@ Voice / click / media keys
         |
    Web Audio / Speech / YouTube iframe / IndexedDB / localStorage
         |
-   proxy.php  (external search / URL fetch only)
+   proxy.php  (remote webpage/PDF import only)
 ```
 
 ### Tool map (code)
@@ -192,7 +192,7 @@ tokens so superseded playback exits.
 
 ```
 Voice/typed request → Claude (or OpenAI) → song list
-   → proxy.php YouTube search (Piped then Invidious failover)
+   → official YouTube Data API (browser, user key)
    → playlist (working list) + IndexedDB catalog (durable)
    → YouTube IFrame playback
    → LRCLIB lyrics (timed preferred) → overlay + car title relay

@@ -3,7 +3,7 @@
 Voice-first music tools for singers, musicians, and readers - built for
 hands-free practice, often while driving.
 
-**Live:** https://fuseki.net/music8899b/scales.html
+**Live:** https://fuseki.net/voice-wei/scales.html
 
 Every practice tool runs one loop: **the system produces a target → you
 reproduce it → the system verifies** (pitch trace, cents, stats).
@@ -27,14 +27,14 @@ by choosing continuity as an unspoken constraint.
 
 | Tab | What it does |
 |-----|--------------|
-| [Scales](https://fuseki.net/music8899b/scales.html) | Speak a practice pattern ("D minor scale", "harmonic minor repeat forever"), hear it on a real piano |
-| [Intervals](https://fuseki.net/music8899b/intervals.html) | Level-based interval drills: degree sequences and relative jumps |
-| [Phrases](https://fuseki.net/music8899b/phrases.html) | Generate and reproduce melodic phrases; reproject across keys; embedded sing test |
-| [Trace](https://fuseki.net/music8899b/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
-| [Pitch](https://fuseki.net/music8899b/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
-| [Ears](https://fuseki.net/music8899b/ears.html) | Interval ear training: identify them, sing them, drone matching |
-| [Music](https://fuseki.net/music8899b/player.html) | AI voice music player: "play some jazz" becomes a playlist (Claude key required) |
-| [Books](https://fuseki.net/music8899b/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
+| [Scales](https://fuseki.net/voice-wei/scales.html) | Speak a practice pattern ("D minor scale", "harmonic minor repeat forever"), hear it on a real piano |
+| [Intervals](https://fuseki.net/voice-wei/intervals.html) | Level-based interval drills: degree sequences and relative jumps |
+| [Phrases](https://fuseki.net/voice-wei/phrases.html) | Generate and reproduce melodic phrases; reproject across keys; embedded sing test |
+| [Trace](https://fuseki.net/voice-wei/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
+| [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
+| [Ears](https://fuseki.net/voice-wei/ears.html) | Interval ear training: identify them, sing them, drone matching |
+| [Music](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (AI-provider and YouTube keys required) |
+| [Books](https://fuseki.net/voice-wei/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
 
 Full usage details per tool: [docs/tools.md](docs/tools.md).
 
@@ -58,12 +58,12 @@ complete index. The most-used docs:
 
 ```bash
 ./setup-cloud-agent.sh   # Cursor/cloud agent or fresh Linux VM
-php -S 127.0.0.1:8000    # static pages + proxy.php
+php -S 127.0.0.1:8000    # static pages + Books URL import
 # Visit http://127.0.0.1:8000/scales.html
 ```
 
-`python3 -m http.server 8000` is static-only (no `proxy.php`) — fine for
-practice pages. Music search and Books URL import need the PHP server.
+`python3 -m http.server 8000` is static-only — fine for practice and Music.
+Books webpage/PDF URL import needs the PHP server.
 HTTPS is required for microphone access when deployed.
 
 ## Testing

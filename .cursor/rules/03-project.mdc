@@ -8,7 +8,7 @@ alwaysApply: true
 ## What this is
 
 Voice-first music tools for one owner who practices hands-free (often while
-driving). Live: https://fuseki.net/music8899b/
+driving). Live: https://fuseki.net/voice-wei/
 
 Tools (each is an `.html` + `.js` page sharing libraries): Scales, Intervals
 (Ears), Phrases, Trace, Pitch, Music (AI player), Books (ebook/TTS).
@@ -22,8 +22,9 @@ Product intent: [docs/product-goals.md](docs/product-goals.md). Construction:
   browser via `api-keys-store.js` (localStorage). Never commit keys.
 - **`config.json`** (gitignored; see `config.example.json`): local
   `./deploy.sh` credentials only. Production deploy uses GitHub Actions Secrets.
-- Server does **not** need API keys in a file. `proxy.php` is Piped/Invidious
-  search (+ URL read for Books); no Claude key on the server.
+- Server does **not** need API keys in a file. Music calls the official YouTube
+  Data API with a browser-stored key. `proxy.php` only imports remote
+  webpages/PDFs for Books and linked-page music requests.
 
 ## Deploy (summary)
 

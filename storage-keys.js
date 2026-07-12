@@ -26,6 +26,7 @@ const StorageKeys = Object.freeze({
     PRACTICE_PROGRESS: 'voice-wei:practice-progress',
     API_CLAUDE: 'voice-wei:api-key:claude',
     API_OPENAI: 'voice-wei:api-key:openai',
+    API_YOUTUBE: 'voice-wei:api-key:youtube',
     PANEL_SCALES_SING: 'voice-wei:panel:scales-sing',
     PANEL_INTERVALS_SING: 'voice-wei:panel:intervals-sing',
     PANEL_PHRASES_TEST: 'voice-wei:panel:phrases-test'
@@ -49,6 +50,7 @@ const LegacyStorageKeys = Object.freeze({
     [StorageKeys.PRACTICE_PROGRESS]: 'practice-progress',
     [StorageKeys.API_CLAUDE]: 'claudeApiKey',
     [StorageKeys.API_OPENAI]: 'openaiApiKey',
+    [StorageKeys.API_YOUTUBE]: 'youtubeApiKey',
     [StorageKeys.PANEL_SCALES_SING]: 'scales-sing-panel',
     [StorageKeys.PANEL_INTERVALS_SING]: 'intervals-sing-panel',
     [StorageKeys.PANEL_PHRASES_TEST]: 'phrases-test-panel',

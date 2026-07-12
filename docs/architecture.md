@@ -8,8 +8,9 @@ How the system is built. Product intent lives in
 
 Static site, no build step. Each tab is an `.html` + `.js` (+ `.css`) trio
 loading shared libraries via script tags. Cache busting via `?v=NN`
-(see Version System in the README). The only server-side piece is
-`proxy.php` (YouTube search via Piped/Invidious).
+(see Version System in the README). Music search calls the official YouTube
+Data API directly from the browser. The only server-side piece is `proxy.php`,
+a same-origin webpage/PDF importer used by Books and linked-page requests.
 
 ```
 index.html               # Home: cards for every tool
@@ -22,6 +23,14 @@ ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html + player.js  # AI music player
 ebook.html/js/css        # Ebook to audiobook
 ```
+
+The URL importer accepts only same-origin GET requests. It resolves and pins
+every outbound hostname before connecting, rejects private/reserved addresses
+and nonstandard ports, revalidates every redirect, verifies TLS, caps response
+sizes, and limits binary passthrough to PDFs. Production nginx rate-limits the
+endpoint and executes no other PHP file. A dedicated on-demand PHP-FPM pool
+runs as `voicewei`, has no shell/process execution functions, and can access
+only the application root and `/tmp`.
 
 ## Change stance: owner direction before continuity
 
@@ -493,7 +502,7 @@ never touches this DB directly. Stores:
   records are `historySongRecord` shapes (Song + timestamps), never raw
   playlist items with lyric blobs.
 - `youtubeSearches`: the search-term -> results cache, keyed by normalized
-  query; consulted as a fallback when the live proxy search fails.
+  query; consulted when the live YouTube Data API request fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.
 - `lyricStates`: per-song lyric state keyed by videoId - the single
   permanent owner of lyrics (see "Lyric state has one permanent owner"
@@ -536,15 +545,10 @@ hope", no parallel code paths for one job, no retry loops where one
 deterministic path belongs. That rule is about systems we own.
 
 It does **not** forbid resilience against genuinely external, flaky services we
-do not control. Two player behaviors are deliberate external resilience, not
-banned fallbacks, and are allowed:
-
-- `proxy.php` tries several Piped instances, then several Invidious instances.
-  These are independent third-party hosts that rot and rate-limit; failover
-  across them is the only way to get a result at all.
-- `searchYouTube` consults the IndexedDB search cache when the live proxy fetch
-  fails. This is recovery from an external outage using our own recorded data,
-  surfaced explicitly in the log ("Search Cache"), not a silent swallow.
+do not control. `searchYouTube` has one live source, the official YouTube Data
+API, and consults the IndexedDB search cache if that external request fails.
+This recovery uses our own recorded data and is surfaced explicitly in the log
+("Search Cache"), not swallowed.
 
 Internal cascades are still banned and have been removed. YouTube player
 creation now waits on exactly one shared API-ready promise (`ensureYouTubeApi`)

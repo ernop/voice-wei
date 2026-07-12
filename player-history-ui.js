@@ -267,14 +267,8 @@ const PlayerHistoryUI = (function () {
 
             async refreshCachedSearchQuery(query) {
                 if (!query) return;
-                const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
                 this.updateStatus(`Refreshing cache for: ${this.truncateForStatus(query, 80)}`);
-                const response = await fetch(proxyUrl);
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${response.status}`);
-                }
-                const data = await response.json();
+                const data = await this.fetchYouTubeResults(query);
                 const results = data.results || [];
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordYouTubeSearch(query, results, {

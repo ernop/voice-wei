@@ -627,3 +627,36 @@ canonical-controls page check, Books transport got 58px driving tap targets.
 
 ---
 
+## 2026-07-12
+
+**Session context**: DreamHost was replaced by the owned Fuseki server. The
+old `/music8899b/` GitHub deployment still targeted DreamHost, so the live
+application had disappeared.
+
+**Changed**:
+- The durable public URL is `https://fuseki.net/voice-wei/`. nginx maps that
+  path to `/srv/voice-wei/site`, outside Fuseki's generated output.
+- GitHub Actions now targets a dedicated `voicewei` account/root and uses a
+  pinned known-hosts secret. Deletion includes excluded artifacts but cannot
+  escape the dedicated root.
+- Music search uses the official YouTube Data API directly with a
+  browser-stored, referrer-restricted key. Piped/Invidious search was removed.
+- `proxy.php` remains only for remote webpage/PDF import. It validates and
+  pins every public DNS hop, revalidates redirects, verifies TLS, limits
+  response types/sizes, and cannot search music.
+- The importer runs in its own on-demand PHP-FPM pool as `voicewei`; nginx
+  exposes only the exact endpoint and rate-limits it. Other PHP paths return
+  404.
+
+**Learned about the design**:
+- Owning the server makes PHP-FPM safer and simpler than introducing a new
+  service daemon for one endpoint. The language was not the original risk;
+  the broad proxy contract and shared-host defaults were.
+- URL namespace and filesystem ownership are separate decisions. A friendly
+  path under `fuseki.net` can still have a fully isolated deploy root.
+- A deploy exclude list needs `--delete-excluded` when the target must contain
+  only public artifacts; ordinary `--delete` preserves previously uploaded
+  excluded files.
+
+---
+

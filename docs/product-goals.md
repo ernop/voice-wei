@@ -65,8 +65,9 @@ and deliver a weaker version of the requested change.
   thin consumers (see docs/architecture.md).
 - **Defined parameters**: every setting picks a change behavior from the
   fixed vocabulary in docs/parameters.md and persists per tab.
-- **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step,
-  no backend beyond the YouTube proxy.
+- **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step.
+  Music search calls YouTube directly; the only backend imports remote
+  webpages/PDFs for Books and linked-page requests.
 - **Agent change → live → yui knows**: the car-loop ship contract is only
   “the fix is on the phone,” “yui gets a trustworthy signal,” and “it’s in
   git.” The header version is one signal, not the goal — see
@@ -125,9 +126,9 @@ checked against this list, and new standing intent gets added here.
 2. **Car mode**: larger UI preset, wake word, fewer on-screen elements.
 3. **Training content**: more coach-style exercises and preset packs;
    lower-range control drills specifically.
-4. **Conversational player**: follow-ups like "more like that", playlist
-   operations by voice, reliability when Piped/Invidious instances are down.
-5. **Resilience**: PWA/offline caching, surfacing proxy health.
+4. **Conversational player**: follow-ups like "more like that" and playlist
+   operations by voice.
+5. **Resilience**: PWA/offline caching and visible external API failures.
 
 ## Backlog (the idea pool, deduplicated)
 
@@ -161,7 +162,7 @@ above; nothing here is a commitment.
   line-synced and word-synced phases; later key/pitch-center estimation
   and singer aids (starting note, transposition hints)
 - Claude returning constraints (original vs live, era) to filter results
-- Better proxy health surfacing and failover UX
+- YouTube quota visibility and cached-search management
 - Spotify / Apple Music integration; song memory ("that song I liked last
   week"); tempo/key-matched playlists
 

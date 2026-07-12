@@ -2,12 +2,13 @@
   "_note": "API keys are managed via the UI and stored in localStorage. No config file needed for API keys.",
   "_api_keys": {
     "claude": "Managed in player.html Settings - stored in localStorage as 'claudeApiKey'",
-    "openai": "Managed in ebook.html Settings - stored in localStorage as 'openaiApiKey'"
+    "openai": "Managed in player.html / ebook.html Settings - stored in localStorage as 'openaiApiKey'",
+    "youtube": "Managed in player.html Settings - stored in localStorage as 'youtubeApiKey'"
   },
   "deploy": {
-    "user": "ernop",
-    "host": "fuseki.net",
-    "remotePath": "/home/ernop/fuseki.net/public/music8899b",
-    "publicUrl": "https://fuseki.net/music8899b/player.html"
+    "user": "voicewei",
+    "host": "146.190.147.109",
+    "remotePath": "/srv/voice-wei/site",
+    "publicUrl": "https://fuseki.net/voice-wei/player.html"
   }
 }
