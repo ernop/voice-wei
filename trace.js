@@ -30,7 +30,8 @@
     ];
 
     const ADJUSTER_VALUES = {
-        guideIntervalMs: [500, 750, 1000, 1250, 1500, 2000, 3000]
+        // Zero spacing would stack every guide target at t=0.
+        guideIntervalMs: PracticeControls.NOTE_LENGTH_VALUES
     };
     const FIXED_WINDOW_MS = 20000;
 
@@ -40,7 +41,6 @@
     let guideSine = null;
     let guidePlaybackToken = 0;
     const readoutGate = new RateGate(50);
-    const chartGate = new RateGate(50);
     const textDiff = new ValueDiff();
 
     const getEl = PracticeControls.getEl;
@@ -54,23 +54,17 @@
         return noteNameToMidi(state.root, state.octave);
     }
 
-    function scaleNotes() {
-        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, 0, 12);
-    }
-
+    // Rails always cover the pattern: a 5d target must sit on a labeled
+    // rail, not below the chart.
     function chartScaleNotes() {
-        return state.expandRange
-            ? scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, -12, 24)
-            : scaleNotes();
-    }
-
-    /** @param {number} midi */
-    function isExtremeOutlier(midi) {
-        const notes = chartScaleNotes();
-        if (!notes.length) return false;
-        const min = Math.min(...notes.map(note => note.midi));
-        const max = Math.max(...notes.map(note => note.midi));
-        return midi < min || midi > max;
+        const intervals = parsedPatternEntries().map(entry => entry.interval);
+        let min = state.expandRange ? -12 : 0;
+        let max = state.expandRange ? 24 : 12;
+        if (intervals.length) {
+            min = Math.min(min, ...intervals);
+            max = Math.max(max, ...intervals);
+        }
+        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, min, max);
     }
 
     function setStatus(message) {
@@ -96,7 +90,6 @@
 
     const session = PitchDetectCore.createTraceSession({
         pauseOnSilence: () => state.pauseOnSilence,
-        isOutlier: isExtremeOutlier,
         onAccepted: sample => {
             updatePitchReadout(sample.note, sample.cents, sample.freq);
             setStatus('Listening and drawing');
@@ -105,38 +98,62 @@
         onFrame: () => drawChart()
     });
 
-    function parsedPatternDegrees() {
+    /**
+     * Parse the degree pattern into intervals from the root. Beyond the
+     * plain 1..8, octave suffixes reach other octaves: "5d" (also "5v" or
+     * "5\u2193") is 5 in the octave below, "2u" ("2\u2191") the octave above,
+     * stackable ("5dd" = two octaves down). Numbers past the octave
+     * continue upward: 9 = 2 above, 10 = 3 above. The typed token is
+     * kept as the target label.
+     * @returns {Array<{ interval: number, label: string }>}
+     */
+    function parsedPatternEntries() {
+        const pattern = scalePattern(state.scaleType);
+        const degreesPerOctave = pattern.length - 1;
         const tokens = state.patternText.trim().split(/[\s,;/-]+/).filter(Boolean);
-        const notes = scaleNotes();
-        return tokens.map(token => Number(token))
-            .filter(degree => Number.isInteger(degree) && degree >= 1 && degree <= notes.length);
+        /** @type {Array<{ interval: number, label: string }>} */
+        const entries = [];
+        for (const token of tokens) {
+            const match = token.toLowerCase().match(/^(\d+)([duv^\u2191\u2193]*)$/);
+            if (!match) continue;
+            const number = Number(match[1]);
+            if (!Number.isInteger(number) || number < 1) continue;
+            let octaveShift = 0;
+            for (const mark of match[2]) {
+                octaveShift += (mark === 'd' || mark === 'v' || mark === '\u2193') ? -1 : 1;
+            }
+            octaveShift += Math.floor((number - 1) / degreesPerOctave);
+            const degreeIndex = (number - 1) % degreesPerOctave;
+            const interval = pattern[degreeIndex] + octaveShift * 12;
+            if (interval < -24 || interval > 36) continue;
+            entries.push({ interval, label: token });
+        }
+        return entries;
     }
 
     function patternDurationMs() {
-        const count = parsedPatternDegrees().length;
+        const count = parsedPatternEntries().length;
         return count ? count * state.guideIntervalMs : 0;
     }
 
+    // Window WIDTH is stable. Growing it with the clock continuously
+    // squeezes the whole chart (the classic Trace twitch). The view
+    // scrolls the playhead; this only picks 20s vs content-sized.
     function timeWindowMs() {
         if (state.fixedWindow) return FIXED_WINDOW_MS;
-        return Math.max(8000, patternDurationMs() + 1000, session.clockMs() + 500);
+        return Math.max(8000, patternDurationMs() + 1000);
     }
 
     function buildGuideTargets() {
-        const guideNotes = scaleNotes();
-        const targets = [];
-        parsedPatternDegrees().forEach((degree, index) => {
-            const note = guideNotes[degree - 1];
-            if (!note) return;
-            targets.push({
-                midi: note.midi,
-                startMs: index * state.guideIntervalMs,
-                endMs: index * state.guideIntervalMs + state.guideIntervalMs * 0.82,
-                label: String(degree),
-                active: true
-            });
-        });
-        return targets;
+        const root = rootMidi();
+        if (root === null) return [];
+        return parsedPatternEntries().map((entry, index) => ({
+            midi: root + entry.interval,
+            startMs: index * state.guideIntervalMs,
+            endMs: index * state.guideIntervalMs + state.guideIntervalMs * 0.82,
+            label: entry.label,
+            active: true
+        }));
     }
 
     const view = PitchTraceView.create({
@@ -155,12 +172,16 @@
         showPlayhead: () => session.startedAt > 0
     });
 
+    // Drawing is never throttled: the chart redraws every animation
+    // frame so the scroll steps evenly (throttles are for readouts).
+    // But identical frames are skipped: with the voice clock frozen and
+    // no new samples, the picture cannot have changed.
+    let lastDrawKey = '';
+
     function drawChart(force = false) {
-        if (force) {
-            chartGate.stamp();
-        } else if (!chartGate.ready()) {
-            return;
-        }
+        const key = `${session.history.length}|${session.clockMs() | 0}`;
+        if (!force && key === lastDrawKey) return;
+        lastDrawKey = key;
         view.draw();
     }
     function resizeCanvas() { view.resize(); }
@@ -168,6 +189,7 @@
     function resetTrace() {
         guidePlaybackToken++;
         session.reset();
+        view.resetVerticalRange();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
         drawChart(true);
@@ -184,16 +206,15 @@
     }
 
     async function playPatternGuide() {
-        const notes = scaleNotes();
-        const pattern = parsedPatternDegrees();
-        if (!pattern.length) return;
+        const root = rootMidi();
+        const pattern = parsedPatternEntries();
+        if (root === null || !pattern.length) return;
         const token = ++guidePlaybackToken;
         const durationMs = Math.max(120, Math.min(650, state.guideIntervalMs * 0.7));
 
-        for (const degree of pattern) {
+        for (const entry of pattern) {
             if (token !== guidePlaybackToken) return;
-            const note = notes[degree - 1];
-            if (note) await playGuideTone(note.midi, durationMs);
+            await playGuideTone(root + entry.interval, durationMs);
             // playGuideTone returns immediately (voices are fire-and-
             // forget), so the full interval is the note spacing - the
             // same spacing the chart draws the guide targets at.
@@ -332,6 +353,12 @@
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
         initUI();
+        // Named state inspection for the test suite.
+        window.traceDebug = {
+            patternEntries: parsedPatternEntries,
+            guideTargets: buildGuideTargets,
+            rails: chartScaleNotes
+        };
         guideSine = PianoCore.createSineSynth();
         try {
             guidePiano = await PianoCore.createPiano();

@@ -25,9 +25,18 @@ const PitchTestPanel = (function () {
     const REQUIRED_CONFIG = ['hostId', 'idPrefix', 'title', 'subtitle', 'storageKey',
         'key', 'rails', 'targets', 'contentDurationMs', 'playNote'];
 
-    // Per-note correctness is owned by PitchScore (one definition everywhere).
-    // A window counts as scoreable shortly after its end.
+    // Per-note correctness is owned by PitchScore (one definition
+    // everywhere). Takes are scored as a SEQUENCE: the sung held notes
+    // aligned in order to the targets (PitchScore.scoreSequence), so
+    // holding a note longer than its slot or breathing between notes
+    // never shifts later notes onto the wrong target.
+    // A target the singer has not reached stays pending until the take
+    // clock is past its slot.
     const SCORE_GRACE_MS = 60;
+    // A note still sounding is not scored yet: the final segment stays
+    // open until the mic has been quiet this long (wall time - the voice
+    // clock freezes in silence and cannot tell holding from stopping).
+    const SEGMENT_CLOSE_IDLE_MS = 600;
 
     /** @param {PitchTestPanelConfig} config */
     function create(config) {
@@ -46,9 +55,19 @@ const PitchTestPanel = (function () {
         SettingsStore.load(config.storageKey, options, OPTION_KEYS);
 
         let panelOpen = false;
-        const renderGate = new RateGate(50);
+        // Drawing is NEVER throttled: a scrolling chart stepped at
+        // uneven intervals reads as twitching, so the canvas redraws
+        // every animation frame (the draw itself is cheap and bounded).
+        // Throttles apply only to analysis (scoring) and text readouts.
+        const scoreGate = new RateGate(100);
         const readoutGate = new RateGate(50);
+        const logGate = new RateGate(2000);
         const panelDiff = new ValueDiff();
+
+        /** Page diagnostics log (optional): what the mic path is doing. @param {string} text */
+        function log(text) {
+            if (config.logLine) config.logLine(text);
+        }
 
         /** @returns {HTMLElement | null} */
         function getEl(suffix) {
@@ -63,35 +82,51 @@ const PitchTestPanel = (function () {
             return config.rails({ expandRange: options.expandRange });
         }
 
-        // Pitches far outside the charted rails are detector artifacts,
-        // not notes; discard them before they reach the trace.
-        /** @param {number} midi */
-        function isOutlier(midi) {
-            const rails = railLines();
-            if (!rails.length) return false;
-            const min = Math.min(...rails.map(rail => rail.midi));
-            const max = Math.max(...rails.map(rail => rail.midi));
-            return midi < min || midi > max;
-        }
-
         const session = PitchDetectCore.createTraceSession({
             pauseOnSilence: () => options.pauseOnSilence,
-            isOutlier,
             onAccepted: sample => {
                 updateReadout(sample.note, sample.cents, sample.freq);
                 setStatus('Listening and drawing');
             },
             onSilence: () => clearReadout(),
             onFrame: () => {
-                if (!renderGate.ready()) return;
-                refreshScores();
-                view.draw();
-            }
+                if (scoreGate.ready()) refreshScores();
+                if (config.logLine && logGate.ready()) logMicSummary();
+                drawIfChanged();
+            },
+            frameCallbackIntervalMs: 0
         });
 
+        /** A 2s mic summary, logged only when something needs explaining. */
+        function logMicSummary() {
+            const d = session.diagnostics();
+            const issues = d.noPitch + d.belowBand + d.aboveBand + d.held;
+            if (!d.frames || issues === 0) return;
+            const parts = [`${d.voiced} voiced`, `${d.quiet} quiet`];
+            if (d.noPitch) parts.push(`${d.noPitch} signal-but-no-pitch`);
+            if (d.belowBand) parts.push(`${d.belowBand} below-band(<D2)`);
+            if (d.aboveBand) parts.push(`${d.aboveBand} above-band(>Bb4)`);
+            if (d.held) parts.push(`${d.held} scrape-held`);
+            log(`mic ${d.frames} frames: ${parts.join(', ')}`);
+        }
+
+        // Repaint only when the picture would differ: a new sample or
+        // the clock moving (scroll). Scoring updates the readout only -
+        // verdicts never recolor the chart, so they are not in this key.
+        let lastDrawKey = '';
+
+        function drawIfChanged() {
+            const key = `${session.history.length}|${session.clockMs() | 0}`;
+            if (key === lastDrawKey) return;
+            lastDrawKey = key;
+            view.draw();
+        }
+
+        // Stable width only - never grow with the clock (that squeezes
+        // the chart every frame). The view scrolls; 20s vs content-sized.
         function windowMs() {
             if (options.fixedWindow) return FIXED_WINDOW_MS;
-            return Math.max(4000, config.contentDurationMs() + 700, session.clockMs() + 250);
+            return Math.max(4000, config.contentDurationMs() + 700);
         }
 
         /** @type {TargetSpan[]} */
@@ -99,6 +134,46 @@ const PitchTestPanel = (function () {
         // One progress entry per take: set once every active target has
         // its verdict, cleared by Restart.
         let takeRecorded = false;
+
+        // Incremental segmentation: every accepted sample is segmented
+        // exactly once (pulled from session.history as it grows); the
+        // 50ms scoring tick only aligns the few dozen resulting held
+        // notes. A shrunken history means the session was reset - start
+        // a fresh segmenter.
+        let segmenter = PitchScore.createSegmenter();
+        let segmentedCount = 0;
+        let loggedSegments = 0;
+
+        function currentSegments() {
+            const history = session.history;
+            if (segmentedCount > history.length) {
+                segmenter = PitchScore.createSegmenter();
+                segmentedCount = 0;
+                loggedSegments = 0;
+            }
+            while (segmentedCount < history.length) {
+                segmenter.push(history[segmentedCount++]);
+            }
+            return segmenter.segments();
+        }
+
+        /**
+         * Log each held note once it can no longer change (a later note
+         * exists, or the voice went idle).
+         * @param {ReturnType<typeof segmenter.segments>} segments
+         * @param {boolean} voiceIdle
+         */
+        function logClosedSegments(segments, voiceIdle) {
+            if (!config.logLine) return;
+            const closedCount = voiceIdle ? segments.length : Math.max(0, segments.length - 1);
+            for (; loggedSegments < closedCount; loggedSegments++) {
+                const segment = segments[loggedSegments];
+                const first = segment.samples[0];
+                const last = segment.samples[segment.samples.length - 1];
+                log(`sung: ${midiToNoteName(segment.midi).full} ${midiToFreq(segment.midi).toFixed(1)}Hz, `
+                    + `${Math.round(last.time - first.time)}ms, ${segment.samples.length} samples`);
+            }
+        }
 
         // The guide is sequenced here, from the same TargetSpans that are
         // drawn: identical notes, key, and timing by construction.
@@ -124,19 +199,34 @@ const PitchTestPanel = (function () {
         }
 
         /**
-         * Annotate each active target with a verdict once the clock has
-         * passed its window: 'good' / 'ok' / 'missed', or null while pending.
+         * Annotate each active target with a verdict: 'good' / 'ok' /
+         * 'missed', or null while pending. The sung history is aligned
+         * to the target sequence by PitchScore.scoreSequence, which only
+         * ever scores the PREFIX the singer has reached: a note inside
+         * that prefix verdicts the moment the singer moves on (matched,
+         * or skipped over = missed), and every target beyond it stays
+         * pending - the future never changes color while singing
+         * continues. An unreached target resolves to missed only once
+         * the singer has gone quiet AND the take clock is past its slot.
          * @returns {TargetSpan[]}
          */
         function scoreTargets() {
-            const history = session.history;
             const clock = session.clockMs();
-            return config.targets().map(target => {
+            const voiceIdle = session.msSinceLastAccepted() >= SEGMENT_CLOSE_IDLE_MS;
+            const all = config.targets();
+            const activeTargets = all.filter(target => target.active);
+            const segments = currentSegments();
+            logClosedSegments(segments, voiceIdle);
+            const results = PitchScore.alignSegments(segments, activeTargets, {
+                finalSegmentOpen: !voiceIdle
+            });
+            let resultIndex = 0;
+            return all.map(target => {
                 if (!target.active) return target;
-                if (clock < target.endMs + SCORE_GRACE_MS) return { ...target, result: null };
-
-                const samples = history.filter(s => s.time >= target.startMs && s.time <= target.endMs);
-                const score = PitchScore.scoreWindow(samples, target.midi);
+                const score = results[resultIndex++];
+                if (!score.reached && !(voiceIdle && clock > target.endMs + SCORE_GRACE_MS)) {
+                    return { ...target, result: null };
+                }
                 return { ...target, result: score.verdict, avgCents: score.avgCents, biasCents: score.biasCents };
             });
         }
@@ -206,11 +296,29 @@ const PitchTestPanel = (function () {
                 }))
             });
             takeRecorded = true;
+            log(`take recorded: ${hit.length}/${active.length} on pitch`);
             updateProgressLine();
         }
 
+        let lastScoreSignature = '';
+
         function refreshScores() {
+            const previous = scoredTargets;
             scoredTargets = scoreTargets();
+            const signature = scoredTargets.map(target => target.result || '.').join('');
+            if (signature !== lastScoreSignature) {
+                lastScoreSignature = signature;
+                if (config.logLine) {
+                    scoredTargets.forEach((target, index) => {
+                        if (!target.active || !target.result) return;
+                        const before = previous[index];
+                        if (before && before.result === target.result) return;
+                        const bias = Number.isFinite(target.biasCents)
+                            ? ` (${formatCents(/** @type {number} */(target.biasCents))}c)` : '';
+                        log(`note "${target.label}": ${target.result}${bias}`);
+                    });
+                }
+            }
             updateScoreReadout();
             maybeRecordTake();
         }
@@ -279,10 +387,10 @@ const PitchTestPanel = (function () {
                     <canvas id="${prefix}Canvas" class="pitch-test-canvas"></canvas>
                 </div>
                 <div class="pitch-test-legend">
-                    <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'}</span>
+                    <span><i class="legend-target"></i> ${config.legendTargetLabel || 'targets'} (outline = &plusmn;${PitchTraceView.BAND_CENTS}c zone)</span>
                     <span><i class="legend-sung"></i> sung pitch</span>
                     <span><i class="legend-scale"></i> scale degree rails</span>
-                    <span><i class="legend-scored"></i> scored: green &le;10c, yellow &le;25c, red missed</span>
+                    <span>score lives in the readout above, not on the chart</span>
                 </div>
             `;
         }
@@ -335,9 +443,11 @@ const PitchTestPanel = (function () {
 
         function resetSession() {
             session.reset();
+            view.resetVerticalRange();
             takeRecorded = false;
             clearReadout();
             setStatus('Sing to start time');
+            log('take started (trace cleared)');
             refreshScores();
             view.draw();
         }
@@ -438,6 +548,8 @@ const PitchTestPanel = (function () {
                 view.draw();
             },
             resize: () => view.resize(),
+            /** Recorded samples (test seam) - the same list the trace draws. */
+            get history() { return session.history; },
             /**
              * Explicit sample ingestion (test seam): sing a pitch into
              * the session by name - midi and take-time, nothing implied.

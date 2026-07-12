@@ -188,8 +188,12 @@
     function syncTrainingModeUI() {
         const patternsPanel = document.getElementById('patternsPanel');
         const earPanel = document.getElementById('earTrainingPanel');
+        const singDock = document.getElementById('intervalsSingDock');
         if (patternsPanel) patternsPanel.hidden = state.trainingMode !== 'patterns';
         if (earPanel) earPanel.hidden = state.trainingMode !== 'ear';
+        // Sing dock is patterns-only; hide it in ear mode and close if open.
+        if (singDock) singDock.hidden = state.trainingMode !== 'patterns';
+        if (state.trainingMode === 'ear' && singPanel?.isOpen) singPanel.close();
         document.querySelectorAll('[data-training-mode]').forEach(btn => {
             btn.classList.toggle('selected', /** @type {HTMLElement} */ (btn).dataset.trainingMode === state.trainingMode);
         });
@@ -506,7 +510,7 @@
             subtitle: 'Sing the current pattern and watch your pitch against the targets. Turn Repeat on to hold one pattern.',
             storageKey: StorageKeys.PANEL_INTERVALS_SING,
             legendTargetLabel: 'target notes',
-            emptyMessage: () => (currentInstance ? null : 'Press Go or Sing to get a pattern.'),
+            emptyMessage: () => (currentInstance ? null : 'Press Play or Sing to get a pattern.'),
             key: () => ({
                 rootMidi: noteNameToMidi(state.root, state.octave) ?? 60,
                 rootLabel: scaleRootPitchString(state.root, state.octave),
@@ -521,6 +525,7 @@
                 if (!btn) return;
                 btn.classList.toggle('selected', open);
                 btn.setAttribute('aria-pressed', String(open));
+                document.getElementById('intervalsSingDock')?.classList.toggle('open', open);
             },
             progressTool: 'intervals-sing'
         });
@@ -652,7 +657,6 @@
         setupTrainingModeSwitch();
         syncTrainingModeUI();
 
-        MediaSessionCore.primeOnUserGesture();
     }
 
     // ---- BOOT ----

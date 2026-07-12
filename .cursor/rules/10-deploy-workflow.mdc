@@ -1,47 +1,74 @@
 ---
-description: Deploy workflow - mei push directly to master, no PR review ceremony
+description: Deploy workflow - master push auto-deploys; bump with the ship
 alwaysApply: true
 ---
 
 # Deploy Workflow
 
-## Direct-to-master
+## What yui needs
 
-When yui direct mei to make changes, mei should:
+The real ship contract is the **car loop** (voice-note an agent → change
+on the phone → yui knows it is live). Full requirements vs mechanisms:
+[docs/live-change.md](../docs/live-change.md).
 
-1. Work on `master` directly -- no feature branches, no PRs.
+Operationally today:
+
+1. **New code reaches the live site.** A change that affects served files
+   must land on `master` (direct push or merged PR). That triggers GitHub
+   Actions → rsync → https://fuseki.net/music8899b/. Reload to load it.
+2. **Yui gets a signal that it is live.** The current mechanism is an
+   **incrementing** header build id (not a SHA — yui glances and compares).
+   `?v=N` cache-busts assets so the reload actually shows the new code.
+   Other signals (agent confirmation after Actions succeeds, SMS/Signal,
+   etc.) are valid and may replace or outrank the header later.
+
+Docs/rules-only pushes are skipped by Actions (`paths-ignore`); they never
+change the live site.
+
+## Direct-to-master (default)
+
+When yui directs mei to make changes:
+
+1. Work on `master` directly — no feature branches, no PR review ceremony.
 2. Commit with clear messages (still multiple small commits, not one blob).
-3. Push to `master`, which triggers the deploy pipeline to the live site.
+3. Push `master` once for the ship (see version rules below).
 
-If the cloud agent system assigns a feature branch, override it: check out `master`, make changes there, push to `master`. The PR-review ceremony is unnecessary for this project -- yui trust mei to push working code.
+If the cloud agent system assigns a feature branch, override it: check out
+`master`, make changes there, push `master`. Cursor's PR diff pane stays empty
+under master-direct — that is expected; review via the agent transcript or
+GitHub commits on `master`.
 
-## When a PR branch has already been created
+### Exceptions
 
-If mei have already committed to a feature branch before seeing this rule, merge it into `master` and push `master`. Clean up the feature branch.
-
-## Exceptions
-
-- If yui explicitly ask for a PR or branch, do that instead.
+- If yui explicitly asks for a PR or branch, do that instead (merge to `master`
+  so auto-deploy still runs; auto-merge is fine — yui should not have to
+  babysit GitHub review).
+- If mei already committed on a feature branch before seeing this rule, merge
+  into `master`, push `master`, clean up the branch.
 - If mei are genuinely uncertain about a change, ask before pushing to master.
 
-## Version bump cycle
+## Version bump
 
-Cache-bust version (`VERSION`, `?v=` on assets, `app-version.js`) follows the
-**push boundary**, not the commit boundary.
-
-**After every push to `master`:** run `./bump-version.sh` immediately. That
-opens the next dev cycle — all subsequent work uses the new version in HTML.
-
-**While working:** do not bump mid-session. Commits may pile up at the same
-version until the next push.
-
-**When ready to deploy:** push to `master` (deploy pipeline ships what is
-committed). **Right after the push succeeds,** run `./bump-version.sh` again
-so local is already on the version for the *next* batch of work.
+Run `./bump-version.sh` **once per user-facing ship**, in the **same push** as
+the change. Never push a bump-only commit: it still deploys new `?v=` / header
+numbers with no real code change, which misleads yui about what "new" means
+and races other agents.
 
 ```
-push v127 live  →  bump → v128  →  work, commit, commit…  →  push v128 live  →  bump → v129  →  …
+work, commit…  →  ./bump-version.sh  →  commit version files with the change  →  push master once  →  deploy live as vN
+                                                                                                      →  reload; header shows vN
 ```
 
-Never bump immediately before a push as the old habit was; the post-push bump
-is what separates live from in-progress cache keys.
+**Skip the bump** when the push only touches rsync-excluded paths (docs,
+tests, `.cursor/`, scripts, etc.).
+
+**Concurrent agents:** before the ship push, `git fetch origin master` and
+rebase (or reset+cherry-pick onto origin). If `VERSION` moved, re-run
+`./bump-version.sh` so the ship is exactly one past origin, then push once
+with content + version together.
+
+## Pipeline (reference)
+
+Push to `master` (when not paths-ignored) → typecheck → lint → `npm test` →
+rsync `--delete` (excludes docs/tests/tooling; list shared with `deploy.sh`) →
+live. Manual: `./deploy.sh`. Details: [docs/setup.md](docs/setup.md).

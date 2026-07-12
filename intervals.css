@@ -49,17 +49,6 @@
     color: rgba(255, 255, 255, 0.5);
 }
 
-/* Sticky offset for the sing panel's pinned action row (below transport) */
-body {
-    --pitch-test-actions-top: 52px;
-}
-
-@media (max-width: 768px) {
-    body {
-        --pitch-test-actions-top: 78px;
-    }
-}
-
 /* Voice row layout and transport button looks come from
    practice-controls.css (shared vocabulary). */
 

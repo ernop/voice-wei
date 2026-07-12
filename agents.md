@@ -60,6 +60,8 @@ existing doc or deleted - never left dangling.
 | agents.md (this file) | Agent entry point: working method, doc tree, shipping steps |
 | [README.md](README.md) | Human-facing overview, dev setup, testing, version system |
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
+| [docs/live-change.md](docs/live-change.md) | True requirements for “agent changed it → I know it’s live” (car loop) |
+| [groks-view.md](groks-view.md) | First-pass map: user stories/UX + technical design (orientation only) |
 
 **Reference (the system as it is)**
 
@@ -128,8 +130,38 @@ parameters (setting behaviors), tools (user-visible behavior).
    - Add `node tests/run-all.js --suite <suite-file>` or `npm run test:full`
      when the touched code needs deeper playback/mic/control coverage.
    - Run `php -l proxy.php` when touching the PHP proxy.
-2. Commit in small logical steps, push `master` - this deploys to production.
-3. Immediately after a successful push, run `./bump-version.sh` locally to open
-   the next dev/cache-bust cycle. Do not bump immediately before pushing.
+2. Work on `master` (override any cloud-assigned feature branch). If the change
+   affects served files, run `./bump-version.sh` once and commit the version
+   files **with** that change, then push `master` once — Actions deploys.
+   Skip the bump for docs/tests/rules-only pushes. Never push a bump-only
+   commit. Cursor's PR diff stays empty under master-direct; that is expected.
+3. After deploy, confirm on the live site: reload and check the header version
+   matches what was just shipped.
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
+
+## Cursor Cloud specific instructions
+
+Dependency install is handled automatically by the startup update script
+(`./setup-cloud-agent.sh`: apt `php-cli`/`php-curl`/`python3-pip`, npm dev
+deps, Playwright Chromium). Do not re-run it by hand unless a tool is missing.
+
+Running the app (this is a static front-end, no build step):
+
+- `php -S 127.0.0.1:8000` from the repo root is the preferred way to serve
+  locally, because it serves the static pages **and** executes `proxy.php`
+  (the YouTube search backend used by `player.html`). `python3 -m http.server
+  8000` also works but only serves static files - `proxy.php` will download as
+  text instead of running.
+- The test suite starts its own server on port 8000 (or reuses one already
+  running), so stop a manually-started server before `npm test`/`test:full`
+  if you hit a port clash.
+
+API keys are entered in the UI and kept in `localStorage` (per
+`config.example.json`), never in a config/env file. Only `player.html`
+(Claude) and `ebook.html` (OpenAI) need keys; every practice tool
+(`scales`, `intervals`, `phrases`, `trace`, `pitch-meter`, `ears`) is fully
+functional offline, so `scales.html` is the quickest no-key smoke check.
+
+Standard lint/test/build/run commands and the shipping order live above under
+"Shipping" and in `README.md`; don't duplicate them here.

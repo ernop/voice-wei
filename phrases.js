@@ -17,7 +17,7 @@
         phraseLesson: 'free_open',
         phraseAlgo: 'arch',
         startAtOne: true,
-        rangeMode: 'within',
+        rangeLow: 0, rangeHigh: 7,
         chromaticRuns: false,
         accidentalRate: 0,
         fillMode: 'none',
@@ -30,6 +30,7 @@
         singNumbers: false,
         noteLengthMs: 300,
         gapMs: 0,
+        sectionPauseMs: 1000,
         showNumbers: true,
         showNoteNames: true,
         showStaff: true,
@@ -37,26 +38,28 @@
         reflected: false,
         loopCurrent: false,
         breakdownEnabled: false,
+        powersetEnabled: false,
         autoStep: false,
         playOnStep: false,
         playOnNext: true,
+        seriesText: '',
         lessonLockedKeys: []
     };
 
     const STORAGE_KEY = StorageKeys.PHRASES_SETTINGS;
-    const DEFAULT_DOCUMENT_TITLE = document.title;
     const PERSISTED_KEYS = [
-        'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeMode',
+        'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
-        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'showNumbers', 'showNoteNames',
-        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'autoStep', 'playOnStep',
-        'playOnNext', 'lessonLockedKeys'
+        'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'sectionPauseMs', 'showNumbers', 'showNoteNames',
+        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
+        'autoStep', 'playOnStep', 'playOnNext', 'seriesText', 'lessonLockedKeys'
     ];
 
     // Setting-change behaviors follow the shared vocabulary defined in
     // docs/parameters.md. Keys not listed here are bounds-next: they only
     // affect the NEXT generated phrase (phraseStyle, phraseLesson,
-    // phraseAlgo, startAtOne, rangeMode, chromaticRuns, minLength, maxLength).
+    // phraseAlgo, startAtOne, rangeLow, rangeHigh, chromaticRuns,
+    // minLength, maxLength).
     const REGENERATE_KEYS = new Set(['returnToInitial', 'returnToRoot']);
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
     const REPLAY_KEYS = new Set(['noteLengthMs', 'gapMs']);
@@ -67,6 +70,7 @@
     const ADJUSTER_VALUES = {
         noteLengthMs: PracticeControls.NOTE_LENGTH_VALUES,
         gapMs: PracticeControls.GAP_VALUES,
+        sectionPauseMs: PracticeControls.TIME_VALUES_MS,
         accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 45, 50]
@@ -79,35 +83,35 @@
         genre: 'genre_folk_hymn'
     });
     const LESSON_PRESETS = Object.freeze({
-        free_open: { style: 'free', defaults: { scaleType: 'major', phraseAlgo: 'arch', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: [] },
-        staff_steps: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'minLength', 'maxLength', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_skips: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_mixed: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        staff_landmarks: { style: 'staff', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_do_re: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_pentachord: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_triad: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        sight_cadence: { style: 'sight', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        barber_tonic: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
-        barber_dominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_subdominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_thirds: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        barber_sevenths: { style: 'barbershop', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_folk_hymn: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_pop_hook: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 4, maxLength: 8, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_theatre: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'over', minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1 }, locks: ['rangeMode', 'returnToInitial'] },
-        genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'startAtOne', 'returnToInitial'] },
-        genre_blackbird_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_hello_pop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 10, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_simon_folk: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_scarborough_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'within', minLength: 8, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'accidentalRate'] },
-        genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeMode: 'within', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial', 'accidentalRate'] },
-        genre_klezmer: { style: 'genre', defaults: { scaleType: 'harmonic_minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['scaleType', 'rangeMode', 'returnToInitial'] },
-        genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeMode: 'over', minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeMode', 'returnToInitial'] }
+        free_open: { style: 'free', defaults: { scaleType: 'major', phraseAlgo: 'arch', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: [] },
+        staff_steps: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'minLength', 'maxLength', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_skips: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_mixed: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        staff_landmarks: { style: 'staff', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_do_re: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 4, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_pentachord: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_triad: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        sight_cadence: { style: 'sight', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        barber_tonic: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial', 'accidentalRate'] },
+        barber_dominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_subdominant: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_thirds: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        barber_sevenths: { style: 'barbershop', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_folk_hymn: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_pop_hook: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 4, maxLength: 8, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_theatre: { style: 'genre', defaults: { scaleType: 'major', rangeLow: -2, rangeHigh: 9, minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_jazz: { style: 'genre', defaults: { scaleType: 'major', rangeLow: -2, rangeHigh: 9, minLength: 8, maxLength: 14, startAtOne: false, returnToInitial: true, accidentalRate: 0.15 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_gospel: { style: 'genre', defaults: { scaleType: 'minor_pentatonic', rangeLow: -2, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.1 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_classical: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'startAtOne', 'returnToInitial'] },
+        genre_blackbird_folk: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_hello_pop: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 10, startAtOne: false, returnToInitial: false, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_simon_folk: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_scarborough_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_calypso: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 5, maxLength: 10, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'accidentalRate'] },
+        genre_norteno: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: true, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_cantopop: { style: 'genre', defaults: { scaleType: 'major', rangeLow: 0, rangeHigh: 7, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial', 'accidentalRate'] },
+        genre_klezmer: { style: 'genre', defaults: { scaleType: 'harmonic_minor', rangeLow: -2, rangeHigh: 9, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0.05 }, locks: ['scaleType', 'rangeLow', 'rangeHigh', 'returnToInitial'] },
+        genre_modal: { style: 'genre', defaults: { scaleType: 'minor', rangeLow: -2, rangeHigh: 9, minLength: 6, maxLength: 12, startAtOne: false, returnToInitial: true, accidentalRate: 0 }, locks: ['rangeLow', 'rangeHigh', 'returnToInitial'] }
     });
 
     const phraseAudio = (() => {
@@ -123,7 +127,7 @@
             },
             /** @param {number} midi @param {number} durationSec */
             playPhraseMidi(midi, durationSec) {
-                if (!piano || !phrasePlaybackAllowed()) return false;
+                if (!piano) return false;
                 piano.playMidi(midi, durationSec);
                 return true;
             },
@@ -150,6 +154,14 @@
     let pointerToggleValue = true;
     let breakdownPassIndex = 0;
     let syncingPhraseStageScroll = false;
+    /**
+     * Powerset practice: lazily walks every unique-as-text ordered note
+     * combination of the current phrase (all 3-note combos, then 4, ...).
+     * Each pass is an enable mask over the take, like breakdown passes.
+     * @type {{ next: () => number[] | null } | null}
+     */
+    let powersetIterator = null;
+    let powersetExhausted = false;
 
     function hasHearOutput() {
         return state.hearTones || state.hearSpeech || state.singNumbers;
@@ -176,9 +188,21 @@
     /** @type {number[][]} */
     let breakdownPasses = [];
 
+    // Honest car/lock-screen transport state: most head units render one
+    // play/pause toggle and route the press by this state, so claiming
+    // 'playing' while idle turns every play press into a pause command.
+    let transportPlaying = false;
+
+    /** @param {boolean} playing */
+    function setTransportPlaying(playing) {
+        transportPlaying = playing;
+        MediaSessionCore.setPlaybackState(playing ? 'playing' : 'paused');
+    }
+
     function stopTransport() {
         playToken++;
         cancelCurrentSound();
+        setTransportPlaying(false);
     }
 
     function stopPlayback() {
@@ -204,7 +228,8 @@
             phraseLesson: state.phraseLesson,
             phraseAlgo: state.phraseAlgo,
             startAtOne: state.startAtOne,
-            rangeMode: state.rangeMode,
+            rangeLow: state.rangeLow,
+            rangeHigh: state.rangeHigh,
             chromaticRuns: state.chromaticRuns || state.accidentalRate > 0,
             accidentalRate: state.accidentalRate,
             minLength: state.minLength,
@@ -224,9 +249,32 @@
      * notes share one timeline that starts at 0 with the FIRST ENABLED
      * note; disabled notes own no time at all - exactly how playback
      * sounds.
+     * Memoized on its actual inputs: the live loop reads the plan many
+     * times per second (targets, rails, duration), and rebuilding the
+     * spelled note names each time was measurable work. A pure-function
+     * memo keyed by the inputs cannot go stale - any change to key,
+     * timing, reflection, or the take notes changes the key.
      * @returns {PhrasePlanNote[]}
      */
+    let takePlanKey = '';
+    /** @type {PhrasePlanNote[]} */
+    let takePlanCache = [];
+
     function buildTakePlan() {
+        const key = [
+            state.root, state.octave, state.scaleType,
+            state.reflected ? 'r' : '', state.noteLengthMs, state.gapMs,
+            takeNotes.map(note => `${note.offset}${note.enabled ? '' : 'x'}`).join(',')
+        ].join('|');
+        if (key !== takePlanKey) {
+            takePlanCache = computeTakePlan();
+            takePlanKey = key;
+        }
+        return takePlanCache;
+    }
+
+    /** @returns {PhrasePlanNote[]} */
+    function computeTakePlan() {
         const root = rootMidi();
         if (root === null || !takeNotes.length) return [];
         const sourceOffsets = takeNotes.map(note => note.offset);
@@ -262,11 +310,11 @@
 
     /** @param {PhrasePlanNote[]} plan */
     function syncPhraseTitle(plan) {
-        const title = plan.length ? phraseTitleFromPlan(plan) : DEFAULT_DOCUMENT_TITLE;
-        document.title = title;
-        if (plan.length) MediaSessionCore.updateMetadata(title, { artist: '' });
-        const heading = document.querySelector('#siteHeader .header-title-group h1');
-        if (heading) heading.textContent = plan.length ? title : 'Phrases';
+        if (plan.length) {
+            MediaSessionCore.setNowPlayingTitle(phraseTitleFromPlan(plan), { artist: '' });
+        } else {
+            MediaSessionCore.clearNowPlayingTitle();
+        }
     }
 
     /** @param {PhrasePlanNote[]} plan */
@@ -334,10 +382,8 @@
 
     /** @param {number} midi */
     async function playSingleNote(midi) {
-        await runPhrasePlayback(async () => {
-            await PianoCore.ensureStarted();
-            playMidi(midi);
-        });
+        await PianoCore.ensureStarted();
+        playMidi(midi);
     }
 
     // Muted notes are simply not performed. Spoken output reads the plan
@@ -373,6 +419,11 @@
     }
 
     /**
+     * The chart's rails ARE the working range: the same rangeLow/rangeHigh
+     * endpoints the generator draws notes from, read from the same state.
+     * The take can only widen the span (a replayed or reflected phrase may
+     * hold notes from outside the current palette, and those notes must
+     * sit on rails too); the expand-range toggle adds an octave each way.
      * @param {boolean} expandRange
      * @returns {Array<{ offset: number, midi: number, label: string, noteName: string }>}
      */
@@ -384,8 +435,8 @@
         const lines = [];
         const planOffsets = plan.map(note => note.offset);
         const extraRange = expandRange ? degreesPerOctave : 0;
-        const lowerOffset = Math.min(-1, ...planOffsets) - 1 - extraRange;
-        const upperOffset = Math.max(degreesPerOctave + 1, ...planOffsets) + 1 + extraRange;
+        const lowerOffset = Math.min(state.rangeLow, ...planOffsets) - extraRange;
+        const upperOffset = Math.max(state.rangeHigh, ...planOffsets) + extraRange;
         const rootInfo = midiToNoteName(root);
         for (let offset = Math.floor(lowerOffset); offset <= Math.ceil(upperOffset); offset++) {
             const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
@@ -418,6 +469,11 @@
             }));
     }
 
+    // On-page diagnostics: the panel narrates what the mic path heard
+    // (held notes, band rejections, guard flips) so a take can be
+    // debugged by pasting the log lines back.
+    const diagLog = DiagLog.create({ hostId: 'phraseLog', title: 'Log' });
+
     testPanel = PitchTestPanel.create({
         hostId: 'phraseTestPanel',
         idPrefix: 'phraseTest',
@@ -440,7 +496,8 @@
         contentDurationMs: () => phraseTestDurationMs(),
         playNote: (midi, durationSec) => { phraseAudio.playGuideMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
-        progressTool: 'phrases-test'
+        progressTool: 'phrases-test',
+        logLine: line => diagLog.add('test', line)
     });
     staffView = StaffView.create({
         hostId: 'phraseStaff',
@@ -493,18 +550,6 @@
         });
     }
 
-    /**
-     * The test panel's action row pins below the sticky transport+stage;
-     * the stage height varies with the phrase, so measure it.
-     */
-    function updateStickyOffset() {
-        const transport = document.querySelector('.voice-controls-row');
-        const stage = document.querySelector('.phrase-stage');
-        const top = (transport instanceof HTMLElement ? transport.offsetHeight : 0)
-            + (stage instanceof HTMLElement ? stage.offsetHeight : 0) + 6;
-        document.body.style.setProperty('--pitch-test-actions-top', `${top}px`);
-    }
-
     function updatePhraseDisplay() {
         const degreesEl = getEl('phraseDegrees');
         const notesEl = getEl('phraseNotes');
@@ -517,7 +562,6 @@
             notesEl.textContent = '';
             drawPhraseStaff();
             drawPhraseTest();
-            updateStickyOffset();
             return;
         }
         syncPhraseTitle(plan);
@@ -525,7 +569,6 @@
         notesEl.textContent = state.showNoteNames ? plan.map(note => note.noteName).join(' ') : '';
         drawPhraseStaff();
         drawPhraseTest();
-        updateStickyOffset();
     }
 
     function generatePhrase() {
@@ -558,6 +601,30 @@
     function setTakeFromPhrase(phrase) {
         takeNotes = phrase.notes.map(note => ({ offset: note.offset, enabled: true }));
         resetBreakdownForPhrase();
+        if (state.powersetEnabled) resetPowersetForPhrase();
+    }
+
+    /**
+     * Start (or restart) the powerset walk over the current take and show
+     * the first combination as the enable mask.
+     */
+    function resetPowersetForPhrase() {
+        powersetExhausted = false;
+        if (!takeNotes.length) {
+            powersetIterator = null;
+            return;
+        }
+        powersetIterator = PatternPracticeCore.createUniqueSubsequenceIterator(
+            takeNotes.map(note => note.offset),
+            3
+        );
+        const first = powersetIterator.next();
+        if (first) {
+            applyNoteMask(first);
+        } else {
+            powersetExhausted = true;
+            updatePhraseDisplay();
+        }
     }
 
     async function playPhraseOnce(token) {
@@ -585,22 +652,43 @@
         return true;
     }
 
-    async function playPhrase() {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return;
+    /**
+     * Powerset always auto-advances: after each play-through the next
+     * combination becomes the mask, so its highlight is the advance hint
+     * during the inter-pass pause. The last pass (the whole phrase) just
+     * repeats once the walk is exhausted.
+     */
+    function maybeAdvancePowersetPass() {
+        if (!state.powersetEnabled || !powersetIterator || powersetExhausted) return false;
+        const next = powersetIterator.next();
+        if (!next) {
+            powersetExhausted = true;
+            syncBreakdownControls();
+            return false;
         }
+        applyNoteMask(next);
+        syncBreakdownControls();
+        return true;
+    }
+
+    async function playPhrase() {
         if (!takeNotes.length) return;
         await PianoCore.ensureStarted();
         cancelCurrentSound();
         const token = ++playToken;
+        setTransportPlaying(true);
         do {
             await playPhraseOnce(token);
             if (token !== playToken) break;
             maybeAdvanceBreakdownPass();
+            maybeAdvancePowersetPass();
             if (!state.loopCurrent) break;
-            await sleep(650);
+            // The next section's mask is applied BEFORE this pause, so the
+            // highlight always previews exactly the notes about to play.
+            // Read live each cycle so Sect changes apply immediately.
+            await sleep(state.sectionPauseMs);
         } while (token === playToken && state.loopCurrent);
+        if (token === playToken) setTransportPlaying(false);
     }
 
     // Tone output may include invisible fill notes; the visible take plan
@@ -739,39 +827,15 @@
         }
     }
 
-    async function playCurrentOrNewUnlocked() {
+    // Playback and the test panel coexist: the panel is a passive
+    // listening surface, so playing the phrase, single notes, or a new
+    // phrase while Listening is on is allowed (and the mic will chart
+    // whatever it hears, including the piano - the chart shows what
+    // reaches the microphone). The panel itself still never auto-plays.
+    async function playCurrentOrNew() {
         await MediaSessionCore.activate();
         if (!currentPhrase) generatePhrase();
         await playPhrase();
-    }
-
-    function phraseTestIsOpen() {
-        return Boolean(testPanel && testPanel.isOpen);
-    }
-
-    function phrasePlaybackAllowed() {
-        return !phraseTestIsOpen();
-    }
-
-    /**
-     * The one Phrases-page playback gate. Test mode is exclusively for
-     * listening to the user's singing; all page-level playback routes
-     * must enter through here before they can start transport, generate
-     * transport-side state, or use the Phrases MIDI boundary.
-     * @template T
-     * @param {() => T | Promise<T>} action
-     * @returns {Promise<T | null>}
-     */
-    async function runPhrasePlayback(action) {
-        if (!phrasePlaybackAllowed()) {
-            stopTransport();
-            return null;
-        }
-        return action();
-    }
-
-    async function playCurrentOrNew() {
-        await runPhrasePlayback(playCurrentOrNewUnlocked);
     }
 
     function handleMediaPlay() {
@@ -786,6 +850,10 @@
         playNext();
     }
 
+    function handleMediaPrevious() {
+        playPrevious();
+    }
+
     function exitBreakdownMode() {
         if (!state.breakdownEnabled) return;
         state.breakdownEnabled = false;
@@ -795,20 +863,96 @@
         syncBreakdownControls();
     }
 
-    async function playNextUnlocked() {
+    function exitPowersetMode() {
+        if (!state.powersetEnabled) return;
+        state.powersetEnabled = false;
+        powersetIterator = null;
+        powersetExhausted = false;
+        saveSettings();
+        syncBreakdownControls();
+    }
+
+    /**
+     * A new phrase while the test panel is open starts a fresh take for
+     * it: same targets on screen and under the score, listening
+     * uninterrupted.
+     */
+    async function restartTakeForNewPhrase() {
+        if (testPanel && testPanel.isOpen) await testPanel.open();
+    }
+
+    async function playNext() {
         await MediaSessionCore.activate();
-        testPanel.close();
         stopTransport();
         exitBreakdownMode();
+        exitPowersetMode();
         generatePhrase();
+        await restartTakeForNewPhrase();
         // With play-on-next off, Next only reveals the phrase so it can be
         // worked out by eye/voice first; Play starts audio when ready.
         if (!state.playOnNext) return;
         await playPhrase();
     }
 
-    async function playNext() {
-        await runPhrasePlayback(playNextUnlocked);
+    /**
+     * Load the typed degree series as the current phrase - the manual
+     * twin of Next. Parse errors show under the input and change
+     * nothing; a valid series becomes the take (and a history entry),
+     * so breakdown, repeat, test, and per-note muting all apply to it.
+     */
+    async function applySeriesFromInput() {
+        const input = getEl('seriesInput');
+        const errorEl = getEl('seriesError');
+        if (!(input instanceof HTMLInputElement) || !(errorEl instanceof HTMLElement)) return;
+        const parsed = PatternPracticeCore.parseDegreeSeries(input.value, state.scaleType);
+        if (parsed.errors.length) {
+            errorEl.hidden = false;
+            errorEl.textContent = parsed.errors.join(' \u00b7 ');
+            return;
+        }
+        errorEl.hidden = true;
+        errorEl.textContent = '';
+        state.seriesText = input.value;
+        saveSettings();
+
+        await MediaSessionCore.activate();
+        stopTransport();
+        exitBreakdownMode();
+        exitPowersetMode();
+        const phrase = PatternPracticeCore.phraseFromOffsets({
+            offsets: parsed.offsets,
+            root: state.root,
+            octave: state.octave,
+            scaleType: state.scaleType
+        });
+        if (!phrase) return;
+        currentPhrase = phrase;
+        setTakeFromPhrase(phrase);
+        if (history) history.add(phrase);
+        await restartTakeForNewPhrase();
+        if (!state.playOnNext) return;
+        await playPhrase();
+    }
+
+    /**
+     * Car back button: step back through the phrase history, one entry
+     * per press, replaying each. At the oldest entry it replays that.
+     */
+    async function playPrevious() {
+        await MediaSessionCore.activate();
+        stopTransport();
+        exitBreakdownMode();
+        exitPowersetMode();
+        const entries = history ? history.entries : [];
+        if (entries.length) {
+            const index = entries.indexOf(currentPhrase);
+            const previous = entries[index < 0 ? 0 : Math.min(index + 1, entries.length - 1)];
+            currentPhrase = previous;
+            setTakeFromPhrase(previous);
+        }
+        if (!currentPhrase) return;
+        await restartTakeForNewPhrase();
+        await playPhrase();
     }
 
     function toggleRepeatLoop() {
@@ -909,12 +1053,37 @@
 
     function toggleBreakdownEnabled() {
         state.breakdownEnabled = !state.breakdownEnabled;
+        if (state.breakdownEnabled && state.powersetEnabled) {
+            state.powersetEnabled = false;
+            powersetIterator = null;
+            powersetExhausted = false;
+        }
         saveSettings();
         if (!currentPhrase && state.breakdownEnabled) generatePhrase();
         if (state.breakdownEnabled) {
             resetBreakdownForPhrase();
         } else {
             breakdownPassIndex = 0;
+            setAllNotes(true);
+        }
+        syncBreakdownControls();
+    }
+
+    function togglePowersetEnabled() {
+        state.powersetEnabled = !state.powersetEnabled;
+        if (state.powersetEnabled && state.breakdownEnabled) {
+            state.breakdownEnabled = false;
+            breakdownPassIndex = 0;
+            breakdownPasses = [];
+        }
+        saveSettings();
+        if (state.powersetEnabled) {
+            // generatePhrase seeds the take, which starts the walk itself.
+            if (!currentPhrase) generatePhrase();
+            else resetPowersetForPhrase();
+        } else {
+            powersetIterator = null;
+            powersetExhausted = false;
             setAllNotes(true);
         }
         syncBreakdownControls();
@@ -955,11 +1124,35 @@
         }
     }
 
+    /** Manual powerset step: show the next combination, optionally play it. */
+    async function advancePowersetCombo() {
+        if (!state.powersetEnabled) return;
+        if (!currentPhrase) generatePhrase();
+        if (!powersetIterator) resetPowersetForPhrase();
+
+        stopTransport();
+        if (!maybeAdvancePowersetPass()) return;
+
+        if (state.playOnStep) {
+            await playPhrase();
+        }
+    }
+
+    function advanceStagePass() {
+        if (state.powersetEnabled) return advancePowersetCombo();
+        return advanceBreakdownNote();
+    }
+
     function syncBreakdownControls() {
         const breakdownBtn = getEl('breakdownBtn');
         if (breakdownBtn) {
             breakdownBtn.classList.toggle('selected', state.breakdownEnabled);
             breakdownBtn.setAttribute('aria-pressed', String(state.breakdownEnabled));
+        }
+        const powersetBtn = getEl('powersetBtn');
+        if (powersetBtn) {
+            powersetBtn.classList.toggle('selected', state.powersetEnabled);
+            powersetBtn.setAttribute('aria-pressed', String(state.powersetEnabled));
         }
         const autoBtn = getEl('autoStepBtn');
         if (autoBtn) {
@@ -978,9 +1171,11 @@
         }
         const addBtn = getEl('addNoteBtn');
         if (addBtn instanceof HTMLButtonElement) {
-            addBtn.hidden = !state.breakdownEnabled;
-            addBtn.disabled = !state.breakdownEnabled
-                || breakdownPassIndex >= breakdownPasses.length - 1;
+            addBtn.hidden = !state.breakdownEnabled && !state.powersetEnabled;
+            addBtn.textContent = state.powersetEnabled ? 'next combo' : 'add note';
+            addBtn.disabled = state.powersetEnabled
+                ? powersetExhausted
+                : (!state.breakdownEnabled || breakdownPassIndex >= breakdownPasses.length - 1);
         }
     }
 
@@ -990,9 +1185,10 @@
         if (!btn) return;
         btn.classList.toggle('selected', open);
         btn.setAttribute('aria-pressed', String(open));
+        document.getElementById('phraseTestDock')?.classList.toggle('open', open);
     }
 
-    /** The Test button is a toggle: open the panel, or dismiss it. */
+    /** The dock Test button is a toggle: open the panel, or dismiss it. */
     async function togglePhraseTest() {
         if (testPanel.isOpen) {
             testPanel.close();
@@ -1013,11 +1209,10 @@
         playBtn.title = 'Play phrase';
         playBtn.textContent = '>';
         playBtn.addEventListener('click', async () => {
-            await runPhrasePlayback(async () => {
-                currentPhrase = phrase;
-                setTakeFromPhrase(phrase);
-                await playPhrase();
-            });
+            currentPhrase = phrase;
+            setTakeFromPhrase(phrase);
+            await restartTakeForNewPhrase();
+            await playPhrase();
         });
         const text = document.createElement('div');
         text.className = 'history-text';
@@ -1038,20 +1233,47 @@
         return item;
     }
 
+    /** Range endpoints display as the degree they sit on ("1", "8", "6↓", "3↑"). @param {number} offset */
+    function rangeEndpointLabel(offset) {
+        return describeScaleOffset(offset, PatternPracticeCore.degreesPerOctave(state.scaleType));
+    }
+
     function syncAdjusterControls() {
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(state.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(state.gapMs));
+        PracticeControls.setValueText('sectionPauseValue', PracticeControls.formatSeconds(state.sectionPauseMs));
         PracticeControls.setValueText('accidentalRateValue', `${Math.round(state.accidentalRate * 100)}%`);
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
         PracticeControls.setValueText('maxLengthValue', String(state.maxLength));
+        PracticeControls.setValueText('rangeLowValue', rangeEndpointLabel(state.rangeLow));
+        PracticeControls.setValueText('rangeHighValue', rangeEndpointLabel(state.rangeHigh));
 
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
+            if (key === 'rangeLow' || key === 'rangeHigh') {
+                return steppedRangeValue(key, delta) === null;
+            }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
+    }
+
+    /**
+     * The next value for a range-endpoint stepper, or null at a bound.
+     * Endpoints move one scale degree per step; the low end may reach a
+     * full octave below unison, the high end two octaves up, and the two
+     * can never cross (low < high always).
+     * @param {'rangeLow' | 'rangeHigh'} key @param {number} delta
+     */
+    function steppedRangeValue(key, delta) {
+        const { lowMin, highMax } = PatternPracticeCore.phraseRangeLimits(state.scaleType);
+        const next = state[key] + delta;
+        if (key === 'rangeLow') {
+            return (next >= lowMin && next < state.rangeHigh) ? next : null;
+        }
+        return (next > state.rangeLow && next <= highMax) ? next : null;
     }
 
     function syncAnchorControls() {
@@ -1105,7 +1327,6 @@
     function syncPresetControlledValues() {
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
         PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
-        PracticeControls.syncSingleSelect('data-range', state.rangeMode);
         syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncToggleControl('hearTonesToggle', state.hearTones);
@@ -1124,7 +1345,8 @@
         const selectorsByKey = {
             scaleType: '[data-scale]',
             phraseAlgo: '[data-phrase-algo]',
-            rangeMode: '[data-range]',
+            rangeLow: '[data-step-key="rangeLow"]',
+            rangeHigh: '[data-step-key="rangeHigh"]',
             startAtOne: '#startAnchorBtn',
             returnToInitial: '#returnAnchorBtn',
             fillMode: '#fillFullBtn, #fillChordBtn',
@@ -1182,9 +1404,13 @@
             updatePhraseDisplay();
             return;
         }
+        // Setting changes NEVER start playback. If something is already
+        // playing (repeat mode), it keeps going and picks the new key or
+        // timing up live - tone playback reads the take plan per note.
         if (REPROJECT_KEYS.has(key) || REPLAY_KEYS.has(key)) {
+            // Range endpoint labels name degrees of the current scale.
+            if (key === 'scaleType') syncAdjusterControls();
             updatePhraseDisplay();
-            if (currentPhrase) playCurrentOrNew();
         }
     }
 
@@ -1249,6 +1475,12 @@
             return;
         }
 
+        if (key === 'rangeLow' || key === 'rangeHigh') {
+            const next = steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */ (key), delta);
+            if (next !== null) setAdjusterValue(key, next);
+            return;
+        }
+
         const next = PracticeControls.stepValue(ADJUSTER_VALUES[key] || [], state[key], delta);
         if (next !== null) setAdjusterValue(key, next);
     }
@@ -1259,10 +1491,9 @@
         if (btn) {
             btn.classList.toggle('selected', state.reflected);
             btn.setAttribute('aria-pressed', String(state.reflected));
-            btn.textContent = state.reflected ? 'Reflect On' : 'Reflect Off';
+            btn.textContent = state.reflected ? 'reflect on' : 'reflect off';
         }
         updatePhraseDisplay();
-        if (currentPhrase) playCurrentOrNew();
     }
 
     /** @param {'full' | 'chord'} mode */
@@ -1284,7 +1515,6 @@
     function initUI() {
         wireSetting('data-scale', 'scaleType', String);
         wireSetting('data-phrase-algo', 'phraseAlgo', String);
-        wireSetting('data-range', 'rangeMode', String);
         PracticeControls.wireSingleSelect('data-phrase-style', String, state.phraseStyle, setPhraseStyle);
         PracticeControls.wireSingleSelect('data-phrase-lesson', String, state.phraseLesson, setPhraseLesson);
         wireHearToggle('hearTonesToggle', 'hearTones');
@@ -1328,7 +1558,6 @@
         getEl('testBtn')?.addEventListener('click', togglePhraseTest);
         getEl('nextBtn')?.addEventListener('click', playNext);
         getEl('stopBtn')?.addEventListener('click', () => {
-            testPanel.close();
             stopPlayback();
         });
         getEl('reflectBtn')?.addEventListener('click', toggleReflect);
@@ -1336,10 +1565,22 @@
         getEl('fillFullBtn')?.addEventListener('click', () => toggleFillMode('full'));
         getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
         getEl('breakdownBtn')?.addEventListener('click', toggleBreakdownEnabled);
+        getEl('powersetBtn')?.addEventListener('click', togglePowersetEnabled);
         getEl('autoStepBtn')?.addEventListener('click', toggleAutoStep);
         getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
         getEl('playOnNextBtn')?.addEventListener('click', togglePlayOnNext);
-        getEl('addNoteBtn')?.addEventListener('click', () => { advanceBreakdownNote(); });
+        getEl('addNoteBtn')?.addEventListener('click', () => { advanceStagePass(); });
+        const seriesInput = getEl('seriesInput');
+        if (seriesInput instanceof HTMLInputElement) {
+            seriesInput.value = state.seriesText;
+            seriesInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applySeriesFromInput();
+                }
+            });
+        }
+        getEl('seriesSetBtn')?.addEventListener('click', () => { applySeriesFromInput(); });
         history = HistoryList.create({
             listId: 'historyList',
             clearBtnId: 'clearHistoryBtn',
@@ -1362,9 +1603,12 @@
             ['pause', handleMediaPause],
             ['nexttrack', handleMediaNext],
             ['seekforward', handleMediaNext],
-            ['seekto', handleMediaNext]
+            ['seekto', handleMediaNext],
+            ['previoustrack', handleMediaPrevious],
+            ['seekbackward', handleMediaPrevious]
         ]);
-        MediaSessionCore.primeOnUserGesture();
+        // Idle at load: the car's toggle must send 'play', not 'pause'.
+        setTransportPlaying(false);
     }
 
     function migrateLoadedSettings() {
@@ -1380,6 +1624,8 @@
             state.autoStep = Boolean(saved.breakdownAutoAdvance);
         }
         if (!Array.isArray(state.lessonLockedKeys)) state.lessonLockedKeys = [];
+        // Breakdown and powerset are exclusive pass modes over the take.
+        if (state.powersetEnabled && state.breakdownEnabled) state.breakdownEnabled = false;
     }
 
     async function boot() {
@@ -1394,8 +1640,6 @@
             console.error('Error loading piano samples:', err);
         }
         initUI();
-        updateStickyOffset();
-        window.addEventListener('resize', updateStickyOffset);
         // Named state inspection for the test suite: the explicit take
         // plan, the test timeline derived from it, and the panel itself
         // (for end-to-end scoring tests via recordSample).
@@ -1407,8 +1651,11 @@
             breakdownPassIndex: () => breakdownPassIndex,
             mediaPlay: handleMediaPlay,
             mediaNext: handleMediaNext,
+            mediaPrevious: handleMediaPrevious,
             settings: () => ({
                 breakdownEnabled: state.breakdownEnabled,
+                powersetEnabled: state.powersetEnabled,
+                powersetExhausted,
                 autoStep: state.autoStep,
                 playOnStep: state.playOnStep,
                 playOnNext: state.playOnNext,

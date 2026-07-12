@@ -95,19 +95,25 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             return data || {};
         });
         report.check(`intervals steppers saved ${saved.lengthMs}/${saved.gapMs}`,
-            saved.lengthMs === 500 && saved.gapMs === 1500);
+            saved.lengthMs === 500 && saved.gapMs === 1900);
 
         // The trio of shared pickers exposes the same preset lists on every
         // page: one step from the shared defaults lands on shared values.
+        // Every seconds-valued stepper derives from ONE time ladder.
         const presets = await tab.evaluate(() => ({
-            lengths: PracticeControls.NOTE_LENGTH_VALUES,
-            gaps: PracticeControls.GAP_VALUES,
+            ladder: Array.from(PracticeControls.TIME_VALUES_MS),
+            lengths: Array.from(PracticeControls.NOTE_LENGTH_VALUES),
+            gaps: Array.from(PracticeControls.GAP_VALUES),
             rootMin: PracticeControls.ROOT_PITCH_MIN_MIDI,
             rootMax: PracticeControls.ROOT_PITCH_MAX_MIDI
         }));
-        report.check(`shared step presets exposed (lengths=${presets.lengths.length}, gaps=${presets.gaps.length}, root=${presets.rootMin}-${presets.rootMax})`,
-            presets.lengths.length > 0 && presets.gaps.length > 0
-            && presets.rootMin === 36 && presets.rootMax === 83);
+        const ladderOk = presets.ladder[0] === 0
+            && [100, 900, 1100, 1900, 2250, 4500, 10000].every(v => presets.ladder.includes(v))
+            && presets.lengths.join(',') === presets.ladder.filter(v => v >= 100).join(',')
+            && presets.gaps.slice(0, 3).join(',') === '-0.5,-0.1,-0.05'
+            && presets.gaps.slice(3).join(',') === presets.ladder.join(',');
+        report.check(`shared step presets expose one time ladder (ladder=${presets.ladder.length}, lengths=${presets.lengths.length}, gaps=${presets.gaps.length}, root=${presets.rootMin}-${presets.rootMax})`,
+            ladderOk && presets.rootMin === 36 && presets.rootMax === 83);
         await ctx.close();
     }
 
@@ -185,7 +191,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await tab.evaluate(() => {
             localStorage.setItem('phrases-settings', JSON.stringify({
                 root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
-                startAtOne: false, rangeMode: 'expanded', minLength: 28, maxLength: 32,
+                startAtOne: false, rangeLow: -3, rangeHigh: 14, minLength: 28, maxLength: 32,
                 returnToInitial: true, returnToRoot: false,
                 hearTones: false, hearSpeech: false, singNumbers: false,
                 noteLengthMs: 300, gapMs: 0, showNoteNames: true, showStaff: true
@@ -234,6 +240,41 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             && stage.clipped === 0
             && stage.overlaps === 0
             && stage.alignmentDelta <= 7);
+        await ctx.close();
+    }
+
+    // PHRASES: an accidental-heavy typed series gets real glyph room on
+    // the staff - the width follows the formatter's minimum, so noteheads
+    // and accidentals never collapse into each other.
+    {
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'phrases-series-staff', report.errors);
+        await tab.goto(`${BASE_URL}/phrases.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1000);
+        await tab.evaluate(() => {
+            const tones = document.getElementById('hearTonesToggle');
+            if (tones instanceof HTMLInputElement && tones.checked) tones.click();
+        });
+        await tab.fill('#seriesInput', '1 2# 3 4# 5 5b 4 3b 2 7bv 7v 1');
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(600);
+        await tab.click('#stopBtn');
+        const staff = await tab.evaluate(() => {
+            const heads = Array.from(document.querySelectorAll('#phraseStaff .vf-notehead'))
+                .map(el => el.getBoundingClientRect())
+                .sort((a, b) => a.left - b.left);
+            let minCenterStep = Infinity;
+            let overlaps = 0;
+            for (let i = 1; i < heads.length; i++) {
+                const step = (heads[i].left + heads[i].width / 2) - (heads[i - 1].left + heads[i - 1].width / 2);
+                minCenterStep = Math.min(minCenterStep, step);
+                if (heads[i].left < heads[i - 1].right - 1) overlaps++;
+            }
+            return { count: heads.length, minCenterStep, overlaps };
+        });
+        report.check(`phrases series staff gives accidentals room (n=${staff.count}, minStep=${staff.minCenterStep.toFixed(1)}, overlaps=${staff.overlaps})`,
+            staff.count === 12 && staff.overlaps === 0 && staff.minCenterStep >= 14);
         await ctx.close();
     }
 

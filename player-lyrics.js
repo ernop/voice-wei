@@ -4,8 +4,43 @@
 const PlayerLyrics = (function () {
     'use strict';
 
-    // Restored whenever the now-playing text stops showing a lyric line.
-    const DEFAULT_DOCUMENT_TITLE = document.title;
+    // The now-playing title leads the sung lyric so Bluetooth metadata
+    // propagation (phone -> AVRCP -> car redraw) lands near the moment
+    // the line actually starts. The on-screen highlight stays unled.
+    const LYRIC_TITLE_LEAD_SECONDS = 0.75;
+
+    // For the first moments of every song the title spots show WHO and
+    // WHAT is playing (artist - song - year - album) before lyric duty
+    // begins.
+    const SONG_IDENTITY_INTRO_SECONDS = 2;
+
+    // When a song's first lyric line starts later than this, the title
+    // spots prefix the upcoming line with a per-second countdown so the
+    // singer knows when to come in.
+    const FIRST_LYRIC_COUNTDOWN_MIN_SECONDS = 5;
+
+    // Background lyric lookups run through one bounded queue: at most this
+    // many songs are being resolved at a time (each may issue a few
+    // candidate searches). Adding a 100-song playlist must not fire 100
+    // provider requests at once, and reopening the page resumes whatever
+    // was interrupted through the same queue.
+    const LYRICS_QUEUE_CONCURRENCY = 2;
+
+    // A stored answered "none" is trusted this long before a normal
+    // interaction rechecks the provider. The row chip force-retries a
+    // "none" immediately regardless of age.
+    const LYRICS_NONE_RECHECK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // Every provider fetch is bounded so a lookup left mid-air by a page
+    // suspension or a dead radio always settles - a song can never wedge
+    // in 'loading'.
+    const LYRICS_PROVIDER_TIMEOUT_MS = 12000;
+
+    // Bumped whenever the lyric search gets smarter. Stored records from an
+    // older search that did NOT land timed lyrics (simple-only or none) get
+    // exactly one re-search under the new algorithm; records that already
+    // hold timed lyrics are final. v2: timed-lyrics-first record selection.
+    const LYRICS_SEARCH_VERSION = 2;
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
@@ -94,18 +129,23 @@ const PlayerLyrics = (function () {
                 btn.classList.remove('lyrics-available', 'lyrics-unavailable', 'lyrics-loading');
                 if (!currentItem) {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = 'Big Lyrics';
+                    btn.textContent = 'Big';
+                    btn.title = 'Big Lyrics overlay';
                 } else if (currentItem.lyricsStatus === 'loading') {
                     btn.classList.add('lyrics-loading');
-                    btn.textContent = 'Big Lyrics ...';
+                    btn.textContent = 'Big ...';
+                    btn.title = 'Looking up lyrics';
                 } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
                     btn.classList.add('lyrics-available');
-                    const synced = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
-                    btn.textContent = synced ? 'Big Lyrics (synced)' : 'Big Lyrics (plain)';
+                    const timed = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
+                    btn.textContent = timed ? 'Big (timed)' : 'Big (simple)';
+                    btn.title = timed ? 'Big Lyrics overlay - timed lyrics' : 'Big Lyrics overlay - simple lyrics';
                 } else {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No Lyrics' : 'Big Lyrics';
+                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No lyrics' : 'Big';
+                    btn.title = currentItem.lyricsStatus === 'not_found' ? 'No lyrics found' : 'Big Lyrics overlay';
                 }
+                this.updateFirstLyricButton();
             },
 
             adjustLyricsFontScale(delta) {
@@ -194,17 +234,17 @@ const PlayerLyrics = (function () {
 
                 if (item.lyricsStatus === 'ready' && item.lyricsData) {
                     const lyricsData = item.lyricsData;
-                    const isSynced = lyricsData.syncedLines.length > 0;
+                    const isTimed = lyricsData.syncedLines.length > 0;
                     if (lyricsData.instrumental) {
                         this.updateLyricsStatus(item, 'Track appears to be instrumental.');
-                    } else if (isSynced) {
-                        this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName} (synced)`);
+                    } else if (isTimed) {
+                        this.updateLyricsStatus(item, `Timed lyrics: ${lyricsData.artistName} - ${lyricsData.trackName} (LRCLIB)`);
                     } else {
-                        this.updateLyricsStatus(item, `LRCLIB match: ${lyricsData.artistName} - ${lyricsData.trackName}`);
+                        this.updateLyricsStatus(item, `Simple lyrics: ${lyricsData.artistName} - ${lyricsData.trackName} (LRCLIB)`);
                     }
                     this.renderLyricsLines(this.getRenderableLyricsLines(lyricsData));
                     const overlay = document.getElementById('lyricsOverlay');
-                    if (overlay) overlay.classList.toggle('has-synced-lyrics', isSynced);
+                    if (overlay) overlay.classList.toggle('has-synced-lyrics', isTimed);
                     return;
                 }
 
@@ -248,43 +288,131 @@ const PlayerLyrics = (function () {
                 this.applyActiveLyricsLine(this.currentLyricsLineIndex, true);
             },
 
-            async ensureLyricsForItem(item) {
-                if (this.hydrateItemLyricsFromCache(item)) {
+            /**
+             * Background path into lyric lookup: enqueue the item and let
+             * the bounded workers resolve it. Direct user intent (playing
+             * a song, tapping its chip) still calls ensureLyricsForItem
+             * immediately - it is idempotent against the queue.
+             */
+            queueLyricsLookup(item) {
+                if (item.lyricsStatus !== 'idle') return;
+                if (this.lyricsFetchQueue.includes(item)) return;
+                this.lyricsFetchQueue.push(item);
+                this.pumpLyricsQueue();
+            },
+
+            pumpLyricsQueue() {
+                while (this.lyricsFetchActive < LYRICS_QUEUE_CONCURRENCY && this.lyricsFetchQueue.length > 0) {
+                    const item = this.lyricsFetchQueue.shift();
+                    // Re-check at dequeue: the song may have resolved via a
+                    // direct play, and a playlist row may have been removed.
+                    // Backfill items are detached from the playlist by design
+                    // and always run.
+                    if (item.lyricsStatus !== 'idle') continue;
+                    if (item.sourceKind !== 'backfill' && !this.playlist.some(entry => entry.id === item.id)) continue;
+                    this.lyricsFetchActive++;
+                    void this.ensureLyricsForItem(item).finally(() => {
+                        this.lyricsFetchActive--;
+                        this.pumpLyricsQueue();
+                    });
+                }
+            },
+
+            /**
+             * Library lyric reconciliation, run on every page load: every
+             * favorite is queued for resolution. Resolution is per song
+             * against the permanent store, so songs already resolved
+             * (found lyrics, or a fresh answered "none") settle from one
+             * IndexedDB read with zero network - the pass is idempotent
+             * and an interrupted or failed recheck resumes on the next
+             * open by construction.
+             */
+            reconcileLibraryLyrics() {
+                let queued = 0;
+                const seen = new Set();
+                for (const favorite of Object.values(this.favorites)) {
+                    if (seen.has(favorite.videoId)) continue;
+                    seen.add(favorite.videoId);
+                    const item = PlayerSongs.createPlaylistItem(favorite, {
+                        sourceKind: 'backfill',
+                        sourceLabel: 'Library lyrics reconcile'
+                    });
+                    if (!item) continue;
+                    this.queueLyricsLookup(item);
+                    queued++;
+                }
+                if (queued > 0) {
+                    this.addMessage('claude', 'Lyrics reconcile', `Verifying lyric state for ${queued} favorite${queued === 1 ? '' : 's'} (already-resolved songs cost nothing)`);
+                }
+            },
+
+            /**
+             * Bring this song's lyric state onto the live item, from the
+             * permanent store outward. Used by every interaction with a
+             * song (queued add, restore, direct play, chip tap):
+             *
+             * - An item already activated ('ready' with data) is trusted:
+             *   activation only ever happens FROM the store or after an
+             *   awaited save TO it, so it cannot disagree with the store.
+             * - Otherwise resolution runs as one shared flight per videoId
+             *   (duplicate rows, the queue, and a direct play all await
+             *   the same promise), and the provider fetch is time-bounded,
+             *   so a lookup interrupted by a page suspension can never
+             *   leave the song wedged in 'loading' - the flight settles
+             *   and the next interaction verifies against the store again.
+             * @param {PlaylistItem} item
+             * @param {{ forceLookup?: boolean }} [options]
+             */
+            async ensureLyricsForItem(item, { forceLookup = false } = {}) {
+                // Timed lyrics in hand settle the session. Simple-only
+                // lyrics stay upgrade-eligible: fall through to resolution,
+                // which is one cheap store read when the record is current
+                // and only re-searches when an upgrade attempt is due.
+                const hasTimedLyrics = item.lyricsStatus === 'ready' && !!item.lyricsData
+                    && item.lyricsData.syncedLines.length > 0;
+                if (!forceLookup && hasTimedLyrics) {
+                    if (this.currentLyricsItemId === item.id) {
+                        this.renderLyricsStateForItem(item);
+                    }
+                    return item.lyricsData;
+                }
+
+                let flight = this.lyricsLookupsInFlight.get(item.videoId);
+                if (!flight) {
+                    flight = this.resolveLyricState(item, forceLookup);
+                    this.lyricsLookupsInFlight.set(item.videoId, flight);
+                }
+
+                // A simple-lyrics upgrade check keeps showing what it has;
+                // only a song with nothing yet enters the visible loading
+                // state.
+                const upgradingSimple = item.lyricsStatus === 'ready' && !!item.lyricsData;
+                if (!upgradingSimple) {
+                    item.lyricsStatus = 'loading';
+                    item.lyricsData = null;
                     this.refreshLyricsRowButton(item);
                     if (this.currentLyricsItemId === item.id) {
                         this.renderLyricsStateForItem(item);
                     }
-                    return item.lyricsData;
-                }
-
-                if (item.lyricsStatus === 'ready') {
-                    if (this.currentLyricsItemId === item.id) {
-                        this.renderLyricsStateForItem(item);
-                    }
-                    return item.lyricsData;
-                }
-
-                if (item.lyricsStatus === 'loading') {
-                    return item.lyricsData || null;
-                }
-
-                item.lyricsStatus = 'loading';
-                this.refreshLyricsRowButton(item);
-                if (this.currentLyricsItemId === item.id) {
-                    this.renderLyricsStateForItem(item);
                 }
 
                 try {
-                    const lyricsData = await this.lookupLyrics(item);
-                    item.lyricsData = lyricsData;
-                    item.lyricsStatus = lyricsData ? 'ready' : 'not_found';
-                    if (lyricsData) {
-                        this.persistLyricsForItem(item, lyricsData);
-                    }
+                    const state = await flight;
+                    this.applyLyricStateToItem(item, state);
                 } catch (error) {
-                    console.error('Lyrics lookup failed:', error);
-                    item.lyricsData = null;
-                    item.lyricsStatus = 'error';
+                    // Expected, handled external failure (provider or DB):
+                    // nothing was saved. A song with simple lyrics keeps
+                    // them (the upgrade just did not happen); a song with
+                    // nothing stays unresolved and retries on next use.
+                    if (!upgradingSimple) {
+                        this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
+                        item.lyricsData = null;
+                        item.lyricsStatus = 'error';
+                    }
+                } finally {
+                    if (this.lyricsLookupsInFlight.get(item.videoId) === flight) {
+                        this.lyricsLookupsInFlight.delete(item.videoId);
+                    }
                 }
 
                 this.refreshLyricsRowButton(item);
@@ -292,18 +420,93 @@ const PlayerLyrics = (function () {
                 if (this.currentLyricsItemId === item.id) {
                     this.currentLyricsLineIndex = -1;
                     this.renderLyricsStateForItem(item);
-                    this.updateSyncedLyricsPosition(this.currentPlaybackTime());
+                    // New timeline: re-derive the surfaces and re-arm the
+                    // deadline clock so the first line lands on time.
+                    this.resyncProgressClock();
                 }
 
                 return item.lyricsData;
             },
 
+            /**
+             * Resolve a song's lyric state with the permanent store
+             * (IndexedDB `lyricStates`, keyed by videoId) as the single
+             * source of truth:
+             * 1. A stored record with TIMED lyrics is final - zero network.
+             * 2. A stored simple-only or "none" record settles from the
+             *    store while it is fresh AND was produced by the current
+             *    search algorithm; otherwise it gets one serious re-search
+             *    aimed at timed lyrics.
+             * 3. The provider answer is saved FIRST (awaited), then
+             *    returned for activation. An upgrade attempt that finds
+             *    nothing better keeps the existing simple lyrics - a
+             *    re-search can never downgrade what we already have.
+             *    Failures throw without saving anything.
+             * @param {PlaylistItem} item
+             * @param {boolean} forceLookup ignore a stored "none" (user retry)
+             * @returns {Promise<LyricStateRecord>}
+             */
+            async resolveLyricState(item, forceLookup) {
+                const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
+                const savedHasTimed = !!saved && saved.status === 'found' && !!saved.lyrics
+                    && Array.isArray(saved.lyrics.syncedLines) && saved.lyrics.syncedLines.length > 0;
+                if (savedHasTimed) {
+                    return saved;
+                }
+                const savedFresh = !!saved && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS;
+                const savedCurrentSearch = !!saved && saved.searchVersion === LYRICS_SEARCH_VERSION;
+                if (!forceLookup && saved && savedFresh && savedCurrentSearch) {
+                    return saved;
+                }
+
+                const lyrics = await this.lookupLyrics(item);
+                /** @type {LyricStateRecord} */
+                let state;
+                if (lyrics) {
+                    const foundTimed = lyrics.syncedLines.length > 0;
+                    const keepExistingSimple = !foundTimed
+                        && !!saved && saved.status === 'found' && !!saved.lyrics;
+                    state = keepExistingSimple
+                        ? { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION }
+                        : { videoId: item.videoId, status: 'found', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION, lyrics };
+                    if (foundTimed && saved && !savedHasTimed) {
+                        this.addMessage('claude', 'Timed lyrics found', `Upgraded from simple lyrics: ${this.describePlaylistItem(item)}`);
+                    }
+                } else if (saved && saved.status === 'found' && saved.lyrics) {
+                    // Upgrade attempt answered empty: keep the simple lyrics.
+                    state = { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                } else {
+                    state = { videoId: item.videoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                }
+                await window.PlayerHistoryDB.putLyricState(state);
+                return state;
+            },
+
+            /**
+             * Activation: the live object learns what the store just said.
+             * Only ever called with a state that was read from or saved to
+             * the permanent store.
+             * @param {PlaylistItem} item @param {LyricStateRecord} state
+             */
+            applyLyricStateToItem(item, state) {
+                if (state.status === 'found' && state.lyrics) {
+                    item.lyricsData = state.lyrics;
+                    item.lyricsStatus = 'ready';
+                } else {
+                    item.lyricsData = null;
+                    item.lyricsStatus = 'not_found';
+                }
+            },
+
             async showLyricsForItem(item) {
+                // Tapping the row chip is explicit user intent: a stored
+                // answered "none" gets rechecked at the provider now.
+                const forceLookup = item.lyricsStatus === 'not_found';
                 this.currentLyricsItemId = item.id;
                 this.currentLyricsLineIndex = -1;
                 this.setLyricsPanelVisible(true);
                 this.renderLyricsStateForItem(item);
-                await this.ensureLyricsForItem(item);
+                await this.ensureLyricsForItem(item, { forceLookup });
             },
 
             async lookupLyrics(item) {
@@ -312,29 +515,55 @@ const PlayerLyrics = (function () {
                 /** @type {{ score: number, record: any } | null} */
                 let bestMatch = null;
 
-                // Search all candidates in parallel
-                const allResults = await Promise.all(
+                // Search all candidates in parallel, keeping failures
+                // distinct from genuine empty answers.
+                const searches = await Promise.all(
                     candidates.map(candidate =>
                         this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '')
-                            .then(results => ({ candidate, results: results || [] }))
-                            .catch(() => ({ candidate, results: [] }))
+                            .then(results => ({ candidate, results: results || [], error: /** @type {Error | null} */ (null) }))
+                            .catch(error => ({
+                                candidate,
+                                results: /** @type {any[]} */ ([]),
+                                error: error instanceof Error ? error : new Error(String(error))
+                            }))
                     )
                 );
 
-                for (const { candidate, results } of allResults) {
+                // A provider failure (rate limit, network) is NOT "no lyrics
+                // exist". Only searches that actually answered may conclude
+                // not-found; if every candidate search failed, throw so the
+                // item lands in 'error' and is retried on the next load -
+                // never recorded as a durable miss.
+                const answered = searches.filter(search => !search.error);
+                if (answered.length === 0) {
+                    const firstError = searches[0] ? searches[0].error : null;
+                    throw new Error(`All ${searches.length} lyric search${searches.length === 1 ? '' : 'es'} failed: ${firstError ? firstError.message : 'unknown error'}`);
+                }
+
+                // Timed lyrics first: among records that match the song well
+                // enough, one carrying timed (synced) lyrics always beats a
+                // simple-only one, even at a slightly lower match score.
+                /** @type {{ score: number, record: any } | null} */
+                let bestTimedMatch = null;
+                for (const { candidate, results } of answered) {
                     for (const record of results) {
                         const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
                         if (!bestMatch || score > bestMatch.score) {
                             bestMatch = { score, record };
                         }
+                        const hasTimed = typeof record.syncedLyrics === 'string' && record.syncedLyrics.trim();
+                        if (hasTimed && (!bestTimedMatch || score > bestTimedMatch.score)) {
+                            bestTimedMatch = { score, record };
+                        }
                     }
                 }
 
-                if (!bestMatch || bestMatch.score < 0.58) {
+                const chosen = (bestTimedMatch && bestTimedMatch.score >= 0.58) ? bestTimedMatch : bestMatch;
+                if (!chosen || chosen.score < 0.58) {
                     return null;
                 }
 
-                const record = bestMatch.record;
+                const record = chosen.record;
                 return {
                     provider: 'LRCLIB',
                     trackName: record.trackName || record.name || '',
@@ -362,7 +591,9 @@ const PlayerLyrics = (function () {
                     params.set('q', [artist, album].filter(Boolean).join(' '));
                 }
 
-                const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
+                const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
+                    signal: AbortSignal.timeout(LYRICS_PROVIDER_TIMEOUT_MS)
+                });
                 if (!response.ok) {
                     throw new Error(`Lyrics search failed: HTTP ${response.status}`);
                 }
@@ -520,25 +751,76 @@ const PlayerLyrics = (function () {
                 const currentItem = this.currentLyricsItem();
                 if (!currentItem || currentItem.id !== this.currentPlayingId || !currentItem.lyricsData || currentItem.lyricsData.syncedLines.length === 0) {
                     this.applyActiveLyricsLine(-1);
+                    // Songs without synced lyrics still get the identity
+                    // intro in the title spots for the first seconds.
+                    this.relayLyricToNowPlaying(-1, currentTime);
+                    this.updateTransportBarLyric(currentItem && currentItem.id === this.currentPlayingId
+                        ? this.lyricDisplayTextAt(currentItem, [], -1, currentTime)
+                        : '');
                     return;
                 }
 
                 const syncedLines = currentItem.lyricsData.syncedLines;
-                let activeIndex = -1;
+                const activeIndex = this.syncedLyricLineIndexAt(syncedLines, currentTime);
+                this.applyActiveLyricsLine(activeIndex);
+                this.updateTransportBarLyric(this.lyricDisplayTextAt(currentItem, syncedLines, activeIndex, currentTime));
+                this.relayLyricToNowPlaying(
+                    this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS),
+                    currentTime
+                );
+            },
+
+            /**
+             * The sticky now-playing bar's lyric row: the sung (or next
+             * upcoming) line, always on screen while scrolling. Empty text
+             * collapses the row.
+             * @param {string} text
+             */
+            updateTransportBarLyric(text) {
+                const el = document.getElementById('transportBarLyric');
+                if (!el) return;
+                const line = String(text || '').trim();
+                if (el.textContent !== line) {
+                    el.textContent = line;
+                }
+                el.style.display = line ? 'block' : 'none';
+            },
+
+            /** @param {SyncedLyricLine[]} syncedLines @param {number} time */
+            syncedLyricLineIndexAt(syncedLines, time) {
+                let index = -1;
                 for (let i = 0; i < syncedLines.length; i++) {
-                    if (currentTime >= syncedLines[i].time) {
-                        activeIndex = i;
+                    if (time >= syncedLines[i].time) {
+                        index = i;
                     } else {
                         break;
                     }
                 }
-                this.applyActiveLyricsLine(activeIndex);
+                return index;
+            },
+
+            /**
+             * The next media-time moment at which anything lyric-driven
+             * changes: a line becomes the highlight (line.time) or enters
+             * the led title window (line.time - lead). Infinity when no
+             * synced lyrics apply. The deadline clock sleeps until here.
+             * @param {number} currentTime
+             */
+            nextLyricDeadline(currentTime) {
+                const item = this.currentLyricsItem();
+                if (!item || item.id !== this.currentPlayingId || !item.lyricsData) return Infinity;
+                let next = Infinity;
+                for (const line of item.lyricsData.syncedLines) {
+                    for (const at of [line.time, line.time - LYRIC_TITLE_LEAD_SECONDS]) {
+                        if (at > currentTime && at < next) next = at;
+                    }
+                }
+                return next;
             },
 
             applyActiveLyricsLine(activeIndex, force = false) {
                 if (!force && this.currentLyricsLineIndex === activeIndex) return;
                 this.currentLyricsLineIndex = activeIndex;
-                this.relayLyricToNowPlaying(activeIndex);
                 const overlayOpen = document.body.classList.contains('lyrics-overlay-open');
                 const selectors = ['#lyricsContent .lyrics-line', '#lyricsOverlayContent .lyrics-line'];
                 for (const selector of selectors) {
@@ -566,122 +848,141 @@ const PlayerLyrics = (function () {
                 }
             },
 
+            /** @param {PlaylistItem} item "Artist - Song - Year - Album", skipping unknowns */
+            describeSongIdentity(item) {
+                return [item.artist, item.name, item.year, item.album]
+                    .map(part => String(part || '').trim())
+                    .filter(Boolean)
+                    .join(' - ');
+            },
+
             /**
-             * Relay the active lyric line into the now-playing surfaces
-             * (Media Session metadata for car/lock-screen displays plus the
-             * tab title), keeping the song identity in the artist slot.
-             * With no active line, restore the song's own metadata.
+             * What the title spots (car/lock-screen metadata, tab title,
+             * header lyric line, sticky-bar lyric row) show at a moment:
+             * - First seconds of a song: the song's identity, so the
+             *   listener knows who and what it is.
+             * - Waiting for a late first lyric line (starts past the
+             *   countdown threshold): the upcoming line prefixed with the
+             *   seconds remaining, counting down.
+             * - Otherwise: the sung/upcoming lyric line.
+             * @param {PlaylistItem} item
+             * @param {SyncedLyricLine[]} lines
+             * @param {number} index active (or led) line index
+             * @param {number} currentTime
              */
-            relayLyricToNowPlaying(activeIndex) {
+            lyricDisplayTextAt(item, lines, index, currentTime) {
+                if (currentTime < SONG_IDENTITY_INTRO_SECONDS) {
+                    return this.describeSongIdentity(item);
+                }
+                if (!lines.length) return '';
+                const line = this.lyricTitleLineAt(lines, index);
+                if (index < 0 && line) {
+                    const firstLine = lines.find(candidate => candidate.text.trim());
+                    if (firstLine && firstLine.time > FIRST_LYRIC_COUNTDOWN_MIN_SECONDS) {
+                        const wait = Math.ceil(firstLine.time - currentTime);
+                        if (wait >= 1) {
+                            return `${wait} ${line}`;
+                        }
+                    }
+                }
+                return line;
+            },
+
+            /**
+             * The singer's title line: the line at the (led) index when it
+             * has text, otherwise the next upcoming line - so intros and
+             * instrumental gaps show what is about to be sung. Past the
+             * last line, the last sung line stays up.
+             * @param {SyncedLyricLine[]} lines @param {number} index
+             */
+            lyricTitleLineAt(lines, index) {
+                if (index >= 0 && index < lines.length && lines[index].text.trim()) {
+                    return lines[index].text.trim();
+                }
+                for (let i = Math.max(index + 1, 0); i < lines.length; i++) {
+                    if (lines[i].text.trim()) return lines[i].text.trim();
+                }
+                for (let i = Math.min(index, lines.length - 1); i >= 0; i--) {
+                    if (lines[i].text.trim()) return lines[i].text.trim();
+                }
+                return '';
+            },
+
+            /**
+             * PUSH the current display text into the now-playing surfaces
+             * (Media Session metadata for car/lock-screen displays plus
+             * the tab title). Writes are event-driven - the deadline clock
+             * wakes exactly at lyric-line boundaries and display seconds -
+             * and identical repeats are dropped by the core, so the car
+             * gets one push per distinct text. The text is the sung lyric
+             * line, except: the song-identity intro for a song's first
+             * seconds, and the countdown prefix before a late first line
+             * (see lyricDisplayTextAt). Outside those, song/artist names
+             * are never written; with nothing to show the surfaces clear.
+             * @param {number} activeIndex
+             * @param {number} [currentTime]
+             */
+            relayLyricToNowPlaying(activeIndex, currentTime) {
+                const now = typeof currentTime === 'number' ? currentTime : this.currentPlaybackTime();
                 const item = this.currentLyricsItem();
                 const playingThisItem = !!item && item.id === this.currentPlayingId
                     && this.isPlaying && !this.isPaused;
-                const line = (this.settings.lyricsOnNowPlaying && playingThisItem
-                    && activeIndex >= 0 && item.lyricsData)
-                    ? (item.lyricsData.syncedLines[activeIndex]?.text || '').trim()
+                const lines = (playingThisItem && item.lyricsData) ? item.lyricsData.syncedLines : [];
+                const line = (this.settings.lyricsOnNowPlaying && playingThisItem)
+                    ? this.lyricDisplayTextAt(item, lines, activeIndex, now)
                     : '';
 
                 if (line) {
-                    const songTitle = item.name || item.title || 'Music';
-                    const artistName = item.artist || item.channelTitle || '';
-                    this.setNowPlayingText(
-                        line,
-                        artistName ? `${songTitle} - ${artistName}` : songTitle,
-                        item.album || 'Voice-Wei Music'
-                    );
-                    document.title = line;
+                    // Repeat writes of the same line are dropped by the core.
+                    MediaSessionCore.setNowPlayingTitle(line, { artist: '' });
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
-                    document.title = DEFAULT_DOCUMENT_TITLE;
-                    const restoreItem = item || this.currentPlaylistItem();
-                    if (restoreItem) {
-                        this.setNowPlayingText(
-                            restoreItem.name || restoreItem.title || 'Music',
-                            restoreItem.artist || restoreItem.channelTitle || '',
-                            restoreItem.album || 'Voice-Wei Music'
-                        );
-                    }
+                    MediaSessionCore.clearNowPlayingTitle();
                 }
             },
 
-            setNowPlayingText(title, artist, album) {
-                if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
-                navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album });
-            },
-
-            hydrateItemLyricsFromCache(item) {
-                const cacheKeys = this.getLyricsCacheKeysForItem(item);
-                for (const key of cacheKeys) {
-                    const cached = this.lyricsCache[key];
-                    if (cached && this.cachedLyricsMatchesItem(cached, item)) {
-                        item.lyricsData = cached;
-                        item.lyricsStatus = 'ready';
-                        return true;
-                    }
+            /**
+             * The row's lyric state marker: ✓ = timed (best / line-synced),
+             * ~ = non-timed (simple text only), … = looking, – = none,
+             * ! = failed, · = not looked up yet.
+             * @param {PlaylistItem} item
+             * @returns {{ label: string, className: string, aria: string }}
+             */
+            lyricsRowMarker(item) {
+                if (item.lyricsStatus === 'loading') {
+                    return { label: '\u2026', className: '', aria: 'Looking up lyrics' };
                 }
-                return false;
-            },
-
-            cachedLyricsMatchesItem(cached, item) {
-                const candidates = this.buildLyricsLookupCandidates(item);
-                const expectedDuration = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                const cachedDuration = Math.round(cached.duration || 0);
-                const durationMatches = expectedDuration === 0 || cachedDuration === 0 || Math.abs(expectedDuration - cachedDuration) <= 8;
-
-                return candidates.some(candidate => {
-                    const titleScore = this.tokenSimilarity(cached.trackName || '', candidate.title);
-                    const artistScore = candidate.artist ? this.tokenSimilarity(cached.artistName || '', candidate.artist) : 0.55;
-                    return titleScore >= 0.72 && artistScore >= 0.5 && durationMatches;
-                });
-            },
-
-            persistLyricsForItem(item, lyricsData) {
-                const durationSeconds = Math.round(lyricsData.duration || item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                const keys = new Set(this.getLyricsCacheKeysForItem(item));
-                keys.add(this.buildLyricsCacheKey(lyricsData.artistName, lyricsData.trackName, durationSeconds));
-                for (const key of keys) {
-                    this.lyricsCache[key] = lyricsData;
+                if (item.lyricsStatus === 'ready' && item.lyricsData) {
+                    return item.lyricsData.syncedLines.length > 0
+                        ? { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
+                        : { label: '~', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
                 }
-                PlayerStorage.saveLyricsCache(this.lyricsCache);
-            },
-
-            getLyricsCacheKeysForItem(item) {
-                const durationSeconds = Math.round(item.durationSeconds || this.parseDurationToSeconds(item.duration || ''));
-                return this.buildLyricsLookupCandidates(item).map(candidate =>
-                    this.buildLyricsCacheKey(candidate.artist, candidate.title, durationSeconds)
-                );
-            },
-
-            buildLyricsCacheKey(artist, title, durationSeconds) {
-                return `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}|${Math.max(0, Math.round(durationSeconds || 0))}`;
+                if (item.lyricsStatus === 'not_found') {
+                    return { label: '\u2013', className: 'none', aria: 'No lyrics found - tap to retry' };
+                }
+                if (item.lyricsStatus === 'error') {
+                    return { label: '!', className: 'none', aria: 'Lyrics lookup failed - tap to retry' };
+                }
+                return { label: '\u00b7', className: '', aria: 'Get lyrics' };
             },
 
             refreshLyricsRowButton(item) {
                 const row = document.querySelector(`[data-item-id="${item.id}"]`);
                 const button = /** @type {HTMLButtonElement | null} */ (row?.querySelector('.lyrics-row-btn'));
                 if (!button) return;
-                const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-                const lyricsLoading = item.lyricsStatus === 'loading';
-                const lyricsNotFound = item.lyricsStatus === 'not_found';
-                const lyricsError = item.lyricsStatus === 'error';
-                button.classList.toggle('ready', lyricsReady);
-                button.classList.toggle('not-found', lyricsNotFound || lyricsError);
-                if (lyricsLoading) {
-                    button.textContent = '...';
-                } else if (lyricsReady) {
-                    button.textContent = 'L';
-                } else if (lyricsNotFound) {
-                    button.textContent = '--';
-                } else if (lyricsError) {
-                    button.textContent = '!';
-                } else {
-                    button.textContent = 'Get';
-                }
-                button.setAttribute('aria-label', lyricsReady ? 'Show cached lyrics' : (lyricsNotFound ? 'Lyrics not found' : 'Get lyrics'));
+                const marker = this.lyricsRowMarker(item);
+                button.classList.toggle('timed', marker.className === 'timed');
+                button.classList.toggle('simple', marker.className === 'simple');
+                button.classList.toggle('none', marker.className === 'none');
+                button.textContent = marker.label;
+                button.setAttribute('aria-label', marker.aria);
+                button.title = marker.aria;
                 if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
                     this.updateBigLyricsAvailability();
                 }
+                // Timed-only filter depends on lyric state; refresh when a row settles.
+                if (this.settings.playlistTimedOnly) this.applyPlaylistFilter();
             }
         }));
     }

@@ -8,16 +8,37 @@ const PlayerHistoryUI = (function () {
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             setupMusicHistoryUI() {
-                const refreshBtn = document.getElementById('musicHistoryRefreshBtn');
+                const toggleBtn = document.getElementById('musicHistoryToggleBtn');
                 const reloadBtn = document.getElementById('musicHistoryReloadBtn');
                 const loadLookupsBtn = document.getElementById('historyLoadSelectedLookupsBtn');
                 const loadSongsBtn = document.getElementById('historyLoadSelectedSongsBtn');
+                const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('knownSongsSearchInput'));
+                const loadShownBtn = document.getElementById('knownSongsLoadShownBtn');
 
-                refreshBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
+                toggleBtn?.addEventListener('click', () => this.toggleMusicHistoryPanel());
                 reloadBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
                 loadLookupsBtn?.addEventListener('click', () => this.loadSelectedHistoryLookups());
                 loadSongsBtn?.addEventListener('click', () => this.loadSelectedKnownSongs());
-                void this.refreshMusicHistoryPanel();
+                searchInput?.addEventListener('input', () => {
+                    this.knownSongsQuery = PlayerSongs.normalizeSearchQuery(searchInput.value);
+                    this.renderKnownSongsHistory(this.musicHistorySongs || []);
+                });
+                loadShownBtn?.addEventListener('click', () => this.loadShownKnownSongs());
+            },
+
+            setMusicHistoryPanelVisible(visible) {
+                const panel = document.getElementById('musicHistoryPanel');
+                if (!panel) return;
+                panel.style.display = visible ? 'block' : 'none';
+                if (visible) {
+                    void this.refreshMusicHistoryPanel();
+                }
+            },
+
+            toggleMusicHistoryPanel() {
+                const panel = document.getElementById('musicHistoryPanel');
+                if (!panel) return;
+                this.setMusicHistoryPanelVisible(panel.style.display === 'none');
             },
 
             async refreshMusicHistoryPanel() {
@@ -66,6 +87,12 @@ const PlayerHistoryUI = (function () {
                 });
             },
 
+            /** The Known Songs rows currently shown: the same live search the playlist filter uses. */
+            shownKnownSongs() {
+                const query = this.knownSongsQuery || '';
+                return (this.musicHistorySongs || []).filter(song => PlayerSongs.songMatchesQuery(song, query));
+            },
+
             renderKnownSongsHistory(songs) {
                 const host = document.getElementById('musicKnownSongsList');
                 if (!host) return;
@@ -74,7 +101,13 @@ const PlayerHistoryUI = (function () {
                     host.innerHTML = '<div class="music-history-empty">No known songs recorded yet.</div>';
                     return;
                 }
-                songs.forEach(record => {
+                const query = this.knownSongsQuery || '';
+                const shown = songs.filter(song => PlayerSongs.songMatchesQuery(song, query));
+                if (!shown.length) {
+                    host.innerHTML = '<div class="music-history-empty">No known songs match that search.</div>';
+                    return;
+                }
+                shown.forEach(record => {
                     const title = record.name || record.title || record.searchTerm || record.videoId;
                     const artist = record.artist || record.channelTitle || '';
                     const item = document.createElement('div');
@@ -172,6 +205,16 @@ const PlayerHistoryUI = (function () {
                 await this.loadKnownSongs(ids);
             },
 
+            /** Load every Known Songs row the current search shows into the playlist. */
+            async loadShownKnownSongs() {
+                const shown = this.shownKnownSongs();
+                if (!shown.length) {
+                    this.updateStatus('No known songs to load for this search');
+                    return;
+                }
+                await this.loadKnownSongs(shown.map(song => song.videoId));
+            },
+
             async loadKnownSongByVideoId(videoId) {
                 await this.loadKnownSongs([videoId]);
             },
@@ -187,24 +230,15 @@ const PlayerHistoryUI = (function () {
             },
 
             addKnownSongsToPlaylist(songs) {
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
+                this.showPlaylistSurfaces();
                 for (const song of songs) {
-                    if (!song.videoId || this.playlist.some(item => item.videoId === song.videoId)) continue;
-                    const item = {
-                        ...song,
-                        id: Date.now() + Math.random(),
+                    if (this.playlist.some(item => item.videoId === song.videoId)) continue;
+                    const item = PlayerSongs.createPlaylistItem(song, {
                         sourceKind: 'history',
-                        sourceLabel: 'Known songs',
-                        sourceSearchTerm: song.searchTerm || '',
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    this.hydrateItemLyricsFromCache(item);
-                    this.playlist.unshift(item);
-                    if (this.currentPlaylistIndex >= 0) this.currentPlaylistIndex++;
-                    this.addPlaylistItemToDOM(item);
+                        sourceLabel: 'Known songs'
+                    });
+                    if (!item) continue;
+                    this.appendPlaylistItem(item);
                 }
                 this.updatePlaylistLabel();
                 this.persistPlaylist();

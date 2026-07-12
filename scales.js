@@ -43,7 +43,7 @@ const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
     'repeatGapMs', 'risingSemitones', 'movementStyle', 'scaleType', 'root',
     'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps',
-    'showSequence', 'useAbbrev', 'instructionDismissed',
+    'chopHead', 'showSequence', 'useAbbrev', 'instructionDismissed',
     'voiceRate', 'voicePitch', 'voiceName', 'echoCommands'
 ];
 
@@ -66,6 +66,7 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {string} sectionLength
  * @property {string} exercise
  * @property {number} shiftingSteps
+ * @property {number} chopHead
  */
 
 /**
@@ -81,6 +82,7 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {number | null} [repeatGapMs]
  * @property {string | null} [exercise]
  * @property {number | null} [shiftingSteps]
+ * @property {number | null} [chopHead]
  */
 
 /**
@@ -161,6 +163,7 @@ class ScalesController {
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
             shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
+            chopHead: 0,       // 0=off, 1=each pass drops the first note (12345678, 2345678, ...)
             showSequence: false,
             useAbbrev: false,
             instructionDismissed: false,
@@ -187,6 +190,7 @@ class ScalesController {
             sectionLength: '1o',
             exercise: 'none',
             shiftingSteps: 0,
+            chopHead: 0,
             showSequence: false,
             useAbbrev: false,
             instructionDismissed: false,
@@ -314,6 +318,7 @@ class ScalesController {
         if (!btn) return;
         btn.classList.toggle('selected', open);
         btn.setAttribute('aria-pressed', String(open));
+        document.getElementById('scalesSingDock')?.classList.toggle('open', open);
     }
 
     /** @param {boolean} expandRange */
@@ -426,7 +431,6 @@ class ScalesController {
             ['play', () => { this.playAgainOrCurrent(); }],
             ['pause', () => { this.stopPlayback(); }]
         ]);
-        MediaSessionCore.primeOnUserGesture();
     }
 
     // The piano notification area is the page's status surface; loading is
@@ -551,28 +555,51 @@ class ScalesController {
     // Rising implies forever - if rising is enabled and repeat isn't already forever, set it
     setRisingSemitones(semitones) {
         this.settings.risingSemitones = semitones;
-        if (semitones > 0 && this.settings.repeatCount !== Infinity) {
-            this.settings.repeatCount = Infinity;
-            // Rising and shifting are mutually exclusive
+        if (semitones > 0) {
+            // Rising, shifting, and chop head are mutually exclusive
             this.settings.shiftingSteps = 0;
+            this.settings.chopHead = 0;
+            if (this.settings.repeatCount !== Infinity) {
+                this.settings.repeatCount = Infinity;
+            }
         }
     }
 
     // Shifting implies forever - if shifting is enabled and repeat isn't already forever, set it
     setShiftingSteps(steps) {
         this.settings.shiftingSteps = steps;
-        if (steps > 0 && this.settings.repeatCount !== Infinity) {
-            this.settings.repeatCount = Infinity;
-            // Rising and shifting are mutually exclusive
+        if (steps > 0) {
+            // Rising, shifting, and chop head are mutually exclusive
             this.settings.risingSemitones = 0;
+            this.settings.chopHead = 0;
+            if (this.settings.repeatCount !== Infinity) {
+                this.settings.repeatCount = Infinity;
+            }
         }
     }
 
     // Set exercise and optionally enable shifting
     setExercise(exercise, enableShifting = false) {
         this.settings.exercise = exercise;
+        if (exercise !== 'none') {
+            // Exercises play through their own pattern engine; chop head only
+            // applies to the plain scale sequence.
+            this.settings.chopHead = 0;
+        }
         if (enableShifting && exercise !== 'none') {
             this.setShiftingSteps(1); // Default to shifting by 1 scale degree
+        }
+    }
+
+    // Chop head: successive passes drop the leading note (12345678 -> 2345678 -> ...).
+    // It replaces the other per-repeat transforms, so enabling it clears them.
+    setChopHead(on) {
+        this.settings.chopHead = on ? 1 : 0;
+        if (on) {
+            this.settings.risingSemitones = 0;
+            this.settings.shiftingSteps = 0;
+            this.settings.exercise = 'none';
+            this.settings.movementStyle = 'normal';
         }
     }
 
@@ -681,7 +708,8 @@ class ScalesController {
             octaveSpan: s.octaveSpan,
             sectionLength: s.sectionLength,
             exercise: s.exercise,
-            shiftingSteps: s.shiftingSteps
+            shiftingSteps: s.shiftingSteps,
+            chopHead: s.chopHead
         };
     }
 
@@ -719,6 +747,7 @@ class ScalesController {
         if (c.movementStyle && c.movementStyle !== 'normal') parts.push(this.getMovementLabel(c.movementStyle));
         if (c.exercise && c.exercise !== 'none') parts.push(this.getExerciseLabel(c.exercise));
         if (c.shiftingSteps && c.shiftingSteps > 0) parts.push('shifting');
+        if (c.chopHead) parts.push('chop head');
         if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
         if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
         if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
@@ -759,6 +788,9 @@ class ScalesController {
         this.settings.rangeExpansion = c.rangeExpansion;
         this.settings.octaveSpan = c.octaveSpan;
         this.settings.sectionLength = c.sectionLength ?? '1o';
+        this.settings.exercise = c.exercise ?? 'none';
+        this.settings.shiftingSteps = c.shiftingSteps ?? 0;
+        if (c.chopHead) this.setChopHead(1);
 
         this.updatePianoKeyOctaves?.();
         this.onSettingChanged();
@@ -904,6 +936,9 @@ class ScalesController {
         const movement = mods.movementStyle ?? s.movementStyle;
         if (movement && movement !== d.movementStyle && movement !== 'normal') badges.push(this.getMovementLabel(movement));
 
+        const chopHead = mods.chopHead ?? s.chopHead;
+        if (chopHead) badges.push('chop head');
+
         const octaveSpan = mods.octaveSpan ?? s.octaveSpan;
         if (octaveSpan && octaveSpan !== d.octaveSpan) badges.push(`${octaveSpan} oct`);
 
@@ -1032,6 +1067,13 @@ class ScalesController {
             btn.classList.toggle('selected', steps === this.settings.shiftingSteps);
         });
 
+        // Chop head buttons
+        document.querySelectorAll('[data-chop-head]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            const on = parseInt(btn.dataset.chopHead || '0');
+            btn.classList.toggle('selected', on === this.settings.chopHead);
+        });
+
         // Movement buttons
         document.querySelectorAll('[data-movement]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1111,7 +1153,8 @@ class ScalesController {
             octaveSpan: this.settings.octaveSpan,
             repeatGapMs: this.settings.repeatGapMs,
             exercise: this.settings.exercise,
-            shiftingSteps: this.settings.shiftingSteps
+            shiftingSteps: this.settings.shiftingSteps,
+            chopHead: this.settings.chopHead
         };
     }
 
@@ -1141,6 +1184,9 @@ class ScalesController {
         }
         if (s.shiftingSteps !== d.shiftingSteps && s.shiftingSteps > 0) {
             parts.push('shifting');
+        }
+        if (s.chopHead) {
+            parts.push('chop head');
         }
         if (s.octave !== d.octave) {
             parts.push(`oct ${s.octave}`);
@@ -1241,11 +1287,24 @@ class ScalesController {
             });
         });
 
+        // Chop head buttons
+        document.querySelectorAll('[data-chop-head]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.setChopHead(parseInt(btn.dataset.chopHead || '0'));
+                this.onSettingChanged();
+            });
+        });
+
         // Movement buttons
         document.querySelectorAll('[data-movement]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
                 this.settings.movementStyle = btn.dataset.movement || 'normal';
+                if (this.settings.movementStyle !== 'normal') {
+                    // Grouped movement playback bypasses chop head
+                    this.settings.chopHead = 0;
+                }
                 this.onSettingChanged();
             });
         });
@@ -1616,6 +1675,16 @@ class ScalesController {
             text = text.replace(/\bshift(ing)?\b/, '').replace(/\bwalk(ing)?\b/, '');
         }
 
+        // Chop head modifier (each pass drops the leading note)
+        // "chop ahead" covers a common recognition of "chop head".
+        if (text.match(/\b(no|without)\s+chop\s*(head|ahead)\b/) || text.match(/\bchop\s*(head|ahead)\s+off\b/)) {
+            modifiers.chopHead = 0;
+            text = text.replace(/\b(no|without)\s+chop\s*(head|ahead)\b/, '').replace(/\bchop\s*(head|ahead)\s+off\b/, '');
+        } else if (text.match(/\bchop(ped)?\s*(head|ahead)\b/)) {
+            modifiers.chopHead = 1;
+            text = text.replace(/\bchop(ped)?\s*(head|ahead)\b/, '');
+        }
+
         // Tempo modifiers (check longer phrases first)
         if (text.match(/\bsuper\s+slow(ly)?\b/) || text.match(/\bsuper\s+long\b/)) {
             modifiers.tempo = 'super slow';
@@ -1882,6 +1951,18 @@ class ScalesController {
             this.settings.shiftingSteps = 0;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'shiftingSteps', value: 0 };
+        }
+
+        // Standalone chop head commands
+        if (originalLower.match(/^chop(ped)?\s*(head|ahead)(\s+(on|mode))?$/)) {
+            this.setChopHead(1);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'chopHead', value: 1 };
+        }
+        if (originalLower.match(/^(no\s+chop\s*(head|ahead)|without\s+chop\s*(head|ahead)|chop\s*(head|ahead)\s+off)$/)) {
+            this.setChopHead(0);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'chopHead', value: 0 };
         }
 
         // Single note: "play C", "note D", "C sharp", "B flat"
@@ -2365,6 +2446,9 @@ class ScalesController {
                 if (command.modifiers.risingSemitones !== null && command.modifiers.risingSemitones !== undefined) {
                     this.setRisingSemitones(command.modifiers.risingSemitones);
                 }
+                if (command.modifiers.chopHead !== null && command.modifiers.chopHead !== undefined) {
+                    this.setChopHead(command.modifiers.chopHead);
+                }
                 if (command.modifiers.rangeExpansion !== null) this.settings.rangeExpansion = command.modifiers.rangeExpansion;
                 if (command.modifiers.octaveSpan !== null) this.settings.octaveSpan = command.modifiers.octaveSpan;
                 // Apply tempo modifier to noteLengthMs
@@ -2464,6 +2548,10 @@ class ScalesController {
         // Rising / transposition
         const risingSemitones = mods.risingSemitones ?? this.settings.risingSemitones;
         if (risingSemitones) parts.push(`rising ${this.getRisingLabel(risingSemitones)}`);
+
+        // Chop head
+        const chopHead = mods.chopHead ?? this.settings.chopHead;
+        if (chopHead) parts.push('chop head');
 
         switch (command.type) {
             case 'scale':
@@ -2577,6 +2665,11 @@ class ScalesController {
         if (mods.risingSemitones) {
             parts.push('rising');
             parts.push(this.getRisingLabel(mods.risingSemitones));
+        }
+
+        // Chop head
+        if (mods.chopHead) {
+            parts.push('chop head');
         }
 
         // Gap
@@ -3464,15 +3557,25 @@ class ScalesController {
         this.clearActuallyPlayed();
         this.updatePatternPreview(0);
 
-        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
-        const playTimes = repeatCount === 0 ? 1 : repeatCount;
-        const isInfinite = repeatCount === Infinity;
+        // Chop head: each pass drops one more leading note (12345678,
+        // 2345678, 345678, ... 8). One user-facing "repeat" spans the whole
+        // shrinking cycle.
+        const chopHead = !!(modifiers.chopHead ?? this.settings.chopHead) && notes.length > 1;
+        const chopPassCount = chopHead ? notes.length : 1;
 
-        const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
+        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const isInfinite = repeatCount === Infinity;
+        const baseTimes = repeatCount === 0 ? 1 : repeatCount;
+        const playTimes = isInfinite ? Infinity : baseTimes * chopPassCount;
+
+        const risingSemitones = chopHead ? 0 : ((modifiers.risingSemitones ?? this.settings.risingSemitones) || 0);
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-        const playbackRepeatGapMs = risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500);
+        const playbackRepeatGapMs = chopHead
+            ? repeatGapMs
+            : (risingSemitones > 0 ? 0 : (isInfinite ? repeatGapMs : 1500));
         const direction = modifiers.direction || this.settings.direction;
-        const omitsContinuousLoopRoot = isInfinite
+        const omitsContinuousLoopRoot = !chopHead
+            && isInfinite
             && playbackRepeatGapMs === 0
             && risingSemitones === 0
             && (direction === 'both' || direction === 'down_and_up');
@@ -3484,7 +3587,18 @@ class ScalesController {
 
         await this.audio.playRenderedSequence({
             getDuration: () => this.getNoteDuration(modifiers),
-            getStepsForRepeat: repeatIndex => this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitsContinuousLoopRoot),
+            getStepsForRepeat: repeatIndex => {
+                if (!chopHead) {
+                    return this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitsContinuousLoopRoot);
+                }
+                const chopOffset = repeatIndex % chopPassCount;
+                return notes.slice(chopOffset).map((midi, i) => ({
+                    midi,
+                    sourceIndex: i + chopOffset,
+                    isSection: true,
+                    repeatIndex
+                }));
+            },
             onStep: step => {
                 this.highlightPianoKey(step.midi);
                 const noteDisplay = this.formatNoteStatus(step.midi, step.sourceIndex, { ...mergedContext, repeatIndex: step.repeatIndex });
@@ -3589,7 +3703,8 @@ class ScalesController {
                 repeat: this.settings.repeatCount,
                 repeatGapMs: this.settings.repeatGapMs,
                 exercise: this.settings.exercise,
-                shiftingSteps: this.settings.shiftingSteps
+                shiftingSteps: this.settings.shiftingSteps,
+                chopHead: this.settings.chopHead
             }
         };
 

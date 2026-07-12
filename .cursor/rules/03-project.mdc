@@ -1,67 +1,37 @@
 ---
-description: Voice Music Control project-specific rules and architecture
+description: Voice-Wei project overview for agents - tools, keys, deploy pointer
 alwaysApply: true
 ---
 
-# VOICE MUSIC CONTROL - PROJECT RULES
+# VOICE-WEI - PROJECT RULES
 
-## Project Overview
-Voice-controlled music player for hands-free operation while driving. Uses Claude AI for natural language music requests, Web Speech API for voice recognition, and YouTube for playback via Piped/Invidious proxy.
+## What this is
 
-## Key Files
-- `player.html` - Main app page
-- `player.js` - Main application logic (VoiceMusicController class)
-- `voice-output.js` - Text-to-speech library
-- `proxy.php` - Server-side YouTube search via Piped/Invidious
-- `config.json` - API keys (gitignored)
+Voice-first music tools for one owner who practices hands-free (often while
+driving). Live: https://fuseki.net/music8899b/
 
-## Architecture
-```
-Voice Input (Web Speech API)
-    ↓
-Command Parser (control commands vs music search)
-    ↓
-Control Command → Execute locally (play/pause/next/etc)
-Music Search → Claude API → YouTube Search (proxy.php) → Playlist
-```
+Tools (each is an `.html` + `.js` page sharing libraries): Scales, Intervals
+(Ears), Phrases, Trace, Pitch, Music (AI player), Books (ebook/TTS).
 
-## API Dependencies
-- **Claude API** (required) - Music request interpretation
-- **YouTube IFrame API** - Video playback
-- **Piped/Invidious** - YouTube search (no API key needed)
-- **Web Speech API** - Voice recognition (browser native)
+Product intent: [docs/product-goals.md](docs/product-goals.md). Construction:
+[docs/architecture.md](docs/architecture.md). Agent entry: [agents.md](agents.md).
 
-## Coding Patterns
+## Keys and config
 
-### State Management
-The app uses a single `VoiceMusicController` class with clear state:
-- `playlist[]` - Current songs
-- `currentPlaylistIndex` - Which song is playing
-- `isPlaying`, `isPaused` - Playback state
-- `isListening` - Voice recognition active
-- `settings{}` - User preferences (localStorage)
-- `favorites{}` - Saved songs (localStorage)
+- **Claude / OpenAI API keys**: entered in the page Settings UI; stored in the
+  browser via `api-keys-store.js` (localStorage). Never commit keys.
+- **`config.json`** (gitignored; see `config.example.json`): local
+  `./deploy.sh` credentials only. Production deploy uses GitHub Actions Secrets.
+- Server does **not** need API keys in a file. `proxy.php` is Piped/Invidious
+  search (+ URL read for Books); no Claude key on the server.
 
-### Voice Commands
-Control commands are parsed in `parseControlCommand()` using regex patterns.
-Music searches go to `processCommandWithLLM()` for Claude interpretation.
+## Deploy (summary)
 
-### YouTube Player Management
-- Players stored in `Map` by item ID
-- Created lazily when items added to playlist
-- Must wait for `onReady` before calling play methods
+Push to `master` → Actions (typecheck, lint, fast tests) → rsync to fuseki.net.
+Full rules: `.cursor/rules/10-deploy-workflow.mdc`. Version bump: once per
+user-facing ship, same push as the change.
 
-## Testing
-- Use `proxy.php?test=1` to verify proxy is working
-- Use `proxy.php?q=test` to verify search returns results
-- Check browser console and in-app Log panel for errors
+## Browser support
 
-## Deployment
-- Sync to server via rsync (excludes .md, .sh, server files)
-- `proxy.php` must be included (it's the search backend)
-- `config.json` must exist on server with Claude API key
-
-## Browser Support
-- Chrome/Edge/Safari only (Web Speech API)
-- HTTPS required (microphone access)
-- Firefox not supported
+Chrome / Edge / Safari (Web Speech API). HTTPS required for microphone.
+Firefox can browse; voice recognition is unsupported there.

@@ -237,7 +237,6 @@ class EarTrainingController {
         this.syncSettingsToUI();
 
         // Hardware media keys registered by intervals.js when ear mode is active.
-        MediaSessionCore.primeOnUserGesture();
     }
 
     setStatus(message) {

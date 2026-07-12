@@ -1,8 +1,9 @@
 // @ts-check
 // Playlist DOM, YouTube search/playback, and transport controls.
 
-const PROGRESS_UPDATE_INTERVAL_MS = 100;
-const SEEK_JUMP_SECONDS = 10;
+const SEEK_JUMP_SECONDS = 5;
+/** Seconds before the first timed lyric line that "1st" jumps to. */
+const FIRST_LYRIC_LEAD_SECONDS = 1;
 const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const PLAYER_READY_TIMEOUT_MS = 8000;
@@ -41,6 +42,30 @@ const PlayerPlaylist = (function () {
         });
 
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+            showPlaylistSurfaces() {
+                document.getElementById('playlistContainer').style.display = 'block';
+                // Sticky transport is the now-playing surface. The older
+                // central player duplicated song/seek controls above it.
+                document.getElementById('centralPlayer').style.display = 'none';
+                this.showTransportBar();
+            },
+
+            /**
+             * The one way a song enters the working playlist: append at the
+             * end, render its row, and queue its lyric resolution. The
+             * bounded queue (player-lyrics.js) keeps big adds polite, and
+             * because restore-at-load takes this same path, lyric work
+             * interrupted by closing the page resumes on the next open -
+             * songs resolved in the permanent store settle from one
+             * IndexedDB read, and only the unresolved ones hit the provider.
+             */
+            appendPlaylistItem(item) {
+                this.playlist.push(item);
+                this.addPlaylistItemToDOM(item);
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
+                this.queueLyricsLookup(item);
+            },
+
             loadFavoritesToPlaylist() {
                 const favoritesList = Object.values(this.favorites);
                 if (favoritesList.length === 0) {
@@ -48,56 +73,23 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
+                this.showPlaylistSurfaces();
 
                 let addedCount = 0;
                 for (const favData of favoritesList) {
-                    // Minimal fallback: try to get at least artist and name
-                    const artistName = favData.artist || favData.channelTitle || 'Unknown';
-                    const songName = favData.name || favData.title || 'Unknown';
-
-                    // Skip if we don't have a videoId
-                    if (!favData.videoId) continue;
                     if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
 
-                    /** @type {PlaylistItem} */
-                    const playlistItem = {
-                        videoId: favData.videoId,
-                        name: songName,
-                        artist: artistName,
-                        year: favData.year || '',
-                        album: favData.album || '',
-                        title: favData.title || songName,
-                        channelTitle: favData.channelTitle || artistName,
-                        duration: favData.duration || '--:--',
-                        durationSeconds: favData.durationSeconds || this.parseDurationToSeconds(favData.duration || ''),
-                        comment: favData.comment || '',
-                        searchTerm: favData.searchTerm || '',
+                    const playlistItem = PlayerSongs.createPlaylistItem(favData, {
                         sourceKind: 'favorite',
-                        sourceLabel: 'Loaded favorites',
-                        sourceSearchTerm: favData.searchTerm || '',
-                        id: Date.now() + Math.random(),
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    this.hydrateItemLyricsFromCache(playlistItem);
+                        sourceLabel: 'Loaded favorites'
+                    });
+                    if (!playlistItem) continue;
                     if (window.PlayerHistoryDB) {
                         window.PlayerHistoryDB.recordSong(playlistItem, 'favorite-load');
                     }
 
-                    this.playlist.unshift(playlistItem);
-                    if (this.currentPlaylistIndex >= 0) {
-                        this.currentPlaylistIndex++;
-                    }
-                    this.addPlaylistItemToDOM(playlistItem);
+                    this.appendPlaylistItem(playlistItem);
                     addedCount++;
-
-                    // Eagerly fetch lyrics for favorites too
-                    if (playlistItem.lyricsStatus === 'idle') {
-                        void this.ensureLyricsForItem(playlistItem);
-                    }
                 }
 
                 this.updatePlaylistLabel();
@@ -106,28 +98,18 @@ const PlayerPlaylist = (function () {
                 this.persistPlaylist();
             },
 
-            shufflePlaylist() {
-                if (this.playlist.length === 0) return;
-                const currentPlayingId = this.currentPlayingId;
-
-                // Fisher-Yates shuffle
-                for (let i = this.playlist.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
-                }
-
-                // Re-render playlist table body
+            /** Re-draw every playlist row from the array, preserving the playing highlight. */
+            rerenderPlaylistDom() {
                 const playlistBody = document.getElementById('playlistBody');
                 playlistBody.innerHTML = '';
-
-                // Re-add items
-                for (let i = this.playlist.length - 1; i >= 0; i--) {
-                    this.addPlaylistItemToDOM(this.playlist[i]);
+                for (const item of this.playlist) {
+                    this.addPlaylistItemToDOM(item);
                 }
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
 
-                // Rebind current index to the currently playing item after shuffle
-                if (currentPlayingId != null) {
-                    this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentPlayingId);
+                // Rebind current index to the currently playing item after reorder
+                if (this.currentPlayingId != null) {
+                    this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === this.currentPlayingId);
                     const currentItem = this.playlist[this.currentPlaylistIndex];
                     if (currentItem) {
                         this.updateCentralPlayer(currentItem);
@@ -138,15 +120,50 @@ const PlayerPlaylist = (function () {
                 this.persistPlaylist();
             },
 
-            async searchAndAddToPlaylist(songList) {
-                const playlistContainer = document.getElementById('playlistContainer');
+            shufflePlaylist() {
+                if (this.playlist.length === 0) return;
 
-                playlistContainer.style.display = 'block';
-                this.showTransportBar();
-
-                if (songList.length > 0) {
-                    document.getElementById('centralPlayer').style.display = 'block';
+                // Fisher-Yates shuffle
+                for (let i = this.playlist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
                 }
+
+                this.rerenderPlaylistDom();
+            },
+
+            /** @param {PlaylistSortKey} key */
+            sortPlaylist(key) {
+                if (this.playlist.length < 2) return;
+
+                const text = (/** @type {string} */ value) => String(value || '').toLowerCase();
+                this.playlist.sort((a, b) => {
+                    if (key === 'year') {
+                        // Unknown years sort last; ties fall through to artist
+                        const yearA = Number(a.year) || Infinity;
+                        const yearB = Number(b.year) || Infinity;
+                        if (yearA !== yearB) return yearA - yearB;
+                    }
+                    const artistCompare = text(a.artist).localeCompare(text(b.artist));
+                    if (artistCompare !== 0) return artistCompare;
+                    return text(a.name).localeCompare(text(b.name));
+                });
+
+                this.rerenderPlaylistDom();
+                this.updateStatus(key === 'year' ? 'Sorted by year' : 'Sorted by artist');
+            },
+
+            async searchAndAddToPlaylist(songList, options = {}) {
+                // A new AI search defines a fresh working playlist, but
+                // nothing is discarded until the FIRST found song is actually
+                // added - a search that finds nothing on YouTube leaves the
+                // current playlist untouched. If a song is playing (or paused
+                // mid-song) it is carried over as the first entry and keeps
+                // playing; when it ends, playback advances into the new
+                // songs. Replaced songs stay reloadable from history.
+                let replacePending = options.replaceExisting === true && this.playlist.length > 0 && songList.length > 0;
+
+                this.showPlaylistSurfaces();
 
                 this.addMessage('claude', 'Processing', `Searching ${songList.length} songs (${YOUTUBE_SEARCH_CONCURRENCY} at a time)...`);
 
@@ -160,67 +177,73 @@ const PlayerPlaylist = (function () {
                         return true;
                     });
 
-                const results = await this.searchSongsWithConcurrency(validSongs);
-
-                // Add to playlist in original order (reversed so unshift preserves order)
                 let addedCount = 0;
                 const attemptedTerms = validSongs.map(({ song }) => song.searchTerm);
                 const skippedTerms = [];
                 let skippedCount = songList.length - validSongs.length;
-                for (const { song, index, videoData, error } of results) {
+
+                // Each song is added the moment its search completes (the
+                // list fills in while later searches are still running),
+                // so rows appear in completion order.
+                const handleSearchResult = ({ song, index, videoData, error }) => {
                     if (error) {
-                        console.error(`Error searching for "${song.searchTerm}":`, error);
                         skippedCount++;
                         skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `${song.searchTerm}: ${error.message}`);
-                        continue;
+                        return;
                     }
                     if (!videoData) {
                         skippedCount++;
                         skippedTerms.push(song.searchTerm);
                         this.addMessage('claude', `Song ${index + 1} not added`, `No YouTube results for: ${song.searchTerm}`);
-                        continue;
+                        return;
                     }
 
                     this.addMessage('claude', `Song ${index + 1}`, `Found: ${videoData.title}`);
 
-                    const itemId = Date.now() + Math.random();
                     const alternateVideos = videoData.alternateVideos || [];
                     const primaryVideoData = { ...videoData };
                     delete primaryVideoData.alternateVideos;
-                    const playlistItem = {
+                    const playlistItem = PlayerSongs.createPlaylistItem({
                         name: song.name ? this.decodeHtml(song.name) : '',
                         artist: song.artist ? this.decodeHtml(song.artist) : '',
                         year: song.year || '',
                         album: song.album ? this.decodeHtml(song.album) : '',
                         comment: song.comment ? this.decodeHtml(song.comment) : '',
                         searchTerm: song.searchTerm,
+                        ...primaryVideoData
+                    }, {
                         sourceKind: 'search',
                         sourceLabel: `Search: ${song.searchTerm}`,
-                        sourceSearchTerm: song.searchTerm,
-                        ...primaryVideoData,
-                        id: itemId,
-                        lyricsStatus: 'idle',
-                        lyricsData: null
-                    };
-                    if (alternateVideos.length > 0) {
-                        this.youtubeAlternateResults.set(itemId, alternateVideos);
+                        sourceSearchTerm: song.searchTerm
+                    });
+                    if (!playlistItem) {
+                        skippedCount++;
+                        skippedTerms.push(song.searchTerm);
+                        return;
                     }
-                    this.hydrateItemLyricsFromCache(playlistItem);
+
+                    if (replacePending) {
+                        replacePending = false;
+                        const previousCount = this.playlist.length;
+                        const keptCurrent = this.replacePlaylistItemsKeepingCurrent();
+                        const droppedCount = previousCount - (keptCurrent ? 1 : 0);
+                        this.addMessage('claude', 'New search', `Replaced the working playlist (${droppedCount} song${droppedCount === 1 ? '' : 's'} stay in Known Songs history${keptCurrent ? '; current song keeps playing' : ''})`);
+                    }
+
+                    if (alternateVideos.length > 0) {
+                        this.youtubeAlternateResults.set(playlistItem.id, alternateVideos);
+                    }
                     if (window.PlayerHistoryDB) {
                         window.PlayerHistoryDB.recordSong(playlistItem, 'search');
                     }
-                    this.playlist.unshift(playlistItem);
-                    if (this.currentPlaylistIndex >= 0) {
-                        this.currentPlaylistIndex++;
-                    }
-                    this.addPlaylistItemToDOM(playlistItem);
+                    this.appendPlaylistItem(playlistItem);
                     addedCount++;
+                    this.updatePlaylistLabel();
+                    this.persistPlaylist();
+                };
 
-                    if (playlistItem.lyricsStatus === 'idle') {
-                        void this.ensureLyricsForItem(playlistItem);
-                    }
-                }
+                await this.searchSongsWithConcurrency(validSongs, { onResult: handleSearchResult });
 
                 this.updatePlaylistLabel();
                 this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);
@@ -232,7 +255,39 @@ const PlayerPlaylist = (function () {
                 return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
             },
 
-            async searchSongsWithConcurrency(validSongs, concurrency = YOUTUBE_SEARCH_CONCURRENCY) {
+            /**
+             * Replace the working playlist while a song is bound to the
+             * player: every entry EXCEPT the current one is dropped (they
+             * stay in the durable history) and the current song keeps
+             * playing as entry 0, so the new songs queue up behind it.
+             * With no current song this is a plain clear.
+             * @returns {boolean} whether the current song was carried over
+             */
+            replacePlaylistItemsKeepingCurrent() {
+                const current = this.playlist.find(entry => entry.id === this.currentPlayingId);
+                const keep = current && (this.isPlaying || this.isPaused) ? current : null;
+                if (!keep) {
+                    this.clearPlaylistItems();
+                    return false;
+                }
+
+                for (const item of this.playlist) {
+                    if (item !== keep) this.youtubeAlternateResults.delete(item.id);
+                }
+                this.playlist = [keep];
+                document.querySelectorAll('#playlistBody .playlist-row').forEach(row => {
+                    if (/** @type {HTMLElement} */ (row).dataset.itemId !== String(keep.id)) row.remove();
+                });
+                this.currentPlaylistIndex = 0;
+                this.currentLyricsItemId = keep.id;
+                // Queued lyric lookups for dropped rows skip at dequeue
+                // (they are no longer in the playlist).
+                this.updatePlaylistLabel();
+                this.persistPlaylist();
+                return true;
+            },
+
+            async searchSongsWithConcurrency(validSongs, { onResult = null, concurrency = YOUTUBE_SEARCH_CONCURRENCY } = {}) {
                 const results = new Array(validSongs.length);
                 let nextIndex = 0;
                 let completed = 0;
@@ -244,13 +299,16 @@ const PlayerPlaylist = (function () {
                         const { song, index } = validSongs[queueIndex];
                         this.addMessage('claude', `Song ${index + 1}`, `Searching: ${song.searchTerm}`);
                         try {
-                            const videoData = await this.searchYouTube(song.searchTerm);
+                            const videoData = await this.searchYouTube(song.searchTerm, { artist: song.artist || '', name: song.name || '' });
                             results[queueIndex] = { song, index, videoData, error: null };
                         } catch (error) {
                             results[queueIndex] = { song, index, videoData: null, error };
                         }
                         completed++;
                         this.updateStatus(`Searched ${completed}/${validSongs.length} YouTube term${validSongs.length === 1 ? '' : 's'}...`);
+                        if (onResult) {
+                            onResult(results[queueIndex]);
+                        }
                     }
                 });
 
@@ -266,7 +324,169 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            async searchYouTube(query) {
+            /**
+             * Live view filter over the working playlist. Purely visual:
+             * rows that do not match are hidden, the array and playback
+             * order are untouched (next/previous still traverse the full
+             * list). Text query and "Timed only" combine: both must pass.
+             * The status line names the active constraints and counts so
+             * a filtered view is never mistaken for the whole playlist.
+             * @param {string} value raw input text
+             */
+            setPlaylistFilter(value) {
+                this.playlistFilterQuery = PlayerSongs.normalizeSearchQuery(value);
+                this.applyPlaylistFilter();
+            },
+
+            clearPlaylistFilter() {
+                const input = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
+                if (input) input.value = '';
+                this.playlistFilterQuery = '';
+                if (this.settings.playlistTimedOnly) {
+                    this.settings.playlistTimedOnly = false;
+                    this.saveSettings();
+                    const timedToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistTimedOnlyToggle'));
+                    if (timedToggle) timedToggle.checked = false;
+                }
+                this.applyPlaylistFilter();
+            },
+
+            /** @param {PlaylistItem} item */
+            itemHasTimedLyrics(item) {
+                return !!item
+                    && item.lyricsStatus === 'ready'
+                    && !!item.lyricsData
+                    && Array.isArray(item.lyricsData.syncedLines)
+                    && item.lyricsData.syncedLines.length > 0;
+            },
+
+            /** Re-apply the current filter to every row and refresh the status line. */
+            applyPlaylistFilter() {
+                const query = this.playlistFilterQuery || '';
+                const timedOnly = !!this.settings.playlistTimedOnly;
+                let shownCount = 0;
+                for (const item of this.playlist) {
+                    const row = /** @type {HTMLElement | null} */ (document.querySelector(`.playlist-row[data-item-id="${item.id}"]`));
+                    if (!row) continue;
+                    const matchesQuery = PlayerSongs.songMatchesQuery(item, query);
+                    const matchesTimed = !timedOnly || this.itemHasTimedLyrics(item);
+                    const matches = matchesQuery && matchesTimed;
+                    row.hidden = !matches;
+                    if (matches) shownCount++;
+                }
+
+                const status = document.getElementById('playlistFilterStatus');
+                const statusText = document.getElementById('playlistFilterStatusText');
+                const filtering = !!(query || timedOnly);
+                if (status) status.style.display = filtering ? 'flex' : 'none';
+                if (statusText && filtering) {
+                    const parts = [];
+                    if (timedOnly) parts.push('timed lyrics only');
+                    if (query) parts.push(`"${query}"`);
+                    statusText.textContent = `Filtering for ${parts.join(' + ')} - ${shownCount} of ${this.playlist.length} shown`;
+                }
+            },
+
+            /**
+             * Song notes (the per-song comments) are a display option:
+             * one class on the container, CSS does the rest - toggling is
+             * instant, no re-render.
+             */
+            applySongNotesVisibility() {
+                const container = document.getElementById('playlistContainer');
+                if (container) {
+                    container.classList.toggle('playlist-notes-on', !!this.settings.showSongNotes);
+                }
+            },
+
+            /**
+             * Version markers that make a video the WRONG recording for a
+             * normal request (the lyrics replay is timed against the studio
+             * track). A marker is only penalized when the search itself did
+             * not ask for it ("shins live kexp" keeps live versions).
+             */
+            unwantedVersionMarkers() {
+                return [
+                    /\blive\b|\bconcert\b|\bunplugged\b/i,
+                    /\bcover(s|ed)?\b|\btribute\b/i,
+                    /\bremix(es|ed)?\b|\bmashup\b/i,
+                    /\bkaraoke\b|\binstrumental\b/i,
+                    /\breacts?\b|\breaction\b/i,
+                    /\bsped.?up\b|\bslowed\b|\bnightcore\b|\b8d\b/i,
+                    /\bacoustic\b/i,
+                    /\bdemo\b|\brehearsal\b/i,
+                    /\bsessions?\b/i,
+                    /\bmedley\b/i,
+                    /\bfull (album|concert|set|show|performance)\b/i
+                ];
+            },
+
+            /**
+             * How much this search result looks like the original studio
+             * recording of the requested song. Signals, not guesses:
+             * " - Topic" channels are YouTube's auto-generated album tracks
+             * (the studio version by construction), Vevo/official uploads
+             * are next best, live/cover/remix/reaction markers in the
+             * title are strong negatives unless the request asked for them,
+             * and a result that names neither the artist in its channel nor
+             * its title is likely someone else's recording of the song.
+             * @param {YouTubeVideoCandidate} video
+             * @param {{ searchTerm?: string, artist?: string, name?: string }} context
+             */
+            scoreVideoCandidate(video, context) {
+                const title = String(video.title || '');
+                const channel = String(video.channelTitle || '');
+                const simplify = (/** @type {string} */ value) =>
+                    String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+                // Marker words inside the song's own name ("Cover Me Up",
+                // "Live and Let Die") are not version requests: strip the
+                // name before reading what the search itself asked for.
+                const songName = simplify(context.name || '');
+                const requested = songName
+                    ? simplify(context.searchTerm || '').replace(songName, ' ')
+                    : simplify(context.searchTerm || '');
+                let score = 0;
+
+                for (const marker of this.unwantedVersionMarkers()) {
+                    if (!marker.test(title)) continue;
+                    // An explicitly requested version dominates: "shins live
+                    // kexp" must rank live recordings above the studio track
+                    // channel signals would otherwise prefer.
+                    score += marker.test(requested) ? 1.2 : -0.6;
+                }
+
+                if (/- topic$/i.test(channel.trim())) score += 0.5;
+                if (/vevo/i.test(channel)) score += 0.35;
+                if (/official audio/i.test(title)) score += 0.3;
+                else if (/official (music )?video/i.test(title)) score += 0.2;
+
+                const artist = simplify(context.artist || '');
+                if (artist) {
+                    if (simplify(channel).includes(artist)) score += 0.2;
+                    else if (!simplify(title).includes(artist)) score -= 0.3;
+                }
+
+                // A known song is a few minutes long: a 12-minute-plus hit
+                // for it is a full set, album, or compilation, not the track.
+                if (songName && Number(video.durationSeconds) > 720) score -= 0.4;
+                return score;
+            },
+
+            /**
+             * Order search results studio-version-first (stable: the
+             * proxy's relevance order breaks ties).
+             * @param {YouTubeVideoCandidate[]} videos
+             * @param {{ searchTerm?: string, artist?: string }} context
+             */
+            rankYouTubeResults(videos, context) {
+                return videos
+                    .map((video, index) => ({ video, index, score: this.scoreVideoCandidate(video, context) }))
+                    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+                    .map(entry => entry.video);
+            },
+
+            async searchYouTube(query, context = {}) {
                 // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
                 // Server-side avoids CORS issues and doesn't need third-party CORS proxies
                 const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
@@ -310,9 +530,12 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                const videos = results
-                    .filter(result => result.videoId)
-                    .map(result => this.formatYouTubeResult(result));
+                const videos = this.rankYouTubeResults(
+                    results
+                        .filter(result => result.videoId)
+                        .map(result => this.formatYouTubeResult(result)),
+                    { searchTerm: query, ...context }
+                );
                 if (videos.length > 0) {
                     const [firstVideo, ...alternateVideos] = videos;
                     this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
@@ -348,39 +571,34 @@ const PlayerPlaylist = (function () {
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             },
 
+            // One compact data line per song, Excel-tight - every datum in a
+            // fixed slot on the SAME line:
+            //   [star][lyric marker] Name  Artist - Year - Album  3:59 [x]
+            // The AI note is a second line only when the Notes toggle is on.
+            // Star + lyric marker sit in a padded leading gutter so a near
+            // miss on the star favorites instead of starting the song.
             addPlaylistItemToDOM(item) {
                 const playlistBody = document.getElementById('playlistBody');
-                const row = document.createElement('tr');
+                const row = document.createElement('div');
+                row.className = 'playlist-row';
                 row.dataset.itemId = String(item.id);
                 row.dataset.videoId = item.videoId;
 
                 const isFav = this.isFavorite(item.videoId);
-                const artistName = item.artist || item.channelTitle || 'Unknown';
-                const songName = item.name || item.title || 'Unknown';
-                const yearText = item.year || '';
-                const albumText = item.album || '';
-                const commentText = item.comment || '';
-                const lyricsReady = item.lyricsStatus === 'ready' && !!item.lyricsData;
-                const lyricsLoading = item.lyricsStatus === 'loading';
-                const lyricsLabel = lyricsLoading ? '...' : (lyricsReady ? 'L' : 'Get');
+                const marker = this.lyricsRowMarker(item);
 
                 row.innerHTML = `
-                    <td>
-                        <div class="playlist-actions-cell">
-                            <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                            <button class="lyrics-row-btn ${lyricsReady ? 'ready' : ''}" data-item-id="${item.id}" aria-label="${lyricsReady ? 'Show cached lyrics' : 'Get lyrics'}">${lyricsLabel}</button>
-                        </div>
-                    </td>
-                    <td>${this.escapeHtml(artistName)}</td>
-                    <td>
-                        <div class="playlist-song-cell">
-                            <span class="playlist-song-name">${this.escapeHtml(songName)}</span>
-                            ${commentText ? `<span class="playlist-song-comment" title="${this.escapeHtml(commentText)}">${this.escapeHtml(commentText)}</span>` : ''}
-                        </div>
-                    </td>
-                    <td>${yearText}</td>
-                    <td>${this.escapeHtml(albumText)}</td>
-                    <td>${item.duration || '--:--'}</td>
+                    <div class="playlist-row-leading">
+                        <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
+                        <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${marker.aria}" title="${marker.aria}">${marker.label}</button>
+                    </div>
+                    <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
+                    <span class="playlist-row-meta">
+                        <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
+                    </span>
+                    <span class="playlist-song-duration">${item.duration || '--:--'}</span>
+                    <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
+                    ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
                 `;
 
                 // Favorite button click - pass full song data
@@ -403,18 +621,78 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
-                // Tap/click to play (on the row, not the favorite button)
+                const removeBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.playlist-remove-btn'));
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.removePlaylistItem(item.id);
+                    });
+                }
+
+                // Leading gutter (star + lyric marker): taps here never play.
+                const leading = row.querySelector('.playlist-row-leading');
+                if (leading) {
+                    leading.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                    });
+                }
+
+                // Tap/click to play (on the row body, not leading controls)
                 row.addEventListener('click', (e) => {
                     const target = /** @type {HTMLElement} */ (e.target);
-                    if (target.closest('.favorite-btn') || target.closest('.lyrics-row-btn')) return;
+                    if (target.closest('button, .playlist-row-leading')) return;
                     this.playVideo(item);
                 });
 
-                playlistBody.insertBefore(row, playlistBody.firstChild);
+                playlistBody.appendChild(row);
 
                 // YouTube iframes are created on first play. Creating one for
                 // every playlist row up front is expensive on mobile and can
                 // leave hidden players stuck before onReady fires.
+            },
+
+            removePlaylistItem(itemId) {
+                const index = this.playlist.findIndex(entry => entry.id === itemId);
+                if (index < 0) return;
+
+                const item = this.playlist[index];
+                const wasCurrent = this.currentPlayingId === itemId;
+                const wasActivelyPlaying = wasCurrent && this.isPlaying && !this.isPaused;
+                if (wasCurrent) {
+                    this.stopPlayback();
+                }
+
+                this.playlist.splice(index, 1);
+                const row = document.querySelector(`.playlist-row[data-item-id="${itemId}"]`);
+                if (row) row.remove();
+                this.youtubeAlternateResults.delete(itemId);
+                if (this.currentLyricsItemId === itemId) {
+                    this.currentLyricsItemId = null;
+                    this.renderLyricsStateForItem(null);
+                }
+
+                if (this.playlist.length === 0) {
+                    this.clearPlaylist();
+                    this.updateStatus('Removed last song; playlist cleared');
+                    return;
+                }
+
+                if (index < this.currentPlaylistIndex) {
+                    this.currentPlaylistIndex--;
+                } else if (index === this.currentPlaylistIndex) {
+                    // The cursor slides onto the song that took this slot
+                    this.currentPlaylistIndex = Math.min(index, this.playlist.length - 1);
+                    if (wasActivelyPlaying) {
+                        void this.playVideo(this.playlist[this.currentPlaylistIndex]);
+                    } else if (wasCurrent) {
+                        this.updateCentralPlayer(null);
+                    }
+                }
+
+                this.updatePlaylistLabel();
+                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
+                this.persistPlaylist();
+                this.updateStatus(`Removed: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
             },
 
             createPlaylistPlayer(item) {
@@ -502,7 +780,7 @@ const PlayerPlaylist = (function () {
                                     const reportNow = !entry || entry.settled;
                                     settleReady({ ok: false, error: detail, errorCode: event.data });
                                     if (reportNow) {
-                                        this.reportPlayerLoadFailure(activeItem, { error: detail, errorCode: event.data });
+                                        void this.reportPlayerLoadFailure(activeItem, { error: detail, errorCode: event.data });
                                     }
                                 }
                             }
@@ -588,9 +866,9 @@ const PlayerPlaylist = (function () {
                     lyricsBtn.setAttribute('aria-label', 'Get lyrics');
                 }
 
-                const cells = row.querySelectorAll('td');
-                if (cells[5]) {
-                    cells[5].textContent = item.duration || '--:--';
+                const durationEl = row.querySelector('.playlist-song-duration');
+                if (durationEl) {
+                    durationEl.textContent = item.duration || '--:--';
                 }
             },
 
@@ -680,10 +958,50 @@ const PlayerPlaylist = (function () {
                 return Promise.race([entry.promise, timeout]);
             },
 
-            reportPlayerLoadFailure(item, failure) {
+            /**
+             * Alternate video candidates only live in session memory, so a
+             * playlist restored after a reload has none. When a video turns
+             * out unplayable (embed disabled, removed), re-run the YouTube
+             * search for the song's search term once and stock fresh
+             * alternates, excluding the video that just failed.
+             * @param {PlaylistItem} item
+             * @returns {Promise<boolean>} whether alternates were stocked
+             */
+            async refreshAlternatesFromSearch(item) {
+                if (!item.searchTerm) return false;
+                if (this.alternateVideoSearchAttempts.has(item.id)) return false;
+                this.alternateVideoSearchAttempts.add(item.id);
+                try {
+                    const videoData = await this.searchYouTube(item.searchTerm, { artist: item.artist || '', name: item.name || '' });
+                    if (!videoData) return false;
+                    const candidates = [videoData, ...(videoData.alternateVideos || [])]
+                        .filter(video => video.videoId && video.videoId !== item.videoId)
+                        .map(video => {
+                            const candidate = { ...video };
+                            delete candidate.alternateVideos;
+                            return candidate;
+                        });
+                    if (!candidates.length) return false;
+                    this.youtubeAlternateResults.set(item.id, candidates);
+                    this.addMessage('claude', 'Fresh video candidates', `${candidates.length} alternate video${candidates.length === 1 ? '' : 's'} for: ${this.describePlaylistItem(item)}`);
+                    return true;
+                } catch (error) {
+                    // External search failure; the load-failure report stands.
+                    return false;
+                }
+            },
+
+            async reportPlayerLoadFailure(item, failure) {
                 const description = this.describePlaylistItem(item);
-                const { detail } = this.playerLoadFailureInfo(failure);
-                if (this.tryNextVideoResult(item, failure)) {
+                const { detail, errorCode } = this.playerLoadFailureInfo(failure);
+                let retrying = this.tryNextVideoResult(item, failure);
+                if (!retrying && this.shouldRetryWithAlternateVideo(errorCode)) {
+                    this.updateStatus(`Finding an alternate video for: ${this.truncateForStatus(description, 80)}`);
+                    if (await this.refreshAlternatesFromSearch(item)) {
+                        retrying = this.tryNextVideoResult(item, failure);
+                    }
+                }
+                if (retrying) {
                     this.updateStatus(`Retrying another video for: ${this.truncateForStatus(description, 80)}`);
                     void this.playVideo(item);
                     return;
@@ -710,7 +1028,7 @@ const PlayerPlaylist = (function () {
                         }
                     }
                     // Remove playing class from all rows
-                    document.querySelectorAll('#playlistBody tr').forEach(el => {
+                    document.querySelectorAll('#playlistBody .playlist-row').forEach(el => {
                         el.classList.remove('playing');
                     });
                 }
@@ -757,9 +1075,12 @@ const PlayerPlaylist = (function () {
                         // Start progress bar updates
                         this.startProgressUpdates();
 
-                        // Log the play action
+                        // Log the play action; the status line gets fresh
+                        // truth on every track so stale "Player loading"
+                        // text can never outlive the load it described.
                         const songTitle = item.name || item.title || 'Unknown';
                         this.addMessage('user', 'Now Playing', `${songTitle}`);
+                        this.updateStatus(`Playing: ${this.truncateForStatus(this.describePlaylistItem(item), 100)}`);
                         this.persistPlaylist();
                     } catch (e) {
                         console.error('Error playing video:', e);
@@ -783,7 +1104,7 @@ const PlayerPlaylist = (function () {
                     if (item.videoId !== loadingVideoId) {
                         return;
                     }
-                    this.reportPlayerLoadFailure(item, ready.error);
+                    void this.reportPlayerLoadFailure(item, ready.error);
                 }
             },
 
@@ -805,27 +1126,43 @@ const PlayerPlaylist = (function () {
                     artistEl.textContent = '';
                     if (transportInfo) transportInfo.textContent = 'No song playing';
                 }
+                // Song change or clear: the bar lyric belongs to the previous
+                // song until this song's synced position writes its own.
+                this.updateTransportBarLyric('');
                 this.updateBigLyricsAvailability();
+                this.updateFirstLyricButton();
+            },
+
+            /** Bring the current song's row into view (the bar's song line). */
+            scrollToCurrentSong() {
+                const item = this.playlist.find(entry => entry.id === this.currentPlayingId)
+                    || this.currentPlaylistItem();
+                if (!item) return;
+                const row = document.querySelector(`.playlist-row[data-item-id="${item.id}"]`);
+                if (!row) return;
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
 
             updateMediaSessionForItem(item) {
-                if (!('mediaSession' in navigator) || !item) return;
+                if (!item) return;
 
-                const title = item.name || item.title || 'Music';
-                const artist = item.artist || item.channelTitle || '';
-                if (typeof MediaMetadata !== 'undefined') {
-                    navigator.mediaSession.metadata = new MediaMetadata({
-                        title,
-                        artist,
-                        album: item.album || 'Voice-Wei Music'
-                    });
+                // The now-playing title belongs to the lyric relay: the
+                // driver sings along from it, so song/artist names are
+                // never written here. Clear the previous song's lyric
+                // until this song's lines start arriving. Reporting
+                // 'playing' secures session ownership (the core's silent
+                // loop) so the car reads THIS page, not youtube.com.
+                MediaSessionCore.clearNowPlayingTitle();
+                MediaSessionCore.setPlaybackState('playing');
+                if (!this.mediaActionHandlersSet) {
+                    this.mediaActionHandlersSet = true;
+                    MediaSessionCore.setActionHandlers([
+                        ['play', () => this.playPlaylist()],
+                        ['pause', () => this.pausePlayback()],
+                        ['previoustrack', () => this.playPrevious()],
+                        ['nexttrack', () => this.playNext()]
+                    ]);
                 }
-
-                navigator.mediaSession.playbackState = 'playing';
-                navigator.mediaSession.setActionHandler('play', () => this.playPlaylist());
-                navigator.mediaSession.setActionHandler('pause', () => this.pausePlayback());
-                navigator.mediaSession.setActionHandler('previoustrack', () => this.playPrevious());
-                navigator.mediaSession.setActionHandler('nexttrack', () => this.playNext());
             },
 
             stopPlayback() {
@@ -837,9 +1174,7 @@ const PlayerPlaylist = (function () {
                             player.stopVideo();
                             this.playback.markStopped();
                             this.relayLyricToNowPlaying(-1);
-                            if ('mediaSession' in navigator) {
-                                navigator.mediaSession.playbackState = 'none';
-                            }
+                            MediaSessionCore.setPlaybackState('none');
                             this.updatePlayPauseButton();
                             this.stopProgressUpdates();
                             this.updateProgressBar(0, 1);
@@ -863,9 +1198,7 @@ const PlayerPlaylist = (function () {
                         const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
                         player.playVideo();
                         this.playback.markPlaying(this.playback.currentPlayingId);
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.playbackState = 'playing';
-                        }
+                        MediaSessionCore.setPlaybackState('playing');
                         this.updatePlayPauseButton();
                         this.startProgressUpdates();
                         this.relayLyricToNowPlaying(this.currentLyricsLineIndex);
@@ -893,9 +1226,7 @@ const PlayerPlaylist = (function () {
                         player.pauseVideo();
                         this.playback.markPaused();
                         this.relayLyricToNowPlaying(-1);
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.playbackState = 'paused';
-                        }
+                        MediaSessionCore.setPlaybackState('paused');
                         this.updatePlayPauseButton();
                         this.stopProgressUpdates();
                     }
@@ -934,32 +1265,58 @@ const PlayerPlaylist = (function () {
                 this.playVideo(this.playlist[prevIndex]);
             },
 
-            fastForward() {
-                if (this.currentPlayingId) {
-                    const player = this.playback.player;
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                        try {
-                            const currentTime = player.getCurrentTime();
-                            player.seekTo(currentTime + SEEK_JUMP_SECONDS, true);
-                        } catch (e) {
-                            console.error('Error fast forwarding:', e);
-                        }
+            /** @param {number} seconds positive = forward, negative = back */
+            seekBy(seconds) {
+                if (!this.currentPlayingId) return;
+                const player = this.playback.player;
+                if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
+                    try {
+                        const currentTime = player.getCurrentTime();
+                        player.seekTo(Math.max(0, currentTime + seconds), true);
+                        this.resyncProgressClock();
+                    } catch (e) {
+                        console.error('Error seeking:', e);
                     }
                 }
             },
 
-            rewind() {
-                if (this.currentPlayingId) {
-                    const player = this.playback.player;
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-                        try {
-                            const currentTime = player.getCurrentTime();
-                            player.seekTo(Math.max(0, currentTime - SEEK_JUMP_SECONDS), true);
-                        } catch (e) {
-                            console.error('Error rewinding:', e);
-                        }
+            /**
+             * Jump to just before the first timed lyric line of the
+             * current song. No-op when the playing item has no synced lines.
+             */
+            seekToFirstLyric() {
+                if (!this.currentPlayingId) return;
+                const item = this.currentPlaylistItem();
+                if (!item || !this.itemHasTimedLyrics(item) || !item.lyricsData) return;
+                const firstLine = item.lyricsData.syncedLines.find(line => String(line.text || '').trim());
+                if (!firstLine) return;
+                const player = this.playback.player;
+                if (player && typeof player.seekTo === 'function') {
+                    try {
+                        player.seekTo(Math.max(0, firstLine.time - FIRST_LYRIC_LEAD_SECONDS), true);
+                        this.resyncProgressClock();
+                    } catch (e) {
+                        console.error('Error seeking to first lyric:', e);
                     }
                 }
+            },
+
+            /** Show the within-song "1st" jump only while the playing track has timed lyrics. */
+            updateFirstLyricButton() {
+                const btn = document.getElementById('transportFirstLyricBtn');
+                if (!btn) return;
+                const item = this.currentPlaylistItem();
+                const show = !!this.currentPlayingId && this.itemHasTimedLyrics(item)
+                    && item.id === this.currentPlayingId;
+                btn.style.display = show ? '' : 'none';
+            },
+
+            fastForward() {
+                this.seekBy(SEEK_JUMP_SECONDS);
+            },
+
+            rewind() {
+                this.seekBy(-SEEK_JUMP_SECONDS);
             },
 
             updateTransportPauseLabel() {
@@ -972,6 +1329,7 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.seekTo === 'function') {
                         player.seekTo(0, true);
+                        this.resyncProgressClock();
                     }
                 }
             },
@@ -993,7 +1351,12 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            clearPlaylist() {
+            /**
+             * Empty the working playlist and its playback machinery (rows,
+             * the reused YouTube player, lyric state) WITHOUT hiding the
+             * player surfaces - the piece a replace-on-new-search reuses.
+             */
+            clearPlaylistItems() {
                 // Stop any playing video
                 if (this.currentPlayingId) {
                     const player = this.playback.player;
@@ -1010,15 +1373,13 @@ const PlayerPlaylist = (function () {
                 this.stopProgressUpdates();
                 this.playlist = [];
                 document.getElementById('playlistBody').innerHTML = '';
+                this.clearPlaylistFilter();
 
                 // Remove any player divs that were appended to the container
                 const container = document.getElementById('playlistContainer');
                 const playerDivs = container.querySelectorAll('.youtube-player');
                 playerDivs.forEach(div => div.remove());
 
-                document.getElementById('playlistContainer').style.display = 'none';
-                document.getElementById('centralPlayer').style.display = 'none';
-                this.hideTransportBar();
                 if (this.playback.player) {
                     try {
                         this.playback.player.destroy();
@@ -1028,16 +1389,29 @@ const PlayerPlaylist = (function () {
                 }
                 this.playerReadyPromises.clear();
                 this.youtubeAlternateResults.clear();
+                this.alternateVideoSearchAttempts.clear();
+                // Drop queued lookups for the discarded rows; detached
+                // backfill items are not playlist-bound and keep going.
+                this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');
                 this.playback.reset();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);
                 this.updatePlaylistLabel();
                 this.currentLyricsItemId = null;
                 this.currentLyricsLineIndex = -1;
+                this.renderLyricsStateForItem(null);
+                this.persistPlaylist();
+            },
+
+            clearPlaylist() {
+                this.clearPlaylistItems();
+
+                document.getElementById('playlistContainer').style.display = 'none';
+                document.getElementById('centralPlayer').style.display = 'none';
+                this.hideTransportBar();
                 this.setLyricsPanelVisible(false);
                 this.lyricsPanelDismissed = false;
                 this.closeLyricsOverlay();
-                this.renderLyricsStateForItem(null);
 
                 // Also hide transcript/response containers
                 this.hideClaudeResponse();
@@ -1046,11 +1420,15 @@ const PlayerPlaylist = (function () {
                 if (transcriptContainer) {
                     transcriptContainer.style.display = 'none';
                 }
-                this.persistPlaylist();
             },
 
             persistPlaylist() {
-                PlayerStorage.savePlaylist(this.playlist, this.currentPlaylistIndex);
+                // Persist the Songs + membership only, never the lyric
+                // runtime: full lyrics per item is what exceeded the
+                // localStorage quota. Lyrics re-hydrate from their one
+                // owner (the lyrics cache) at load.
+                const entries = this.playlist.map(item => PlayerSongs.persistedPlaylistEntry(item));
+                PlayerStorage.savePlaylist(entries, this.currentPlaylistIndex);
             },
 
             restoreSavedPlaylist() {
@@ -1059,31 +1437,23 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                this.playlist = saved.items.map(item => ({
-                    ...item,
-                    sourceKind: 'restored',
-                    sourceLabel: 'Known at load',
-                    sourceSearchTerm: item.searchTerm || '',
-                    lyricsStatus: item.lyricsStatus || 'idle',
-                    lyricsData: item.lyricsData || null
-                }));
+                this.showPlaylistSurfaces();
+
+                for (const entry of saved.items) {
+                    const item = PlayerSongs.createPlaylistItem(entry, {
+                        sourceKind: 'restored',
+                        sourceLabel: 'Known at load'
+                    });
+                    if (!item) continue;
+                    this.appendPlaylistItem(item);
+                }
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordSongs(this.playlist, 'restored-at-load');
                 }
-                this.currentPlaylistIndex = saved.currentPlaylistIndex;
-
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
-
-                for (let i = this.playlist.length - 1; i >= 0; i--) {
-                    const item = this.playlist[i];
-                    this.hydrateItemLyricsFromCache(item);
-                    this.addPlaylistItemToDOM(item);
-                }
+                this.currentPlaylistIndex = Math.min(saved.currentPlaylistIndex, this.playlist.length - 1);
                 this.updatePlaylistLabel();
 
-                if (this.currentPlaylistIndex >= 0 && this.currentPlaylistIndex < this.playlist.length) {
+                if (this.currentPlaylistIndex >= 0) {
                     const current = this.playlist[this.currentPlaylistIndex];
                     this.updateCentralPlayer(current);
                     const row = document.querySelector(`[data-item-id="${current.id}"]`);
@@ -1122,60 +1492,66 @@ const PlayerPlaylist = (function () {
                 if (bar) bar.style.display = 'none';
             },
 
+            // Two seek surfaces, one behavior: the central player's track
+            // and the sticky bar's strip both click/drag-seek through
+            // seekToPercentage.
             setupProgressBar() {
-                const progressTrack = document.getElementById('progressBarTrack');
-                if (!progressTrack) return;
+                const strips = [
+                    document.getElementById('progressBarTrack'),
+                    document.getElementById('transportProgressTrack')
+                ].filter(strip => strip !== null);
 
-                /** @param {MouseEvent | TouchEvent} e */
-                const handleSeek = (e) => {
-                    const rect = progressTrack.getBoundingClientRect();
-                    const clientX = 'clientX' in e ? e.clientX : (e.touches && e.touches[0]?.clientX) || 0;
+                /** @param {HTMLElement} strip @param {number} clientX */
+                const seekAt = (strip, clientX) => {
+                    const rect = strip.getBoundingClientRect();
                     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
                     this.seekToPercentage(percentage);
                 };
 
-                // Mouse events
-                progressTrack.addEventListener('mousedown', (e) => {
-                    this.isDraggingProgress = true;
-                    progressTrack.classList.add('dragging');
-                    handleSeek(e);
-                });
+                for (const strip of strips) {
+                    strip.addEventListener('mousedown', (e) => {
+                        this.isDraggingProgress = true;
+                        this.activeSeekStrip = strip;
+                        strip.classList.add('dragging');
+                        seekAt(strip, e.clientX);
+                    });
+
+                    strip.addEventListener('touchstart', (e) => {
+                        this.isDraggingProgress = true;
+                        this.activeSeekStrip = strip;
+                        strip.classList.add('dragging');
+                        seekAt(strip, e.touches[0]?.clientX || 0);
+                    });
+
+                    strip.addEventListener('touchmove', (e) => {
+                        if (this.isDraggingProgress && this.activeSeekStrip === strip) {
+                            e.preventDefault();
+                            seekAt(strip, e.touches[0]?.clientX || 0);
+                        }
+                    });
+
+                    strip.addEventListener('touchend', () => {
+                        this.isDraggingProgress = false;
+                        this.activeSeekStrip = null;
+                        strip.classList.remove('dragging');
+                    });
+
+                    strip.addEventListener('click', (e) => seekAt(strip, e.clientX));
+                }
 
                 document.addEventListener('mousemove', (e) => {
-                    if (this.isDraggingProgress) {
-                        handleSeek(e);
+                    if (this.isDraggingProgress && this.activeSeekStrip) {
+                        seekAt(this.activeSeekStrip, e.clientX);
                     }
                 });
 
                 document.addEventListener('mouseup', () => {
                     if (this.isDraggingProgress) {
                         this.isDraggingProgress = false;
-                        const progressTrack = document.getElementById('progressBarTrack');
-                        if (progressTrack) progressTrack.classList.remove('dragging');
+                        this.activeSeekStrip?.classList.remove('dragging');
+                        this.activeSeekStrip = null;
                     }
                 });
-
-                // Touch events
-                progressTrack.addEventListener('touchstart', (e) => {
-                    this.isDraggingProgress = true;
-                    progressTrack.classList.add('dragging');
-                    handleSeek(e);
-                });
-
-                progressTrack.addEventListener('touchmove', (e) => {
-                    if (this.isDraggingProgress) {
-                        e.preventDefault();
-                        handleSeek(e);
-                    }
-                });
-
-                progressTrack.addEventListener('touchend', () => {
-                    this.isDraggingProgress = false;
-                    progressTrack.classList.remove('dragging');
-                });
-
-                // Click to seek
-                progressTrack.addEventListener('click', handleSeek);
             },
 
             seekToPercentage(percentage) {
@@ -1188,26 +1564,65 @@ const PlayerPlaylist = (function () {
                         const seekTime = duration * percentage;
                         player.seekTo(seekTime, true);
                         this.updateProgressBar(seekTime, duration);
+                        this.resyncProgressClock();
                     }
                 }
             },
 
+            // Deadline scheduling, not polling: everything these surfaces
+            // show changes at KNOWN media times - the next synced lyric
+            // moment (line time, and line time minus the title lead) and
+            // the next whole second of the mm:ss display. So render once
+            // from the player's actual time, then sleep until the
+            // earliest upcoming deadline. Every wake re-reads the real
+            // time and renders idempotently, so early timers, buffering
+            // stalls, and drift self-correct instead of accumulating.
             startProgressUpdates() {
-                this.stopProgressUpdates();
-                this.progressUpdateInterval = setInterval(() => {
-                    this.updateCurrentProgress();
-                }, PROGRESS_UPDATE_INTERVAL_MS);
+                this.scheduleNextProgressRender();
             },
 
             stopProgressUpdates() {
-                if (this.progressUpdateInterval) {
-                    clearInterval(this.progressUpdateInterval);
-                    this.progressUpdateInterval = null;
+                if (this.progressUpdateTimer !== null) {
+                    clearTimeout(this.progressUpdateTimer);
+                    this.progressUpdateTimer = null;
                 }
             },
 
-            updateCurrentProgress() {
-                if (!this.currentPlayingId || this.isDraggingProgress) return;
+            /** Re-derive the surfaces and the wake-up from truth, now. */
+            resyncProgressClock() {
+                if (this.isPlaying) {
+                    this.scheduleNextProgressRender();
+                } else {
+                    this.renderPlaybackPosition();
+                }
+            },
+
+            scheduleNextProgressRender() {
+                this.stopProgressUpdates();
+                const currentTime = this.renderPlaybackPosition();
+                if (!this.isPlaying) return; // pause/stop freeze the surfaces; transitions re-arm
+                let delaySec;
+                if (currentTime === null || this.isDraggingProgress) {
+                    delaySec = 0.25; // player not readable yet / drag in progress
+                } else if (currentTime === this.lastRenderedMediaTime) {
+                    delaySec = 0.5; // stalled (buffering): check back, don't spin
+                } else {
+                    const nextSecond = Math.floor(currentTime) + 1;
+                    const deadline = Math.min(nextSecond, this.nextLyricDeadline(currentTime));
+                    delaySec = Math.max(deadline - currentTime, 0.025);
+                }
+                this.lastRenderedMediaTime = currentTime;
+                this.progressUpdateTimer = setTimeout(() => this.scheduleNextProgressRender(), delaySec * 1000);
+            },
+
+            /**
+             * The one idempotent render of playback position: progress
+             * bar, time text, lyric highlight, and the now-playing title
+             * relay all re-derive from the player's actual current time.
+             * @returns {number | null} that time, if readable
+             */
+            renderPlaybackPosition() {
+                if (!this.currentPlayingId || this.isDraggingProgress) return null;
 
                 const player = this.playback.player;
                 if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
@@ -1215,23 +1630,35 @@ const PlayerPlaylist = (function () {
                     const duration = player.getDuration();
                     if (duration && duration > 0) {
                         this.updateProgressBar(currentTime, duration);
+                        return currentTime;
                     }
                 }
+                return null;
             },
 
             updateProgressBar(currentTime, duration) {
+                if (!this.progressDiff) this.progressDiff = new ValueDiff();
+                const percentage = `${(currentTime / duration) * 100}%`;
+
                 const fill = document.getElementById('progressBarFill');
                 const handle = document.getElementById('progressBarHandle');
                 const currentTimeEl = document.getElementById('currentTime');
                 const totalTimeEl = document.getElementById('totalTime');
-
                 if (fill && handle && currentTimeEl && totalTimeEl) {
-                    if (!this.progressDiff) this.progressDiff = new ValueDiff();
-                    const percentage = `${(currentTime / duration) * 100}%`;
                     this.progressDiff.style('fillWidth', fill, 'width', percentage);
                     this.progressDiff.style('handleLeft', handle, 'left', percentage);
                     this.progressDiff.text('currentTime', currentTimeEl, this.formatTime(currentTime));
                     this.progressDiff.text('totalTime', totalTimeEl, this.formatTime(duration));
+                }
+
+                // The sticky bar's strip mirrors the same truth.
+                const barFill = document.getElementById('transportProgressFill');
+                const barCurrent = document.getElementById('transportBarTimeCurrent');
+                const barTotal = document.getElementById('transportBarTimeTotal');
+                if (barFill && barCurrent && barTotal) {
+                    this.progressDiff.style('barFillWidth', barFill, 'width', percentage);
+                    this.progressDiff.text('barTimeCurrent', barCurrent, this.formatTime(currentTime));
+                    this.progressDiff.text('barTimeTotal', barTotal, this.formatTime(duration));
                 }
 
                 this.updateSyncedLyricsPosition(currentTime);
@@ -1285,9 +1712,7 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                /** @type {PlaylistItem} */
-                const demoItem = {
-                    id: Date.now() + Math.random(),
+                const demoItem = PlayerSongs.createPlaylistItem({
                     videoId: 'dQw4w9WgXcQ',
                     name: 'Never Gonna Give You Up',
                     artist: 'Rick Astley',
@@ -1298,38 +1723,26 @@ const PlayerPlaylist = (function () {
                     duration: '3:34',
                     durationSeconds: 214,
                     comment: 'Demo lyrics item',
-                    searchTerm: 'Rick Astley Never Gonna Give You Up',
-                    lyricsStatus: 'idle',
-                    lyricsData: null
-                };
+                    searchTerm: 'Rick Astley Never Gonna Give You Up'
+                }, {
+                    sourceKind: 'demo',
+                    sourceLabel: 'Demo song'
+                });
+                if (!demoItem) return;
 
-                this.hydrateItemLyricsFromCache(demoItem);
-                this.playlist.unshift(demoItem);
+                this.showPlaylistSurfaces();
+                this.appendPlaylistItem(demoItem);
                 this.currentPlaylistIndex = 0;
-                document.getElementById('playlistContainer').style.display = 'block';
-                document.getElementById('centralPlayer').style.display = 'block';
-                this.showTransportBar();
-                this.addPlaylistItemToDOM(demoItem);
                 this.currentLyricsItemId = demoItem.id;
                 this.updateCentralPlayer(demoItem);
                 this.updatePlaylistLabel();
                 this.setLyricsPanelVisible(true);
                 this.renderLyricsStateForItem(demoItem);
-                void this.ensureLyricsForItem(demoItem);
                 this.updateStatus('Demo lyrics song loaded');
             },
 
             parseDurationToSeconds(value) {
-                if (!value) return 0;
-                const parts = value.split(':').map(part => Number(part));
-                if (parts.some(Number.isNaN)) return 0;
-                if (parts.length === 3) {
-                    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-                }
-                if (parts.length === 2) {
-                    return (parts[0] * 60) + parts[1];
-                }
-                return parts[0] || 0;
+                return PlayerSongs.parseDurationToSeconds(value);
             }
         }));
     }

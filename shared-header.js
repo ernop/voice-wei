@@ -1,4 +1,4 @@
-const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '209';
+const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '262';
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
@@ -27,24 +27,44 @@ function renderSharedHeader() {
         return `<a href="${page.href}" class="nav-tab${activeClass}">${page.label}</a>`;
     }).join("");
 
-    const settingsHtml = showSettingsButton
-        ? '<div class="header-actions"><button id="settingsBtn" class="settings-btn" aria-label="Settings">&#9881;</button></div>'
-        : "";
+    const settingsButtonHtml = '<button id="settingsBtn" class="settings-btn" aria-label="Settings">&#9881;</button>';
 
     header.className = "site-header";
-    header.innerHTML = `
-        <div class="header-top">
-            <div class="header-title-group">
-                <a href="scales.html" class="site-name">Voice-Wei</a>
-                <h1>${pageTitle}</h1>
-                <span class="version-label">v${APP_VERSION}</span>
+
+    if (document.body.dataset.lyricHeading === "true") {
+        // Lyric-heading layout (music page): the h1 mirrors the current
+        // now-playing lyric line (media-session-core), so it gets its own
+        // full-width line, and the settings gear shares the nav-tabs row.
+        header.innerHTML = `
+            <div class="header-top">
+                <div class="header-title-group">
+                    <a href="scales.html" class="site-name">Voice-Wei</a>
+                    <span class="version-label">v${APP_VERSION}</span>
+                </div>
             </div>
-            ${settingsHtml}
-        </div>
-        <nav class="nav-tabs" aria-label="Primary">
-            ${navHtml}
-        </nav>
-    `;
+            <h1 class="header-lyric-line">${pageTitle}</h1>
+            <div class="header-nav-row">
+                <nav class="nav-tabs" aria-label="Primary">
+                    ${navHtml}
+                </nav>
+                ${showSettingsButton ? settingsButtonHtml : ""}
+            </div>
+        `;
+    } else {
+        header.innerHTML = `
+            <div class="header-top">
+                <div class="header-title-group">
+                    <a href="scales.html" class="site-name">Voice-Wei</a>
+                    <h1>${pageTitle}</h1>
+                    <span class="version-label">v${APP_VERSION}</span>
+                </div>
+                ${showSettingsButton ? `<div class="header-actions">${settingsButtonHtml}</div>` : ""}
+            </div>
+            <nav class="nav-tabs" aria-label="Primary">
+                ${navHtml}
+            </nav>
+        `;
+    }
 
     const updateHeaderHeight = () => {
         document.documentElement.style.setProperty("--site-header-height", `${header.offsetHeight}px`);

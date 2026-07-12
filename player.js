@@ -2,10 +2,17 @@
 // Voice music controller — composes player-storage, player-api-keys,
 // player-commands, player-playlist, and player-lyrics modules.
 
+// How many stored log lines from earlier sessions replay into the panel
+const HISTORICAL_LOG_LINES = 300;
+
 class VoiceMusicController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
+        /** @type {string} ISO time this page session began (splits stored logs into earlier/current) */
+        this.sessionStartedAt = new Date().toISOString();
+        /** @type {boolean} Earlier-session log lines already replayed into the panel */
+        this.historicalLogsLoaded = false;
         // The single authoritative location for all playback state: status,
         // the reused YouTube player handle and its readiness, the active/
         // current item, the playlist cursor, and playback intents all live
@@ -18,32 +25,48 @@ class VoiceMusicController {
         this.playerReadyPromises = new Map();
         /** @type {Map<number, YouTubeVideoCandidate[]>} */
         this.youtubeAlternateResults = new Map();
+        /** @type {Set<number>} Items that already got one fresh-alternates search after a load failure */
+        this.alternateVideoSearchAttempts = new Set();
         /** @type {AppConfig | null} */
         this.config = null;
         /** @type {PlaylistItem[]} */
         this.playlist = [];
-        /** @type {{ readClaudeResponse: boolean, autoSubmitMode: boolean, claudeModel: string, openaiModel: string, aiProvider: string, lyricsOnNowPlaying: boolean }} */
-        this.settings = PlayerStorage.loadSettings({
+        /** @type {PlayerAppSettings} */
+            this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
             claudeModel: 'claude-opus-4-8',
             openaiModel: 'gpt-5.5',
             aiProvider: 'claude',
-            lyricsOnNowPlaying: true
+            lyricsOnNowPlaying: true,
+            showSongNotes: false,
+            playlistTimedOnly: false
         });
+        /** @type {string} Live playlist view filter (normalized; never persisted) */
+        this.playlistFilterQuery = '';
+        /** @type {string} Live Known Songs search query (normalized; never persisted) */
+        this.knownSongsQuery = '';
         this.normalizeLlmSettings();
-        /** @type {ReturnType<typeof setInterval> | null} */
-        this.progressUpdateInterval = null;
+        /** @type {ReturnType<typeof setTimeout> | null} Deadline-clock wake-up (see scheduleNextProgressRender) */
+        this.progressUpdateTimer = null;
+        /** @type {number | null} Media time at the last render; detects buffering stalls */
+        this.lastRenderedMediaTime = null;
         /** @type {boolean} */
         this.isDraggingProgress = false;
+        /** @type {HTMLElement | null} The seek strip currently being dragged */
+        this.activeSeekStrip = null;
         /** @type {Record<string, FavoriteData>} */
         this.favorites = PlayerStorage.loadFavorites();
-        /** @type {SongLibraryStore} */
-        this.songLibrary = PlayerStorage.loadSongLibrary();
-        /** @type {LyricsCacheStore} */
-        this.lyricsCache = PlayerStorage.loadLyricsCache();
+        /** @type {SongLibraryStore} Hydrated from IndexedDB in init (hydrateSongLibrary) */
+        this.songLibrary = { songs: [] };
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
+        /** @type {PlaylistItem[]} Items awaiting a background lyric lookup */
+        this.lyricsFetchQueue = [];
+        /** @type {number} Lyric lookups currently in flight (bounded) */
+        this.lyricsFetchActive = 0;
+        /** @type {Map<string, Promise<LyricStateRecord>>} One shared resolution flight per videoId */
+        this.lyricsLookupsInFlight = new Map();
         this.lyricsViewSettings = PlayerStorage.loadLyricsViewSettings();
         /** @type {boolean} */
         this.lyricsPanelVisible = false;
@@ -55,6 +78,8 @@ class VoiceMusicController {
         this.currentLyricsLineIndex = -1;
         /** @type {boolean} Whether the now-playing text currently shows a lyric line */
         this.nowPlayingShowsLyric = false;
+        /** @type {boolean} Media-key handlers registered (once per page life) */
+        this.mediaActionHandlersSet = false;
         /** @type {boolean} */
         this.isProcessingCommand = false;
         /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */
@@ -71,10 +96,6 @@ class VoiceMusicController {
 
     saveFavorites() {
         PlayerStorage.saveFavorites(this.favorites);
-    }
-
-    saveLyricsCache() {
-        PlayerStorage.saveLyricsCache(this.lyricsCache);
     }
 
     saveLyricsViewSettings() {
@@ -96,6 +117,11 @@ class VoiceMusicController {
             this.setupUI();
             this.applyLyricsViewSettings();
             this.setupYouTubeAPI();
+            await this.hydrateSongLibrary();
+            // Per-song lyric reconciliation over the favorites library:
+            // already-resolved songs settle from the permanent store,
+            // unresolved ones get looked up through the bounded queue.
+            this.reconcileLibraryLyrics();
             this.restoreSavedPlaylist();
             this.loadDemoSongIfRequested();
         } catch (error) {
@@ -189,6 +215,42 @@ class VoiceMusicController {
         if (selectBtn) selectBtn.style.display = isCollapsed ? 'none' : '';
         if (copyBtn) copyBtn.style.display = isCollapsed ? 'none' : '';
         if (clearBtn) clearBtn.style.display = isCollapsed ? 'none' : '';
+        if (!isCollapsed) {
+            void this.loadHistoricalLogs();
+        }
+    }
+
+    /**
+     * Replay stored log lines from earlier sessions (IndexedDB `logs`,
+     * where every line is recorded) into the top of the panel, once, the
+     * first time it is opened. Lines carry their date and render dimmer
+     * so the current session stays visually distinct.
+     */
+    async loadHistoricalLogs() {
+        if (this.historicalLogsLoaded || !window.PlayerHistoryDB) return;
+        this.historicalLogsLoaded = true;
+        const logContent = document.getElementById('logContent');
+        if (!logContent) return;
+
+        const records = await window.PlayerHistoryDB.listRecentLogs(HISTORICAL_LOG_LINES);
+        // Everything recorded before this page opened belongs to earlier
+        // sessions; the current session's lines are already in the DOM.
+        const earlier = records.filter(record => record.createdAt < this.sessionStartedAt);
+        if (earlier.length === 0) return;
+
+        const fragment = document.createDocumentFragment();
+        for (const record of earlier) {
+            const line = document.createElement('div');
+            line.className = `log-line log-${record.type || 'claude'} log-history`;
+            const day = String(record.createdAt || '').slice(0, 10);
+            line.textContent = `[${day}] ${record.line || `${record.label}: ${record.text}`}`;
+            fragment.appendChild(line);
+        }
+        const divider = document.createElement('div');
+        divider.className = 'log-line log-history-divider';
+        divider.textContent = `--- earlier sessions above (last ${earlier.length} stored lines) / current session below ---`;
+        fragment.appendChild(divider);
+        logContent.insertBefore(fragment, logContent.firstChild);
     }
 
     clearLog() {
@@ -414,12 +476,14 @@ class VoiceMusicController {
             this.settings.aiProvider = value;
             this.saveSettings();
             this.updateProviderVisibility();
+            this.syncQueryModelPills();
         });
 
         PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
         PracticeControls.wireSingleSelect('data-openai-model', String, this.settings.openaiModel, value => {
             this.settings.openaiModel = value;
             this.saveSettings();
+            this.syncQueryModelPills();
         });
 
         // Overlay save buttons
@@ -610,6 +674,7 @@ class VoiceMusicController {
         PracticeControls.wireSingleSelect('data-claude-model', String, this.settings.claudeModel, value => {
             this.settings.claudeModel = value;
             this.saveSettings();
+            this.syncQueryModelPills();
         });
 
         // Mode toggle button (if it exists in the UI). Listen and Submit
@@ -625,6 +690,30 @@ class VoiceMusicController {
                 }
             });
             this.updateModeToggle();
+        }
+
+        // Per-query model chooser: the same persisted provider/model
+        // settings, reachable at the request box. Both surfaces stay in
+        // sync through syncQueryModelPills / the settings-panel pickers.
+        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+        PracticeControls.wireSingleSelect('data-query-model', String, this.activeQueryModelValue(), value => {
+            const [provider, model] = String(value).split('|');
+            this.settings.aiProvider = provider;
+            if (provider === 'claude') {
+                this.settings.claudeModel = model;
+            } else {
+                this.settings.openaiModel = model;
+            }
+            this.saveSettings();
+            this.updateProviderVisibility();
+            PracticeControls.syncSingleSelect('data-ai-provider', provider);
+            PracticeControls.syncSingleSelect('data-claude-model', this.settings.claudeModel);
+            PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
+        });
+
+        const apiKeyProblemDismissBtn = document.getElementById('apiKeyProblemDismissBtn');
+        if (apiKeyProblemDismissBtn) {
+            apiKeyProblemDismissBtn.addEventListener('click', () => this.hideApiKeyProblem());
         }
 
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
@@ -713,7 +802,7 @@ class VoiceMusicController {
             this.fastForward();
         });
 
-        // Clear playlist button
+        // Playlist header actions: order, shuffle, clear
         const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
         if (clearPlaylistBtn) {
             clearPlaylistBtn.addEventListener('click', () => {
@@ -721,6 +810,53 @@ class VoiceMusicController {
                 this.updateStatus('Playlist cleared');
             });
         }
+
+        const shufflePlaylistBtn = document.getElementById('shufflePlaylistBtn');
+        if (shufflePlaylistBtn) {
+            shufflePlaylistBtn.addEventListener('click', () => {
+                this.shufflePlaylist();
+                this.updateStatus('Playlist shuffled');
+            });
+        }
+
+        const sortArtistBtn = document.getElementById('sortPlaylistArtistBtn');
+        if (sortArtistBtn) {
+            sortArtistBtn.addEventListener('click', () => this.sortPlaylist('artist'));
+        }
+
+        const sortYearBtn = document.getElementById('sortPlaylistYearBtn');
+        if (sortYearBtn) {
+            sortYearBtn.addEventListener('click', () => this.sortPlaylist('year'));
+        }
+
+        // Live playlist view filter: filter as you type, cancel to see all
+        const playlistFilterInput = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
+        if (playlistFilterInput) {
+            playlistFilterInput.addEventListener('input', () => {
+                this.setPlaylistFilter(playlistFilterInput.value);
+            });
+        }
+        const playlistFilterCancelBtn = document.getElementById('playlistFilterCancelBtn');
+        if (playlistFilterCancelBtn) {
+            playlistFilterCancelBtn.addEventListener('click', () => {
+                this.clearPlaylistFilter();
+            });
+        }
+
+        // Timed-only view: hide rows that do not yet hold synced lyrics
+        PracticeControls.wireToggle('playlistTimedOnlyToggle', this.settings.playlistTimedOnly, checked => {
+            this.settings.playlistTimedOnly = checked;
+            this.saveSettings();
+            this.applyPlaylistFilter();
+        });
+
+        // Song notes display toggle: instant, CSS-driven
+        PracticeControls.wireToggle('playlistNotesToggle', this.settings.showSongNotes, checked => {
+            this.settings.showSongNotes = checked;
+            this.saveSettings();
+            this.applySongNotesVisibility();
+        });
+        this.applySongNotesVisibility();
 
         const loadFavoritesBtnMain = document.getElementById('loadFavoritesBtnMain');
         if (loadFavoritesBtnMain) {
@@ -732,7 +868,8 @@ class VoiceMusicController {
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
 
-        // Transport bar buttons (sticky playlist controls)
+        // The sticky control line: song nav (prev/play/next), within-song
+        // seek (±5/±30 + jump-to-first-lyric), and the current-song button.
         const transportPrevBtn = document.getElementById('transportPrevBtn');
         if (transportPrevBtn) {
             transportPrevBtn.addEventListener('click', () => this.playPrevious());
@@ -744,6 +881,25 @@ class VoiceMusicController {
         const transportNextBtn = document.getElementById('transportNextBtn');
         if (transportNextBtn) {
             transportNextBtn.addEventListener('click', () => this.playNext());
+        }
+        /** @type {Array<[string, number]>} */
+        const seekBindings = [
+            ['transportBack30Btn', -30],
+            ['transportBack5Btn', -5],
+            ['transportFwd5Btn', 5],
+            ['transportFwd30Btn', 30]
+        ];
+        for (const [id, seconds] of seekBindings) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => this.seekBy(seconds));
+        }
+        const transportFirstLyricBtn = document.getElementById('transportFirstLyricBtn');
+        if (transportFirstLyricBtn) {
+            transportFirstLyricBtn.addEventListener('click', () => this.seekToFirstLyric());
+        }
+        const transportBarInfo = document.getElementById('transportBarInfo');
+        if (transportBarInfo) {
+            transportBarInfo.addEventListener('click', () => this.scrollToCurrentSong());
         }
 
         const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
@@ -891,16 +1047,59 @@ class VoiceMusicController {
         PlayerStorage.saveSettings(this.settings);
     }
 
+    /** The provider|model pair the next request will use (query pills). */
+    activeQueryModelValue() {
+        return this.settings.aiProvider === 'openai'
+            ? `openai|${this.settings.openaiModel}`
+            : `claude|${this.settings.claudeModel}`;
+    }
+
+    /** The exact model id the next request will use, for status/log lines. */
+    activeModelLabel() {
+        return this.settings.aiProvider === 'openai' ? this.settings.openaiModel : this.settings.claudeModel;
+    }
+
+    syncQueryModelPills() {
+        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+    }
+
+    /**
+     * A key-level provider failure (invalid key, spend/rate limit,
+     * billing) must be unmissable: the status line scrolls away and log
+     * lines are easy to miss, so this shows a persistent banner naming
+     * the provider, the exact error, and where to fix it.
+     * @param {Error & { provider?: string, status?: number }} error
+     */
+    showApiKeyProblem(error) {
+        const banner = document.getElementById('apiKeyProblemBanner');
+        const text = document.getElementById('apiKeyProblemText');
+        if (!banner || !text) return;
+        const provider = error.provider === 'openai' ? 'OpenAI' : 'Claude';
+        const consoleUrl = error.provider === 'openai' ? 'platform.openai.com' : 'console.anthropic.com';
+        text.textContent = `${provider} API key problem${error.status ? ` (HTTP ${error.status})` : ''}: ${error.message} - check limits/billing at ${consoleUrl}`;
+        banner.style.display = 'flex';
+        if (this.settings.readClaudeResponse) {
+            this.speakText(`Your ${provider} API key hit a problem: ${error.message}`);
+        }
+    }
+
+    hideApiKeyProblem() {
+        const banner = document.getElementById('apiKeyProblemBanner');
+        if (banner) banner.style.display = 'none';
+    }
+
     normalizeLlmSettings() {
         const claudeAliases = {
             'claude-opus-4-5-20251101': 'claude-opus-4-8',
             'claude-opus-4-5': 'claude-opus-4-8',
+            'claude-sonnet-4-6': 'claude-sonnet-5',
             'claude-haiku-4-5-20250514': 'claude-haiku-4-5',
             'claude-haiku-4-5-20251001': 'claude-haiku-4-5'
         };
         const openaiAliases = {
             'gpt-4o': 'gpt-5.5',
-            'gpt-4o-mini': 'gpt-4.1'
+            'gpt-4o-mini': 'gpt-4.1',
+            'gpt-5.2': 'gpt-5.4'
         };
         this.settings.claudeModel = claudeAliases[this.settings.claudeModel] || this.settings.claudeModel || 'claude-opus-4-8';
         this.settings.openaiModel = openaiAliases[this.settings.openaiModel] || this.settings.openaiModel || 'gpt-5.5';
@@ -923,8 +1122,9 @@ class VoiceMusicController {
             this.stopListening();
         }
 
+        // No refocus after the search returns: grabbing the text box would
+        // pop the keyboard / steal focus mid-listen on the results.
         await this.processMusicSearch(textToSubmit);
-        typedCommandInput.focus();
     }
 
     updateStatus(message) {
@@ -952,14 +1152,14 @@ class VoiceMusicController {
         this.isProcessingCommand = true;
         this.updateSubmitButton(true);
         this.updateTypedCommandUI(true);
-        this.updateStatus('Processing with Claude...');
+        this.updateStatus(`Processing with ${this.activeModelLabel()}...`);
 
         try {
             const result = await this.processCommandWithLLM(requestText);
+            this.hideApiKeyProblem();
 
-            if (this.wasPlayingBeforeListening && this.isPlaying) {
-                this.pausePlayback();
-            }
+            // Music that resumed during the Claude wait keeps playing while
+            // the YouTube searches run and the new playlist fills in.
             this.wasPlayingBeforeListening = false;
 
             if (!result || !result.songList || result.songList.length === 0) {
@@ -987,7 +1187,9 @@ class VoiceMusicController {
             }
 
             this.updateStatus(`Found ${result.songList.length} song(s), searching YouTube...`);
-            const playlistResult = await this.searchAndAddToPlaylist(result.songList);
+            // A search defines the working playlist; explicit loads
+            // (favorites, history) append to it instead.
+            const playlistResult = await this.searchAndAddToPlaylist(result.songList, { replaceExisting: true });
             const addedCount = playlistResult?.addedCount || 0;
             const skippedCount = playlistResult?.skippedCount || 0;
             const attemptedTerms = playlistResult?.attemptedTerms || result.songList.map(s => s.searchTerm).filter(Boolean);
@@ -1006,7 +1208,11 @@ class VoiceMusicController {
                 await this.speakTextAsync(announcement);
             }
 
-            this.playPlaylist();
+            // A song already playing keeps playing (the new songs queue up
+            // behind it); otherwise start the new playlist.
+            if (!this.isPlaying) {
+                this.playPlaylist();
+            }
             this.updateStatus(skippedCount > 0
                 ? `Playing ${addedCount} song${addedCount > 1 ? 's' : ''}; ${skippedCount} not added`
                 : 'Playing');
@@ -1033,10 +1239,12 @@ class VoiceMusicController {
             }
             this.logError('Music Lookup Error', error);
             this.updateStatus(`Music lookup failed: ${message}`);
-            this.hidePrompt();
-            if (this.settings.readClaudeResponse) {
+            if (error && error.name === 'ApiKeyError') {
+                this.showApiKeyProblem(error);
+            } else if (this.settings.readClaudeResponse) {
                 this.speakText(`Music lookup failed: ${message}`);
             }
+            this.hidePrompt();
         } finally {
             this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;
@@ -1092,24 +1300,13 @@ class VoiceMusicController {
             }
             return false;
         } else if (songData) {
-            // Add to favorites with full song data
-            this.favorites[videoId] = {
-                videoId: songData.videoId,
-                name: songData.name || songData.title || '',
-                artist: songData.artist || songData.channelTitle || '',
-                year: songData.year || '',
-                album: songData.album || '',
-                title: songData.title || '',
-                channelTitle: songData.channelTitle || '',
-                duration: songData.duration || '',
-                durationSeconds: songData.durationSeconds || this.parseDurationToSeconds(songData.duration || ''),
-                comment: songData.comment || '',
-                searchTerm: songData.searchTerm || '',
-                favoritedAt: Date.now()
-            };
+            // Add to favorites: the Song plus when it was favorited
+            const favorite = PlayerSongs.createFavorite(songData);
+            if (!favorite) return false;
+            this.favorites[videoId] = favorite;
             this.saveFavorites();
             if (window.PlayerHistoryDB) {
-                window.PlayerHistoryDB.recordFavorite(this.favorites[videoId], true);
+                window.PlayerHistoryDB.recordFavorite(favorite, true);
             }
             return true;
         }
@@ -1140,5 +1337,5 @@ class VoiceMusicController {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    new VoiceMusicController();
+    window.musicController = new VoiceMusicController();
 });

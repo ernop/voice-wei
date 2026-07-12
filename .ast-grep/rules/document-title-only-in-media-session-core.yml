@@ -1,0 +1,12 @@
+id: document-title-only-in-media-session-core
+message: Assigning document.title belongs in media-session-core.js - use MediaSessionCore.setNowPlayingTitle / clearNowPlayingTitle so the tab, header, and car metadata never disagree.
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/media-session-core.js"
+  - "**/tests/**"
+rule:
+  pattern: document.title = $VALUE
+note: "The title is one of three now-playing surfaces fanned out by the core. A page that writes it directly updates one surface and silently misses the others."

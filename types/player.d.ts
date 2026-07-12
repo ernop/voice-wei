@@ -10,6 +10,8 @@ interface PlayerAppSettings {
     openaiModel: string;
     aiProvider: string;
     lyricsOnNowPlaying: boolean;
+    showSongNotes: boolean;
+    playlistTimedOnly: boolean;
 }
 
 interface LyricsViewSettings {
@@ -28,38 +30,49 @@ interface YouTubeVideoCandidate {
     durationSeconds?: number;
 }
 
-interface PlaylistItem {
-    id: number;
+/**
+ * The song primitive. Identity is the YouTube videoId (the key that plays
+ * it); everything else is descriptive metadata, always present as typed
+ * defaults ('' / 0 / '--:--') so consumers never guess. Built only by
+ * PlayerSongs (player-songs.js), never by hand.
+ */
+interface Song {
     videoId: string;
     name: string;
     artist: string;
     year: string;
     album: string;
+    comment: string;
+    searchTerm: string;
     title: string;
     channelTitle: string;
     duration: string;
-    durationSeconds?: number;
-    comment: string;
-    searchTerm: string;
-    sourceKind?: 'search' | 'favorite' | 'restored' | 'history' | 'demo';
-    sourceLabel?: string;
-    sourceSearchTerm?: string;
-    lyricsStatus?: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
-    lyricsData?: LyricsResult | null;
+    durationSeconds: number;
 }
 
-interface FavoriteData {
-    videoId: string;
-    name: string;
-    artist: string;
-    year: string;
-    album: string;
-    title: string;
-    channelTitle: string;
-    duration: string;
-    durationSeconds?: number;
-    comment: string;
-    searchTerm: string;
+type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'demo' | 'backfill';
+
+type PlaylistSortKey = 'artist' | 'year';
+
+/** A Song's membership in the working playlist + runtime lyric state. */
+interface PlaylistItem extends Song {
+    id: number;
+    sourceKind: PlaylistSourceKind;
+    sourceLabel: string;
+    sourceSearchTerm: string;
+    lyricsStatus: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
+    lyricsData: LyricsResult | null;
+}
+
+/** What the playlist persists per entry: the Song + membership, no lyric runtime. */
+interface PersistedPlaylistEntry extends Song {
+    id: number;
+    sourceKind: PlaylistSourceKind;
+    sourceLabel: string;
+    sourceSearchTerm: string;
+}
+
+interface FavoriteData extends Song {
     favoritedAt: number;
 }
 
@@ -80,8 +93,23 @@ interface LyricsResult {
     syncedLines: SyncedLyricLine[];
 }
 
-interface LyricsCacheStore {
-    [cacheKey: string]: LyricsResult;
+/**
+ * A song's lyric state in the permanent store (IndexedDB `lyricStates`,
+ * keyed by videoId - the single source of truth for lyrics). 'found'
+ * carries the lyrics; 'none' means a provider search ACTUALLY ANSWERED
+ * empty at checkedAt (failures save nothing and stay unresolved). Live
+ * playlist items are only ever activated from one of these records,
+ * after it is read from or saved to the store.
+ */
+interface LyricStateRecord {
+    videoId: string;
+    status: 'found' | 'none';
+    checkedAt: number;
+    /** LYRICS_SEARCH_VERSION that produced this record. Simple-only or
+     *  "none" records from an older search get one re-search under the
+     *  current algorithm; timed-lyrics records are final. */
+    searchVersion?: number;
+    lyrics?: LyricsResult;
 }
 
 interface SongLibraryNote {
@@ -135,10 +163,13 @@ interface PlayerHistoryDBApi {
     recordSongs(songs: any[], sourceKind: string): void;
     recordYouTubeSearch(query: string, results: any[], meta?: Record<string, any>): void;
     getYouTubeSearch(query: string): Promise<any | null>;
+    listRecentLogs(limit: number): Promise<any[]>;
     listLookups(): Promise<any[]>;
     listSongs(): Promise<any[]>;
     listYouTubeSearches(): Promise<any[]>;
     recordFavorite(favorite: any, active: boolean): void;
+    putLyricState(record: LyricStateRecord): Promise<void>;
+    getLyricState(videoId: string): Promise<LyricStateRecord | null>;
 }
 
 interface AppConfig {
@@ -157,6 +188,7 @@ interface VoiceMusicController {
     currentPlaylistIndex: number;
     wasPlayingBeforeListening: boolean;
     progressDiff: ValueDiff;
+    activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
 
@@ -178,19 +210,40 @@ interface VoiceMusicController {
     buildMusicSourceChunks(transcript: string, linkedPages: any[]): any[];
     chunkMusicSource(text: string, label: string, meta: string): any[];
     buildMusicSearchPrompt(transcript: string, sourceContext: string): string;
-    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean }): any;
+    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean; truncated?: boolean }): any;
+    salvageJsonArrayItems(text: string): any[] | null;
     mergeAIResponseBatches(songLists: any[][], prompts: string[]): any;
     extractAIJson(responseText: string): string;
     normalizeAISongList(parsed: any): any[];
     normalizeAISongItem(item: any): any;
+    classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
 
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
+    sortPlaylist(key: PlaylistSortKey): void;
+    playlistFilterQuery: string;
+    setPlaylistFilter(value: string): void;
+    clearPlaylistFilter(): void;
+    applyPlaylistFilter(): void;
+    itemHasTimedLyrics(item: PlaylistItem | null | undefined): boolean;
+    applySongNotesVisibility(): void;
+    rerenderPlaylistDom(): void;
+    removePlaylistItem(itemId: number): void;
+    appendPlaylistItem(item: PlaylistItem): void;
+    showPlaylistSurfaces(): void;
+    clearPlaylistItems(): void;
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
-    searchYouTube(query: string): Promise<any>;
-    searchSongsWithConcurrency(validSongs: any[], concurrency?: number): Promise<any[]>;
+    searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
+    unwantedVersionMarkers(): RegExp[];
+    scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
+    rankYouTubeResults(videos: YouTubeVideoCandidate[], context: { searchTerm?: string; artist?: string; name?: string }): YouTubeVideoCandidate[];
+    searchSongsWithConcurrency(
+        validSongs: any[],
+        options?: { onResult?: (result: any) => void; concurrency?: number }
+    ): Promise<any[]>;
+    replacePlaylistItemsKeepingCurrent(): boolean;
     createPlaylistPlayer(item: PlaylistItem): void;
     ensurePlaylistPlayer(item: PlaylistItem): void;
     recreatePlaylistPlayer(item: PlaylistItem): void;
@@ -203,11 +256,15 @@ interface VoiceMusicController {
     tryNextVideoResult(item: PlaylistItem, failure: any): boolean;
     describePlaylistItem(item: PlaylistItem): string;
     waitForPlayerReady(item: PlaylistItem, timeoutMs?: number): Promise<any>;
-    reportPlayerLoadFailure(item: PlaylistItem, failure: any): void;
+    reportPlayerLoadFailure(item: PlaylistItem, failure: any): Promise<void>;
+    refreshAlternatesFromSearch(item: PlaylistItem): Promise<boolean>;
+    alternateVideoSearchAttempts: Set<number>;
     playVideo(item: PlaylistItem): Promise<void>;
     updateMediaSessionForItem(item: PlaylistItem): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
     updateCentralPlayer(item: PlaylistItem): void;
+    scrollToCurrentSong(): void;
+    updateTransportBarLyric(text: string): void;
     stopPlayback(): void;
     playPlaylist(): void;
     pausePlayback(): void;
@@ -216,6 +273,10 @@ interface VoiceMusicController {
     playPrevious(): void;
     fastForward(): void;
     rewind(): void;
+    seekBy(seconds: number): void;
+    seekToFirstLyric(): void;
+    updateFirstLyricButton(): void;
+    lyricsRowMarker(item: PlaylistItem): { label: string; className: string; aria: string };
     updateTransportPauseLabel(): void;
     restartCurrentTrack(): void;
     updatePlayPauseButton(): void;
@@ -231,22 +292,31 @@ interface VoiceMusicController {
     seekToPercentage(percentage: number): void;
     startProgressUpdates(): void;
     stopProgressUpdates(): void;
-    updateCurrentProgress(): void;
+    resyncProgressClock(): void;
+    scheduleNextProgressRender(): void;
+    renderPlaybackPosition(): number | null;
+    nextLyricDeadline(currentTime: number): number;
     updateProgressBar(currentTime: number, duration: number): void;
     formatTime(seconds: number): string;
     setupYouTubeAPI(): void;
     playerReady(): void;
     loadDemoSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
-    searchAndAddToPlaylist(songList: any[]): Promise<PlaylistSearchResult>;
+    searchAndAddToPlaylist(songList: any[], options?: { replaceExisting?: boolean }): Promise<PlaylistSearchResult>;
     musicHistoryLookups: any[];
     musicHistorySongs: any[];
     musicHistorySearches: any[];
+    setMusicHistoryPanelVisible(visible: boolean): void;
+    toggleMusicHistoryPanel(): void;
+    toggleSongLibraryPanel(): void;
     setupMusicHistoryUI(): void;
     refreshMusicHistoryPanel(): Promise<void>;
     renderLookupHistory(lookups: any[]): void;
     renderKnownSongsHistory(songs: any[]): void;
     renderSearchCacheHistory(searches: any[]): void;
+    knownSongsQuery: string;
+    shownKnownSongs(): any[];
+    loadShownKnownSongs(): Promise<void>;
     selectedLookupIds(): number[];
     selectedSongIds(): string[];
     loadSelectedHistoryLookups(): Promise<void>;
@@ -288,22 +358,30 @@ interface VoiceMusicController {
     parseSyncedLyrics(syncedLyrics: string): SyncedLyricLine[];
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
+    syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
+    lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
+    describeSongIdentity(item: PlaylistItem): string;
+    lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
-    relayLyricToNowPlaying(activeIndex: number): void;
-    setNowPlayingText(title: string, artist: string, album: string): void;
+    relayLyricToNowPlaying(activeIndex: number, currentTime?: number): void;
     nowPlayingShowsLyric: boolean;
-    ensureLyricsForItem(item: PlaylistItem): Promise<LyricsResult | null>;
+    mediaActionHandlersSet: boolean;
+    ensureLyricsForItem(item: PlaylistItem, options?: { forceLookup?: boolean }): Promise<LyricsResult | null>;
+    resolveLyricState(item: PlaylistItem, forceLookup: boolean): Promise<LyricStateRecord>;
+    applyLyricStateToItem(item: PlaylistItem, state: LyricStateRecord): void;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
     searchLyricsProvider(title: string, artist: string, album: string): Promise<LyricsResult[]>;
-    hydrateItemLyricsFromCache(item: PlaylistItem): boolean;
-    cachedLyricsMatchesItem(cached: LyricsResult, item: PlaylistItem): boolean;
-    persistLyricsForItem(item: PlaylistItem, lyricsData: LyricsResult): void;
-    getLyricsCacheKeysForItem(item: PlaylistItem): string[];
-    buildLyricsCacheKey(artist: string, title: string, durationSeconds: number): string;
+    lyricsFetchQueue: PlaylistItem[];
+    lyricsFetchActive: number;
+    lyricsLookupsInFlight: Map<string, Promise<LyricStateRecord>>;
+    queueLyricsLookup(item: PlaylistItem): void;
+    pumpLyricsQueue(): void;
+    reconcileLibraryLyrics(): void;
     refreshLyricsRowButton(item: PlaylistItem): void;
 
     songLibrary: SongLibraryStore;
+    hydrateSongLibrary(): Promise<void>;
     setupSongLibraryUI(): void;
     importSongLibraryFiles(files: FileList | File[]): Promise<void>;
     renderSongLibrary(): void;

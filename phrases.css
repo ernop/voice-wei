@@ -49,7 +49,10 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 }
 
 .phrase-staff-scroll {
-    width: 100%;
+    /* Shrink to the drawn staff: a short phrase should not leave a long
+       empty white band to its right. */
+    width: fit-content;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
@@ -255,6 +258,12 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     order: 2;
 }
 
+.phrase-control-card-series {
+    order: 0;
+    flex-basis: 100%;
+    gap: 4px 8px;
+}
+
 .phrase-control-card-numbers {
     order: 1;
     flex-basis: 100%;
@@ -264,12 +273,26 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     order: 3;
 }
 
-.phrase-lesson-row[hidden] {
-    display: none;
+.phrase-control-card-scale {
+    order: 4;
+    flex-basis: 100%;
 }
 
-.phrase-pitch-step-field {
-    margin-bottom: 0;
+/* Sizing only; the look comes from the shared .text-input */
+.phrase-series-input {
+    flex: 1 1 220px;
+    min-width: 160px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+}
+
+.phrase-series-error {
+    flex-basis: 100%;
+    color: #fca5a5;
+    font-size: 0.78rem;
+}
+
+.phrase-lesson-row[hidden] {
+    display: none;
 }
 
 .phrase-algo-row,

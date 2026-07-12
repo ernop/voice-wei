@@ -1,0 +1,12 @@
+id: media-session-only-in-core
+message: navigator.mediaSession belongs in media-session-core.js - report through MediaSessionCore (setNowPlayingTitle, setPlaybackState, setActionHandlers, register).
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/media-session-core.js"
+  - "**/tests/**"
+rule:
+  pattern: navigator.mediaSession
+note: "The now-playing surface (car/lock-screen metadata, playback state, media keys) has one owner. Direct writes fail silently when the page does not own the routed session (the YouTube-iframe bug); the core couples every write to session ownership."

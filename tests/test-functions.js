@@ -157,6 +157,34 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.close();
     }
 
+    // ============ TRACE: degree patterns reach other octaves ============
+    {
+        const tab = await browser.newPage();
+        collectErrors(tab, 'trace-pattern', report.errors);
+        await tab.goto(`${BASE_URL}/trace.html`, { waitUntil: 'networkidle' });
+        await tab.waitForTimeout(1500);
+        const pattern = await tab.evaluate(() => {
+            const input = /** @type {HTMLInputElement} */ (document.getElementById('patternInput'));
+            input.value = '5d 1 3 8 2u 9 5dd x';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const entries = window.traceDebug.patternEntries();
+            const targets = window.traceDebug.guideTargets();
+            const rails = window.traceDebug.rails();
+            return {
+                intervals: entries.map(entry => entry.interval).join(','),
+                labels: entries.map(entry => entry.label).join(','),
+                targetsOnRails: targets.length === entries.length
+                    && targets.every(target => rails.some(rail => rail.midi === target.midi)),
+                labelsMatchTokens: targets.every((target, i) => target.label === entries[i].label)
+            };
+        });
+        report.check(`trace pattern suffixes reach other octaves (${pattern.intervals} | ${pattern.labels})`,
+            pattern.intervals === '-5,0,4,12,14,14,-17'
+            && pattern.labels === '5d,1,3,8,2u,9,5dd'
+            && pattern.targetsOnRails && pattern.labelsMatchTokens);
+        await tab.close();
+    }
+
     // ============ PHRASES: stored sharp root displays as conventional flat key ============
     {
         const tab = await browser.newPage();
@@ -165,7 +193,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.evaluate(() => {
             localStorage.setItem('phrases-settings', JSON.stringify({
                 root: 'D#', octave: 3, scaleType: 'major', phraseAlgo: 'random',
-                startAtOne: false, rangeMode: 'within', minLength: 9, maxLength: 9,
+                startAtOne: false, rangeLow: 0, rangeHigh: 7, minLength: 9, maxLength: 9,
                 returnToInitial: true, returnToRoot: false,
                 hearTones: false, hearSpeech: false, singNumbers: false,
                 noteLengthMs: 500, gapMs: 0, showNumbers: true, showNoteNames: true,
@@ -250,9 +278,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`intervals extended scale uses standard degree objects (${intervalScaleModel.labels})`,
             intervalScaleModel.spellsEb && intervalScaleModel.noSharpLeak);
         // Wall-clock mode so the windows pass; take should be recorded.
-        // Sing deterministically through the explicit sample seam (the
-        // fake mic's beeps are not reliable enough to count on).
+        // Stop the mic first (the fake device's endless beeps keep the
+        // voice "active", which keeps unreached targets pending), then
+        // sing deterministically through the explicit sample seam.
         await tab.evaluate(() => {
+            const listenBtn = document.getElementById('intervalsSingListenBtn');
+            if (listenBtn && listenBtn.textContent.includes('On')) listenBtn.click();
             document.getElementById('intervalsSingPauseToggle').click();
             for (let k = 0; k < 5; k++) {
                 window.intervalsDebug.panel.recordSample(60, 30 + k * 50);
@@ -293,7 +324,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
-                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
             };
         });
         const titleShape = /^[A-G][b#]?\d [a-z ]+ [^ ]+$/;
@@ -334,7 +365,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 degrees,
                 documentTitle: document.title,
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
-                headerTitle: document.querySelector('#siteHeader .header-title-group h1')?.textContent || ''
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
             };
         });
         report.check('phrases title follows playable note mask',
@@ -482,6 +513,64 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && nextClearsBreakdown.breakdownEnabled === false
             && nextClearsBreakdown.enabled === nextClearsBreakdown.total);
 
+        // Powerset combos: ordered subsequences per size, stutters skipped,
+        // as-text duplicates produced once (1,2,5,2,1 is the worked example).
+        const powersetOrder = await tab.evaluate(() => {
+            const iterator = PatternPracticeCore.createUniqueSubsequenceIterator([0, 1, 4, 1, 0], 3);
+            const passes = [];
+            for (let pass = iterator.next(); pass; pass = iterator.next()) {
+                passes.push(pass.join(''));
+            }
+            return passes.join(' ');
+        });
+        report.check(`phrases powerset combos dedupe as-text and skip stutters (${powersetOrder})`,
+            powersetOrder === '012 014 023 024 123 124 234 0123 0124 0234 1234 01234');
+
+        // Powerset mode masks the take to the current combo, steps via the
+        // stage button, and is exclusive with breakdown.
+        await tab.click('#powersetBtn');
+        await tab.waitForTimeout(200);
+        const powersetOn = await tab.evaluate(() => ({
+            pressed: document.getElementById('powersetBtn').getAttribute('aria-pressed'),
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length,
+            addHidden: document.getElementById('addNoteBtn').hidden,
+            addLabel: document.getElementById('addNoteBtn').textContent,
+            mask: window.phrasesDebug.takePlan().map(note => (note.enabled ? 1 : 0)).join('')
+        }));
+        await tab.click('#addNoteBtn');
+        await tab.waitForTimeout(200);
+        const powersetStepped = await tab.evaluate(() => ({
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            mask: window.phrasesDebug.takePlan().map(note => (note.enabled ? 1 : 0)).join('')
+        }));
+        report.check(`phrases powerset masks 3-note combos and steps (${powersetOn.mask}->${powersetStepped.mask}, "${powersetOn.addLabel}")`,
+            powersetOn.pressed === 'true' && powersetOn.addHidden === false
+            && powersetOn.addLabel === 'next combo'
+            && powersetOn.total >= 4 && powersetOn.enabled === 3
+            && powersetStepped.enabled === 3 && powersetStepped.mask !== powersetOn.mask);
+
+        await tab.click('#breakdownBtn');
+        await tab.waitForTimeout(200);
+        const powersetExclusive = await tab.evaluate(() => ({
+            breakdown: window.phrasesDebug.settings().breakdownEnabled,
+            powerset: window.phrasesDebug.settings().powersetEnabled
+        }));
+        report.check('phrases breakdown and powerset are exclusive',
+            powersetExclusive.breakdown === true && powersetExclusive.powerset === false);
+
+        await tab.click('#nextBtn');
+        await tab.waitForTimeout(400);
+        const powersetCleared = await tab.evaluate(() => ({
+            breakdown: window.phrasesDebug.settings().breakdownEnabled,
+            powerset: window.phrasesDebug.settings().powersetEnabled,
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
+            total: window.phrasesDebug.takePlan().length
+        }));
+        report.check('phrases next exits powerset and breakdown modes',
+            powersetCleared.breakdown === false && powersetCleared.powerset === false
+            && powersetCleared.enabled === powersetCleared.total);
+
         await tab.evaluate(() => {
             const tones = document.getElementById('hearTonesToggle');
             if (tones instanceof HTMLInputElement && !tones.checked) tones.click();
@@ -498,6 +587,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(1500);
         const s2 = await tab.evaluate(() => window.__voiceStarts);
         report.check(`phrases history records and replays (${historyCount} items)`, historyCount >= 2 && s2 > s1);
+
+        // Transport state honesty: idle reports 'paused' so a car's
+        // play/pause toggle sends 'play'; the media back handler steps
+        // to the previous history phrase and plays it audibly.
+        await tab.click('#stopBtn');
+        await tab.waitForTimeout(300);
+        const idleState = await tab.evaluate(() => navigator.mediaSession.playbackState);
+        const degreesNow = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        const s3 = await tab.evaluate(() => window.__voiceStarts);
+        await tab.evaluate(() => { window.phrasesDebug.mediaPrevious(); });
+        await tab.waitForTimeout(300);
+        const playingState = await tab.evaluate(() => navigator.mediaSession.playbackState);
+        await tab.waitForTimeout(1500);
+        const s4 = await tab.evaluate(() => window.__voiceStarts);
+        const degreesPrev = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
+        await tab.click('#stopBtn');
+        report.check(`phrases media back plays previous phrase (state ${idleState}->${playingState}, ${s4 - s3} voices)`,
+            idleState === 'paused' && playingState === 'playing' && s4 > s3 && degreesPrev !== degreesNow);
 
         // Play-on-next off: Next generates and shows a new phrase silently
         await tab.click('#playOnNextBtn');
@@ -522,13 +631,70 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.click('#playOnNextBtn');
         await tab.waitForTimeout(200);
 
-        // "just over" range: offsets bounded to two degrees past the octave
+        // Typed degree series: the token grammar parses to exact offsets
+        // (octave marks, chromatic passing accidentals), errors never guess.
+        const seriesParse = await tab.evaluate(() => {
+            const good = PatternPracticeCore.parseDegreeSeries('5d 1, 1 | 7bv 7v 2# 2 9 6\u2193', 'major');
+            const badToken = PatternPracticeCore.parseDegreeSeries('1 2 zz', 'major');
+            const badAccidental = PatternPracticeCore.parseDegreeSeries('3# 1', 'major');
+            const empty = PatternPracticeCore.parseDegreeSeries('   ', 'major');
+            return {
+                offsets: good.offsets.join(','),
+                goodErrors: good.errors.length,
+                badTokenErrors: badToken.errors.length,
+                badTokenOffsets: badToken.offsets.join(','),
+                badAccidentalErrors: badAccidental.errors.length,
+                emptyErrors: empty.errors.length
+            };
+        });
+        report.check(`phrases series parser maps tokens to offsets (${seriesParse.offsets})`,
+            seriesParse.offsets === '-3,0,0,-1.5,-1,1.5,1,8,-2'
+            && seriesParse.goodErrors === 0
+            && seriesParse.badTokenErrors === 1 && seriesParse.badTokenOffsets === '0,1'
+            && seriesParse.badAccidentalErrors === 1
+            && seriesParse.emptyErrors === 1);
+
+        // Series Set loads the typed series as the current take (honoring
+        // play on next), and it joins phrase history.
+        await tab.fill('#seriesInput', '5v 1 1 7bv 7v 2# 2');
+        const seriesVoices0 = await tab.evaluate(() => window.__voiceStarts);
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(7 * 320 + 900);
+        const seriesLoaded = await tab.evaluate(() => ({
+            offsets: window.phrasesDebug.takePlan().map(note => note.offset).join(','),
+            degrees: window.phrasesDebug.takePlan().map(note => note.degree).join(' '),
+            voices: window.__voiceStarts,
+            errorHidden: document.getElementById('seriesError').hidden,
+            historyDegrees: document.querySelector('#historyList .phrase-history-degrees')?.textContent || ''
+        }));
+        report.check(`phrases series loads as the take and plays (${seriesLoaded.degrees}, ${seriesLoaded.voices - seriesVoices0} voices)`,
+            seriesLoaded.offsets === '-3,0,0,-1.5,-1,1.5,1'
+            && seriesLoaded.voices - seriesVoices0 === 7
+            && seriesLoaded.errorHidden === true
+            && seriesLoaded.historyDegrees.split(' ').length === 7);
+
+        // Bad tokens list under the input and change nothing.
+        await tab.fill('#seriesInput', '1 2 zz 3#');
+        await tab.click('#seriesSetBtn');
+        await tab.waitForTimeout(300);
+        const seriesError = await tab.evaluate(() => ({
+            hidden: document.getElementById('seriesError').hidden,
+            text: document.getElementById('seriesError').textContent,
+            offsets: window.phrasesDebug.takePlan().map(note => note.offset).join(',')
+        }));
+        report.check(`phrases series errors leave the take unchanged ("${seriesError.text}")`,
+            seriesError.hidden === false
+            && seriesError.text.includes('zz') && seriesError.text.includes('3#')
+            && seriesError.offsets === '-3,0,0,-1.5,-1,1.5,1');
+        await tab.click('#stopBtn');
+
+        // Explicit range endpoints: offsets bounded to the chosen span
         const overBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
             for (const phraseAlgo of algos) {
                 for (let i = 0; i < 300; i++) {
                     const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'over',
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -2, rangeHigh: 9,
                         minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
                     });
                     if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
@@ -536,15 +702,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             return true;
         });
-        report.check('phrases algos keep "just over" bounded to 6-below..3-above', overBounded);
+        report.check('phrases algos honor range endpoints -2..9 (6-below..3-above)', overBounded);
 
-        // "around 1" range: the full octave 1..8 plus down to the 1 an octave below
+        // Low endpoint a full octave below unison, high capped at the octave
         const aroundBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
             for (const phraseAlgo of algos) {
                 for (let i = 0; i < 300; i++) {
                     const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeMode: 'around',
+                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -7, rangeHigh: 7,
                         minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
                     });
                     if (Math.min(...offsets) < -7 || Math.max(...offsets) > 7) return false;
@@ -552,11 +718,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             return true;
         });
-        report.check('phrases algos keep "around 1" bounded to low-1..8', aroundBounded);
-        await tab.click('[data-range="over"]');
+        report.check('phrases algos honor range endpoints -7..7 (octave-below-1..8)', aroundBounded);
+
+        // Range endpoint steppers: one degree per step, endpoint labels
+        // name degrees, and both endpoints persist.
+        const rangeBefore = await tab.evaluate(() => {
+            const data = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS) || {};
+            return { low: data.rangeLow ?? 0, high: data.rangeHigh ?? 7 };
+        });
+        await tab.click('[data-step-key="rangeLow"][data-step-delta="-1"]');
+        await tab.click('[data-step-key="rangeHigh"][data-step-delta="1"]');
         await tab.waitForTimeout(200);
-        const savedRange = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.rangeMode);
-        report.check('phrases range mode persists', savedRange === 'over');
+        const rangeState = await tab.evaluate(() => ({
+            saved: (() => {
+                const data = SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS) || {};
+                return { low: data.rangeLow, high: data.rangeHigh };
+            })(),
+            lowLabel: document.getElementById('rangeLowValue').textContent,
+            highLabel: document.getElementById('rangeHighValue').textContent
+        }));
+        report.check(`phrases range endpoints step and persist (low ${rangeState.lowLabel}, high ${rangeState.highLabel})`,
+            rangeState.saved.low === rangeBefore.low - 1
+            && rangeState.saved.high === rangeBefore.high + 1
+            && rangeState.lowLabel.length > 0 && rangeState.highLabel.length > 0);
         await tab.click('[data-phrase-algo="arch"]');
         await tab.waitForTimeout(200);
         const savedAlgo = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.phraseAlgo);
@@ -565,29 +749,44 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const lessonFamilies = await tab.evaluate(() => {
             const staff = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'staff', phraseLesson: 'staff_steps',
-                phraseAlgo: 'balanced', startAtOne: true, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: true, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
             const sight = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'sight', phraseLesson: 'sight_pentachord',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
             const barber = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_dominant',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
             const staffStepsOnly = staff.slice(1).every((offset, index) => Math.abs(offset - staff[index]) === 1);
             const sightInPentachord = sight.every(offset => [0, 1, 2, 3, 4].includes(offset));
             const barberDominant = barber.every(offset => [1, 3, 4, 6].includes(offset));
-            return { staffStepsOnly, sightInPentachord, barberDominant };
+            // 'start at 1' outranks a palette that excludes the tonic:
+            // the seed note is literal degree 1, the rest stays in palette.
+            let tonicSeeded = true;
+            for (let i = 0; i < 40; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseStyle: 'barbershop', phraseLesson: 'barber_sevenths',
+                    phraseAlgo: 'balanced', startAtOne: true, rangeLow: 0, rangeHigh: 7,
+                    minLength: 6, maxLength: 8, returnToInitial: false, returnToRoot: false,
+                    accidentalRate: 0
+                });
+                if (offsets[0] !== 0) tonicSeeded = false;
+                if (!offsets.slice(1).every(offset => [1, 3, 4, 6].includes(offset))) tonicSeeded = false;
+            }
+            return { staffStepsOnly, sightInPentachord, barberDominant, tonicSeeded };
         });
         report.check('phrases style lessons constrain generated degrees',
             lessonFamilies.staffStepsOnly && lessonFamilies.sightInPentachord && lessonFamilies.barberDominant);
+        report.check('phrases start-at-1 seeds tonic even outside lesson palette',
+            lessonFamilies.tonicSeeded);
         await tab.click('[data-phrase-style="barbershop"]');
         await tab.waitForTimeout(200);
         await tab.click('[data-phrase-lesson="barber_dominant"]');
@@ -615,7 +814,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const genreLesson = await tab.evaluate(() => {
             const phrase = PatternPracticeCore.generatePhraseOffsets({
                 scaleType: 'major', phraseStyle: 'genre', phraseLesson: 'genre_pop_hook',
-                phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                 minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                 accidentalRate: 0
             });
@@ -633,7 +832,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return lessons.every(phraseLesson => {
                 const phrase = PatternPracticeCore.generatePhraseOffsets({
                     scaleType: 'major', phraseStyle: 'genre', phraseLesson,
-                    phraseAlgo: 'balanced', startAtOne: false, rangeMode: 'within',
+                    phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                     minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
                     accidentalRate: 0
                 });
@@ -652,7 +851,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 6; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'expanded', minLength: 8, maxLength: 10,
+                    rangeLow: -3, rangeHigh: 14, minLength: 8, maxLength: 10,
                     returnToInitial: false, returnToRoot: false, phraseAlgo: 'motif'
                 });
                 const o = phrase.notes.map(n => n.offset);
@@ -675,7 +874,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 12; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'within', minLength: 8, maxLength: 10,
+                    rangeLow: 0, rangeHigh: 7, minLength: 8, maxLength: 10,
                     returnToInitial: false, returnToRoot: false, phraseAlgo: 'alto_gaps'
                 });
                 const offsets = phrase.notes.map(n => n.offset);
@@ -693,7 +892,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const returnToOne = await tab.evaluate(() => {
             for (let i = 0; i < 200; i++) {
                 const offsets = PatternPracticeCore.generatePhraseOffsets({
-                    scaleType: 'major', phraseAlgo: 'arch', startAtOne: false, rangeMode: 'within',
+                    scaleType: 'major', phraseAlgo: 'arch', startAtOne: false, rangeLow: 0, rangeHigh: 7,
                     minLength: 5, maxLength: 8, returnToInitial: true, returnToRoot: false
                 });
                 if (offsets[offsets.length - 1] !== 0) return false;
@@ -701,6 +900,103 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return true;
         });
         report.check('phrases return to 1 ends on degree 1 even with random start', returnToOne);
+
+        // Rearrange: every scale note inside the range exactly once (or
+        // twice for the double variant), anchors consume the pool's 1s,
+        // and no note stutters back-to-back.
+        const rearrange = await tab.evaluate(() => {
+            const sorted = values => values.slice().sort((a, b) => a - b).join(',');
+            const range = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
+            const base = {
+                scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
+                minLength: 5, maxLength: 8, accidentalRate: 0, returnToRoot: false
+            };
+            for (let i = 0; i < 60; i++) {
+                const plain = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: false, returnToInitial: false
+                });
+                if (sorted(plain) !== sorted(range(0, 7))) return 'plain permutation broken';
+                const anchored = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: true, returnToInitial: true
+                });
+                if (anchored[0] !== 0 || anchored[anchored.length - 1] !== 0) return 'anchors missing';
+                if (sorted(anchored.slice(1, -1)) !== sorted(range(1, 7))) return 'anchored interior broken';
+                const expanded = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, startAtOne: false, returnToInitial: false, rangeLow: -3, rangeHigh: 14
+                });
+                if (sorted(expanded) !== sorted(range(-3, 14))) return 'expanded range broken';
+                const doubled = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, phraseAlgo: 'rearrange_double', startAtOne: true, returnToInitial: true
+                });
+                if (doubled[0] !== 0 || doubled[doubled.length - 1] !== 0) return 'double anchors missing';
+                if (doubled.slice(1, -1).includes(0)) return 'double interior repeats 1';
+                if (sorted(doubled) !== sorted(range(0, 7).flatMap(value => [value, value]))) return 'double multiset broken';
+                if (doubled.slice(1).some((value, idx) => value === doubled[idx])) return 'double stutters';
+            }
+            return 'ok';
+        });
+        report.check(`phrases rearrange exhausts the range with anchor-managed 1s (${rearrange})`, rearrange === 'ok');
+
+        // Rearrange passing tones are inserted in addition to the notes
+        // they connect; the underlying permutation stays intact.
+        const rearrangeChromatic = await tab.evaluate(() => {
+            const sorted = values => values.slice().sort((a, b) => a - b).join(',');
+            const range = (min, max) => Array.from({ length: max - min + 1 }, (_, i) => min + i);
+            let inserted = 0;
+            for (let i = 0; i < 60; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
+                    minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
+                    returnToRoot: false, accidentalRate: 1
+                });
+                if (sorted(offsets.filter(Number.isInteger)) !== sorted(range(0, 7))) return -1;
+                for (let j = 0; j < offsets.length; j++) {
+                    if (Number.isInteger(offsets[j])) continue;
+                    inserted++;
+                    const between = PatternPracticeCore.chromaticBetween('major', offsets[j - 1], offsets[j + 1]);
+                    if (between !== offsets[j]) return -1;
+                }
+            }
+            return inserted;
+        });
+        report.check(`phrases rearrange inserts passing tones without dropping scale notes (${rearrangeChromatic} inserted)`,
+            rearrangeChromatic > 0);
+
+        // Rearrange orderings are chosen for interval sequencing: leaps
+        // stacked in the same direction should be much rarer than in a
+        // naive shuffle (the notes themselves stay a full permutation).
+        const rearrangeShape = await tab.evaluate(() => {
+            const compoundLeaps = offsets => {
+                let count = 0;
+                for (let i = 2; i < offsets.length; i++) {
+                    const prev = offsets[i - 1] - offsets[i - 2];
+                    const next = offsets[i] - offsets[i - 1];
+                    if (Math.abs(prev) >= 3 && Math.abs(next) >= 3 && Math.sign(prev) === Math.sign(next)) count++;
+                }
+                return count;
+            };
+            const naiveShuffle = values => {
+                const out = values.slice();
+                for (let i = out.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [out[i], out[j]] = [out[j], out[i]];
+                }
+                return out;
+            };
+            let chosen = 0;
+            let naive = 0;
+            for (let i = 0; i < 200; i++) {
+                chosen += compoundLeaps(PatternPracticeCore.generatePhraseOffsets({
+                    scaleType: 'major', phraseAlgo: 'rearrange', rangeLow: 0, rangeHigh: 7,
+                    minLength: 5, maxLength: 8, startAtOne: false, returnToInitial: false,
+                    returnToRoot: false, accidentalRate: 0
+                }));
+                naive += compoundLeaps(naiveShuffle([0, 1, 2, 3, 4, 5, 6, 7]));
+            }
+            return { chosen, naive };
+        });
+        report.check(`phrases rearrange avoids same-direction leap stacks (${rearrangeShape.chosen} chosen vs ${rearrangeShape.naive} naive over 200)`,
+            rearrangeShape.chosen <= rearrangeShape.naive * 0.5 && rearrangeShape.naive > 0);
 
         // Chromatic choices: Acc replaces normal note slots with passing
         // tones, never lengthening the phrase beyond Min/Max.
@@ -711,7 +1007,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             for (let i = 0; i < 100; i++) {
                 const phrase = PatternPracticeCore.generatePhrase({
                     root: 'C', octave: 4, scaleType: 'major', startAtOne: false,
-                    rangeMode: 'over', minLength: 16, maxLength: 16,
+                    rangeLow: -2, rangeHigh: 9, minLength: 16, maxLength: 16,
                     returnToInitial: false, returnToRoot: false,
                     phraseAlgo: 'stepwise', accidentalRate: 1
                 });
@@ -736,6 +1032,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(200);
         const savedAccidental = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.accidentalRate);
         report.check('phrases accidental rate stepper persists', savedAccidental === 0.05);
+
+        // Section pause: the stepper adjusts the pause between repeat
+        // loops / breakdown passes / powerset combos and persists.
+        await tab.click('[data-step-key="sectionPauseMs"][data-step-delta="1"]');
+        await tab.waitForTimeout(200);
+        const sectionPause = await tab.evaluate(() => ({
+            saved: SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.sectionPauseMs,
+            shown: document.getElementById('sectionPauseValue')?.textContent
+        }));
+        report.check(`phrases section pause stepper persists (${sectionPause.saved}ms, "${sectionPause.shown}")`,
+            sectionPause.saved === 1100 && sectionPause.shown === '1.1s');
+        await tab.click('[data-step-key="sectionPauseMs"][data-step-delta="-1"]');
+        await tab.waitForTimeout(200);
 
         const extendedLabels = await tab.evaluate(() => {
             const dp = PatternPracticeCore.degreesPerOctave('major');
@@ -773,6 +1082,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return Boolean(host && !host.classList.contains('phrase-staff-empty') && host.querySelector('svg'));
         });
         report.check('phrases staff renders svg for current phrase', staffRendered);
+
+        // The staff is metered 4/4: phrase notes plus padding rests always
+        // fill whole measures, and the padding never exceeds one measure.
+        const staffMeasures = await tab.evaluate(() => {
+            const planLength = window.phrasesDebug.takePlan().length;
+            const drawn = document.querySelectorAll('#phraseStaff .vf-stavenote').length;
+            return { planLength, drawn };
+        });
+        report.check(`phrases staff pads to whole 4/4 measures (${staffMeasures.planLength} notes -> ${staffMeasures.drawn} beats)`,
+            staffMeasures.drawn % 4 === 0
+            && staffMeasures.drawn >= staffMeasures.planLength
+            && staffMeasures.drawn - staffMeasures.planLength < 4);
 
         const fillPlans = await tab.evaluate(() => {
             const fullBtn = document.getElementById('fillFullBtn');
@@ -879,8 +1200,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             testInterrupt.open && testInterrupt.voicesAfter === voicesAtTestTap);
 
         // Opening the test never auto-plays: the user is there to sing.
-        // Quiesce any playback still running from earlier checks first.
+        // Quiesce playback and close the panel (Stop no longer closes it)
+        // so the next Test tap is an OPEN.
         await tab.click('#stopBtn');
+        await tab.evaluate(() => {
+            if (!document.getElementById('phraseTestPanel').hidden) {
+                document.getElementById('phraseTestCloseBtn').click();
+            }
+        });
         await tab.waitForTimeout(500);
         const voicesBefore = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         await tab.click('#testBtn');
@@ -888,31 +1215,57 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const voicesAfter = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
         report.check(`phrases test open is silent (${voicesAfter - voicesBefore} voices started)`,
             voicesAfter === voicesBefore);
-        await tab.evaluate(() => {
-            window.phrasesDebug.mediaPlay();
-            window.phrasesDebug.mediaNext();
-            document.getElementById('playBtn').click();
-            document.getElementById('nextBtn').click();
-            document.querySelector('.phrase-note-play-token')?.click();
-            document.querySelector('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]')?.click();
-            document.querySelector('#historyList .history-play-btn')?.click();
+        // The Guide button plays the targets on demand.
+        const guideVoices = await tab.evaluate(async () => {
+            const voices = () => window.__trace.filter(e => e.type === 'voice-start').length;
+            const before = voices();
+            document.getElementById('phraseTestGuideBtn').click();
+            await new Promise(r => setTimeout(r, 2500));
+            return voices() - before;
         });
-        await tab.waitForTimeout(5200);
-        const voicesAfterMediaActions = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
-        report.check(`phrases playback entry points stay silent during Test (${voicesAfter}->${voicesAfterMediaActions} voices)`,
-            voicesAfterMediaActions === voicesAfter);
+        report.check(`phrases Guide button plays enabled targets (${guideVoices} voices)`,
+            guideVoices === plan.targetCount);
 
-        // The Guide button is the explicit way to hear the targets.
-        await tab.evaluate(() => document.getElementById('phraseTestGuideBtn').click());
-        await tab.waitForTimeout(2500);
-        const voicesGuide = await tab.evaluate(() => window.__trace.filter(e => e.type === 'voice-start').length);
-        report.check(`phrases Guide button plays enabled targets (${voicesGuide - voicesAfter} voices)`,
-            voicesGuide - voicesAfter === plan.targetCount);
+        // Playback and Test coexist: with the panel open and listening,
+        // Play sounds the phrase, Stop stops it WITHOUT closing the
+        // panel, single-note taps sound, and Next starts a fresh take
+        // for the new phrase with the panel still open.
+        const playDuringTest = await tab.evaluate(async () => {
+            const voices = () => window.__trace.filter(e => e.type === 'voice-start').length;
+            const panelOpen = () => !document.getElementById('phraseTestPanel').hidden;
+            const start = voices();
+            document.getElementById('playBtn').click();
+            await new Promise(r => setTimeout(r, 900));
+            const afterPlay = voices();
+            document.getElementById('stopBtn').click();
+            await new Promise(r => setTimeout(r, 400));
+            const openAfterStop = panelOpen();
+            const afterStop = voices();
+            document.querySelector('.phrase-note-play-token')?.click();
+            await new Promise(r => setTimeout(r, 400));
+            const afterToken = voices();
+            document.getElementById('nextBtn').click();
+            await new Promise(r => setTimeout(r, 1200));
+            return {
+                playSounds: afterPlay > start,
+                openAfterStop,
+                tokenSounds: afterToken > afterStop,
+                openAfterNext: panelOpen()
+            };
+        });
+        report.check('phrases playback works during Test; Stop and Next keep the panel open',
+            playDuringTest.playSounds && playDuringTest.openAfterStop
+            && playDuringTest.tokenSounds && playDuringTest.openAfterNext);
 
         // END-TO-END NOTE LINKAGE: with notes disabled, singing exactly
         // the displayed enabled notes must credit every one of them.
         // Sing via the explicit sample seam at each target's window.
         const linkage = await tab.evaluate(async () => {
+            // Deterministic take: stop the mic BEFORE resetting. The trace
+            // records everything sung - including the fake device's beep
+            // tones - so a live mic would contaminate the injected samples.
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click();
             document.getElementById('phraseTestPauseToggle').click(); // wall clock + session reset
             const targets = window.phrasesDebug.testTargets();
             const panel = window.phrasesDebug.panel;
@@ -923,6 +1276,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }
             const lastEnd = targets[targets.length - 1].endMs;
             await new Promise(r => setTimeout(r, lastEnd + 800));
+            // With the mic stopped there are no frames; evaluate by name.
+            panel.draw();
             return {
                 count: targets.length,
                 score: document.getElementById('phraseTestScore').textContent
@@ -948,6 +1303,97 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`phrases take records per-note results (${noteRecord.count} notes: ${noteRecord.labels})`,
             noteRecord.count === linkage.count && noteRecord.allGoodCentered);
 
+        // RUBATO: scoring aligns the sung note sequence to the targets,
+        // so holding every note far longer than its timeline slot (and
+        // breathing freely) still credits every note. Under the old
+        // fixed-window scoring this take misassigned every note after
+        // the first.
+        const rubato = await tab.evaluate(async () => {
+            const panel = window.phrasesDebug.panel;
+            await panel.open();
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click(); // deterministic: no mic
+            const targets = window.phrasesDebug.testTargets();
+            let t = 5;
+            for (const target of targets) {
+                for (let k = 0; k < 10; k++) { // ~550ms hold against a 300ms slot
+                    panel.recordSample(target.midi, t);
+                    t += 55;
+                }
+                t += 40;
+            }
+            await new Promise(r => setTimeout(r, 800)); // idle closes the final note
+            panel.draw();
+            return {
+                count: targets.length,
+                score: document.getElementById('phraseTestScore').textContent
+            };
+        });
+        report.check(`phrases rubato take credits held notes (${rubato.score})`,
+            rubato.score.includes(`${rubato.count}/${rubato.count}`));
+
+        // One wrong note misses exactly itself: neighbors stay credited
+        // (no cascade through the rest of the take).
+        const wrongNote = await tab.evaluate(async () => {
+            const panel = window.phrasesDebug.panel;
+            await panel.open();
+            const listenBtn = document.getElementById('phraseTestListenBtn');
+            if (listenBtn.textContent.includes('On')) listenBtn.click();
+            const targets = window.phrasesDebug.testTargets();
+            let t = 5;
+            targets.forEach((target, index) => {
+                const midi = index === 1 ? target.midi + 2.5 : target.midi;
+                for (let k = 0; k < 6; k++) {
+                    panel.recordSample(midi, t);
+                    t += 55;
+                }
+                t += 30;
+            });
+            await new Promise(r => setTimeout(r, 800));
+            panel.draw();
+            return {
+                count: targets.length,
+                score: document.getElementById('phraseTestScore').textContent
+            };
+        });
+        report.check(`phrases wrong note misses only itself (${wrongNote.score})`,
+            wrongNote.score.includes(`${wrongNote.count - 1}/${wrongNote.count}`));
+
+        // DRAW-WHAT-YOU-SING: pitch far outside the charted rails (the
+        // singer's real register an octave off, an overshoot) must still
+        // be recorded and drawn - rails and targets never gate the trace.
+        // A sustained (confirmed) off-rails note passes the glitch
+        // holdback and lands in the recorded history the chart draws.
+        const offRails = await tab.evaluate(() => {
+            const targets = window.phrasesDebug.testTargets();
+            const panel = window.phrasesDebug.panel;
+            const lowMidi = Math.min(...targets.map(t => t.midi)) - 12;
+            const t0 = targets[0].startMs + 5;
+            panel.recordSample(lowMidi, t0);
+            panel.recordSample(lowMidi, t0 + 50);
+            panel.recordSample(lowMidi, t0 + 100);
+            const sustained = panel.history.filter(s => s.midi === lowMidi).length;
+
+            // A brief scrape - a large jump that does NOT sustain for the
+            // confirmation frames - never reaches the trace; the return
+            // to the held pitch does. The scrape pitch sits above every
+            // target so no other injected sample can share its midi.
+            const scrapeMidi = Math.max(...targets.map(t => t.midi)) + 15;
+            panel.recordSample(scrapeMidi, t0 + 150);
+            panel.recordSample(scrapeMidi, t0 + 180);
+            panel.recordSample(lowMidi, t0 + 210);
+            return {
+                lowMidi,
+                recorded: sustained,
+                scrapeRecorded: panel.history.filter(s => s.midi === scrapeMidi).length,
+                returnRecorded: panel.history.filter(s => s.midi === lowMidi).length
+            };
+        });
+        report.check(`phrases trace keeps off-rails singing (${offRails.recorded} samples at midi ${offRails.lowMidi})`,
+            offRails.recorded === 3);
+        report.check(`phrases trace drops unconfirmed scrapes (${offRails.scrapeRecorded} scrape samples, ${offRails.returnRecorded} held)`,
+            offRails.scrapeRecorded === 0 && offRails.returnRecorded === 4);
+
         // Weak-spot aggregation names the leaning degree and its direction.
         const weakLine = await tab.evaluate(() => {
             for (let i = 0; i < 3; i++) {
@@ -964,14 +1410,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`weak spots name the sharp degree ("${weakLine}")`,
             weakLine.includes('6:') && weakLine.includes('sharp') && !weakLine.includes('1:'));
 
-        // The action row stays visible while scrolled mid-take.
+        // The action row lives in the fixed bottom dock sheet.
         await tab.evaluate(() => window.scrollTo(0, 700));
         await tab.waitForTimeout(300);
         const pinned = await tab.evaluate(() => {
-            const rect = document.querySelector('#phraseTestPanel .pitch-test-actions').getBoundingClientRect();
-            return { top: rect.top, visible: rect.top >= 0 && rect.bottom <= window.innerHeight };
+            const dock = document.getElementById('phraseTestDock');
+            const actions = document.querySelector('#phraseTestPanel .pitch-test-actions');
+            if (!dock || !actions) return { ok: false };
+            const dockRect = dock.getBoundingClientRect();
+            const actionsRect = actions.getBoundingClientRect();
+            return {
+                ok: true,
+                dockOpen: dock.classList.contains('open'),
+                dockAtBottom: Math.abs(dockRect.bottom - window.innerHeight) < 4,
+                actionsVisible: actionsRect.top >= 0 && actionsRect.bottom <= window.innerHeight
+            };
         });
-        report.check(`phrases test actions stay visible when scrolled (top=${pinned.top.toFixed(0)}px)`, pinned.visible);
+        report.check(`phrases test dock stays fixed at bottom when scrolled (open=${pinned.dockOpen})`,
+            pinned.ok && pinned.dockOpen && pinned.dockAtBottom && pinned.actionsVisible);
         await tab.close();
     }
 
@@ -990,8 +1446,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(500);
         const resultsShown = await tab.evaluate(() => document.getElementById('resultsPanel').style.display);
         const notesHit = await tab.textContent('#notesHit');
+        // The fake device's tone sits mostly above the singable band
+        // (D2-C5), so only a handful of its samples register - which is
+        // the band doing its job. Any recorded sample proves the
+        // mic -> detector -> session pipeline end to end.
         report.check(`pitch-meter free session (${samples} samples, notesHit ${notesHit})`,
-            samples > 10 && resultsShown === 'block' && /^\d+\/\d+$/.test(notesHit));
+            samples > 0 && resultsShown === 'block' && /^\d+\/\d+$/.test(notesHit));
 
         const pmProgress = await tab.evaluate(() => {
             const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
@@ -1014,9 +1474,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(2500);
         await tab.click('#singBtn');
         await tab.waitForTimeout(1000);
-        // Wall-clock mode so all target windows pass deterministically
-        await tab.evaluate(() => document.getElementById('scalesSingPauseToggle').click());
+        // Wall-clock mode so all target windows pass deterministically.
+        // Stop the mic: with the fake device beeping forever, the voice
+        // never goes idle, so unsung targets would stay pending instead
+        // of resolving to missed.
+        await tab.evaluate(() => {
+            const listenBtn = document.getElementById('scalesSingListenBtn');
+            if (listenBtn && listenBtn.textContent.includes('On')) listenBtn.click();
+            document.getElementById('scalesSingPauseToggle').click();
+            // A take records only when something was sung: one
+            // deterministic note through the sample seam.
+            for (let k = 0; k < 5; k++) {
+                window.scalesController.singPanel.recordSample(60, 30 + k * 50);
+            }
+        });
         await tab.waitForTimeout(4500);
+        // With the mic stopped there are no frames; evaluate by name.
+        await tab.evaluate(() => window.scalesController.singPanel.draw());
         const score = await tab.textContent('#scalesSingScore');
         report.check(`sing panel scores after windows pass ("${score}")`,
             /Score: \d+\/\d+ on pitch/.test(score));
@@ -1121,19 +1595,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         const modelOptions = await tab.evaluate(() => {
             return {
+                hasClaudeFable5: !!document.querySelector('[data-claude-model="claude-fable-5"]'),
                 hasClaudeOpus48: !!document.querySelector('[data-claude-model="claude-opus-4-8"]'),
-                hasClaudeSonnet46: !!document.querySelector('[data-claude-model="claude-sonnet-4-6"]'),
+                hasClaudeSonnet5: !!document.querySelector('[data-claude-model="claude-sonnet-5"]'),
                 hasClaudeHaiku45: !!document.querySelector('[data-claude-model="claude-haiku-4-5"]'),
                 openaiModels: Array.from(document.querySelectorAll('[data-openai-model]'))
                     .map(btn => /** @type {HTMLElement} */ (btn).dataset.openaiModel)
             };
         });
         report.check('player exposes current LLM model options',
-            modelOptions.hasClaudeOpus48
-            && modelOptions.hasClaudeSonnet46
+            modelOptions.hasClaudeFable5
+            && modelOptions.hasClaudeOpus48
+            && modelOptions.hasClaudeSonnet5
             && modelOptions.hasClaudeHaiku45
             && modelOptions.openaiModels.includes('gpt-5.5')
-            && modelOptions.openaiModels.includes('gpt-5.2')
+            && modelOptions.openaiModels.includes('gpt-5.4')
             && modelOptions.openaiModels.includes('gpt-4.1'));
 
         const musicHistoryCache = await tab.evaluate(async () => {
@@ -1159,12 +1635,38 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryCache.videoId === 'cached-video'
             && musicHistoryCache.source === 'test');
 
+        // Log lines persist across sessions: recorded to IndexedDB as they
+        // happen, and the panel replays earlier-session lines on first open.
+        const logHistory = await tab.evaluate(async () => {
+            const stamp = `log history probe ${Date.now()}`;
+            PlayerHistoryDB.recordLog({ type: 'claude', label: 'Probe', text: stamp, line: `[00:00:00] Probe: ${stamp}` });
+            await new Promise(resolve => setTimeout(resolve, 120));
+            const recent = await PlayerHistoryDB.listRecentLogs(50);
+            const c = window.musicController;
+            // Pretend this session started after the probe was written, so
+            // the replay path treats it as an earlier session's line.
+            c.sessionStartedAt = new Date(Date.now() + 1000).toISOString();
+            c.historicalLogsLoaded = false;
+            await c.loadHistoricalLogs();
+            const replayed = Array.from(document.querySelectorAll('#logContent .log-line.log-history'))
+                .some(line => line.textContent.includes(stamp));
+            const divider = !!document.querySelector('#logContent .log-history-divider');
+            return { stored: recent.some(record => record.text === stamp), replayed, divider };
+        });
+        report.check('player log lines persist and replay from earlier sessions',
+            logHistory.stored && logHistory.replayed && logHistory.divider);
+
         const playlistSourceGroups = await tab.evaluate(() => {
             const harness = {
                 favorites: {},
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
-                showLyricsForItem() {}
+                showLyricsForItem() {},
+                lyricsRowMarker(item) {
+                    return item.lyricsStatus === 'ready'
+                        ? { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' }
+                        : { label: '\u00b7', className: '', aria: 'Get lyrics' };
+                }
             };
             PlayerPlaylist.install(harness);
             const body = document.getElementById('playlistBody');
@@ -1200,24 +1702,437 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 sourceLabel: 'Search: Search Artist Search Song',
                 sourceSearchTerm: 'Search Artist Search Song'
             });
-            const rows = Array.from(body.querySelectorAll('tr'));
-            const sourceRowCount = rows.filter(row => row.classList.contains('playlist-source-row')).length;
-            const dataRows = rows
-                .filter(row => !row.classList.contains('playlist-source-row'))
-                .map(row => row.dataset.itemId);
-            const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => ({
-                text: el.textContent,
-                title: el.getAttribute('title')
+            const rows = Array.from(body.querySelectorAll('.playlist-row'));
+            const dataRows = rows.map(row => row.dataset.itemId);
+            // One flat data line per row: leading gutter (star + lyric
+            // marker), name, meta, duration, and remove; the note is the
+            // only extra element (own line, Notes toggle).
+            const slots = rows.map(row => ({
+                name: row.querySelector(':scope > .playlist-song-name')?.textContent || '',
+                duration: row.querySelector(':scope > .playlist-song-duration')?.textContent || '',
+                artist: row.querySelector(':scope > .playlist-row-meta .playlist-song-artist')?.textContent || '',
+                hasLeading: !!row.querySelector(':scope > .playlist-row-leading'),
+                hasStar: !!row.querySelector('.playlist-row-leading > .favorite-btn'),
+                hasMarker: !!row.querySelector('.playlist-row-leading > .lyrics-row-btn'),
+                hasRemove: !!row.querySelector(':scope > .playlist-remove-btn'),
+                nestedWrappers: row.querySelectorAll(':scope > div:not(.playlist-song-comment):not(.playlist-row-leading)').length
             }));
+            const comments = Array.from(body.querySelectorAll('.playlist-song-comment')).map(el => el.textContent);
             body.innerHTML = '';
-            return { sourceRowCount, dataRows, comments };
+            return { dataRows, slots, comments };
         });
-        report.check('player playlist keeps compact rows and inline comments',
-            playlistSourceGroups.sourceRowCount === 0
-            && playlistSourceGroups.dataRows.includes('501')
+        report.check('player playlist rows are one flat data line with fixed slots',
+            playlistSourceGroups.dataRows.includes('501')
             && playlistSourceGroups.dataRows.includes('502')
+            && playlistSourceGroups.slots.every(slot => slot.name && slot.duration && slot.artist
+                && slot.hasLeading && slot.hasStar && slot.hasMarker && slot.hasRemove && slot.nestedWrappers === 0)
             && playlistSourceGroups.comments.some(comment =>
-                comment.text.includes('Included because') && comment.title.includes('matches the requested search')));
+                comment.includes('Included because it matches the requested search')));
+
+        // Leading gutter (star + lyric marker): taps there must not start
+        // playback; only the row body plays. Markers: ✓ timed, ~ non-timed.
+        const starGutterAndMarkers = await tab.evaluate(() => {
+            const harness = {
+                favorites: {},
+                playlist: [],
+                playedIds: /** @type {number[]} */ ([]),
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {},
+                playVideo(item) { this.playedIds.push(item.id); },
+                lyricsRowMarker(item) {
+                    if (item.lyricsStatus === 'ready' && item.lyricsData?.syncedLines?.length) {
+                        return { label: '\u2713', className: 'timed', aria: 'Timed lyrics (line-synced) - tap to view' };
+                    }
+                    if (item.lyricsStatus === 'ready') {
+                        return { label: '~', className: 'simple', aria: 'Simple lyrics (text only) - tap to view' };
+                    }
+                    return { label: '\u00b7', className: '', aria: 'Get lyrics' };
+                }
+            };
+            PlayerPlaylist.install(harness);
+            const body = document.getElementById('playlistBody');
+            body.innerHTML = '';
+            const timed = {
+                id: 701, videoId: 'v-sync', name: 'Sync Song', artist: 'A', year: '', album: '',
+                title: 'Sync Song', channelTitle: 'A', duration: '1:00', comment: '', searchTerm: '',
+                lyricsStatus: 'ready', lyricsData: { syncedLines: [{ time: 1, text: 'hi' }], plainLyrics: '' }
+            };
+            const simple = {
+                id: 702, videoId: 'v-text', name: 'Text Song', artist: 'B', year: '', album: '',
+                title: 'Text Song', channelTitle: 'B', duration: '1:00', comment: '', searchTerm: '',
+                lyricsStatus: 'ready', lyricsData: { syncedLines: [], plainLyrics: 'hi' }
+            };
+            harness.addPlaylistItemToDOM(timed);
+            harness.addPlaylistItemToDOM(simple);
+            const row1 = document.querySelector('.playlist-row[data-item-id="701"]');
+            const leading = row1.querySelector('.playlist-row-leading');
+            leading.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            const afterLeading = harness.playedIds.slice();
+            row1.querySelector('.playlist-song-name').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            const afterName = harness.playedIds.slice();
+            const markers = Array.from(body.querySelectorAll('.lyrics-row-btn')).map(btn => btn.textContent);
+            body.innerHTML = '';
+            return { afterLeading, afterName, markers };
+        });
+        report.check('player star gutter taps do not play; row body does',
+            starGutterAndMarkers.afterLeading.length === 0
+            && starGutterAndMarkers.afterName.length === 1
+            && starGutterAndMarkers.afterName[0] === 701);
+        report.check('player lyric markers are check for timed and tilde for simple',
+            starGutterAndMarkers.markers.includes('\u2713')
+            && starGutterAndMarkers.markers.includes('~'));
+
+        const lyricsStoreChecks = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeHarness = (favorites = {}) => {
+                const harness = {
+                    playlist: [],
+                    favorites,
+                    youtubeAlternateResults: new Map(),
+                    lyricsLookupCache: new Map(),
+                    lyricsFetchQueue: [],
+                    lyricsFetchActive: 0,
+                    lyricsLookupsInFlight: new Map(),
+                    currentLyricsItemId: null,
+                    currentLyricsLineIndex: -1,
+                    lyricsPanelVisible: false,
+                    lyricsPanelDismissed: false,
+                    nowPlayingShowsLyric: false,
+                    settings: { lyricsOnNowPlaying: false },
+                    isFavorite() { return false; },
+                    escapeHtml(value) { return String(value || ''); },
+                    truncateForStatus(value) { return String(value || ''); },
+                    addMessage() {},
+                    updateStatus() {},
+                    persistPlaylist() {},
+                    updatePlaylistLabel() {},
+                    showPlaylistSurfaces() {}
+                };
+                PlayerPlaylist.install(harness);
+                PlayerLyrics.install(harness);
+                harness.addPlaylistItemToDOM = () => {};
+                harness.lookups = 0;
+                harness.inFlight = 0;
+                harness.maxInFlight = 0;
+                harness.lookupLyrics = async (item) => {
+                    harness.lookups++;
+                    harness.inFlight++;
+                    harness.maxInFlight = Math.max(harness.maxInFlight, harness.inFlight);
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                    harness.inFlight--;
+                    if (item.name.startsWith('Missing')) return null;
+                    return {
+                        provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                        albumName: '', duration: 100, instrumental: false,
+                        plainLyrics: 'la la', syncedLyrics: null, syncedLines: []
+                    };
+                };
+                return harness;
+            };
+            const makeItem = (name) => PlayerSongs.createPlaylistItem({
+                videoId: `lyr-${run}-${name.replace(/\s+/g, '-')}`,
+                name, artist: 'Queue Artist', duration: '1:40', durationSeconds: 100,
+                searchTerm: `Queue Artist ${name}`
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+            const drain = async (harness) => {
+                for (let i = 0; i < 200; i++) {
+                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0
+                        && harness.playlist.every(item => item.lyricsStatus !== 'idle' && item.lyricsStatus !== 'loading')) {
+                        return true;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 25));
+                }
+                return false;
+            };
+
+            // Session 1: six songs added at once resolve through the bounded
+            // queue; each answer is saved to the permanent store (IndexedDB
+            // lyricStates) as it arrives.
+            const first = makeHarness();
+            ['Song One', 'Song Two', 'Song Three', 'Song Four', 'Song Five', 'Missing Song']
+                .forEach(name => first.appendPlaylistItem(makeItem(name)));
+            const firstSettled = await drain(first);
+            const missingState = await PlayerHistoryDB.getLyricState(`lyr-${run}-Missing-Song`);
+            const foundState = await PlayerHistoryDB.getLyricState(`lyr-${run}-Song-One`);
+            const storedPerSong = !!missingState && missingState.status === 'none'
+                && !!foundState && foundState.status === 'found'
+                && !!foundState.lyrics && foundState.lyrics.plainLyrics === 'la la';
+
+            // Session 2 (interrupted-then-reopened): fresh page state, same
+            // permanent store. Resolved songs settle from the store with
+            // ZERO provider lookups; only the never-seen song hits it.
+            const second = makeHarness();
+            second.appendPlaylistItem(makeItem('Song One'));
+            second.appendPlaylistItem(makeItem('Missing Song'));
+            await drain(second);
+            const resumedFromStore = second.playlist[0].lyricsStatus === 'ready'
+                && !!second.playlist[0].lyricsData
+                && second.playlist[1].lyricsStatus === 'not_found'
+                && second.lookups === 0;
+            second.appendPlaylistItem(makeItem('Song Never Seen'));
+            const secondSettled = await drain(second);
+            const newSongLookups = second.lookups;
+
+            // Tapping the chip on a stored "none" forces a provider recheck.
+            const missingItem = second.playlist[1];
+            await second.showLyricsForItem(missingItem);
+            const chipRetried = second.lookups === 2 && missingItem.lyricsStatus === 'not_found';
+            second.setLyricsPanelVisible(false);
+
+            return {
+                firstSettled,
+                maxInFlight: first.maxInFlight,
+                firstLookups: first.lookups,
+                storedPerSong,
+                resumedFromStore,
+                secondSettled,
+                newSongLookups,
+                chipRetried
+            };
+        });
+        report.check(`player lyric queue is bounded and resumes from the store after reload (max in-flight ${lyricsStoreChecks.maxInFlight}, resume lookups ${lyricsStoreChecks.newSongLookups})`,
+            lyricsStoreChecks.firstSettled
+            && lyricsStoreChecks.maxInFlight === 2
+            && lyricsStoreChecks.firstLookups === 6
+            && lyricsStoreChecks.storedPerSong
+            && lyricsStoreChecks.resumedFromStore
+            && lyricsStoreChecks.secondSettled
+            && lyricsStoreChecks.newSongLookups === 1
+            && lyricsStoreChecks.chipRetried);
+
+        const lyricsIntegrityChecks = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeHarness = (favorites = {}) => {
+                const harness = {
+                    playlist: [],
+                    favorites,
+                    youtubeAlternateResults: new Map(),
+                    lyricsLookupCache: new Map(),
+                    lyricsFetchQueue: [],
+                    lyricsFetchActive: 0,
+                    lyricsLookupsInFlight: new Map(),
+                    currentLyricsItemId: null,
+                    currentLyricsLineIndex: -1,
+                    lyricsPanelVisible: false,
+                    lyricsPanelDismissed: false,
+                    nowPlayingShowsLyric: false,
+                    settings: { lyricsOnNowPlaying: false },
+                    isFavorite() { return false; },
+                    escapeHtml(value) { return String(value || ''); },
+                    truncateForStatus(value) { return String(value || ''); },
+                    addMessage() {},
+                    updateStatus() {},
+                    persistPlaylist() {},
+                    updatePlaylistLabel() {},
+                    showPlaylistSurfaces() {}
+                };
+                PlayerPlaylist.install(harness);
+                PlayerLyrics.install(harness);
+                harness.addPlaylistItemToDOM = () => {};
+                return harness;
+            };
+            const makeItem = (name) => PlayerSongs.createPlaylistItem({
+                videoId: `int-${run}-${name.replace(/\s+/g, '-')}`,
+                name, artist: 'Integrity Artist', duration: '1:40', durationSeconds: 100,
+                searchTerm: `Integrity Artist ${name}`
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+            const drain = async (harness) => {
+                for (let i = 0; i < 200; i++) {
+                    if (harness.lyricsFetchActive === 0 && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0) return true;
+                    await new Promise(resolve => setTimeout(resolve, 25));
+                }
+                return false;
+            };
+
+            // Provider FAILURE saves nothing and lands in 'error' (retried
+            // on next use); an ANSWERED empty saves a durable 'none'.
+            const failing = makeHarness();
+            failing.searchLyricsProvider = async () => { throw new Error('HTTP 429'); };
+            const failedItem = makeItem('Rate Limited Song');
+            failing.playlist.push(failedItem);
+            await failing.ensureLyricsForItem(failedItem);
+            const failedState = await PlayerHistoryDB.getLyricState(failedItem.videoId);
+            const failureIsError = failedItem.lyricsStatus === 'error' && failedState === null;
+            failing.searchLyricsProvider = async () => [];
+            failing.lyricsLookupCache.clear();
+            const emptyItem = makeItem('Truly Missing Song');
+            failing.playlist.push(emptyItem);
+            await failing.ensureLyricsForItem(emptyItem);
+            const emptyState = await PlayerHistoryDB.getLyricState(emptyItem.videoId);
+            const answeredEmptyIsNone = emptyItem.lyricsStatus === 'not_found'
+                && !!emptyState && emptyState.status === 'none';
+
+            // Save-then-activate: at the moment the store write happens the
+            // live item must NOT yet be activated (status still 'loading').
+            const ordering = makeHarness();
+            ordering.lookupLyrics = async (item) => ({
+                provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                albumName: '', duration: 100, instrumental: false,
+                plainLyrics: 'order', syncedLyrics: null, syncedLines: []
+            });
+            const orderedItem = makeItem('Ordering Song');
+            ordering.playlist.push(orderedItem);
+            const realPut = PlayerHistoryDB.putLyricState;
+            let statusAtSaveTime = '';
+            PlayerHistoryDB.putLyricState = async (record) => {
+                statusAtSaveTime = orderedItem.lyricsStatus;
+                return realPut(record);
+            };
+            await ordering.ensureLyricsForItem(orderedItem);
+            PlayerHistoryDB.putLyricState = realPut;
+            const savedBeforeActivated = statusAtSaveTime === 'loading'
+                && orderedItem.lyricsStatus === 'ready';
+
+            // Reconcile is per song against the store: first pass resolves
+            // both favorites at the provider; a later pass with one new
+            // favorite looks up exactly that one.
+            const fav = (name) => ({
+                videoId: `int-${run}-fav-${name}`,
+                name: `Favorite ${name}`, artist: 'Integrity Artist',
+                duration: '1:40', durationSeconds: 100, searchTerm: name
+            });
+            const reconcile = makeHarness({ a: fav('A'), b: fav('B') });
+            reconcile.lookups = 0;
+            reconcile.lookupLyrics = async (item) => {
+                reconcile.lookups++;
+                await new Promise(resolve => setTimeout(resolve, 20));
+                return {
+                    provider: 'LRCLIB', trackName: item.name, artistName: item.artist,
+                    albumName: '', duration: 100, instrumental: false,
+                    plainLyrics: 'la', syncedLyrics: null, syncedLines: []
+                };
+            };
+            reconcile.reconcileLibraryLyrics();
+            await drain(reconcile);
+            const firstPassLookups = reconcile.lookups;
+            const nextLoad = makeHarness({ a: fav('A'), b: fav('B'), c: fav('C') });
+            nextLoad.lookups = 0;
+            nextLoad.lookupLyrics = reconcile.lookupLyrics;
+            nextLoad.reconcileLibraryLyrics();
+            await drain(nextLoad);
+            const secondPassLookups = reconcile.lookups - firstPassLookups;
+
+            return { failureIsError, answeredEmptyIsNone, savedBeforeActivated, firstPassLookups, secondPassLookups };
+        });
+        report.check(`player lyric store integrity: failures unsaved, save-before-activate, per-song reconcile (${lyricsIntegrityChecks.firstPassLookups}+${lyricsIntegrityChecks.secondPassLookups} lookups)`,
+            lyricsIntegrityChecks.failureIsError
+            && lyricsIntegrityChecks.answeredEmptyIsNone
+            && lyricsIntegrityChecks.savedBeforeActivated
+            && lyricsIntegrityChecks.firstPassLookups === 2
+            && lyricsIntegrityChecks.secondPassLookups === 1);
+
+        // Live playlist filter: as-you-type hides non-matching rows, the
+        // status line names the query and counts, Cancel restores all.
+        // Timed only hides rows without synced lyrics. Song notes are a
+        // CSS display toggle on the container.
+        const playlistFilterAndNotes = await tab.evaluate(() => {
+            const harness = {
+                favorites: {},
+                playlist: [],
+                settings: { showSongNotes: false, playlistTimedOnly: false },
+                isFavorite() { return false; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {},
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
+                saveSettings() {}
+            };
+            PlayerPlaylist.install(harness);
+            const body = document.getElementById('playlistBody');
+            const container = document.getElementById('playlistContainer');
+            const savedDisplay = container.style.display;
+            container.style.display = 'block';
+            body.innerHTML = '';
+            const items = [
+                {
+                    id: 601, videoId: 'v-sunset', name: 'Sunset Drive', artist: 'Evening Band', year: '1984', album: '',
+                    title: 'Sunset Drive', channelTitle: 'Evening Band', duration: '3:00', comment: 'A sunset note',
+                    searchTerm: 'Evening Band Sunset Drive',
+                    lyricsStatus: 'ready',
+                    lyricsData: { syncedLines: [{ time: 12, text: 'sunset line' }], plainLyrics: '' }
+                },
+                {
+                    id: 602, videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', album: '',
+                    title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', comment: 'A morning note',
+                    searchTerm: 'Dawn Crew Morning Run',
+                    lyricsStatus: 'ready',
+                    lyricsData: { syncedLines: [], plainLyrics: 'simple only' }
+                }
+            ];
+            for (const item of items) {
+                harness.playlist.push(item);
+                harness.addPlaylistItemToDOM(item);
+            }
+
+            const rowHidden = id => document.querySelector(`.playlist-row[data-item-id="${id}"]`).hidden;
+            const status = document.getElementById('playlistFilterStatus');
+            const statusText = document.getElementById('playlistFilterStatusText');
+
+            harness.setPlaylistFilter('sunset');
+            const filtered = {
+                sunsetShown: !rowHidden(601),
+                morningHidden: rowHidden(602),
+                statusVisible: status.style.display !== 'none',
+                statusText: statusText.textContent
+            };
+            // Year matching too: "1984" should match the sunset song only
+            harness.setPlaylistFilter('1984');
+            const yearFiltered = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
+
+            harness.clearPlaylistFilter();
+            harness.settings.playlistTimedOnly = true;
+            harness.applyPlaylistFilter();
+            const timedOnly = {
+                sunsetShown: !rowHidden(601),
+                morningHidden: rowHidden(602),
+                statusVisible: status.style.display !== 'none',
+                statusText: statusText.textContent
+            };
+
+            harness.clearPlaylistFilter();
+            const cancelled = {
+                bothShown: !rowHidden(601) && !rowHidden(602),
+                statusHidden: status.style.display === 'none',
+                timedOnlyOff: harness.settings.playlistTimedOnly === false
+            };
+
+            // Notes toggle: comments hidden by default, instantly shown by class
+            const comment = body.querySelector('.playlist-song-comment');
+            const hiddenByDefault = getComputedStyle(comment).display === 'none';
+            harness.settings.showSongNotes = true;
+            harness.applySongNotesVisibility();
+            const shownWhenOn = getComputedStyle(comment).display !== 'none';
+            harness.settings.showSongNotes = false;
+            harness.applySongNotesVisibility();
+            const hiddenWhenOff = getComputedStyle(comment).display === 'none';
+
+            body.innerHTML = '';
+            container.style.display = savedDisplay;
+            return { filtered, yearFiltered, timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
+        });
+        report.check(`player playlist filter live-hides rows ("${playlistFilterAndNotes.filtered.statusText}")`,
+            playlistFilterAndNotes.filtered.sunsetShown
+            && playlistFilterAndNotes.filtered.morningHidden
+            && playlistFilterAndNotes.filtered.statusVisible
+            && playlistFilterAndNotes.filtered.statusText.includes('"sunset"')
+            && playlistFilterAndNotes.filtered.statusText.includes('1 of 2')
+            && playlistFilterAndNotes.yearFiltered.sunsetShown
+            && playlistFilterAndNotes.yearFiltered.morningHidden);
+        report.check(`player timed-only filter hides non-timed rows ("${playlistFilterAndNotes.timedOnly.statusText}")`,
+            playlistFilterAndNotes.timedOnly.sunsetShown
+            && playlistFilterAndNotes.timedOnly.morningHidden
+            && playlistFilterAndNotes.timedOnly.statusVisible
+            && playlistFilterAndNotes.timedOnly.statusText.includes('timed lyrics only'));
+        report.check('player playlist filter cancel restores the full list',
+            playlistFilterAndNotes.cancelled.bothShown
+            && playlistFilterAndNotes.cancelled.statusHidden
+            && playlistFilterAndNotes.cancelled.timedOnlyOff);
+        report.check('player song notes toggle shows/hides comments instantly',
+            playlistFilterAndNotes.hiddenByDefault
+            && playlistFilterAndNotes.shownWhenOn
+            && playlistFilterAndNotes.hiddenWhenOff);
 
         const musicHistoryWorkflows = await tab.evaluate(async () => {
             const harness = {
@@ -1261,11 +2176,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateStatus(message) { this.statuses.push(message); },
                 async searchAndAddToPlaylist(songList) { this.searchedTerms.push(...songList.map(song => song.searchTerm)); },
                 async processMusicSearch(requestText) { this.rerunRequest = requestText; },
-                hydrateItemLyricsFromCache() {},
-                addPlaylistItemToDOM(item) { this.playlist.push(item); },
+                appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
-                showTransportBar() {}
+                showPlaylistSurfaces() {}
             };
             PlayerHistoryUI.install(harness);
             harness.refreshMusicHistoryPanel = async () => {};
@@ -1297,6 +2211,61 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryWorkflows.searchedTerms === 'old one|old two'
             && musicHistoryWorkflows.rerunRequest === 'old lookup request'
             && musicHistoryWorkflows.loadedKnown === 'history');
+
+        // Known Songs live search: the list filters with the same matcher
+        // as the playlist filter, and Load All Shown loads exactly the
+        // matching songs into the working playlist.
+        const knownSongsSearch = await tab.evaluate(async () => {
+            const harness = {
+                musicHistoryLookups: [],
+                musicHistorySongs: [
+                    { videoId: 'v-sunset', name: 'Sunset Boulevard', artist: 'Evening Band', year: '1984', title: 'Sunset Boulevard', channelTitle: 'Evening Band', duration: '3:00', searchTerm: 'Evening Band Sunset Boulevard', sourceKind: 'search', lastSeenAt: '2026-01-02' },
+                    { videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', searchTerm: 'Dawn Crew Morning Run', sourceKind: 'search', lastSeenAt: '2026-01-03' }
+                ],
+                musicHistorySearches: [],
+                playlist: [],
+                knownSongsQuery: '',
+                statuses: [],
+                messages: [],
+                escapeHtml(value) { return String(value || ''); },
+                truncateForStatus(value) { return String(value || ''); },
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus(message) { this.statuses.push(message); },
+                hydrateItemLyricsFromCache() {},
+                appendPlaylistItem(item) { this.playlist.push(item); },
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                showPlaylistSurfaces() {}
+            };
+            PlayerHistoryUI.install(harness);
+            harness.refreshMusicHistoryPanel = async () => {};
+
+            const host = document.getElementById('musicKnownSongsList');
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const unfilteredRows = host.querySelectorAll('.music-history-item').length;
+
+            harness.knownSongsQuery = 'evening sunset';
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const filteredText = host.textContent;
+            const filteredRows = host.querySelectorAll('.music-history-item').length;
+
+            await harness.loadShownKnownSongs();
+            const loadedIds = harness.playlist.map(item => item.videoId).join('|');
+
+            harness.knownSongsQuery = 'no such song anywhere';
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const emptyMessage = host.textContent;
+
+            host.innerHTML = '';
+            return { unfilteredRows, filteredRows, filteredText, loadedIds, emptyMessage };
+        });
+        report.check(`player known songs search filters and loads shown (loaded: ${knownSongsSearch.loadedIds})`,
+            knownSongsSearch.unfilteredRows === 2
+            && knownSongsSearch.filteredRows === 1
+            && knownSongsSearch.filteredText.includes('Sunset Boulevard')
+            && !knownSongsSearch.filteredText.includes('Morning Run')
+            && knownSongsSearch.loadedIds === 'v-sunset'
+            && knownSongsSearch.emptyMessage.includes('No known songs match'));
 
         const musicHistoryRefreshOverride = await tab.evaluate(async () => {
             const query = `refresh cache ${Date.now()}`;
@@ -1424,10 +2393,45 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && aiParsing.linkedTitle === 'Regional riffs'
             && aiParsing.status.includes('Reading 1 linked page')
             && aiParsing.prompt.includes('return every distinct music item')
+            && aiParsing.prompt.includes('never substitute a different better-known artist')
             && aiParsing.prompt.includes('truncated from 1000 chars')
             && !aiParsing.prompt.includes('5-25')
             && aiParsing.longTextPromptCount > 1
             && aiParsing.longTextPromptHasContinuationNote);
+        // A response cut off mid-list by the output token limit must not
+        // fail the whole request: every complete song is recovered and the
+        // partial trailing object is dropped. Braces/quotes inside values
+        // cannot fool the scanner.
+        const truncatedRecovery = await tab.evaluate(() => {
+            const harness = { messages: [], addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }, logClaudeMessage() {} };
+            PlayerCommands.install(harness);
+            harness.addMessage = (kind, label, text) => harness.messages.push({ kind, label, text });
+            harness.logClaudeMessage = () => {};
+            const truncated = `[
+                { "name": "Feel It All Around", "artist": "Washed Out", "year": "2009", "album": "Life of Leisure", "comment": "Chillwave with a { brace } and \\"quotes\\" inside", "searchTerm": "Washed Out Feel It All Around" },
+                { "name": "Electric Feel", "artist": "MGMT", "year": "2007", "album": "Oracular Spectacular", "comment": "Psych-pop", "searchTerm": "MGMT Electric Feel" },
+                { "name": "It Is Not Meant to Be", "artist": "Tame Impala",`;
+            const recovered = harness.parseAIResponse(truncated, 'p', { allowEmpty: true, truncated: true });
+            let unrecoverableThrew = false;
+            try {
+                harness.parseAIResponse('complete garbage, no array here', 'p', { allowEmpty: true });
+            } catch (error) {
+                unrecoverableThrew = error instanceof SyntaxError;
+            }
+            return {
+                count: recovered.songList.length,
+                terms: recovered.songList.map(song => song.searchTerm).join('|'),
+                recoveryLogged: harness.messages.some(message =>
+                    message.label === 'Truncated response recovered' && message.text.includes('Kept 2 complete songs')),
+                unrecoverableThrew
+            };
+        });
+        report.check(`player recovers complete songs from a truncated AI response (${truncatedRecovery.count} kept)`,
+            truncatedRecovery.count === 2
+            && truncatedRecovery.terms === 'Washed Out Feel It All Around|MGMT Electric Feel'
+            && truncatedRecovery.recoveryLogged
+            && truncatedRecovery.unrecoverableThrew);
+
         report.check('player infers TV Tropes Regional Riff page without pasted URL',
             aiParsing.inferredUrls[0] === 'https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'
             && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))
@@ -1443,7 +2447,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateStatus() {},
                 showTransportBar() {},
                 decodeHtml(value) { return value; },
-                hydrateItemLyricsFromCache() {},
                 addPlaylistItemToDOM() {},
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
@@ -1455,6 +2458,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.updatePlaylistLabel = () => {};
             harness.persistPlaylist = () => {};
             harness.ensureLyricsForItem = () => Promise.resolve();
+            harness.queueLyricsLookup = () => {};
             harness.searchYouTube = query => {
                 if (query === 'found song') {
                     return Promise.resolve({
@@ -1498,6 +2502,67 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
 
+        // Replace-on-search keeps the playing song: the old list is only
+        // dropped when the first found song is actually added, the current
+        // song carries over as entry 0 still playing, and a search that
+        // finds nothing leaves the playlist untouched.
+        const keepPlayingReplace = await tab.evaluate(async () => {
+            const makeHarness = () => {
+                const harness = { playlist: [], youtubeAlternateResults: new Map(), lyricsFetchQueue: [] };
+                PlayerPlaylist.install(harness);
+                Object.assign(harness, {
+                    addMessage() {},
+                    updateStatus() {},
+                    showPlaylistSurfaces() {},
+                    decodeHtml(value) { return value; },
+                    addPlaylistItemToDOM() {},
+                    updatePlaylistLabel() {},
+                    persistPlaylist() {},
+                    queueLyricsLookup() {},
+                    renderLyricsStateForItem() {},
+                    speakText() {}
+                });
+                return harness;
+            };
+            const song = (videoId, name) => PlayerSongs.createPlaylistItem({
+                videoId, name, artist: 'Keep Artist', duration: '1:00', durationSeconds: 60, searchTerm: name
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+
+            const harness = makeHarness();
+            const oldA = song('old-a', 'Old A');
+            const oldB = song('old-b', 'Old B');
+            harness.playlist.push(oldA, oldB);
+            harness.playback.markPlaying(oldB.id);
+            harness.currentPlaylistIndex = 1;
+            harness.searchYouTube = async () => ({
+                videoId: 'new-1', title: 'New One', channelTitle: 'Y', duration: '2:00', durationSeconds: 120
+            });
+            await harness.searchAndAddToPlaylist(
+                [{ searchTerm: 'new one', name: 'New One', artist: 'Y' }],
+                { replaceExisting: true }
+            );
+            const afterReplace = {
+                ids: harness.playlist.map(entry => entry.videoId).join('|'),
+                cursor: harness.currentPlaylistIndex,
+                stillPlaying: harness.isPlaying && harness.currentPlayingId === oldB.id
+            };
+
+            // A replace search that finds nothing must not touch the list.
+            const untouched = makeHarness();
+            untouched.playlist.push(song('keep-1', 'Keep One'));
+            untouched.searchYouTube = async () => null;
+            await untouched.searchAndAddToPlaylist(
+                [{ searchTerm: 'nothing', name: 'Nothing', artist: 'Z' }],
+                { replaceExisting: true }
+            );
+            return { afterReplace, untouchedIds: untouched.playlist.map(entry => entry.videoId).join('|') };
+        });
+        report.check(`player replace keeps the playing song and defers clearing (${keepPlayingReplace.afterReplace.ids})`,
+            keepPlayingReplace.afterReplace.ids === 'old-b|new-1'
+            && keepPlayingReplace.afterReplace.cursor === 0
+            && keepPlayingReplace.afterReplace.stillPlaying === true
+            && keepPlayingReplace.untouchedIds === 'keep-1');
+
         const boundedSearch = await tab.evaluate(async () => {
             const harness = {
                 active: 0,
@@ -1520,17 +2585,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 index,
                 song: { searchTerm: `term-${index}` }
             }));
-            const results = await harness.searchSongsWithConcurrency(validSongs, 3);
+            const incrementalOrder = [];
+            const results = await harness.searchSongsWithConcurrency(validSongs, {
+                concurrency: 3,
+                onResult: result => incrementalOrder.push(result.videoData.videoId)
+            });
             return {
                 count: results.length,
                 order: results.map(result => result.videoData.videoId).join('|'),
+                incrementalCount: incrementalOrder.length,
                 maxActive: harness.maxActive,
                 status: harness.status
             };
         });
-        report.check('player searches every YouTube term with bounded concurrency',
+        report.check('player searches every YouTube term with bounded concurrency and per-result delivery',
             boundedSearch.count === 9
             && boundedSearch.order === 'term-0|term-1|term-2|term-3|term-4|term-5|term-6|term-7|term-8'
+            && boundedSearch.incrementalCount === 9
             && boundedSearch.maxActive <= 3
             && boundedSearch.status.includes('Searched 9/9'));
 
@@ -1561,6 +2632,62 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateSearchResult.alternate === 'good-video'
             && alternateSearchResult.message.includes('Bad Result'));
 
+        // Studio-version-first ranking: live/cover/remix markers lose to
+        // the studio upload unless the request asked for them, and Topic
+        // (auto-generated album) uploads win outright. Key-level provider
+        // errors are classified for the persistent banner.
+        const versionRanking = await tab.evaluate(() => {
+            const harness = { addMessage() {} };
+            PlayerPlaylist.install(harness);
+            PlayerCommands.install(harness);
+            const videos = [
+                { videoId: 'live-1', title: 'New Slang (Live at KEXP)', channelTitle: 'KEXP', duration: '4:10', durationSeconds: 250 },
+                { videoId: 'cover-1', title: 'New Slang - cover by somebody', channelTitle: 'Somebody', duration: '3:50', durationSeconds: 230 },
+                { videoId: 'studio-1', title: 'New Slang', channelTitle: 'The Shins - Topic', duration: '3:51', durationSeconds: 231 },
+                { videoId: 'video-1', title: 'The Shins - New Slang (Official Music Video)', channelTitle: 'Sub Pop', duration: '3:52', durationSeconds: 232 },
+                { videoId: 'full-1', title: 'The Shins - Full Performance', channelTitle: 'KEXP', duration: '40:58', durationSeconds: 2458 }
+            ];
+            const normal = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang', artist: 'The Shins', name: 'New Slang' })
+                .map(video => video.videoId);
+            const liveRequested = harness.rankYouTubeResults(videos, { searchTerm: 'The Shins New Slang live kexp', artist: 'The Shins', name: 'New Slang' })
+                .map(video => video.videoId);
+            // A marker word inside the song's own name must not read as a
+            // version request: "Cover Me Up" wants the studio track.
+            const nameCollision = harness.rankYouTubeResults([
+                { videoId: 'cmu-live', title: 'Jason Isbell - Cover Me Up | Live From Austin City Limits TV', channelTitle: 'ACL', duration: '5:00', durationSeconds: 300 },
+                { videoId: 'cmu-studio', title: 'Cover Me Up', channelTitle: 'Jason Isbell - Topic', duration: '5:20', durationSeconds: 320 }
+            ], { searchTerm: 'Jason Isbell Cover Me Up', artist: 'Jason Isbell', name: 'Cover Me Up' }).map(video => video.videoId);
+            // A clean-titled recording that names the artist nowhere is
+            // probably someone else's version (movie-cast covers).
+            const wrongArtist = harness.rankYouTubeResults([
+                { videoId: 'castcover-1', title: 'I Want To Hold Your Hand (Tracks On The Tracks Sessions)', channelTitle: 'Himesh Patel', duration: '3:20', durationSeconds: 200 },
+                { videoId: 'plain-1', title: 'The Beatles - I Want To Hold Your Hand', channelTitle: 'SomeUploader', duration: '2:25', durationSeconds: 145 }
+            ], { searchTerm: 'The Beatles I Want to Hold Your Hand', artist: 'The Beatles', name: 'I Want to Hold Your Hand' }).map(video => video.videoId);
+            const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
+            const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
+            return {
+                normalFirst: normal[0],
+                normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
+                normalFullSetLast: normal[normal.length - 1] === 'full-1',
+                liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
+                nameCollisionFirst: nameCollision[0],
+                wrongArtistFirst: wrongArtist[0],
+                quotaName: quotaError.name,
+                quotaProvider: quotaError.provider,
+                plainName: plainError.name
+            };
+        });
+        report.check(`player ranks studio versions first (${versionRanking.normalFirst}, name-collision pick ${versionRanking.nameCollisionFirst}, wrong-artist pick ${versionRanking.wrongArtistFirst}) and classifies key-level errors`,
+            versionRanking.normalFirst === 'studio-1'
+            && versionRanking.normalLiveLast
+            && versionRanking.normalFullSetLast
+            && versionRanking.liveRequestedFirstIsLive
+            && versionRanking.nameCollisionFirst === 'cmu-studio'
+            && versionRanking.wrongArtistFirst === 'plain-1'
+            && versionRanking.quotaName === 'ApiKeyError'
+            && versionRanking.quotaProvider === 'claude'
+            && versionRanking.plainName === 'Error');
+
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {
                 players: new Map(),
@@ -1571,6 +2698,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 isFavorite() { return false; },
                 escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
             };
             PlayerPlaylist.install(harness);
@@ -1875,25 +3003,29 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`transcript collapses cumulative finals across indices ("${collapsed}")`,
             collapsed === 'there was a guy play it');
 
-        // Synced lyric lines relay into the now-playing title (car / lock
-        // screen / tab); pause restores the song's own metadata
+        // The now-playing title (car / lock screen / tab / header line):
+        // song identity for the first seconds, a countdown prefix before
+        // a late first lyric line, then the bare lyric led ahead of the
+        // sung moment - and outside the identity window, never song or
+        // artist. Pause clears the surfaces.
         const lyricRelay = await tab.evaluate(() => {
             const item = {
-                id: 77, name: 'Test Song', artist: 'Test Artist',
+                id: 77, name: 'Test Song', artist: 'Test Artist', year: '1999', album: 'Test Album',
                 lyricsStatus: 'ready',
                 lyricsData: {
                     provider: 'LRCLIB', trackName: 'Test Song', artistName: 'Test Artist',
                     albumName: '', duration: 100, instrumental: false, plainLyrics: '',
-                    syncedLyrics: '[00:01.00]first line here\n[00:05.00]second line here',
+                    syncedLyrics: '[00:12.00]late first line\n[00:15.00]second line here',
                     syncedLines: [
-                        { time: 1, text: 'first line here' },
-                        { time: 5, text: 'second line here' }
+                        { time: 12, text: 'late first line' },
+                        { time: 15, text: 'second line here' }
                     ]
                 }
             };
             const harness = {
                 settings: { lyricsOnNowPlaying: true },
                 playlist: [item],
+                playback: { player: null },
                 currentLyricsItemId: 77,
                 currentLyricsLineIndex: -1,
                 nowPlayingShowsLyric: false,
@@ -1903,27 +3035,246 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentPlaylistItem() { return item; }
             };
             PlayerLyrics.install(harness);
-            harness.updateSyncedLyricsPosition(6);
             const meta = () => navigator.mediaSession.metadata;
-            const during = {
+            const snap = () => ({
                 docTitle: document.title,
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
                 metaTitle: meta() ? meta().title : '',
-                metaArtist: meta() ? meta().artist : ''
-            };
+                metaArtist: meta() ? meta().artist : '',
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
+                highlightIndex: harness.currentLyricsLineIndex
+            });
+            // 0.5s: the song identity intro - who and what is playing.
+            harness.updateSyncedLyricsPosition(0.5);
+            const identity = snap();
+            // 3s: first line is 9s away (>5s from song start), so the
+            // title counts down in front of the upcoming line.
+            harness.updateSyncedLyricsPosition(3);
+            const countdown = snap();
+            // 11.5s: line 1 (at 12s) not sung yet but inside the title
+            // lead window - the title runs ahead of the highlight.
+            harness.updateSyncedLyricsPosition(11.5);
+            const led = snap();
+            harness.updateSyncedLyricsPosition(13);
+            const during = snap();
             harness.isPaused = true;
-            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex);
-            const after = {
-                docTitle: document.title,
-                metaTitle: meta() ? meta().title : ''
-            };
-            return { during, after };
+            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex, 13);
+            const after = snap();
+            harness.updateTransportBarLyric('');
+            return { identity, countdown, led, during, after };
         });
-        report.check(`player relays synced lyric to now-playing title ("${lyricRelay.during.metaTitle}" / "${lyricRelay.during.metaArtist}")`,
-            lyricRelay.during.metaTitle === 'second line here'
-            && lyricRelay.during.docTitle === 'second line here'
-            && lyricRelay.during.metaArtist === 'Test Song - Test Artist'
-            && lyricRelay.after.metaTitle === 'Test Song'
-            && lyricRelay.after.docTitle !== 'second line here');
+        const identityText = 'Test Artist - Test Song - 1999 - Test Album';
+        const neverSongArtistPastIntro = [lyricRelay.countdown, lyricRelay.led, lyricRelay.during, lyricRelay.after]
+            .every(snap => !snap.metaTitle.includes('Test Song') && !snap.metaArtist.includes('Test Artist')
+                && !snap.docTitle.includes('Test Song'));
+        report.check(`player titles: identity intro, countdown, then lyric only ("${lyricRelay.identity.metaTitle}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}", clean past intro: ${neverSongArtistPastIntro})`,
+            lyricRelay.identity.metaTitle === identityText
+            && lyricRelay.identity.docTitle === identityText
+            && lyricRelay.identity.headerTitle === identityText
+            && lyricRelay.identity.barLyric === identityText
+            && lyricRelay.identity.highlightIndex === -1
+            && lyricRelay.countdown.metaTitle === '9 late first line'
+            && lyricRelay.countdown.barLyric === '9 late first line'
+            && lyricRelay.led.metaTitle === 'late first line'
+            && lyricRelay.led.docTitle === 'late first line'
+            && lyricRelay.led.headerTitle === 'late first line'
+            && lyricRelay.led.highlightIndex === -1
+            && lyricRelay.during.metaTitle === 'late first line'
+            && lyricRelay.during.barLyric === 'late first line'
+            && lyricRelay.during.highlightIndex === 0
+            && lyricRelay.after.metaTitle === ''
+            && lyricRelay.after.docTitle !== 'late first line'
+            && lyricRelay.after.headerTitle === 'Music'
+            && neverSongArtistPastIntro);
+        // Deadline clock, not polling: the progress/lyric renderer sleeps
+        // until the next known media-time boundary (whole display second
+        // or lyric moment) instead of ticking every 100ms, and the lyric
+        // transition still lands on time.
+        const deadlineClock = await tab.evaluate(async () => {
+            const c = window.musicController;
+            if (!c) return { error: 'no controller' };
+            const item = {
+                id: 553, videoId: 'clock', name: 'Clock Song', artist: 'Clock Artist',
+                lyricsStatus: 'ready',
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Clock Song', artistName: 'Clock Artist',
+                    albumName: '', duration: 120, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:05.00]clock line one\n[00:09.00]clock line two',
+                    syncedLines: [
+                        { time: 5, text: 'clock line one' },
+                        { time: 9, text: 'clock line two' }
+                    ]
+                }
+            };
+            c.playlist.push(item);
+            c.currentLyricsItemId = item.id;
+            c.playback.setActiveMedia(item.id, item.videoId);
+            c.playback.markPlaying(item.id);
+
+            const deadlines = {
+                fromZero: c.nextLyricDeadline(0),
+                beforeFirst: c.nextLyricDeadline(4.5),
+                betweenLines: c.nextLyricDeadline(6),
+                afterLast: c.nextLyricDeadline(9.5)
+            };
+
+            // Fake player whose clock advances like real playback.
+            let reads = 0;
+            let mediaStart = 0.2;
+            let wallStart = performance.now();
+            const fakePlayer = {
+                getCurrentTime() { reads++; return mediaStart + (performance.now() - wallStart) / 1000; },
+                getDuration() { return 120; }
+            };
+            c.playback.markPlayerReady(fakePlayer);
+
+            // Mid-second, far from any lyric: one initial render, then the
+            // clock sleeps to the next second boundary (0.8s away) - a
+            // 100ms poll would have read the time ~7 times in 650ms.
+            c.startProgressUpdates();
+            reads = 0;
+            await new Promise(resolve => setTimeout(resolve, 650));
+            const idleReads = reads;
+
+            // Jump to just before the first line's led window (4.25s):
+            // the transition must land without any polling cadence.
+            mediaStart = 4.1;
+            wallStart = performance.now();
+            c.resyncProgressClock();
+            await new Promise(resolve => setTimeout(resolve, 450));
+            const titleAfterLead = navigator.mediaSession.metadata?.title || '';
+
+            c.stopProgressUpdates();
+            c.playback.reset();
+            c.currentLyricsItemId = null;
+            c.relayLyricToNowPlaying(-1);
+            c.playlist.pop();
+            return { deadlines, idleReads, titleAfterLead };
+        });
+        report.check(`player progress clock sleeps to deadlines (idle reads ${deadlineClock.idleReads}, lead title "${deadlineClock.titleAfterLead}")`,
+            !deadlineClock.error
+            && deadlineClock.deadlines.fromZero === 4.25
+            && deadlineClock.deadlines.beforeFirst === 5
+            && deadlineClock.deadlines.betweenLines === 8.25
+            && deadlineClock.deadlines.afterLast === Infinity
+            && deadlineClock.idleReads <= 2
+            && deadlineClock.titleAfterLead === 'clock line one');
+
+        // Save-then-activate under a failing store write: the live item is
+        // never activated with lyrics the permanent store does not hold
+        // (that session-only state was the "L shows but reload loses it"
+        // class). The song stays unresolved and heals on the next attempt.
+        const storeWriteFailure = await tab.evaluate(async () => {
+            const item = PlayerSongs.createPlaylistItem({
+                videoId: `store-fail-${Date.now()}`,
+                name: 'Store Fail Song', artist: 'Store Artist',
+                duration: '1:30', durationSeconds: 90, searchTerm: 'x'
+            }, { sourceKind: 'search', sourceLabel: 'test' });
+            const harness = {
+                settings: { lyricsOnNowPlaying: true },
+                playlist: [item],
+                currentLyricsItemId: null,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsLyric: false,
+                isPlaying: false,
+                isPaused: false,
+                currentPlayingId: null,
+                lyricsLookupCache: new Map(),
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
+                currentPlaylistItem() { return item; },
+                refreshLyricsRowButton() {},
+                resyncProgressClock() {},
+                renderLyricsStateForItem() {},
+                describePlaylistItem() { return 'Store Fail Song'; },
+                parseDurationToSeconds() { return 90; },
+                addMessage() {}
+            };
+            PlayerLyrics.install(harness);
+            harness.lookupLyrics = async () => ({
+                provider: 'LRCLIB', trackName: 'Store Fail Song', artistName: 'Store Artist',
+                albumName: '', duration: 90, instrumental: false, plainLyrics: 'la la',
+                syncedLyrics: '[00:01.00]la la', syncedLines: [{ time: 1, text: 'la la' }]
+            });
+            const realPut = PlayerHistoryDB.putLyricState;
+            PlayerHistoryDB.putLyricState = async () => { throw new Error('IndexedDB write failed (simulated)'); };
+            await harness.ensureLyricsForItem(item);
+            const afterFailure = {
+                status: item.lyricsStatus,
+                hasData: !!item.lyricsData,
+                stored: await PlayerHistoryDB.getLyricState(item.videoId)
+            };
+            PlayerHistoryDB.putLyricState = realPut;
+            await harness.ensureLyricsForItem(item);
+            const afterRetry = {
+                status: item.lyricsStatus,
+                storedStatus: (await PlayerHistoryDB.getLyricState(item.videoId))?.status || 'absent'
+            };
+            return { afterFailure, afterRetry };
+        });
+        report.check(`player store write failure leaves song unresolved, retry heals (then ${storeWriteFailure.afterRetry.status})`,
+            storeWriteFailure.afterFailure.status === 'error'
+            && storeWriteFailure.afterFailure.hasData === false
+            && storeWriteFailure.afterFailure.stored === null
+            && storeWriteFailure.afterRetry.status === 'ready'
+            && storeWriteFailure.afterRetry.storedStatus === 'found');
+
+        // Imported library songs (bulky note arrays) live in IndexedDB;
+        // hydration migrates anything stranded in the legacy localStorage
+        // blob and leaves that blob empty.
+        const songLibraryMigration = await tab.evaluate(async () => {
+            const legacySong = {
+                id: 'song_test_migrate', title: 'Migrate Me', sourceType: 'midi',
+                sourceName: 'migrate.mid', importedAt: Date.now(), favorite: false,
+                tempoBpm: 120, durationMs: 2000, noteCount: 2, lyricsText: '',
+                lyricLines: [],
+                notes: [
+                    { midi: 60, startMs: 0, endMs: 500 },
+                    { midi: 64, startMs: 500, endMs: 1000 }
+                ]
+            };
+            PlayerStorage.saveSongLibrary({ songs: [legacySong] });
+            const harness = {
+                songLibrary: { songs: [] },
+                addMessage() {}
+            };
+            PlayerSongLibrary.install(harness);
+            harness.renderSongLibrary = () => {}; // display is not under test
+            await harness.hydrateSongLibrary();
+            const inIdb = (await PlayerHistoryDB.listLibrarySongs())
+                .some(song => song.id === 'song_test_migrate');
+            const blob = SettingsStore.peekData(StorageKeys.PLAYER_SONG_LIBRARY);
+            const blobEmpty = !blob || !blob.songs || blob.songs.length === 0;
+            const inMemory = harness.songLibrary.songs.some(song => song.id === 'song_test_migrate');
+            return { inIdb, blobEmpty, inMemory };
+        });
+        report.check(`player imported songs migrate to IndexedDB (idb: ${songLibraryMigration.inIdb}, blob empty: ${songLibraryMigration.blobEmpty})`,
+            songLibraryMigration.inIdb && songLibraryMigration.blobEmpty && songLibraryMigration.inMemory);
+
+        // Minimal display communication: identical repeat writes to the
+        // now-playing surfaces are dropped at the core - one metadata
+        // construction per distinct title, none for repeats.
+        const minimalWrites = await tab.evaluate(() => {
+            const RealMediaMetadata = window.MediaMetadata;
+            let constructions = 0;
+            // @ts-ignore - counting wrapper
+            window.MediaMetadata = function (init) { constructions++; return new RealMediaMetadata(init); };
+            MediaSessionCore.setNowPlayingTitle('repeat line', { artist: '' });
+            for (let i = 0; i < 5; i++) MediaSessionCore.setNowPlayingTitle('repeat line', { artist: '' });
+            const afterRepeats = constructions;
+            MediaSessionCore.setNowPlayingTitle('changed line', { artist: '' });
+            const afterChange = constructions;
+            for (let i = 0; i < 5; i++) MediaSessionCore.setPlaybackState('paused');
+            window.MediaMetadata = RealMediaMetadata;
+            MediaSessionCore.clearNowPlayingTitle();
+            return { afterRepeats, afterChange, state: navigator.mediaSession.playbackState };
+        });
+        report.check(`player now-playing writes are deduped (${minimalWrites.afterRepeats} write for 6 same, ${minimalWrites.afterChange} after change)`,
+            minimalWrites.afterRepeats === 1
+            && minimalWrites.afterChange === 2
+            && minimalWrites.state === 'paused');
+
         playerVoiceErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));
@@ -1959,6 +3310,28 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const panelClosed = await tab.evaluate(() =>
             getComputedStyle(document.getElementById('settingsPanel')).display === 'none');
         report.check('player with key: overlay gone, settings open/close', overlayGone && panelOpen && panelClosed);
+
+        // The Notes toggle is wired to the real controller: default off,
+        // checking it flips the setting and the container class instantly.
+        const notesToggleWiring = await tab.evaluate(() => {
+            const controller = window.musicController;
+            const container = document.getElementById('playlistContainer');
+            const toggle = document.getElementById('playlistNotesToggle');
+            const defaultOff = controller.settings.showSongNotes === false
+                && toggle.checked === false
+                && !container.classList.contains('playlist-notes-on');
+            toggle.checked = true;
+            toggle.dispatchEvent(new Event('change'));
+            const onAfterClick = controller.settings.showSongNotes === true
+                && container.classList.contains('playlist-notes-on');
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change'));
+            const offAgain = controller.settings.showSongNotes === false
+                && !container.classList.contains('playlist-notes-on');
+            return { defaultOff, onAfterClick, offAgain };
+        });
+        report.check('player notes toggle defaults off and applies instantly',
+            notesToggleWiring.defaultOff && notesToggleWiring.onAfterClick && notesToggleWiring.offAgain);
         await ctx.close();
     }
 

@@ -14,12 +14,21 @@ const PracticeControls = (function () {
     // (see docs/parameters.md "Shared step presets").
     const ROOT_PITCH_MIN_MIDI = 36; // C2
     const ROOT_PITCH_MAX_MIDI = 83; // B5
-    const NOTE_LENGTH_VALUES = Object.freeze(
-        [100, 150, 200, 250, 300, 350, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 3000, 5000]);
+    // One shared ladder for every seconds-valued stepper (note length,
+    // gap, section pause, guide interval): pure tenths 0..2s, quarters
+    // to 4s, halves to 5s, wholes to 10s. Every time control walks the
+    // same numbers, so 0.1s means the same step everywhere.
+    const TIME_VALUES_MS = Object.freeze([
+        0, 100, 200, 300, 400, 500, 600, 700, 800, 900,
+        1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
+        2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000, 4500,
+        5000, 6000, 7000, 8000, 9000, 10000
+    ]);
+    // A zero-length note is silence, so note length starts at 0.1s.
+    const NOTE_LENGTH_VALUES = Object.freeze(TIME_VALUES_MS.filter(ms => ms >= 100));
     // Negative gap values are overlap ratios of the note length
     // (-0.5 starts the next note halfway through the current one).
-    const GAP_VALUES = Object.freeze(
-        [-0.5, -0.1, -0.05, 0, 50, 100, 150, 250, 300, 500, 1000, 1500, 2000, 3000, 5000]);
+    const GAP_VALUES = Object.freeze([-0.5, -0.1, -0.05, ...TIME_VALUES_MS]);
 
     function getEl(id) { return document.getElementById(id); }
 
@@ -196,6 +205,7 @@ const PracticeControls = (function () {
     return {
         ROOT_PITCH_MIN_MIDI,
         ROOT_PITCH_MAX_MIDI,
+        TIME_VALUES_MS,
         NOTE_LENGTH_VALUES,
         GAP_VALUES,
         getEl,

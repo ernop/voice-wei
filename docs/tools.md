@@ -22,11 +22,11 @@ Voice commands reset settings to defaults then apply your modifiers, so
 "D minor" always sounds the same regardless of previous UI state. Clicked
 settings persist per tab and restart playback live when something is playing.
 
-Features: direction / repeat / rising / shifting / movement styles /
+Features: direction / repeat / rising / shifting / chop head / movement styles /
 exercises / section width controls; note length and gap steppers (gap goes
 negative for overlap); piano keyboard preview; presets; command history;
-hardware media keys (play/pause); **Sing** opens the embedded pitch-trace
-panel seeded with the current scale.
+hardware media keys (play/pause); **Sing** is a bottom-dock toggle that
+opens the pitch-trace sheet seeded with the current scale.
 
 Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" =
 Bb). See [scales-commands.md](scales-commands.md) for the full grammar.
@@ -45,7 +45,8 @@ names), optionally speaks the numbers, plays the notes, then generates the
 next pattern after the gap. Repeat holds the current pattern; Next advances
 immediately; Stop is immediate. Media keys map to Go / Stop / Next.
 
-**Sing** opens the shared pitch-trace panel seeded with the current pattern
+**Sing** is a bottom-dock toggle that opens the shared pitch-trace sheet
+seeded with the current pattern
 (targets at the pattern's note timing, rails around its range with the
 pattern notes highlighted). Turn Repeat on to hold one pattern while
 drilling it; takes are scored and recorded like Phrases and Scales.
@@ -61,6 +62,16 @@ gap, play tones, return to degree 1.
 
 - **Play** plays the current phrase (creating one if needed), **Repeat**
   loops it, **Next** generates a new one, **Stop** stops everything.
+- **Series** input loads a typed degree series as the current phrase -
+  the manual twin of Next, for exact material like a song voice line.
+  Tokens are degree digits with optional marks, the same octave grammar
+  as the Trace pattern input: `v`/`d`/`↓` per octave lower, `^`/`u`/`↑`
+  per octave higher (stackable), 9+ keeps climbing, plus `#`/`b` for
+  the chromatic note above/below that degree (`5v 1 1 7bv 7v 2# 2`).
+  Separators are spaces, commas, or `|` barlines. Bad tokens list under
+  the input and nothing changes until the whole series parses. A loaded
+  series joins Phrase History, so several voice lines can be re-played
+  from there.
 - **Reflect** flips the current phrase around the octave (up-from-1
   becomes down-from-8). A view/playback transform, not a regeneration.
 - **Style + Lesson** selects the generator family: **free** keeps the older
@@ -92,18 +103,25 @@ gap, play tones, return to degree 1.
   including direct and neighbor approaches around those pairs.
 - **Output modes**: display only, say numbers, play tones, say + tones,
   sing numbers (speech pitch shaped toward each note), none.
-- **Test** opens the embedded pitch-trace panel for the current phrase
-  (see "Pitch test panel" below).
+- **Test** is a fixed bottom-dock toggle (not in the transport row). It
+  opens the pitch-trace sheet for the current phrase (see "Pitch test
+  panel" below). Playback still works while it listens: Play, Next, and
+  single-note taps all sound during a take; a new phrase restarts the
+  take. (The mic hears the speakers, so played piano appears in the
+  trace.)
+- **Range Low / Range High** steppers move the endpoints of the degree
+  palette phrases are built from, one degree per step. Default 1..8 (the
+  octave); low descends below unison (down to the 1 an octave below,
+  labeled "6↓" style), high climbs to two octaves ("2↑" style) or drops
+  below 8 to shrink the palette (7 = degrees 1-7 only).
 - Hardware media keys: play/pause replay the phrase, next/seek generate
   the next one. (Chrome only routes media keys to pages with real media,
   so the page keeps a silent audio element active after the first tap.)
 
 Setting behaviors (the key design): root/scale changes **reproject** the
 current degree sequence into the new context; algorithm, min/max length,
-start, and range (in octave / just over / out octave) apply to the **next**
-generated phrase; return-to-1 regenerates; playback settings replay;
-show-names redraws. "Just over" lets phrases reach two degrees past the
-octave - down to 6 below, up to 3 above.
+start, and range endpoints apply to the **next** generated phrase;
+return-to-1 regenerates; playback settings replay; show-names redraws.
 
 Algorithm choices separate musical behavior from range: **arch** is the
 default rise/fall contour with a midpoint climax, **balanced** is the original
@@ -119,15 +137,28 @@ generating anything first.
 
 - Start begins listening; Reset clears the trace (and optionally plays the
   typed pattern as guides - off by default).
-- Root/octave/scale draw the scale-degree rails.
+- Key/octave/scale draw the scale-degree rails.
 - Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
-  guide interval stepper sets their horizontal spacing.
+  guide interval stepper sets their horizontal spacing. Octave suffixes
+  reach outside the home octave: `5d` (or `5v`/`5↓`) is the 5 an octave
+  below the root, `2u` (or `2↑`) the 2 an octave above, stackable as
+  `5dd`; numbers past the octave keep climbing (`9` = the 2 above).
+  Rails extend automatically to cover every typed target.
 - Guide sound: piano (default) or sine beep.
 - Pause on silence (default on): the clock only advances while you sing.
-- 20s window switches to a fixed-width scrolling viewport; Expand range
-  adds rails an octave above and below.
-- Detections outside the key range are discarded (one-frame octave spikes
-  never reach the chart); fast jumps need a confirming sample.
+- 20s window switches to a fixed 20-second scrolling viewport (default is
+  a content-sized scrolling viewport - the width never grows with the
+  clock, which used to squeeze the chart every frame).
+- Expand range adds rails an octave above and below.
+- The chart draws what you actually sing, wherever it lands: the vertical
+  range expands to cover your voice even outside the rails. Guide bands
+  are bare outlines of the hit zone; they do not recolor from scoring
+  (Trace has no scoring). Filtering is voice-physics only, never
+  exercise-based: detections outside the singable band (D2-Bb4:
+  barbershop bass low up to just above a lead's top) read as silence,
+  and a large instant jump must sustain for a few frames to count as
+  voice (brief detector scrapes never reach the chart; real leaps are
+  recorded whole).
 
 ## Pitch
 
@@ -198,21 +229,107 @@ again while the response is read aloud.
 Requests can also be typed (the "Type a music request" box) when speaking
 is not an option.
 
-Lyrics: LRCLIB lookup with a synced-line overlay, and (on by default, in
-settings) the current synced lyric line is relayed into the now-playing
-title that Bluetooth/car displays, lock screens, and the tab show -- the
-song name moves to the artist slot while a line is active.
+The playlist is the **working list for the current search**: a new AI
+request replaces it (the previous songs stay reloadable from History),
+while explicit loads - favorites, past lookups, known songs - append to
+it. The replacement is gentle: nothing is dropped until the first found
+song is actually added (a search that finds nothing leaves the list
+untouched), results appear one by one as their YouTube searches
+complete, and a song that is already playing carries over as entry 1
+and keeps playing with the new songs queued behind it. The raw AI
+request and response JSON are logged to the Log panel for every batch.
+
+Searches target the original studio recording unless you ask otherwise:
+the AI is told never to add "live" to search terms, and YouTube results
+are re-ranked before the first is taken - " - Topic" (auto-generated
+album track) and Vevo/official uploads score up, while live / cover /
+remix / karaoke / reaction / sped-up markers in the title score down
+unless your request contained that word. The per-query Model pills under
+the request box pick the exact AI model (Claude or OpenAI) for the next
+request, and the status line names it ("Processing with
+claude-opus-4-8..."). Key-level provider failures - invalid key, spend
+or rate limits, billing - show a persistent red banner naming the
+provider and where to fix it, on top of the raw error in the Log.
+
+Each playlist row is one compact data line with fixed slots: favorite
+star and lyric marker in a padded leading gutter (so a near-miss on the
+star favorites instead of starting the song), then song name, artist -
+year - album, duration, and remove. The lyric marker is a small chip:
+**✓** = timed/line-synced (best), **~** = non-timed/simple text only,
+– = none found (tap it to view or retry). The AI's note appears as a
+second line only when the Notes toggle is on. Tap the row body (not the
+leading gutter) to play it. The playlist header offers Timed only,
+Notes, Shuffle, Sort by Artist, Sort by Year, Clear, and a live filter.
+Behind the working list, every song ever seen is recorded durably in the
+known-songs catalog (IndexedDB), so clearing or replacing the playlist
+never loses song information. When a video refuses to play (embed
+disabled, removed), the player retries its remembered alternates and,
+when none are left - e.g. after a reload - re-runs the YouTube search
+once for fresh candidates before giving up.
+
+Lyrics come in two kinds, named everywhere in the UI: **timed lyrics**
+(line-synced; the ✓ marker, the highlight, and the title relay) and
+**simple lyrics** (text only; the ~ marker). The search prefers timed
+lyrics: among plausible LRCLIB matches a timed record beats a simple-only
+one, and a song stored with only simple lyrics gets one serious re-search
+for timed ones (keeping the simple text if nothing better exists).
+LRCLIB lookup renders in the panel and overlay, and (on by default, in
+settings) the current timed lyric line is relayed into the now-playing
+title that Bluetooth/car displays, lock screens, and the tab show. The
+title spots follow one sequence per song: for the first 2 seconds the
+song's identity (artist - name - year - album, so you know who and what
+it is), then -- when the first lyric line starts more than 5 seconds in
+-- the upcoming line prefixed with a per-second countdown, then the bare
+sung lyric line and nothing else (song/artist are never written outside
+the identity intro). Writes are pushed into the OS media session exactly
+when the text changes (line boundaries / countdown seconds); the car
+pulls its redraw from that. On this page the header gives the lyric
+heading its own full-width line, with the nav tabs and the settings gear
+sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
+button (the older central-player secondary row is hidden).
+
+The always-reachable surface is the now-playing control line under the
+header: it scrolls with the page until it reaches the top, then hooks
+there. It carries a clickable track-position strip (current and total
+time at the ends; click or drag anywhere to jump), the current timed
+lyric line (own full row when present), a song-nav row
+(previous/play-pause/next, Big Lyrics, and the current song line -
+tapping the song line scrolls the playlist to that row; green controls =
+between-song / track actions), and a within-song seek row (-30/-5/+5/+30,
+plus a "1st" jump to just before the first lyric that appears only on
+timed-lyric tracks; teal controls = within-song seek). The older
+central player block is kept in the DOM for progress wiring but stays
+hidden; the sticky bar is the only on-screen transport. The Listen
+button scrolls with the page like everything else.
 
 Other surfaces on the page:
 
-- **Load Favorites** rebuilds a playlist from the favorited tracks.
-- **History / Cache** opens past lookups, the known-songs catalog, and
-  the YouTube search cache (all from the `voice-wei-music` IndexedDB);
-  selected lookups or songs can be loaded back into the playlist.
-- **Local Song Library** imports `.mid`/`.midi`/`.musicxml`/`.xml` melody
-  files, keeps them in this browser, and plays their melodies on the
-  shared piano. Public-domain corpora to import are listed in
+- **Playlist filter**: type in the filter box above the playlist to
+  live-filter the loaded songs by name, artist, year, album, comment, or
+  search term. **Timed only** (playlist header toggle) further hides
+  rows that do not yet hold timed (synced) lyrics. Text and Timed only
+  combine. An active filter shows a status line ("Filtering for timed
+  lyrics only + \"sunset\" - 3 of 12 shown") with a Cancel button that
+  restores the full list (clears the text query and turns Timed only
+  off). Filtering is a view: playback order and next/previous still use
+  the whole playlist.
+- **Notes toggle** (playlist header): shows or hides every song's comment
+  line instantly. Off by default; rows stay compact until you want the
+  AI's per-song notes.
+- **Load Favorites** appends the favorited tracks to the playlist.
+- **History / Cache** toggles a panel with past lookups, the known-songs
+  catalog, and the YouTube search cache (all from the `voice-wei-music`
+  IndexedDB); selected lookups or songs can be loaded back into the
+  playlist. Hidden by default. The Known Songs card has the same live
+  search as the playlist filter, with per-row Load buttons and a "Load
+  All Shown" button that loads every matching song into the working
+  playlist.
+- **Song Library** toggles the local song library: imports
+  `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
+  browser, and plays their melodies on the shared piano. Public-domain
+  corpora to import are listed in
   [public-domain-song-sources.md](public-domain-song-sources.md).
+  Hidden by default.
 
 ## Books
 
@@ -299,17 +416,37 @@ OpenAI.
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing), and
-Intervals (Sing):
-scale-degree rails, target bands, your sung pitch as a yellow trace with
-cents-colored dots, and a voice-gated timeline (time starts when singing
-is detected).
+Intervals (Sing). Each page launches it from a fixed **bottom dock**
+(independent of the transport row): scale-degree rails, target-band
+outlines, your sung pitch as a yellow trace, and a voice-gated timeline
+(time starts when singing is detected).
 
-**Per-note scoring**: once your singing passes a target's window, the band
-recolors with its verdict - green (avg within 10 cents), yellow (within
-25), red (missed: too far off or not sung) - and the readout keeps a
-running score ("Score: 6/8 on pitch (avg 12c)"). A note counts as matched
-when at least 30% of its window's samples land within 1.5 semitones, same
-thresholds as the Pitch tool. Restart clears the scores with the trace.
+**The chart draws what you sing.** Rails and targets are for comparison
+only; they never gate what is recorded or drawn, and scoring verdicts
+never recolor the chart (judgment lives in the readout and progress
+line). Off-rails singing (wrong octave, overshoot) draws at its true
+pitch - the chart's vertical range expands to cover it. Rejection is
+voice-physics only: detections outside the singable band (D2-Bb4:
+barbershop bass low up to just above a lead's top) are the room, not the
+singer, and read as silence; and a large instant jump must sustain for a
+few frames to be voice (brief detector scrapes never reach the trace,
+confirmed jumps are recorded whole). Target bands are bare outlines of
+the hit zone (about 60 cents either way), so singing inside the outline
+is what scoring credits. (Architecture details: "Pitch pipeline" in
+[architecture.md](architecture.md).)
+
+**Per-note scoring** (owned by `pitch-score.js`, one definition
+everywhere): the take is scored as a *sequence* - your held notes,
+aligned in order to the target notes - so timing is yours: hold a note
+twice its slot, breathe whenever, and nothing shifts onto the wrong
+target. Verdicts update the score readout as you move through the
+phrase; the chart itself stays an instrument. For each aligned note the
+sustained pitch is the *median* of its samples and must sit within 140
+cents of the target with a majority of samples inside that band;
+accuracy is then graded good (within 30 cents), ok (within 60), or
+missed (too far off, held too loosely, sung as a different note, or
+skipped). The readout keeps a running score ("Score: 6/8 on pitch (avg 12c)"). Restart
+clears the scores with the trace.
 
 **Progress over time**: each completed take (all notes scored) is recorded,
 and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)

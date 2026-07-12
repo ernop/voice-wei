@@ -37,7 +37,7 @@ would countervail the request, ask yui before using it.
 
 ## Shared libraries - one owner per concern
 
-Pages must consume these instead of carrying their own copies; three of
+Pages must consume these instead of carrying their own copies; several of
 them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 
 | Library | Owns | Enforced |
@@ -56,7 +56,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `scales-playback.js` | Scales sequence playback coordinator | - |
 | `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
-| `media-session-core.js` | Hardware media keys (silent-WAV trick + action maps) | - |
+| `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
 | `voice-command-core.js` | Speech recognition, auto/manual modes, spoken "submit", transcript UI | yes (webkitSpeechRecognition) |
@@ -85,30 +85,187 @@ exits.
 
 ## Pitch pipeline
 
-`pitch-detect-core.js`: getUserMedia -> AnalyserNode (fft 2048) ->
-autocorrelation with parabolic interpolation -> glitch filter (jumps >5.5
-midi within 220ms need a confirming sample; out-of-range detections are
-discarded via per-page outlier gates) -> voice-gated clock (time advances
-only while singing when pause-on-silence is on). The trace line breaks
-across gaps >250ms.
+The singing listen-and-draw system, end to end:
 
-Consumers: the Trace page directly; Phrases, Scales, and Intervals through
-`pitch-test-panel.js`; pitch-meter through the same session plus its own
-scoring; ears through low-level `createMicCapture` for its hold-detection
-loops.
+```
+Microphone (getUserMedia)
+ v  pitch-detect-core.js - capture + detection + recording
+AnalyserNode (fft 2048) -> autocorrelation detector -> glitch holdback
+ -> voice-gated clock -> history: PitchSample[] {time, freq, midi, cents, note}
+ v
+pitch-trace-view.js - canvas renderer (rails, targets, sung line, playhead)
+ ^ data via provider callbacks              ^ verdict colors
+pitch-test-panel.js - embeddable panel (owns session, canvas, guide, options)
+ v  per-note windows
+pitch-score.js - the one definition of "did you hit the note"
+ v
+progress-store.js - takes, trend lines, weak-spot analysis
+```
 
-Media keys: phrases, scales, intervals, and ears register hardware
-play/pause/next handlers (`media-session-core.js`). Trace and pitch-meter
-deliberately do not - they are watch-the-screen tools where hardware keys
-add nothing.
+**Capture and detection** (`pitch-detect-core.js`, the only file allowed
+to call getUserMedia - ast-grep enforced). `createMicCapture` owns the
+AudioContext, a 2048-sample analyser, and reusable buffers. `readPitch()`
+runs the McLeod Pitch Method (MPM: NSDF key-maxima with a clarity
+threshold and parabolic interpolation - the standard tuner algorithm,
+designed against octave/harmonic locks) on a half-rate copy of the
+buffer, evaluating ONLY the periods a voice in the singable band can
+produce (~280 lags; a frame costs ~0.3ms whether voiced or not, and
+nothing outside the band ever costs a multiply). A subharmonic check
+steps a pick down to a 1.5x/2x/3x-period peak only when that peak is
+clearly more periodic (a dominant harmonic masquerading as the note),
+and never below the band. It returns nothing when the signal is too
+quiet (RMS < 0.01), unclear (NSDF clarity < 0.8), or outside the
+singable band (VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's
+range: below a barbershop bass line's low notes up to just above a lead
+line's top; out-of-band detections are the room and the gear, not the
+singer, and read as silence). Otherwise it returns fractional MIDI plus
+cents deviation. Validated synthetically: sub-cent accuracy on clean and
+harmonic-dominant signals across the band, zero octave errors on
+jittered low notes, zero false positives on noise. The band is
+deliberately the OWNER's instrument, not the exercise's: it never moves
+with the selected key, range, or targets, so it cannot re-introduce
+target-coupled filtering.
+
+**Recording** (`createTraceSession`, same file). A requestAnimationFrame
+loop reads a pitch every frame and appends accepted samples to `history`.
+Two mechanisms sit between detection and history:
+
+- *Glitch holdback*: a jump > 5.5 midi arriving within 220ms of the
+  previous sample is held back until 3 consecutive samples agree at the
+  new level (within 1.2 midi, inside 260ms), then all held samples are
+  flushed together - a real leap loses nothing. Voices cannot leap that
+  far and settle within a frame or two; brief detector scrapes (octave
+  errors, harmonic locks, breath transients) can, and never reach the
+  trace. This is the ONLY rejection in the pipeline.
+- *Voice-gated clock*: with pause-on-silence on (the default), time only
+  advances while voice is detected, so a take does not scroll away while
+  the singer breathes. Off means wall-clock from the last reset.
+
+**The instrument law: the chart draws what was actually sung.** The
+voice line derives only from the sung history. There is no
+rails/target-based discarding, and the chart's vertical range in
+`pitch-trace-view.js` expands to cover the sung trace (held for the
+take - it does not shrink when extremes scroll out of view), so
+off-rails singing (wrong octave, overshoot) draws at its true pitch
+instead of clamping to an edge or vanishing. The exercise sets only the
+chart's FRAME - which rails are drawn as grid lines and how wide the
+time axis is - never the position, color, or visibility of the voice
+line. (This is load-bearing: the singer adjusts by seeing their real
+pitch. A regression test records samples an octave below the rails and
+asserts they stay in the trace.)
+
+**Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
+everything through provider callbacks: `rails()`, `targets()`,
+`history()`, `clockMs()`, windowing options. The sung line breaks across
+silences > 250ms and across unconfirmed fast jumps. Target bands are
+bare outlines of the hit zone (`BAND_CENTS`, matching scoring's OK
+tolerance by convention) - scoring verdicts never recolor them;
+judgment lives in readouts and progress, not in the chart. The view
+does not load `pitch-score.js`.
+
+**Time axis is stable.** Window WIDTH comes from the page (content
+duration, or a 20s toggle) and does not grow with the clock. Growing it
+used to continuously squeeze the whole chart - the classic Trace twitch.
+The playhead always scrolls inside that fixed width.
+
+**Drawing is never throttled.** A scrolling chart stepped at uneven
+intervals reads as twitching (a 50ms gate polled from a 60Hz frame loop
+alternates 3- and 4-frame steps), so live surfaces redraw every
+animation frame - the draw itself is cheap and bounded (decimated trace,
+a dozen rails and bands). `RateGate` throttles apply only to ANALYSIS
+(scoring, ~100ms) and TEXT readouts (~50ms), never to the pixels.
+
+**The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
+(Sing), and Intervals (Sing) embed the same component; a page supplies a
+typed `PitchTestPanelConfig` (key, rails, targets, content duration,
+`playNote`). The panel renders its own markup, owns the trace session,
+and sequences guide playback from the same target spans it draws - guide
+and notation cannot disagree. See "Typed contracts" below for the
+exclusivity and never-auto-play rules.
+
+**Scoring and progress**: `pitch-score.js` grades each target's window
+(see "Pitch correctness" below); completed takes are recorded through
+`progress-store.js` with per-note verdicts and signed cents bias, feeding
+the trend line and weak-spot line.
+
+**Live-loop budget: never re-chew the take.** Per-sample work happens
+once, when the sample arrives; per-tick (50ms) work is bounded by the
+number of held notes and targets, never by take length. Concretely: the
+panel segments incrementally (`PitchScore.createSegmenter`, pulled from
+`session.history` as it grows) and each tick only re-runs the alignment
+(`alignSegments`); the phrases take plan is memoized on its input key
+(targets, rails, and duration all read it every tick); the view finds a
+fixed window's visible slice by scanning back from the end of the
+time-ordered history; and the detector stops scanning at the deepest
+singable period, which caps the cost of pitchless frames (breath noise
+used to trigger a full scan). Measured on a simulated 10-minute take:
+the old per-tick scoring re-chewed 36k samples in ~15ms per tick (plus
+allocation/GC pressure, the felt "grinding"); the incremental path is
+~1.4ms.
+
+Consumers: the Trace page uses session + view directly; Phrases, Scales,
+and Intervals go through `pitch-test-panel.js`; pitch-meter uses the same
+session plus its own call-and-response/play-along modes (scored through
+the same `pitch-score.js`); ears uses low-level `createMicCapture` for
+its hold-detection loops. User-facing behavior per page is in
+[tools.md](tools.md); per-setting behavior in [parameters.md](parameters.md).
+
+Media keys and the now-playing surface: phrases, scales, intervals, ears,
+and the player register hardware play/pause/next handlers through
+`media-session-core.js`, which is the ONLY writer of
+`navigator.mediaSession` and `document.title` (ast-grep enforced). One
+call (`setNowPlayingTitle`) fans out to every surface a listener sees -
+car/lock-screen metadata, the tab title, and the site-header heading - so
+the surfaces cannot disagree, and reporting `setPlaybackState('playing')`
+automatically secures session ownership via the silent-WAV loop (without
+it, Chrome routes the car display to whichever frame is audibly playing;
+with a YouTube iframe that means youtube.com's metadata, not ours). The
+core self-primes on the first user gesture; pages never wire activation.
+Trace and pitch-meter deliberately do not register - they are
+watch-the-screen tools where hardware keys add nothing.
+
+**Deadline scheduling, not polling.** Timeline-driven UI (the player's
+progress bar, time text, lyric highlight, and now-playing lyric title)
+never runs on a fixed-interval timer. The moments at which those
+surfaces change are computable in advance (the next synced-lyric moment,
+the next whole display second), so the renderer draws once from the
+player's ACTUAL current time and sleeps until the earliest upcoming
+deadline (`scheduleNextProgressRender` in player-playlist.js). Every
+wake re-reads real time and renders idempotently, so early timers,
+buffering stalls, and drift self-correct; pause freezes the clock, and
+seeks / lyric arrival / resume call `resyncProgressClock()`. Polling is
+acceptable only where the data source is genuinely eventless and
+continuous: mic frames (requestAnimationFrame in pitch-detect-core) and
+the deploys dashboard's remote refresh.
 
 ## Pitch correctness (one owner)
 
 `pitch-score.js` is the single definition of "did the singer hit this note,
 and how accurately?". The embedded sing/test panel, the Pitch tool's
-call-and-response, and Pitch free practice all call `PitchScore.scoreWindow`;
-no tool carries its own thresholds (they had previously drifted - a 1.5
+call-and-response, and Pitch free practice all go through it; no tool
+carries its own thresholds (they had previously drifted - a 1.5
 vs 1.5-but-`<` match window, 3 vs 5 minimum samples, 10/25 vs 15/30 bands).
+
+**Takes are scored as sequences, not clock windows**
+(`PitchScore.scoreSequence`): the sung history is segmented into held
+notes (split on time gaps and sustained pitch moves; fragments below
+`MIN_VOICED` are transition glides, dropped) and aligned in order to the
+target notes by minimal-cost dynamic alignment (tolerates false starts,
+skipped notes, and one hold serving repeated equal targets). Each
+aligned pair is graded by `scoreWindow`. The take clock never decides a
+verdict - holding a note twice its slot, or breathing between notes,
+scores identically. This is forced by the voice-gated clock: breaths are
+zero-width in voice time and note durations are the singer's own, so
+fixed windows misassign samples by construction. Fixed windows remain
+only where a window is physically real: the Pitch tool's timed
+call-and-response periods.
+
+The alignment is a PREFIX of the targets: only notes the singer has
+reached can carry a verdict. Inside the prefix, a matched note verdicts
+the moment the singer moves on and a skipped-over note is missed; every
+target beyond the prefix stays pending - the future never changes color
+while singing continues. An unreached target resolves to missed only
+once the voice has gone quiet AND the take clock is past its slot.
 
 The model, from one consistent idea of correct:
 
@@ -116,11 +273,13 @@ The model, from one consistent idea of correct:
    else it is "didn't sing it", not "wrong".
 2. **Identity** - the pitch actually sustained is the **median** of the voiced
    samples (robust to onset slide, release, and octave glitches, which a mean
-   is not). It must sit within `IDENTITY_CENTS` (70c) of the target, and a
+   is not). It must sit within `IDENTITY_CENTS` (140c) of the target, and a
    majority of samples must be within that band, so wobble around the target
    is not credited as a hold.
-3. **Accuracy** - graded from the sustained pitch's distance: good <= 15c,
-   ok <= 30c, otherwise missed (reached but too loose for a clean rep).
+3. **Accuracy** - graded from the sustained pitch's distance: good <= 30c,
+   ok <= 60c, otherwise missed (reached but too loose for a clean rep).
+   (Bands doubled 2026-07-08, owner-directed: the tight bands read as
+   punishing in real takes.)
 
 `biasCents` is always reported signed (+ sharp, - flat) so degree-level
 weak-spot analysis can say "you overshoot the 6th" - the training goal. Free
@@ -154,8 +313,10 @@ Vital rules that have caused bugs before:
 - `getNotesAbove/Below` use modular arithmetic over the scale pattern, not
   array extension.
 - **Rising** transposes the whole scale by semitones each repeat;
-  **shifting** moves the start within the same scale. Mutually exclusive;
-  both imply repeat-forever.
+  **shifting** moves the start within the same scale; **chop head** drops
+  one more leading note each pass (12345678, 2345678, ...). Mutually
+  exclusive; rising and shifting imply repeat-forever, while chop head
+  plays one shrinking cycle per repeat.
 - Voice commands reset settings to defaults before applying modifiers.
 
 Exercise patterns are degree-offset templates with `'O'` as the
@@ -203,9 +364,9 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `TRACE_SETTINGS` | Trace page settings |
 | `PITCH_METER_SETTINGS` | Pitch tool settings |
 | `PLAYER_SETTINGS` | Music player voice/settings |
-| `PLAYER_PLAYLIST` | Music playlist + current index |
+| `PLAYER_PLAYLIST` | Working playlist (Songs + membership, no lyric runtime) + current index |
 | `PLAYER_FAVORITES` | Favorited tracks |
-| `PLAYER_LYRICS_CACHE` | Resolved lyrics records |
+| `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
@@ -249,6 +410,77 @@ string-only and commonly capped around 5-10 MB. IndexedDB quota is
 browser/device dependent; Books displays `navigator.storage.estimate()` and
 requests persistent storage by default where supported.
 
+### The Song primitive (music player)
+
+`player-songs.js` (`PlayerSongs`) is the single owner of the player's data
+vocabulary. A **Song** is: the YouTube `videoId` (identity - the key that
+plays it) plus always-present descriptive metadata (name, artist, year,
+album, comment, searchTerm, raw YouTube title/channel, duration). Every
+shape the player uses derives from it, and each derived shape has exactly
+one constructor in that module:
+
+| Shape | Constructor | Adds to Song |
+|-------|-------------|--------------|
+| `PlaylistItem` (working playlist) | `createPlaylistItem` | list id, source kind/label, runtime lyric state |
+| Persisted playlist entry | `persistedPlaylistEntry` | list id + source, **no lyric runtime** |
+| `FavoriteData` | `createFavorite` | `favoritedAt` |
+| Known-song history record (IndexedDB) | `historySongRecord` | `firstSeenAt`/`lastSeenAt`, sourceKind |
+
+No player code hand-builds song-shaped objects. Songs enter the playlist
+only through `appendPlaylistItem` (append at the end, render, lyric
+lookup); a new AI search **replaces** the working playlist
+(`searchAndAddToPlaylist` with `replaceExisting`), while explicit loads
+(favorites, history lookups, known songs) append. Replacement loses
+nothing: every song is recorded to the known-songs catalog when it is
+added, so the working playlist is a matter of convenience over durable
+data.
+
+**Lyric state has one permanent owner: IndexedDB `lyricStates`, keyed by
+videoId.** Each record is either `found` (carrying the LyricsResult) or
+`none` with `checkedAt` - and `none` may ONLY be written by a provider
+search that actually answered empty; failures (rate limit, network,
+timeout) save nothing, so the song stays unresolved and the next
+interaction retries. The write discipline is save-then-activate: the
+store write is awaited first, then the live playlist item is updated
+from that same record (`resolveLyricState` -> `applyLyricStateToItem`).
+A live item is therefore only ever 'ready' with data that came from or
+through the store - there is no second source that can disagree with it.
+(An earlier design kept a fuzzy artist/title-keyed cache in localStorage
+with alias and miss maps; keying by videoId in IndexedDB replaced it,
+and the `PLAYER_LYRICS_CACHE` localStorage key is retired.)
+
+**Lyrics are never persisted per playlist item.** The persisted playlist
+carries Songs only; `lyricsData`/`lyricsStatus` are runtime state
+re-derived from `lyricStates`. (Persisting full lyrics per item is what
+exceeded the localStorage quota at ~100 songs.)
+
+**Every interaction verifies against the store.** Adding a song (search,
+favorites, history, restore-at-load) queues its resolution; playing a
+song or tapping its row chip resolves it immediately. Resolution runs as
+one shared in-flight promise per videoId - duplicate rows, the queue,
+and a direct play all await the same flight - and every provider fetch
+is bounded by a 12s timeout, so a lookup interrupted by a page
+suspension always settles and can never wedge a song in 'loading'.
+Background resolution goes through one bounded queue (2 songs at a
+time), so a 100-song add never fires 100 requests at once. Tapping the
+chip on a stored `none` forces a fresh provider recheck; a stored `none`
+also expires after 7 days.
+
+**Library reconciliation is per song, on every load.**
+`reconcileLibraryLyrics` queues every favorite for resolution before the
+playlist restore; songs already resolved in the store settle from one
+IndexedDB read with zero network, so the pass is idempotent and an
+interrupted or failed recheck resumes on the next open by construction.
+
+**Timed lyrics first.** The two lyric kinds are named in every
+user-facing surface: timed (line-synced) and simple (text only). The
+LRCLIB record selection prefers a timed record over a simple-only one
+among plausible matches; a stored record holding timed lyrics is final,
+while simple-only and "none" records carry the `searchVersion` that
+produced them and get exactly one re-search when the algorithm improves
+(plus the normal TTL recheck), never downgrading - an upgrade attempt
+that finds nothing better keeps the simple lyrics it has.
+
 ### Music player durable history (`voice-wei-music`)
 
 The music player keeps unbounded/historical data in its own IndexedDB
@@ -257,26 +489,44 @@ never touches this DB directly. Stores:
 
 - `logs`: every in-app log line (append-only).
 - `lookups`: each natural-language music request and its resulting song list.
-- `songs`: the known-songs catalog, keyed by `videoId` (upsert on re-seeing).
+- `songs`: the known-songs catalog, keyed by `videoId` (upsert on re-seeing);
+  records are `historySongRecord` shapes (Song + timestamps), never raw
+  playlist items with lyric blobs.
 - `youtubeSearches`: the search-term -> results cache, keyed by normalized
   query; consulted as a fallback when the live proxy search fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.
+- `lyricStates`: per-song lyric state keyed by videoId - the single
+  permanent owner of lyrics (see "Lyric state has one permanent owner"
+  above).
+- `librarySongs`: imported MIDI/MusicXML songs with their full note
+  arrays, keyed by id (migrated out of localStorage, which their bulk
+  was on course to exhaust).
 
-Store-by-lifetime is the dividing law (persistence principle P1):
-**localStorage** owns small, synchronous, boot-time state - settings,
-lyrics-view prefs, API keys, the live playlist + index, and the
-**authoritative favorites set** (`PLAYER_FAVORITES`). **IndexedDB** owns the
-unbounded/historical data above. No concept is authoritative in two stores
-(P2): favorites live in localStorage; `favoriteEvents` is history only, never
-read back as the source of truth. (An earlier schema also mirrored favorites
-into a `favorites` object store; database version 2 deletes it on upgrade.)
+Store-by-bulk is the dividing law (persistence principle P1):
+**localStorage** (a shared ~5MB quota) may hold only KB-scale state whose
+size does not grow with the library - settings, lyrics-view prefs, API
+keys, the live playlist + index, and the **authoritative favorites set**
+(`PLAYER_FAVORITES`, Song-sized records). Its one real benefit is
+synchronous availability at boot; nothing bulky may buy that
+convenience. **IndexedDB** (GB-scale quota) owns everything that grows
+with the library or with time: the stores above, per-song lyric states,
+and imported library songs. No concept is authoritative in two stores
+(P2): favorites live in localStorage; `favoriteEvents` is history only,
+never read back as the source of truth. (An earlier schema also mirrored
+favorites into a `favorites` object store; database version 2 deletes it
+on upgrade. Lyrics and imported songs also began in localStorage; v3/v4
+moved them out after quota blowouts.)
 
-Every store is bounded by policy and trimmed loudly (P3): each has a record
-cap (`logs`/`songs`/`favoriteEvents` 5000, `lookups`/`youtubeSearches` 2000).
-On nearing 90% the player posts a one-time "History storage" notice via the
-log panel; past the cap the oldest records are trimmed (lowest primary key for
-append-only stores, lowest time-index value for keyed stores). "Permanent"
-means kept until the user is warned and the oldest entries are trimmed.
+Caps apply to time-streams only, never to library entities (P3). The
+append-only event streams grow with use forever, so they carry caps and
+trim loudly (`logs`/`favoriteEvents` 5000, `lookups` 2000): on nearing 90%
+the player posts a one-time "History storage" notice via the log panel;
+past the cap the oldest records (lowest primary key) are trimmed. Stores
+that mirror the library - `songs`, `lyricStates` - and the re-fetchable
+`youtubeSearches` cache have NO cap: trimming a library store would mean
+silent partial coverage (some songs with state, some without), and the
+library itself is their natural bound. IndexedDB quota is GB-scale;
+record counts are not the risk.
 
 ## External resilience vs. internal fallbacks
 
@@ -359,14 +609,12 @@ ambient types: `KeyContext`, `ScaleDegreeNote`, `TargetSpan`, `RailLine`,
    notation - a consumer cannot supply a guide that disagrees. Consumers
    only provide `playNote(midi, durationSec)`. The guide is an explicit
    button - the panel never auto-plays into a take.
-   Pages embedding the panel must treat open Test/Sing mode as exclusive:
-   page-level playback routes, hardware/media-session actions, and delayed
-   setting replays must not start page playback under the panel. The panel's
-   explicit guide button is the sole permitted automatic-target sound while
-   the user is there to sing. On Phrases this is enforced by a central
-   playback gate (`runPhrasePlayback`) plus the page-owned MIDI boundary
-   (`playMidi`); new Phrases playback actions must go through that gate, not
-   add one-off Test checks at the button handler.
+   Open Test/Sing mode COEXISTS with page playback (owner-directed):
+   Play, Next, single-note taps, and media keys keep working while the
+   panel listens, so the user can hear notes and sing against them.
+   Opening the test still stops the transport (a take starts from
+   silence), Stop never closes the panel, and generating a new phrase
+   while the panel is open restarts the take for the new targets.
 4. **One timeline, explicitly named.** Phrases derives a single take
    plan (`PhrasePlanNote[]`: index, midi, degree, spoken, enabled,
    startMs/endMs) and display, playback, and the test panel all read
@@ -411,10 +659,13 @@ blocks the push from reaching the live site.
 
 ## Deploy
 
-Push to master -> GitHub Actions runs the gates (typecheck, lint, fast browser
-suite) and then rsyncs to production (`--delete`; docs, tests, tooling excluded). `./bump-version.sh` updates the VERSION file, the
-header label, and every `?v=` cache buster - run it whenever a release
-ships. Manual deploy: `./deploy.sh`.
+Push to master (when not paths-ignored for docs/rules-only) → GitHub Actions
+runs typecheck, lint, and the fast browser suite, then rsyncs `--delete` to
+production (excludes docs, tests, tooling; list shared with `deploy.sh`). For
+user-facing ships, run `./bump-version.sh` once in the same push so reload
+shows a new header/`?v=` build. Skip bumps for docs/tests-only commits; never
+push bump-only commits. Full rules: `.cursor/rules/10-deploy-workflow.mdc`.
+Manual deploy: `./deploy.sh`.
 
 ## How to decide what a control looks like
 
@@ -514,10 +765,12 @@ owned by practice-controls.css. The concrete class-by-class inventory
 Settings appear in the same order on every practice page, following the
 most recent reviewed page (phrases):
 
-1. **Timing** - note length, then gap
-2. **Root** - the root pitch stepper
-3. **Shape** - the page's own pattern settings (range, algorithm,
-   direction, movement, repeat, exercise...)
+1. **Timing** - note length, then gap (Key may sit on this same stepper
+   row when the page clusters numeric choosers, as Phrases and Scales do)
+2. **Key** - the root-pitch stepper (own row only when not clustered above;
+   user-facing label is always "Key", never mixed with "Root")
+3. **Shape** - the page's own pattern settings. On Scales, section width
+   comes first (define the range), then direction/movement/repeat/exercise.
 4. **Output/display options** - output mode chips, display toggles
 5. **Scale type** - the scale chip row
 6. **Actions** - reset/random rows close the block
@@ -525,6 +778,10 @@ most recent reviewed page (phrases):
 A page may omit groups it doesn't have, but never reorders the ones it
 shares. Page-unique surfaces that are not settings (scales' piano, the
 phrase stage) sit outside this order.
+
+**Pitch Test / Sing** is not transport. It is a fixed bottom dock
+(`.pitch-test-dock`) that opens and closes independently of Play/Stop/Next.
+Transport rows hold playback only.
 
 ## Deliberately distinct surfaces
 

@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Trace - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=209">
-    <link rel="stylesheet" href="practice-controls.css?v=209">
-    <link rel="stylesheet" href="trace.css?v=209">
+    <link rel="stylesheet" href="style.css?v=262">
+    <link rel="stylesheet" href="practice-controls.css?v=262">
+    <link rel="stylesheet" href="trace.css?v=262">
 </head>
 
 <body data-page="trace">
@@ -31,7 +31,8 @@
             <section class="trace-pattern-card">
                 <label for="patternInput">Pattern guides</label>
                 <input id="patternInput" class="text-input" type="text" inputmode="text" autocomplete="off" placeholder="1 2 3 5 3 1">
-                <div class="trace-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.</div>
+                <div class="trace-pattern-help">Use scale degrees like 1 2 3 4 5 6 7 8. Separators can be spaces, commas, or dashes.
+                    For other octaves add d (down) or u (up): 5d is the 5 below the root, 2u the 2 an octave up, 5dd two octaves down; 9 and up keep climbing.</div>
                 <label class="display-toggle trace-play-toggle">
                     <input type="checkbox" id="playGuidesToggle">
                     <span>Play guide on reset</span>
@@ -55,10 +56,10 @@
                     <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
                 </div>
                 <div class="step-field">
-                    <span class="step-label">Root</span>
-                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower root pitch">-</button>
+                    <span class="step-label">Key</span>
+                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                     <span class="step-value" id="rootPitchValue">D#3</span>
-                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher root pitch">+</button>
+                    <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                 </div>
                 <div class="vf-options">
                     <label class="display-toggle">
@@ -96,18 +97,18 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=209"></script>
-    <script src="app-version.js?v=209"></script>
-    <script src="storage-keys.js?v=209"></script>
-    <script src="shared-header.js?v=209"></script>
-    <script src="music-constants.js?v=209"></script>
-    <script src="piano-core.js?v=209"></script>
-    <script src="pitch-detect-core.js?v=209"></script>
-    <script src="pitch-trace-view.js?v=209"></script>
-    <script src="render-throttle.js?v=209"></script>
-    <script src="practice-controls.js?v=209"></script>
-    <script src="settings-store.js?v=209"></script>
-    <script src="trace.js?v=209"></script>
+    <script src="dev-error-monitor.js?v=262"></script>
+    <script src="app-version.js?v=262"></script>
+    <script src="storage-keys.js?v=262"></script>
+    <script src="shared-header.js?v=262"></script>
+    <script src="music-constants.js?v=262"></script>
+    <script src="piano-core.js?v=262"></script>
+    <script src="pitch-detect-core.js?v=262"></script>
+    <script src="pitch-trace-view.js?v=262"></script>
+    <script src="render-throttle.js?v=262"></script>
+    <script src="practice-controls.js?v=262"></script>
+    <script src="settings-store.js?v=262"></script>
+    <script src="trace.js?v=262"></script>
 </body>
 
 </html>

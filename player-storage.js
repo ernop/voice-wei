@@ -11,7 +11,10 @@ const PLAYER_SETTINGS_KEYS = [
     'autoSubmitMode',
     'claudeModel',
     'openaiModel',
-    'aiProvider'
+    'aiProvider',
+    'lyricsOnNowPlaying',
+    'showSongNotes',
+    'playlistTimedOnly'
 ];
 
 /** @type {LyricsViewSettings} */
@@ -23,18 +26,13 @@ const LYRICS_VIEW_DEFAULTS = {
     backdrop: 'dim'
 };
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is Record<string, any>} */
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** @param {unknown} value @returns {value is Record<string, FavoriteData>} */
 function isFavoritesRecord(value) {
-    return isPlainObject(value);
-}
-
-/** @param {unknown} value @returns {value is LyricsCacheStore} */
-function isLyricsCacheRecord(value) {
     return isPlainObject(value);
 }
 
@@ -48,7 +46,7 @@ function isLyricsViewSettings(value) {
     return isPlainObject(value);
 }
 
-/** @param {unknown} value @returns {value is { items: PlaylistItem[], currentPlaylistIndex: number }} */
+/** @param {unknown} value @returns {value is { items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
 function isPlaylistEnvelope(value) {
     return isPlainObject(value) && Array.isArray(/** @type {{ items?: unknown }} */ (value).items);
 }
@@ -72,15 +70,6 @@ const PlayerStorage = (function () {
     /** @param {SongLibraryStore} library */
     function saveSongLibrary(library) {
         SettingsStore.saveJson(StorageKeys.PLAYER_SONG_LIBRARY, library);
-    }
-
-    function loadLyricsCache() {
-        return SettingsStore.loadJson(StorageKeys.PLAYER_LYRICS_CACHE, {}, isLyricsCacheRecord);
-    }
-
-    /** @param {LyricsCacheStore} cache */
-    function saveLyricsCache(cache) {
-        SettingsStore.saveJson(StorageKeys.PLAYER_LYRICS_CACHE, cache);
     }
 
     function loadLyricsViewSettings() {
@@ -112,8 +101,9 @@ const PlayerStorage = (function () {
         SettingsStore.save(StorageKeys.PLAYER_SETTINGS, settings, PLAYER_SETTINGS_KEYS);
     }
 
-    /** @returns {{ items: PlaylistItem[], currentPlaylistIndex: number }} */
+    /** @returns {{ items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
     function loadPlaylist() {
+        /** @type {{ items: PersistedPlaylistEntry[], currentPlaylistIndex: number }} */
         const empty = { items: [], currentPlaylistIndex: -1 };
         const data = SettingsStore.loadJson(StorageKeys.PLAYER_PLAYLIST, empty, isPlaylistEnvelope);
         if (!data || !Array.isArray(data.items)) {
@@ -127,7 +117,7 @@ const PlayerStorage = (function () {
         };
     }
 
-    /** @param {PlaylistItem[]} items @param {number} currentPlaylistIndex */
+    /** @param {PersistedPlaylistEntry[]} items @param {number} currentPlaylistIndex */
     function savePlaylist(items, currentPlaylistIndex) {
         SettingsStore.saveJson(StorageKeys.PLAYER_PLAYLIST, { items, currentPlaylistIndex });
     }
@@ -137,8 +127,6 @@ const PlayerStorage = (function () {
         saveFavorites,
         loadSongLibrary,
         saveSongLibrary,
-        loadLyricsCache,
-        saveLyricsCache,
         loadLyricsViewSettings,
         saveLyricsViewSettings,
         loadSettings,

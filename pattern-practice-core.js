@@ -188,6 +188,62 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * Parse a typed degree series ("5v 1 1 7bv 7v 2# 2") into scale
+     * offsets. Token grammar, matching the display vocabulary and the
+     * trace pattern input: degree digits (1..8 in-octave, 9+ keeps
+     * climbing), then any mix of accidental and octave marks - "#" / "b"
+     * pick the chromatic passing note above / below the degree, "v", "d"
+     * or "\u2193" drop an octave, "^", "u" or "\u2191" raise one. Marks may repeat
+     * ("3vv") and come in any order ("7bv" = "7vb"). Unknown tokens and
+     * accidentals that name no chromatic note in the scale (e.g. "3#" in
+     * major, a half-step gap) are reported as errors, never guessed at.
+     * @param {string} text @param {string} scaleType
+     * @returns {{ offsets: number[], errors: string[] }}
+     */
+    function parseDegreeSeries(text, scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        /** @type {number[]} */
+        const offsets = [];
+        /** @type {string[]} */
+        const errors = [];
+        const tokens = String(text || '').trim().split(/[\s,;/|-]+/).filter(Boolean);
+        for (const raw of tokens) {
+            const token = raw.toLowerCase();
+            const match = /^([0-9]+)([#bdu^v\u2191\u2193]*)$/.exec(token);
+            const degree = match ? Number(match[1]) : 0;
+            if (!match || degree < 1) {
+                errors.push(`"${raw}" is not a degree token`);
+                continue;
+            }
+            const marks = match[2];
+            const sharps = (marks.match(/#/g) || []).length;
+            const flats = (marks.match(/b/g) || []).length;
+            if (sharps + flats > 1) {
+                errors.push(`"${raw}" has more than one accidental`);
+                continue;
+            }
+            let offset = degree - 1;
+            for (const mark of marks) {
+                if (mark === 'v' || mark === 'd' || mark === '\u2193') offset -= dp;
+                if (mark === '^' || mark === 'u' || mark === '\u2191') offset += dp;
+            }
+            if (sharps || flats) {
+                const passing = sharps
+                    ? chromaticBetween(scaleType, offset, offset + 1)
+                    : chromaticBetween(scaleType, offset - 1, offset);
+                if (passing === null) {
+                    errors.push(`"${raw}": no chromatic note ${sharps ? 'above' : 'below'} degree ${degree} in ${scaleType}`);
+                    continue;
+                }
+                offset = passing;
+            }
+            offsets.push(offset);
+        }
+        if (!tokens.length) errors.push('empty series');
+        return { offsets, errors };
+    }
+
+    /**
      * Native speech pitch is approximate. This mapping keeps spoken numbers
      * moving in the same direction as the exact piano target underneath them.
      * @param {number} midi
@@ -198,27 +254,40 @@ const PatternPracticeCore = (function () {
     }
 
     /**
-     * Phrase range modes: how far offsets may wander beyond the octave.
-     * 'within' = degrees 1..8 only; 'over' = two degrees past each end
-     * (down to 6 of the octave below, up to 3 of the octave above for
-     * seven-note scales); 'around' = the full octave 1..8 plus down to
-     * the 1 an octave below; 'expanded' = half an octave below to two
-     * octaves up.
-     * @param {string} rangeMode
+     * The endpoints a phrase-range endpoint may reach, as scale offsets:
+     * the low endpoint may descend a full octave below unison, the high
+     * endpoint may climb to two octaves. One owner for the page steppers
+     * and the generator clamp.
+     * @param {string} scaleType
+     */
+    function phraseRangeLimits(scaleType) {
+        const dp = degreesPerOctave(scaleType);
+        return { lowMin: -dp, highMax: dp * 2 };
+    }
+
+    /**
+     * Explicit phrase-range endpoints as scale offsets (0 = degree 1,
+     * dp = the octave). The user moves each endpoint independently:
+     * negative low reaches below unison, high past dp reaches above the
+     * octave, and high below dp shrinks the palette (e.g. high dp-1 =
+     * degrees 1..7 only). Sanity-clamped to phraseRangeLimits with
+     * low < high always.
+     * @param {{ rangeLow?: number, rangeHigh?: number, scaleType: string }} options
      * @param {number} dp - degrees per octave
      */
-    function rangeBounds(rangeMode, dp) {
-        if (rangeMode === 'expanded') return { min: -Math.floor(dp / 2), max: dp * 2 };
-        if (rangeMode === 'over') return { min: -2, max: dp + 2 };
-        if (rangeMode === 'around') return { min: -dp, max: dp };
-        return { min: 0, max: dp };
+    function rangeBounds(options, dp) {
+        const { lowMin, highMax } = phraseRangeLimits(options.scaleType);
+        const high = clamp(Math.round(options.rangeHigh ?? dp), lowMin + 1, highMax);
+        const low = clamp(Math.round(options.rangeLow ?? 0), lowMin, high - 1);
+        return { min: low, max: high };
     }
 
     /**
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -293,7 +362,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -303,7 +373,7 @@ const PatternPracticeCore = (function () {
      */
     function phraseSeed(options) {
         const dp = degreesPerOctave(options.scaleType);
-        const { min: minOffset, max: maxOffset } = rangeBounds(options.rangeMode, dp);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options, dp);
         const length = phraseLength(options);
         const initial = initialPhraseOffset(options, dp, minOffset, maxOffset);
         return { dp, minOffset, maxOffset, length, initial, offsets: [initial] };
@@ -315,7 +385,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -363,7 +434,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -386,7 +458,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -413,7 +486,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -447,7 +521,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -484,7 +559,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -543,7 +619,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -574,6 +651,236 @@ const PatternPracticeCore = (function () {
         }
 
         return addPhraseAnchors(offsets, options);
+    }
+
+    /**
+     * Fisher-Yates shuffle into a new array.
+     * @param {number[]} values
+     * @returns {number[]}
+     */
+    function shuffled(values) {
+        const out = values.slice();
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = randomInt(0, i);
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+
+    /**
+     * Shuffle with the no-stutter rule: no value may equal its neighbor,
+     * including the fixed boundary values around the shuffled section
+     * (the 1-anchors in rearrange phrases). After the shuffle, each
+     * conflicting position is repaired by swapping with a position where
+     * the swap resolves the conflict without creating a new one. Pools
+     * with a value in the majority (impossible to separate) keep the
+     * unavoidable repeats.
+     * @param {number[]} values
+     * @param {number | null} leftBoundary
+     * @param {number | null} rightBoundary
+     * @returns {number[]}
+     */
+    function shuffledWithoutAdjacentRepeats(values, leftBoundary, rightBoundary) {
+        const out = shuffled(values);
+        /** @param {number} index */
+        const conflicted = index => {
+            const left = index === 0 ? leftBoundary : out[index - 1];
+            const right = index === out.length - 1 ? rightBoundary : out[index + 1];
+            return out[index] === left || out[index] === right;
+        };
+        for (let i = 0; i < out.length; i++) {
+            if (!conflicted(i)) continue;
+            for (let j = 0; j < out.length; j++) {
+                if (j === i || out[j] === out[i]) continue;
+                [out[i], out[j]] = [out[j], out[i]];
+                if (!conflicted(i) && !conflicted(j)) break;
+                [out[i], out[j]] = [out[j], out[i]];
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Passing tones for rearrange phrases are INSERTED, never substituted:
+     * a rearrangement must still exhaust every scale note in the range, so
+     * the chromatic neighbor joins the phrase in addition to the notes it
+     * connects (contrast applyChromaticPassingChoices, which replaces).
+     * @param {number[]} offsets
+     * @param {{ scaleType: string, accidentalRate?: number }} options
+     * @returns {number[]}
+     */
+    function insertChromaticPassingTones(offsets, options) {
+        const chance = clamp(options.accidentalRate || 0, 0, 1);
+        if (chance <= 0 || !offsets.length) return offsets;
+        const out = [offsets[0]];
+        for (let i = 1; i < offsets.length; i++) {
+            const passing = chromaticBetween(options.scaleType, offsets[i - 1], offsets[i]);
+            if (passing !== null && Math.random() < chance) out.push(passing);
+            out.push(offsets[i]);
+        }
+        return out;
+    }
+
+    /**
+     * How unmusical an offset sequence sounds, judged only on how its
+     * intervals are SEQUENCED, never on their sizes - rearrangement
+     * phrases must keep their full variety of gaps. Penalized: leaps
+     * stacked in the same direction and back-to-back wide leaps.
+     * Rewarded: a leap resolved by contrary stepwise motion (the classic
+     * recovery the ear expects).
+     * @param {number[]} offsets
+     */
+    function melodicWildness(offsets) {
+        let cost = 0;
+        for (let i = 2; i < offsets.length; i++) {
+            const prev = offsets[i - 1] - offsets[i - 2];
+            const next = offsets[i] - offsets[i - 1];
+            const sameDirection = Math.sign(prev) === Math.sign(next);
+            if (Math.abs(prev) >= 3) {
+                if (sameDirection && Math.abs(next) >= 3) cost += 3;
+                else if (sameDirection) cost += 1;
+                else if (Math.abs(next) <= 2) cost -= 1;
+            }
+            if (Math.abs(prev) >= 5 && Math.abs(next) >= 5) cost += 2;
+        }
+        return cost;
+    }
+
+    /**
+     * Rearrange: every scale note inside the selected range appears exactly
+     * once (or `copies` times), in random order, with no immediate repeats.
+     * Length is dictated by the range, not by Min/Max.
+     *
+     * The 1-anchors consume degree 1's copies from the pool: with
+     * 'start at 1' and/or 'return to 1' on, the anchored 1s are the pool's
+     * 1s, so 1 never also appears inside the body. Single rearrange with
+     * both anchors on is the one case where 1 sounds twice (both bookends)
+     * by design. Degree 8 (the octave) is its own note and stays in the
+     * body - only literal degree 1 (offset 0) is anchor-managed.
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeLow: number,
+     *   rangeHigh: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   accidentalRate?: number
+     * }} options
+     * @param {number} copies
+     * @returns {number[]}
+     */
+    const REARRANGE_CANDIDATES = 24;
+    function generateRearrangeOffsets(options, copies) {
+        const dp = degreesPerOctave(options.scaleType);
+        const { min: minOffset, max: maxOffset } = rangeBounds(options, dp);
+        const startAnchor = options.startAtOne;
+        const endAnchor = options.returnToInitial || options.returnToRoot;
+        const anchoredOnes = (startAnchor ? 1 : 0) + (endAnchor ? 1 : 0);
+        const bodyOnes = Math.max(0, copies - anchoredOnes);
+
+        /** @type {number[]} */
+        const pool = [];
+        for (let offset = minOffset; offset <= maxOffset; offset++) {
+            const count = offset === 0 ? bodyOnes : copies;
+            for (let c = 0; c < count; c++) pool.push(offset);
+        }
+
+        // Best-of-K shuffles: every permutation remains reachable (the
+        // gap coverage that makes rearrange worth practicing is intact),
+        // but among the candidates the least wild interval SEQUENCING
+        // wins, so the phrase sounds arranged rather than rolled.
+        let offsets = [];
+        let bestCost = Infinity;
+        for (let candidate = 0; candidate < REARRANGE_CANDIDATES; candidate++) {
+            const body = shuffledWithoutAdjacentRepeats(
+                pool,
+                startAnchor ? 0 : null,
+                endAnchor ? 0 : null
+            );
+            const attempt = [];
+            if (startAnchor) attempt.push(0);
+            attempt.push(...body);
+            if (endAnchor) attempt.push(0);
+            const cost = melodicWildness(attempt);
+            if (cost < bestCost) {
+                bestCost = cost;
+                offsets = attempt;
+            }
+        }
+        return insertChromaticPassingTones(offsets, options);
+    }
+
+    /**
+     * Ordered note combinations ("subsequences") of a phrase for powerset
+     * practice: all size-minSize combinations in lexicographic position
+     * order, then all of the next size, up to the whole phrase. Two
+     * filters: combos whose values stutter (adjacent equal notes) are
+     * skipped, and combos that READ identically to one already produced
+     * at the same size are skipped - 1,2,1 drawn from a different pair
+     * of positions is still 1,2,1 and appears once.
+     *
+     * Lazy by necessity: combination counts grow combinatorially with
+     * phrase length, so passes are produced one at a time as the user
+     * advances, and only the visited texts are remembered.
+     * @param {number[]} values
+     * @param {number} minSize
+     * @returns {{ next: () => number[] | null }}
+     */
+    function createUniqueSubsequenceIterator(values, minSize) {
+        const n = values.length;
+        let size = Math.max(1, Math.min(minSize, n));
+        /** @type {number[] | null} */
+        let combo = null;
+        /** @type {Set<string>} */
+        const seenAtSize = new Set();
+
+        /** @param {number} k @returns {number[]} */
+        function firstCombo(k) {
+            return Array.from({ length: k }, (_, i) => i);
+        }
+
+        /**
+         * Advance to the next lexicographic index combination in place,
+         * or return null when the current size is exhausted.
+         * @param {number[]} c
+         */
+        function bumpCombo(c) {
+            let i = c.length - 1;
+            while (i >= 0 && c[i] === n - c.length + i) i--;
+            if (i < 0) return null;
+            c[i]++;
+            for (let j = i + 1; j < c.length; j++) c[j] = c[j - 1] + 1;
+            return c;
+        }
+
+        /** @returns {number[] | null} */
+        function nextRaw() {
+            if (size > n) return null;
+            if (combo === null) {
+                combo = firstCombo(size);
+                return combo;
+            }
+            if (bumpCombo(combo)) return combo;
+            size++;
+            seenAtSize.clear();
+            if (size > n) return null;
+            combo = firstCombo(size);
+            return combo;
+        }
+
+        return {
+            next() {
+                for (let raw = nextRaw(); raw !== null; raw = nextRaw()) {
+                    const picked = raw.map(index => values[index]);
+                    if (picked.some((value, i) => i > 0 && value === picked[i - 1])) continue;
+                    const text = picked.join(',');
+                    if (seenAtSize.has(text)) continue;
+                    seenAtSize.add(text);
+                    return raw.slice();
+                }
+                return null;
+            }
+        };
     }
 
     /** @param {number[]} values @param {number} min @param {number} max */
@@ -621,7 +928,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -635,7 +943,11 @@ const PatternPracticeCore = (function () {
     function generateAllowedDegreeLesson(options, allowedDegrees, motion) {
         const { minOffset, maxOffset, length, initial } = phraseSeed(options);
         const allowed = boundedDegreeSet(allowedDegrees, minOffset, maxOffset);
-        const offsets = [nearestAllowed(allowed, initial)];
+        // 'start at 1' outranks the palette for the seed note, mirroring
+        // the return-to-1 anchor at the end: the tonic bookends the
+        // phrase (easier to pitch) and the lesson palette governs
+        // everything in between.
+        const offsets = [options.startAtOne ? 0 : nearestAllowed(allowed, initial)];
         while (offsets.length < length) {
             let next = nextLessonOffset(allowed, offsets[offsets.length - 1], motion);
             if (next === offsets[offsets.length - 1] && allowed.length > 1) {
@@ -664,7 +976,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -685,7 +998,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -715,7 +1029,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -736,7 +1051,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -802,7 +1118,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -818,6 +1135,8 @@ const PatternPracticeCore = (function () {
         if (options.phraseStyle === 'sight') return generateSightSingingOffsets(options);
         if (options.phraseStyle === 'barbershop') return generateBarbershopOffsets(options);
         if (options.phraseStyle === 'genre') return generateGenreOffsets(options);
+        if (options.phraseAlgo === 'rearrange') return generateRearrangeOffsets(options, 1);
+        if (options.phraseAlgo === 'rearrange_double') return generateRearrangeOffsets(options, 2);
         if (options.phraseAlgo === 'random') return generateRandomOffsets(options);
         if (options.phraseAlgo === 'stepwise') return generateStepwiseOffsets(options);
         if (options.phraseAlgo === 'leapy') return generateLeapyOffsets(options);
@@ -832,7 +1151,8 @@ const PatternPracticeCore = (function () {
      * @param {{
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -893,7 +1213,8 @@ const PatternPracticeCore = (function () {
      *   octave: number,
      *   scaleType: string,
      *   startAtOne: boolean,
-     *   rangeMode: string,
+     *   rangeLow: number,
+     *   rangeHigh: number,
      *   minLength: number,
      *   maxLength: number,
      *   returnToInitial: boolean,
@@ -939,8 +1260,20 @@ const PatternPracticeCore = (function () {
             : (options.chromaticRuns ? DEFAULT_CHROMATIC_PASSING_CHANCE : 0);
         const offsets = generatePhraseOffsets({ ...options, accidentalRate });
 
+        return phraseFromOffsets({ ...options, offsets });
+    }
+
+    /**
+     * The one Phrase constructor: explicit offsets (generated, or typed
+     * as a degree series) projected into a key.
+     * @param {{ offsets: number[], root: string, octave: number, scaleType: string }} options
+     * @returns {Phrase | null}
+     */
+    function phraseFromOffsets(options) {
+        const rootMidi = noteNameToMidi(options.root, options.octave);
+        if (rootMidi === null) return null;
         return {
-            notes: buildSequenceNotes(offsets, rootMidi, options.scaleType),
+            notes: buildSequenceNotes(options.offsets, rootMidi, options.scaleType),
             root: options.root,
             scaleType: options.scaleType,
             octave: options.octave,
@@ -954,6 +1287,7 @@ const PatternPracticeCore = (function () {
         clamp,
         positiveModulo,
         rangeBounds,
+        phraseRangeLimits,
         degreesPerOctave,
         baseIntervalsForScale,
         buildExtendedScale,
@@ -962,6 +1296,7 @@ const PatternPracticeCore = (function () {
         offsetToSpoken,
         offsetsToDisplay,
         offsetsToSpoken,
+        parseDegreeSeries,
         chromaticBetween,
         addChromaticPassingTones,
         applyChromaticPassingChoices,
@@ -973,8 +1308,13 @@ const PatternPracticeCore = (function () {
         generateBarbershopOffsets,
         generateGenreOffsets,
         generateClusteredOffsets,
+        generateRearrangeOffsets,
+        insertChromaticPassingTones,
+        melodicWildness,
+        createUniqueSubsequenceIterator,
         reflectOffsets,
-        generatePhrase
+        generatePhrase,
+        phraseFromOffsets
     };
 })();
 

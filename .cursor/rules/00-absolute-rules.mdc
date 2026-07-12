@@ -37,10 +37,12 @@ This extends to all code:
 - **Fix is always to improve the single upstream source, never to add downstream alternatives.**
 
 ## Configuration Pattern
-- Never use environment variables for configuration; use gitignored config files with checked-in examples.
-- `config.json` (gitignored) - API keys and secrets
-- `config.example.json` (checked in) - Template with placeholders
-- Code reads from config file, not environment variables
+- Never use environment variables for application configuration.
+- **Browser API keys** (Claude, OpenAI): entered in the page Settings UI;
+  stored via `api-keys-store.js` (localStorage). Never commit keys.
+- **Local deploy credentials**: gitignored `config.json` with checked-in
+  `config.example.json` — used by `./deploy.sh` only. Production deploy uses
+  GitHub Actions Secrets (`DEPLOY_*`), not a server-side API key file.
 
 ## Cost-Efficiency Principle
 When fixing any problem, immediately ask: "How could this have been prevented at a deeper level, in a simpler way, or by a more efficient actor?"

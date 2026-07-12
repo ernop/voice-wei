@@ -12,9 +12,9 @@ persist is in [architecture.md](architecture.md) "Persistence".)
 | Behavior | Meaning |
 |----------|---------|
 | `bounds-next` | Constrains only the NEXT generated item. Current content untouched, nothing replays. |
-| `reproject` | Current content is kept and re-expressed in the new context (e.g. same degrees, new key), then replayed if something was generated. |
+| `reproject` | Current content is kept and re-expressed in the new context (e.g. same degrees, new key). Never starts playback; ongoing playback continues and picks the change up live. |
 | `regenerate` | Current content is discarded and regenerated (no auto-play). |
-| `replay` | Current content kept; replayed with the new sound settings. |
+| `replay` | Current content kept; new sound settings apply to whatever plays next. Never starts playback (on Phrases, ongoing playback reads timing live per note). |
 | `redraw` | Display refresh only; no audio. |
 | `live-restart` | If playing, stop and restart playback with the new settings; if idle, just store. |
 | `next-round` | Takes effect when the running loop generates its next item (or the next question/session starts). |
@@ -37,8 +37,13 @@ page that shows them:
 | Picker | Presets |
 |--------|---------|
 | root pitch | semitone steps, C2..B5 (MIDI 36..83) |
-| noteLengthMs | 100, 150, 200, 250, 300, 350, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 3000, 5000 |
-| gapMs | -50%, -10%, -5%, 0, 50, 100, 150, 250, 300, 500, 1000, 1500, 2000, 3000, 5000 |
+| time ladder (`TIME_VALUES_MS`) | 0 then tenths to 2s (0.1, 0.2, ... 1.9), quarters to 4s (2.25, 2.5, ... 4), halves to 5s, wholes to 10s |
+| noteLengthMs | the time ladder from 0.1s up (a zero-length note is silence) |
+| gapMs | -50%, -10%, -5%, then the full time ladder from 0 |
+
+Every seconds-valued stepper walks the same shared ladder: note length,
+gap, the Phrases section pause (Sect), the Trace guide interval, and the
+Pitch page match window all step through the same numbers.
 
 Negative gap presets are overlap ratios of the note length (-50% starts
 the next note halfway through the current one); they display as
@@ -59,7 +64,8 @@ chooses a question range, not a root) and keeps its own range.
 | phraseLesson | free_open | style-specific lesson buttons | bounds-next |
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
-| rangeMode | within | in octave / just over / around 1 / out octave | bounds-next |
+| rangeLow | 0 (degree 1) | Range Low stepper, one degree per step | bounds-next |
+| rangeHigh | 7 (degree 8) | Range High stepper, one degree per step | bounds-next |
 | chromaticRuns | false | toggle - sometimes pass through the chromatic note between whole-step degrees (4 #4 5 up, 6 b6 5 down); only where such a note exists | bounds-next |
 | minLength | 5 | 2..12, 14, 16 list | bounds-next |
 | maxLength | 8 | 3..12, 14, 16, then smaller long-phrase steps to 50 | bounds-next |
@@ -75,16 +81,28 @@ chooses a question range, not a root) and keeps its own range.
 | playOnNext | true | toggle - when off, Next generates and shows the phrase silently (work it out first, then press Play) | immediate (preference) |
 | noteLengthMs | 300 | shared note-length list | replay |
 | gapMs | 0 | shared gap list | replay |
+| sectionPauseMs | 1000 | shared time ladder; pause between repeat loops / breakdown passes / powerset combos | live (read each cycle) |
 | showNoteNames | true | toggle | redraw |
 | fillMode | none | off / full fill / 1358 fill | redraw |
 | loopCurrent | false | Repeat button | immediate (preference only; does not start/stop audio) |
+| seriesText | '' | last successfully loaded Series input text | convenience only (restores the input on reload) |
 | lessonLockedKeys | [] | setting-key array | UI marker only |
 
-Range modes: "in octave" keeps degrees 1-8; "just over" allows two degrees
-past each end (down to 6 of the octave below, up to 3 of the octave above
-for seven-note scales); "around 1" allows the full octave 1-8 plus down to
-the 1 an octave below; "out octave" allows half an octave below to two
-octaves up.
+Range endpoints: the two steppers move the lower and upper ends of the
+degree palette phrases are built from, one scale degree per step, stored
+as scale offsets (0 = degree 1, degrees-per-octave = degree 8). Default
+1..8 (the octave). The low endpoint descends below unison (down to the 1
+an octave below, shown with the down-arrow degree labels, e.g. "6↓");
+the high endpoint climbs past the octave (up to two octaves, "2↑"
+style) or drops below 8 to shrink the palette (high 7 = degrees 1-7
+only, excluding the octave). The endpoints can never cross. One owner
+resolves and clamps them: `rangeBounds` / `phraseRangeLimits` in
+pattern-practice-core.js. The endpoints are the degree WORKSPACE, and
+every surface reads the same two state values: the generator draws notes
+from them and the test chart draws its rails across them (the take can
+only widen the rails - a replayed or reflected phrase may hold notes
+from outside the current palette, and notes on screen always sit on
+rails).
 
 Phrase style chooses the pedagogy: "free" uses the older motion algorithms;
 "staff" focuses on beginner staff-reading shapes (steps, skips, landmarks);
@@ -101,6 +119,13 @@ motion with contrary-step compensation; "motif" repeats and varies a short
 contour cell. No generator emits the same note twice in a row - immediate
 repetition reads as a stutter; repeats only come from deliberate anchors.
 
+The tonic anchors outrank lesson palettes at the phrase edges: with
+"start at 1" on, degree-set lessons seed on degree 1 even when the
+palette excludes it (e.g. barbershop dominant/sevenths), and "return to
+1" appends degree 1 at the end the same way. The palette governs
+everything between the anchors. Both anchors exist to make the phrase
+easier to pitch, so they always mean literal degree 1.
+
 Selecting a style or lesson applies its preset defaults and records those
 setting names in `lessonLockedKeys`. The lock is soft: it marks which controls
 the lesson currently owns, but clicking one of those controls removes that key
@@ -111,24 +136,28 @@ lock `full fill` / `1358 fill`, because those are playback modifiers rather
 than genre or pedagogy choices.
 
 Actions (not persisted): Reflect (reproject of the current phrase around the
-octave), per-note on/off mask, add note (advance breakdown pass). The mask is
+octave), per-note on/off mask, add note (advance breakdown pass), and Series
+Set (parse the typed degree series - `parseDegreeSeries` in
+pattern-practice-core.js - and load it as the current phrase; honors
+playOnNext, joins history; parse errors show under the input and change
+nothing). The mask is
 `immediate` for display; tone and sing playback read it live. Spoken output
 reads the mask once when a play cycle starts. Repeat is a preference only:
 toggling it does not start or stop audio. Play on step controls whether add
 note (or auto step after a cycle) triggers playback. Fill notes are audible
 only between adjacent enabled phrase notes, never across breakdown gaps.
 
-Phrase Test is an exclusive singing/listening mode. Entering Test stops the
-phrase transport and cancels guide playback; while Test is open, Phrases page
-entry points that normally play audio (Play, Next, history replay, per-note
-play buttons, hardware/media-session play/next, Reflect replays, setting
-replays, and play-on-step) must not start phrase playback. The only sound
-allowed inside Test is the explicit `Play Guide` button owned by the pitch test
-panel. This is a product requirement, not an implementation detail: Test means
-"listen to my singing", not "play the phrase again". Enforcement should stay
-centralized: add future phrase playback routes through `runPhrasePlayback`
-and the page-owned `playMidi` boundary rather than scattering bespoke guards
-across handlers.
+Phrase Test coexists with playback (owner-directed reversal of the
+earlier exclusive-mode rule): while Test is open and listening, Play,
+Next, history replay, per-note play buttons, and hardware/media keys all
+work normally, so the user can hear notes and sing against them in one
+take. Entering Test still stops the transport (a take starts from
+silence), the panel itself never auto-plays, and Stop stops sound
+without closing the panel. Generating or switching phrases while the
+panel is open restarts the take for the new phrase (same targets on
+screen and under the score). Note the physics: the microphone hears the
+speakers, so played piano appears in the trace - the chart shows what
+reaches the mic.
 
 ## Trace (`trace-settings`)
 
@@ -139,12 +168,12 @@ meaningful for one configuration).
 |---------|---------|--------|----------|
 | root / octave | D#3 | root pitch stepper (shared C2-B5) | redraw + trace reset |
 | scaleType | major | six scales | redraw + trace reset |
-| guideIntervalMs | 1000 | 500..3000 list | redraw + trace reset |
+| guideIntervalMs | 1000 | shared time ladder from 0.1s | redraw + trace reset |
 | guideSound | piano | piano / beep | immediate (next guide tone) |
 | patternText | empty | degree string | redraw |
 | playGuidesOnReset | false | toggle | immediate |
 | pauseOnSilence | true | toggle | immediate + trace reset |
-| fixedWindow | false | toggle | redraw |
+| fixedWindow | false | toggle | redraw (20s scroll width; off = content-sized scroll width; never grows with clock) |
 | expandRange | false | toggle | redraw |
 
 ## Scales (`scales-settings`)
@@ -163,6 +192,7 @@ its default, then apply the spoken modifiers.
 | repeatGapMs | 1000 | live-restart |
 | risingSemitones | 0 (forces forever when > 0) | live-restart |
 | shiftingSteps | 0 (forces forever when > 0; excludes rising) | live-restart |
+| chopHead | 0 (excludes rising/shifting/exercise/movement; each pass drops the leading note) | live-restart |
 | movementStyle | normal | live-restart |
 | rangeExpansion | 0 | live-restart |
 | octaveSpan | 1 | live-restart |
@@ -196,7 +226,7 @@ The play loop reads settings when it generates each pattern.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | mode | call-response | free / call-response / play-along segment row | next-round (next session) |
-| responseTime | 2s | 1..5s stepper | next-round |
+| responseTime | 2s | shared time ladder from 0.5s (stored in seconds) | next-round |
 | instrument | voice | voice / violin / bass segment row | immediate (sets octave preset, redraws targets) |
 | rootNote + octave | C4 | root pitch stepper (shared C2-B5) | immediate (redraws targets) |
 | scaleType | major | major, minor, chromatic, pentatonic, blues | immediate (redraws targets) |
@@ -223,11 +253,25 @@ playback update, or lyric render without replaying anything.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | aiProvider | claude | claude / openai segment row | immediate (next request; shows that provider's model row and key panel) |
-| claudeModel | claude-opus-4-8 | segment row of current Claude models | immediate (next request) |
-| openaiModel | gpt-5.5 | segment row of current OpenAI models | immediate (next request) |
+| claudeModel | claude-opus-4-8 | claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5 | immediate (next request); retired ids alias forward on load (sonnet-4-6 to sonnet-5, opus-4-5 to opus-4-8) |
+| openaiModel | gpt-5.5 | gpt-5.5, gpt-5.4, gpt-4.1 | immediate (next request); retired ids alias forward on load (gpt-5.2 to gpt-5.4) |
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay current synced lyric into the media-session title) |
+| showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
+
+The per-query Model pills under the request box set the same settings
+(provider + that provider's model) in one tap; the settings panel
+pickers and the query pills always mirror each other.
+
+The playlist filter box and the Known Songs search box are live view
+filters, not settings: they are never persisted and reset to "show all"
+on reload. Both use the one matcher in `player-songs.js`
+(`songMatchesQuery`: every query word must appear in the song's name,
+artist, year, album, comment, title, channel, or search term). The
+playlist filter only hides rows - the playlist array, playback order,
+and next/previous are untouched - and an active filter always shows a
+status line ("Filtering for "x" - 3 of 12 shown") with a Cancel button.
 
 Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 (re-render of the open overlay):
@@ -241,10 +285,12 @@ Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 | backdrop | dim | dim / blackout |
 
 API keys are plain strings via `api-keys-store.js` (`API_CLAUDE`,
-`API_OPENAI`). The playlist + current index persist in `PLAYER_PLAYLIST`;
-favorites in `PLAYER_FAVORITES`; resolved lyrics in `PLAYER_LYRICS_CACHE`.
-Unbounded history lives in the `voice-wei-music` IndexedDB (see
-"Music player durable history" in [architecture.md](architecture.md)).
+`API_OPENAI`). The working playlist + current index persist in
+`PLAYER_PLAYLIST` as Songs + membership (never lyric runtime); favorites
+in `PLAYER_FAVORITES`. Per-song lyric state lives in the
+`voice-wei-music` IndexedDB (`lyricStates`, keyed by videoId), alongside
+the unbounded history (see "The Song primitive" and "Music player
+durable history" in [architecture.md](architecture.md)).
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 
@@ -304,7 +350,7 @@ Per page key (`phrases-test-panel`, `scales-sing-panel`,
 |--------|---------|----------|
 | showTargets | true | redraw |
 | pauseOnSilence | true | immediate + trace reset |
-| fixedWindow | false | redraw |
+| fixedWindow | false | redraw (20s scroll width; off = content-sized; width never grows with clock) |
 | expandRange | false | redraw |
 
 The panel NEVER auto-plays: the test exists for the user to sing, so

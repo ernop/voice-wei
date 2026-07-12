@@ -3,13 +3,28 @@ name: Deploy to Production
 on:
   push:
     branches: [master]
-  workflow_dispatch:  # Manual trigger button in GitHub UI
+    # Docs/rules-only pushes do not change the live site (rsync excludes them).
+    paths-ignore:
+      - '**.md'
+      - '.cursor/**'
+      - 'demos/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
 
 permissions:
   actions: read
   contents: read
 
+# Skip Playwright postinstall browser download; we install Chromium explicitly
+# (and cache it) below.
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
 jobs:
+  # Gates + rsync. Site is live when this job finishes.
   deploy:
     runs-on: ubuntu-latest
     steps:
@@ -21,15 +36,36 @@ jobs:
         with:
           node-version: 22
 
-      # package-lock.json is gitignored (project choice), so install from
-      # the version ranges; browser checks also need Playwright's Chromium.
-      - name: Install dev tooling
-        run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+      # package-lock.json is gitignored (project choice). Cache node_modules by
+      # package.json so warm deploys skip npm install entirely.
+      - name: Cache node_modules
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package.json') }}
 
-      # Static gates: typed contracts and lint guards must hold before
-      # anything reaches the live site. Zero tolerated errors.
+      - name: Install npm deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm install --no-audit --no-fund
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # Cold: download Chromium + OS deps. Warm: browsers restored from cache;
+      # skip install-deps (ubuntu-latest already has the libs headless needs).
+      - name: Install Playwright Chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
       - name: Typecheck (typed contracts)
         run: npm run typecheck
 
@@ -41,11 +77,12 @@ jobs:
 
       - name: Set up SSH
         run: |
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
+      # Product files only. Keep this exclude list in sync with deploy.sh.
       - name: Deploy via rsync
         run: |
           rsync -avz --delete \
@@ -54,29 +91,64 @@ jobs:
             --exclude='.cursor' \
             --exclude='.github' \
             --exclude='.ast-grep' \
+            --exclude='.vscode' \
+            --exclude='.dev' \
             --exclude='config.json' \
             --exclude='tests' \
+            --exclude='types' \
+            --exclude='demos' \
+            --exclude='deploy' \
             --exclude='node_modules' \
             --exclude='*.md' \
             --exclude='*.txt' \
             --exclude='*.sh' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            --exclude='*.py' \
+            --exclude='tsconfig.json' \
+            --exclude='sgconfig.yml' \
+            --exclude='package.json' \
+            --exclude='dev-server.js' \
+            --exclude='pipeline-*.svg' \
+            --exclude='screenshot-*.png' \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
 
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/deploy_key
+
+  # Deploys page data — after the site is already live.
+  telemetry:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Generate deploy telemetry
-        if: success()
         run: node .github/scripts/generate-deploy-telemetry.js
         env:
           GITHUB_TOKEN: ${{ github.token }}
           DEPLOY_TELEMETRY_PAGES: 1
 
+      - name: Set up SSH
+        run: |
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
       - name: Upload deploy telemetry
-        if: success()
         run: |
           rsync -avz \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
 
       - name: Cleanup
         if: always()
-        run: rm -f ~/.ssh/deploy_key
+        run: rm -f /tmp/deploy_key

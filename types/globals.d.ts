@@ -23,6 +23,7 @@ interface Window {
 
     // Our global instances (defined in JS files, declared here for cross-file access)
     scalesController?: import('../scales.js').ScalesController;
+    musicController?: VoiceMusicController;
     pitchMeter?: import('../pitch-meter.js').PitchMeterController;
     VoiceCommandCore?: any;
     TranscriptManager?: any;
@@ -58,10 +59,12 @@ interface Window {
     PlayerLyrics?: typeof PlayerLyrics;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
+    PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
     MediaSessionCore?: any;
     PitchTestPanel?: any;
+    DiagLog?: any;
     ProgressStore?: any;
     HistoryList?: any;
     NotationSpelling?: {
@@ -98,6 +101,7 @@ interface Window {
         breakdownPassIndex: () => number;
         mediaPlay: () => void;
         mediaNext: () => void;
+        mediaPrevious: () => void;
         settings: () => {
             breakdownEnabled: boolean;
             autoStep: boolean;
@@ -116,6 +120,11 @@ interface Window {
         panel: any;
     };
     intervalsDebug?: { panel: any };
+    traceDebug?: {
+        patternEntries: () => Array<{ interval: number; label: string }>;
+        guideTargets: () => TargetSpan[];
+        rails: () => ScaleDegreeNote[];
+    };
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;
     normalizeModifier?: (spoken: string | null | undefined) => string | null;

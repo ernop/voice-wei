@@ -22,7 +22,8 @@ surfaces" in architecture.md with its reasoning.
 | Small action chip (Copy, Clear, Save, Apply...) | `panel-action-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size neutral action | `secondary-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size primary action (Import, Generate, Play) | `primary-btn` | practice-controls.css |
-| Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`), `pitch-test-launch-button` | practice-controls.css / style.css |
+| Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`) | practice-controls.css / style.css |
+| Pitch test / sing launch | `pitch-test-launch-button` in `.pitch-test-dock` (bottom sheet; not in the transport row) | practice-controls.css |
 | Primary submit | `submit-button-large` | style.css |
 | On/off toggle | `display-toggle` chip checkbox | practice-controls.css |
 | Text field | `text-input` (pages size it, never re-skin) | style.css |
@@ -60,17 +61,21 @@ these dialects, all defined in style.css:
 
 | Dialect class | Job today | Resolution |
 |---------------|-----------|------------|
-| `quick-action-btn` | Mid-size actions (Load Favorites, History/Cache, Refresh, Load Selected, Load Songs, Stop Melody) | Retire -> `secondary-btn` |
-| `clear-playlist-btn` | Destructive playlist clear | Retire -> `panel-action-btn danger` |
 | `typed-command-submit-btn` | Send the typed request | Retire -> `secondary-btn` (or `submit-button-large` if it should carry primary weight) |
 | `close-settings-btn` | Close the settings panel | Retire -> `panel-action-btn` (shared with Books) |
 | `save-api-key-btn` | Save an API key | Retire -> `panel-action-btn` (shared with Books) |
 | `api-key-action-btn` (+ `.danger`) | Show/Change/Remove key | Retire -> `panel-action-btn` (shared with Books) |
-| `control-btn` / `control-btn-large` / `control-btn-small` | Central player transport (prev/play/stop/next, rewind/forward) | Keep as ONE named media-transport family (see below) |
+| `control-btn` / `control-btn-large` / `control-btn-small` | Central player transport (prev/play/stop/next, rewind/forward, lyrics launchers) | Keep as ONE named media-transport family (see below) |
 | `transport-bar-btn` (+ `transport-bar-playpause`) | Sticky bottom transport bar | Fold into the same media-transport family |
-| `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers in the transport bar | State classes on media-transport buttons, not separate button kinds |
+| `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers (now in the central player's secondary control row) | State classes on media-transport buttons, not separate button kinds |
 | `lyrics-overlay-transport-btn`, `lyrics-overlay-control-btn`, `lyrics-overlay-action-btn`, `lyrics-panel-hide-btn` | Overlay transport + view chips + hide | Three near-identical chip kinds; collapse to media-transport (transport) and `panel-action-btn` (view chips, hide) |
-| `favorite-btn`, `lyrics-row-btn` | Playlist row star / per-row lyrics status chip | Row-level gameplay surface; keep, document in architecture's distinct list |
+| `favorite-btn`, `lyrics-row-btn`, `playlist-remove-btn` | Playlist row star / per-row lyrics chip / per-row remove | Row-level gameplay surface; keep, document in architecture's distinct list |
+
+Retired in the playlist-organization pass (v218): `quick-action-btn` on the
+player (now `secondary-btn` / `primary-btn`; deploys.html still carries the
+class and CSS until its own pass) and `clear-playlist-btn` (now
+`panel-action-btn danger` in the playlist header alongside Shuffle and the
+sort chips).
 
 **Media transport is deliberately distinct, but it must be one family.**
 architecture.md already exempts the player's media transport bar from the
@@ -147,3 +152,14 @@ control language.
   shared vocabulary and blocked by `tests/test-controls.js`.
 - `display-toggles` and `echo-toggle` (scales.css) - Scales' display
   toggles moved into the voice-first settings block as a labeled row.
+
+## Stepper and Key labeling
+
+Numeric steppers use an external `vf-label` (or row label) plus
+`step-field-bare` — the label is never boxed inside the green pill.
+The user-facing name for the root-pitch chooser is **Key** on every
+practice page (state keys may still say `root` / `rootPitch`).
+
+Pitch Test / Sing launches from a fixed bottom dock (`.pitch-test-dock`),
+not from the transport row. Transport is playback only
+(Listen/Stop/Play/Next/Repeat).

@@ -144,7 +144,7 @@ const PlayerCommands = (function () {
                             this.updateStatus('Nothing is playing');
                         } else {
                             this.fastForward();
-                            this.updateStatus('Skipped forward 10 seconds');
+                            this.updateStatus('Skipped forward 5 seconds');
                         }
                         break;
                     case 'rewind':
@@ -152,7 +152,7 @@ const PlayerCommands = (function () {
                             this.updateStatus('Nothing is playing');
                         } else {
                             this.rewind();
-                            this.updateStatus('Rewound 10 seconds');
+                            this.updateStatus('Rewound 5 seconds');
                         }
                         break;
                 }
@@ -206,6 +206,31 @@ const PlayerCommands = (function () {
                 }
             },
 
+            /**
+             * Provider errors that mean "your key/account, not this
+             * request": invalid key, spend or rate limits, billing. These
+             * get a distinguishable name so the UI can show a persistent,
+             * actionable banner instead of a generic lookup failure.
+             * @param {'claude' | 'openai'} provider
+             * @param {number} status HTTP status
+             * @param {any} errorBody parsed provider error JSON
+             * @returns {Error & { provider?: string, status?: number }}
+             */
+            classifyProviderError(provider, status, errorBody) {
+                const type = errorBody?.error?.type || '';
+                const message = errorBody?.error?.message || `${provider} API request failed (HTTP ${status})`;
+                /** @type {Error & { provider?: string, status?: number }} */
+                const error = new Error(message);
+                const keyLevel = [401, 402, 403, 429].includes(status)
+                    || /quota|billing|credit|insufficient|rate.?limit|spend/i.test(`${type} ${message}`);
+                if (keyLevel) {
+                    error.name = 'ApiKeyError';
+                    error.provider = provider;
+                    error.status = status;
+                }
+                return error;
+            },
+
             async processCommandWithClaude(transcript) {
                 if (!this.config || !this.config.claudeApiKey) {
                     throw new Error('Claude API key not configured');
@@ -228,7 +253,9 @@ const PlayerCommands = (function () {
                     };
 
                     this.logClaudeMessage(`Music search request to Claude (${this.settings.claudeModel}) batch ${i + 1}/${prompts.length}`);
+                    this.addMessage('claude', `Claude request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(requestBody, null, 2));
 
+                    let truncated = false;
                     try {
                         const response = await fetch('https://api.anthropic.com/v1/messages', {
                             method: 'POST',
@@ -242,19 +269,30 @@ const PlayerCommands = (function () {
                         });
 
                         if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.error?.message || 'Claude API request failed');
+                            const error = await response.json().catch(() => ({}));
+                            this.addMessage('error', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
+                            throw this.classifyProviderError('claude', response.status, error);
                         }
 
                         const data = await response.json();
-                        responseText = data.content[0].text.trim();
+                        this.addMessage('claude', `Claude response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
+                        truncated = data.stop_reason === 'max_tokens';
+                        if (truncated) {
+                            this.addMessage('error', 'Claude response truncated', `stop_reason=max_tokens: the song list was cut off at the ${MUSIC_SEARCH_MAX_TOKENS}-token output limit; complete songs will be recovered.`);
+                        }
+                        // Adaptive-thinking models (Fable 5, Sonnet 5) may
+                        // return thinking blocks before the text block.
+                        const textBlock = data.content.find(block => block.type === 'text');
+                        if (!textBlock) {
+                            throw new Error('Claude response did not contain a text block');
+                        }
+                        responseText = textBlock.text.trim();
                     } catch (error) {
-                        console.error('Claude API error:', error);
                         this.logError('Claude API Error', error);
                         throw error;
                     }
 
-                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
                 return this.mergeAIResponseBatches(songLists, prompts);
@@ -275,7 +313,9 @@ const PlayerCommands = (function () {
                     const request = this.buildOpenAIRequest(prompt);
 
                     this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
+                    this.addMessage('claude', `OpenAI request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(request.body, null, 2));
 
+                    let truncated = false;
                     try {
                         const response = await fetch(request.url, {
                             method: 'POST',
@@ -287,19 +327,24 @@ const PlayerCommands = (function () {
                         });
 
                         if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.error?.message || 'OpenAI API request failed');
+                            const error = await response.json().catch(() => ({}));
+                            this.addMessage('error', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(error, null, 2));
+                            throw this.classifyProviderError('openai', response.status, error);
                         }
 
                         const data = await response.json();
+                        this.addMessage('claude', `OpenAI response (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(data, null, 2));
+                        truncated = data.status === 'incomplete';
+                        if (truncated) {
+                            this.addMessage('error', 'OpenAI response truncated', `status=incomplete (${data.incomplete_details?.reason || 'unknown reason'}): the song list was cut off at the ${MUSIC_SEARCH_MAX_TOKENS}-token output limit; complete songs will be recovered.`);
+                        }
                         responseText = this.extractOpenAIResponseText(data);
                     } catch (error) {
-                        console.error('OpenAI API error:', error);
                         this.logError('OpenAI API Error', error);
                         throw error;
                     }
 
-                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true }).songList);
+                    songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
                 return this.mergeAIResponseBatches(songLists, prompts);
@@ -459,6 +504,10 @@ Return a JSON array of music search items that match this request. If the user a
 
 If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
 
+Names in the request may be misheard by voice transcription or slightly misspelled (for example "mayu ongaku" for the band Maya Ongaku). If the request looks like an artist, band, or song name you do not confidently recognize, never substitute a different better-known artist that partially matches or reinterpret the words. Return the user's literal words as a searchTerm item (YouTube search tolerates small misspellings and will find the artist); if you suspect the name is a near-miss spelling of a real artist, also include items using that corrected name.
+
+Unless the user explicitly asks for live, acoustic, cover, or remix versions, every item means the ORIGINAL STUDIO RECORDING: never add words like "live" to the search term, and do not select live albums or concert recordings.
+
 Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
 [{
   "name": "Song Title, or empty string if the item is an artist/band/search phrase",
@@ -479,7 +528,24 @@ If the request is not about music, return an empty array [].`;
 
                 this.addMessage('claude', 'Parsing JSON', jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
 
-                const parsed = JSON.parse(jsonText);
+                let parsed;
+                try {
+                    parsed = JSON.parse(jsonText);
+                } catch (parseError) {
+                    // A response cut off mid-list (output token limit) is
+                    // still mostly usable: keep every complete item, drop
+                    // the broken tail, and say so loudly in the log.
+                    const salvaged = this.salvageJsonArrayItems(responseText);
+                    if (!salvaged || salvaged.length === 0) {
+                        throw parseError;
+                    }
+                    const cause = options.truncated
+                        ? 'The provider reports the response hit its output token limit.'
+                        : 'The response JSON did not parse whole.';
+                    this.addMessage('error', 'Truncated response recovered', `${cause} Kept ${salvaged.length} complete song${salvaged.length === 1 ? '' : 's'} and dropped the incomplete tail.`);
+                    parsed = salvaged;
+                }
+
                 const songList = this.normalizeAISongList(parsed);
                 this.addMessage('claude', 'Parsed songs', `${songList.length} songs found`);
 
@@ -490,6 +556,72 @@ If the request is not about music, return an empty array [].`;
                 }
 
                 return { songList, prompt };
+            },
+
+            /**
+             * Recover the complete top-level objects of the first JSON
+             * array in the text. Handles responses truncated mid-item by
+             * an output token limit: every fully closed object is kept,
+             * the partial trailing one is dropped. String contents
+             * (quotes, braces, escapes) are tracked so lyric-like values
+             * cannot fool the scan. Returns null when no array starts.
+             * @param {string} text
+             * @returns {any[] | null}
+             */
+            salvageJsonArrayItems(text) {
+                const source = String(text || '');
+                const start = source.indexOf('[');
+                if (start === -1) return null;
+
+                /** @type {string[]} */
+                const rawItems = [];
+                let depth = 0;
+                let inString = false;
+                let escaped = false;
+                let itemStart = -1;
+                for (let i = start + 1; i < source.length; i++) {
+                    const ch = source[i];
+                    if (inString) {
+                        if (escaped) {
+                            escaped = false;
+                        } else if (ch === '\\') {
+                            escaped = true;
+                        } else if (ch === '"') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+                    if (ch === '"') {
+                        inString = true;
+                        continue;
+                    }
+                    if (ch === '{') {
+                        if (depth === 0) itemStart = i;
+                        depth++;
+                        continue;
+                    }
+                    if (ch === '}') {
+                        depth--;
+                        if (depth === 0 && itemStart !== -1) {
+                            rawItems.push(source.slice(itemStart, i + 1));
+                            itemStart = -1;
+                        }
+                        continue;
+                    }
+                    if (ch === ']' && depth === 0) {
+                        break; // array closed properly
+                    }
+                }
+
+                const items = [];
+                for (const raw of rawItems) {
+                    try {
+                        items.push(JSON.parse(raw));
+                    } catch (_ignored) {
+                        // An item that does not parse on its own is dropped.
+                    }
+                }
+                return items;
             },
 
             mergeAIResponseBatches(songLists, prompts) {

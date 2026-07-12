@@ -4,6 +4,286 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-10 (Phrases/Intervals layout: Test is a bottom dock)
+
+**Context**: Yui asked for a top-to-bottom layout pass — Test does not
+belong in transport; pill labels were inconsistent (boxed vs not); Root
+vs Key naming drifted across pages.
+
+**Shipped**:
+- Test/Sing moved to `.pitch-test-dock` (fixed bottom sheet) on Phrases,
+  Intervals, and Scales. Transport is playback only.
+- Key is the user-facing label everywhere for the root-pitch stepper.
+- Phrases steppers use external `vf-label` + `step-field-bare` (same as
+  Intervals/Scales). Intervals got `vf-compact` + segment shells on
+  Level/Scale; Go renamed Play.
+- Scale card order fixed (explicit flex order 4). Stage labels lowercased.
+
+---
+
+## 2026-07-10 (live-change requirements: signal ≠ version UI)
+
+**Context**: Yui reframed ship/version. The 99% loop is: driving → voice
+note to agent → agent ships → yui knows it’s live (often reload phone).
+The header integer exists only as a glanceable signal; SHA fails that.
+Out-of-band notify (chat after Actions green, Signal/SMS, etc.) is in
+scope and could make the on-page number unnecessary. Repo + auto-deploy
+to fuseki stay; elegance of CI is not a goal.
+
+**Doc**: `docs/live-change.md` (R1 live / R2 signal / R3 repo). Linked
+from agents.md, product-goals, and 10-deploy-workflow.
+
+---
+
+## 2026-07-10 (Trace twitch: growing time axis, not missing library)
+
+**Context**: Yui said Trace is still jumpy/twitchy, Phrases Test is not the
+priority, and asked again why wei keep writing a chart from scratch when
+libraries exist. Bet that targets still feed the draw path.
+
+**What was actually wrong (code audit)**:
+1. **Time window grew with `clockMs()`** every frame (`trace.js` /
+   `pitch-test-panel.js`). Width changed continuously → whole chart
+   squeezed → classic twitch. Fixed: stable width + always-scroll.
+2. **Target bands recolored from scoring verdicts** (`result` →
+   green/yellow/red). That is feedback from the interval product into
+   the display. Fixed: bare outlines only; ignore `result`.
+3. **Cents-colored dots on the voice line** were judgment baked into
+   the instrument. Removed.
+4. View required `pitch-score.js` only for band height. Decoupled;
+   Trace no longer loads scoring.
+
+**Libraries (honest answer for next time)**: There is no drop-in npm
+package that is "our Trace" (key rails + degree guides + voice-gated
+clock + static no-build site). Detector algorithms exist (YIN/MPM via
+Pitchy etc.) and wei already use MPM. Full apps (MercuryPitch, karaoke
+UIs) are products to fork, not a chart widget. The canvas renderer is
+small; the failures were product coupling and a bad time-axis policy,
+not "we should have imported a viz framework."
+
+**Still true**: instrument law - history alone drives the yellow line;
+rails/targets are furniture.
+
+---
+
+## 2026-07-10 (faster deploys: cache + telemetry off critical path)
+
+**Context**: Yui asked what makes deploys ~1 min; ~28s was cold
+`npm install` + Playwright every run, ~10s telemetry after rsync.
+
+**What worked**: Cache `node_modules` + Playwright browsers; telemetry as a
+follow-up job; on cache hit skip `install-deps` (ubuntu-latest has enough
+libs for headless). Site is live when rsync finishes.
+
+**What did not**: Running the deploy job in the Playwright Docker image —
+container init (~26s) + apt for rsync (~8s) erased the savings and broke
+SSH `~` paths until fixed. Reverted to hosted `ubuntu-latest`.
+
+---
+
+## 2026-07-10 (dev/deploy loop untangled)
+
+**Context**: After fixing version bump to ship-with-change, yui asked whether
+the whole dev→deploy system was as simple as it could be. Audit found the
+version policy was fine; the remaining fights were elsewhere.
+
+**What changed**:
+- Actions: `paths-ignore` for docs/rules/demos (no CI on non-shipping
+  pushes); `concurrency` cancel-in-progress; tighter rsync excludes
+  (no types/tsconfig/dev-servers/screenshots/etc on the server).
+- `deploy.sh` matches CI (`--delete` + same excludes); dropped the false
+  "put Claude key in server config.json" line.
+- Local run: README + setup + `04-local-tooling.mdc` agree on `php -S` as
+  canonical; Python static is practice-only; retired Windows/venv rule file.
+- `03-project.mdc` rewritten for the multi-tool suite + localStorage keys;
+  `00-absolute-rules` config pattern matches reality.
+- `10-deploy-workflow`: goals first; empty Cursor PR diff expected;
+  bump-only called out as *misleading version*, not just wasted CI.
+
+**Left alone (optional later)**: `php -l` in CI; promote `test:full` to
+deploy; npm cache/lockfile; collapsing three local servers into one.
+
+---
+
+## 2026-07-10 (version bump: ship-with-change, not post-push)
+
+**Context**: First Grok session wrote `groks-view.md`, then followed the
+old "bump after every push" rule and pushed standalone v255 and v256
+bumps — two empty deploys after a docs-only change. Yui clarified the
+only real goals: (1) new code reaches the live site so a reload shows
+it, (2) the header version proves which build is loaded.
+
+**Rule rewrite**: `.cursor/rules/10-deploy-workflow.mdc` version section
+(and agents.md / README / setup / architecture / bump-version.sh /
+groks-view) now say: bump **once per user-facing ship, same push as the
+change**; never bump-only pushes; skip bump when only rsync-excluded
+paths change. Post-push "open the next cycle" is retired.
+
+**Still open (not this change)**: cloud agent PR-branch prompt vs
+direct-to-master — yui is fine with either as long as auto-deploy on
+master push remains. Cursor PR diff stays empty under master-direct.
+
+---
+
+## 2026-07-08 (song voice lines; two grammars born the same night)
+
+**Context**: Yui is preparing a barbershop chart ("Ain't We Got Fun",
+Bob Meyer TTBB, in G) and wants each of the four voice lines as a
+typed degree series the app can play. Shipped the phrases Series input:
+`parseDegreeSeries` in pattern-practice-core (digits, v/d/arrows for
+octaves, #/b for chromatic passing notes as half-integer offsets),
+`phraseFromOffsets` as the one Phrase constructor, and a Set action
+that is the manual twin of Next (honors play-on-next, joins history).
+Errors list under the input and change nothing - no guessing.
+
+**Same-night collision**: while this session built the Series grammar
+(5v, 2^), a parallel session shipped the trace pattern octave grammar
+(5d, 2u). Same concept, two mark vocabularies, hours apart. The merge
+lesson: before inventing any input token grammar, grep for sibling
+grammars (trace's patternInput existed all along, octave-blind). Both
+inputs now accept v/d/arrow down and ^/u/arrow up. If a third degree
+grammar ever appears, extract ONE owner.
+
+**Design fix found by demo review**: the staff crammed accidental-heavy
+phrases because width was a fixed 21px/beat guess. Base fix: build and
+measure the voice first (applyAccidentals, preCalculateMinTotalWidth),
+then size the renderer - content decides width, plus the white staff
+band now hugs the SVG (fit-content) instead of spanning the stage.
+
+**Demo recording craft (for future mei)**: the computerUse agent's
+zoom/magnifier shows up in screen recordings as jump cuts and white
+flashes - record keyboard-only segments (the Series input commits on
+Enter partly for this reason); the VM screensaver cuts in after a few
+idle seconds, so keep recorded takes short or trim with ffmpeg; and the
+videoReview agent catches real bugs (it found the staff cramming), so
+believe it and fix rather than re-shoot around defects.
+
+**Open thread**: only the top half of page 1 of the chart was
+photographed (intro + chorus mm. 5-9). The baritone intro reading in
+tokens: `5v 1 1 7bv 7bv 7v 7v 2# 2# 2# 2# 2`. The lead chorus from the
+published melody: `5v 3 3b 3 | 5v 3 3b 3 | 4 4 3 4 | 5v 4 3 4`. Tenor
+and bass lines for those measures, plus everything after m. 9, need
+clearer/full-page photos from yui.
+
+---
+
+## 2026-07-08 (done-flags vs per-item resolved state)
+
+**Context**: Shipped a "one-time lyrics backfill" gated by a global
+`backfilledAt` marker. Yui asked one question: should that be global or
+per song? The question exposed two real flaws: the marker was set when
+the recheck was QUEUED, so closing the page mid-backfill (or a rate-limit
+failure) permanently lost the remainder - the exact interruption bug this
+same session had just fixed for playlist lyric fetching.
+
+**The lesson**: a global "done" flag written at the start of an async
+batch is a lie about per-item work. When the underlying question is
+per-item ("does this song have a resolved lyric state?"), represent it
+per-item and reconcile against it on every load - resolved items cost
+nothing, unresolved ones re-queue, and interruption recovery falls out by
+construction. Reserve one-shot markers for genuinely global events (here:
+wiping the pre-rule contaminated miss map, a data migration).
+
+**Also**: when yui asks "should X be A or B - think about it", the answer
+may reveal defects in what just shipped. Treat the question as a design
+review invitation, not a quiz.
+
+**Later the same night (store-first lyrics)**: yui reported "chip shows L
+but playing the song gives no lyrics; reload fixes it" and named the
+disease exactly: dual sources. The lyric system had a session-side truth
+(item.lyricsData + a fuzzy artist|title|duration-keyed localStorage cache
+with alias/miss maps) that could disagree with what a later hydrate
+re-matched. The fix that ended the whole class: one permanent owner
+(IndexedDB `lyricStates` keyed by videoId - exact identity, no fuzzy
+matching), save-then-activate (the store write is AWAITED before the live
+object learns the answer), one shared in-flight promise per videoId, and
+provider fetches bounded by timeout so nothing wedges in 'loading'.
+Rule of thumb yui gave, worth keeping verbatim: "first we save to our
+permanent store, then we activate it" - and the play path must read
+through the same object that was activated from the store, never a
+parallel copy.
+
+---
+
+## 2026-07-07 (the Song primitive; quota bug as a data-model symptom)
+
+**Context**: Yui hit a QuotaExceededError saving the playlist (101 songs)
+and asked for the real fix: define what a song IS, then reorganize the
+playlist and page around it.
+
+**The base-design analysis**: the quota error was not a storage-size
+problem, it was a missing-primitive problem. There was no Song type -
+five hand-rolled song shapes (playlist item, favorite, IDB song record,
+AI item, YouTube result) built inline with `||` chains. Because
+PlaylistItem mixed the durable song with runtime lyric state, persisting
+"the playlist" persisted full lyrics per item; the lyrics cache stored
+another full copy under every alias key; recordSong spread a third into
+IndexedDB. Fix the model and the bug falls out: `player-songs.js` owns
+Song (videoId = identity + always-present metadata) and every derived
+shape has exactly one constructor; the persisted playlist entry
+constructor simply has no lyric fields, and the lyrics cache became
+records+aliases (one copy, capped at 200, trimmed loudly).
+
+**Semantics shipped with it**: the playlist is the working list for the
+current search - a new AI request REPLACES it, explicit loads (favorites,
+history, known songs) APPEND, rows are removable/sortable, ordering is
+append-at-end everywhere (the unshift + index++ dance is gone). Nothing
+is lost on replace because every added song is recorded to the IDB
+known-songs catalog at add time.
+
+**Layout lesson**: yui's complaints (comment jammed into the song cell,
+lyric toggle far from the controls) were both "data with no fixed home".
+The row is now a grid where every datum has one slot, and the comment -
+which the AI writes specifically to be read - got its own full-width
+line instead of an ellipsized suffix. Test asserts the slots.
+
+**For future mei**: when a page accumulates display variants of the same
+concept in different slots, look for the missing primitive first. Also:
+`docs/tools.md` still claimed the now-playing title moves song name to
+the artist slot - stale against the Jul 5 lyric-only directive; corrected
+here. Docs restating behavior drift silently; when touching a surface,
+re-read its doc paragraph.
+
+---
+
+## 2026-07-05 (car title surfaces: the invented-requirement hedge, again)
+
+**Context**: Yui asked for the now-playing title (Bluetooth/car, lock screen,
+tab) to be the sing-along lyric line, nothing else. It took three passes to
+actually get there, and yui then asked for an audit of how song/artist kept
+leaking into the title.
+
+**The audit found**:
+- Jun 28 (`e999890`): `updateMediaSessionForItem` wrote song/artist metadata
+  at every track start - generic media-player plumbing, predating the lyric
+  feature.
+- Jul 3 (`9efdffd`): the lyric relay was added, but the commit message says
+  "the song name moves into the artist slot **so the track stays
+  identifiable**" and gaps/pauses "restore the song's own metadata". Nobody
+  asked for identifiability. That is the invented-unstated-requirement
+  failure mode from the 2026-06-10 entry, wearing a new coat.
+- Jul 5 (this session): told "no extra info, just the song lyric", mei
+  removed the decoration from the showing state but left both restore paths
+  (track start, gaps) writing song/artist. Narrow application of a directive
+  that governed the whole surface.
+
+**Lesson for future mei**: when yui gives a negative directive ("never show
+X here"), it is a property of the SURFACE, not of one code path. Enforce it
+at every writer of that surface, and pin it with a test that snapshots all
+states (intro, active, paused, restored) asserting X never appears. When a
+commit message needs a clause like "so the track stays identifiable" to
+justify keeping something the directive removed, that clause is the smell:
+it means an unstated requirement got invented. Implement the directive
+plainly or ask.
+
+**Prompts are not in the repo**: the Jul 3 work-order text is unrecoverable;
+only the commit message remains. If a directive matters enough that yui may
+audit it later, restate it in the commit message ("never writes song/artist:
+required by work order") so the record carries the constraint, not just the
+behavior.
+
+---
+
 ## 2026-06-29 (player critique -> five workstreams)
 
 **Context**: Yui asked for a hard critique of the player design, then approved
