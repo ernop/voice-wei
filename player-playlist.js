@@ -248,9 +248,6 @@ const PlayerPlaylist = (function () {
                 this.updatePlaylistLabel();
                 this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);
 
-                if (addedCount === 0 && songList.length > 0) {
-                    this.speakText('Could not find any of those songs on YouTube');
-                }
                 this.persistPlaylist();
                 return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
             },

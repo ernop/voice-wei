@@ -2442,6 +2442,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 playlist: [],
                 youtubeAlternateResults: new Map(),
                 currentPlaylistIndex: -1,
+                settings: { playlistTimedOnly: false },
                 messages: [],
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus() {},
@@ -2508,7 +2509,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // finds nothing leaves the playlist untouched.
         const keepPlayingReplace = await tab.evaluate(async () => {
             const makeHarness = () => {
-                const harness = { playlist: [], youtubeAlternateResults: new Map(), lyricsFetchQueue: [] };
+                const harness = {
+                    playlist: [],
+                    youtubeAlternateResults: new Map(),
+                    lyricsFetchQueue: [],
+                    settings: { playlistTimedOnly: false },
+                    spoken: []
+                };
                 PlayerPlaylist.install(harness);
                 Object.assign(harness, {
                     addMessage() {},
@@ -2520,7 +2527,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     persistPlaylist() {},
                     queueLyricsLookup() {},
                     renderLyricsStateForItem() {},
-                    speakText() {}
+                    speakText(text) { this.spoken.push(text); }
                 });
                 return harness;
             };
@@ -2555,13 +2562,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 [{ searchTerm: 'nothing', name: 'Nothing', artist: 'Z' }],
                 { replaceExisting: true }
             );
-            return { afterReplace, untouchedIds: untouched.playlist.map(entry => entry.videoId).join('|') };
+            return {
+                afterReplace,
+                untouchedIds: untouched.playlist.map(entry => entry.videoId).join('|'),
+                unexpectedSpeech: untouched.spoken
+            };
         });
         report.check(`player replace keeps the playing song and defers clearing (${keepPlayingReplace.afterReplace.ids})`,
             keepPlayingReplace.afterReplace.ids === 'old-b|new-1'
             && keepPlayingReplace.afterReplace.cursor === 0
             && keepPlayingReplace.afterReplace.stillPlaying === true
-            && keepPlayingReplace.untouchedIds === 'keep-1');
+            && keepPlayingReplace.untouchedIds === 'keep-1'
+            && keepPlayingReplace.unexpectedSpeech.length === 0);
 
         const boundedSearch = await tab.evaluate(async () => {
             const harness = {
