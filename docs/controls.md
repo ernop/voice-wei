@@ -103,7 +103,10 @@ that was executed:
 
 Books' OpenAI voice/model `<select>`s stay (dynamic lists; the declared
 exception in architecture.md). The Listen card's transport grid keeps
-the shared classes but sizes them tall (58px) for driving.
+the shared classes but sizes them tall (58px) for driving. AI Question is a
+`primary-btn` beside Play from progress; its open panel uses `primary-btn` for
+Ask and `panel-action-btn` for Close / Read answer, so the feature adds no new
+button dialect.
 
 ## Other pages
 

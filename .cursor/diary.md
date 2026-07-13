@@ -685,3 +685,22 @@ chunk click-to-play, and a +1 hour generate button.
 
 ---
 
+## 2026-07-13 — Books AI Question
+
+**Changed**:
+- AI Question snapshots the active MP3 chunk, pauses narration, captures one
+  voice utterance through `VoiceCommandCore`, shows the exact context, and sends
+  question + full chunk to OpenAI. Typed questions remain available.
+- Answers are visible first and can optionally use `VoiceOutput`; the preference
+  is persisted and questions join local book history.
+- Chunk source offsets now exclude trimmed trailing whitespace, and decoded MP3
+  duration replaces the estimate when browser metadata becomes available.
+
+**Learned**:
+- Whole-chunk context is small enough that alignment adds complexity without
+  helping this interaction. Snapshot segment identity before the asynchronous
+  request, and abort it on close/book switch so an answer cannot leak into a
+  different book's state.
+
+---
+

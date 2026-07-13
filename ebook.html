@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=266">
-    <link rel="stylesheet" href="practice-controls.css?v=266">
-    <link rel="stylesheet" href="ebook.css?v=266">
+    <link rel="stylesheet" href="style.css?v=267">
+    <link rel="stylesheet" href="practice-controls.css?v=267">
+    <link rel="stylesheet" href="ebook.css?v=267">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -34,6 +34,14 @@
                 </div>
                 <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call OpenAI's API directly.</p>
+            </div>
+
+            <div class="setting-item">
+                <label class="ai-question-speak-option">
+                    <input type="checkbox" id="settingsSpeakAiAnswersToggle" />
+                    <span>Read AI Question answers aloud</span>
+                </label>
+                <p class="setting-description">Uses the browser's native voice after the written answer appears.</p>
             </div>
 
             <button id="closeSettingsBtn" class="panel-action-btn">Close</button>
@@ -254,7 +262,43 @@
                                 </div>
                                 <div class="player-actions">
                                     <button id="playFromProgressBtn" class="primary-btn" type="button">Play from progress</button>
+                                    <button id="aiQuestionBtn" class="primary-btn ai-question-launch-btn" type="button">
+                                        <span class="button-text">AI question</span>
+                                    </button>
                                     <button id="showHistoryBtn" class="panel-action-btn" type="button">History</button>
+                                </div>
+                                <button id="aiQuestionListenBtn" type="button" hidden></button>
+                                <button id="aiQuestionVoiceSubmitBtn" type="button" hidden></button>
+                                <span id="aiQuestionVoiceStatus" hidden></span>
+                                <div class="ai-question-panel" id="aiQuestionPanel" style="display: none;">
+                                    <div class="ai-question-header">
+                                        <div>
+                                            <strong>Ask about this chunk</strong>
+                                            <span id="aiQuestionContextLabel">The full current chunk will be sent to OpenAI.</span>
+                                        </div>
+                                        <button id="closeAiQuestionBtn" class="panel-action-btn" type="button">Close</button>
+                                    </div>
+                                    <label class="ai-question-field" for="aiQuestionInput">
+                                        Your question
+                                        <textarea id="aiQuestionInput" rows="3" placeholder="Ask about what you were just hearing"></textarea>
+                                    </label>
+                                    <div id="aiQuestionTranscriptContainer" class="ai-question-transcript" style="display: none;">
+                                        Heard: <span id="aiQuestionTranscript"></span>
+                                    </div>
+                                    <details class="ai-question-context" open>
+                                        <summary>Exact text sent with your question</summary>
+                                        <div id="aiQuestionContextText"></div>
+                                    </details>
+                                    <label class="ai-question-speak-option">
+                                        <input type="checkbox" id="speakAiAnswersToggle" />
+                                        <span>Read answers aloud</span>
+                                    </label>
+                                    <div class="ai-question-actions">
+                                        <button id="askAiQuestionBtn" class="primary-btn" type="button">Ask</button>
+                                        <button id="repeatAiAnswerBtn" class="panel-action-btn" type="button" style="display: none;">Read answer</button>
+                                    </div>
+                                    <div id="aiQuestionStatus" class="ai-question-status">Tap AI question and speak, or type here and press Ask.</div>
+                                    <div id="aiQuestionAnswer" class="ai-question-answer" style="display: none;"></div>
                                 </div>
                                 <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3s. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
@@ -297,13 +341,15 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=266"></script>
-    <script src="app-version.js?v=266"></script>
-    <script src="storage-keys.js?v=266"></script>
-    <script src="settings-store.js?v=266"></script>
-    <script src="api-keys-store.js?v=266"></script>
-    <script src="shared-header.js?v=266"></script>
-    <script src="ebook.js?v=266"></script>
+    <script src="dev-error-monitor.js?v=267"></script>
+    <script src="app-version.js?v=267"></script>
+    <script src="storage-keys.js?v=267"></script>
+    <script src="settings-store.js?v=267"></script>
+    <script src="api-keys-store.js?v=267"></script>
+    <script src="voice-output.js?v=267"></script>
+    <script src="voice-command-core.js?v=267"></script>
+    <script src="shared-header.js?v=267"></script>
+    <script src="ebook.js?v=267"></script>
 </body>
 
 </html>

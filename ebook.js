@@ -14,6 +14,8 @@ const HISTORY_STORE = 'history';
 const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
+const BOOK_QUESTION_MODEL = 'gpt-5.5';
+const BOOK_QUESTION_MAX_OUTPUT_TOKENS = 1200;
 
 const OPENAI_TTS_MODELS = [
     {
@@ -95,6 +97,7 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @property {string} accent
  * @property {string} style
  * @property {string} instructions
+ * @property {boolean} speakAiAnswers
  */
 
 /**
@@ -395,7 +398,15 @@ class BooksController {
         /** @type {AudioSegment[]} */
         this.segments = [];
         /** @type {Settings} */
-        this.settings = { voice: 'alloy', model: 'gpt-4o-mini-tts', speed: 1, accent: 'default', style: 'audiobook', instructions: '' };
+        this.settings = {
+            voice: 'alloy',
+            model: 'gpt-4o-mini-tts',
+            speed: 1,
+            accent: 'default',
+            style: 'audiobook',
+            instructions: '',
+            speakAiAnswers: false
+        };
         /** @type {string | null} */
         this.apiKey = null;
         /** @type {AbortController | null} */
@@ -441,6 +452,14 @@ class BooksController {
         this.lastAudioTimeForHistory = 0;
         this.lastReadHistoryAt = 0;
         this.lastReadWordOffset = 0;
+        /** @type {VoiceCommandCore | null} */
+        this.aiQuestionVoiceCore = null;
+        /** @type {string | null} */
+        this.aiQuestionSegmentId = null;
+        this.aiQuestionInFlight = false;
+        /** @type {AbortController | null} */
+        this.aiQuestionAbort = null;
+        this.lastAiAnswer = '';
         this.init();
     }
 
@@ -535,7 +554,7 @@ class BooksController {
 
     loadSettings() {
         const snapshot = { ...this.settings };
-        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'accent', 'style', 'instructions']);
+        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'accent', 'style', 'instructions', 'speakAiAnswers']);
         this.settings = this.normalizeTtsSettings(snapshot);
         this.populateTtsModelOptions();
         this.populateTtsVoiceOptions();
@@ -543,7 +562,7 @@ class BooksController {
     }
 
     saveSettings() {
-        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'accent', 'style', 'instructions']);
+        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'accent', 'style', 'instructions', 'speakAiAnswers']);
     }
 
     /** @param {Settings} settings */
@@ -558,7 +577,8 @@ class BooksController {
             speed,
             accent: OPENAI_TTS_ACCENTS.some(item => item.id === settings.accent) ? settings.accent : 'default',
             style: OPENAI_TTS_STYLES.some(item => item.id === settings.style) ? settings.style : 'audiobook',
-            instructions: typeof settings.instructions === 'string' ? settings.instructions : ''
+            instructions: typeof settings.instructions === 'string' ? settings.instructions : '',
+            speakAiAnswers: Boolean(settings.speakAiAnswers)
         };
     }
 
@@ -998,7 +1018,7 @@ class BooksController {
         if (audio) {
             audio.addEventListener('timeupdate', () => this.handleAudioTimeUpdate());
             audio.addEventListener('ended', () => this.handleAudioEnded());
-            audio.addEventListener('loadedmetadata', () => this.restoreListeningOffset());
+            audio.addEventListener('loadedmetadata', () => this.handleAudioMetadataLoaded());
             audio.addEventListener('play', () => this.handleAudioPlay());
             audio.addEventListener('pause', () => this.handleAudioPause());
         }
@@ -1014,12 +1034,265 @@ class BooksController {
         if (seekTrack) seekTrack.addEventListener('click', e => this.handleSeekTrackClick(e));
         this.bindButton('showHistoryBtn', () => this.showHistoryPanel(true));
         this.bindButton('hideHistoryBtn', () => this.showHistoryPanel(false));
+        this.setupAiQuestionUI();
     }
 
     /** @param {string} id @param {() => void} handler */
     bindButton(id, handler) {
         const button = document.getElementById(id);
         if (button) button.addEventListener('click', handler);
+    }
+
+    setupAiQuestionUI() {
+        const speakToggles = ['speakAiAnswersToggle', 'settingsSpeakAiAnswersToggle']
+            .map(id => /** @type {HTMLInputElement | null} */ (document.getElementById(id)))
+            .filter(/** @returns {toggle is HTMLInputElement} */ toggle => Boolean(toggle));
+        for (const speakToggle of speakToggles) {
+            speakToggle.checked = this.settings.speakAiAnswers;
+            speakToggle.addEventListener('change', () => {
+                this.settings.speakAiAnswers = speakToggle.checked;
+                this.saveSettings();
+                for (const peer of speakToggles) peer.checked = this.settings.speakAiAnswers;
+            });
+        }
+        this.bindButton('aiQuestionBtn', () => this.toggleAiQuestionListening());
+        this.bindButton('askAiQuestionBtn', () => this.askAiQuestionFromInput());
+        this.bindButton('closeAiQuestionBtn', () => this.closeAiQuestionPanel());
+        this.bindButton('repeatAiAnswerBtn', () => this.speakLastAiAnswer());
+        const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+        if (input) {
+            input.addEventListener('keydown', event => {
+                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    this.askAiQuestionFromInput();
+                }
+            });
+        }
+
+        if (typeof VoiceCommandCore === 'undefined') {
+            this.updateAiQuestionStatus('Voice questions are unavailable in this browser; type a question instead.');
+            return;
+        }
+        this.aiQuestionVoiceCore = new VoiceCommandCore({
+            settings: { autoSubmitMode: true },
+            uiIds: {
+                listenBtn: 'aiQuestionListenBtn',
+                submitBtn: 'aiQuestionVoiceSubmitBtn',
+                statusEl: 'aiQuestionVoiceStatus',
+                transcriptContainer: 'aiQuestionTranscriptContainer',
+                transcriptText: 'aiQuestionTranscript'
+            },
+            onBeforeListen: () => this.prepareAiQuestion(),
+            onListeningChange: listening => this.renderAiQuestionListening(listening),
+            onError: message => this.updateAiQuestionStatus(message),
+            fallbackHandler: async transcript => {
+                const questionInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+                if (questionInput) questionInput.value = transcript;
+                await this.askAiQuestion(transcript);
+            }
+        });
+        this.aiQuestionVoiceCore.init();
+        this.updateAiQuestionStatus('Tap AI question and speak, or type here and press Ask.');
+    }
+
+    toggleAiQuestionListening() {
+        if (!this.prepareAiQuestion()) return;
+        if (!this.aiQuestionVoiceCore?.recognition) {
+            const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+            input?.focus();
+            this.updateAiQuestionStatus('Voice recognition is unavailable; type a question and press Ask.');
+            return;
+        }
+        if (this.aiQuestionVoiceCore.isListening) {
+            this.aiQuestionVoiceCore.stopListening();
+        } else {
+            this.aiQuestionVoiceCore.startListening();
+        }
+    }
+
+    /** @returns {boolean} */
+    prepareAiQuestion() {
+        const segment = this.getAiQuestionSourceSegment();
+        if (!segment) {
+            this.updateStatus('Open a book chunk before asking a question');
+            return false;
+        }
+        this.aiQuestionSegmentId = segment.id;
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (audio && !audio.paused) audio.pause();
+        if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
+        const panel = document.getElementById('aiQuestionPanel');
+        const context = document.getElementById('aiQuestionContextText');
+        const label = document.getElementById('aiQuestionContextLabel');
+        if (panel) panel.style.display = 'grid';
+        if (context) context.textContent = segment.text;
+        if (label) {
+            const terms = this.getAudioUnitTerms();
+            const unit = terms.singular === 'chapter' ? 'chapter' : `chunk ${segment.sectionSegmentIndex + 1}`;
+            label.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unit} · ${segment.text.length.toLocaleString()} characters sent`;
+        }
+        return true;
+    }
+
+    /** @returns {AudioSegment | null} */
+    getAiQuestionSourceSegment() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const segmentId = audio?.dataset.segmentId || this.currentSegmentId || '';
+        return this.getSegmentById(segmentId);
+    }
+
+    renderAiQuestionListening(listening) {
+        const button = document.getElementById('aiQuestionBtn');
+        const text = button?.querySelector('.button-text');
+        button?.classList.toggle('listening', listening);
+        if (text) text.textContent = listening ? 'Listening...' : 'AI question';
+        if (listening) {
+            this.updateAiQuestionStatus('Listening...');
+        } else if (!this.aiQuestionInFlight) {
+            this.updateAiQuestionStatus('Tap AI question and speak, or type here and press Ask.');
+        }
+    }
+
+    closeAiQuestionPanel() {
+        this.aiQuestionVoiceCore?.stopListening();
+        this.aiQuestionAbort?.abort();
+        this.aiQuestionAbort = null;
+        this.aiQuestionInFlight = false;
+        this.setAiQuestionBusy(false);
+        if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
+        const panel = document.getElementById('aiQuestionPanel');
+        if (panel) panel.style.display = 'none';
+        this.renderAiQuestionListening(false);
+    }
+
+    async askAiQuestionFromInput() {
+        const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+        this.aiQuestionVoiceCore?.stopListening();
+        await this.askAiQuestion(input?.value.trim() || '');
+    }
+
+    /** @param {string} question */
+    async askAiQuestion(question) {
+        if (this.aiQuestionInFlight) return;
+        if (!question) {
+            this.updateAiQuestionStatus('Say or type a question first.');
+            return;
+        }
+        if (!this.apiKey) {
+            this.showApiKeyOverlay();
+            this.updateAiQuestionStatus('OpenAI API key required.');
+            return;
+        }
+        const segment = this.getSegmentById(this.aiQuestionSegmentId || '');
+        if (!segment) {
+            this.updateAiQuestionStatus('The source chunk is no longer available.');
+            return;
+        }
+        const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+        if (input) input.value = question;
+        this.aiQuestionInFlight = true;
+        const abort = new AbortController();
+        this.aiQuestionAbort = abort;
+        this.setAiQuestionBusy(true);
+        this.updateAiQuestionStatus('Asking OpenAI...');
+        const answerEl = document.getElementById('aiQuestionAnswer');
+        if (answerEl) answerEl.style.display = 'none';
+        try {
+            const response = await fetch('https://api.openai.com/v1/responses', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                signal: abort.signal,
+                body: JSON.stringify({
+                    model: BOOK_QUESTION_MODEL,
+                    reasoning: { effort: 'low' },
+                    max_output_tokens: BOOK_QUESTION_MAX_OUTPUT_TOKENS,
+                    instructions: 'Answer the reader clearly and directly using the supplied book chunk. Distinguish what the text says from your own explanation. If the chunk does not contain enough information, say so.',
+                    input: this.buildAiQuestionPrompt(question, segment)
+                })
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
+            }
+            const data = await response.json();
+            if (abort.signal.aborted || this.currentBook?.id !== segment.bookId) return;
+            const answer = this.extractOpenAiResponseText(data);
+            this.lastAiAnswer = answer;
+            if (answerEl) {
+                answerEl.textContent = answer;
+                answerEl.style.display = 'block';
+            }
+            const repeatButton = document.getElementById('repeatAiAnswerBtn');
+            if (repeatButton) repeatButton.style.display = 'block';
+            this.updateAiQuestionStatus(`Answered with ${BOOK_QUESTION_MODEL}.`);
+            this.recordHistory('ai-question', question);
+            this.log('info', `AI question: ${question}`);
+            if (this.settings.speakAiAnswers && typeof VoiceOutput !== 'undefined') {
+                await VoiceOutput.speak(answer);
+            }
+        } catch (error) {
+            if (abort.signal.aborted) return;
+            const message = error instanceof Error ? error.message : String(error);
+            this.updateAiQuestionStatus(`Question failed: ${message}`);
+            this.log('error', `AI question failed: ${message}`);
+        } finally {
+            if (this.aiQuestionAbort === abort) {
+                this.aiQuestionAbort = null;
+                this.aiQuestionInFlight = false;
+                this.setAiQuestionBusy(false);
+            }
+        }
+    }
+
+    /** @param {string} question @param {AudioSegment} segment */
+    buildAiQuestionPrompt(question, segment) {
+        return [
+            `Reader question: ${question}`,
+            '',
+            `Book: ${this.currentBook?.title || 'Unknown title'}`,
+            `Author: ${this.currentBook?.author || 'Unknown author'}`,
+            `Chapter or section: ${this.getSectionTitle(segment.sectionId)}`,
+            `Chunk: ${segment.sectionSegmentIndex + 1}`,
+            '',
+            'Full text of the current MP3 chunk:',
+            segment.text
+        ].join('\n');
+    }
+
+    /** @param {any} data */
+    extractOpenAiResponseText(data) {
+        if (typeof data.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+        const text = (data.output || [])
+            .flatMap(item => item.content || [])
+            .map(part => part.text || part.output_text || '')
+            .join('')
+            .trim();
+        if (!text) throw new Error('OpenAI response did not contain an answer');
+        return text;
+    }
+
+    /** @param {boolean} busy */
+    setAiQuestionBusy(busy) {
+        const askButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('askAiQuestionBtn'));
+        const questionButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('aiQuestionBtn'));
+        if (askButton) {
+            askButton.disabled = busy;
+            askButton.textContent = busy ? 'Asking...' : 'Ask';
+        }
+        if (questionButton) questionButton.disabled = busy;
+    }
+
+    /** @param {string} message */
+    updateAiQuestionStatus(message) {
+        const status = document.getElementById('aiQuestionStatus');
+        if (status) status.textContent = message;
+    }
+
+    speakLastAiAnswer() {
+        if (this.lastAiAnswer && typeof VoiceOutput !== 'undefined') VoiceOutput.speak(this.lastAiAnswer);
     }
 
     /** @param {KeyboardEvent} event */
@@ -2113,8 +2386,10 @@ class BooksController {
                 if (punctuationBreak > cursor + 500) end = punctuationBreak + 1;
                 else if (spaceBreak > cursor + 500) end = spaceBreak;
             }
-            const pieceText = text.slice(cursor, end).trim();
-            if (pieceText) pieces.push({ text: pieceText, start: cursor, end });
+            let pieceEnd = end;
+            while (pieceEnd > cursor && /\s/.test(text[pieceEnd - 1])) pieceEnd--;
+            const pieceText = text.slice(cursor, pieceEnd);
+            if (pieceText) pieces.push({ text: pieceText, start: cursor, end: pieceEnd });
             cursor = end;
         }
         return pieces;
@@ -2742,6 +3017,23 @@ class BooksController {
         this.updatePlayerControls();
     }
 
+    async handleAudioMetadataLoaded() {
+        this.restoreListeningOffset();
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        if (!audio || !this.storage || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+        const segment = this.getSegmentById(audio.dataset.segmentId || '');
+        if (!segment) return;
+        const actualDuration = Math.round(audio.duration * 1000) / 1000;
+        if (Math.abs((segment.durationSec || 0) - actualDuration) < 0.01) return;
+        segment.durationSec = actualDuration;
+        await this.storage.putSegment(segment);
+        if (this.currentBook?.id !== segment.bookId) return;
+        this.replaceSegment(segment);
+        await this.recalculateBookGeneration();
+        this.renderProgress();
+        this.renderLibrary();
+    }
+
     handleAudioTimeUpdate() {
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (!audio || !this.currentBook || !this.storage) return;
@@ -3134,6 +3426,16 @@ class BooksController {
 
     resetAudioPlayerForBookSwitch() {
         this.stopGeneration();
+        this.aiQuestionVoiceCore?.stopListening();
+        this.aiQuestionAbort?.abort();
+        this.aiQuestionAbort = null;
+        this.aiQuestionInFlight = false;
+        this.setAiQuestionBusy(false);
+        if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
+        const questionPanel = document.getElementById('aiQuestionPanel');
+        if (questionPanel) questionPanel.style.display = 'none';
+        this.aiQuestionSegmentId = null;
+        this.lastAiAnswer = '';
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audio) {
             audio.pause();

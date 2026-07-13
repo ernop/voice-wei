@@ -362,10 +362,22 @@ async function seedFrontMatterBook(page) {
             }, index + 1);
         }
 
-        const shelf = await page.evaluate(() => {
+        const shelf = await page.evaluate(async () => {
             const rows = Array.from(document.querySelectorAll('.saved-book-item'));
             const first = rows[0];
             const rect = first.getBoundingClientRect();
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 4);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const segments = await new Promise((resolve, reject) => {
+                const tx = db.transaction('segments', 'readonly');
+                const req = tx.objectStore('segments').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
             return {
                 rowCount: rows.length,
                 rowHeight: rect.height,
@@ -378,7 +390,10 @@ async function seedFrontMatterBook(page) {
                 libraryDisplay: getComputedStyle(document.querySelector('.books-library-panel')).display,
                 workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
                 summaryText: document.querySelector('#libraryProgressSummary')?.textContent || '',
-                librarySearchPlaceholder: document.querySelector('#librarySearch')?.getAttribute('placeholder') || ''
+                librarySearchPlaceholder: document.querySelector('#librarySearch')?.getAttribute('placeholder') || '',
+                exactSegmentOffsets: segments.every(segment =>
+                    segment.text === segment.text.trim()
+                    && segment.text.length === segment.charEnd - segment.charStart)
             };
         });
         report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
@@ -388,7 +403,8 @@ async function seedFrontMatterBook(page) {
             && shelf.durationColumns === 2 && shelf.archiveToggleText === 'Show archive'
             && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
             && shelf.librarySearchPlaceholder.includes('titles, authors, and filenames')
-            && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books'));
+            && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books')
+            && shelf.exactSegmentOffsets);
 
         await page.click('.saved-book-item[data-book-id]');
         await page.waitForFunction(() => document.querySelector('.books-shell')?.classList.contains('book-open'));
@@ -437,7 +453,23 @@ async function seedFrontMatterBook(page) {
     {
         const page = await browser.newPage();
         collectErrors(page, 'books-player', report.errors);
-        await page.addInitScript(() => localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite'));
+        await page.addInitScript(() => {
+            localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite');
+            /** @type {any} */ (window).SpeechRecognition = class {
+                start() {
+                    this.onstart?.();
+                    setTimeout(() => {
+                        const result = [{ transcript: 'What does this passage mean?' }];
+                        result.isFinal = true;
+                        this.onresult?.({ resultIndex: 0, results: [result] });
+                        this.onend?.();
+                    }, 0);
+                }
+                stop() {
+                    this.onend?.();
+                }
+            };
+        });
         await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
         await clearBooksDb(page);
         await page.reload({ waitUntil: 'networkidle' });
@@ -448,13 +480,22 @@ async function seedFrontMatterBook(page) {
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
             Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get() { return 360; } });
+            window.__bookMediaPaused = true;
+            Object.defineProperty(HTMLMediaElement.prototype, 'paused', {
+                configurable: true,
+                get() { return window.__bookMediaPaused; }
+            });
             window.__bookPlayCalls = [];
+            window.__bookPauseCalls = [];
             HTMLMediaElement.prototype.play = function () {
+                window.__bookMediaPaused = false;
                 window.__bookPlayCalls.push(this.dataset.segmentId || 'none');
                 this.dispatchEvent(new Event('play'));
                 return Promise.resolve();
             };
             HTMLMediaElement.prototype.pause = function () {
+                window.__bookMediaPaused = true;
+                window.__bookPauseCalls.push(this.dataset.segmentId || 'none');
                 this.dispatchEvent(new Event('pause'));
             };
         });
@@ -481,6 +522,9 @@ async function seedFrontMatterBook(page) {
             chapterStatusCount: document.querySelectorAll('.chapter-status-item').length,
             chunkDotCount: document.querySelectorAll('.chunk-dot').length,
             playerNow: document.querySelector('#playerNow')?.textContent || '',
+            aiQuestionButton: document.querySelector('#aiQuestionBtn')?.textContent?.trim() || '',
+            aiQuestionSpeakDefault: document.querySelector('#speakAiAnswersToggle')?.checked,
+            aiQuestionPanelDisplay: getComputedStyle(document.querySelector('#aiQuestionPanel')).display,
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
             controlCount: document.querySelectorAll('.player-control-grid button').length,
@@ -524,16 +568,33 @@ async function seedFrontMatterBook(page) {
             && layout.sectionOrder.convert < layout.sectionOrder.reader
             && layout.sectionOrder.reader < layout.sectionOrder.log
             && layout.playerNow.includes('Voice:') && layout.nativeAudioDisplay === 'none'
-            && layout.readerBoxed === false);
+            && layout.readerBoxed === false
+            && layout.aiQuestionButton === 'AI question'
+            && layout.aiQuestionSpeakDefault === false
+            && layout.aiQuestionPanelDisplay === 'none');
 
         await page.evaluate(() => {
             window.__bookSpeechPayloads = [];
+            window.__bookQuestionPayloads = [];
+            window.__bookSpokenAnswers = [];
+            VoiceOutput.speak = async text => {
+                window.__bookSpokenAnswers.push(text);
+            };
             const originalFetch = window.fetch.bind(window);
             window.fetch = async (input, init) => {
                 const url = typeof input === 'string' ? input : input.url;
                 if (url === 'https://api.openai.com/v1/audio/speech') {
                     window.__bookSpeechPayloads.push(JSON.parse(String(init?.body || '{}')));
                     return new Response(new Blob(['fake-sample'], { type: 'audio/mpeg' }), { status: 200 });
+                }
+                if (url === 'https://api.openai.com/v1/responses') {
+                    window.__bookQuestionPayloads.push(JSON.parse(String(init?.body || '{}')));
+                    return new Response(JSON.stringify({
+                        output_text: 'It means the passage is testing the Books question flow.'
+                    }), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
                 }
                 return originalFetch(input, init);
             };
@@ -557,6 +618,40 @@ async function seedFrontMatterBook(page) {
 
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
+        await page.evaluate(() => {
+            const toggle = document.querySelector('#settingsSpeakAiAnswersToggle');
+            toggle.checked = true;
+            toggle.dispatchEvent(new Event('change'));
+        });
+        await page.click('#aiQuestionBtn');
+        await page.waitForFunction(() => document.querySelector('#aiQuestionAnswer')?.textContent?.includes('testing the Books question flow'));
+        const aiQuestion = await page.evaluate(() => {
+            const payload = window.__bookQuestionPayloads[0] || {};
+            const questionIndex = String(payload.input || '').indexOf('Reader question: What does this passage mean?');
+            const chunkIndex = String(payload.input || '').indexOf('Full text of the current MP3 chunk:\nSegment 0');
+            const saved = JSON.parse(localStorage.getItem('voice-wei:ebook-settings') || '{}');
+            return {
+                panelVisible: getComputedStyle(document.querySelector('#aiQuestionPanel')).display !== 'none',
+                context: document.querySelector('#aiQuestionContextText')?.textContent || '',
+                question: document.querySelector('#aiQuestionInput')?.value || '',
+                answer: document.querySelector('#aiQuestionAnswer')?.textContent || '',
+                model: payload.model,
+                questionBeforeChunk: questionIndex >= 0 && chunkIndex > questionIndex,
+                spokenAnswers: window.__bookSpokenAnswers,
+                pauseCalls: window.__bookPauseCalls,
+                persistedSpeak: saved.data?.speakAiAnswers
+            };
+        });
+        report.check('books AI question shows/sends whole chunk and optionally speaks answer',
+            aiQuestion.panelVisible
+            && aiQuestion.context === 'Segment 0'
+            && aiQuestion.question === 'What does this passage mean?'
+            && aiQuestion.answer.includes('testing the Books question flow')
+            && aiQuestion.model === 'gpt-5.5'
+            && aiQuestion.questionBeforeChunk
+            && aiQuestion.spokenAnswers.includes(aiQuestion.answer)
+            && aiQuestion.pauseCalls.includes('seg-0')
+            && aiQuestion.persistedSpeak === true);
         await page.evaluate(() => {
             const audio = document.querySelector('#audioPlayer');
             audio.currentTime = 60;
@@ -599,8 +694,44 @@ async function seedFrontMatterBook(page) {
             && Math.abs(plus30 - 60) <= 0.5 && player.segmentId === 'seg-1'
             && readAlong !== '' && readAlong !== '0%'
             && player.playCalls.includes('seg-1') && player.historyVisible
-            && ['quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
+            && ['ai-question', 'quadratic-forward', 'quadratic-back', 'forward-30', 'next-segment']
                 .every(action => player.actions.includes(action)));
+
+        await page.evaluate(() => {
+            Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get() { return 417; } });
+            document.querySelector('#audioPlayer').dispatchEvent(new Event('loadedmetadata'));
+        });
+        await page.waitForFunction(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 4);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const segment = await new Promise((resolve, reject) => {
+                const tx = db.transaction('segments', 'readonly');
+                const req = tx.objectStore('segments').get('book-suite-generated:seg-1');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            return segment?.durationSec === 417;
+        });
+        const actualDuration = await page.evaluate(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 4);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const book = await new Promise((resolve, reject) => {
+                const tx = db.transaction('books', 'readonly');
+                const req = tx.objectStore('books').get('book-suite-generated');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            return book.generatedDurationSec;
+        });
+        report.check('books persist decoded MP3 duration for generated accounting', actualDuration === 777);
 
         await page.click('#backToLibraryBtn');
         await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));

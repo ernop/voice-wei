@@ -1105,7 +1105,7 @@
 
 .player-actions {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr auto;
     gap: 6px;
     margin-top: 10px;
 }
@@ -1118,6 +1118,121 @@
 
 .transport-step-btn {
     font-size: 0.86rem;
+}
+
+.ai-question-launch-btn.listening {
+    background: #ef4444;
+    border-color: #fca5a5;
+}
+
+.ai-question-panel {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(96, 165, 250, 0.42);
+    background: rgba(15, 23, 42, 0.88);
+    text-align: left;
+}
+
+.ai-question-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.ai-question-header > div {
+    display: grid;
+    gap: 3px;
+}
+
+.ai-question-header strong {
+    color: #bfdbfe;
+}
+
+.ai-question-header span,
+.ai-question-status,
+.ai-question-transcript {
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.8rem;
+}
+
+.ai-question-field {
+    display: grid;
+    gap: 5px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.ai-question-field textarea {
+    width: 100%;
+    min-height: 76px;
+    padding: 9px;
+    resize: vertical;
+    border-radius: 8px;
+    border: 1px solid rgba(96, 165, 250, 0.38);
+    background: rgba(0, 0, 0, 0.34);
+    color: #f8fafc;
+    font: inherit;
+    font-weight: 400;
+}
+
+.ai-question-context {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.ai-question-context summary {
+    padding: 8px 10px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+#aiQuestionContextText {
+    max-height: 220px;
+    overflow: auto;
+    padding: 0 10px 10px;
+    white-space: pre-wrap;
+    color: rgba(255, 255, 255, 0.72);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.84rem;
+    line-height: 1.5;
+}
+
+.ai-question-speak-option {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.82rem;
+}
+
+.ai-question-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+}
+
+.ai-question-actions button {
+    min-height: 46px;
+}
+
+.ai-question-answer {
+    max-height: 300px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(96, 165, 250, 0.1);
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    color: #f8fafc;
+    white-space: pre-wrap;
+    line-height: 1.5;
 }
 
 .history-panel {
