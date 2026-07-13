@@ -406,9 +406,10 @@ localStorage. The current schema uses three object stores:
 
 This makes Books a browser-local reader/player/generator rather than a
 one-shot converter: generation can stop after some chunks, preserve completed
-MP3s, and resume next session. Manual duration buttons (+15 min / +1 hour)
-fill earliest missing or failed chunks first; interrupted "generating"
-states are reset on book open. EPUB imports prefer official `nav`/NCX table of
+MP3s, and resume next session. Duration buttons (+15 min / +1 hour) extend from
+the playhead and skip already-queued work so repeated presses enqueue further
+ahead; failed chunks in that range remain pending for retry. Interrupted
+"generating" states are reset on book open. EPUB imports prefer official `nav`/NCX table of
 contents labels, and PDF imports use outline entries when available, so
 chapter-level controls can sit above the chunk storage model. There is still no
 account identity, analytics sink, or server-side audit trail. The durable

@@ -669,9 +669,9 @@ application had disappeared.
 chunk click-to-play, and a +1 hour generate button.
 
 **Changed**:
-- Manual `+15 min` / new `+1 hour` select from the earliest missing/failed
-  chunk (gap fill), not only from the playhead. Auto-ahead still starts at the
-  current segment.
+- Manual `+15 min` / `+1 hour` extend from the playhead and skip already-
+  queued/in-flight chunks, so a second press enqueues another block ahead.
+  Failed chunks at/after the playhead remain pending and are retried.
 - Auth/quota/rate-limit speech failures stop the rest of the queue; interrupted
   `generating` segments reset to `pending` on book open; completion status
   reports failed chunks.
@@ -679,9 +679,9 @@ chunk click-to-play, and a +1 hour generate button.
 - Tests cover gap-fill order and chapter-list autoplay.
 
 **Learned**:
-- `isSegmentPending` was already blob-based (errors were retriable); the real
-  miss was duration selection starting at the playhead, which skipped holes
-  behind when later pending chunks existed.
+- Repeated +15 must skip already-queued/in-flight chunks; otherwise the
+  second press only finds the same pending set and reports "Already queued".
+  Failed chunks still retry because they have no blob and are not claimed.
 
 ---
 

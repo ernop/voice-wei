@@ -122,19 +122,19 @@ async function seedGapBook(page) {
             fileSize: 20,
             rawFile: new Blob(['suite'], { type: 'text/plain' }),
             sectionCount: 1,
-            segmentCount: 3,
-            generatedSegmentCount: 1,
-            wordCount: 30,
-            charCount: 300,
-            estimatedDurationSec: 900,
-            generatedDurationSec: 300,
+            segmentCount: 6,
+            generatedSegmentCount: 0,
+            wordCount: 60,
+            charCount: 600,
+            estimatedDurationSec: 1800,
+            generatedDurationSec: 0,
             createdAt: now,
             updatedAt: now,
             lastOpenedAt: now,
             readingSectionId: 'sec-gap',
-            readingCharOffset: 100,
-            listeningSegmentId: 'seg-gap-1',
-            listeningOffsetSec: 10,
+            readingCharOffset: 0,
+            listeningSegmentId: 'seg-gap-0',
+            listeningOffsetSec: 0,
             legacyAudioBlob: null,
             legacyAudioSize: 0
         };
@@ -144,37 +144,35 @@ async function seedGapBook(page) {
             id: 'sec-gap',
             spineIndex: 0,
             title: 'Section',
-            text: 'Missing early chunk. Ready middle chunk. Pending later chunk.',
+            text: 'Six pending chunks for duration enqueue checks.',
             html: '',
             charStart: 0,
-            charEnd: 300,
-            wordCount: 30
+            charEnd: 600,
+            wordCount: 60
         };
-        const segment = (id, index, status, blob, error = '') => ({
-            key: `book-suite-gap:${id}`,
+        const segment = (index) => ({
+            key: `book-suite-gap:seg-gap-${index}`,
             bookId: book.id,
-            id,
+            id: `seg-gap-${index}`,
             sectionId: 'sec-gap',
             segmentIndex: index,
             sectionSegmentIndex: index,
             charStart: index * 100,
             charEnd: index * 100 + 99,
-            text: id === 'seg-gap-0' ? 'MISSING_EARLY_CHUNK_TEXT' : id === 'seg-gap-1' ? 'READY_MIDDLE_CHUNK_TEXT' : 'PENDING_LATER_CHUNK_TEXT',
+            text: `DURATION_CHUNK_${index}`,
             wordCount: 10,
             estimatedDurationSec: 300,
-            status,
-            blob,
-            audioSize: blob ? 10 : 0,
-            durationSec: blob ? 300 : 0,
-            generatedAt: blob ? now : '',
-            audioSettings: blob ? { voice: 'alloy', model: 'tts-1', speed: 1 } : null,
-            error
+            status: 'pending',
+            blob: null,
+            audioSize: 0,
+            durationSec: 0,
+            generatedAt: '',
+            audioSettings: null,
+            error: ''
         });
         await put('books', book);
         await put('sections', section);
-        await put('segments', segment('seg-gap-0', 0, 'error', null, 'previous failure'));
-        await put('segments', segment('seg-gap-1', 1, 'done', new Blob(['fake-gap-1'], { type: 'audio/mpeg' })));
-        await put('segments', segment('seg-gap-2', 2, 'pending', null));
+        for (let index = 0; index < 6; index++) await put('segments', segment(index));
         db.close();
     });
 }
@@ -636,7 +634,7 @@ async function seedFrontMatterBook(page) {
 
     {
         const page = await browser.newPage();
-        collectErrors(page, 'books-gap-fill', report.errors);
+        collectErrors(page, 'books-duration-enqueue', report.errors);
         await page.addInitScript(() => localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite'));
         await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
         await clearBooksDb(page);
@@ -647,31 +645,39 @@ async function seedFrontMatterBook(page) {
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
             window.__bookSpeechPayloads = [];
+            window.__speechReleases = [];
             const originalFetch = window.fetch.bind(window);
             window.fetch = async (input, init) => {
                 const url = typeof input === 'string' ? input : input.url;
                 if (url === 'https://api.openai.com/v1/audio/speech') {
                     window.__bookSpeechPayloads.push(JSON.parse(String(init?.body || '{}')));
-                    return new Response(new Blob(['fake-gap-fill'], { type: 'audio/mpeg' }), { status: 200 });
+                    await new Promise(resolve => window.__speechReleases.push(resolve));
+                    return new Response(new Blob(['fake-duration'], { type: 'audio/mpeg' }), { status: 200 });
                 }
                 return originalFetch(input, init);
             };
         });
         await page.click('#generateNext15Btn');
-        await page.waitForFunction(() => (window.__bookSpeechPayloads || []).length >= 2
-            && document.querySelectorAll('.chunk-dot.done').length === 3);
-        const gapFill = await page.evaluate(() => ({
+        await page.waitForFunction(() => (window.__bookSpeechPayloads || []).length === 1);
+        await page.click('#generateNext15Btn');
+        const queuedStatus = await page.evaluate(() => document.querySelector('#status')?.textContent || '');
+        await page.evaluate(async () => {
+            const deadline = Date.now() + 10000;
+            while (document.querySelectorAll('.chunk-dot.done').length < 6) {
+                if (Date.now() > deadline) throw new Error('timed out draining speech queue');
+                for (const release of window.__speechReleases.splice(0)) release();
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+        });
+        const enqueue = await page.evaluate(() => ({
             inputs: (window.__bookSpeechPayloads || []).map(payload => payload.input),
-            errorDots: document.querySelectorAll('.chunk-dot.error').length,
-            doneDots: document.querySelectorAll('.chunk-dot.done').length,
-            pendingDots: document.querySelectorAll('.chunk-dot.pending').length
+            doneDots: document.querySelectorAll('.chunk-dot.done').length
         }));
-        report.check('books +15 min fills earlier failed chunk before later audio',
-            gapFill.inputs[0] === 'MISSING_EARLY_CHUNK_TEXT'
-            && gapFill.inputs[1] === 'PENDING_LATER_CHUNK_TEXT'
-            && gapFill.doneDots === 3
-            && gapFill.errorDots === 0
-            && gapFill.pendingDots === 0);
+        report.check('books second +15 min enqueues the next fifteen after current queue',
+            queuedStatus.includes('Queued')
+            && enqueue.inputs.slice(0, 3).join('|') === 'DURATION_CHUNK_0|DURATION_CHUNK_1|DURATION_CHUNK_2'
+            && enqueue.inputs.slice(3, 6).join('|') === 'DURATION_CHUNK_3|DURATION_CHUNK_4|DURATION_CHUNK_5'
+            && enqueue.doneDots === 6);
         await page.close();
     }
 

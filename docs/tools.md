@@ -370,10 +370,11 @@ OpenAI.
 - Each book is split into persistent TTS-sized audio chunks, while conversion
   controls use the book's chapter/TOC boundaries first. Generation can cover
   the selected/current/next chapter, whole book, +15 minutes, +1 hour, or a
-  single backup chunk. Manual +15/+1 hour always fills the earliest missing or
-  failed chunks first, then continues ahead for the requested duration.
-  Finished chunks are never regenerated unless deleted in a future management
-  flow.
+  single backup chunk. Each +15/+1 hour press extends from the current listening
+  chunk and skips anything already queued or generating, so pressing again
+  enqueues another block further ahead. Failed chunks at/after the playhead
+  still count as pending and are filled on retry. Finished chunks are never
+  regenerated unless deleted in a future management flow.
 - Generation is a work queue, not a single locked job: starting another
   chapter or chunk while one is already generating appends it to the queue
   (deduped) instead of being ignored, and the progress line shows how many

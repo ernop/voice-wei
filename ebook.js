@@ -2374,40 +2374,45 @@ class BooksController {
     }
 
     /**
-     * Manual +15/+1hr starts at the earliest missing MP3 so failed or skipped
-     * chunks get filled before generating further ahead. Auto-ahead stays
-     * relative to the playhead so listening does not jump backward.
+     * Manual and auto duration buttons extend from the playhead. Already-queued
+     * or in-flight chunks are skipped so a second +15/+1 hour enqueues another
+     * block after the current pipeline. Failed chunks at/after the playhead are
+     * still pending (no blob), so they get filled on retry.
      * @param {number} seconds @param {boolean} automatic
      */
     async generateNextDuration(seconds, automatic) {
         const selected = this.selectPendingSegmentsForDuration(seconds, {
-            fromIndex: automatic ? Math.max(0, this.getCurrentSegmentIndex()) : 0,
-            fallbackToEarliest: !automatic
+            fromIndex: Math.max(0, this.getCurrentSegmentIndex()),
+            excludeIds: this.getGenerationClaimedSegmentIds()
         });
         await this.generateSegments(selected, automatic);
     }
 
+    /** @returns {Set<string>} */
+    getGenerationClaimedSegmentIds() {
+        const claimed = new Set(this.generationQueue);
+        if (this.generatingSegmentId) claimed.add(this.generatingSegmentId);
+        return claimed;
+    }
+
     /**
      * @param {number} seconds
-     * @param {{ fromIndex?: number, fallbackToEarliest?: boolean }} [options]
+     * @param {{ fromIndex?: number, excludeIds?: Set<string> }} [options]
      * @returns {AudioSegment[]}
      */
     selectPendingSegmentsForDuration(seconds, options = {}) {
         const fromIndex = Math.max(0, options.fromIndex || 0);
-        const fallbackToEarliest = Boolean(options.fallbackToEarliest);
+        const excludeIds = options.excludeIds || new Set();
         let total = 0;
         /** @type {AudioSegment[]} */
         const selected = [];
         for (let i = fromIndex; i < this.segments.length; i++) {
             const segment = this.segments[i];
             if (!this.isSegmentPending(segment)) continue;
+            if (excludeIds.has(segment.id)) continue;
             selected.push(segment);
             total += segment.estimatedDurationSec;
             if (total >= seconds) break;
-        }
-        if (selected.length === 0 && fallbackToEarliest) {
-            const firstPending = this.segments.find(segment => this.isSegmentPending(segment));
-            if (firstPending) selected.push(firstPending);
         }
         return selected;
     }

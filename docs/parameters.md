@@ -330,8 +330,10 @@ the sound of scraping from beneath."
 Actions: import creates a saved book plus section/chapter and chunk records;
 Generate selected/current/next chapter and Whole book use chapter-level TOC
 boundaries, while +Chunk remains available for the underlying TTS chunk unit.
-+15 min and +1 hour fill earliest missing/failed chunks first, then continue
-ahead for that duration. Each chunk record updates as its MP3 finishes; Cancel
++15 min and +1 hour extend from the current listening chunk for that duration,
+skipping chunks already queued or generating so a second press enqueues more
+ahead. Failed chunks at/after the playhead are retried because they still count
+as pending. Each chunk record updates as its MP3 finishes; Cancel
 preserves completed chunks and leaves the rest pending/error; custom playback
 controls update listening and reading progress and write local history events
 for play/pause, chunk changes, jumps, and position samples; clicking a chapter-
