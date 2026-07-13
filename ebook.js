@@ -406,6 +406,7 @@ class BooksController {
         this.generationQueue = [];
         this.generationDone = 0;
         this.generationTotal = 0;
+        this.generationFailed = 0;
         /** @type {string | null} */
         this.generatingSegmentId = null;
         this.generationCancelled = false;
@@ -912,7 +913,9 @@ class BooksController {
         this.bindButton('toggleVoiceConfigBtn', () => this.toggleVoiceConfigPanel());
         if (readerView) readerView.addEventListener('click', e => this.handleReaderClick(e));
         const chapterStatusList = document.getElementById('chapterStatusList');
-        if (chapterStatusList) chapterStatusList.addEventListener('click', e => this.handleSegmentTargetClick(e));
+        if (chapterStatusList) {
+            chapterStatusList.addEventListener('click', e => this.handleSegmentTargetClick(e, { autoplay: true }));
+        }
         const voiceSampleGrid = document.getElementById('voiceSampleGrid');
         if (voiceSampleGrid) voiceSampleGrid.addEventListener('click', e => this.handleVoiceSampleClick(e));
         if (readerSearch) {
@@ -959,6 +962,7 @@ class BooksController {
             });
         }
         this.bindButton('generateNext15Btn', () => this.generateNextDuration(15 * 60, false));
+        this.bindButton('generateNext60Btn', () => this.generateNextDuration(60 * 60, false));
         this.bindButton('generatePreviousChapterBtn', () => this.generatePreviousChapter());
         this.bindButton('generateCurrentChapterBtn', () => this.generateCurrentChapter());
         this.bindButton('generateNextChapterBtn', () => this.generateNextChapter());
@@ -2127,6 +2131,7 @@ class BooksController {
         await this.storage.putBook(this.currentBook);
         this.sections = await this.storage.getSections(bookId);
         this.segments = await this.storage.getSegments(bookId);
+        await this.recoverInterruptedGenerationStates();
         this.historyEntries = await this.storage.getHistory(bookId);
         this.currentSegmentId = this.currentBook.listeningSegmentId || this.segments[0]?.id || null;
         this.showWorkspace(true);
@@ -2294,11 +2299,15 @@ class BooksController {
 
     /** @param {Event} event */
     handleReaderClick(event) {
-        this.handleSegmentTargetClick(event);
+        this.handleSegmentTargetClick(event, { autoplay: false });
     }
 
-    /** @param {Event} event */
-    handleSegmentTargetClick(event) {
+    /**
+     * @param {Event} event
+     * @param {{ autoplay?: boolean }} [options]
+     */
+    handleSegmentTargetClick(event, options = {}) {
+        const autoplay = Boolean(options.autoplay);
         const target = event.target instanceof HTMLElement ? event.target : null;
         const item = target?.closest('[data-segment-id]');
         const segmentId = item?.getAttribute('data-segment-id');
@@ -2308,7 +2317,7 @@ class BooksController {
         this.currentSegmentId = segment.id;
         this.markReadingProgress(segment);
         this.renderWorkspace();
-        if (this.isSegmentPlayable(segment)) this.playSegment(segment.id, false);
+        if (this.isSegmentPlayable(segment)) this.playSegment(segment.id, autoplay);
     }
 
     async generateCurrentChapter() {
@@ -2364,24 +2373,43 @@ class BooksController {
         await this.generateSegments(this.segments.filter(segment => this.isSegmentPending(segment)), false);
     }
 
-    /** @param {number} seconds @param {boolean} automatic */
+    /**
+     * Manual +15/+1hr starts at the earliest missing MP3 so failed or skipped
+     * chunks get filled before generating further ahead. Auto-ahead stays
+     * relative to the playhead so listening does not jump backward.
+     * @param {number} seconds @param {boolean} automatic
+     */
     async generateNextDuration(seconds, automatic) {
-        const startIndex = Math.max(0, this.getCurrentSegmentIndex());
+        const selected = this.selectPendingSegmentsForDuration(seconds, {
+            fromIndex: automatic ? Math.max(0, this.getCurrentSegmentIndex()) : 0,
+            fallbackToEarliest: !automatic
+        });
+        await this.generateSegments(selected, automatic);
+    }
+
+    /**
+     * @param {number} seconds
+     * @param {{ fromIndex?: number, fallbackToEarliest?: boolean }} [options]
+     * @returns {AudioSegment[]}
+     */
+    selectPendingSegmentsForDuration(seconds, options = {}) {
+        const fromIndex = Math.max(0, options.fromIndex || 0);
+        const fallbackToEarliest = Boolean(options.fallbackToEarliest);
         let total = 0;
         /** @type {AudioSegment[]} */
         const selected = [];
-        for (let i = startIndex; i < this.segments.length; i++) {
+        for (let i = fromIndex; i < this.segments.length; i++) {
             const segment = this.segments[i];
             if (!this.isSegmentPending(segment)) continue;
             selected.push(segment);
             total += segment.estimatedDurationSec;
             if (total >= seconds) break;
         }
-        if (selected.length === 0) {
+        if (selected.length === 0 && fallbackToEarliest) {
             const firstPending = this.segments.find(segment => this.isSegmentPending(segment));
             if (firstPending) selected.push(firstPending);
         }
-        await this.generateSegments(selected, automatic);
+        return selected;
     }
 
     /**
@@ -2418,6 +2446,7 @@ class BooksController {
         if (!this.isGenerating && this.generationQueue.length === 0) {
             this.generationDone = 0;
             this.generationTotal = 0;
+            this.generationFailed = 0;
         }
         for (const segment of toAdd) this.generationQueue.push(segment.id);
         this.generationTotal += toAdd.length;
@@ -2442,6 +2471,7 @@ class BooksController {
         this.isGenerating = true;
         this.generationCancelled = false;
         this.generationAbort = new AbortController();
+        let stoppedForFatalError = false;
         try {
             while (this.generationQueue.length > 0) {
                 if (this.generationCancelled || this.currentBook?.id !== bookId) break;
@@ -2500,14 +2530,25 @@ class BooksController {
                     this.replaceSegment(segment);
                     this.renderSegmentStatus(segment);
                     this.generationDone++;
+                    this.generationFailed++;
                     this.log('error', `Could not generate a ${terms.singular}: ${message}`);
                     this.renderGenerationProgress();
+                    // Auth/quota failures will fail every remaining request; stop and keep them pending for retry.
+                    if (this.isFatalSpeechError(message)) {
+                        stoppedForFatalError = true;
+                        this.generationQueue = [];
+                        this.updateStatus(`Stopped after ${terms.singular} failure: ${message}`);
+                        break;
+                    }
                 } finally {
                     this.generatingSegmentId = null;
                 }
             }
-            if (!this.generationCancelled) {
-                this.updateStatus('Audio generation complete');
+            if (!this.generationCancelled && !stoppedForFatalError) {
+                const failed = this.generationFailed;
+                this.updateStatus(failed
+                    ? `Audio generation finished with ${failed} failed ${failed === 1 ? terms.singular : terms.plural} — use +15 min / +1 hour to fill missing ones`
+                    : 'Audio generation complete');
             }
         } finally {
             this.isGenerating = false;
@@ -2534,6 +2575,7 @@ class BooksController {
         }
         this.generationDone = 0;
         this.generationTotal = 0;
+        this.generationFailed = 0;
     }
 
     cancelGeneration() {
@@ -3291,6 +3333,36 @@ class BooksController {
     /** @param {AudioSegment} segment */
     isSegmentPending(segment) {
         return !this.isSegmentPlayable(segment);
+    }
+
+    /**
+     * Page reloads can leave chunks stuck as "generating" with no blob.
+     * Treat those as pending again so +15 / +1 hour can fill them.
+     */
+    async recoverInterruptedGenerationStates() {
+        if (!this.storage) return;
+        let changed = false;
+        for (const segment of this.segments) {
+            if (segment.status !== 'generating' || this.isSegmentPlayable(segment)) continue;
+            segment.status = 'pending';
+            segment.error = '';
+            await this.storage.putSegment(segment);
+            this.replaceSegment(segment);
+            changed = true;
+        }
+        if (changed) this.log('info', 'Reset interrupted MP3 generations so missing chunks can be filled');
+    }
+
+    /** @param {string} message */
+    isFatalSpeechError(message) {
+        const lower = message.toLowerCase();
+        return lower.includes('invalid api key')
+            || lower.includes('incorrect api key')
+            || lower.includes('authentication')
+            || lower.includes('insufficient_quota')
+            || lower.includes('exceeded your current quota')
+            || lower.includes('billing')
+            || lower.includes('rate limit');
     }
 
     /** @param {AudioSegment} segment */

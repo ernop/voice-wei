@@ -663,3 +663,25 @@ application had disappeared.
 
 ---
 
+## 2026-07-13
+
+**Session context**: Books MP3 generation review — failure recovery, chapter-list
+chunk click-to-play, and a +1 hour generate button.
+
+**Changed**:
+- Manual `+15 min` / new `+1 hour` select from the earliest missing/failed
+  chunk (gap fill), not only from the playhead. Auto-ahead still starts at the
+  current segment.
+- Auth/quota/rate-limit speech failures stop the rest of the queue; interrupted
+  `generating` segments reset to `pending` on book open; completion status
+  reports failed chunks.
+- Chapter status chunk markers play immediately on click.
+- Tests cover gap-fill order and chapter-list autoplay.
+
+**Learned**:
+- `isSegmentPending` was already blob-based (errors were retriable); the real
+  miss was duration selection starting at the playhead, which skipped holes
+  behind when later pending chunks existed.
+
+---
+

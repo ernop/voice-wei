@@ -97,6 +97,88 @@ async function seedGeneratedBook(page) {
     });
 }
 
+async function seedGapBook(page) {
+    await page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 4);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const put = (store, value) => new Promise((resolve, reject) => {
+            const tx = db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).put(value);
+            req.onsuccess = () => resolve(undefined);
+            req.onerror = () => reject(req.error);
+        });
+        const now = new Date().toISOString();
+        const book = {
+            id: 'book-suite-gap',
+            schemaVersion: 3,
+            title: 'Gap Suite Book',
+            author: 'Suite',
+            format: 'txt',
+            fileName: 'gap-suite.txt',
+            fileType: 'text/plain',
+            fileSize: 20,
+            rawFile: new Blob(['suite'], { type: 'text/plain' }),
+            sectionCount: 1,
+            segmentCount: 3,
+            generatedSegmentCount: 1,
+            wordCount: 30,
+            charCount: 300,
+            estimatedDurationSec: 900,
+            generatedDurationSec: 300,
+            createdAt: now,
+            updatedAt: now,
+            lastOpenedAt: now,
+            readingSectionId: 'sec-gap',
+            readingCharOffset: 100,
+            listeningSegmentId: 'seg-gap-1',
+            listeningOffsetSec: 10,
+            legacyAudioBlob: null,
+            legacyAudioSize: 0
+        };
+        const section = {
+            key: 'book-suite-gap:sec-gap',
+            bookId: book.id,
+            id: 'sec-gap',
+            spineIndex: 0,
+            title: 'Section',
+            text: 'Missing early chunk. Ready middle chunk. Pending later chunk.',
+            html: '',
+            charStart: 0,
+            charEnd: 300,
+            wordCount: 30
+        };
+        const segment = (id, index, status, blob, error = '') => ({
+            key: `book-suite-gap:${id}`,
+            bookId: book.id,
+            id,
+            sectionId: 'sec-gap',
+            segmentIndex: index,
+            sectionSegmentIndex: index,
+            charStart: index * 100,
+            charEnd: index * 100 + 99,
+            text: id === 'seg-gap-0' ? 'MISSING_EARLY_CHUNK_TEXT' : id === 'seg-gap-1' ? 'READY_MIDDLE_CHUNK_TEXT' : 'PENDING_LATER_CHUNK_TEXT',
+            wordCount: 10,
+            estimatedDurationSec: 300,
+            status,
+            blob,
+            audioSize: blob ? 10 : 0,
+            durationSec: blob ? 300 : 0,
+            generatedAt: blob ? now : '',
+            audioSettings: blob ? { voice: 'alloy', model: 'tts-1', speed: 1 } : null,
+            error
+        });
+        await put('books', book);
+        await put('sections', section);
+        await put('segments', segment('seg-gap-0', 0, 'error', null, 'previous failure'));
+        await put('segments', segment('seg-gap-1', 1, 'done', new Blob(['fake-gap-1'], { type: 'audio/mpeg' })));
+        await put('segments', segment('seg-gap-2', 2, 'pending', null));
+        db.close();
+    });
+}
+
 async function seedSecondGeneratedBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
@@ -417,7 +499,7 @@ async function seedFrontMatterBook(page) {
         }));
         report.check('books chapter-first generation and TTS option layout',
             layout.progressRow.includes('Read') && layout.generationColumns >= 5
-            && ['-Chapter', 'Current chapter', '+Chapter', 'Whole book', '+Chunk', '+15 min']
+            && ['-Chapter', 'Current chapter', '+Chapter', 'Whole book', '+Chunk', '+15 min', '+1 hour']
                 .every(label => layout.generationButtons.includes(label))
             && layout.selectedChapterButton.includes('Selected chapter')
             && layout.chapterOptions.some(label => label.includes('Section') && label.includes('chunks ready'))
@@ -539,6 +621,57 @@ async function seedFrontMatterBook(page) {
         report.check('books clear stale MP3 when switching books',
             clearedBeforeSecondPlay && switchedBook.segmentId === 'seg-b0'
             && switchedBook.playCalls.includes('seg-b0'));
+
+        await page.click('.chunk-dot[data-segment-id="seg-b0"]');
+        await page.waitForFunction(() => (window.__bookPlayCalls || []).filter(id => id === 'seg-b0').length >= 2);
+        const chunkClickPlay = await page.evaluate(() => ({
+            segmentId: document.querySelector('#audioPlayer')?.dataset.segmentId,
+            playCalls: window.__bookPlayCalls
+        }));
+        report.check('books chapter-list chunk click plays immediately',
+            chunkClickPlay.segmentId === 'seg-b0'
+            && chunkClickPlay.playCalls.filter(id => id === 'seg-b0').length >= 2);
+        await page.close();
+    }
+
+    {
+        const page = await browser.newPage();
+        collectErrors(page, 'books-gap-fill', report.errors);
+        await page.addInitScript(() => localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite'));
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await clearBooksDb(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        await seedGapBook(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.click('.saved-book-item[data-book-id="book-suite-gap"]');
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        await page.evaluate(() => {
+            window.__bookSpeechPayloads = [];
+            const originalFetch = window.fetch.bind(window);
+            window.fetch = async (input, init) => {
+                const url = typeof input === 'string' ? input : input.url;
+                if (url === 'https://api.openai.com/v1/audio/speech') {
+                    window.__bookSpeechPayloads.push(JSON.parse(String(init?.body || '{}')));
+                    return new Response(new Blob(['fake-gap-fill'], { type: 'audio/mpeg' }), { status: 200 });
+                }
+                return originalFetch(input, init);
+            };
+        });
+        await page.click('#generateNext15Btn');
+        await page.waitForFunction(() => (window.__bookSpeechPayloads || []).length >= 2
+            && document.querySelectorAll('.chunk-dot.done').length === 3);
+        const gapFill = await page.evaluate(() => ({
+            inputs: (window.__bookSpeechPayloads || []).map(payload => payload.input),
+            errorDots: document.querySelectorAll('.chunk-dot.error').length,
+            doneDots: document.querySelectorAll('.chunk-dot.done').length,
+            pendingDots: document.querySelectorAll('.chunk-dot.pending').length
+        }));
+        report.check('books +15 min fills earlier failed chunk before later audio',
+            gapFill.inputs[0] === 'MISSING_EARLY_CHUNK_TEXT'
+            && gapFill.inputs[1] === 'PENDING_LATER_CHUNK_TEXT'
+            && gapFill.doneDots === 3
+            && gapFill.errorDots === 0
+            && gapFill.pendingDots === 0);
         await page.close();
     }
 

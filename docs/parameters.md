@@ -330,10 +330,12 @@ the sound of scraping from beneath."
 Actions: import creates a saved book plus section/chapter and chunk records;
 Generate selected/current/next chapter and Whole book use chapter-level TOC
 boundaries, while +Chunk remains available for the underlying TTS chunk unit.
-Each chunk record updates as its MP3 finishes; Cancel preserves completed
-chunks and leaves the rest pending/error; custom playback controls update
-listening and reading progress and write local history events for play/pause,
-chunk changes, jumps, and position samples; auto-generate-ahead can generate
++15 min and +1 hour fill earliest missing/failed chunks first, then continue
+ahead for that duration. Each chunk record updates as its MP3 finishes; Cancel
+preserves completed chunks and leaves the rest pending/error; custom playback
+controls update listening and reading progress and write local history events
+for play/pause, chunk changes, jumps, and position samples; clicking a chapter-
+list chunk marker plays that MP3 immediately; auto-generate-ahead can generate
 more pending chunks while listening.
 Download original / current chunk / all chunk MP3s / combined MP3 export saved
 blobs; Delete chunk MP3 / Delete all MP3s clear generated audio without

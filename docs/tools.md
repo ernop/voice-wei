@@ -369,14 +369,20 @@ OpenAI.
   read locally instead of only previewed as flattened plain text.
 - Each book is split into persistent TTS-sized audio chunks, while conversion
   controls use the book's chapter/TOC boundaries first. Generation can cover
-  the selected/current/next chapter, whole book, +15 minutes, or a single
-  backup chunk. Finished chunks are never regenerated unless deleted in a
-  future management flow.
+  the selected/current/next chapter, whole book, +15 minutes, +1 hour, or a
+  single backup chunk. Manual +15/+1 hour always fills the earliest missing or
+  failed chunks first, then continues ahead for the requested duration.
+  Finished chunks are never regenerated unless deleted in a future management
+  flow.
 - Generation is a work queue, not a single locked job: starting another
   chapter or chunk while one is already generating appends it to the queue
   (deduped) instead of being ignored, and the progress line shows how many
   units are done and how many are still queued. Cancel stops the in-flight
-  unit and clears the queue; switching books clears it too.
+  unit and clears the queue; switching books clears it too. Auth/quota/rate-
+  limit failures stop the rest of the queue and leave those chunks pending so
+  a later +15/+1 hour can fill them; transient per-chunk failures mark that
+  chunk as error and continue. Reloading a book resets interrupted
+  "generating" chunks back to pending.
 - Narration options show OpenAI reference pricing for the selected model and
   include per-voice sample buttons. GPT-4o mini TTS exposes accent and
   narration-style presets as structured `instructions`; legacy TTS models
@@ -390,8 +396,9 @@ OpenAI.
 - The player is custom, not native browser chrome: previous/next chunk,
   play/pause, +/-30s, quadratic back/forward jumps, seek bar, keyboard
   Left/Right chunk navigation, saved listening position, and preloaded next
-  generated chunk. A toggle can keep about one hour of audio generated ahead
-  while listening.
+  generated chunk. Clicking a chunk marker in the chapter status list plays
+  that MP3 immediately. A toggle can keep about one hour of audio generated
+  ahead while listening.
 - Books keeps local listening/reading history in IndexedDB: play/pause,
   chunk changes, jumps, position samples, dates, per-day listening/read
   totals, and rough read-speed estimates. It is hidden by default and visible
