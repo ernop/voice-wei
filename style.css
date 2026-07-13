@@ -1390,7 +1390,8 @@ h1 {
 
 /* The now-playing control line: hooks to the top of the viewport when it
    would scroll off, so the lyric, song nav, and within-song seek stay
-   reachable. Vertical spacing stays compressed - no spare padding. */
+   reachable. Row spacing stays tight, but the buttons themselves are
+   sized as finger targets (~50px) - this bar is used while driving. */
 .playlist-transport-bar {
     position: sticky;
     top: 0;
@@ -1438,7 +1439,7 @@ h1 {
 .transport-progress-track::before {
     content: '';
     position: absolute;
-    inset: -6px 0;
+    inset: -10px 0;
 }
 
 .transport-progress-fill {
@@ -1464,16 +1465,19 @@ h1 {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 3px;
+    gap: 5px;
 }
 
-/* Shared transport chrome; row modifiers below set the color meaning. */
+/* Shared transport chrome; row modifiers below set the color meaning.
+   Sized as finger targets (~3x the old 28px-row touch area): tapped on
+   a phone in a car, not with a mouse. */
 .transport-bar-btn {
     flex-shrink: 0;
-    height: 28px;
-    padding: 0 8px;
-    border-radius: 6px;
-    font-size: 0.88rem;
+    height: 50px;
+    min-width: 52px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 1.05rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -1499,8 +1503,8 @@ h1 {
 }
 
 .transport-bar-song-nav .transport-bar-playpause {
-    min-width: 36px;
-    font-size: 1.05rem;
+    min-width: 68px;
+    font-size: 1.35rem;
     background: rgba(74, 222, 128, 0.28);
     border-color: rgba(74, 222, 128, 0.55);
     color: #bbf7d0;
@@ -1523,7 +1527,7 @@ h1 {
 }
 
 .transport-first-lyric-btn {
-    font-size: 0.8rem;
+    font-size: 0.95rem;
 }
 
 /* The current-song line: a button - tapping it scrolls the playlist to
@@ -1531,10 +1535,10 @@ h1 {
 .transport-bar-info {
     flex: 1;
     min-width: 0;
-    height: 28px;
-    font-size: 0.78rem;
+    height: 50px;
+    font-size: 0.82rem;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.2;
     color: rgba(255, 255, 255, 0.7);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1563,8 +1567,8 @@ body[data-page="music"] .voice-controls-row {
 
 .big-lyrics-btn {
     position: relative;
-    font-size: 0.78rem;
-    padding: 0 8px;
+    font-size: 0.9rem;
+    padding: 0 10px;
 }
 
 .big-lyrics-btn.lyrics-available {
@@ -2120,12 +2124,15 @@ body[data-page="music"] .voice-controls-row {
 
     .lyrics-overlay-transport {
         padding: 4px 4px;
-        gap: 1px;
+        gap: 4px;
     }
 
+    /* Same finger-target rule as the sticky transport bar: these are
+       tapped blind while driving, so they must not shrink on phones. */
     .lyrics-overlay-transport-btn {
-        padding: 5px 7px;
-        font-size: 0.72rem;
+        min-height: 48px;
+        padding: 8px 12px;
+        font-size: 1.25rem;
     }
 
     .lyrics-overlay .lyrics-line {
