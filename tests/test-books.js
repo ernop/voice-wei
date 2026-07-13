@@ -523,6 +523,8 @@ async function seedFrontMatterBook(page) {
             chunkDotCount: document.querySelectorAll('.chunk-dot').length,
             playerNow: document.querySelector('#playerNow')?.textContent || '',
             aiQuestionButton: document.querySelector('#aiQuestionBtn')?.textContent?.trim() || '',
+            aiResearchTitle: document.querySelector('#aiResearchTitle')?.textContent?.trim() || '',
+            aiResearchRoute: document.querySelector('#aiResearchRoute')?.textContent?.trim() || '',
             aiQuestionSpeakDefault: document.querySelector('#speakAiAnswersToggle')?.checked,
             aiQuestionPanelDisplay: getComputedStyle(document.querySelector('#aiQuestionPanel')).display,
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
@@ -532,6 +534,7 @@ async function seedFrontMatterBook(page) {
             readerSearchPlaceholder: document.querySelector('#readerSearch')?.getAttribute('placeholder') || '',
             sectionOrder: {
                 listen: document.querySelector('.player-card')?.getBoundingClientRect().top || 0,
+                ai: document.querySelector('.ai-research-card')?.getBoundingClientRect().top || 0,
                 convert: document.querySelector('.generator-card')?.getBoundingClientRect().top || 0,
                 reader: document.querySelector('.reader-panel')?.getBoundingClientRect().top || 0,
                 log: document.querySelector('#logContainer')?.getBoundingClientRect().top || 0
@@ -564,12 +567,17 @@ async function seedFrontMatterBook(page) {
             && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
                 .every((label, index) => layout.controlLabels[index] === label)
             && layout.readerSearchPlaceholder.includes("book's contents")
-            && layout.sectionOrder.listen < layout.sectionOrder.convert
+            && layout.sectionOrder.listen < layout.sectionOrder.ai
+            && layout.sectionOrder.ai < layout.sectionOrder.convert
             && layout.sectionOrder.convert < layout.sectionOrder.reader
             && layout.sectionOrder.reader < layout.sectionOrder.log
             && layout.playerNow.includes('Voice:') && layout.nativeAudioDisplay === 'none'
             && layout.readerBoxed === false
             && layout.aiQuestionButton === 'AI question'
+            && layout.aiResearchTitle.includes('Ask about what you are hearing')
+            && layout.aiResearchRoute.includes('OpenAI Responses API')
+            && layout.aiResearchRoute.includes('GPT-5.6 Sol')
+            && layout.aiResearchRoute.includes('reasoning high')
             && layout.aiQuestionSpeakDefault === false
             && layout.aiQuestionPanelDisplay === 'none');
 
@@ -577,8 +585,16 @@ async function seedFrontMatterBook(page) {
             window.__bookSpeechPayloads = [];
             window.__bookQuestionPayloads = [];
             window.__bookSpokenAnswers = [];
-            VoiceOutput.speak = async text => {
+            window.__bookQuestionRelease = null;
+            window.__bookAnswerSpeechRelease = null;
+            VoiceOutput.speak = (text, options = {}) => new Promise(resolve => {
                 window.__bookSpokenAnswers.push(text);
+                options.onBoundary?.({ charIndex: text.indexOf('Independent') });
+                window.__bookAnswerSpeechRelease = resolve;
+            });
+            VoiceOutput.stop = () => {
+                window.__bookAnswerSpeechRelease?.();
+                window.__bookAnswerSpeechRelease = null;
             };
             const originalFetch = window.fetch.bind(window);
             window.fetch = async (input, init) => {
@@ -589,8 +605,43 @@ async function seedFrontMatterBook(page) {
                 }
                 if (url === 'https://api.openai.com/v1/responses') {
                     window.__bookQuestionPayloads.push(JSON.parse(String(init?.body || '{}')));
+                    await new Promise(resolve => { window.__bookQuestionRelease = resolve; });
+                    const answer = 'The passage tests the Books research flow. Independent research confirms the second point [1].';
+                    const citationStart = answer.indexOf('[1]');
                     return new Response(JSON.stringify({
-                        output_text: 'It means the passage is testing the Books question flow.'
+                        output_text: answer,
+                        output: [{
+                            type: 'web_search_call',
+                            action: {
+                                sources: [{ type: 'url', url: 'https://example.com/source' }]
+                            },
+                            results: [{
+                                type: 'image_result',
+                                image_url: 'https://127.0.0.1/private.jpg',
+                                thumbnail_url: 'https://127.0.0.1/private-thumb.jpg',
+                                source_website_url: 'https://127.0.0.1/private',
+                                caption: 'Private network image'
+                            }, {
+                                type: 'image_result',
+                                image_url: 'https://example.com/research-image.jpg',
+                                thumbnail_url: 'https://example.com/research-thumb.jpg',
+                                source_website_url: 'https://example.com/source',
+                                caption: 'Research image'
+                            }]
+                        }, {
+                            type: 'message',
+                            content: [{
+                                type: 'output_text',
+                                text: answer,
+                                annotations: [{
+                                    type: 'url_citation',
+                                    start_index: citationStart,
+                                    end_index: citationStart + 3,
+                                    url: 'https://example.com/source',
+                                    title: 'Source One'
+                                }]
+                            }]
+                        }]
                     }), {
                         status: 200,
                         headers: { 'Content-Type': 'application/json' }
@@ -618,13 +669,19 @@ async function seedFrontMatterBook(page) {
 
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
-        await page.evaluate(() => {
-            const toggle = document.querySelector('#settingsSpeakAiAnswersToggle');
-            toggle.checked = true;
-            toggle.dispatchEvent(new Event('change'));
-        });
         await page.click('#aiQuestionBtn');
-        await page.waitForFunction(() => document.querySelector('#aiQuestionAnswer')?.textContent?.includes('testing the Books question flow'));
+        await page.waitForFunction(() => (window.__bookQuestionPayloads || []).length === 1);
+        await page.waitForTimeout(1100);
+        const inFlight = await page.evaluate(() => ({
+            elapsed: document.querySelector('#aiQuestionElapsed')?.textContent || '',
+            status: document.querySelector('#aiQuestionStatus')?.textContent || '',
+            requestPreview: document.querySelector('#aiQuestionRequestPreview')?.textContent || '',
+            context: document.querySelector('#aiQuestionContextText')?.textContent || ''
+        }));
+        await page.check('#speakAiAnswersToggle');
+        await page.evaluate(() => window.__bookQuestionRelease?.());
+        await page.waitForFunction(() => document.querySelector('#aiQuestionAnswerText')?.textContent?.includes('Books research flow'));
+        await page.waitForFunction(() => window.__bookSpokenAnswers?.length === 1);
         const aiQuestion = await page.evaluate(() => {
             const payload = window.__bookQuestionPayloads[0] || {};
             const questionIndex = String(payload.input || '').indexOf('Reader question: What does this passage mean?');
@@ -634,24 +691,68 @@ async function seedFrontMatterBook(page) {
                 panelVisible: getComputedStyle(document.querySelector('#aiQuestionPanel')).display !== 'none',
                 context: document.querySelector('#aiQuestionContextText')?.textContent || '',
                 question: document.querySelector('#aiQuestionInput')?.value || '',
-                answer: document.querySelector('#aiQuestionAnswer')?.textContent || '',
+                answer: document.querySelector('#aiQuestionAnswerText')?.textContent || '',
                 model: payload.model,
+                reasoning: payload.reasoning?.effort,
+                toolChoice: payload.tool_choice,
+                searchContext: payload.tools?.[0]?.search_context_size,
+                contentTypes: payload.tools?.[0]?.search_content_types || [],
+                imageCount: payload.tools?.[0]?.image_settings?.max_results,
+                maxOutputTokens: payload.max_output_tokens,
+                instructions: payload.instructions || '',
                 questionBeforeChunk: questionIndex >= 0 && chunkIndex > questionIndex,
                 spokenAnswers: window.__bookSpokenAnswers,
                 pauseCalls: window.__bookPauseCalls,
-                persistedSpeak: saved.data?.speakAiAnswers
+                persistedSpeak: saved.data?.speakAiAnswers,
+                sourceHref: document.querySelector('#aiQuestionSources a')?.getAttribute('href') || '',
+                citationHref: document.querySelector('#aiQuestionAnswerText a')?.getAttribute('href') || '',
+                imageHref: document.querySelector('#aiQuestionImages .ai-question-image')?.getAttribute('href') || '',
+                imageSrc: document.querySelector('#aiQuestionImages img')?.getAttribute('src') || '',
+                renderedImageCount: document.querySelectorAll('#aiQuestionImages .ai-question-image').length,
+                highlightedAnswer: document.querySelector('.ai-answer-sentence.current')?.textContent || '',
+                playButton: document.querySelector('#repeatAiAnswerBtn')?.textContent || '',
+                finalStatus: document.querySelector('#aiQuestionStatus')?.textContent || ''
             };
         });
-        report.check('books AI question shows/sends whole chunk and optionally speaks answer',
+        report.check('books AI Research discloses prompt, times request, searches web/images, and honors live speech toggle',
             aiQuestion.panelVisible
             && aiQuestion.context === 'Segment 0'
             && aiQuestion.question === 'What does this passage mean?'
-            && aiQuestion.answer.includes('testing the Books question flow')
-            && aiQuestion.model === 'gpt-5.5'
+            && aiQuestion.answer.includes('Books research flow')
+            && aiQuestion.model === 'gpt-5.6'
+            && aiQuestion.reasoning === 'high'
+            && aiQuestion.toolChoice === 'required'
+            && aiQuestion.searchContext === 'high'
+            && aiQuestion.contentTypes.includes('text')
+            && aiQuestion.contentTypes.includes('image')
+            && aiQuestion.imageCount === 6
+            && aiQuestion.maxOutputTokens === 12000
+            && aiQuestion.instructions.includes('deeply research every question')
+            && aiQuestion.instructions.includes('Do not treat it as canonically true')
+            && aiQuestion.instructions.includes('You work for the listener')
             && aiQuestion.questionBeforeChunk
             && aiQuestion.spokenAnswers.includes(aiQuestion.answer)
             && aiQuestion.pauseCalls.includes('seg-0')
-            && aiQuestion.persistedSpeak === true);
+            && aiQuestion.persistedSpeak === true
+            && aiQuestion.sourceHref === 'https://example.com/source'
+            && aiQuestion.citationHref === 'https://example.com/source'
+            && aiQuestion.imageHref === 'https://example.com/source'
+            && aiQuestion.imageSrc === 'https://example.com/research-thumb.jpg'
+            && aiQuestion.renderedImageCount === 1
+            && aiQuestion.highlightedAnswer.includes('Independent research')
+            && aiQuestion.playButton === 'Stop'
+            && aiQuestion.finalStatus.includes('OpenAI Responses API')
+            && aiQuestion.finalStatus.includes('GPT-5.6 Sol')
+            && inFlight.elapsed === '1s'
+            && inFlight.status.includes('Sending to OpenAI Responses API')
+            && inFlight.status.includes('GPT-5.6 Sol')
+            && inFlight.requestPreview.includes('POST https://api.openai.com/v1/responses')
+            && inFlight.requestPreview.includes('deeply research every question')
+            && inFlight.requestPreview.includes('[Full book chunk shown separately below')
+            && !inFlight.requestPreview.includes('Segment 0')
+            && inFlight.context === 'Segment 0');
+        await page.click('#repeatAiAnswerBtn');
+        await page.waitForFunction(() => document.querySelector('#repeatAiAnswerBtn')?.textContent === 'Play');
         await page.evaluate(() => {
             const audio = document.querySelector('#audioPlayer');
             audio.currentTime = 60;

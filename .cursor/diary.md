@@ -704,3 +704,22 @@ chunk click-to-play, and a +1 hour generate button.
 
 ---
 
+## 2026-07-13 — AI Research follow-up
+
+**Changed**:
+- The feature is now a dedicated AI Research card using GPT-5.6 Sol / reasoning
+  high with required web and image search. The exact request body is disclosed
+  with only the separately visible chunk replaced by a placeholder.
+- In-flight UI names the endpoint/model/configuration and shows elapsed time.
+  The persisted speak toggle is read when the answer returns, not at send time.
+- Answers render citations, source-linked images, and local Play/Stop speech
+  with current-sentence highlighting from native boundary events.
+
+**Learned**:
+- Long-running UI needs request identity across abort, timer, and book-opening
+  paths; global cleanup from an old request can otherwise stop a newer timer.
+- Provider image URLs are active browser requests, not passive text. Reject
+  private-network/credentialed URLs and suppress referrers before rendering.
+
+---
+

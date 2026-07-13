@@ -311,7 +311,7 @@ persistent browser storage automatically where supported.
 | accent | default | default, American English, British English, Australian English, Irish English, Scottish English, Indian English, New York English, Southern US English | composed into GPT-4o mini TTS instructions; disabled for legacy TTS models |
 | style | audiobook | audiobook narrator, neutral, dramatic suspense, warm storyteller, documentary, calm bedtime, whisper | composed into GPT-4o mini TTS instructions; disabled for legacy TTS models |
 | instructions | empty | text | appended to accent/style instructions for GPT-4o mini TTS preview/conversion requests; disabled for legacy TTS models |
-| speakAiAnswers | false | true / false | when enabled, AI Question answers are read through the browser's native speech synthesis after they appear; the Read answer button remains available either way |
+| speakAiAnswers | false | true / false | evaluated when each AI Research response returns (not snapshotted at send time); when enabled, the answer is read through browser-native speech synthesis; the answer's local Play/Stop button remains available either way |
 
 Displayed reference pricing:
 
@@ -340,11 +340,20 @@ controls update listening and reading progress and write local history events
 for play/pause, chunk changes, jumps, and position samples; clicking a chapter-
 list chunk marker plays that MP3 immediately; auto-generate-ahead can generate
 more pending chunks while listening.
-AI Question pauses playback, captures one spoken utterance (or accepts typed
-input), shows the exact current chunk being attached, and sends the question
-followed by book/chapter metadata and the full chunk to OpenAI `gpt-5.5`.
-Answers appear in the Listen card; the question is added to local history.
-Books does not request a new transcript or word-level timestamp map.
+AI Research pauses playback, captures one spoken utterance (or accepts typed
+input), and discloses the complete Responses API request body except that the
+separately displayed full book chunk is represented by a size-labeled
+placeholder. Requests use `gpt-5.6` (GPT-5.6 Sol), reasoning `high`,
+`web_search` with high context, required tool use, text + image search, up to
+six image results, and a 12,000-token reasoning/answer budget. Incomplete
+provider responses are reported as failures rather than displayed as finished.
+A live timer and the label
+`OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search`
+remain visible while awaiting the response. Answers render clickable citations,
+source links, and returned image results. The local Play/Stop answer control
+uses browser speech synthesis and follows word-boundary events to highlight the
+current answer sentence. The question is added to local history. Books does
+not request a new transcript or word-level book timestamp map.
 Download original / current chunk / all chunk MP3s / combined MP3 export saved
 blobs; Delete chunk MP3 / Delete all MP3s clear generated audio without
 removing the original; Delete book removes the browser-local book, sections,

@@ -400,14 +400,21 @@ OpenAI.
   generated chunk. Clicking a chunk marker in the chapter status list plays
   that MP3 immediately. A toggle can keep about one hour of audio generated
   ahead while listening.
-- **AI question** pauses the current MP3 and starts one-utterance browser
-  speech recognition. The panel shows both the captured question and the exact
-  full chunk text that will be sent to OpenAI; the question is editable and can
-  also be typed when recognition is unavailable. Books sends the question
-  first, then book/chapter metadata and that one chunk to `gpt-5.5`, displays
-  the answer, and records the question in local history. **Read answers aloud**
-  optionally speaks replies through the browser's native voice and persists as
-  a Books setting. No transcription or word-level MP3 alignment is performed.
+- **AI Research** is a dedicated card immediately after the Listen card.
+  **AI question** pauses the current MP3 and starts one-utterance browser
+  speech recognition; questions remain editable/typable. Before sending, the
+  card shows the exact full request body with only the book chunk replaced by
+  an explicit placeholder, plus the complete chunk in its own disclosure.
+  Requests use the OpenAI Responses API with GPT-5.6 Sol, reasoning high, and
+  required high-context web search with text and image results. The research
+  frame tells the model to work for the listener, validate claims rather than
+  treating the book as canonical truth, use multiple sources where warranted,
+  and answer carefully with clickable citations and useful images. While in
+  flight, the full provider/model/configuration and elapsed time stay visible.
+  **Read answer aloud when it returns** is read live at response time, so a
+  change made during research is honored. Answers also have a local Play/Stop
+  control; browser speech boundary events highlight and scroll the current
+  answer sentence. No narration MP3 or word-level book alignment is generated.
 - Books keeps local listening/reading history in IndexedDB: play/pause,
   chunk changes, jumps, position samples, dates, per-day listening/read
   totals, and rough read-speed estimates. It is hidden by default and visible

@@ -42,7 +42,7 @@ and deliver a weaker version of the requested change.
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Music | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
-| Books | Read ebooks and grow local generated audio over time | Originals, parsed text, MP3 chunks, and progress persist locally; generation can resume where it stopped |
+| Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
 
 ## System invariants
 
@@ -168,6 +168,10 @@ above; nothing here is a commitment.
 
 ### Books
 
+- Source-critical AI Research while listening: a one-tap spoken question uses
+  the whole current chunk as context, treats book claims as claims rather than
+  truth, searches the web, returns cited sources/images, and can read the
+  answer locally without generating another MP3.
 - Richer multimedia ebook mode on top of the local Books library: current
   Books stores originals, parsed text sections, generated MP3 chunks,
   read/listen progress, and detailed local history in IndexedDB. Remaining work

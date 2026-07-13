@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=268">
-    <link rel="stylesheet" href="practice-controls.css?v=268">
-    <link rel="stylesheet" href="ebook.css?v=268">
+    <link rel="stylesheet" href="style.css?v=269">
+    <link rel="stylesheet" href="practice-controls.css?v=269">
+    <link rel="stylesheet" href="ebook.css?v=269">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -39,7 +39,7 @@
             <div class="setting-item">
                 <label class="ai-question-speak-option">
                     <input type="checkbox" id="settingsSpeakAiAnswersToggle" />
-                    <span>Read AI Question answers aloud</span>
+                    <span>Read AI Research answers aloud</span>
                 </label>
                 <p class="setting-description">Uses the browser's native voice after the written answer appears.</p>
             </div>
@@ -262,43 +262,7 @@
                                 </div>
                                 <div class="player-actions">
                                     <button id="playFromProgressBtn" class="primary-btn" type="button">Play from progress</button>
-                                    <button id="aiQuestionBtn" class="primary-btn ai-question-launch-btn" type="button">
-                                        <span class="button-text">AI question</span>
-                                    </button>
                                     <button id="showHistoryBtn" class="panel-action-btn" type="button">History</button>
-                                </div>
-                                <button id="aiQuestionListenBtn" type="button" hidden></button>
-                                <button id="aiQuestionVoiceSubmitBtn" type="button" hidden></button>
-                                <span id="aiQuestionVoiceStatus" hidden></span>
-                                <div class="ai-question-panel" id="aiQuestionPanel" style="display: none;">
-                                    <div class="ai-question-header">
-                                        <div>
-                                            <strong>Ask about this chunk</strong>
-                                            <span id="aiQuestionContextLabel">The full current chunk will be sent to OpenAI.</span>
-                                        </div>
-                                        <button id="closeAiQuestionBtn" class="panel-action-btn" type="button">Close</button>
-                                    </div>
-                                    <label class="ai-question-field" for="aiQuestionInput">
-                                        Your question
-                                        <textarea id="aiQuestionInput" rows="3" placeholder="Ask about what you were just hearing"></textarea>
-                                    </label>
-                                    <div id="aiQuestionTranscriptContainer" class="ai-question-transcript" style="display: none;">
-                                        Heard: <span id="aiQuestionTranscript"></span>
-                                    </div>
-                                    <details class="ai-question-context" open>
-                                        <summary>Exact text sent with your question</summary>
-                                        <div id="aiQuestionContextText"></div>
-                                    </details>
-                                    <label class="ai-question-speak-option">
-                                        <input type="checkbox" id="speakAiAnswersToggle" />
-                                        <span>Read answers aloud</span>
-                                    </label>
-                                    <div class="ai-question-actions">
-                                        <button id="askAiQuestionBtn" class="primary-btn" type="button">Ask</button>
-                                        <button id="repeatAiAnswerBtn" class="panel-action-btn" type="button" style="display: none;">Read answer</button>
-                                    </div>
-                                    <div id="aiQuestionStatus" class="ai-question-status">Tap AI question and speak, or type here and press Ask.</div>
-                                    <div id="aiQuestionAnswer" class="ai-question-answer" style="display: none;"></div>
                                 </div>
                                 <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3s. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
@@ -310,6 +274,67 @@
                                     <div id="historyList" class="history-list"></div>
                                 </div>
                             </div>
+
+                            <section class="ai-research-card" aria-labelledby="aiResearchTitle">
+                                <header class="ai-research-heading">
+                                    <div>
+                                        <span class="ai-research-eyebrow">AI RESEARCH</span>
+                                        <h3 id="aiResearchTitle">Ask about what you are hearing</h3>
+                                        <p>Deep web research using the complete current book chunk as context.</p>
+                                    </div>
+                                    <span class="ai-research-route" id="aiResearchRoute">OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search</span>
+                                </header>
+                                <button id="aiQuestionBtn" class="primary-btn ai-question-launch-btn" type="button">
+                                    <span class="button-text">AI question</span>
+                                </button>
+                                <button id="aiQuestionListenBtn" type="button" hidden></button>
+                                <button id="aiQuestionVoiceSubmitBtn" type="button" hidden></button>
+                                <span id="aiQuestionVoiceStatus" hidden></span>
+                                <div class="ai-question-panel" id="aiQuestionPanel" style="display: none;">
+                                    <div class="ai-question-header">
+                                        <div>
+                                            <strong>Research request</strong>
+                                            <span id="aiQuestionContextLabel">The full current chunk will be sent as context.</span>
+                                        </div>
+                                        <button id="closeAiQuestionBtn" class="panel-action-btn" type="button">Close</button>
+                                    </div>
+                                    <label class="ai-question-field" for="aiQuestionInput">
+                                        Your question
+                                        <textarea id="aiQuestionInput" rows="3" placeholder="Ask about what you were just hearing"></textarea>
+                                    </label>
+                                    <div id="aiQuestionTranscriptContainer" class="ai-question-transcript" style="display: none;">
+                                        Heard: <span id="aiQuestionTranscript"></span>
+                                    </div>
+                                    <details class="ai-question-context" open>
+                                        <summary>Full request sent around the book text</summary>
+                                        <pre id="aiQuestionRequestPreview"></pre>
+                                    </details>
+                                    <details class="ai-question-context">
+                                        <summary>Exact book chunk sent separately</summary>
+                                        <div id="aiQuestionContextText"></div>
+                                    </details>
+                                    <div class="ai-question-submit-row">
+                                        <label class="ai-question-speak-option">
+                                            <input type="checkbox" id="speakAiAnswersToggle" />
+                                            <span>Read answer aloud when it returns</span>
+                                        </label>
+                                        <button id="askAiQuestionBtn" class="primary-btn" type="button">Research</button>
+                                    </div>
+                                    <div class="ai-question-flight">
+                                        <span id="aiQuestionStatus" class="ai-question-status">Tap AI question and speak, or type here and press Research.</span>
+                                        <strong id="aiQuestionElapsed" class="ai-question-elapsed" style="display: none;">0s</strong>
+                                    </div>
+                                    <section id="aiQuestionAnswer" class="ai-question-answer" style="display: none;" aria-live="polite">
+                                        <header class="ai-answer-header">
+                                            <strong>Research answer</strong>
+                                            <button id="repeatAiAnswerBtn" class="panel-action-btn ai-answer-play-btn" type="button" aria-label="Play answer aloud">Play</button>
+                                        </header>
+                                        <div id="aiQuestionAnswerText" class="ai-question-answer-text"></div>
+                                        <div id="aiQuestionSources" class="ai-question-sources" style="display: none;"></div>
+                                        <div id="aiQuestionImages" class="ai-question-images" style="display: none;"></div>
+                                    </section>
+                                </div>
+                            </section>
                         </aside>
 
                         <section class="reader-panel">
@@ -341,15 +366,15 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=268"></script>
-    <script src="app-version.js?v=268"></script>
-    <script src="storage-keys.js?v=268"></script>
-    <script src="settings-store.js?v=268"></script>
-    <script src="api-keys-store.js?v=268"></script>
-    <script src="voice-output.js?v=268"></script>
-    <script src="voice-command-core.js?v=268"></script>
-    <script src="shared-header.js?v=268"></script>
-    <script src="ebook.js?v=268"></script>
+    <script src="dev-error-monitor.js?v=269"></script>
+    <script src="app-version.js?v=269"></script>
+    <script src="storage-keys.js?v=269"></script>
+    <script src="settings-store.js?v=269"></script>
+    <script src="api-keys-store.js?v=269"></script>
+    <script src="voice-output.js?v=269"></script>
+    <script src="voice-command-core.js?v=269"></script>
+    <script src="shared-header.js?v=269"></script>
+    <script src="ebook.js?v=269"></script>
 </body>
 
 </html>

@@ -93,7 +93,7 @@ const VoiceOutput = (function () {
      * never crash a playback loop awaiting it. Real errors are logged.
      *
      * @param {string} text - The text to speak
-     * @param {{ rate?: number, pitch?: number, voiceName?: string | null }} [options] - Per-call overrides
+     * @param {{ rate?: number, pitch?: number, voiceName?: string | null, onBoundary?: (event: SpeechSynthesisEvent) => void }} [options] - Per-call overrides
      * @returns {Promise<void>} Resolves when speech completes (or fails)
      */
     function speak(text, options = {}) {
@@ -120,6 +120,7 @@ const VoiceOutput = (function () {
             utterance.rate = options.rate ?? CONFIG.rate;
             utterance.pitch = options.pitch ?? CONFIG.pitch;
             utterance.volume = CONFIG.volume;
+            if (options.onBoundary) utterance.onboundary = options.onBoundary;
 
             utterance.onend = () => resolve();
             utterance.onerror = (event) => {

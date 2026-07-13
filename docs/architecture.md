@@ -417,12 +417,18 @@ history is browser-local and serves navigation/progress UI. The OpenAI key and
 TTS settings use `api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The
 visible Log panel is DOM state only and is lost on refresh/navigation.
 
-Books AI Question reuses `voice-command-core.js` for one-utterance speech
+Books AI Research reuses `voice-command-core.js` for one-utterance speech
 recognition and `voice-output.js` for optional spoken replies. The request
 snapshot is the active segment ID plus its complete stored text; playback time
 is not used to narrow or transcribe that text. The browser sends a direct
-OpenAI Responses request using the same browser-local key as TTS. Questions
-join the existing IndexedDB history; answers and the visible question panel are
+OpenAI Responses request using the same browser-local key as TTS, with required
+web/image search. One request builder owns both the actual body and its UI
+preview; the preview replaces only the separately shown chunk with a
+size-labeled placeholder, preventing prompt/configuration drift. Response
+annotations become clickable citations/source links and image results become
+source-linked cards. `VoiceOutput` exposes native boundary events so Books can
+highlight the current answer sentence without generating audio. Questions join
+the existing IndexedDB history; answers and the visible research panel are
 session state.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
