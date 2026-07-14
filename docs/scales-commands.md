@@ -53,6 +53,12 @@ Example: "see major scale" = "C major scale", "bee flat minor" = "Bb minor".
 | `melodic minor` | Jazz melodic minor (same up and down) |
 | `chromatic scale` / `chromatic from E` | All 12 semitones |
 | `pentatonic` / `minor pentatonic` | Major / minor pentatonic |
+| `quarter tone scale` | Every quarter tone (24 steps per octave) |
+| `rast` / `maqam rast from D` | Maqam Rast (neutral 3rd and 7th) |
+| `bayati` / `maqam bayati` | Maqam Bayati (neutral 2nd) |
+| `sikah` / `maqam sikah` | Maqam Sikah (quarter-tone frame) |
+| `slendro` | Gamelan-like equal pentatonic (5 equal steps) |
+| `just major` | Just-intonation major (pure-ratio 3rds and 6ths) |
 
 Supported scale patterns (the `SCALE_PATTERNS` registry in
 `music-constants.js`):
@@ -66,6 +72,21 @@ Supported scale patterns (the `SCALE_PATTERNS` registry in
 | Chromatic | 0 1 2 3 ... 12 |
 | Major pentatonic | 0 2 4 7 9 12 |
 | Minor pentatonic | 0 3 5 7 10 12 |
+
+### Microtonal scales
+
+Fractional semitones (0.5 = one quarter tone) play at exact pitch; note
+names show arrow accidentals for quarter tones (E&#8595; = E lowered a
+quarter tone) or a cents offset for other tunings (D4+40c).
+
+| Scale | Semitone pattern | What to listen for |
+|-------|------------------|--------------------|
+| Quarter tone | 0 0.5 1 1.5 ... 12 | The 50-cent step itself - half of a half step |
+| Rast | 0 2 3.5 5 7 9 10.5 12 | Major-like, but the 3rd and 7th sit exactly between major and minor |
+| Bayati | 0 1.5 3 5 7 8 10 12 | The neutral 2nd - the signature step of much Arabic melody |
+| Sikah | 0 1.5 3.5 5.5 7 8.5 10.5 12 | A whole mode floating a quarter tone off the piano grid |
+| Slendro | 0 2.4 4.8 7.2 9.6 12 | Five equal steps; no perfect 5th, gamelan flavor |
+| Just major | 0 2.04 3.86 4.98 7.02 8.84 10.88 12 | Pure-ratio major; compare its sweeter 3rd against equal-tempered major |
 
 ### Notes, chords, intervals, arpeggios
 

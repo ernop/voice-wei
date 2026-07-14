@@ -25,7 +25,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 ['harmonic minor repeat forever', cmd => cmd && cmd.scaleType === 'harmonic_minor' && cmd.modifiers.repeat === Infinity],
                 ['d minor repeat forever no gap', cmd => cmd && cmd.root === 'D' && cmd.modifiers.repeat === Infinity && cmd.modifiers.repeatGapMs === 0],
                 ['b flat major', cmd => cmd && cmd.root === 'A#' && cmd.scaleType === 'major'],
-                ['c major and repeat', cmd => cmd && cmd.root === 'C' && cmd.modifiers.repeat === Infinity]
+                ['c major and repeat', cmd => cmd && cmd.root === 'C' && cmd.modifiers.repeat === Infinity],
+                ['rast', cmd => cmd && cmd.type === 'scale' && cmd.root === 'C' && cmd.scaleType === 'rast'],
+                ['maqam bayati from d', cmd => cmd && cmd.root === 'D' && cmd.scaleType === 'bayati'],
+                ['quarter tone scale', cmd => cmd && cmd.scaleType === 'quarter_tone'],
+                ['d sikah scale', cmd => cmd && cmd.root === 'D' && cmd.scaleType === 'sikah'],
+                ['slendro', cmd => cmd && cmd.scaleType === 'slendro'],
+                ['slowly just major', cmd => cmd && cmd.scaleType === 'just_major' && cmd.modifiers.tempo === 'slow']
             ];
             return cases.map(([text, verify]) => {
                 let cmd = null;
@@ -154,6 +160,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             scaleSpelling.cPlain && scaleSpelling.fUsesBb && scaleSpelling.cMinorFlats
             && scaleSpelling.storedDSharpMajorSpellsAsEb && scaleSpelling.octaveDegreeIsEight
             && scaleSpelling.locrianFifth === 66 && scaleSpelling.dorianThird === 63);
+
+        const microtonal = await tab.evaluate(async () => {
+            const rast = scaleDegreeNotesInRange('C', 4, 'rast', 0, 12);
+            const quarter = buildScaleFrequencies('C', 4, 'quarter_tone');
+            const c = window.scalesController;
+
+            const played = [];
+            const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
+            const realSleep = c.audio.sleep;
+            c.audio.sleep = async () => {};
+            c.audio.piano.playMidi = (midi) => { played.push(midi); };
+            c.settings.octave = 4;
+            c.settings.sectionLength = '1o';
+            await c.playScale('C', 'rast', { direction: 'ascending', repeat: 1 });
+            c.audio.piano.playMidi = realPlayMidi;
+            c.audio.sleep = realSleep;
+
+            return {
+                rastNames: rast.map(n => n.name).join(' '),
+                rastMidis: rast.map(n => n.midi).join(','),
+                quarterCount: quarter.length,
+                quarterStepRatio: quarter[1].freq / quarter[0].freq,
+                slendroSpelling: scaleMidiToPitchString('C', 4, 'slendro', 62.4),
+                neutralThirdName: c.getIntervalName(3.5, 'rast'),
+                chordFifthOnMicrotonalDegree: c.getDiatonicInterval(60, 63.5, 'fifth', 'rast'),
+                played: played.join(',')
+            };
+        });
+        report.check(`microtonal rast degrees spell with quarter-tone arrows (${microtonal.rastNames})`,
+            microtonal.rastNames === `C4 D4 E${'\u2193'}4 F4 G4 A4 B${'\u2193'}4 C5`
+            && microtonal.rastMidis === '60,62,63.5,65,67,69,70.5,72');
+        report.check(`microtonal quarter-tone scale has 25 degrees at 50-cent steps (${microtonal.quarterCount}, ratio ${microtonal.quarterStepRatio.toFixed(5)})`,
+            microtonal.quarterCount === 25
+            && Math.abs(microtonal.quarterStepRatio - Math.pow(2, 0.5 / 12)) < 1e-9);
+        report.check(`microtonal non-quarter offsets spell as cents (${microtonal.slendroSpelling}) and degrees name neutrals (${microtonal.neutralThirdName})`,
+            microtonal.slendroSpelling === 'D4+40c' && microtonal.neutralThirdName === 'neutral third');
+        report.check(`microtonal chords movement finds the fifth above a neutral degree (${microtonal.chordFifthOnMicrotonalDegree})`,
+            microtonal.chordFifthOnMicrotonalDegree === 70.5);
+        report.check(`microtonal rast playback hits exact fractional midis (${microtonal.played})`,
+            microtonal.played === '60,62,63.5,65,67,69,70.5,72');
         await tab.close();
     }
 

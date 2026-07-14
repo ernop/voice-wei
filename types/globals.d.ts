@@ -47,6 +47,7 @@ interface Window {
     ScalesVoiceMaps?: {
         normalizeScaleNoteName: (spoken: string | null | undefined) => string | null;
         normalizeScaleModifier: (spoken: string | null | undefined) => string | null;
+        normalizeScaleTypeName: (spoken: string) => string;
         NOTE_PHONETIC_MAP: Record<string, string>;
         MODIFIER_PHONETIC_MAP: Record<string, string>;
     };
@@ -139,6 +140,7 @@ declare const Vex: { Flow: any };
 
 declare function normalizeNoteName(spoken: string | null | undefined): string | null;
 declare function normalizeModifier(spoken: string | null | undefined): string | null;
+declare function normalizeScaleTypeName(spoken: string): string;
 
 // -----------------------------------------------------------------------
 // Ebook page CDN libraries (pdf.js, JSZip)

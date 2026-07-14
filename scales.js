@@ -1995,7 +1995,13 @@ class ScalesController {
             'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian',
             'harmonic\\s*minor', 'harmonic\\s*major', 'double\\s*harmonic',
             'melodic\\s*minor',
-            'whole\\s*tone', 'diminished', 'augmented'
+            'whole\\s*tone', 'diminished', 'augmented',
+            // Microtonal (longer aliases before their prefixes)
+            'quarter[\\s-]*tone', 'quartertone',
+            'maqam\\s*rast', 'rast', 'rust',
+            'maqam\\s*bayati', 'bayati', 'bayatti', 'biati',
+            'maqam\\s*sikah', 'sikah', 'sika', 'seeka',
+            'slendro', 'slendra', 'just\\s*major'
         ].join('|');
 
         // Build phonetic note pattern for regex
@@ -2021,7 +2027,7 @@ class ScalesController {
             scaleMatch = pattern1;
             root = normalizeNoteName(pattern1[1]) || 'C';
             noteModifier = normalizeModifier(pattern1[2]);
-            scaleType = pattern1[3] ? pattern1[3].toLowerCase().replace(/\s+/g, '_') : 'major';
+            scaleType = pattern1[3] ? normalizeScaleTypeName(pattern1[3]) : 'major';
         } else if (pattern2 && pattern2[2]) {
             // Type-first pattern: "chromatic scale", "a chromatic scale", "harmonic minor from E"
             // pattern2[1] = optional "a " article (ignored)
@@ -2031,7 +2037,7 @@ class ScalesController {
             // pattern2[5] = note (optional, may be phonetic)
             // pattern2[6] = sharp/flat (optional, may be phonetic)
             scaleMatch = pattern2;
-            scaleType = pattern2[2].toLowerCase().replace(/\s+/g, '_');
+            scaleType = normalizeScaleTypeName(pattern2[2]);
             root = normalizeNoteName(pattern2[5]) || 'C';
             noteModifier = normalizeModifier(pattern2[6]);
         } else if (pattern3) {
@@ -3043,7 +3049,10 @@ class ScalesController {
         }
         const interval = midi - rootMidi;
         const scale = scaleIntervalsInRange(scaleType, interval - 48, interval + 72);
-        const index = scale.indexOf(interval);
+        // Tolerant match: microtonal steps like 2.4 pick up one-ulp float
+        // noise on the midi round trip, so exact equality can miss.
+        const index = scale.findIndex(value => Math.abs(value - interval) < 1e-6);
+        if (index === -1) return null;
         const target = scale[index + degreeSteps];
         return target === undefined ? null : rootMidi + target;
     }
@@ -3055,8 +3064,8 @@ class ScalesController {
      */
     getIntervalName(semitones, scaleType) {
         if (semitones < 0) return `${semitones}`;
-        // For chromatic, just show semitone number
-        if (scaleType === 'chromatic') {
+        // Ladder scales just show the offset from the root
+        if (scaleType === 'chromatic' || scaleType === 'quarter_tone') {
             if (semitones === 0) return 'root';
             if (semitones === 12) return 'octave';
             return `+${semitones}`;
@@ -3078,6 +3087,24 @@ class ScalesController {
             11: 'seventh',
             12: 'octave'
         };
+
+        if (!Number.isInteger(semitones)) {
+            // Quarter-tone degrees carry maqam names; other microtonal
+            // offsets show the nearest degree plus signed cents.
+            const neutralNames = {
+                1.5: 'neutral second',
+                3.5: 'neutral third',
+                5.5: 'half-sharp fourth',
+                6.5: 'half-flat fifth',
+                8.5: 'neutral sixth',
+                10.5: 'neutral seventh'
+            };
+            if (neutralNames[semitones]) return neutralNames[semitones];
+            const nearest = Math.round(semitones);
+            const cents = Math.round((semitones - nearest) * 100);
+            const base = degreeNames[nearest];
+            return base ? `${base} ${formatCents(cents)}c` : `+${semitones}`;
+        }
 
         return degreeNames[semitones] || `+${semitones}`;
     }
@@ -3890,10 +3917,16 @@ class ScalesController {
     /**
      * Add highlight to the piano key matching this MIDI note.
      * If the exact MIDI is off-keyboard, highlights the same pitch class
-     * at the nearest octave that exists on the keyboard.
+     * at the nearest octave that exists on the keyboard. Microtonal notes
+     * sit between keys, so both neighbors light up.
      * @param {number} midi
      */
     addPianoHighlight(midi) {
+        if (!Number.isInteger(midi)) {
+            this.addPianoHighlight(Math.floor(midi));
+            this.addPianoHighlight(Math.ceil(midi));
+            return;
+        }
         let key = document.querySelector(`.piano-key[data-midi="${midi}"]`);
         if (!key) {
             const pc = midiPitchClass(midi);
@@ -3982,8 +4015,11 @@ class ScalesController {
         if (!degreesModel) return;
 
         const { degreesAscAll, rootMidi } = degreesModel;
-        const scaleMidiSet = new Set(degreesAscAll);
-        const scalePitchClasses = new Set(degreesAscAll.map(m => midiPitchClass(m)));
+        // Microtonal degrees sit between keys; preview both neighbors.
+        const keyableDegrees = degreesAscAll.flatMap(m =>
+            Number.isInteger(m) ? [m] : [Math.floor(m), Math.ceil(m)]);
+        const scaleMidiSet = new Set(keyableDegrees);
+        const scalePitchClasses = new Set(keyableDegrees.map(m => midiPitchClass(m)));
         const rootPC = midiPitchClass(rootMidi);
 
         document.querySelectorAll('.piano-key').forEach(el => {
@@ -4012,6 +4048,12 @@ class ScalesController {
      * @returns {string}
      */
     formatMidiDisplay(midi, isSection, defaultOctave = 4) {
+        if (!Number.isInteger(midi)) {
+            // Microtonal spelling embeds its own octave (a quarter tone at
+            // the B/C boundary belongs to the upper octave's C).
+            const full = this.formatPitchStringForCurrentScale(midi);
+            return isSection ? full : full.toLowerCase();
+        }
         const noteName = scaleMidiToNoteName(
             this.settings.root,
             this.settings.octave,
@@ -4178,7 +4220,8 @@ class ScalesController {
                 'scale (C major)',
                 'D scale, A minor scale',
                 'chromatic scale, chromatic from E',
-                'pentatonic, blues scale'
+                'pentatonic, blues scale',
+                'quarter tone scale, rast, bayati from D'
             ],
             notes: [
                 'C, play D, F sharp, B flat',

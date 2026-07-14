@@ -17,6 +17,8 @@ Click **Listen**, then say things like:
 - "G major up and down"
 - "perfect fifth from A"
 - "harmonic minor repeat forever"
+- "quarter tone scale", "rast", "bayati from D" (microtonal - see
+  [scales-commands.md](scales-commands.md) for the full list)
 
 Voice commands reset settings to defaults then apply your modifiers, so
 "D minor" always sounds the same regardless of previous UI state. Clicked

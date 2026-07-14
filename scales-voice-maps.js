@@ -44,11 +44,38 @@ function normalizeScaleModifier(spoken) {
     return SCALES_MODIFIER_PHONETIC_MAP[lower] || null;
 }
 
+// Spoken scale-type variants that differ from the SCALE_PATTERNS key.
+// Keys are already lowercased with spaces/hyphens collapsed to underscores.
+/** @type {Record<string, string>} */
+const SCALES_SCALE_TYPE_ALIAS_MAP = {
+    'maqam_rast': 'rast',
+    'rust': 'rast',
+    'maqam_bayati': 'bayati',
+    'bayatti': 'bayati',
+    'biati': 'bayati',
+    'maqam_sikah': 'sikah',
+    'sika': 'sikah',
+    'seeka': 'sikah',
+    'slendra': 'slendro',
+    'quartertone': 'quarter_tone'
+};
+
+/**
+ * Canonicalize a spoken scale-type phrase to its SCALE_PATTERNS key.
+ * @param {string} spoken
+ * @returns {string}
+ */
+function normalizeScaleTypeName(spoken) {
+    const token = spoken.toLowerCase().trim().replace(/[\s-]+/g, '_');
+    return SCALES_SCALE_TYPE_ALIAS_MAP[token] || token;
+}
+
 window.ScalesVoiceMaps = {
     NOTE_PHONETIC_MAP: SCALES_NOTE_PHONETIC_MAP,
     MODIFIER_PHONETIC_MAP: SCALES_MODIFIER_PHONETIC_MAP,
     normalizeScaleNoteName,
-    normalizeScaleModifier
+    normalizeScaleModifier,
+    normalizeScaleTypeName
 };
 
 // Backward-compatible globals used throughout scales.js voice parsing

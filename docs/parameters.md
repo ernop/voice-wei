@@ -184,7 +184,7 @@ its default, then apply the spoken modifiers.
 | Setting | Default | Behavior |
 |---------|---------|----------|
 | root + octave | C4 (root pitch stepper, shared C2-B5) | live-restart |
-| scaleType | major | live-restart |
+| scaleType | major (UI offers 12 types incl. microtonal quarter_tone/rast/bayati/sikah/slendro/just_major; voice reaches every `SCALE_PATTERNS` key) | live-restart |
 | direction | ascending | live-restart |
 | noteLengthMs | 300 (shared note-length list) | live-restart |
 | gapMs | 0 (shared gap list; negative = overlap ratio) | live-restart |

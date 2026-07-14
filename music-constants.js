@@ -70,7 +70,20 @@ const SCALE_PATTERNS = Object.freeze({
     // Exotic scales
     whole_tone: [0, 2, 4, 6, 8, 10, 12],
     diminished: [0, 2, 3, 5, 6, 8, 9, 11, 12],   // Half-whole diminished
-    augmented: [0, 3, 4, 7, 8, 11, 12]
+    augmented: [0, 3, 4, 7, 8, 11, 12],
+
+    // Microtonal scales - fractional semitones (0.5 = one quarter tone).
+    // Playback is exact (the sampler pitches by ratio, not by key); note
+    // NAMES come from the microtonal spelling path below.
+    quarter_tone: [
+        0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6,
+        6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12
+    ],                                            // 24-EDO ladder: every quarter tone
+    rast: [0, 2, 3.5, 5, 7, 9, 10.5, 12],        // Maqam Rast: neutral 3rd and 7th
+    bayati: [0, 1.5, 3, 5, 7, 8, 10, 12],        // Maqam Bayati: neutral 2nd
+    sikah: [0, 1.5, 3.5, 5.5, 7, 8.5, 10.5, 12], // Maqam Sikah: built on a quarter-tone frame
+    slendro: [0, 2.4, 4.8, 7.2, 9.6, 12],        // 5-EDO: gamelan-like equal pentatonic
+    just_major: [0, 2.04, 3.86, 4.98, 7.02, 8.84, 10.88, 12] // 5-limit just intonation major
 });
 
 // Interval vocabulary - the single owner of interval ids, sizes, and names.
@@ -239,6 +252,63 @@ function scalePattern(scaleType) {
 }
 
 /**
+ * True when the scale's pattern has non-integer (microtonal) steps.
+ * @param {string} scaleType
+ * @returns {boolean}
+ */
+function scaleIsMicrotonal(scaleType) {
+    return scalePattern(scaleType).some(step => !Number.isInteger(step));
+}
+
+// Quarter-tone accidentals: down arrow = quarter-tone flat, up arrow =
+// quarter-tone sharp. Chosen over the SMuFL half-accidental glyphs for
+// universal font support on phones.
+const QUARTER_FLAT_MARK = '\u2193';
+const QUARTER_SHARP_MARK = '\u2191';
+
+/**
+ * Spell a non-integer MIDI value.
+ * Exact quarter tones (x.5) use arrow accidentals on the neighboring
+ * natural, matching maqam convention: 63.5 -> E(down)4 ("E half-flat"),
+ * 65.5 -> F(up)4. Other offsets show nearest note plus signed cents:
+ * 62.4 -> "D4+40c".
+ * @param {number} midi
+ * @returns {{ noteName: string, octave: number, centsSuffix: string }}
+ */
+function midiToMicrotonalParts(midi) {
+    if (midi - Math.floor(midi) === 0.5) {
+        const upperName = NOTE_NAMES[midiPitchClass(midi + 0.5)];
+        if (upperName.length === 1) {
+            return { noteName: `${upperName}${QUARTER_FLAT_MARK}`, octave: midiOctave(midi + 0.5), centsSuffix: '' };
+        }
+        return { noteName: `${NOTE_NAMES[midiPitchClass(midi - 0.5)]}${QUARTER_SHARP_MARK}`, octave: midiOctave(midi - 0.5), centsSuffix: '' };
+    }
+    const nearest = Math.round(midi);
+    const cents = Math.round((midi - nearest) * 100);
+    return { noteName: NOTE_NAMES[midiPitchClass(nearest)], octave: midiOctave(nearest), centsSuffix: `${formatCents(cents)}c` };
+}
+
+/**
+ * Microtonal pitch string with octave, e.g. "E<down>4" or "D4+40c".
+ * @param {number} midi
+ * @returns {string}
+ */
+function midiToMicrotonalPitchString(midi) {
+    const parts = midiToMicrotonalParts(midi);
+    return `${parts.noteName}${parts.octave}${parts.centsSuffix}`;
+}
+
+/**
+ * Microtonal note name without octave, e.g. "E<down>" or "D+40c".
+ * @param {number} midi
+ * @returns {string}
+ */
+function midiToMicrotonalNoteName(midi) {
+    const parts = midiToMicrotonalParts(midi);
+    return `${parts.noteName}${parts.centsSuffix}`;
+}
+
+/**
  * Convert note name and octave to MIDI note number.
  * Accepts sharp and flat spellings ('F#' and 'Gb').
  * @param {string} noteName - Note name (e.g., 'C', 'F#', 'Bb')
@@ -336,7 +406,7 @@ function scaleDegreeNotesInRange(root, octave, scaleType, minSemitone, maxSemito
             octaveShift: degree.octaveShift,
             midi,
             name,
-            noteName: name.replace(/-?\d+$/, ''),
+            noteName: Number.isInteger(interval) ? name.replace(/-?\d+$/, '') : midiToMicrotonalNoteName(midi),
             octave: midiOctave(midi)
         });
     }
@@ -371,8 +441,11 @@ function spellPitchClassWithLetter(letter, pitchClass) {
  */
 function scaleIntervalToPitchString(root, octave, scaleType, interval, accidentalPreference = null) {
     const rootMidi = noteNameToMidi(root, octave);
-    if (rootMidi === null || !Number.isInteger(interval)) {
-        return midiToPitchStringWithPreference(rootMidi === null ? 60 : rootMidi + interval, accidentalPreference);
+    if (rootMidi === null) {
+        return midiToPitchStringWithPreference(60, accidentalPreference);
+    }
+    if (!Number.isInteger(interval)) {
+        return midiToMicrotonalPitchString(rootMidi + interval);
     }
 
     const midi = rootMidi + interval;
@@ -408,7 +481,10 @@ function scaleIntervalToPitchString(root, octave, scaleType, interval, accidenta
 function scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPreference = null) {
     const rootMidi = noteNameToMidi(root, octave);
     if (rootMidi === null) return midiToPitchStringWithPreference(midi, accidentalPreference);
-    return scaleIntervalToPitchString(root, octave, scaleType, Math.round(midi) - rootMidi, accidentalPreference);
+    // Microtonal scales keep the fractional MIDI so the spelling carries
+    // the quarter-tone/cents detail; 12-TET scales round as before.
+    const effectiveMidi = scaleIsMicrotonal(scaleType) ? midi : Math.round(midi);
+    return scaleIntervalToPitchString(root, octave, scaleType, effectiveMidi - rootMidi, accidentalPreference);
 }
 
 /**
@@ -421,6 +497,7 @@ function scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPrefere
  * @returns {string}
  */
 function scaleMidiToNoteName(root, octave, scaleType, midi, accidentalPreference = null) {
+    if (!Number.isInteger(midi)) return midiToMicrotonalNoteName(midi);
     return scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPreference).replace(/-?\d+$/, '');
 }
 
