@@ -523,6 +523,40 @@
     line-height: 1.15;
 }
 
+.audio-parts-advanced {
+    grid-column: 1 / -1;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.audio-parts-advanced > summary {
+    padding: 6px 8px;
+    color: rgba(255, 255, 255, 0.58);
+    cursor: pointer;
+    font-size: 0.72rem;
+}
+
+.audio-parts-advanced > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 0 7px 7px;
+}
+
+.chapter-audio-details {
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.7rem;
+}
+
+.chapter-audio-details > summary {
+    cursor: pointer;
+}
+
+.chapter-audio-details .chunk-dot-row {
+    margin-top: 5px;
+}
+
 .book-progress-card {
     display: flex;
     flex-wrap: wrap;
@@ -567,6 +601,12 @@
 
 .reader-toolbar {
     margin-bottom: 10px;
+    position: sticky;
+    top: calc(var(--site-header-height, 0px) + 6px);
+    z-index: 3;
+    padding: 6px;
+    border-radius: 8px;
+    background: rgba(3, 18, 10, 0.96);
 }
 
 .reader-view {
@@ -1321,10 +1361,21 @@
     color: #bfdbfe;
 }
 
+.ai-answer-navigation {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.ai-answer-navigation button {
+    min-height: 38px;
+    padding: 5px 3px;
+    font-size: 0.68rem;
+}
+
 .ai-answer-play-btn {
     min-width: 58px;
-    min-height: 32px;
-    padding: 5px 9px;
 }
 
 .ai-answer-play-btn.playing {
@@ -1398,6 +1449,46 @@
     object-fit: cover;
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.05);
+}
+
+.ai-research-history {
+    margin-top: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(147, 197, 253, 0.16);
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.ai-research-history > summary {
+    padding: 9px 10px;
+    color: #bfdbfe;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.ai-research-history-list {
+    display: grid;
+    gap: 5px;
+    max-height: 240px;
+    overflow: auto;
+    padding: 0 8px 8px;
+}
+
+.ai-research-history-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    width: 100%;
+    padding: 8px;
+    border-radius: 7px;
+    border: 1px solid rgba(147, 197, 253, 0.14);
+    background: rgba(96, 165, 250, 0.06);
+    color: rgba(255, 255, 255, 0.82);
+    text-align: left;
+}
+
+.ai-research-history-item small {
+    color: rgba(255, 255, 255, 0.54);
 }
 
 .history-panel {
@@ -1528,5 +1619,9 @@
 
     .ai-question-submit-row {
         grid-template-columns: 1fr;
+    }
+
+    .ai-answer-navigation {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }

@@ -6,17 +6,19 @@ if (typeof pdfjsLib !== 'undefined') {
 }
 
 const EBOOK_DB_NAME = 'voice-wei-books';
-const EBOOK_DB_VERSION = 4;
+const EBOOK_DB_VERSION = 5;
 const BOOK_STORE = 'books';
 const SECTION_STORE = 'sections';
 const SEGMENT_STORE = 'segments';
 const HISTORY_STORE = 'history';
+const RESEARCH_STORE = 'research';
 const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
 const BOOK_QUESTION_MODEL = 'gpt-5.6';
 const BOOK_QUESTION_MODEL_LABEL = 'OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search';
 const BOOK_QUESTION_MAX_OUTPUT_TOKENS = 12000;
+const AUDIO_PLAN_VERSION = 2;
 const BOOK_QUESTION_INSTRUCTIONS = `You are the research agent of the person reading and listening to this book.
 
 Your job is to deeply research every question the reader asks. Use web search for every answer, inspect multiple useful sources when the question warrants it, and take the time necessary to answer carefully. Cite the sources that support your findings. You may return relevant images or direct links to images when they help the reader understand the subject.
@@ -112,6 +114,7 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @typedef {Object} BookRecord
  * @property {string} id
  * @property {number} schemaVersion
+ * @property {number | undefined} audioPlanVersion
  * @property {string} title
  * @property {string} author
  * @property {string} format
@@ -200,6 +203,25 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  */
 
 /**
+ * @typedef {Object} AiResearchRecord
+ * @property {string} id
+ * @property {string} bookId
+ * @property {string} sectionId
+ * @property {string} segmentId
+ * @property {string} timestamp
+ * @property {string} question
+ * @property {string} answer
+ * @property {string} bookText
+ * @property {{ start: number, end: number, url: string, title: string }[]} citations
+ * @property {{ url: string, title: string }[]} sources
+ * @property {{ imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[]} images
+ * @property {Record<string, any>} request
+ * @property {string} modelLabel
+ * @property {number} elapsedMs
+ * @property {boolean} spokenAtReturn
+ */
+
+/**
  * @typedef {Object} WebPage
  * @property {string} url
  * @property {string} title
@@ -259,6 +281,11 @@ class BooksStorage {
                     history.createIndex('bookDay', ['bookId', 'dateKey']);
                     history.createIndex('timestamp', 'timestamp');
                 }
+                if (!db.objectStoreNames.contains(RESEARCH_STORE)) {
+                    const research = db.createObjectStore(RESEARCH_STORE, { keyPath: 'id' });
+                    research.createIndex('bookId', 'bookId');
+                    research.createIndex('timestamp', 'timestamp');
+                }
             };
             request.onsuccess = () => {
                 this.db = request.result;
@@ -317,6 +344,13 @@ class BooksStorage {
         return sections;
     }
 
+    /** @param {string} bookId @param {BookSection[]} sections */
+    async replaceSections(bookId, sections) {
+        const existing = await this.getSections(bookId);
+        for (const section of existing) await this.delete(SECTION_STORE, section.key);
+        await this.putSections(sections);
+    }
+
     /** @param {string} bookId */
     async getSegments(bookId) {
         const segments = await /** @type {Promise<AudioSegment[]>} */ (this.getAllByIndex(SEGMENT_STORE, 'bookId', bookId));
@@ -324,14 +358,47 @@ class BooksStorage {
         return segments;
     }
 
+    /** @param {string} bookId @param {AudioSegment[]} segments */
+    async replaceSegments(bookId, segments) {
+        const existing = await this.getSegments(bookId);
+        for (const segment of existing) await this.delete(SEGMENT_STORE, segment.key);
+        await this.putSegments(segments);
+    }
+
+    /** @param {BookRecord} book @param {BookSection[]} sections @param {AudioSegment[]} segments */
+    async replaceBookContent(book, sections, segments) {
+        if (!this.db) throw new Error('Books storage is not open');
+        await new Promise((resolve, reject) => {
+            const tx = this.db.transaction([BOOK_STORE, SECTION_STORE, SEGMENT_STORE], 'readwrite');
+            const sectionStore = tx.objectStore(SECTION_STORE);
+            const segmentStore = tx.objectStore(SEGMENT_STORE);
+            const sectionKeys = sectionStore.index('bookId').getAllKeys(book.id);
+            const segmentKeys = segmentStore.index('bookId').getAllKeys(book.id);
+            sectionKeys.onsuccess = () => {
+                for (const key of sectionKeys.result) sectionStore.delete(key);
+                for (const section of sections) sectionStore.put(section);
+            };
+            segmentKeys.onsuccess = () => {
+                for (const key of segmentKeys.result) segmentStore.delete(key);
+                for (const segment of segments) segmentStore.put(segment);
+            };
+            tx.objectStore(BOOK_STORE).put(book);
+            tx.oncomplete = () => resolve(undefined);
+            tx.onerror = () => reject(tx.error || new Error('Could not replace book audio plan'));
+            tx.onabort = () => reject(tx.error || new Error('Book audio plan replacement aborted'));
+        });
+    }
+
     /** @param {string} bookId */
     async deleteBookCascade(bookId) {
         const sections = await this.getSections(bookId);
         const segments = await this.getSegments(bookId);
         const history = await this.getHistory(bookId);
+        const research = await this.getResearch(bookId);
         for (const section of sections) await this.delete(SECTION_STORE, section.key);
         for (const segment of segments) await this.delete(SEGMENT_STORE, segment.key);
         for (const entry of history) await this.delete(HISTORY_STORE, entry.id);
+        for (const entry of research) await this.delete(RESEARCH_STORE, entry.id);
         await this.delete(BOOK_STORE, bookId);
     }
 
@@ -345,6 +412,18 @@ class BooksStorage {
         const entries = await /** @type {Promise<BookHistoryEntry[]>} */ (this.getAllByIndex(HISTORY_STORE, 'bookId', bookId));
         entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         return entries;
+    }
+
+    /** @param {AiResearchRecord} record */
+    async putResearch(record) {
+        await this.put(RESEARCH_STORE, record);
+    }
+
+    /** @param {string} bookId */
+    async getResearch(bookId) {
+        const records = await /** @type {Promise<AiResearchRecord[]>} */ (this.getAllByIndex(RESEARCH_STORE, 'bookId', bookId));
+        records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        return records;
     }
 
     /** @param {string} storeName @param {any} value */
@@ -430,6 +509,7 @@ class BooksController {
         this.generatingSegmentId = null;
         this.generationCancelled = false;
         this.voiceConfigOpen = false;
+        this.rebuildAudioPlanArmed = false;
         this.showArchivedBooks = false;
         this.libraryQuery = '';
         this.readerQuery = '';
@@ -456,6 +536,8 @@ class BooksController {
         this.voiceSampleVoice = null;
         /** @type {BookHistoryEntry[]} */
         this.historyEntries = [];
+        /** @type {AiResearchRecord[]} */
+        this.researchEntries = [];
         this.lastListenHistoryAt = 0;
         this.lastAudioTimeForHistory = 0;
         this.lastReadHistoryAt = 0;
@@ -472,6 +554,7 @@ class BooksController {
         this.aiQuestionStartedAt = 0;
         this.aiAnswerSpeaking = false;
         this.aiAnswerSpeechId = 0;
+        this.aiAnswerCursor = 0;
         this.lastAiAnswer = '';
         this.bookOpenId = 0;
         this.init();
@@ -990,11 +1073,11 @@ class BooksController {
                 const segment = this.segments.find(item => item.sectionId === sectionId);
                 if (!segment) return;
                 this.currentSegmentId = segment.id;
-                this.markReadingProgress(segment);
                 this.renderWorkspace();
-                this.scrollCurrentSegmentIntoView(true);
             });
         }
+        this.bindButton('goToLatestReadBtn', () => this.goToLatestRead());
+        this.bindButton('goToPlayingSectionBtn', () => this.goToPlayingSection());
         this.bindButton('generateNext15Btn', () => this.generateNextDuration(15 * 60, false));
         this.bindButton('generateNext60Btn', () => this.generateNextDuration(60 * 60, false));
         this.bindButton('generatePreviousChapterBtn', () => this.generatePreviousChapter());
@@ -1005,12 +1088,14 @@ class BooksController {
         this.bindButton('generateAllBtn', () => this.generateAllRemaining());
         this.bindButton('cancelGenerationBtn', () => this.cancelGeneration());
         this.bindButton('downloadOriginalBtn', () => this.downloadCurrentOriginal());
+        this.bindButton('downloadCurrentChapterBtn', () => this.downloadCurrentChapter());
         this.bindButton('downloadCurrentSegmentBtn', () => this.downloadCurrentSegment());
         this.bindButton('downloadAllSegmentsBtn', () => this.downloadAllSegments());
         this.bindButton('downloadCombinedBtn', () => this.downloadCombinedSegments());
         this.bindButton('toggleArchiveCurrentBookBtn', () => this.toggleCurrentBookArchive());
         this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
         this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
+        this.bindButton('rebuildAudioPlanBtn', () => this.requestRebuildAudioPlan());
         this.bindButton('backToLibraryBtn', () => this.backToLibrary());
         this.bindButton('clearLogBtn', () => this.clearLog());
     }
@@ -1024,7 +1109,6 @@ class BooksController {
         document.body.classList.toggle('reader-fullscreen-mode', enabled);
         const button = document.getElementById('readerFullscreenBtn');
         if (button) button.textContent = enabled ? 'Exit fullscreen' : 'Fullscreen';
-        if (enabled) this.scrollCurrentSegmentIntoView(false);
     }
 
     setupPlayerUI() {
@@ -1074,6 +1158,10 @@ class BooksController {
         this.bindButton('askAiQuestionBtn', () => this.askAiQuestionFromInput());
         this.bindButton('closeAiQuestionBtn', () => this.closeAiQuestionPanel());
         this.bindButton('repeatAiAnswerBtn', () => this.toggleAiAnswerSpeech());
+        const answerNavigation = document.getElementById('aiAnswerNavigation');
+        if (answerNavigation) answerNavigation.addEventListener('click', event => this.handleAiAnswerNavigation(event));
+        const researchHistory = document.getElementById('aiResearchHistoryList');
+        if (researchHistory) researchHistory.addEventListener('click', event => this.handleAiResearchHistoryClick(event));
         const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
         if (input) {
             input.addEventListener('input', () => this.renderAiQuestionRequestPreview());
@@ -1132,7 +1220,7 @@ class BooksController {
     prepareAiQuestion() {
         const segment = this.getAiQuestionSourceSegment();
         if (!segment) {
-            this.updateStatus('Open a book chunk before asking a question');
+            this.updateStatus('Open a book audio context before asking a question');
             return false;
         }
         this.aiQuestionSegmentId = segment.id;
@@ -1145,9 +1233,7 @@ class BooksController {
         if (panel) panel.style.display = 'grid';
         if (context) context.textContent = segment.text;
         if (label) {
-            const terms = this.getAudioUnitTerms();
-            const unit = terms.singular === 'chapter' ? 'chapter' : `chunk ${segment.sectionSegmentIndex + 1}`;
-            label.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unit} · ${segment.text.length.toLocaleString()} characters sent`;
+            label.textContent = `${this.getSectionTitle(segment.sectionId)} · ${segment.text.length.toLocaleString()} characters of current audio context sent`;
         }
         this.renderAiQuestionRequestPreview();
         return true;
@@ -1205,7 +1291,7 @@ class BooksController {
         }
         const segment = this.getSegmentById(this.aiQuestionSegmentId || '');
         if (!segment) {
-            this.updateAiQuestionStatus('The source chunk is no longer available.');
+            this.updateAiQuestionStatus('The source book context is no longer available.');
             return;
         }
         const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
@@ -1244,7 +1330,17 @@ class BooksController {
             this.lastAiAnswer = result.answer;
             this.renderAiResearchResult(result);
             this.renderAiQuestionElapsedTotal(elapsed);
-            this.updateAiQuestionStatus(`Answered by ${BOOK_QUESTION_MODEL_LABEL}.`);
+            let saved = true;
+            try {
+                await this.persistAiResearch(question, segment, requestBody, result, elapsed);
+            } catch (error) {
+                saved = false;
+                const message = error instanceof Error ? error.message : String(error);
+                this.log('error', `Could not save AI research: ${message}`);
+            }
+            this.updateAiQuestionStatus(saved
+                ? `Answered and saved · ${BOOK_QUESTION_MODEL_LABEL}.`
+                : `Answered by ${BOOK_QUESTION_MODEL_LABEL}, but local saving failed.`);
             this.recordHistory('ai-question', question);
             this.log('info', `AI question: ${question}`);
             if (this.settings.speakAiAnswers && typeof VoiceOutput !== 'undefined') {
@@ -1297,11 +1393,105 @@ class BooksController {
             `Book: ${this.currentBook?.title || 'Unknown title'}`,
             `Author: ${this.currentBook?.author || 'Unknown author'}`,
             `Chapter or section: ${this.getSectionTitle(segment.sectionId)}`,
-            `Chunk: ${segment.sectionSegmentIndex + 1}`,
             '',
-            'Full text of the current MP3 chunk:',
+            'Full text of the current audio context:',
             bookText
         ].join('\n');
+    }
+
+    /**
+     * @param {string} question
+     * @param {AudioSegment} segment
+     * @param {Record<string, any>} request
+     * @param {{ answer: string, citations: { start: number, end: number, url: string, title: string }[], sources: { url: string, title: string }[], images: { imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[] }} result
+     * @param {number} elapsedMs
+     */
+    async persistAiResearch(question, segment, request, result, elapsedMs) {
+        if (!this.storage || !this.currentBook) throw new Error('Books storage unavailable');
+        /** @type {AiResearchRecord} */
+        const record = {
+            id: this.createId('research'),
+            bookId: this.currentBook.id,
+            sectionId: segment.sectionId,
+            segmentId: segment.id,
+            timestamp: new Date().toISOString(),
+            question,
+            answer: result.answer,
+            bookText: segment.text,
+            citations: result.citations,
+            sources: result.sources,
+            images: result.images,
+            request,
+            modelLabel: BOOK_QUESTION_MODEL_LABEL,
+            elapsedMs,
+            spokenAtReturn: this.settings.speakAiAnswers
+        };
+        await this.storage.putResearch(record);
+        this.researchEntries.unshift(record);
+        this.renderAiResearchHistory();
+    }
+
+    renderAiResearchHistory() {
+        const count = document.getElementById('aiResearchHistoryCount');
+        const list = document.getElementById('aiResearchHistoryList');
+        if (count) count.textContent = String(this.researchEntries.length);
+        if (!list) return;
+        if (!this.researchEntries.length) {
+            list.innerHTML = '<div class="chapter-status-empty">No saved research yet.</div>';
+            return;
+        }
+        list.innerHTML = this.researchEntries.map(record => `
+            <button class="ai-research-history-item" type="button" data-research-id="${this.escapeHtml(record.id)}">
+                <span>${this.escapeHtml(record.question)}</span>
+                <small>${this.escapeHtml(new Date(record.timestamp).toLocaleString())}</small>
+            </button>
+        `).join('');
+    }
+
+    /** @param {Event} event */
+    handleAiResearchHistoryClick(event) {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const button = target?.closest('[data-research-id]');
+        const id = button?.getAttribute('data-research-id');
+        const record = this.researchEntries.find(entry => entry.id === id);
+        if (record) this.loadAiResearchRecord(record);
+    }
+
+    /** @param {AiResearchRecord} record */
+    loadAiResearchRecord(record) {
+        this.stopAiAnswerSpeech();
+        const segment = this.getSegmentById(record.segmentId);
+        this.aiQuestionSegmentId = record.segmentId;
+        this.lastAiAnswer = record.answer;
+        const panel = document.getElementById('aiQuestionPanel');
+        const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
+        const context = document.getElementById('aiQuestionContextText');
+        const preview = document.getElementById('aiQuestionRequestPreview');
+        if (panel) panel.style.display = 'grid';
+        if (input) input.value = record.question;
+        if (context) context.textContent = record.bookText;
+        if (preview) {
+            const request = { ...record.request };
+            const marker = 'Full text of the current audio context:\n';
+            const markerIndex = typeof request.input === 'string' ? request.input.indexOf(marker) : -1;
+            if (markerIndex !== -1) {
+                request.input = `${request.input.slice(0, markerIndex + marker.length)}[Full current book context shown separately below — ${record.bookText.length.toLocaleString()} characters]`;
+            }
+            preview.textContent = [
+                'SAVED REQUEST',
+                `Recorded ${new Date(record.timestamp).toLocaleString()}`,
+                '',
+                JSON.stringify(request, null, 2)
+            ].join('\n');
+        }
+        this.renderAiResearchResult({
+            answer: record.answer,
+            citations: record.citations,
+            sources: record.sources,
+            images: record.images
+        });
+        this.renderAiQuestionElapsedTotal(record.elapsedMs);
+        this.updateAiQuestionStatus(`Saved research · ${record.modelLabel}.`);
     }
 
     renderAiQuestionRequestPreview() {
@@ -1312,14 +1502,14 @@ class BooksController {
         const request = this.buildAiQuestionRequest(
             questionInput?.value.trim() || '[Your spoken or typed question]',
             segment,
-            `[Full book chunk shown separately below — ${segment.text.length.toLocaleString()} characters]`
+            `[Full current book context shown separately below — ${segment.text.length.toLocaleString()} characters]`
         );
         preview.textContent = [
             'POST https://api.openai.com/v1/responses',
             'Authorization: browser-stored OpenAI key',
             'Content-Type: application/json',
             '',
-            'EXACT REQUEST BODY (only the separately shown book chunk is replaced)',
+            'EXACT REQUEST BODY (only the separately shown book context is replaced)',
             JSON.stringify(request, null, 2)
         ].join('\n');
     }
@@ -1423,6 +1613,10 @@ class BooksController {
             textEl.textContent = '';
             const segmenter = new (/** @type {any} */ (Intl).Segmenter)(undefined, { granularity: 'sentence' });
             for (const sentence of segmenter.segment(result.answer)) {
+                if (!sentence.segment.trim()) {
+                    textEl.append(document.createTextNode(sentence.segment));
+                    continue;
+                }
                 const span = document.createElement('span');
                 span.className = 'ai-answer-sentence';
                 const start = sentence.index;
@@ -1436,6 +1630,8 @@ class BooksController {
         this.renderAiResearchSources(result.sources);
         this.renderAiResearchImages(result.images);
         this.renderAiAnswerPlayState(false);
+        this.aiAnswerCursor = 0;
+        this.highlightAiAnswerAt(0);
     }
 
     /**
@@ -1580,17 +1776,17 @@ class BooksController {
     startAiAnswerSpeech() {
         if (!this.lastAiAnswer || typeof VoiceOutput === 'undefined') return;
         const speechId = ++this.aiAnswerSpeechId;
+        const spokenStart = this.aiAnswerCursor;
         this.aiAnswerSpeaking = true;
         this.renderAiAnswerPlayState(true);
-        VoiceOutput.speak(this.lastAiAnswer, {
+        VoiceOutput.speak(this.lastAiAnswer.slice(spokenStart), {
             onBoundary: event => {
-                if (speechId === this.aiAnswerSpeechId) this.highlightAiAnswerAt(event.charIndex);
+                if (speechId === this.aiAnswerSpeechId) this.highlightAiAnswerAt(spokenStart + event.charIndex);
             }
         }).then(() => {
             if (speechId !== this.aiAnswerSpeechId) return;
             this.aiAnswerSpeaking = false;
             this.renderAiAnswerPlayState(false);
-            this.highlightAiAnswerAt(-1);
         });
     }
 
@@ -1599,7 +1795,7 @@ class BooksController {
         if (typeof VoiceOutput !== 'undefined') VoiceOutput.stop();
         this.aiAnswerSpeaking = false;
         this.renderAiAnswerPlayState(false);
-        this.highlightAiAnswerAt(-1);
+        this.highlightAiAnswerAt(this.aiAnswerCursor);
     }
 
     /** @param {boolean} playing */
@@ -1622,7 +1818,65 @@ class BooksController {
             sentence.classList.toggle('current', selected);
             if (selected) current = sentence;
         }
-        current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        if (charIndex >= 0) this.aiAnswerCursor = charIndex;
+        if (current instanceof HTMLElement) {
+            const pane = document.getElementById('aiQuestionAnswerText');
+            if (pane) {
+                const top = current.offsetTop;
+                const bottom = top + current.offsetHeight;
+                if (top < pane.scrollTop) pane.scrollTop = top;
+                else if (bottom > pane.scrollTop + pane.clientHeight) pane.scrollTop = bottom - pane.clientHeight;
+            }
+        }
+    }
+
+    /** @param {Event} event */
+    handleAiAnswerNavigation(event) {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const action = target?.closest('[data-ai-answer-nav]')?.getAttribute('data-ai-answer-nav');
+        if (!action || !this.lastAiAnswer) return;
+        this.stopAiAnswerSpeech();
+        if (action === 'page-back' || action === 'page-forward') {
+            this.navigateAiAnswerPage(action === 'page-forward' ? 1 : -1);
+            return;
+        }
+        const direction = action.endsWith('forward') ? 1 : -1;
+        this.navigateAiAnswerUnit(action.startsWith('paragraph') ? 'paragraph' : 'sentence', direction);
+    }
+
+    /** @param {'sentence' | 'paragraph'} unit @param {number} direction */
+    navigateAiAnswerUnit(unit, direction) {
+        const starts = unit === 'sentence'
+            ? Array.from(document.querySelectorAll('.ai-answer-sentence')).map(node => Number(node.getAttribute('data-start') || 0))
+            : this.getAiAnswerParagraphStarts();
+        if (!starts.length) return;
+        let currentIndex = 0;
+        for (let i = 0; i < starts.length; i++) {
+            if (starts[i] <= this.aiAnswerCursor) currentIndex = i;
+            else break;
+        }
+        const nextIndex = Math.max(0, Math.min(starts.length - 1, currentIndex + direction));
+        this.highlightAiAnswerAt(starts[nextIndex]);
+    }
+
+    /** @returns {number[]} */
+    getAiAnswerParagraphStarts() {
+        const starts = [];
+        const pattern = /(?:^|\n\s*\n)(\S)/g;
+        for (const match of this.lastAiAnswer.matchAll(pattern)) {
+            starts.push((match.index || 0) + match[0].lastIndexOf(match[1]));
+        }
+        return starts.length ? starts : [0];
+    }
+
+    /** @param {number} direction */
+    navigateAiAnswerPage(direction) {
+        const pane = document.getElementById('aiQuestionAnswerText');
+        if (!pane) return;
+        pane.scrollTop = Math.max(0, pane.scrollTop + direction * Math.max(80, pane.clientHeight * 0.85));
+        const sentences = Array.from(document.querySelectorAll('.ai-answer-sentence'));
+        const nearest = sentences.find(node => node instanceof HTMLElement && node.offsetTop + node.offsetHeight >= pane.scrollTop);
+        if (nearest) this.highlightAiAnswerAt(Number(nearest.getAttribute('data-start') || 0));
     }
 
     /** @param {KeyboardEvent} event */
@@ -1746,8 +2000,8 @@ class BooksController {
         list.innerHTML = books.map(book => {
             const selectedClass = this.currentBook?.id === book.id ? ' selected' : '';
             const readPercent = this.getBookReadPercent(book);
-            const mp3Percent = this.getBookGeneratedPercent(book);
-            const generatedText = `${book.generatedSegmentCount || 0}/${book.segmentCount || 0} MP3`;
+            const audioPercent = this.getBookGeneratedPercent(book);
+            const generatedText = `${this.formatDuration(book.generatedDurationSec || 0)} ready`;
             return `
                 <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
                     <div class="saved-book-main">
@@ -1755,11 +2009,11 @@ class BooksController {
                         <span class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</span>
                     </div>
                     <div class="saved-book-side">
-                        <span class="saved-book-meta"><span>Read ${readPercent}%</span><span>MP3 ${mp3Percent}%</span>${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
+                        <span class="saved-book-meta"><span>Read ${readPercent}%</span><span>Audio ${audioPercent}%</span>${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
                     </div>
-                    <span class="saved-book-progress-bars" title="Read ${readPercent}%, MP3 ${mp3Percent}%">
+                    <span class="saved-book-progress-bars" title="Read ${readPercent}%, audio ${audioPercent}%">
                         <span class="saved-book-progress read"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
-                        <span class="saved-book-progress mp3"><span class="saved-book-progress-fill" style="width: ${mp3Percent}%"></span></span>
+                        <span class="saved-book-progress mp3"><span class="saved-book-progress-fill" style="width: ${audioPercent}%"></span></span>
                     </span>
                 </button>
             `;
@@ -1777,15 +2031,13 @@ class BooksController {
         }
         const totalChars = books.reduce((sum, book) => sum + (book.charCount || 0), 0);
         const readChars = books.reduce((sum, book) => sum + Math.max(0, Math.min(book.charCount || 0, book.readingCharOffset || 0)), 0);
-        const totalSegments = books.reduce((sum, book) => sum + (book.segmentCount || 0), 0);
-        const generatedSegments = books.reduce((sum, book) => sum + (book.generatedSegmentCount || 0), 0);
         const totalDuration = books.reduce((sum, book) => sum + (book.estimatedDurationSec || 0), 0);
         const generatedDuration = books.reduce((sum, book) => sum + (book.generatedDurationSec || 0), 0);
         const readPercent = totalChars ? Math.round(readChars / totalChars * 100) : 0;
-        const generatedPercent = totalSegments ? Math.round(generatedSegments / totalSegments * 100) : 0;
+        const generatedPercent = totalDuration ? Math.round(generatedDuration / totalDuration * 100) : 0;
         summary.innerHTML = `
             <strong>${scope}</strong>
-            <span>${books.length} book${books.length === 1 ? '' : 's'} · read ${readPercent}% · MP3 ${generatedPercent}% · ${this.formatDurationHtml(generatedDuration)} / ${this.formatDurationHtml(totalDuration)} generated</span>
+            <span>${books.length} book${books.length === 1 ? '' : 's'} · read ${readPercent}% · audio ${generatedPercent}% · ${this.formatDurationHtml(generatedDuration)} / ${this.formatDurationHtml(totalDuration)} generated</span>
         `;
     }
 
@@ -1842,7 +2094,7 @@ class BooksController {
         this.currentSegmentId = null;
         this.renderLibrary();
         this.updateStatus(`Imported ${imported.book.title} and added it to the bookshelf`);
-        this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} chapters/sections, ${imported.segments.length} audio chunks planned`);
+        this.log('info', `Imported ${imported.book.title}: ${imported.sections.length} chapters/sections, ${imported.segments.length} internal audio parts planned`);
     }
 
     normalizeUrl(value) {
@@ -2159,6 +2411,7 @@ class BooksController {
         const book = {
             id: bookId,
             schemaVersion: 4,
+            audioPlanVersion: AUDIO_PLAN_VERSION,
             title,
             author: this.hostnameFor(state.rootUrl),
             format: 'web',
@@ -2205,7 +2458,7 @@ class BooksController {
         this.renderLibrary();
         const failNote = failed ? `, ${failed} link${failed === 1 ? '' : 's'} could not be read` : '';
         this.updateStatus(`Built ${title}: contents + ${succeeded} chapter${succeeded === 1 ? '' : 's'}${failNote}`);
-        this.log('info', `Built web book ${title}: ${sections.length} chapters (${succeeded} from links, ${failed} failed), ${segments.length} audio chunks planned`);
+        this.log('info', `Built web book ${title}: ${sections.length} chapters (${succeeded} from links, ${failed} failed), ${segments.length} internal audio parts planned`);
     }
 
     /** @param {number} done @param {number} total @param {string} label */
@@ -2346,6 +2599,7 @@ class BooksController {
         const book = {
             id: bookId,
             schemaVersion: 3,
+            audioPlanVersion: AUDIO_PLAN_VERSION,
             title,
             author,
             format: extension,
@@ -2674,6 +2928,8 @@ class BooksController {
     /** @param {string} text */
     sectionsFromText(text) {
         const clean = this.cleanText(text);
+        const chapters = this.sectionsFromTextChapterHeadings(clean);
+        if (chapters.length > 1) return chapters;
         const maxSectionChars = 12000;
         /** @type {{ title: string, text: string, html?: string }[]} */
         const sections = [];
@@ -2687,6 +2943,38 @@ class BooksController {
             const sectionText = clean.slice(cursor, end).trim();
             if (sectionText) sections.push({ title: `Part ${sections.length + 1}`, text: sectionText });
             cursor = end;
+        }
+        return sections;
+    }
+
+    /** @param {string} text */
+    sectionsFromTextChapterHeadings(text) {
+        const headingPattern = /^[ \t]*(chapter\s+(?:\d+|[ivxlcdm]+)\.?(?:[ \t]+[^\n]+)?)[ \t]*$/gim;
+        const matches = Array.from(text.matchAll(headingPattern)).map(match => ({
+            title: match[1].trim(),
+            start: match.index || 0,
+            normalized: match[1].replace(/\s+/g, ' ').trim().toLowerCase()
+        }));
+        if (matches.length < 2) return [];
+
+        const occurrences = new Map();
+        for (const match of matches) {
+            const grouped = occurrences.get(match.normalized) || [];
+            grouped.push(match);
+            occurrences.set(match.normalized, grouped);
+        }
+        const hasContentsDuplicates = Array.from(occurrences.values()).some(group => group.length > 1);
+        const headings = hasContentsDuplicates
+            ? Array.from(occurrences.values()).map(group => group[group.length - 1]).sort((a, b) => a.start - b.start)
+            : matches;
+        if (headings.length < 2) return [];
+
+        const sections = [];
+        const frontMatter = text.slice(0, headings[0].start).trim();
+        if (frontMatter.length > 200) sections.push({ title: 'Front matter', text: frontMatter });
+        for (let i = 0; i < headings.length; i++) {
+            const chapterText = text.slice(headings[i].start, headings[i + 1]?.start || text.length).trim();
+            if (chapterText) sections.push({ title: headings[i].title, text: chapterText });
         }
         return sections;
     }
@@ -2711,10 +2999,7 @@ class BooksController {
             if (cursor >= text.length) break;
             let end = Math.min(text.length, cursor + TTS_CHUNK_SIZE);
             if (end < text.length) {
-                const punctuationBreak = Math.max(text.lastIndexOf('. ', end), text.lastIndexOf('? ', end), text.lastIndexOf('! ', end), text.lastIndexOf('\n', end));
-                const spaceBreak = text.lastIndexOf(' ', end);
-                if (punctuationBreak > cursor + 500) end = punctuationBreak + 1;
-                else if (spaceBreak > cursor + 500) end = spaceBreak;
+                end = this.findSegmentBreak(text, cursor, end);
             }
             let pieceEnd = end;
             while (pieceEnd > cursor && /\s/.test(text[pieceEnd - 1])) pieceEnd--;
@@ -2723,6 +3008,31 @@ class BooksController {
             cursor = end;
         }
         return pieces;
+    }
+
+    /** @param {string} text @param {number} cursor @param {number} hardEnd */
+    findSegmentBreak(text, cursor, hardEnd) {
+        const candidate = text.slice(cursor, hardEnd);
+        let sentenceEnd = -1;
+        const sentenceBoundary = /[.!?](?:["'”’)\]]+)?(?=\s|$)|\n{2,}/g;
+        for (const match of candidate.matchAll(sentenceBoundary)) {
+            const end = cursor + (match.index || 0) + match[0].length;
+            sentenceEnd = end;
+        }
+        if (sentenceEnd !== -1) return sentenceEnd;
+
+        let clauseEnd = -1;
+        const clauseBoundary = /[;:](?=\s)/g;
+        for (const match of candidate.matchAll(clauseBoundary)) {
+            const end = cursor + (match.index || 0) + 1;
+            if (end > cursor + 500) clauseEnd = end;
+        }
+        if (clauseEnd !== -1) return clauseEnd;
+
+        for (let end = hardEnd; end > cursor + 500; end--) {
+            if (/\s/.test(text[end - 1])) return end - 1;
+        }
+        return hardEnd;
     }
 
     /** @param {string} bookId */
@@ -2734,6 +3044,7 @@ class BooksController {
         this.sections = [];
         this.segments = [];
         this.historyEntries = [];
+        this.researchEntries = [];
         this.currentSegmentId = null;
         this.updateStatus('Opening book...');
         const book = await this.storage.getBook(bookId);
@@ -2741,23 +3052,37 @@ class BooksController {
         if (!book) throw new Error('Book not found');
         book.lastOpenedAt = new Date().toISOString();
         await this.storage.putBook(book);
-        const [sections, segments, historyEntries] = await Promise.all([
+        const [sections, segments, historyEntries, researchEntries] = await Promise.all([
             this.storage.getSections(bookId),
             this.storage.getSegments(bookId),
-            this.storage.getHistory(bookId)
+            this.storage.getHistory(bookId),
+            this.storage.getResearch(bookId)
         ]);
         if (openId !== this.bookOpenId) return;
         this.currentBook = book;
         this.sections = sections;
         this.segments = segments;
         this.historyEntries = historyEntries;
+        this.researchEntries = researchEntries;
         await this.recoverInterruptedGenerationStates();
         if (openId !== this.bookOpenId) return;
+        if (this.shouldAutoRebuildLegacyTextPlan()) {
+            await this.rebuildAudioPlan();
+            return;
+        }
         this.currentSegmentId = this.currentBook.listeningSegmentId || this.segments[0]?.id || null;
         this.showWorkspace(true);
         this.renderWorkspace();
         this.renderLibrary();
         this.updateStatus(`Opened ${book.title}`);
+    }
+
+    shouldAutoRebuildLegacyTextPlan() {
+        return this.currentBook?.format === 'txt'
+            && this.currentBook.audioPlanVersion !== AUDIO_PLAN_VERSION
+            && !this.segments.some(segment => this.isSegmentPlayable(segment))
+            && this.sections.length > 1
+            && this.sections.every(section => /^Part \d+$/.test(section.title));
     }
 
     /** @param {boolean} show */
@@ -2784,7 +3109,7 @@ class BooksController {
         const meta = document.getElementById('workspaceMeta');
         if (title) title.textContent = this.currentBook.title;
         if (meta) {
-            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} chapters/sections · ${this.currentBook.generatedSegmentCount}/${this.currentBook.segmentCount} MP3s · ${this.formatDuration(this.currentBook.estimatedDurationSec)} est`;
+            meta.textContent = `${this.currentBook.author || 'Unknown author'} · ${this.currentBook.sectionCount} chapters/sections · ${this.formatDuration(this.currentBook.generatedDurationSec)} / ${this.formatDuration(this.currentBook.estimatedDurationSec)} audio generated`;
         }
         this.renderProgress();
         this.renderChapterSelect();
@@ -2793,6 +3118,7 @@ class BooksController {
         this.syncGenerationUnitControls();
         this.renderReader();
         this.renderPlayerNow();
+        this.renderAiResearchHistory();
         this.syncCurrentBookArchiveButton();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
     }
@@ -2854,11 +3180,9 @@ class BooksController {
     renderChapterSelect() {
         const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('generationChapterSelect'));
         if (!select) return;
-        const terms = this.getAudioUnitTerms();
         select.innerHTML = this.sections.map(section => {
-            const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
-            const ready = sectionSegments.filter(segment => this.isSegmentPlayable(segment)).length;
-            const label = `${this.getChapterLabel(section)} (${ready}/${sectionSegments.length} ${ready === 1 ? terms.singular : terms.plural} ready)`;
+            const progress = this.getSectionAudioProgress(section.id);
+            const label = `${this.getChapterLabel(section)} · ${this.formatDuration(progress.generatedSec)} / ${this.formatDuration(progress.totalSec)} generated`;
             return `<option value="${this.escapeHtml(section.id)}">${this.escapeHtml(label)}</option>`;
         }).join('');
         const currentSectionId = this.getCurrentSectionId();
@@ -2866,13 +3190,9 @@ class BooksController {
     }
 
     syncGenerationUnitControls() {
-        const currentChunkBtn = document.getElementById('generateCurrentChunkBtn');
         const hint = document.querySelector('.player-key-hint');
-        const splitChapters = this.hasSplitChapters();
-        if (currentChunkBtn) currentChunkBtn.style.display = splitChapters ? '' : 'none';
         if (hint) {
-            const terms = this.getAudioUnitTerms();
-            hint.textContent = `Keyboard: Left/Right moves between generated MP3 ${terms.plural}. Read-along highlight is estimated from MP3 time because the provider does not return word timings.`;
+            hint.textContent = 'Keyboard: Left/Right moves through generated chapter audio. Book text never auto-scrolls while audio plays.';
         }
     }
 
@@ -2890,42 +3210,53 @@ class BooksController {
             list.innerHTML = '<div class="chapter-status-empty">No chapters loaded.</div>';
             return;
         }
-        const terms = this.getAudioUnitTerms();
         list.innerHTML = this.sections.map(section => {
             const sectionSegments = this.segments.filter(segment => segment.sectionId === section.id);
-            const ready = sectionSegments.filter(segment => this.isSegmentPlayable(segment)).length;
-            const total = sectionSegments.length || 1;
-            const percent = Math.round(ready / total * 100);
+            const progress = this.getSectionAudioProgress(section.id);
             const chunks = sectionSegments.map(segment => {
                 const classes = [
                     'chunk-dot',
                     this.isSegmentPlayable(segment) ? 'done' : segment.status === 'generating' ? 'generating' : segment.status === 'error' ? 'error' : 'pending',
                     segment.id === this.currentSegmentId ? 'current' : ''
                 ].filter(Boolean).join(' ');
-                const label = `${terms.singular === 'chapter' ? 'Chapter MP3' : `Chunk ${segment.sectionSegmentIndex + 1}`}: ${segment.status}`;
+                const label = `Audio part ${segment.sectionSegmentIndex + 1}: ${segment.status}`;
                 return `<button class="${classes}" type="button" data-segment-id="${this.escapeHtml(segment.id)}" title="${this.escapeHtml(label)}">${segment.sectionSegmentIndex + 1}</button>`;
             }).join('');
             return `
                 <div class="chapter-status-item">
                     <div class="chapter-status-top">
                         <strong>${this.escapeHtml(this.getChapterLabel(section))}</strong>
-                        <span>${ready}/${sectionSegments.length} ${ready === 1 ? terms.singular : terms.plural} · ${percent}%</span>
+                        <span>${this.formatDuration(progress.generatedSec)} / ${this.formatDuration(progress.totalSec)} generated · ${progress.percent}%</span>
                     </div>
-                    <div class="chapter-status-track"><span style="width: ${percent}%"></span></div>
-                    <div class="chunk-dot-row">${chunks}</div>
+                    <div class="chapter-status-track"><span style="width: ${progress.percent}%"></span></div>
+                    <details class="chapter-audio-details">
+                        <summary>Audio details</summary>
+                        <div class="chunk-dot-row">${chunks}</div>
+                    </details>
                 </div>
             `;
         }).join('');
     }
 
+    /** @param {string} sectionId */
+    getSectionAudioProgress(sectionId) {
+        const segments = this.segments.filter(segment => segment.sectionId === sectionId);
+        const totalSec = segments.reduce((sum, segment) => sum + (segment.durationSec || segment.estimatedDurationSec), 0);
+        const generatedSec = segments
+            .filter(segment => this.isSegmentPlayable(segment))
+            .reduce((sum, segment) => sum + (segment.durationSec || segment.estimatedDurationSec), 0);
+        const percent = totalSec ? Math.min(100, Math.round(generatedSec / totalSec * 100)) : 0;
+        return { totalSec, generatedSec, percent };
+    }
+
     /** @param {Event} event */
     handleReaderClick(event) {
-        this.handleSegmentTargetClick(event, { autoplay: false });
+        this.handleSegmentTargetClick(event, { autoplay: false, markRead: true });
     }
 
     /**
      * @param {Event} event
-     * @param {{ autoplay?: boolean }} [options]
+     * @param {{ autoplay?: boolean, markRead?: boolean }} [options]
      */
     handleSegmentTargetClick(event, options = {}) {
         const autoplay = Boolean(options.autoplay);
@@ -2936,7 +3267,7 @@ class BooksController {
         const segment = this.getSegmentById(segmentId);
         if (!segment) return;
         this.currentSegmentId = segment.id;
-        this.markReadingProgress(segment);
+        if (options.markRead) this.markReadingProgress(segment);
         this.renderWorkspace();
         if (this.isSegmentPlayable(segment)) this.playSegment(segment.id, autoplay);
     }
@@ -2984,7 +3315,7 @@ class BooksController {
             ? current
             : this.segments.find(item => this.isSegmentPending(item));
         if (!segment) {
-            this.updateStatus('No pending chunks to generate');
+            this.updateStatus('No pending audio parts to generate');
             return;
         }
         await this.generateSegments([segment], false);
@@ -3326,11 +3657,9 @@ class BooksController {
             this.log('warn', `Could not repair MP3 metadata: ${message}`);
         });
         this.currentSegmentId = segment.id;
-        this.markReadingProgress(segment, scrollReader ? 'reader-play-segment' : 'player-segment-change');
         this.loadSegmentIntoPlayer(segment, autoplay);
         if (scrollReader) {
             this.renderWorkspace();
-            this.scrollCurrentSegmentIntoView(true);
         } else {
             this.renderProgress();
             this.renderPlayerNow();
@@ -3390,10 +3719,9 @@ class BooksController {
         this.currentBook.listeningSegmentId = segment.id;
         this.currentBook.listeningOffsetSec = audio.currentTime || 0;
         const ratio = audio.duration ? Math.min(1, audio.currentTime / audio.duration) : 0;
-        this.currentBook.readingSectionId = segment.sectionId;
-        this.currentBook.readingCharOffset = Math.round(segment.charStart + (segment.charEnd - segment.charStart) * ratio);
         this.updateReadAlongProgress(segment, ratio);
         this.renderProgress();
+        this.renderPlayerNow();
         this.preloadNextGenerated();
         const now = Date.now();
         if (now - this.lastProgressSavedAt > 5000) {
@@ -3539,6 +3867,20 @@ class BooksController {
         this.downloadBlob(segment.blob, this.segmentFilename(this.currentBook, segment));
     }
 
+    async downloadCurrentChapter() {
+        if (!this.currentBook) return;
+        const sectionId = this.getCurrentSectionId();
+        const section = this.sections.find(item => item.id === sectionId);
+        const generated = this.segments.filter(segment => segment.sectionId === sectionId && this.isSegmentPlayable(segment));
+        if (!section || generated.length === 0) {
+            this.updateStatus('Current chapter has no generated audio yet');
+            return;
+        }
+        const blobs = generated.map(segment => /** @type {Blob} */ (segment.blob));
+        const chapterName = this.safeFilename(this.getChapterLabel(section));
+        this.downloadBlob(new Blob(blobs, { type: 'audio/mpeg' }), `${this.safeFilename(this.currentBook.title)}-${chapterName}.mp3`);
+    }
+
     async downloadAllSegments() {
         if (!this.currentBook) return;
         const done = this.segments.filter(segment => this.isSegmentPlayable(segment));
@@ -3588,6 +3930,79 @@ class BooksController {
 
     async deleteCurrentBookAudio() {
         if (this.currentBook) await this.deleteBookAudio(this.currentBook.id);
+    }
+
+    async requestRebuildAudioPlan() {
+        const button = document.getElementById('rebuildAudioPlanBtn');
+        if (!this.rebuildAudioPlanArmed) {
+            this.rebuildAudioPlanArmed = true;
+            if (button) button.textContent = 'Confirm: delete audio and rebuild';
+            this.updateStatus('Rebuilding the audio plan deletes every generated MP3 for this book. Press the confirmation button to continue.');
+            return;
+        }
+        this.rebuildAudioPlanArmed = false;
+        if (button) button.textContent = 'Rebuild sentence-safe audio plan';
+        await this.rebuildAudioPlan();
+    }
+
+    async rebuildAudioPlan() {
+        if (!this.currentBook || !this.storage) return;
+        const book = this.currentBook;
+        const oldListeningSegment = this.getSegmentById(book.listeningSegmentId);
+        const oldListeningDuration = oldListeningSegment
+            ? oldListeningSegment.durationSec || oldListeningSegment.estimatedDurationSec
+            : 0;
+        const listeningRatio = oldListeningDuration
+            ? Math.max(0, Math.min(1, book.listeningOffsetSec / oldListeningDuration))
+            : 0;
+        const listeningCharOffset = oldListeningSegment
+            ? Math.round(oldListeningSegment.charStart + (oldListeningSegment.charEnd - oldListeningSegment.charStart) * listeningRatio)
+            : 0;
+        const rebuilt = book.contentOrigin === 'url'
+            ? this.assembleSectionsAndSegments(
+                book.id,
+                this.sections.map(section => ({ title: section.title, text: section.text, html: section.html }))
+            )
+            : await this.parseFile(
+                new File([book.rawFile], book.fileName, { type: book.fileType }),
+                book.id
+            );
+        const rebuiltSections = 'sections' in rebuilt ? rebuilt.sections : [];
+        const rebuiltSegments = 'segments' in rebuilt ? rebuilt.segments : [];
+        const rebuiltCharCount = 'charCount' in rebuilt
+            ? rebuilt.charCount
+            : rebuilt.book.charCount;
+        const rebuiltWordCount = 'totalWords' in rebuilt
+            ? rebuilt.totalWords
+            : rebuilt.book.wordCount;
+        this.resetAudioPlayerForBookSwitch();
+        book.sectionCount = rebuiltSections.length;
+        book.segmentCount = rebuiltSegments.length;
+        book.audioPlanVersion = AUDIO_PLAN_VERSION;
+        book.generatedSegmentCount = 0;
+        book.charCount = rebuiltCharCount;
+        book.wordCount = rebuiltWordCount;
+        book.estimatedDurationSec = rebuiltSegments.reduce((sum, segment) => sum + segment.estimatedDurationSec, 0);
+        book.generatedDurationSec = 0;
+        const rebuiltListeningSegment = rebuiltSegments.find(segment =>
+            listeningCharOffset >= segment.charStart && listeningCharOffset < segment.charEnd
+        ) || rebuiltSegments[0];
+        book.listeningSegmentId = rebuiltListeningSegment?.id || '';
+        book.listeningOffsetSec = rebuiltListeningSegment
+            ? Math.max(0, listeningCharOffset - rebuiltListeningSegment.charStart)
+                / Math.max(1, rebuiltListeningSegment.charEnd - rebuiltListeningSegment.charStart)
+                * rebuiltListeningSegment.estimatedDurationSec
+            : 0;
+        book.updatedAt = new Date().toISOString();
+        await this.storage.replaceBookContent(book, rebuiltSections, rebuiltSegments);
+        this.currentBook = book;
+        this.sections = rebuiltSections;
+        this.segments = rebuiltSegments;
+        this.currentSegmentId = book.listeningSegmentId || null;
+        this.renderWorkspace();
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+        this.updateStatus('Rebuilt the chapter audio plan with sentence-safe boundaries; generated audio was cleared');
     }
 
     /** @param {string} id */
@@ -3641,6 +4056,7 @@ class BooksController {
             this.currentBook = null;
             this.sections = [];
             this.segments = [];
+            this.researchEntries = [];
             this.currentSegmentId = null;
             this.releaseAudioUrls();
             this.showWorkspace(false);
@@ -3686,7 +4102,6 @@ class BooksController {
         if (!this.currentBook || !this.storage) return;
         this.currentBook.readingSectionId = segment.sectionId;
         this.currentBook.readingCharOffset = segment.charStart;
-        this.currentBook.listeningSegmentId = segment.id;
         this.currentBook.updatedAt = new Date().toISOString();
         this.storage.putBook(this.currentBook);
         if (action.startsWith('reader') || action === 'read-position') {
@@ -3708,10 +4123,17 @@ class BooksController {
             el.textContent = 'No MP3 selected';
             return;
         }
-        const terms = this.getAudioUnitTerms();
-        const unitLabel = terms.singular === 'chapter' ? 'chapter' : `chunk ${segment.sectionSegmentIndex + 1}`;
+        const sectionSegments = this.segments.filter(item => item.sectionId === segment.sectionId);
+        const before = sectionSegments
+            .filter(item => item.segmentIndex < segment.segmentIndex)
+            .reduce((sum, item) => sum + (item.durationSec || item.estimatedDurationSec), 0);
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const position = before + (audio?.dataset.segmentId === segment.id ? audio.currentTime || 0 : 0);
+        const total = sectionSegments.reduce((sum, item) => sum + (item.durationSec || item.estimatedDurationSec), 0);
         const ready = this.isSegmentPlayable(segment);
-        el.textContent = `${this.getSectionTitle(segment.sectionId)} · ${unitLabel} · ${ready ? 'ready' : segment.status}${ready ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}` : ''}`;
+        const section = this.sections.find(item => item.id === segment.sectionId);
+        const chapterLabel = section ? this.getChapterLabel(section) : this.getSectionTitle(segment.sectionId);
+        el.textContent = `${chapterLabel} · ${this.formatDuration(position)} / ${this.formatDuration(total)} · ${ready ? 'audio ready' : 'audio not generated'}${ready ? ` · Voice: ${this.settingsSummary(segment.audioSettings)}` : ''}`;
     }
 
     /** @param {AudioSegment} segment */
@@ -3772,6 +4194,9 @@ class BooksController {
 
     resetAudioPlayerForBookSwitch() {
         this.stopGeneration();
+        this.rebuildAudioPlanArmed = false;
+        const rebuildButton = document.getElementById('rebuildAudioPlanBtn');
+        if (rebuildButton) rebuildButton.textContent = 'Rebuild sentence-safe audio plan';
         this.aiQuestionVoiceCore?.stopListening();
         this.aiQuestionAbort?.abort();
         this.aiQuestionAbort = null;
@@ -3795,10 +4220,21 @@ class BooksController {
         this.updatePlayerControls();
     }
 
-    scrollCurrentSegmentIntoView(smooth) {
-        if (!this.currentSegmentId) return;
-        const node = document.querySelector(`.reader-segment[data-segment-id="${CSS.escape(this.currentSegmentId)}"]`);
-        if (node) node.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+    goToLatestRead() {
+        const sectionId = this.currentBook?.readingSectionId || this.sections[0]?.id || '';
+        this.scrollReaderToSection(sectionId);
+    }
+
+    goToPlayingSection() {
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const segment = this.getSegmentById(audio?.dataset.segmentId || this.currentSegmentId || '');
+        if (segment) this.scrollReaderToSection(segment.sectionId);
+    }
+
+    /** @param {string} sectionId */
+    scrollReaderToSection(sectionId) {
+        const node = document.getElementById(`reader-${sectionId}`);
+        if (node) node.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
 
     updateCurrentSegmentClass() {
@@ -3846,7 +4282,7 @@ class BooksController {
 
     getAudioUnitTerms() {
         return this.hasSplitChapters()
-            ? { singular: 'chunk', plural: 'chunks' }
+            ? { singular: 'audio part', plural: 'audio parts' }
             : { singular: 'chapter', plural: 'chapters' };
     }
 
@@ -3970,8 +4406,8 @@ class BooksController {
 
     /** @param {BookRecord} book */
     getBookGeneratedPercent(book) {
-        if (!book.segmentCount) return 0;
-        return Math.max(0, Math.min(100, Math.round((book.generatedSegmentCount || 0) / book.segmentCount * 100)));
+        if (!book.estimatedDurationSec) return 0;
+        return Math.max(0, Math.min(100, Math.round((book.generatedDurationSec || 0) / book.estimatedDurationSec * 100)));
     }
 
     /** @param {BookRecord} book */
@@ -4004,7 +4440,7 @@ class BooksController {
             this.replaceSegment(segment);
             changed = true;
         }
-        if (changed) this.log('info', 'Reset interrupted MP3 generations so missing chunks can be filled');
+        if (changed) this.log('info', 'Reset interrupted MP3 generations so missing audio can be filled');
     }
 
     /** @param {string} message */

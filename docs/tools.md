@@ -369,23 +369,33 @@ OpenAI.
 - EPUB and HTML imports preserve sanitized reader markup, including embedded
   EPUB images when they can be resolved from the package, so the book can be
   read locally instead of only previewed as flattened plain text.
-- Each book is split into persistent TTS-sized audio chunks, while conversion
-  controls use the book's chapter/TOC boundaries first. Generation can cover
-  the selected/current/next chapter, whole book, +15 minutes, +1 hour, or a
-  single backup chunk. Each +15/+1 hour press extends from the current listening
-  chunk and skips anything already queued or generating, so pressing again
-  enqueues another block further ahead. Failed chunks at/after the playhead
-  still count as pending and are filled on retry. Finished chunks are never
-  regenerated unless deleted in a future management flow.
+- The user-facing audio unit is a **chapter**: chapter rows and the TOC report
+  generated time against total chapter time, and the player reports one
+  continuous position such as `Chapter 8 · 6m / 20m`. Internally, chapters are
+  still divided into API-sized audio parts for persistence and recovery, but
+  those controls/markers live under collapsed **Audio details** / **Advanced
+  audio parts** disclosures. Generation covers selected/current/next chapter,
+  whole book, +15 minutes, or +1 hour. Repeated duration presses skip queued
+  work and extend farther ahead.
+- Audio-part splitting ignores single hard-wrapped newlines and prefers the
+  last complete sentence (including punctuation followed by closing quotes)
+  below OpenAI's input limit; clause/whitespace splits are only used for an
+  exceptionally long sentence. Plain-text imports detect repeated
+  `CHAPTER <number>` headings (discarding duplicate contents-list headings), so
+  books such as Gutenberg TXT files use real chapters instead of arbitrary
+  fixed-size Parts. Legacy Part-based TXT books with no generated audio upgrade
+  automatically on open. Other existing plans can be replaced through the
+  two-step **Rebuild sentence-safe audio plan** action, which clearly deletes
+  generated audio before rebuilding.
 - Generation is a work queue, not a single locked job: starting another
-  chapter or chunk while one is already generating appends it to the queue
+  chapter or advanced audio part while one is already generating appends it to the queue
   (deduped) instead of being ignored, and the progress line shows how many
   units are done and how many are still queued. Cancel stops the in-flight
   unit and clears the queue; switching books clears it too. Auth/quota/rate-
-  limit failures stop the rest of the queue and leave those chunks pending so
-  a later +15/+1 hour can fill them; transient per-chunk failures mark that
-  chunk as error and continue. Reloading a book resets interrupted
-  "generating" chunks back to pending.
+  limit failures stop the rest of the queue and leave those parts pending so
+  a later +15/+1 hour can fill them; transient per-part failures mark that
+  part as error and continue. Reloading a book resets interrupted generation
+  back to pending.
 - Narration options show OpenAI reference pricing for the selected model and
   include per-voice sample buttons. GPT-4o mini TTS exposes accent and
   narration-style presets as structured `instructions`; legacy TTS models
@@ -393,20 +403,19 @@ OpenAI.
   instructions there. Samples generate a short MP3 through the same OpenAI
   speech endpoint, using the current model, speed, accent, style, and extra
   narration instructions.
-- Generated chunks are saved immediately to IndexedDB, so cancelling midway
+- Generated audio parts are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
   pending chunk.
-- The player is custom, not native browser chrome: previous/next chunk,
+- The player is custom, not native browser chrome: previous/next audio,
   play/pause, +/-30s, quadratic back/forward jumps, seek bar, keyboard
-  Left/Right chunk navigation, saved listening position, and preloaded next
-  generated chunk. Clicking a chunk marker in the chapter status list plays
-  that MP3 immediately. A toggle can keep about one hour of audio generated
-  ahead while listening.
+  Left/Right navigation, saved listening position, and preloaded next audio
+  part. Advanced audio markers remain clickable. A toggle can keep about one
+  hour generated ahead.
 - **AI Research** is a dedicated card immediately after the Listen card.
   **AI question** pauses the current MP3 and starts one-utterance browser
   speech recognition; questions remain editable/typable. Before sending, the
-  card shows the exact full request body with only the book chunk replaced by
-  an explicit placeholder, plus the complete chunk in its own disclosure.
+  card shows the exact full request body with only the book context replaced by
+  an explicit placeholder, plus that complete source text in its own disclosure.
   Requests use the OpenAI Responses API with GPT-5.6 Sol, reasoning high, and
   required high-context web search with text and image results. The research
   frame tells the model to work for the listener, validate claims rather than
@@ -414,20 +423,25 @@ OpenAI.
   and answer carefully with clickable citations and useful images. While in
   flight, the full provider/model/configuration and elapsed time stay visible.
   **Read answer aloud when it returns** is read live at response time, so a
-  change made during research is honored. Answers also have a local Play/Stop
-  control; browser speech boundary events highlight and scroll the current
-  answer sentence. No narration MP3 or word-level book alignment is generated.
+  change made during research is honored. Complete results—question, answer,
+  request, source text, citations, images, model/configuration, elapsed time,
+  and speech state—are stored in a dedicated per-book IndexedDB research
+  history and survive reload. Answers have Page/Paragraph/Sentence back/forward
+  buttons plus local Play/Stop from the selected position; browser speech
+  boundary events highlight the current answer sentence. No narration MP3 or
+  word-level book alignment is generated.
 - Books keeps local listening/reading history in IndexedDB: play/pause,
   chunk changes, jumps, position samples, dates, per-day listening/read
   totals, and rough read-speed estimates. It is hidden by default and visible
   from the player History button.
-- The reader shows parsed book sections and text/audio chunks, tracks reading
-  progress, and can search/highlight text locally. Audio chunk markers should
-  not render as bulky colored boxes inside the reading text.
-- Downloads: original file, current chunk MP3, all generated chunk MP3s
-  individually, or one concatenated MP3 made from all generated chunks.
+- The reader never moves the whole browser window automatically as audio
+  changes. Its sticky toolbar provides explicit **Go to latest read** and
+  **Go to playing section** buttons. Manual reading and listening positions are
+  stored separately, so the destinations can differ.
+- Downloads normally expose original, current chapter audio, and generated
+  book audio. Individual audio-part files and deletion live under Advanced.
 - The library is a compact bookshelf: one row per book with title/author, read
-  progress, generated chunk count, estimated duration, and storage
+  progress, generated audio time/percentage, estimated duration, and storage
   usage/quota. Opening a row reveals book actions inside the workspace.
   Generated MP3s can be deleted separately from the original book.
 - localStorage is intentionally used only for small settings/secrets. Browser

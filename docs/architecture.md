@@ -393,25 +393,35 @@ Log panel contents: DOM-only, not persisted.
 Scored practice persists via `progress-store.js` → `PRACTICE_PROGRESS`.
 
 Books keeps large user files in browser IndexedDB (`voice-wei-books`), not
-localStorage. The current schema uses three object stores:
+localStorage. The current schema uses five object stores:
 
 - `books`: original upload Blob, title/author/format metadata, estimated
   duration, read/listen progress, generated coverage.
 - `sections`: parsed book text sections keyed by book; EPUB/HTML sections also
   keep sanitized reader markup, with EPUB package images embedded as data URLs
   where possible.
-- `segments`: TTS-sized text chunks with per-chunk status and MP3 Blob.
+- `segments`: internal API-sized audio parts with status, exact source offsets,
+  estimated/decoded duration, and MP3 Blob.
 - `history`: local read/listen events (play/pause, segment transitions, jumps,
   samples, per-day aggregation inputs).
+- `research`: complete per-book AI Research request/results: source text,
+  question, answer, citations, images, model/configuration, elapsed time, and
+  whether speech was enabled at return.
 
 This makes Books a browser-local reader/player/generator rather than a
-one-shot converter: generation can stop after some chunks, preserve completed
+one-shot converter: generation can stop after some audio parts, preserve completed
 MP3s, and resume next session. Duration buttons (+15 min / +1 hour) extend from
 the playhead and skip already-queued work so repeated presses enqueue further
-ahead; failed chunks in that range remain pending for retry. Interrupted
+ahead; failed parts in that range remain pending for retry. Interrupted
 "generating" states are reset on book open. EPUB imports prefer official `nav`/NCX table of
 contents labels, and PDF imports use outline entries when available, so
-chapter-level controls can sit above the chunk storage model. There is still no
+chapter-level controls can hide the part storage model during normal use.
+Single hard-wrapped newlines are not generation boundaries; sentence-ending
+punctuation (including closing quotes) is preferred below the API cap. TXT
+chapter extraction keeps the final occurrence of duplicated chapter headings,
+which removes contents-list duplicates before section assembly. Audio plan v2
+marks upgraded books; rebuild atomically replaces book/section/part records and
+maps listening by source character independently of reading progress. There is still no
 account identity, analytics sink, or server-side audit trail. The durable
 history is browser-local and serves navigation/progress UI. The OpenAI key and
 TTS settings use `api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The
@@ -419,17 +429,23 @@ visible Log panel is DOM state only and is lost on refresh/navigation.
 
 Books AI Research reuses `voice-command-core.js` for one-utterance speech
 recognition and `voice-output.js` for optional spoken replies. The request
-snapshot is the active segment ID plus its complete stored text; playback time
+snapshot is the active audio-part ID plus its complete stored text; playback time
 is not used to narrow or transcribe that text. The browser sends a direct
 OpenAI Responses request using the same browser-local key as TTS, with required
 web/image search. One request builder owns both the actual body and its UI
-preview; the preview replaces only the separately shown chunk with a
+preview; the preview replaces only the separately shown source text with a
 size-labeled placeholder, preventing prompt/configuration drift. Response
 annotations become clickable citations/source links and image results become
-source-linked cards. `VoiceOutput` exposes native boundary events so Books can
-highlight the current answer sentence without generating audio. Questions join
-the existing IndexedDB history; answers and the visible research panel are
-session state.
+source-linked cards. The whole record is committed to the `research` store
+before optional speech starts. `VoiceOutput` exposes native boundary events so
+Books can highlight the current answer sentence without generating audio;
+sentence/paragraph/page buttons move the same explicit answer cursor.
+
+Reading and listening positions are separate owners: only reader interaction
+updates `readingSectionId` / `readingCharOffset`; playback updates
+`listeningSegmentId` / `listeningOffsetSec`. Playback never calls
+`scrollIntoView`; the sticky reader toolbar owns the only explicit jumps to
+latest read or playing section.
 
 localStorage is intentionally not used for EPUB/PDF/MP3 data: it is
 string-only and commonly capped around 5-10 MB. IndexedDB quota is

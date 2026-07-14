@@ -19,7 +19,7 @@ async function clearBooksDb(page) {
 async function seedGeneratedBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
-            const req = indexedDB.open('voice-wei-books', 4);
+            const req = indexedDB.open('voice-wei-books', 5);
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
@@ -100,7 +100,7 @@ async function seedGeneratedBook(page) {
 async function seedGapBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
-            const req = indexedDB.open('voice-wei-books', 4);
+            const req = indexedDB.open('voice-wei-books', 5);
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
@@ -180,7 +180,7 @@ async function seedGapBook(page) {
 async function seedSecondGeneratedBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
-            const req = indexedDB.open('voice-wei-books', 4);
+            const req = indexedDB.open('voice-wei-books', 5);
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
@@ -259,7 +259,7 @@ async function seedSecondGeneratedBook(page) {
 async function seedFrontMatterBook(page) {
     await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
-            const req = indexedDB.open('voice-wei-books', 4);
+            const req = indexedDB.open('voice-wei-books', 5);
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
@@ -367,7 +367,7 @@ async function seedFrontMatterBook(page) {
             const first = rows[0];
             const rect = first.getBoundingClientRect();
             const db = await new Promise((resolve, reject) => {
-                const req = indexedDB.open('voice-wei-books', 4);
+                const req = indexedDB.open('voice-wei-books', 5);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
@@ -399,11 +399,11 @@ async function seedFrontMatterBook(page) {
         report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
             shelf.rowCount === 2 && shelf.rowHeight <= 42
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
-            && !shelf.metaText.includes('TXT') && shelf.metaText.includes('Read') && shelf.metaText.includes('MP3')
+            && !shelf.metaText.includes('TXT') && shelf.metaText.includes('Read') && shelf.metaText.includes('Audio')
             && shelf.durationColumns === 2 && shelf.archiveToggleText === 'Show archive'
             && shelf.inlineButtons === 0 && shelf.libraryDisplay !== 'none' && !shelf.workspaceVisible
             && shelf.librarySearchPlaceholder.includes('titles, authors, and filenames')
-            && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books')
+            && shelf.summaryText.includes('Overall progress') && shelf.summaryText.includes('2 books') && shelf.summaryText.includes('audio')
             && shelf.exactSegmentOffsets);
 
         await page.click('.saved-book-item[data-book-id]');
@@ -413,12 +413,12 @@ async function seedFrontMatterBook(page) {
             workspaceVisible: getComputedStyle(document.querySelector('#bookWorkspace')).display !== 'none',
             backText: document.querySelector('#backToLibraryBtn')?.textContent || '',
             hasSpinePanel: Boolean(document.querySelector('.spine-panel, #spineList')),
-            chunkFallbackVisible: getComputedStyle(document.querySelector('#generateCurrentChunkBtn')).display !== 'none',
+            advancedAudioOpen: document.querySelector('.audio-parts-advanced')?.open,
             chapterOptionText: document.querySelector('#generationChapterSelect option')?.textContent || ''
         }));
         report.check('books open into book-only mode with no interior spine panel',
             opened.libraryHidden && opened.workspaceVisible && opened.backText.includes('Bookshelf') && !opened.hasSpinePanel
-            && !opened.chunkFallbackVisible && opened.chapterOptionText.includes('chapter') && !opened.chapterOptionText.includes('chunk'));
+            && !opened.advancedAudioOpen && opened.chapterOptionText.includes('generated') && !opened.chapterOptionText.includes('chunk'));
         await page.click('#toggleArchiveCurrentBookBtn');
         await page.click('#backToLibraryBtn');
         await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
@@ -452,6 +452,163 @@ async function seedFrontMatterBook(page) {
 
     {
         const page = await browser.newPage();
+        collectErrors(page, 'books-sentence-boundaries', report.errors);
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await clearBooksDb(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        const hardWrappedSentence = `${'This sentence continues across a visual line wrap without ending\n'.repeat(56)}and finally ends here."`;
+        const following = ` Second sentence begins cleanly. ${'More ordinary prose follows. '.repeat(80)}`;
+        const sourceText = [
+            'CONTENTS',
+            'CHAPTER 1. First.',
+            'CHAPTER 2. Second.',
+            '',
+            'This front matter explains the edition. '.repeat(12),
+            '',
+            'CHAPTER 1. First.',
+            hardWrappedSentence + following,
+            '',
+            'CHAPTER 2. Second.',
+            `Short intro. ${'This deliberately long sentence continues without terminal punctuation across another visual line\n'.repeat(60)}and eventually ends.`
+        ].join('\n');
+        await page.setInputFiles('#fileInput', {
+            name: 'hard-wrapped.txt',
+            mimeType: 'text/plain',
+            buffer: Buffer.from(sourceText)
+        });
+        await page.waitForFunction(() => document.querySelectorAll('.saved-book-item').length === 1);
+        const parsedText = await page.evaluate(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 5);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const segments = await new Promise((resolve, reject) => {
+                const tx = db.transaction('segments', 'readonly');
+                const req = tx.objectStore('segments').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const sections = await new Promise((resolve, reject) => {
+                const tx = db.transaction('sections', 'readonly');
+                const req = tx.objectStore('sections').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            segments.sort((a, b) => a.segmentIndex - b.segmentIndex);
+            sections.sort((a, b) => a.spineIndex - b.spineIndex);
+            return {
+                boundaries: segments.map(segment => segment.text),
+                sectionTitles: sections.map(section => section.title)
+            };
+        });
+        const boundaries = parsedText.boundaries;
+        report.check('books ignore hard-wrapped newlines and split MP3 audio at sentence endings',
+            boundaries.length >= 2
+            && boundaries.slice(0, 4).every(text => /[.!?]["'”’)]?$/.test(text))
+            && !boundaries.some(text => text.endsWith('without ending'))
+            && boundaries.every(text => text.length <= 3800));
+        const shortSentenceIndex = boundaries.findIndex(text => text.endsWith('Short intro.'));
+        report.check('books prefer a short complete sentence over cutting the following long sentence',
+            shortSentenceIndex !== -1
+            && boundaries[shortSentenceIndex + 1]?.startsWith('This deliberately long sentence'));
+        report.check('books infer real TXT chapter headings instead of exposing arbitrary parts',
+            parsedText.sectionTitles.includes('CHAPTER 1. First.')
+            && parsedText.sectionTitles.includes('CHAPTER 2. Second.')
+            && !parsedText.sectionTitles.some(title => /^Part \d+/.test(title)));
+        await page.click('.saved-book-item[data-book-id]');
+        await page.click('.audio-parts-advanced > summary');
+        await page.click('#rebuildAudioPlanBtn');
+        const armedRebuild = await page.evaluate(() => ({
+            button: document.querySelector('#rebuildAudioPlanBtn')?.textContent || '',
+            status: document.querySelector('#status')?.textContent || ''
+        }));
+        await page.click('#rebuildAudioPlanBtn');
+        await page.waitForFunction(() => document.querySelector('#status')?.textContent?.includes('sentence-safe boundaries'));
+        report.check('books require explicit confirmation before rebuilding the sentence-safe audio plan',
+            armedRebuild.button.includes('Confirm')
+            && armedRebuild.status.includes('deletes every generated MP3'));
+        await page.evaluate(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 5);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const sections = await new Promise((resolve, reject) => {
+                const tx = db.transaction('sections', 'readonly');
+                const req = tx.objectStore('sections').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const segments = await new Promise((resolve, reject) => {
+                const tx = db.transaction('segments', 'readonly');
+                const req = tx.objectStore('segments').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            for (let index = 0; index < sections.length; index++) {
+                sections[index].title = `Part ${index + 1}`;
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction('sections', 'readwrite');
+                    const req = tx.objectStore('sections').put(sections[index]);
+                    req.onsuccess = () => resolve(undefined);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction('books', 'readwrite');
+                const store = tx.objectStore('books');
+                const get = store.get(sections[0].bookId);
+                get.onsuccess = () => {
+                    delete get.result.audioPlanVersion;
+                    const laterSegment = segments[Math.min(2, segments.length - 1)];
+                    get.result.readingCharOffset = 0;
+                    get.result.listeningSegmentId = laterSegment.id;
+                    get.result.listeningOffsetSec = laterSegment.estimatedDurationSec / 2;
+                    const put = store.put(get.result);
+                    put.onsuccess = () => resolve(undefined);
+                    put.onerror = () => reject(put.error);
+                };
+                get.onerror = () => reject(get.error);
+            });
+            db.close();
+        });
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.click('.saved-book-item[data-book-id]');
+        await page.waitForFunction(() => document.querySelector('#status')?.textContent?.includes('sentence-safe boundaries'));
+        const migratedState = await page.evaluate(async () => {
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 5);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const book = await new Promise((resolve, reject) => {
+                const tx = db.transaction('books', 'readonly');
+                const req = tx.objectStore('books').getAll();
+                req.onsuccess = () => resolve(req.result[0]);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            return {
+                labels: Array.from(document.querySelectorAll('#generationChapterSelect option')).map(option => option.textContent || ''),
+                readingCharOffset: book.readingCharOffset,
+                listeningSegmentId: book.listeningSegmentId,
+                listeningOffsetSec: book.listeningOffsetSec
+            };
+        });
+        report.check('books automatically replace legacy Part plans when no generated audio would be lost',
+            migratedState.labels.some(label => label.includes('Chapter 1: First.'))
+            && !migratedState.labels.some(label => /^Part \d+/.test(label)));
+        report.check('books preserve listening separately from reading while rebuilding audio',
+            migratedState.readingCharOffset === 0
+            && migratedState.listeningSegmentId !== 'seg-0'
+            && migratedState.listeningOffsetSec > 0);
+        await page.close();
+    }
+
+    {
+        const page = await browser.newPage();
         collectErrors(page, 'books-player', report.errors);
         await page.addInitScript(() => {
             localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite');
@@ -480,6 +637,10 @@ async function seedFrontMatterBook(page) {
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
             Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get() { return 360; } });
+            window.__bookScrollCalls = [];
+            Element.prototype.scrollIntoView = function () {
+                window.__bookScrollCalls.push(this.id || this.getAttribute('data-segment-id') || this.className || 'unknown');
+            };
             window.__bookMediaPaused = true;
             Object.defineProperty(HTMLMediaElement.prototype, 'paused', {
                 configurable: true,
@@ -521,17 +682,24 @@ async function seedFrontMatterBook(page) {
             conversionCost: document.querySelector('#conversionCostText')?.textContent || '',
             chapterStatusCount: document.querySelectorAll('.chapter-status-item').length,
             chunkDotCount: document.querySelectorAll('.chunk-dot').length,
+            chapterAudioDetailsClosed: Array.from(document.querySelectorAll('.chapter-audio-details')).every(details => !details.open),
+            advancedAudioClosed: !document.querySelector('.audio-parts-advanced')?.open,
             playerNow: document.querySelector('#playerNow')?.textContent || '',
             aiQuestionButton: document.querySelector('#aiQuestionBtn')?.textContent?.trim() || '',
             aiResearchTitle: document.querySelector('#aiResearchTitle')?.textContent?.trim() || '',
             aiResearchRoute: document.querySelector('#aiResearchRoute')?.textContent?.trim() || '',
             aiQuestionSpeakDefault: document.querySelector('#speakAiAnswersToggle')?.checked,
             aiQuestionPanelDisplay: getComputedStyle(document.querySelector('#aiQuestionPanel')).display,
+            answerNavLabels: Array.from(document.querySelectorAll('#aiAnswerNavigation button')).map(button => button.textContent.trim()),
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
             controlCount: document.querySelectorAll('.player-control-grid button').length,
             controlLabels: Array.from(document.querySelectorAll('.player-control-grid button')).map(button => button.textContent.trim()),
             readerSearchPlaceholder: document.querySelector('#readerSearch')?.getAttribute('placeholder') || '',
+            readerJumpButtons: [
+                document.querySelector('#goToLatestReadBtn')?.textContent?.trim(),
+                document.querySelector('#goToPlayingSectionBtn')?.textContent?.trim()
+            ],
             sectionOrder: {
                 listen: document.querySelector('.player-card')?.getBoundingClientRect().top || 0,
                 ai: document.querySelector('.ai-research-card')?.getBoundingClientRect().top || 0,
@@ -544,10 +712,11 @@ async function seedFrontMatterBook(page) {
         }));
         report.check('books chapter-first generation and TTS option layout',
             layout.progressRow.includes('Read') && layout.generationColumns >= 5
-            && ['-Chapter', 'Current chapter', '+Chapter', 'Whole book', '+Chunk', '+15 min', '+1 hour']
+            && ['-Chapter', 'Current chapter', '+Chapter', 'Whole book', '+15 min', '+1 hour']
                 .every(label => layout.generationButtons.includes(label))
+            && !layout.generationButtons.includes('+Chunk')
             && layout.selectedChapterButton.includes('Selected chapter')
-            && layout.chapterOptions.some(label => label.includes('Section') && label.includes('chunks ready'))
+            && layout.chapterOptions.some(label => label.includes('Section') && label.includes('generated'))
             && ['ash', 'ballad', 'cedar', 'coral', 'marin', 'sage', 'verse']
                 .every(voice => layout.voiceOptions.includes(voice))
             && layout.modelOptions.includes('gpt-4o-mini-tts') && layout.hasInstructions
@@ -560,6 +729,7 @@ async function seedFrontMatterBook(page) {
             && layout.speedSliderCount === 0 && layout.speedButtonCount === 2 && layout.generatorSpeedValue === '1x'
             && layout.voiceConfigDisplay === 'none' && layout.voiceSummary.includes('Alloy')
             && layout.conversionCost.includes('$') && layout.chapterStatusCount === 1 && layout.chunkDotCount === 2
+            && layout.chapterAudioDetailsClosed && layout.advancedAudioClosed
             && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
                 .every(voice => layout.sampleButtons.includes(voice))
             && layout.sampleStatus.includes('short sample')
@@ -567,6 +737,8 @@ async function seedFrontMatterBook(page) {
             && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
                 .every((label, index) => layout.controlLabels[index] === label)
             && layout.readerSearchPlaceholder.includes("book's contents")
+            && layout.readerJumpButtons[0] === 'Go to latest read'
+            && layout.readerJumpButtons[1] === 'Go to playing section'
             && layout.sectionOrder.listen < layout.sectionOrder.ai
             && layout.sectionOrder.ai < layout.sectionOrder.convert
             && layout.sectionOrder.convert < layout.sectionOrder.reader
@@ -579,6 +751,8 @@ async function seedFrontMatterBook(page) {
             && layout.aiResearchRoute.includes('GPT-5.6 Sol')
             && layout.aiResearchRoute.includes('reasoning high')
             && layout.aiQuestionSpeakDefault === false
+            && ['Page −', 'Para −', 'Sent −', 'Play', 'Sent +', 'Para +', 'Page +']
+                .every((label, index) => layout.answerNavLabels[index] === label)
             && layout.aiQuestionPanelDisplay === 'none');
 
         await page.evaluate(() => {
@@ -606,7 +780,7 @@ async function seedFrontMatterBook(page) {
                 if (url === 'https://api.openai.com/v1/responses') {
                     window.__bookQuestionPayloads.push(JSON.parse(String(init?.body || '{}')));
                     await new Promise(resolve => { window.__bookQuestionRelease = resolve; });
-                    const answer = 'The passage tests the Books research flow. Independent research confirms the second point [1].';
+                    const answer = 'The passage tests the Books research flow.\n\nIndependent research confirms the second point [1].';
                     const citationStart = answer.indexOf('[1]');
                     return new Response(JSON.stringify({
                         output_text: answer,
@@ -682,11 +856,24 @@ async function seedFrontMatterBook(page) {
         await page.evaluate(() => window.__bookQuestionRelease?.());
         await page.waitForFunction(() => document.querySelector('#aiQuestionAnswerText')?.textContent?.includes('Books research flow'));
         await page.waitForFunction(() => window.__bookSpokenAnswers?.length === 1);
-        const aiQuestion = await page.evaluate(() => {
+        const aiQuestion = await page.evaluate(async () => {
             const payload = window.__bookQuestionPayloads[0] || {};
             const questionIndex = String(payload.input || '').indexOf('Reader question: What does this passage mean?');
-            const chunkIndex = String(payload.input || '').indexOf('Full text of the current MP3 chunk:\nSegment 0');
+            const chunkIndex = String(payload.input || '').indexOf('Full text of the current audio context:\nSegment 0');
             const saved = JSON.parse(localStorage.getItem('voice-wei:ebook-settings') || '{}');
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open('voice-wei-books', 5);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const researchRecords = await new Promise((resolve, reject) => {
+                const tx = db.transaction('research', 'readonly');
+                const req = tx.objectStore('research').index('bookId').getAll('book-suite-generated');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            db.close();
+            const research = researchRecords[0] || {};
             return {
                 panelVisible: getComputedStyle(document.querySelector('#aiQuestionPanel')).display !== 'none',
                 context: document.querySelector('#aiQuestionContextText')?.textContent || '',
@@ -711,7 +898,14 @@ async function seedFrontMatterBook(page) {
                 renderedImageCount: document.querySelectorAll('#aiQuestionImages .ai-question-image').length,
                 highlightedAnswer: document.querySelector('.ai-answer-sentence.current')?.textContent || '',
                 playButton: document.querySelector('#repeatAiAnswerBtn')?.textContent || '',
-                finalStatus: document.querySelector('#aiQuestionStatus')?.textContent || ''
+                finalStatus: document.querySelector('#aiQuestionStatus')?.textContent || '',
+                researchCount: document.querySelector('#aiResearchHistoryCount')?.textContent || '',
+                savedQuestion: research.question,
+                savedAnswer: research.answer,
+                savedBookText: research.bookText,
+                savedSourceUrl: research.sources?.[0]?.url,
+                savedImageUrl: research.images?.[0]?.imageUrl,
+                savedModelLabel: research.modelLabel
             };
         });
         report.check('books AI Research discloses prompt, times request, searches web/images, and honors live speech toggle',
@@ -743,16 +937,52 @@ async function seedFrontMatterBook(page) {
             && aiQuestion.playButton === 'Stop'
             && aiQuestion.finalStatus.includes('OpenAI Responses API')
             && aiQuestion.finalStatus.includes('GPT-5.6 Sol')
+            && aiQuestion.finalStatus.includes('saved')
+            && aiQuestion.researchCount === '1'
+            && aiQuestion.savedQuestion === aiQuestion.question
+            && aiQuestion.savedAnswer === aiQuestion.answer
+            && aiQuestion.savedBookText === 'Segment 0'
+            && aiQuestion.savedSourceUrl === 'https://example.com/source'
+            && aiQuestion.savedImageUrl === 'https://example.com/research-image.jpg'
+            && aiQuestion.savedModelLabel.includes('GPT-5.6 Sol')
             && inFlight.elapsed === '1s'
             && inFlight.status.includes('Sending to OpenAI Responses API')
             && inFlight.status.includes('GPT-5.6 Sol')
             && inFlight.requestPreview.includes('POST https://api.openai.com/v1/responses')
             && inFlight.requestPreview.includes('deeply research every question')
-            && inFlight.requestPreview.includes('[Full book chunk shown separately below')
+            && inFlight.requestPreview.includes('[Full current book context shown separately below')
             && !inFlight.requestPreview.includes('Segment 0')
             && inFlight.context === 'Segment 0');
         await page.click('#repeatAiAnswerBtn');
         await page.waitForFunction(() => document.querySelector('#repeatAiAnswerBtn')?.textContent === 'Play');
+        await page.click('[data-ai-answer-nav="sentence-back"]');
+        const firstSentence = await page.evaluate(() => document.querySelector('.ai-answer-sentence.current')?.textContent || '');
+        await page.click('[data-ai-answer-nav="paragraph-forward"]');
+        const nextParagraph = await page.evaluate(() => document.querySelector('.ai-answer-sentence.current')?.textContent || '');
+        await page.click('[data-ai-answer-nav="paragraph-back"]');
+        await page.click('[data-ai-answer-nav="sentence-forward"]');
+        const nextSentence = await page.evaluate(() => document.querySelector('.ai-answer-sentence.current')?.textContent || '');
+        await page.click('#repeatAiAnswerBtn');
+        await page.waitForFunction(() => window.__bookSpokenAnswers?.length === 2);
+        const resumedSpeech = await page.evaluate(() => window.__bookSpokenAnswers[1]);
+        await page.click('#repeatAiAnswerBtn');
+        report.check('books answer buttons navigate sentences/paragraphs and resume local speech there',
+            firstSentence.includes('passage tests')
+            && nextParagraph.includes('Independent research')
+            && nextSentence.includes('Independent research')
+            && resumedSpeech.trimStart().startsWith('Independent research'));
+        await page.click('.ai-research-history > summary');
+        await page.click('.ai-research-history-item');
+        await page.waitForFunction(() => document.querySelector('#aiQuestionStatus')?.textContent?.includes('Saved research'));
+        const restoredResearch = await page.evaluate(() => ({
+            question: document.querySelector('#aiQuestionInput')?.value || '',
+            answer: document.querySelector('#aiQuestionAnswerText')?.textContent || '',
+            context: document.querySelector('#aiQuestionContextText')?.textContent || ''
+        }));
+        report.check('books restore complete saved AI research from IndexedDB',
+            restoredResearch.question === 'What does this passage mean?'
+            && restoredResearch.answer.includes('Books research flow')
+            && restoredResearch.context === 'Segment 0');
         await page.evaluate(() => {
             const audio = document.querySelector('#audioPlayer');
             audio.currentTime = 60;
@@ -772,7 +1002,7 @@ async function seedFrontMatterBook(page) {
         await page.waitForSelector('#historyPanel[style*="block"]');
         const player = await page.evaluate(async () => {
             const db = await new Promise((resolve, reject) => {
-                const req = indexedDB.open('voice-wei-books', 4);
+                const req = indexedDB.open('voice-wei-books', 5);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
@@ -804,7 +1034,7 @@ async function seedFrontMatterBook(page) {
         });
         await page.waitForFunction(async () => {
             const db = await new Promise((resolve, reject) => {
-                const req = indexedDB.open('voice-wei-books', 4);
+                const req = indexedDB.open('voice-wei-books', 5);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
@@ -819,7 +1049,7 @@ async function seedFrontMatterBook(page) {
         });
         const actualDuration = await page.evaluate(async () => {
             const db = await new Promise((resolve, reject) => {
-                const req = indexedDB.open('voice-wei-books', 4);
+                const req = indexedDB.open('voice-wei-books', 5);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
@@ -833,6 +1063,15 @@ async function seedFrontMatterBook(page) {
             return book.generatedDurationSec;
         });
         report.check('books persist decoded MP3 duration for generated accounting', actualDuration === 777);
+
+        const automaticScrollCalls = await page.evaluate(() => window.__bookScrollCalls.slice());
+        await page.click('#goToPlayingSectionBtn');
+        await page.click('#goToLatestReadBtn');
+        const explicitScrollCalls = await page.evaluate(() => window.__bookScrollCalls.slice());
+        report.check('books never auto-scroll the window and expose explicit reader jumps',
+            automaticScrollCalls.length === 0
+            && explicitScrollCalls.length === 2
+            && explicitScrollCalls.every(target => target === 'reader-sec-0'));
 
         await page.click('#backToLibraryBtn');
         await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
@@ -852,6 +1091,7 @@ async function seedFrontMatterBook(page) {
             clearedBeforeSecondPlay && switchedBook.segmentId === 'seg-b0'
             && switchedBook.playCalls.includes('seg-b0'));
 
+        await page.click('.chapter-audio-details > summary');
         await page.click('.chunk-dot[data-segment-id="seg-b0"]');
         await page.waitForFunction(() => (window.__bookPlayCalls || []).filter(id => id === 'seg-b0').length >= 2);
         const chunkClickPlay = await page.evaluate(() => ({
@@ -861,6 +1101,20 @@ async function seedFrontMatterBook(page) {
         report.check('books chapter-list chunk click plays immediately',
             chunkClickPlay.segmentId === 'seg-b0'
             && chunkClickPlay.playCalls.filter(id => id === 'seg-b0').length >= 2);
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.click('.saved-book-item[data-book-id="book-suite-generated"]');
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        await page.click('.ai-research-history > summary');
+        await page.click('.ai-research-history-item');
+        const researchAfterReload = await page.evaluate(() => ({
+            count: document.querySelector('#aiResearchHistoryCount')?.textContent || '',
+            question: document.querySelector('#aiQuestionInput')?.value || '',
+            answer: document.querySelector('#aiQuestionAnswerText')?.textContent || ''
+        }));
+        report.check('books saved AI research survives reload with complete output',
+            researchAfterReload.count === '1'
+            && researchAfterReload.question === 'What does this passage mean?'
+            && researchAfterReload.answer.includes('Books research flow'));
         await page.close();
     }
 
@@ -923,6 +1177,16 @@ async function seedFrontMatterBook(page) {
         await page.reload({ waitUntil: 'networkidle' });
         await page.click('.saved-book-item[data-book-id="book-suite-front-matter"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
+        await page.evaluate(() => {
+            window.__readerJumpCalls = [];
+            Element.prototype.scrollIntoView = function () {
+                window.__readerJumpCalls.push(this.id || 'unknown');
+            };
+        });
+        await page.selectOption('#generationChapterSelect', 'sec-3');
+        await page.click('#goToPlayingSectionBtn');
+        await page.click('#goToLatestReadBtn');
+        const separateReaderJumps = await page.evaluate(() => window.__readerJumpCalls.slice());
         const labels = await page.evaluate(() => Array.from(document.querySelectorAll('#generationChapterSelect option')).map(option => option.textContent.trim()));
         report.check('books infer front matter before numeric chapter run',
             labels[0].startsWith('Front matter 1')
@@ -931,6 +1195,9 @@ async function seedFrontMatterBook(page) {
             && labels[3].startsWith('Chapter 2')
             && labels[4].startsWith('Chapter 3')
             && labels[5].startsWith("Author's Note"));
+        report.check('books keep latest-read and currently-selected audio section as separate reader jumps',
+            separateReaderJumps[0] === 'reader-sec-3'
+            && separateReaderJumps[1] === 'reader-sec-0');
         await page.close();
     }
 

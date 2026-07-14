@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Books - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=271">
-    <link rel="stylesheet" href="practice-controls.css?v=271">
-    <link rel="stylesheet" href="ebook.css?v=271">
+    <link rel="stylesheet" href="style.css?v=272">
+    <link rel="stylesheet" href="practice-controls.css?v=272">
+    <link rel="stylesheet" href="ebook.css?v=272">
 </head>
 
 <body data-page="books" data-settings-button="true">
@@ -128,13 +128,21 @@
                         </div>
                         <div class="workspace-actions">
                             <button id="downloadOriginalBtn" class="panel-action-btn" type="button">Original</button>
-                            <button id="downloadCurrentSegmentBtn" class="panel-action-btn" type="button">Chunk MP3</button>
-                            <button id="downloadAllSegmentsBtn" class="panel-action-btn" type="button">All MP3s</button>
-                            <button id="downloadCombinedBtn" class="panel-action-btn" type="button">Combined MP3</button>
+                            <button id="downloadCurrentChapterBtn" class="panel-action-btn" type="button">Current chapter audio</button>
+                            <button id="downloadCombinedBtn" class="panel-action-btn" type="button">Generated book audio</button>
                             <button id="toggleArchiveCurrentBookBtn" class="panel-action-btn" type="button">Move to archive</button>
-                            <button id="deleteCurrentSegmentAudioBtn" class="panel-action-btn danger" type="button">Delete chunk MP3</button>
-                            <button id="deleteAllAudioBtn" class="panel-action-btn danger" type="button">Delete all MP3s</button>
+                            <button id="deleteAllAudioBtn" class="panel-action-btn danger" type="button">Delete all audio</button>
                         </div>
+                        <details class="audio-parts-advanced">
+                            <summary>Advanced audio parts</summary>
+                            <div>
+                                <button id="generateCurrentChunkBtn" class="panel-action-btn" type="button">Generate one audio part</button>
+                                <button id="downloadCurrentSegmentBtn" class="panel-action-btn" type="button">Current audio part</button>
+                                <button id="downloadAllSegmentsBtn" class="panel-action-btn" type="button">All individual audio files</button>
+                                <button id="deleteCurrentSegmentAudioBtn" class="panel-action-btn danger" type="button">Delete current audio part</button>
+                                <button id="rebuildAudioPlanBtn" class="panel-action-btn danger" type="button">Rebuild sentence-safe audio plan</button>
+                            </div>
+                        </details>
                     </header>
 
                     <div class="book-progress-card">
@@ -227,7 +235,6 @@
                                     <button id="generateCurrentChapterBtn" class="primary-btn" type="button">Current chapter</button>
                                     <button id="generateNextChapterBtn" class="primary-btn" type="button">+Chapter</button>
                                     <button id="generateAllBtn" class="primary-btn" type="button">Whole book</button>
-                                    <button id="generateCurrentChunkBtn" class="primary-btn" type="button">+Chunk</button>
                                     <button id="generateNext15Btn" class="primary-btn" type="button">+15 min</button>
                                     <button id="generateNext60Btn" class="primary-btn" type="button">+1 hour</button>
                                 </div>
@@ -243,7 +250,7 @@
                                 <div class="player-now" id="playerNow">No MP3 selected</div>
                                 <audio id="audioPlayer" class="audio-player"></audio>
                                 <div class="custom-player">
-                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current MP3 chunk">
+                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current chapter audio">
                                         <span id="playerProgressFill" class="player-progress-fill"></span>
                                     </button>
                                     <div class="player-time-row">
@@ -280,7 +287,7 @@
                                     <div>
                                         <span class="ai-research-eyebrow">AI RESEARCH</span>
                                         <h3 id="aiResearchTitle">Ask about what you are hearing</h3>
-                                        <p>Deep web research using the complete current book chunk as context.</p>
+                                        <p>Deep web research using the complete current book context for the audio you are hearing.</p>
                                     </div>
                                     <span class="ai-research-route" id="aiResearchRoute">OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search</span>
                                 </header>
@@ -294,7 +301,7 @@
                                     <div class="ai-question-header">
                                         <div>
                                             <strong>Research request</strong>
-                                            <span id="aiQuestionContextLabel">The full current chunk will be sent as context.</span>
+                                            <span id="aiQuestionContextLabel">The full current audio context will be sent.</span>
                                         </div>
                                         <button id="closeAiQuestionBtn" class="panel-action-btn" type="button">Close</button>
                                     </div>
@@ -310,7 +317,7 @@
                                         <pre id="aiQuestionRequestPreview"></pre>
                                     </details>
                                     <details class="ai-question-context">
-                                        <summary>Exact book chunk sent separately</summary>
+                                        <summary>Exact book text sent separately</summary>
                                         <div id="aiQuestionContextText"></div>
                                     </details>
                                     <div class="ai-question-submit-row">
@@ -327,13 +334,25 @@
                                     <section id="aiQuestionAnswer" class="ai-question-answer" style="display: none;" aria-live="polite">
                                         <header class="ai-answer-header">
                                             <strong>Research answer</strong>
-                                            <button id="repeatAiAnswerBtn" class="panel-action-btn ai-answer-play-btn" type="button" aria-label="Play answer aloud">Play</button>
                                         </header>
+                                        <div class="ai-answer-navigation" id="aiAnswerNavigation">
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="page-back">Page −</button>
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="paragraph-back">Para −</button>
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="sentence-back">Sent −</button>
+                                            <button id="repeatAiAnswerBtn" class="primary-btn ai-answer-play-btn" type="button" aria-label="Play answer aloud">Play</button>
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="sentence-forward">Sent +</button>
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="paragraph-forward">Para +</button>
+                                            <button class="panel-action-btn" type="button" data-ai-answer-nav="page-forward">Page +</button>
+                                        </div>
                                         <div id="aiQuestionAnswerText" class="ai-question-answer-text"></div>
                                         <div id="aiQuestionSources" class="ai-question-sources" style="display: none;"></div>
                                         <div id="aiQuestionImages" class="ai-question-images" style="display: none;"></div>
                                     </section>
                                 </div>
+                                <details class="ai-research-history">
+                                    <summary>Saved research <span id="aiResearchHistoryCount">0</span></summary>
+                                    <div id="aiResearchHistoryList" class="ai-research-history-list"></div>
+                                </details>
                             </section>
                         </aside>
 
@@ -341,6 +360,8 @@
                             <div class="reader-toolbar">
                                 <input type="search" id="readerSearch" class="reader-search" placeholder="Search this book's contents" />
                                 <button id="readerSearchClearBtn" class="panel-action-btn" type="button">Clear</button>
+                                <button id="goToLatestReadBtn" class="panel-action-btn" type="button">Go to latest read</button>
+                                <button id="goToPlayingSectionBtn" class="panel-action-btn" type="button">Go to playing section</button>
                                 <button id="readerFullscreenBtn" class="panel-action-btn" type="button">Fullscreen</button>
                             </div>
                             <div id="readerView" class="reader-view"></div>
@@ -366,15 +387,15 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="dev-error-monitor.js?v=271"></script>
-    <script src="app-version.js?v=271"></script>
-    <script src="storage-keys.js?v=271"></script>
-    <script src="settings-store.js?v=271"></script>
-    <script src="api-keys-store.js?v=271"></script>
-    <script src="voice-output.js?v=271"></script>
-    <script src="voice-command-core.js?v=271"></script>
-    <script src="shared-header.js?v=271"></script>
-    <script src="ebook.js?v=271"></script>
+    <script src="dev-error-monitor.js?v=272"></script>
+    <script src="app-version.js?v=272"></script>
+    <script src="storage-keys.js?v=272"></script>
+    <script src="settings-store.js?v=272"></script>
+    <script src="api-keys-store.js?v=272"></script>
+    <script src="voice-output.js?v=272"></script>
+    <script src="voice-command-core.js?v=272"></script>
+    <script src="shared-header.js?v=272"></script>
+    <script src="ebook.js?v=272"></script>
 </body>
 
 </html>

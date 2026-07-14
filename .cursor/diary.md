@@ -30,6 +30,29 @@ highlight and the car disagree, check that split first.
 
 ---
 
+## 2026-07-14 — Books chapters, research memory, reader control
+
+**Changed**:
+- Complete AI Research records now persist per book and reload with their
+  question, answer, source text, request, citations, images, model, and timing.
+- Answer controls navigate page/paragraph/sentence in both directions and local
+  Play resumes from the selected text.
+- Reading and listening positions are separate. Audio never scrolls the browser;
+  explicit sticky-toolbar buttons jump to latest read or playing section.
+- Single hard-wrapped newlines no longer split TTS audio. TXT chapter headings
+  replace arbitrary Parts, with automatic no-audio migration and a two-step
+  destructive rebuild for existing generated plans.
+- Normal UI presents chapter duration/progress; low-level audio parts are
+  confined to collapsed advanced details.
+
+**Learned**:
+- Gutenberg-style TXT line wrapping was the direct cause of mid-sentence voice
+  restarts: the old splitter treated every visual newline as semantic.
+- A “saved question” is not saved research. The durable primitive must include
+  the complete result and the exact evidence/configuration needed to reopen it.
+
+---
+
 ## 2026-07-10 (Phrases/Intervals layout: Test is a bottom dock)
 
 **Context**: Yui asked for a top-to-bottom layout pass — Test does not

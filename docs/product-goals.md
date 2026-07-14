@@ -168,16 +168,16 @@ above; nothing here is a commitment.
 
 ### Books
 
-- Source-critical AI Research while listening: a one-tap spoken question uses
-  the whole current chunk as context, treats book claims as claims rather than
-  truth, searches the web, returns cited sources/images, and can read the
-  answer locally without generating another MP3.
+- Source-critical AI Research while listening: a question uses the whole current
+  audio context, treats book claims as claims rather than truth, searches the
+  web, returns cited sources/images, and persists the complete result per book.
 - Richer multimedia ebook mode on top of the local Books library: current
-  Books stores originals, parsed text sections, generated MP3 chunks,
-  read/listen progress, and detailed local history in IndexedDB. Remaining work
+  Books stores originals, parsed text sections, generated MP3 audio parts,
+  separate read/listen progress, research, and detailed local history in
+  IndexedDB. Remaining work
   is image/table extraction in the new section model, richer EPUB/HTML
-  rendering, figure reference detection, tighter text/audio synchronization, and
-  better progress visualization from the history data.
+  rendering, figure reference detection, and better progress visualization from
+  the history data. Exact word-level MP3/text synchronization is not a goal.
 - Voice-cloned or higher-quality narration options
 
 ### Platform

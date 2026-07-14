@@ -106,8 +106,12 @@ exception in architecture.md). The Listen card's transport grid keeps
 the shared classes but sizes them tall (58px) for driving. AI Research is its
 own blue-bordered card immediately after Listen, with a full-width
 `primary-btn` launch, `primary-btn` Research submit, and `panel-action-btn`
-Close / answer Play-Stop controls. The new layout makes the capability a named
-surface without adding a button dialect.
+Close / answer navigation controls. Seven compact answer buttons cover
+page/paragraph/sentence backward and forward with Play centered. Saved research
+rows use the existing panel vocabulary. The sticky reader toolbar adds explicit
+Go to latest read / Go to playing section actions. Normal audio controls are
+chapter-level; audio-part generation/download/deletion and markers are grouped
+inside collapsed Advanced/Audio details. No new button dialect is introduced.
 
 ## Other pages
 

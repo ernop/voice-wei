@@ -297,8 +297,9 @@ durable history" in [architecture.md](architecture.md)).
 Books persists TTS preferences and the OpenAI API key in browser localStorage.
 Large book data is stored in IndexedDB (`voice-wei-books`): original upload
 Blobs, parsed book-section records, sanitized EPUB/HTML reader markup, planned
-TTS text chunks, generated MP3 chunk Blobs, read/listen progress, and local
-history events. EPUB imports prefer the official `nav`/NCX table of contents
+internal TTS audio parts, generated MP3 Blobs, separate read/listen progress,
+local history events, and complete AI Research records. EPUB imports prefer the
+official `nav`/NCX table of contents
 for chapter names; PDF imports use outline entries when available. The visible
 Log panel is page-session state and is cleared on reload. Books requests
 persistent browser storage automatically where supported.
@@ -328,21 +329,18 @@ of book content: "it was a dark and stormy night. The datacenter was centrally
 located in the data plains of Torrenthia, humming along as usual, blotting out
 the sound of scraping from beneath."
 
-Actions: import creates a saved book plus section/chapter and chunk records;
+Actions: import creates a saved book plus chapter and internal audio-part records;
 Generate selected/current/next chapter and Whole book use chapter-level TOC
-boundaries, while +Chunk remains available for the underlying TTS chunk unit.
-+15 min and +1 hour extend from the current listening chunk for that duration,
-skipping chunks already queued or generating so a second press enqueues more
-ahead. Failed chunks at/after the playhead are retried because they still count
-as pending. Each chunk record updates as its MP3 finishes; Cancel
-preserves completed chunks and leaves the rest pending/error; custom playback
-controls update listening and reading progress and write local history events
-for play/pause, chunk changes, jumps, and position samples; clicking a chapter-
-list chunk marker plays that MP3 immediately; auto-generate-ahead can generate
-more pending chunks while listening.
+boundaries. +15 min and +1 hour extend from the listening position, skipping
+audio parts already queued or generating. Each part persists as it finishes;
+Cancel preserves completed work. Normal progress/player UI presents chapter
+duration rather than part counts. Low-level generate/download/delete controls
+and clickable markers live in collapsed Advanced/Audio details. Rebuild
+sentence-safe audio plan requires two clicks and deletes existing generated
+audio before replanning.
 AI Research pauses playback, captures one spoken utterance (or accepts typed
 input), and discloses the complete Responses API request body except that the
-separately displayed full book chunk is represented by a size-labeled
+separately displayed full book context is represented by a size-labeled
 placeholder. Requests use `gpt-5.6` (GPT-5.6 Sol), reasoning `high`,
 `web_search` with high context, required tool use, text + image search, up to
 six image results, and a 12,000-token reasoning/answer budget. Incomplete
@@ -350,15 +348,17 @@ provider responses are reported as failures rather than displayed as finished.
 A live timer and the label
 `OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search`
 remain visible while awaiting the response. Answers render clickable citations,
-source links, and returned image results. The local Play/Stop answer control
-uses browser speech synthesis and follows word-boundary events to highlight the
-current answer sentence. The question is added to local history. Books does
-not request a new transcript or word-level book timestamp map.
-Download original / current chunk / all chunk MP3s / combined MP3 export saved
-blobs; Delete chunk MP3 / Delete all MP3s clear generated audio without
-removing the original; Delete book removes the browser-local book, sections,
-and chunks. The visible Log is page-local DOM state only; it is not a durable
-usage record.
+source links, and returned image results. Complete request/result/source/model
+records persist per book in IndexedDB and reload from Saved research. Answer
+buttons navigate backward/forward by sentence, paragraph, or visible page;
+Play starts local browser speech at the selected position. Books does not
+request a new transcript or word-level book timestamp map.
+The reader never automatically scrolls the whole browser window. Go to latest
+read and Go to playing section are explicit sticky-toolbar actions backed by
+separate reading and listening state.
+Download original / current chapter audio / generated book audio are primary;
+individual part files live under Advanced. Delete all audio preserves the
+original/research; Delete book removes all browser-local records.
 
 ## Pitch test panel (shared component)
 

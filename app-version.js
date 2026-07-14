@@ -6,7 +6,7 @@
 //-----------------------------------------------------------------------
 
 const AppVersion = Object.freeze({
-    current: '271'
+    current: '272'
 });
 
 window.AppVersion = AppVersion;
