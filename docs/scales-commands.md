@@ -76,8 +76,10 @@ Supported scale patterns (the `SCALE_PATTERNS` registry in
 ### Microtonal scales
 
 Fractional semitones (0.5 = one quarter tone) play at exact pitch; note
-names show arrow accidentals for quarter tones (E&#8595; = E lowered a
-quarter tone) or a cents offset for other tunings (D4+40c).
+names show the nearest note plus a signed cents offset: `E4-50c` is E
+lowered a quarter tone (the rast neutral third), `D4+40c` a slendro
+step. (Arrows are not used - degree labels already use them for octave
+displacement.)
 
 | Scale | Semitone pattern | What to listen for |
 |-------|------------------|--------------------|

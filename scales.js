@@ -4049,8 +4049,8 @@ class ScalesController {
      */
     formatMidiDisplay(midi, isSection, defaultOctave = 4) {
         if (!Number.isInteger(midi)) {
-            // Microtonal spelling embeds its own octave (a quarter tone at
-            // the B/C boundary belongs to the upper octave's C).
+            // Microtonal spelling ("E4-50c") embeds its own octave; the
+            // cents suffix would be ambiguous without it.
             const full = this.formatPitchStringForCurrentScale(midi);
             return isSection ? full : full.toLowerCase();
         }

@@ -260,36 +260,25 @@ function scaleIsMicrotonal(scaleType) {
     return scalePattern(scaleType).some(step => !Number.isInteger(step));
 }
 
-// Quarter-tone accidentals: down arrow = quarter-tone flat, up arrow =
-// quarter-tone sharp. Chosen over the SMuFL half-accidental glyphs for
-// universal font support on phones.
-const QUARTER_FLAT_MARK = '\u2193';
-const QUARTER_SHARP_MARK = '\u2191';
-
 /**
- * Spell a non-integer MIDI value.
- * Exact quarter tones (x.5) use arrow accidentals on the neighboring
- * natural, matching maqam convention: 63.5 -> E(down)4 ("E half-flat"),
- * 65.5 -> F(up)4. Other offsets show nearest note plus signed cents:
- * 62.4 -> "D4+40c".
+ * Spell a non-integer MIDI value as the nearest 12-TET note plus a
+ * signed cents offset, reusing the cents vocabulary the pitch tools
+ * already speak: 63.5 -> "E4-50c" (the rast neutral third, E lowered a
+ * quarter tone), 62.4 -> "D4+40c". Arrows are NOT used here - in degree
+ * labels they already mean octave displacement ("6 down" / "2 up").
+ * Halfway values round up, so quarter tones read as the upper note
+ * minus 50 cents, matching the maqam half-flat convention.
  * @param {number} midi
  * @returns {{ noteName: string, octave: number, centsSuffix: string }}
  */
 function midiToMicrotonalParts(midi) {
-    if (midi - Math.floor(midi) === 0.5) {
-        const upperName = NOTE_NAMES[midiPitchClass(midi + 0.5)];
-        if (upperName.length === 1) {
-            return { noteName: `${upperName}${QUARTER_FLAT_MARK}`, octave: midiOctave(midi + 0.5), centsSuffix: '' };
-        }
-        return { noteName: `${NOTE_NAMES[midiPitchClass(midi - 0.5)]}${QUARTER_SHARP_MARK}`, octave: midiOctave(midi - 0.5), centsSuffix: '' };
-    }
     const nearest = Math.round(midi);
     const cents = Math.round((midi - nearest) * 100);
     return { noteName: NOTE_NAMES[midiPitchClass(nearest)], octave: midiOctave(nearest), centsSuffix: `${formatCents(cents)}c` };
 }
 
 /**
- * Microtonal pitch string with octave, e.g. "E<down>4" or "D4+40c".
+ * Microtonal pitch string with octave, e.g. "E4-50c" or "D4+40c".
  * @param {number} midi
  * @returns {string}
  */
@@ -299,7 +288,7 @@ function midiToMicrotonalPitchString(midi) {
 }
 
 /**
- * Microtonal note name without octave, e.g. "E<down>" or "D+40c".
+ * Microtonal note name without octave, e.g. "E-50c" or "D+40c".
  * @param {number} midi
  * @returns {string}
  */

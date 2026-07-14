@@ -749,3 +749,31 @@ chunk click-to-play, and a +1 hour generate button.
 
 ---
 
+## 2026-07-14 — Microtonal scales
+
+**Session context**: Yui asked for popular microtonal scales to explore by
+ear on the Scales tab.
+
+**Changed**:
+- Six microtonal scale types in `SCALE_PATTERNS` (fractional semitones):
+  quarter_tone (24-EDO), rast, bayati, sikah (quarter-tone maqamat),
+  slendro (5-EDO), just_major (5-limit just intonation). Buttons, voice
+  grammar (with aliases in scales-voice-maps), docs, tests.
+- Microtonal spelling lives in music-constants: non-integer MIDI renders
+  as nearest note + signed cents ("E4-50c"). Quarter-tone playback
+  highlights both neighboring piano keys.
+
+**Learned**:
+- The Salamander path already plays fractional MIDI exactly (ratio-based
+  playbackRate); no audio work was needed. The real work is naming,
+  degree matching, and display.
+- Half-integer (quarter-tone) semitone values are dyadic, so float
+  equality is exact end-to-end; 5-EDO/just values are not, and
+  `getDiatonicInterval`'s indexOf needed an epsilon findIndex.
+- Yui vetoed arrow accidentals (E&#x2193;) for quarter tones: arrows already
+  mean octave displacement in degree labels ("6 down"). Cents notation
+  won because the pitch tools already speak cents. Check notation
+  collisions against the whole app vocabulary before inventing any.
+
+---
+

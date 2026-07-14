@@ -188,8 +188,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 played: played.join(',')
             };
         });
-        report.check(`microtonal rast degrees spell with quarter-tone arrows (${microtonal.rastNames})`,
-            microtonal.rastNames === `C4 D4 E${'\u2193'}4 F4 G4 A4 B${'\u2193'}4 C5`
+        report.check(`microtonal rast degrees spell as cents from the nearest note (${microtonal.rastNames})`,
+            microtonal.rastNames === 'C4 D4 E4-50c F4 G4 A4 B4-50c C5'
             && microtonal.rastMidis === '60,62,63.5,65,67,69,70.5,72');
         report.check(`microtonal quarter-tone scale has 25 degrees at 50-cent steps (${microtonal.quarterCount}, ratio ${microtonal.quarterStepRatio.toFixed(5)})`,
             microtonal.quarterCount === 25

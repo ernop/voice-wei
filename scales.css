@@ -210,9 +210,10 @@
 }
 
 .piano-notification-note-cell {
-    width: 7ch;
-    min-width: 7ch;
-    max-width: 7ch;
+    /* Fits the widest microtonal name ("D#4-50c") plus cell padding */
+    width: 9ch;
+    min-width: 9ch;
+    max-width: 9ch;
     text-align: right;
     padding-right: 8px;
     padding-left: 4px;
