@@ -800,3 +800,28 @@ ear on the Scales tab.
 
 ---
 
+## 2026-07-14 — Play-button pacing bug
+
+**Session context**: Yui heard infinite+nogap up+down playback SPEED UP
+the first time a scale button was clicked mid-play.
+
+**Root cause (design level)**: `playCurrentSettings` converted state back
+into the lossy voice vocabulary: `tempo: msToTempoName(noteLengthMs)`
+quantized 0.3s to "normal" = 0.5s, so the Play button played slower than
+the setting. A live-restart built modifiers without tempo, read the true
+setting, and the pace "sped up" to what it should have been all along.
+Representation-law violation: tempo/gap names are voice INPUT vocabulary,
+never derived state. The gap half of the same object already passed null
+("gap is handled via gapMs directly") - the tempo half was the leftover
+sibling. Deleted `msToTempoName` entirely.
+
+**Learned**:
+- When "restart changes behavior", diff the two build paths for the same
+  playback; the bug is whichever one re-encodes state through a lossy
+  vocabulary instead of reading the setting.
+- Measure pacing bugs, don't eyeball them: intercepting `piano.playMidi`
+  and logging onset intervals made the 500ms-vs-300ms mismatch and the
+  fix unambiguous.
+
+---
+

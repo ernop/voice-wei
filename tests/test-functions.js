@@ -52,6 +52,43 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check('scales voice command executes and plays', played);
 
+        // Regression: the Play button must honor noteLengthMs exactly.
+        // It used to quantize through the coarse voice tempo names
+        // (0.3s -> "normal" -> 0.5s), so a mid-play setting change
+        // (live-restart reads the true setting) audibly sped playback up.
+        const pacing = await tab.evaluate(async () => {
+            const c = window.scalesController;
+            c.stopPlayback();
+            c.settings.noteLengthMs = 300; // between the 150/500 tempo presets
+            c.settings.gapMs = 0;
+            c.settings.direction = 'both';
+            c.settings.repeatCount = Infinity;
+            c.settings.repeatGapMs = 0;
+            c.settings.scaleType = 'major';
+
+            const durations = [];
+            const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
+            c.audio.piano.playMidi = (midi, duration) => { durations.push(duration); };
+
+            c.playCurrentSettings();
+            await new Promise(r => setTimeout(r, 500));
+            const playButtonDuration = durations[0];
+
+            c.settings.scaleType = 'minor';
+            c.onSettingChanged();
+            await new Promise(r => setTimeout(r, 700));
+            const afterChangeDuration = durations[durations.length - 1];
+
+            c.stopPlayback();
+            await new Promise(r => setTimeout(r, 100));
+            c.audio.piano.playMidi = realPlayMidi;
+            c.settings.repeatCount = 1;
+            c.settings.direction = 'ascending';
+            return { playButtonDuration, afterChangeDuration };
+        });
+        report.check(`scales play button pacing matches the setting before and after live-restart (${pacing.playButtonDuration}s -> ${pacing.afterChangeDuration}s)`,
+            pacing.playButtonDuration === 0.3 && pacing.afterChangeDuration === 0.3);
+
         await tab.fill('#presetNameInput', 'suite-test');
         await tab.click('#savePresetBtn');
         await tab.waitForTimeout(300);

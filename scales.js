@@ -247,16 +247,8 @@ class ScalesController {
 
         // Note: settings store actual values (noteLengthMs in ms, gapMs in
         // ms or negative for overlap ratio); labels and interpretation come
-        // from PracticeControls (shared across pages).
-        // Map ms to closest tempo name (for voice command generation)
-        this.msToTempoName = (ms) => {
-            if (ms <= 100) return 'very fast';
-            if (ms <= 150) return 'fast';
-            if (ms <= 500) return 'normal';
-            if (ms <= 1000) return 'slow';
-            if (ms <= 2000) return 'very slow';
-            return 'super slow';
-        };
+        // from PracticeControls (shared across pages). Tempo/gap NAMES exist
+        // only as voice input; they are never derived back from settings.
         this.init();
     }
 
@@ -3725,8 +3717,14 @@ class ScalesController {
                 risingSemitones: this.settings.risingSemitones,
                 rangeExpansion: this.settings.rangeExpansion,
                 octaveSpan: this.settings.octaveSpan,
-                tempo: this.msToTempoName(this.settings.noteLengthMs),
-                gap: null, // gap is handled via gapMs directly
+                // Tempo/gap are voice INPUT vocabulary, never state: leaving
+                // them null makes getNoteDuration() read noteLengthMs/gapMs
+                // directly. Quantizing through the coarse tempo names here
+                // made the Play button misplay any in-between note length
+                // (0.3s became "normal" = 0.5s) until the first live-restart
+                // snapped back to the true setting.
+                tempo: null,
+                gap: null,
                 repeat: this.settings.repeatCount,
                 repeatGapMs: this.settings.repeatGapMs,
                 exercise: this.settings.exercise,
