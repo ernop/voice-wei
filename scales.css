@@ -1,5 +1,21 @@
 /* Scales Page Specific Styles */
 
+/* Transport order on this page is Play (primary, stretches), Stop,
+   Listen (compact, sized like Stop): playing scales is the main act
+   here, and voice is one way to drive it. */
+body[data-page="scales"] .voice-controls-row .play-button {
+    flex: 1;
+}
+
+body[data-page="scales"] .voice-controls-row .listen-button {
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 80px;
+    padding: 12px 20px;
+    font-size: 1.1rem;
+}
+
 .echo-toggle span {
     font-weight: 500;
 }

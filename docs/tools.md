@@ -10,6 +10,7 @@ Voice-controlled scale trainer with realistic piano (Salamander samples).
 **Voice-first, click-second**: everything you can say is also visible and
 clickable, and both update the same state.
 
+The transport row is Play (primary, stretches wide), Stop, Listen.
 Click **Listen**, then say things like:
 
 - "D minor scale"
