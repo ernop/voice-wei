@@ -1149,6 +1149,7 @@ const PlayerPlaylist = (function () {
                 // until this song's lines start arriving. Reporting
                 // 'playing' secures session ownership (the core's silent
                 // loop) so the car reads THIS page, not youtube.com.
+                this.nowPlayingShowsLyric = false;
                 MediaSessionCore.clearNowPlayingTitle();
                 MediaSessionCore.setPlaybackState('playing');
                 if (!this.mediaActionHandlersSet) {

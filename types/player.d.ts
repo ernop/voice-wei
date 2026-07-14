@@ -331,6 +331,7 @@ interface VoiceMusicController {
     refreshCachedSearchQuery(query: string): Promise<void>;
 
     currentLyricsItem(): PlaylistItem | null;
+    playingPlaylistItem(): PlaylistItem | null;
     toggleLyricsPanel(): void;
     setLyricsPanelVisible(visible: boolean): void;
     openLyricsOverlay(): void;

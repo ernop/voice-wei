@@ -31,9 +31,16 @@ const MediaSessionCore = (function () {
     let explicitState = null;
     /** @type {string | null} Header heading text before the first override */
     let defaultHeaderText = null;
-    // Last-written values: the core communicates minimally with the
-    // display surfaces, so identical repeat writes are dropped here and
-    // callers never carry their own dedupe.
+    // Desired vs last-published metadata. Callers express what the
+    // surfaces should show; identical repeats are dropped so the car is
+    // not spammed. When the silent keep-alive re-arms, published is
+    // cleared so the desired text is forced through again - Chrome can
+    // route the session to a YouTube iframe mid-song and discard our
+    // MediaMetadata while our dedupe cache still thinks it is live.
+    /** @type {string | null} */
+    let desiredMetaTitle = null;
+    /** @type {string | null} */
+    let desiredMetaArtist = null;
     /** @type {string | null} */
     let writtenMetaTitle = null;
     /** @type {string | null} */
@@ -83,6 +90,12 @@ const MediaSessionCore = (function () {
 
         try {
             await audioEl.play();
+            // Reclaiming the element means the OS may have been showing
+            // another frame's session (YouTube). Force the next metadata
+            // publish through even if the text has not changed.
+            writtenMetaTitle = null;
+            writtenMetaArtist = null;
+            publishMetadata();
             // The silent loop would otherwise be computed as 'playing';
             // pages that report transport state keep their word here.
             if ('mediaSession' in navigator) {
@@ -91,6 +104,15 @@ const MediaSessionCore = (function () {
         } catch (err) {
             // Chrome may require a user gesture before exposing hardware media controls.
         }
+    }
+
+    /**
+     * Keep THIS page the routed media session while transport claims
+     * playing. Safe to call on every lyric push - no-ops when the silent
+     * loop is already running and state is already 'playing'.
+     */
+    function ensurePlayingSession() {
+        setPlaybackState('playing');
     }
 
     /**
@@ -120,14 +142,25 @@ const MediaSessionCore = (function () {
      * @param {{ artist?: string }} [options]
      */
     function updateMetadata(title, options = {}) {
-        if (!('mediaSession' in navigator)) return;
         const artist = options.artist === undefined ? 'Voice-Wei' : options.artist;
-        if (title === writtenMetaTitle && artist === writtenMetaArtist) return;
+        desiredMetaTitle = title;
+        desiredMetaArtist = artist;
+        publishMetadata();
+    }
+
+    /** Push desired metadata when it differs from what we last published. */
+    function publishMetadata() {
+        if (!('mediaSession' in navigator)) return;
+        if (desiredMetaTitle === null || desiredMetaArtist === null) return;
+        if (desiredMetaTitle === writtenMetaTitle && desiredMetaArtist === writtenMetaArtist) return;
 
         try {
-            navigator.mediaSession.metadata = new MediaMetadata({ title, artist });
-            writtenMetaTitle = title;
-            writtenMetaArtist = artist;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: desiredMetaTitle,
+                artist: desiredMetaArtist
+            });
+            writtenMetaTitle = desiredMetaTitle;
+            writtenMetaArtist = desiredMetaArtist;
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
@@ -204,6 +237,7 @@ const MediaSessionCore = (function () {
 
     return {
         activate,
+        ensurePlayingSession,
         register,
         setActionHandlers,
         updateMetadata,

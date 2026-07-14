@@ -3099,6 +3099,59 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelay.after.docTitle !== 'late first line'
             && lyricRelay.after.headerTitle === 'Music'
             && neverSongArtistPastIntro);
+        // Car/title relay follows the sounding track even when the lyrics
+        // panel is focused on a different row (chip tap must not freeze
+        // the Bluetooth/header lyric line).
+        const lyricRelayIgnoresPanelFocus = await tab.evaluate(() => {
+            const playing = {
+                id: 11, name: 'Playing Song', artist: 'Playing Artist',
+                lyricsStatus: 'ready',
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Playing Song', artistName: 'Playing Artist',
+                    albumName: '', duration: 100, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:03.00]playing line one\n[00:08.00]playing line two',
+                    syncedLines: [
+                        { time: 3, text: 'playing line one' },
+                        { time: 8, text: 'playing line two' }
+                    ]
+                }
+            };
+            const other = {
+                id: 22, name: 'Other Song', artist: 'Other Artist',
+                lyricsStatus: 'ready',
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Other Song', artistName: 'Other Artist',
+                    albumName: '', duration: 100, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:01.00]other line',
+                    syncedLines: [{ time: 1, text: 'other line' }]
+                }
+            };
+            const harness = {
+                settings: { lyricsOnNowPlaying: true },
+                playlist: [playing, other],
+                playback: { player: null },
+                currentLyricsItemId: other.id,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsLyric: false,
+                isPlaying: true,
+                isPaused: false,
+                currentPlayingId: playing.id,
+                currentPlaylistItem() { return playing; }
+            };
+            PlayerLyrics.install(harness);
+            harness.updateSyncedLyricsPosition(4);
+            return {
+                metaTitle: navigator.mediaSession.metadata?.title || '',
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
+                panelFocusId: harness.currentLyricsItemId
+            };
+        });
+        report.check(`player car/title relay follows playing song while panel shows another ("${lyricRelayIgnoresPanelFocus.metaTitle}")`,
+            lyricRelayIgnoresPanelFocus.metaTitle === 'playing line one'
+            && lyricRelayIgnoresPanelFocus.headerTitle === 'playing line one'
+            && lyricRelayIgnoresPanelFocus.barLyric === 'playing line one'
+            && lyricRelayIgnoresPanelFocus.panelFocusId === 22);
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric

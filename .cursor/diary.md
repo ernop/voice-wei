@@ -4,6 +4,32 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-14 (car lyric relay keyed off panel focus)
+
+**Context**: Yui reported timed lyrics advancing in Big Lyrics, but the
+car / title surfaces (Media Session, header lyric line) not updating
+even though they used to.
+
+**Root cause**: `updateSyncedLyricsPosition` / `relayLyricToNowPlaying` /
+`nextLyricDeadline` all keyed off `currentLyricsItemId` - the lyrics
+*panel* selection. A chip tap on another row (or any path that moved
+panel focus off the sounding track) made `playingThisItem` false, so
+the car cleared while the overlay could still show readable lyrics.
+Secondary: Media Session dedupe kept a stale "already wrote this line"
+cache after the silent keep-alive re-armed, so reclaiming the session
+from a YouTube iframe did not republish the current lyric.
+
+**Fix**: car/title/sticky-bar lyric always follow `playingPlaylistItem()`;
+panel highlight only moves when the panel is showing that track; Big
+Lyrics opens the sounding track; lyric arrival resyncs for the playing
+id; `ensurePlayingSession` + invalidate published metadata on activate.
+
+**For future mei**: now-playing surfaces are a property of *playback*,
+not of which row's lyric chip was last touched. If Big Lyrics / panel
+highlight and the car disagree, check that split first.
+
+---
+
 ## 2026-07-10 (Phrases/Intervals layout: Test is a bottom dock)
 
 **Context**: Yui asked for a top-to-bottom layout pass — Test does not
