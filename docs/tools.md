@@ -138,9 +138,21 @@ Free singing inside a selected key while watching the pitch line. Separate
 from Phrases so you can practice scale motion and intonation without
 generating anything first.
 
+Layout: the primary controls - Start/Stop, Reset, the key stepper, and
+the scale-type row - are docked directly onto the top of the chart (one
+visual unit, no gap), so the glance-and-tap set is always next to the
+display. The live pitch/status readout docks onto the chart's bottom
+edge. Secondary options (guide interval, guide sound, the window and
+range toggles) sit below that; the pattern input stays above.
+
 - Start begins listening; Reset clears the trace (and optionally plays the
   typed pattern as guides - off by default).
-- Key/octave/scale draw the scale-degree rails.
+- Key/octave/scale draw the scale-degree rails. Rail labels are the bare
+  degree number, mirrored on the left AND right edges of the chart.
+- Beyond the core octave the chart always draws six context rails in
+  their own color (sky blue against the scale's green): the 3 scale
+  notes just below the root and the 3 just above the octave - in major,
+  the 5 6 7 below and the 2 3 4 above.
 - Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
   guide interval stepper sets their horizontal spacing. Octave suffixes
   reach outside the home octave: `5d` (or `5v`/`5↓`) is the 5 an octave
@@ -152,7 +164,8 @@ generating anything first.
 - 20s window switches to a fixed 20-second scrolling viewport (default is
   a content-sized scrolling viewport - the width never grows with the
   clock, which used to squeeze the chart every frame).
-- Expand range adds rails an octave above and below.
+- Expand range adds rails a full octave above and below (the six context
+  rails keep their color inside the expanded range).
 - The chart draws what you actually sing, wherever it lands: the vertical
   range expands to cover your voice even outside the rails. Guide bands
   are bare outlines of the hit zone; they do not recolor from scoring

@@ -165,9 +165,15 @@ asserts they stay in the trace.)
 
 **Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
 everything through provider callbacks: `rails()`, `targets()`,
-`history()`, `clockMs()`, windowing options. The sung line breaks across
-silences > 250ms and across unconfirmed fast jumps. Target bands are
-bare outlines of the hit zone (`BAND_CENTS`, matching scoring's OK
+`history()`, `clockMs()`, windowing options. Rails come in three tiers:
+emphasized (the core scale, solid green), context (neighbor notes in
+their own sky-blue color - Trace uses this for the 3 scale notes below
+the root and the 3 above the octave), and dimmed (dashed faint green,
+e.g. expanded-range octaves). Label gutters are measured from the actual
+rail labels each draw, and `railLabelsBothSides` (Trace) mirrors the
+labels on the right edge with a matching gutter. The sung line breaks
+across silences > 250ms and across unconfirmed fast jumps. Target bands
+are bare outlines of the hit zone (`BAND_CENTS`, matching scoring's OK
 tolerance by convention) - scoring verdicts never recolor them;
 judgment lives in readouts and progress, not in the chart. The view
 does not load `pitch-score.js`.
@@ -205,12 +211,17 @@ panel segments incrementally (`PitchScore.createSegmenter`, pulled from
 (`alignSegments`); the phrases take plan is memoized on its input key
 (targets, rails, and duration all read it every tick); the view finds a
 fixed window's visible slice by scanning back from the end of the
-time-ordered history; and the detector stops scanning at the deepest
-singable period, which caps the cost of pitchless frames (breath noise
-used to trigger a full scan). Measured on a simulated 10-minute take:
-the old per-tick scoring re-chewed 36k samples in ~15ms per tick (plus
-allocation/GC pressure, the felt "grinding"); the incremental path is
-~1.4ms.
+time-ordered history; the view's held vertical range is monotone for a
+take, so each frame folds in only the visible slice (a full history
+scan happens once, to seed an empty held range); Trace rebuilds its
+rails/targets/window model only when a setting or the pattern text
+changes and the frame loop just reads it back (no per-frame pattern
+parsing or scale spelling); and the detector stops scanning at the
+deepest singable period, which caps the cost of pitchless frames
+(breath noise used to trigger a full scan). Measured on a simulated
+10-minute take: the old per-tick scoring re-chewed 36k samples in ~15ms
+per tick (plus allocation/GC pressure, the felt "grinding"); the
+incremental path is ~1.4ms.
 
 Consumers: the Trace page uses session + view directly; Phrases, Scales,
 and Intervals go through `pitch-test-panel.js`; pitch-meter uses the same
