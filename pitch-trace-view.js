@@ -23,6 +23,10 @@ const PitchTraceView = (function () {
     const RAIL_DIMMED = 'rgba(134, 239, 172, 0.22)';
     const RAIL_LABEL_EMPHASIZED = 'rgba(216, 252, 225, 0.92)';
     const RAIL_LABEL_DIMMED = 'rgba(216, 252, 225, 0.55)';
+    // Context rails (the scale notes just beyond the core octave) get
+    // their own hue - sky blue against the scale's green.
+    const RAIL_CONTEXT = 'rgba(125, 211, 252, 0.4)';
+    const RAIL_LABEL_CONTEXT = 'rgba(186, 230, 253, 0.75)';
     const TRACE_COLOR = '#facc15';
     const MAX_TRACE_POINTS = 1200;
 
@@ -44,12 +48,16 @@ const PitchTraceView = (function () {
     };
 
     /**
-     * @typedef {{ midi: number, label: string, emphasized: boolean }} Rail
+     * Rails come in three tiers: emphasized (the core scale), context
+     * (neighbor notes drawn in their own color), and dimmed (the rest).
+     *
+     * @typedef {{ midi: number, label: string, emphasized: boolean, context?: boolean }} Rail
      * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active?: boolean }} Target
      *
      * @param {{
      *   canvasId: string,
      *   defaultHeightPx: number,
+     *   railLabelsBothSides?: boolean,
      *   isVisible?: () => boolean,
      *   emptyMessage?: () => string | null,
      *   rails: () => Rail[],
@@ -156,22 +164,40 @@ const PitchTraceView = (function () {
             // Frame from rails; expand to cover what was sung so an
             // off-rails note draws at its true pitch. Held min/max never
             // shrink mid-take (avoids vertical bounce when extremes
-            // scroll out of the visible window).
-            let minMidi = Math.min(...rails.map(rail => rail.midi));
-            let maxMidi = Math.max(...rails.map(rail => rail.midi));
-            for (const point of rawHistory) {
-                if (point.midi < minMidi) minMidi = point.midi;
-                if (point.midi > maxMidi) maxMidi = point.midi;
+            // scroll out of the visible window). Because they are
+            // monotone for the take, only the visible slice needs
+            // scanning per frame - every sample is on screen the frame
+            // it arrives, so it has already been folded in. A full scan
+            // happens once, to seed an empty held range.
+            let minMidi = Infinity;
+            let maxMidi = -Infinity;
+            for (const rail of rails) {
+                if (rail.midi < minMidi) minMidi = rail.midi;
+                if (rail.midi > maxMidi) maxMidi = rail.midi;
             }
             if (rawHistory.length) {
+                const scan = heldMinMidi === null ? rawHistory : visibleHistory;
+                for (const point of scan) {
+                    if (point.midi < minMidi) minMidi = point.midi;
+                    if (point.midi > maxMidi) maxMidi = point.midi;
+                }
                 if (heldMinMidi === null || minMidi < heldMinMidi) heldMinMidi = minMidi;
                 if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
                 minMidi = /** @type {number} */ (heldMinMidi);
                 maxMidi = /** @type {number} */ (heldMaxMidi);
             }
             const midiRange = Math.max(maxMidi - minMidi, 1);
-            const left = width < 520 ? 96 : 132;
-            const right = 16;
+
+            // Gutters fit the actual rail labels; with labels mirrored
+            // on both sides the right gutter matches the left.
+            ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
+            let labelWidth = 0;
+            for (const rail of rails) {
+                labelWidth = Math.max(labelWidth, ctx.measureText(rail.label).width);
+            }
+            const gutter = Math.ceil(labelWidth) + 16;
+            const left = gutter;
+            const right = options.railLabelsBothSides ? gutter : 16;
             const top = 18;
             const bottom = 28;
             const graphWidth = Math.max(width - left - right, 1);
@@ -182,22 +208,29 @@ const PitchTraceView = (function () {
             /** @param {number} ms */
             const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
 
-            ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
-            ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             rails.forEach(rail => {
                 const y = midiToY(rail.midi);
-                ctx.strokeStyle = rail.emphasized ? RAIL_EMPHASIZED : RAIL_DIMMED;
+                const railColor = rail.context ? RAIL_CONTEXT
+                    : rail.emphasized ? RAIL_EMPHASIZED : RAIL_DIMMED;
+                const labelColor = rail.context ? RAIL_LABEL_CONTEXT
+                    : rail.emphasized ? RAIL_LABEL_EMPHASIZED : RAIL_LABEL_DIMMED;
+                ctx.strokeStyle = railColor;
                 ctx.lineWidth = rail.emphasized ? 1.3 : 1;
-                ctx.setLineDash(rail.emphasized ? [] : [4, 6]);
+                ctx.setLineDash(rail.emphasized || rail.context ? [] : [4, 6]);
                 ctx.beginPath();
                 ctx.moveTo(left, y);
                 ctx.lineTo(width - right, y);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
-                ctx.fillStyle = rail.emphasized ? RAIL_LABEL_EMPHASIZED : RAIL_LABEL_DIMMED;
+                ctx.fillStyle = labelColor;
+                ctx.textAlign = 'right';
                 ctx.fillText(rail.label, left - 8, y);
+                if (options.railLabelsBothSides) {
+                    ctx.textAlign = 'left';
+                    ctx.fillText(rail.label, width - right + 8, y);
+                }
             });
 
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';

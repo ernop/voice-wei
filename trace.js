@@ -54,8 +54,12 @@
         return noteNameToMidi(state.root, state.octave);
     }
 
-    // Rails always cover the pattern: a 5d target must sit on a labeled
-    // rail, not below the chart.
+    // Rails cover the core octave (or the expanded range) plus the
+    // pattern's reach: a 5d target must sit on a labeled rail, not
+    // below the chart. On top of that, the 3 scale notes just below
+    // the root and the 3 just above the octave are always drawn as
+    // context (e.g. 7 6 5 below, 2 3 4 above in major) - flagged so
+    // the view gives them their own color.
     function chartScaleNotes() {
         const intervals = parsedPatternEntries().map(entry => entry.interval);
         let min = state.expandRange ? -12 : 0;
@@ -64,7 +68,16 @@
             min = Math.min(min, ...intervals);
             max = Math.max(max, ...intervals);
         }
-        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, min, max);
+        const contextList = [
+            ...scaleIntervalsInRange(state.scaleType, -12, -1).slice(-3),
+            ...scaleIntervalsInRange(state.scaleType, 13, 24).slice(0, 3)
+        ];
+        const contextIntervals = new Set(contextList);
+        const lo = Math.min(min, ...contextList);
+        const hi = Math.max(max, ...contextList);
+        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, lo, hi)
+            .filter(note => (note.interval >= min && note.interval <= max) || contextIntervals.has(note.interval))
+            .map(note => ({ ...note, context: contextIntervals.has(note.interval) }));
     }
 
     function setStatus(message) {
@@ -131,19 +144,6 @@
         return entries;
     }
 
-    function patternDurationMs() {
-        const count = parsedPatternEntries().length;
-        return count ? count * state.guideIntervalMs : 0;
-    }
-
-    // Window WIDTH is stable. Growing it with the clock continuously
-    // squeezes the whole chart (the classic Trace twitch). The view
-    // scrolls the playhead; this only picks 20s vs content-sized.
-    function timeWindowMs() {
-        if (state.fixedWindow) return FIXED_WINDOW_MS;
-        return Math.max(8000, patternDurationMs() + 1000);
-    }
-
     function buildGuideTargets() {
         const root = rootMidi();
         if (root === null) return [];
@@ -156,18 +156,40 @@
         }));
     }
 
+    // Rails, guide targets, and the window width depend only on the
+    // settings and the pattern text. They are rebuilt when one of those
+    // changes and simply read back on every animation frame - the frame
+    // loop never re-parses the pattern or re-spells the scale.
+    const chartModel = { rails: /** @type {any[]} */ ([]), targets: /** @type {any[]} */ ([]), windowMs: 8000 };
+
+    function rebuildChartModel() {
+        // Rail labels are the bare degree number; the view mirrors them
+        // on the left and right chart edges.
+        chartModel.rails = chartScaleNotes().map(note => ({
+            midi: note.midi,
+            label: String(note.degree),
+            emphasized: !note.context && note.interval >= 0 && note.interval <= 12,
+            context: note.context
+        }));
+        chartModel.targets = buildGuideTargets();
+        // Window WIDTH is stable. Growing it with the clock continuously
+        // squeezes the whole chart (the classic Trace twitch). The view
+        // scrolls the playhead; this only picks 20s vs content-sized.
+        const durationMs = chartModel.targets.length * state.guideIntervalMs;
+        chartModel.windowMs = state.fixedWindow
+            ? FIXED_WINDOW_MS
+            : Math.max(8000, durationMs + 1000);
+    }
+
     const view = PitchTraceView.create({
         canvasId: 'traceCanvas',
         defaultHeightPx: 430,
-        rails: () => chartScaleNotes().map(note => ({
-            midi: note.midi,
-            label: `${note.degree} ${note.name}`,
-            emphasized: note.interval >= 0 && note.interval <= 12
-        })),
-        targets: buildGuideTargets,
+        railLabelsBothSides: true,
+        rails: () => chartModel.rails,
+        targets: () => chartModel.targets,
         history: () => session.history,
         clockMs: () => session.clockMs(),
-        windowMs: timeWindowMs,
+        windowMs: () => chartModel.windowMs,
         fixedWindow: () => state.fixedWindow,
         showPlayhead: () => session.startedAt > 0
     });
@@ -277,6 +299,7 @@
     function setStateValue(key, value) {
         state[key] = value;
         saveSettings();
+        rebuildChartModel();
         syncControls();
         resetTrace();
     }
@@ -288,6 +311,7 @@
         state.root = info.name;
         state.octave = info.octave;
         saveSettings();
+        rebuildChartModel();
         syncControls();
         resetTrace();
     }
@@ -320,6 +344,7 @@
             patternInput.addEventListener('input', () => {
                 state.patternText = patternInput.value;
                 saveSettings();
+                rebuildChartModel();
                 drawChart(true);
             });
         }
@@ -337,14 +362,17 @@
         PracticeControls.wireToggle('fixedWindowToggle', state.fixedWindow, checked => {
             state.fixedWindow = checked;
             saveSettings();
+            rebuildChartModel();
             drawChart(true);
         });
         PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
             state.expandRange = checked;
             saveSettings();
+            rebuildChartModel();
             drawChart(true);
         });
         window.addEventListener('resize', resizeCanvas);
+        rebuildChartModel();
         syncControls();
         resizeCanvas();
         resetTrace();
