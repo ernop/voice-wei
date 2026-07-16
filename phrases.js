@@ -39,6 +39,7 @@
         loopCurrent: false,
         breakdownEnabled: false,
         powersetEnabled: false,
+        reverseAfterSection: false,
         autoStep: false,
         playOnStep: false,
         playOnNext: true,
@@ -51,7 +52,7 @@
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'chromaticRuns', 'accidentalRate', 'fillMode', 'minLength', 'maxLength', 'returnToInitial', 'returnToRoot',
         'hearTones', 'hearSpeech', 'singNumbers', 'noteLengthMs', 'gapMs', 'sectionPauseMs', 'showNumbers', 'showNoteNames',
-        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled',
+        'showStaff', 'showPlayRow', 'reflected', 'loopCurrent', 'breakdownEnabled', 'powersetEnabled', 'reverseAfterSection',
         'autoStep', 'playOnStep', 'playOnNext', 'seriesText', 'lessonLockedKeys'
     ];
 
@@ -390,11 +391,13 @@
     // once (one utterance); tone/sing playback reads the mask live, per
     // note. Everything goes through the named take plan - no positional
     // conventions.
-    function spokenLine() {
-        return buildTakePlan()
+    /** @param {boolean} [reversed] */
+    function spokenLine(reversed = false) {
+        const spoken = buildTakePlan()
             .filter(note => note.enabled)
-            .map(note => note.spoken)
-            .join(', ');
+            .map(note => note.spoken);
+        if (reversed) spoken.reverse();
+        return spoken.join(', ');
     }
 
     /** @param {number} degree */
@@ -630,16 +633,30 @@
     async function playPhraseOnce(token) {
         updatePhraseDisplay();
         if (!hasHearOutput()) return;
+        await playTakePass(token, false);
+        if (token !== playToken) return;
+        // Reverse echo: the powerset combo again, back to front, inside
+        // the same section (before the mask advances and the pause runs).
+        if (state.reverseAfterSection && state.powersetEnabled) {
+            await playTakePass(token, true);
+        }
+    }
+
+    /**
+     * One pass over the enabled take in all configured output forms.
+     * @param {number} token @param {boolean} reversed
+     */
+    async function playTakePass(token, reversed) {
         if (state.hearSpeech) {
-            await VoiceOutput.speak(spokenLine());
+            await VoiceOutput.speak(spokenLine(reversed));
             if (token !== playToken) return;
         }
         if (state.singNumbers) {
-            await playSingNumberSequence(token);
+            await playSingNumberSequence(token, reversed);
             if (token !== playToken) return;
         }
         if (state.hearTones) {
-            await playToneSequence(token);
+            await playToneSequence(token, reversed);
         }
     }
 
@@ -693,9 +710,12 @@
 
     // Tone output may include invisible fill notes; the visible take plan
     // remains the only source for display, speech, and pitch-test targets.
-    async function playToneSequence(token) {
+    /** @param {number} token @param {boolean} [reversed] */
+    async function playToneSequence(token, reversed = false) {
         if (state.fillMode === 'none') {
-            for (let index = 0; index < takeNotes.length; index++) {
+            const indices = takeNotes.map((_, index) => index);
+            if (reversed) indices.reverse();
+            for (const index of indices) {
                 if (token !== playToken) return;
                 const note = buildTakePlan()[index];
                 if (!note || !takeNotes[index].enabled) continue; // live read
@@ -705,7 +725,9 @@
             return;
         }
 
-        for (const note of buildTonePlaybackPlan()) {
+        const plan = buildTonePlaybackPlan();
+        if (reversed) plan.reverse();
+        for (const note of plan) {
             if (token !== playToken) return;
             playMidi(note.midi);
             await sleep(state.noteLengthMs + effectiveGapMs());
@@ -817,8 +839,11 @@
     }
 
     // Same live enabled read as playToneSequence.
-    async function playSingNumberSequence(token) {
-        for (const note of buildTakePlan()) {
+    /** @param {number} token @param {boolean} [reversed] */
+    async function playSingNumberSequence(token, reversed = false) {
+        const notes = buildTakePlan().slice();
+        if (reversed) notes.reverse();
+        for (const note of notes) {
             if (token !== playToken) return;
             if (!takeNotes[note.index].enabled) continue; // live read
             await speakNumberAtPitch(note.spoken, note.midi, state.noteLengthMs);
@@ -1089,6 +1114,12 @@
         syncBreakdownControls();
     }
 
+    function toggleReverseAfterSection() {
+        state.reverseAfterSection = !state.reverseAfterSection;
+        saveSettings();
+        syncBreakdownControls();
+    }
+
     function toggleAutoStep() {
         state.autoStep = !state.autoStep;
         saveSettings();
@@ -1153,6 +1184,11 @@
         if (powersetBtn) {
             powersetBtn.classList.toggle('selected', state.powersetEnabled);
             powersetBtn.setAttribute('aria-pressed', String(state.powersetEnabled));
+        }
+        const reverseBtn = getEl('reverseBtn');
+        if (reverseBtn) {
+            reverseBtn.classList.toggle('selected', state.reverseAfterSection);
+            reverseBtn.setAttribute('aria-pressed', String(state.reverseAfterSection));
         }
         const autoBtn = getEl('autoStepBtn');
         if (autoBtn) {
@@ -1566,6 +1602,7 @@
         getEl('fillChordBtn')?.addEventListener('click', () => toggleFillMode('chord'));
         getEl('breakdownBtn')?.addEventListener('click', toggleBreakdownEnabled);
         getEl('powersetBtn')?.addEventListener('click', togglePowersetEnabled);
+        getEl('reverseBtn')?.addEventListener('click', toggleReverseAfterSection);
         getEl('autoStepBtn')?.addEventListener('click', toggleAutoStep);
         getEl('playOnStepBtn')?.addEventListener('click', togglePlayOnStep);
         getEl('playOnNextBtn')?.addEventListener('click', togglePlayOnNext);
@@ -1656,6 +1693,7 @@
                 breakdownEnabled: state.breakdownEnabled,
                 powersetEnabled: state.powersetEnabled,
                 powersetExhausted,
+                reverseAfterSection: state.reverseAfterSection,
                 autoStep: state.autoStep,
                 playOnStep: state.playOnStep,
                 playOnNext: state.playOnNext,

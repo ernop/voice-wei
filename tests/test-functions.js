@@ -661,6 +661,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(200);
         await tab.click('#stopBtn');
 
+        // Reverse: with powerset on, each combo replays back to front in
+        // the same section, so one Play sounds 3 forward + 3 reversed.
+        await tab.click('#powersetBtn');
+        await tab.waitForTimeout(200);
+        await tab.click('#reverseBtn');
+        await tab.waitForTimeout(200);
+        const reverseOn = await tab.evaluate(() => ({
+            pressed: document.getElementById('reverseBtn').getAttribute('aria-pressed'),
+            setting: window.phrasesDebug.settings().reverseAfterSection,
+            saved: SettingsStore.peekData(StorageKeys.PHRASES_SETTINGS)?.reverseAfterSection,
+            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length
+        }));
+        const reverseVoices0 = await tab.evaluate(() => window.__voiceStarts);
+        await tab.click('#playBtn');
+        await tab.waitForTimeout(4000);
+        const reverseVoices = await tab.evaluate(() => window.__voiceStarts) - reverseVoices0;
+        report.check(`phrases reverse replays powerset combo backwards (${reverseOn.enabled} enabled, ${reverseVoices} voices)`,
+            reverseOn.pressed === 'true' && reverseOn.setting === true && reverseOn.saved === true
+            && reverseOn.enabled === 3 && reverseVoices === 6);
+        await tab.click('#stopBtn');
+        await tab.click('#reverseBtn');
+        await tab.click('#powersetBtn');
+        await tab.waitForTimeout(200);
+
         await tab.click('#nextBtn');
         await tab.waitForTimeout(300);
         await tab.click('#stopBtn');

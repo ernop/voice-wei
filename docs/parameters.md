@@ -76,6 +76,8 @@ chooses a question range, not a root) and keeps its own range.
 | singNumbers | false | toggle | redraw |
 | showStaff | true | toggle | redraw |
 | breakdownEnabled | false | toggle | immediate (mask only) |
+| powersetEnabled | false | toggle - exclusive with breakdown | immediate (mask only) |
+| reverseAfterSection | false | toggle - after each powerset combo plays, the same notes replay in reverse order within the same section | immediate (preference) |
 | autoStep | false | toggle | immediate (preference) |
 | playOnStep | false | toggle | immediate (preference) |
 | playOnNext | true | toggle - when off, Next generates and shows the phrase silently (work it out first, then press Play) | immediate (preference) |
