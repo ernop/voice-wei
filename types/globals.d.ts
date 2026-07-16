@@ -78,6 +78,8 @@ interface Window {
             accidentalPreference?: '#' | 'b' | null
         ) => string;
         clefForPhrase: (rootMidi: number, midis: number[]) => 'treble' | 'bass';
+        staffSystemForPhrase: (rootMidi: number, midis: number[]) => 'treble' | 'bass' | 'grand';
+        clefForNote: (midi: number) => 'treble' | 'bass';
         passingAccidental: (
             offset: number,
             dp: number,

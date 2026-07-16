@@ -24,7 +24,8 @@ const FULL_SUITES = [
     ...FAST_SUITES,
     'test-playback-engine.js',
     'test-controls.js',
-    'test-functions.js'
+    'test-functions.js',
+    'test-staff-view.js'
 ];
 
 function suitesForArgs(args) {

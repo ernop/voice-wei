@@ -12,6 +12,11 @@ const StaffView = (function () {
     const MIN_NOTE_STEP = 21;
     const STAVE_X = 8;
     const STAVE_Y = 8;
+    // Vertical distance between staff tops on a grand staff: 40px of
+    // lines plus headroom for the ledger notes between the staves.
+    const STAVE_GAP = 84;
+    // The grand-staff brace curls to ~25px left of the stave x origin.
+    const BRACE_WIDTH = 26;
     const MIN_WIDTH = 220;
     const SVG_PAD_X = 6;
     const SVG_PAD_Y = 2;
@@ -67,37 +72,68 @@ const StaffView = (function () {
 
             const VF = Vex.Flow;
             const midis = plan.map(note => note.midi);
-            const clef = NotationSpelling.clefForPhrase(keyContext.rootMidi, midis);
+            // One clef when the phrase fits a single staff; treble + bass
+            // (grand staff) when it spans both registers.
+            const system = NotationSpelling.staffSystemForPhrase(keyContext.rootMidi, midis);
+            /** @type {Array<'treble' | 'bass'>} */
+            const clefs = system === 'grand' ? ['treble', 'bass'] : [system];
+            const noteClefs = plan.map(note =>
+                clefs.length === 1 ? clefs[0] : NotationSpelling.clefForNote(note.midi));
             const rootName = /** @type {string} */ (midiToNoteName(keyContext.rootMidi).name);
             const keySig = NotationSpelling.vexKeySignature(rootName, keyContext.scaleType);
             // The staff is metered 4/4 (one quarter per phrase note) and
             // always spans whole measures: the final measure is completed
             // with quarter rests after the last phrase note.
             const totalBeats = Math.max(4, Math.ceil(plan.length / 4) * 4);
-            const height = 72;
 
             /** @type {any[]} */
-            const noteTickables = buildNoteTickables(plan, keyContext, clef);
-            const restKey = clef === 'bass' ? 'd/3' : 'b/4';
-            const rests = [];
+            const noteTickables = buildNoteTickables(plan, keyContext, noteClefs);
+            // Every beat exists on every staff: the sounding note on its
+            // own staff, a silent zero-width ghost on the other. Both
+            // voices then share one tick timeline, so the formatter keeps
+            // the two staves x-aligned beat for beat.
+            const restClef = noteClefs[noteClefs.length - 1];
+            /** @type {any[]} */
+            const beatTickables = noteTickables.slice();
+            const tickablesByClef = clefs.map(clef => noteTickables.map((note, index) =>
+                noteClefs[index] === clef ? note : new VF.GhostNote({ duration: 'q' })));
             for (let beat = plan.length; beat < totalBeats; beat++) {
-                rests.push(new VF.StaveNote({ keys: [restKey], duration: 'qr', clef }));
+                clefs.forEach((clef, staffIndex) => {
+                    if (clef !== restClef) {
+                        tickablesByClef[staffIndex].push(new VF.GhostNote({ duration: 'q' }));
+                        return;
+                    }
+                    const rest = new VF.StaveNote({
+                        keys: [clef === 'bass' ? 'd/3' : 'b/4'],
+                        duration: 'qr',
+                        clef
+                    });
+                    tickablesByClef[staffIndex].push(rest);
+                    beatTickables.push(rest);
+                });
             }
-            const tickables = noteTickables.concat(rests);
 
-            const voice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 });
-            voice.setStrict(false);
-            voice.addTickables(tickables);
-            VF.Accidental.applyAccidentals([voice], keySig);
+            const voices = tickablesByClef.map(tickables => {
+                const voice = new VF.Voice({ num_beats: totalBeats, beat_value: 4 });
+                voice.setStrict(false);
+                voice.addTickables(tickables);
+                return voice;
+            });
+            // One call across the staves: the phrase is one melodic line,
+            // so accidental state follows the line, not the staff.
+            VF.Accidental.applyAccidentals(voices, keySig);
 
             // Width comes from the content: accidental-heavy phrases (a
             // chromatic typed series, passing tones) need real glyph room,
             // which a fixed per-beat width cannot know. The formatter's
             // minimum already includes the accidental modifiers.
-            const formatter = new VF.Formatter().joinVoices([voice]);
-            const minNotesWidth = Math.ceil(formatter.preCalculateMinTotalWidth([voice]) * 1.2);
+            const formatter = new VF.Formatter();
+            voices.forEach(voice => formatter.joinVoices([voice]));
+            const minNotesWidth = Math.ceil(formatter.preCalculateMinTotalWidth(voices) * 1.2);
             const notesWidth = Math.max(totalBeats * NOTE_WIDTH, minNotesWidth);
-            const width = Math.max(MIN_WIDTH, STAVE_X * 2 + notesWidth + 110);
+            const staveX = STAVE_X + (clefs.length === 2 ? BRACE_WIDTH : 0);
+            const width = Math.max(MIN_WIDTH, staveX + STAVE_X + notesWidth + 110);
+            const height = STAVE_Y + 64 + (clefs.length - 1) * STAVE_GAP + 64;
 
             surface.textContent = '';
             host.classList.remove('phrase-staff-empty');
@@ -107,23 +143,38 @@ const StaffView = (function () {
             const context = renderer.getContext();
             context.setFont('Arial', 10);
 
-            const stave = new VF.Stave(STAVE_X, STAVE_Y, width - STAVE_X * 2);
-            stave.addClef(clef).addKeySignature(keySig).addTimeSignature('4/4');
-            stave.setContext(context).draw();
+            const staves = clefs.map((clef, staffIndex) => {
+                const stave = new VF.Stave(staveX, STAVE_Y + staffIndex * STAVE_GAP, width - staveX - STAVE_X);
+                stave.addClef(clef).addKeySignature(keySig).addTimeSignature('4/4');
+                return stave;
+            });
+            // Clef and key-signature glyph widths differ per clef; align
+            // the first beat of both staves to the widest header.
+            const noteStartX = Math.max(...staves.map(stave => stave.getNoteStartX()));
+            staves.forEach(stave => {
+                stave.setNoteStartX(noteStartX);
+                stave.setContext(context).draw();
+            });
+            if (staves.length === 2) {
+                new VF.StaveConnector(staves[0], staves[1])
+                    .setType(VF.StaveConnector.type.BRACE).setContext(context).draw();
+                new VF.StaveConnector(staves[0], staves[1])
+                    .setType(VF.StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
+            }
 
-            formatter.format([voice], width - STAVE_X * 2 - 70);
-            voice.draw(context, stave);
-            drawMeasureBars(stave, tickables);
-            trimSvgSurface(surface, stave, noteTickables, tickables, SVG_PAD_X, SVG_PAD_Y);
+            formatter.format(voices, width - staveX - STAVE_X - 70);
+            voices.forEach((voice, staffIndex) => voice.draw(context, staves[staffIndex]));
+            drawMeasureBars(staves, beatTickables);
+            trimSvgSurface(surface, staves, noteTickables, beatTickables, SVG_PAD_X, SVG_PAD_Y);
         }
 
         /**
          * @param {PhrasePlanNote[]} plan
          * @param {KeyContext} keyContext
-         * @param {'treble' | 'bass'} clef
+         * @param {Array<'treble' | 'bass'>} noteClefs
          * @returns {any[]}
          */
-        function buildNoteTickables(plan, keyContext, clef) {
+        function buildNoteTickables(plan, keyContext, noteClefs) {
             const VF = Vex.Flow;
             return plan.map((note, index) => {
                 const accidental = NotationSpelling.passingAccidental(
@@ -140,7 +191,7 @@ const StaffView = (function () {
                         accidental
                     )],
                     duration: 'q',
-                    clef,
+                    clef: noteClefs[index],
                     stem_direction: VF.Stem.UP
                 });
                 staveNote.setStemDirection(VF.Stem.UP);
@@ -156,18 +207,22 @@ const StaffView = (function () {
 
         /**
          * Barlines every four quarters, drawn as plain verticals midway
-         * between the flanking beats. Drawing them directly (instead of
-         * inserting VF.BarNote tickables) keeps note spacing uniform, so
-         * the degree-number grid above the staff stays aligned.
-         * @param {any} stave
-         * @param {any[]} tickables
+         * between the flanking beats (on every staff of the system).
+         * Drawing them directly (instead of inserting VF.BarNote
+         * tickables) keeps note spacing uniform, so the degree-number
+         * grid above the staff stays aligned. beatTickables holds the
+         * SOUNDING tickable for each beat - never a ghost, whose box
+         * carries no position.
+         * @param {any[]} staves
+         * @param {any[]} beatTickables
          */
-        function drawMeasureBars(stave, tickables) {
-            for (let beat = 4; beat < tickables.length; beat += 4) {
-                const left = tickables[beat - 1].getBoundingBox();
-                const right = tickables[beat].getBoundingBox();
+        function drawMeasureBars(staves, beatTickables) {
+            for (let beat = 4; beat < beatTickables.length; beat += 4) {
+                const left = beatTickables[beat - 1].getBoundingBox();
+                const right = beatTickables[beat].getBoundingBox();
                 if (!left || !right) continue;
-                stave.drawVerticalBarFixed((left.getX() + left.getW() + right.getX()) / 2);
+                const x = (left.getX() + left.getW() + right.getX()) / 2;
+                staves.forEach(stave => stave.drawVerticalBarFixed(x));
             }
         }
 
@@ -177,20 +232,21 @@ const StaffView = (function () {
          * Only real phrase notes feed the degree-number grid; padding rests
          * count toward the crop box but own no number column.
          * @param {HTMLElement} root
-         * @param {any} stave
+         * @param {any[]} staves top-to-bottom system staves
          * @param {any[]} noteTickables
          * @param {any[]} allTickables
          * @param {number} padX
          * @param {number} padY
          */
-        function trimSvgSurface(root, stave, noteTickables, allTickables, padX, padY) {
+        function trimSvgSurface(root, staves, noteTickables, allTickables, padX, padY) {
             const svg = root.querySelector('svg');
             if (!(svg instanceof SVGSVGElement)) return;
 
+            const stave = staves[0];
             let xMin = stave.getX();
             let xMax = stave.getX() + stave.getWidth();
             const staffTop = stave.getYForLine(0);
-            const staffBottom = stave.getYForLine(4);
+            const staffBottom = staves[staves.length - 1].getYForLine(4);
             let yMin = staffTop - LEDGER_PAD;
             let yMax = staffBottom + LEDGER_PAD;
             /** @type {number[]} */
@@ -211,8 +267,9 @@ const StaffView = (function () {
                 if (bottom > staffBottom) yMax = Math.max(yMax, bottom + padY);
             }
 
-            // Clef/key sit slightly left of the first staff line x.
-            xMin -= LEDGER_PAD;
+            // Clef/key sit slightly left of the first staff line x; on a
+            // grand staff the brace curls further left still.
+            xMin -= LEDGER_PAD + (staves.length === 2 ? BRACE_WIDTH : 0);
             xMax += padX;
 
             const w = xMax - xMin;

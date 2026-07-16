@@ -78,6 +78,33 @@ const NotationSpelling = (function () {
     }
 
     /**
+     * Which staff system a phrase needs: one clef when the phrase sits
+     * within about one ledger line of a single staff, both clefs (grand
+     * staff) when it reaches beyond A3 below AND beyond E4 above - the
+     * registers where treble and bass each run out of readable room.
+     * @param {number} rootMidi
+     * @param {number[]} midis
+     * @returns {'treble' | 'bass' | 'grand'}
+     */
+    function staffSystemForPhrase(rootMidi, midis) {
+        const notes = midis.length ? midis : [rootMidi];
+        const lowest = Math.min(...notes);
+        const highest = Math.max(...notes);
+        if (lowest < 57 && highest > 64) return 'grand';
+        return clefForPhrase(rootMidi, midis);
+    }
+
+    /**
+     * Staff assignment for one note on a grand staff: split at middle C
+     * (C4 and above read from the treble staff).
+     * @param {number} midi
+     * @returns {'treble' | 'bass'}
+     */
+    function clefForNote(midi) {
+        return midi < 60 ? 'bass' : 'treble';
+    }
+
+    /**
      * Explicit accidental for chromatic passing tones (# = sharp, b = flat).
      * @param {number} offset
      * @param {number} dp
@@ -97,6 +124,8 @@ const NotationSpelling = (function () {
         midiToVexKey,
         midiToVexKeyForScale,
         clefForPhrase,
+        staffSystemForPhrase,
+        clefForNote,
         passingAccidental
     };
 })();
