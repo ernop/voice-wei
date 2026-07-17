@@ -841,6 +841,7 @@ const PlayerPlaylist = (function () {
                 item.durationSeconds = videoData.durationSeconds;
                 item.lyricsStatus = 'idle';
                 item.lyricsData = null;
+                item.lyricOffsetSeconds = 0;
             },
 
             refreshPlaylistRowVideo(item) {
@@ -1288,10 +1289,13 @@ const PlayerPlaylist = (function () {
                 if (!item || !this.itemHasTimedLyrics(item) || !item.lyricsData) return;
                 const firstLine = item.lyricsData.syncedLines.find(line => String(line.text || '').trim());
                 if (!firstLine) return;
+                // First sung moment is the file timestamp shifted by the
+                // per-song lyric offset (positive offset = lyrics delayed).
+                const seekAt = firstLine.time - this.lyricOffsetForItem(item) - FIRST_LYRIC_LEAD_SECONDS;
                 const player = this.playback.player;
                 if (player && typeof player.seekTo === 'function') {
                     try {
-                        player.seekTo(Math.max(0, firstLine.time - FIRST_LYRIC_LEAD_SECONDS), true);
+                        player.seekTo(Math.max(0, seekAt), true);
                         this.resyncProgressClock();
                     } catch (e) {
                         console.error('Error seeking to first lyric:', e);
@@ -1299,14 +1303,15 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            /** Show the within-song "1st" jump only while the playing track has timed lyrics. */
+            /** Show "1st" / ff lyrics / rew lyrics only while the playing track has timed lyrics. */
             updateFirstLyricButton() {
-                const btn = document.getElementById('transportFirstLyricBtn');
-                if (!btn) return;
                 const item = this.currentPlaylistItem();
-                const show = !!this.currentPlayingId && this.itemHasTimedLyrics(item)
+                const show = !!this.currentPlayingId && !!item && this.itemHasTimedLyrics(item)
                     && item.id === this.currentPlayingId;
-                btn.style.display = show ? '' : 'none';
+                for (const id of ['transportFirstLyricBtn', 'transportFfLyricsBtn', 'transportRewLyricsBtn']) {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.style.display = show ? '' : 'none';
+                }
             },
 
             fastForward() {

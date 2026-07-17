@@ -292,7 +292,9 @@ API keys are plain strings via `api-keys-store.js` (`API_CLAUDE`,
 in `PLAYER_FAVORITES`. Per-song lyric state lives in the
 `voice-wei-music` IndexedDB (`lyricStates`, keyed by videoId), alongside
 the unbounded history (see "The Song primitive" and "Music player
-durable history" in [architecture.md](architecture.md)).
+durable history" in [architecture.md](architecture.md)). Optional field
+`lyricOffsetSeconds` on a `lyricStates` record is the permanent ff/rew
+lyrics timing nudge for that video (absent = 0).
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

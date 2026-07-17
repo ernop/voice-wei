@@ -62,6 +62,8 @@ interface PlaylistItem extends Song {
     sourceSearchTerm: string;
     lyricsStatus: 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
     lyricsData: LyricsResult | null;
+    /** Runtime copy of LyricStateRecord.lyricOffsetSeconds (0 when absent). */
+    lyricOffsetSeconds: number;
 }
 
 /** What the playlist persists per entry: the Song + membership, no lyric runtime. */
@@ -110,6 +112,12 @@ interface LyricStateRecord {
      *  current algorithm; timed-lyrics records are final. */
     searchVersion?: number;
     lyrics?: LyricsResult;
+    /**
+     * Per-song lyric timing nudge in seconds (positive = show later
+     * lines / ff lyrics; negative = show earlier / rew lyrics). Absent
+     * or 0 means the timed file is used as-is.
+     */
+    lyricOffsetSeconds?: number;
 }
 
 interface SongLibraryNote {
@@ -359,6 +367,10 @@ interface VoiceMusicController {
     parseSyncedLyrics(syncedLyrics: string): SyncedLyricLine[];
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
+    lyricOffsetForItem(item: PlaylistItem | null | undefined): number;
+    nudgeLyricOffset(deltaSeconds: number): Promise<void>;
+    ffLyrics(): void;
+    rewLyrics(): void;
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
     describeSongIdentity(item: PlaylistItem): string;

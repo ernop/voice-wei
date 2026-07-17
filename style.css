@@ -1526,7 +1526,8 @@ h1 {
     background: rgba(20, 184, 166, 0.36);
 }
 
-.transport-first-lyric-btn {
+.transport-first-lyric-btn,
+.transport-lyric-offset-btn {
     font-size: 0.95rem;
 }
 

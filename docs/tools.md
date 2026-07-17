@@ -297,9 +297,12 @@ song's identity (artist - name - year - album, so you know who and what
 it is), then -- when the first lyric line starts more than 5 seconds in
 -- the upcoming line prefixed with a per-second countdown, then the bare
 sung lyric line and nothing else (song/artist are never written outside
-the identity intro). Writes are pushed into the OS media session exactly
-when the text changes (line boundaries / countdown seconds); the car
-pulls its redraw from that. On this page the header gives the lyric
+the identity intro). Car / lock-screen / tab / header titles lead the
+sung line by 0.75s so Bluetooth metadata redraw lands near the moment
+the line starts; the on-screen highlight stays on the exact timed time.
+Writes are pushed into the OS media session exactly when the text
+changes (line boundaries / countdown seconds); the car pulls its redraw
+from that. On this page the header gives the lyric
 heading its own full-width line, with the nav tabs and the settings gear
 sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
 button (the older central-player secondary row is hidden).
@@ -313,10 +316,14 @@ lyric line (own full row when present), a song-nav row
 tapping the song line scrolls the playlist to that row; green controls =
 between-song / track actions), and a within-song seek row (-30/-5/+5/+30,
 plus a "1st" jump to just before the first lyric that appears only on
-timed-lyric tracks; teal controls = within-song seek). The older
-central player block is kept in the DOM for progress wiring but stays
-hidden; the sticky bar is the only on-screen transport. The Listen
-button scrolls with the page like everything else.
+timed-lyric tracks, plus **rew lyrics** / **ff lyrics** to nudge the
+lyric display earlier or later by 1 second per tap when a timed file is
+ahead of or behind the linked YouTube audio; teal controls = within-song
+seek). Each song's lyric timing nudge is stored forever on that video's
+lyric state (absent means no offset); the next play reapplies it
+automatically. The older central player block is kept in the DOM for
+progress wiring but stays hidden; the sticky bar is the only on-screen
+transport. The Listen button scrolls with the page like everything else.
 
 Other surfaces on the page:
 

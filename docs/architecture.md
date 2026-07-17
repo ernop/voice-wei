@@ -493,14 +493,18 @@ videoId.** Each record is either `found` (carrying the LyricsResult) or
 `none` with `checkedAt` - and `none` may ONLY be written by a provider
 search that actually answered empty; failures (rate limit, network,
 timeout) save nothing, so the song stays unresolved and the next
-interaction retries. The write discipline is save-then-activate: the
-store write is awaited first, then the live playlist item is updated
-from that same record (`resolveLyricState` -> `applyLyricStateToItem`).
-A live item is therefore only ever 'ready' with data that came from or
-through the store - there is no second source that can disagree with it.
-(An earlier design kept a fuzzy artist/title-keyed cache in localStorage
-with alias and miss maps; keying by videoId in IndexedDB replaced it,
-and the `PLAYER_LYRICS_CACHE` localStorage key is retired.)
+interaction retries. An optional `lyricOffsetSeconds` on the same record
+is the user's permanent timing nudge for that video (positive = show
+later lines / ff lyrics; negative = rew lyrics; absent or 0 = use the
+timed file as-is). Re-searches preserve an existing offset. The write
+discipline is save-then-activate: the store write is awaited first, then
+the live playlist item is updated from that same record
+(`resolveLyricState` -> `applyLyricStateToItem`). A live item is
+therefore only ever 'ready' with data that came from or through the
+store - there is no second source that can disagree with it. (An earlier
+design kept a fuzzy artist/title-keyed cache in localStorage with alias
+and miss maps; keying by videoId in IndexedDB replaced it, and the
+`PLAYER_LYRICS_CACHE` localStorage key is retired.)
 
 **Lyrics are never persisted per playlist item.** The persisted playlist
 carries Songs only; `lyricsData`/`lyricsStatus` are runtime state
@@ -549,8 +553,8 @@ never touches this DB directly. Stores:
   query; consulted when live Piped/Invidious search fails.
 - `favoriteEvents`: an append-only audit of favorite toggles.
 - `lyricStates`: per-song lyric state keyed by videoId - the single
-  permanent owner of lyrics (see "Lyric state has one permanent owner"
-  above).
+  permanent owner of lyrics and of any per-song `lyricOffsetSeconds`
+  timing nudge (see "Lyric state has one permanent owner" above).
 - `librarySongs`: imported MIDI/MusicXML songs with their full note
   arrays, keyed by id (migrated out of localStorage, which their bulk
   was on course to exhaust).

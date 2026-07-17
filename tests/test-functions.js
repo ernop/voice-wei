@@ -3259,6 +3259,97 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelayIgnoresPanelFocus.headerTitle === 'playing line one'
             && lyricRelayIgnoresPanelFocus.barLyric === 'playing line one'
             && lyricRelayIgnoresPanelFocus.panelFocusId === 22);
+        // Per-song lyric offset: ff/rew lyrics nudge the display clock and
+        // persist forever on the lyricStates record for that videoId.
+        const lyricOffsetNudge = await tab.evaluate(async () => {
+            const videoId = `offset-nudge-${Date.now()}`;
+            const item = {
+                id: 88, videoId, name: 'Offset Song', artist: 'Offset Artist',
+                lyricsStatus: 'ready',
+                lyricOffsetSeconds: 0,
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Offset Song', artistName: 'Offset Artist',
+                    albumName: '', duration: 100, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:05.00]early line\n[00:15.00]later line',
+                    syncedLines: [
+                        { time: 5, text: 'early line' },
+                        { time: 15, text: 'later line' }
+                    ]
+                }
+            };
+            await window.PlayerHistoryDB.putLyricState({
+                videoId,
+                status: 'found',
+                checkedAt: Date.now(),
+                searchVersion: 2,
+                lyrics: item.lyricsData
+            });
+            const harness = {
+                settings: { lyricsOnNowPlaying: true },
+                playlist: [item],
+                playback: { player: null },
+                currentLyricsItemId: item.id,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsLyric: false,
+                isPlaying: true,
+                isPaused: false,
+                currentPlayingId: item.id,
+                currentPlaylistItem() { return item; },
+                itemHasTimedLyrics(candidate) {
+                    return !!(candidate && candidate.lyricsData && candidate.lyricsData.syncedLines
+                        && candidate.lyricsData.syncedLines.length > 0);
+                },
+                resyncProgressClock() {}
+            };
+            PlayerLyrics.install(harness);
+            harness.updateSyncedLyricsPosition(10);
+            const before = {
+                highlightIndex: harness.currentLyricsLineIndex,
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
+                offset: item.lyricOffsetSeconds
+            };
+            await harness.nudgeLyricOffset(5);
+            harness.updateSyncedLyricsPosition(10);
+            const afterFf = {
+                highlightIndex: harness.currentLyricsLineIndex,
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
+                offset: item.lyricOffsetSeconds
+            };
+            await harness.nudgeLyricOffset(-10);
+            harness.updateSyncedLyricsPosition(10);
+            const afterRew = {
+                highlightIndex: harness.currentLyricsLineIndex,
+                barLyric: document.getElementById('transportBarLyric')?.textContent || '',
+                offset: item.lyricOffsetSeconds
+            };
+            const stored = await window.PlayerHistoryDB.getLyricState(videoId);
+            const reloaded = {
+                id: 99, videoId, name: 'Offset Song', artist: 'Offset Artist',
+                lyricsStatus: 'idle', lyricsData: null, lyricOffsetSeconds: 0
+            };
+            harness.applyLyricStateToItem(reloaded, stored);
+            return {
+                before, afterFf, afterRew,
+                storedOffset: stored?.lyricOffsetSeconds,
+                reloadedOffset: reloaded.lyricOffsetSeconds,
+                deadlineAtZero: harness.nextLyricDeadline(0)
+            };
+        });
+        report.check(`player lyric offset ff/rew nudges display and persists (ff=${lyricOffsetNudge.afterFf.offset}, rew=${lyricOffsetNudge.afterRew.offset}, stored=${lyricOffsetNudge.storedOffset})`,
+            lyricOffsetNudge.before.highlightIndex === 0
+            && lyricOffsetNudge.before.barLyric === 'early line'
+            && lyricOffsetNudge.before.offset === 0
+            && lyricOffsetNudge.afterFf.highlightIndex === 1
+            && lyricOffsetNudge.afterFf.barLyric === 'later line'
+            && lyricOffsetNudge.afterFf.offset === 5
+            && lyricOffsetNudge.afterRew.highlightIndex === 0
+            && lyricOffsetNudge.afterRew.barLyric === 'early line'
+            && lyricOffsetNudge.afterRew.offset === -5
+            && lyricOffsetNudge.storedOffset === -5
+            && lyricOffsetNudge.reloadedOffset === -5
+            // With offset -5, first line (file t=5) appears at wall-clock 10;
+            // led window opens 0.75s earlier at 9.25.
+            && lyricOffsetNudge.deadlineAtZero === 9.25);
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric

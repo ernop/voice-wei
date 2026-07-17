@@ -897,6 +897,14 @@ class VoiceMusicController {
         if (transportFirstLyricBtn) {
             transportFirstLyricBtn.addEventListener('click', () => this.seekToFirstLyric());
         }
+        const transportFfLyricsBtn = document.getElementById('transportFfLyricsBtn');
+        if (transportFfLyricsBtn) {
+            transportFfLyricsBtn.addEventListener('click', () => this.ffLyrics());
+        }
+        const transportRewLyricsBtn = document.getElementById('transportRewLyricsBtn');
+        if (transportRewLyricsBtn) {
+            transportRewLyricsBtn.addEventListener('click', () => this.rewLyrics());
+        }
         const transportBarInfo = document.getElementById('transportBarInfo');
         if (transportBarInfo) {
             transportBarInfo.addEventListener('click', () => this.scrollToCurrentSong());

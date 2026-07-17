@@ -9,6 +9,10 @@ const PlayerLyrics = (function () {
     // the line actually starts. The on-screen highlight stays unled.
     const LYRIC_TITLE_LEAD_SECONDS = 0.75;
 
+    // Each press of ff/rew lyrics nudges the per-song lyric clock by
+    // this many seconds. Positive offset = show later lines (ff).
+    const LYRIC_OFFSET_STEP_SECONDS = 1;
+
     // For the first moments of every song the title spots show WHO and
     // WHAT is playing (artist - song - year - album) before lyric duty
     // begins.
@@ -472,6 +476,11 @@ const PlayerLyrics = (function () {
                 }
 
                 const lyrics = await this.lookupLyrics(item);
+                // A user-tuned offset outlives re-searches; only absent when
+                // the song has never been adjusted.
+                const preservedOffset = saved && typeof saved.lyricOffsetSeconds === 'number'
+                    ? saved.lyricOffsetSeconds
+                    : undefined;
                 /** @type {LyricStateRecord} */
                 let state;
                 if (lyrics) {
@@ -489,6 +498,9 @@ const PlayerLyrics = (function () {
                     state = { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
                 } else {
                     state = { videoId: item.videoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                }
+                if (typeof preservedOffset === 'number') {
+                    state.lyricOffsetSeconds = preservedOffset;
                 }
                 await window.PlayerHistoryDB.putLyricState(state);
                 return state;
@@ -508,6 +520,53 @@ const PlayerLyrics = (function () {
                     item.lyricsData = null;
                     item.lyricsStatus = 'not_found';
                 }
+                item.lyricOffsetSeconds = typeof state.lyricOffsetSeconds === 'number'
+                    ? state.lyricOffsetSeconds
+                    : 0;
+            },
+
+            /** @param {PlaylistItem | null | undefined} item */
+            lyricOffsetForItem(item) {
+                if (!item || typeof item.lyricOffsetSeconds !== 'number') return 0;
+                return item.lyricOffsetSeconds;
+            },
+
+            /**
+             * Nudge the sounding track's lyric clock and persist it on the
+             * lyricStates record for that videoId. Positive delta = ff
+             * lyrics (show later lines); negative = rew lyrics.
+             * @param {number} deltaSeconds
+             */
+            async nudgeLyricOffset(deltaSeconds) {
+                const item = this.playingPlaylistItem();
+                if (!item || !item.videoId || !this.itemHasTimedLyrics(item)) return;
+                const next = this.lyricOffsetForItem(item) + deltaSeconds;
+                item.lyricOffsetSeconds = next;
+                const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
+                /** @type {LyricStateRecord} */
+                const record = saved
+                    ? { ...saved, lyricOffsetSeconds: next }
+                    : {
+                        videoId: item.videoId,
+                        status: 'found',
+                        checkedAt: Date.now(),
+                        searchVersion: LYRICS_SEARCH_VERSION,
+                        lyrics: item.lyricsData || undefined,
+                        lyricOffsetSeconds: next
+                    };
+                await window.PlayerHistoryDB.putLyricState(record);
+                this.updateSyncedLyricsPosition(this.currentPlaybackTime());
+                this.resyncProgressClock();
+            },
+
+            /** Show later lyric lines (lyrics were behind the audio). */
+            ffLyrics() {
+                void this.nudgeLyricOffset(LYRIC_OFFSET_STEP_SECONDS);
+            },
+
+            /** Show earlier lyric lines (lyrics were ahead of the audio). */
+            rewLyrics() {
+                void this.nudgeLyricOffset(-LYRIC_OFFSET_STEP_SECONDS);
             },
 
             async showLyricsForItem(item) {
@@ -769,6 +828,10 @@ const PlayerLyrics = (function () {
                 const syncedLines = (playingItem && playingItem.lyricsData)
                     ? playingItem.lyricsData.syncedLines
                     : [];
+                const offset = this.lyricOffsetForItem(playingItem);
+                // Lyric-file clock: playback time plus the per-song nudge.
+                // Identity intro still uses wall-clock currentTime.
+                const lyricTime = currentTime + offset;
 
                 if (!playingItem || syncedLines.length === 0) {
                     if (showingPlaying) this.applyActiveLyricsLine(-1);
@@ -781,11 +844,11 @@ const PlayerLyrics = (function () {
                     return;
                 }
 
-                const activeIndex = this.syncedLyricLineIndexAt(syncedLines, currentTime);
+                const activeIndex = this.syncedLyricLineIndexAt(syncedLines, lyricTime);
                 if (showingPlaying) this.applyActiveLyricsLine(activeIndex);
                 this.updateTransportBarLyric(this.lyricDisplayTextAt(playingItem, syncedLines, activeIndex, currentTime));
                 this.relayLyricToNowPlaying(
-                    this.syncedLyricLineIndexAt(syncedLines, currentTime + LYRIC_TITLE_LEAD_SECONDS),
+                    this.syncedLyricLineIndexAt(syncedLines, lyricTime + LYRIC_TITLE_LEAD_SECONDS),
                     currentTime
                 );
             },
@@ -829,9 +892,12 @@ const PlayerLyrics = (function () {
             nextLyricDeadline(currentTime) {
                 const item = this.playingPlaylistItem();
                 if (!item || !item.lyricsData) return Infinity;
+                const offset = this.lyricOffsetForItem(item);
                 let next = Infinity;
                 for (const line of item.lyricsData.syncedLines) {
-                    for (const at of [line.time, line.time - LYRIC_TITLE_LEAD_SECONDS]) {
+                    // A line becomes active / enters the led title window
+                    // at wall-clock times shifted by the per-song offset.
+                    for (const at of [line.time - offset, line.time - offset - LYRIC_TITLE_LEAD_SECONDS]) {
                         if (at > currentTime && at < next) next = at;
                     }
                 }
@@ -898,8 +964,11 @@ const PlayerLyrics = (function () {
                 const line = this.lyricTitleLineAt(lines, index);
                 if (index < 0 && line) {
                     const firstLine = lines.find(candidate => candidate.text.trim());
-                    if (firstLine && firstLine.time > FIRST_LYRIC_COUNTDOWN_MIN_SECONDS) {
-                        const wait = Math.ceil(firstLine.time - currentTime);
+                    const offset = this.lyricOffsetForItem(item);
+                    // Wall-clock moment the first line becomes the highlight.
+                    const firstAt = firstLine ? firstLine.time - offset : 0;
+                    if (firstLine && firstAt > FIRST_LYRIC_COUNTDOWN_MIN_SECONDS) {
+                        const wait = Math.ceil(firstAt - currentTime);
                         if (wait >= 1) {
                             return `${wait} ${line}`;
                         }

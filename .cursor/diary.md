@@ -4,6 +4,21 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-17 (per-song lyric offset via ff/rew lyrics)
+
+**Changed**: Sticky transport seek row gained **rew lyrics** / **ff lyrics**
+to the right of **1st**. Each tap nudges the sounding track's lyric clock
+by 1s (ff = later lines; rew = earlier). The nudge lives forever on
+IndexedDB `lyricStates.lyricOffsetSeconds` for that `videoId`; absent
+means 0. Re-searches preserve an existing offset. Display, car lead
+window, countdown, "1st" seek, and the deadline clock all honor it.
+
+**For future mei**: this is not a seek of the audio - only which lyric
+line is considered "now". Yui's recalled "0.5s preload" was never a
+lyric preload; car titles lead by `LYRIC_TITLE_LEAD_SECONDS = 0.75`.
+
+---
+
 ## 2026-07-14 (car lyric relay keyed off panel focus)
 
 **Context**: Yui reported timed lyrics advancing in Big Lyrics, but the
