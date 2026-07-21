@@ -294,7 +294,9 @@ in `PLAYER_FAVORITES`. Per-song lyric state lives in the
 the unbounded history (see "The Song primitive" and "Music player
 durable history" in [architecture.md](architecture.md)). Optional field
 `lyricOffsetSeconds` on a `lyricStates` record is the permanent ff/rew
-lyrics timing nudge for that video (absent = 0).
+lyrics timing nudge for that video (absent = 0). The sticky transport displays
+the latest button change and the resulting total; loading a stored song shows
+`change 0s` with its restored total until the next nudge.
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

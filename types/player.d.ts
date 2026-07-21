@@ -368,6 +368,7 @@ interface VoiceMusicController {
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
     lyricOffsetForItem(item: PlaylistItem | null | undefined): number;
+    updateLyricOffsetStatus(deltaSeconds?: number): void;
     nudgeLyricOffset(deltaSeconds: number): Promise<void>;
     ffLyrics(): void;
     rewLyrics(): void;

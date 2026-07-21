@@ -46,6 +46,13 @@ const PlayerLyrics = (function () {
     // hold timed lyrics are final. v2: timed-lyrics-first record selection.
     const LYRICS_SEARCH_VERSION = 2;
 
+    /** @param {number} seconds */
+    function formatSignedSeconds(seconds) {
+        const rounded = Math.round(seconds * 100) / 100;
+        const value = Object.is(rounded, -0) ? 0 : rounded;
+        return `${value > 0 ? '+' : ''}${value}s`;
+    }
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
@@ -532,6 +539,25 @@ const PlayerLyrics = (function () {
             },
 
             /**
+             * Keep the last adjustment and the persisted per-song total beside
+             * the controls that change them.
+             * @param {number} [deltaSeconds]
+             */
+            updateLyricOffsetStatus(deltaSeconds = 0) {
+                const el = document.getElementById('transportLyricOffsetStatus');
+                if (!el) return;
+                const item = this.playingPlaylistItem();
+                const show = !!item && this.itemHasTimedLyrics(item);
+                if (!show) {
+                    el.style.display = 'none';
+                    return;
+                }
+                const total = this.lyricOffsetForItem(item);
+                el.textContent = `change ${formatSignedSeconds(deltaSeconds)} · total ${formatSignedSeconds(total)}`;
+                el.style.display = '';
+            },
+
+            /**
              * Nudge the sounding track's lyric clock and persist it on the
              * lyricStates record for that videoId. Positive delta = ff
              * lyrics (show later lines); negative = rew lyrics.
@@ -555,6 +581,7 @@ const PlayerLyrics = (function () {
                         lyricOffsetSeconds: next
                     };
                 await window.PlayerHistoryDB.putLyricState(record);
+                this.updateLyricOffsetStatus(deltaSeconds);
                 this.updateSyncedLyricsPosition(this.currentPlaybackTime());
                 this.resyncProgressClock();
             },

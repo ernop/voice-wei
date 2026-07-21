@@ -1531,6 +1531,21 @@ h1 {
     font-size: 0.95rem;
 }
 
+.transport-lyric-offset-status {
+    display: inline-flex;
+    min-height: 50px;
+    padding: 0 10px;
+    border: 1px solid rgba(20, 184, 166, 0.22);
+    border-radius: 8px;
+    background: rgba(20, 184, 166, 0.06);
+    color: rgba(204, 251, 241, 0.88);
+    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    align-items: center;
+    white-space: nowrap;
+}
+
 /* The current-song line: a button - tapping it scrolls the playlist to
    the playing row. Sits in the song-nav row; height matches siblings. */
 .transport-bar-info {

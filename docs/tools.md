@@ -319,7 +319,9 @@ plus a "1st" jump to just before the first lyric that appears only on
 timed-lyric tracks, plus **rew lyrics** / **ff lyrics** to nudge the
 lyric display earlier or later by 1 second per tap when a timed file is
 ahead of or behind the linked YouTube audio; teal controls = within-song
-seek). Each song's lyric timing nudge is stored forever on that video's
+  seek). Beside those buttons, **change** shows the adjustment made by the
+  latest tap and **total** shows the resulting per-song offset; the restored
+  total is visible again whenever that song plays. Each song's lyric timing nudge is stored forever on that video's
 lyric state (absent means no offset); the next play reapplies it
 automatically. The older central player block is kept in the DOM for
 progress wiring but stays hidden; the sticky bar is the only on-screen
