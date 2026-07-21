@@ -333,6 +333,71 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
+    // MUSIC: Android-width lyric timing controls stay compact instead of
+    // consuming three sticky rows and two full-screen footer rows.
+    {
+        const ctx = await browser.newContext({
+            viewport: { width: 360, height: 800 },
+            deviceScaleFactor: 2.625,
+            isMobile: true,
+            hasTouch: true
+        });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'music-mobile-lyrics-layout', report.errors);
+        await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'networkidle' });
+        const layout = await tab.evaluate(() => {
+            const controller = window.musicController;
+            const item = {
+                id: 9012,
+                videoId: 'mobile-controls-layout',
+                name: 'Mobile Controls',
+                artist: 'Voice Wei',
+                lyricsStatus: 'ready',
+                lyricOffsetSeconds: 2,
+                lyricsData: {
+                    provider: 'LRCLIB',
+                    trackName: 'Mobile Controls',
+                    artistName: 'Voice Wei',
+                    albumName: '',
+                    duration: 100,
+                    instrumental: false,
+                    plainLyrics: 'First line\nSecond line',
+                    syncedLyrics: '[00:01.00]First line\n[00:05.00]Second line',
+                    syncedLines: [{ time: 1, text: 'First line' }, { time: 5, text: 'Second line' }]
+                }
+            };
+            controller.playlist = [item];
+            controller.playback.markPlaying(item.id);
+            controller.currentPlaylistIndex = 0;
+            controller.currentLyricsItemId = item.id;
+            controller.showPlaylistSurfaces();
+            controller.updateCentralPlayer(item);
+            controller.updateFirstLyricButton();
+            controller.renderLyricsStateForItem(item);
+            controller.updateLyricOffsetStatus();
+            const keyOverlay = document.getElementById('apiKeyOverlay');
+            if (keyOverlay) keyOverlay.style.display = 'none';
+
+            const sticky = document.getElementById('playlistTransportBar').getBoundingClientRect();
+            const seek = document.querySelector('.transport-bar-seek').getBoundingClientRect();
+            controller.openLyricsOverlay();
+            const footer = document.querySelector('.lyrics-overlay-transport').getBoundingClientRect();
+            return {
+                stickyHeight: sticky.height,
+                seekHeight: seek.height,
+                footerHeight: footer.height,
+                bodyScrollWidth: document.body.scrollWidth,
+                viewportWidth: window.innerWidth
+            };
+        });
+        report.check(`music mobile lyric controls stay compact (sticky=${layout.stickyHeight.toFixed(0)}, seek=${layout.seekHeight.toFixed(0)}, overlay=${layout.footerHeight.toFixed(0)})`,
+            layout.stickyHeight <= 175
+            && layout.seekHeight <= 100
+            && layout.footerHeight <= 56
+            && layout.bodyScrollWidth <= layout.viewportWidth);
+        await ctx.close();
+    }
+
     await browser.close();
     report.finish();
 })();
