@@ -184,12 +184,14 @@
                     <button id="transportFwd30Btn" class="transport-bar-btn" aria-label="Forward 30 seconds">+30</button>
                     <button id="transportFirstLyricBtn" class="transport-bar-btn transport-first-lyric-btn" type="button"
                         style="display: none;" aria-label="Jump to just before the first lyric">1st</button>
-                    <button id="transportRewLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
-                        style="display: none;" aria-label="Show earlier lyrics (nudge lyric timing backward)"><span class="lyric-offset-label-wide">rew lyrics</span><span class="lyric-offset-label-mobile">lyr -1</span></button>
-                    <button id="transportFfLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
-                        style="display: none;" aria-label="Show later lyrics (nudge lyric timing forward)"><span class="lyric-offset-label-wide">ff lyrics</span><span class="lyric-offset-label-mobile">lyr +1</span></button>
-                    <span id="transportLyricOffsetStatus" class="transport-lyric-offset-status"
-                        data-lyric-offset-status style="display: none;" aria-live="polite"><span class="lyric-offset-change-prefix">change </span><span data-lyric-offset-change>0s</span><span class="lyric-offset-separator"> · </span><span class="lyric-offset-total-prefix">total </span><span data-lyric-offset-total>0s</span></span>
+                    <div class="transport-lyric-offset-controls">
+                        <button id="transportRewLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
+                            style="display: none;" aria-label="Show earlier lyrics (nudge lyric timing backward)"><span class="lyric-offset-label-wide">rew lyrics</span><span class="lyric-offset-label-mobile">lyr -1</span></button>
+                        <button id="transportFfLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
+                            style="display: none;" aria-label="Show later lyrics (nudge lyric timing forward)"><span class="lyric-offset-label-wide">ff lyrics</span><span class="lyric-offset-label-mobile">lyr +1</span></button>
+                        <span id="transportLyricOffsetStatus" class="transport-lyric-offset-status"
+                            data-lyric-offset-status style="display: none;" aria-live="polite"><span class="lyric-offset-change-prefix">change </span><span data-lyric-offset-change>0s</span><span class="lyric-offset-separator"> · </span><span class="lyric-offset-total-prefix">total </span><span data-lyric-offset-total>0s</span></span>
+                    </div>
                 </div>
             </div>
 

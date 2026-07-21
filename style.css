@@ -1535,6 +1535,10 @@ h1 {
     display: none;
 }
 
+.transport-lyric-offset-controls {
+    display: contents;
+}
+
 .transport-lyric-offset-status {
     display: inline-flex;
     min-height: 50px;
@@ -2233,6 +2237,13 @@ body[data-page="music"] .voice-controls-row {
 
     .transport-bar-seek {
         gap: 4px;
+    }
+
+    .transport-lyric-offset-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
     }
 
     .transport-lyric-offset-btn {
