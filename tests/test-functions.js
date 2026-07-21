@@ -3366,6 +3366,85 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // With offset -5, first line (file t=5) appears at wall-clock 10;
             // led window opens 0.75s earlier at 9.25.
             && lyricOffsetNudge.deadlineAtZero === 9.25);
+        const lyricOffsetButtonSetup = await tab.evaluate(async () => {
+            const controller = window.musicController;
+            if (!controller) return false;
+            const item = {
+                id: 881, videoId: `offset-buttons-${Date.now()}`, name: 'Offset Button Song',
+                artist: 'Offset Artist', lyricsStatus: 'ready', lyricOffsetSeconds: 0,
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Offset Button Song', artistName: 'Offset Artist',
+                    albumName: '', duration: 100, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:05.00]line one',
+                    syncedLines: [{ time: 5, text: 'line one' }]
+                }
+            };
+            await window.PlayerHistoryDB.putLyricState({
+                videoId: item.videoId, status: 'found', checkedAt: Date.now(),
+                searchVersion: 2, lyrics: item.lyricsData, lyricOffsetSeconds: 0
+            });
+            const apiKeyOverlay = document.getElementById('apiKeyOverlay');
+            /** @type {any} */ (window).__lyricOffsetButtonTestState = {
+                playlist: controller.playlist,
+                playbackStatus: controller.playback.status,
+                currentPlayingId: controller.playback.currentPlayingId,
+                currentPlaylistIndex: controller.playback.currentPlaylistIndex,
+                currentLyricsItemId: controller.currentLyricsItemId,
+                apiKeyOverlayDisplay: apiKeyOverlay?.style.display || ''
+            };
+            controller.playlist = [item];
+            controller.playback.markPlaying(item.id);
+            controller.currentPlaylistIndex = 0;
+            controller.currentLyricsItemId = item.id;
+            controller.updateFirstLyricButton();
+            controller.updateLyricOffsetStatus();
+            controller.openLyricsOverlay();
+            if (apiKeyOverlay) apiKeyOverlay.style.display = 'none';
+            return true;
+        });
+        report.check('player lyric offset button test setup', lyricOffsetButtonSetup);
+        await tab.click('#lyricsOverlayFfLyricsBtn');
+        await tab.waitForFunction(() =>
+            window.musicController?.playingPlaylistItem()?.lyricOffsetSeconds === 1
+            && Array.from(document.querySelectorAll('[data-lyric-offset-status]'))
+                .every(element => element.textContent === 'change +1s · total +1s'));
+        const overlayFfStatuses = await tab.locator('[data-lyric-offset-status]').allTextContents();
+        await tab.click('#lyricsOverlayRewLyricsBtn');
+        await tab.waitForFunction(() =>
+            window.musicController?.playingPlaylistItem()?.lyricOffsetSeconds === 0
+            && Array.from(document.querySelectorAll('[data-lyric-offset-status]'))
+                .every(element => element.textContent === 'change -1s · total 0s'));
+        const overlayRewStatuses = await tab.locator('[data-lyric-offset-status]').allTextContents();
+        await tab.evaluate(() => {
+            window.musicController?.closeLyricsOverlay();
+            document.getElementById('transportFfLyricsBtn')?.click();
+        });
+        await tab.waitForFunction(() =>
+            window.musicController?.playingPlaylistItem()?.lyricOffsetSeconds === 1
+            && Array.from(document.querySelectorAll('[data-lyric-offset-status]'))
+                .every(element => element.textContent === 'change +1s · total +1s'));
+        const stickyFfStatuses = await tab.locator('[data-lyric-offset-status]').allTextContents();
+        report.check('player sticky and Big Lyrics offset buttons update one offset and synchronized readouts',
+            overlayFfStatuses.length === 2
+            && overlayFfStatuses.every(text => text === 'change +1s · total +1s')
+            && overlayRewStatuses.every(text => text === 'change -1s · total 0s')
+            && stickyFfStatuses.every(text => text === 'change +1s · total +1s'));
+        await tab.evaluate(() => {
+            const controller = window.musicController;
+            const state = /** @type {any} */ (window).__lyricOffsetButtonTestState;
+            if (!controller || !state) return;
+            controller.playlist = state.playlist;
+            controller.playback.status = state.playbackStatus;
+            controller.playback.currentPlayingId = state.currentPlayingId;
+            controller.playback.currentPlaylistIndex = state.currentPlaylistIndex;
+            controller.currentLyricsItemId = state.currentLyricsItemId;
+            const apiKeyOverlay = document.getElementById('apiKeyOverlay');
+            if (apiKeyOverlay) apiKeyOverlay.style.display = state.apiKeyOverlayDisplay;
+            controller.updateFirstLyricButton();
+            controller.updateLyricOffsetStatus();
+            const mutableWindow = /** @type {any} */ (window);
+            delete mutableWindow.__lyricOffsetButtonTestState;
+        });
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric
