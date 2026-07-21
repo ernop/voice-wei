@@ -1907,7 +1907,7 @@ body[data-page="music"] .voice-controls-row {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 6px 10px 52px;
+    padding: 6px 10px 112px;
 }
 
 .lyrics-overlay-transport {
@@ -1917,11 +1917,20 @@ body[data-page="music"] .voice-controls-row {
     right: 0;
     z-index: 10;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 6px;
     padding: 8px 12px;
     background: var(--lyrics-overlay-bg);
+}
+
+.lyrics-overlay-transport-main,
+.lyrics-overlay-offset-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .lyrics-overlay-transport-btn {
@@ -1937,6 +1946,26 @@ body[data-page="music"] .voice-controls-row {
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     transition: background 0.15s, color 0.15s;
+}
+
+.lyrics-overlay-offset-btn {
+    min-height: 44px;
+    font-size: 0.95rem;
+}
+
+.lyrics-overlay-offset-status {
+    display: inline-flex;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid rgba(20, 184, 166, 0.3);
+    border-radius: 8px;
+    background: rgba(20, 184, 166, 0.1);
+    color: #ccfbf1;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    align-items: center;
+    white-space: nowrap;
 }
 
 .lyrics-overlay-transport-btn:hover,
@@ -2121,7 +2150,7 @@ body[data-page="music"] .voice-controls-row {
     }
 
     .lyrics-overlay-content {
-        padding: 54px 8px 46px;
+        padding: 54px 8px 108px;
     }
 
     .lyrics-overlay-song-info {
@@ -2143,12 +2172,29 @@ body[data-page="music"] .voice-controls-row {
         gap: 4px;
     }
 
+    .lyrics-overlay-transport-main,
+    .lyrics-overlay-offset-controls {
+        gap: 4px;
+    }
+
     /* Same finger-target rule as the sticky transport bar: these are
        tapped blind while driving, so they must not shrink on phones. */
     .lyrics-overlay-transport-btn {
         min-height: 48px;
         padding: 8px 12px;
         font-size: 1.25rem;
+    }
+
+    .lyrics-overlay-offset-btn {
+        min-height: 44px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .lyrics-overlay-offset-status {
+        min-height: 44px;
+        padding: 0 8px;
+        font-size: 0.76rem;
     }
 
     .lyrics-overlay .lyrics-line {

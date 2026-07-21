@@ -1008,6 +1008,8 @@ class VoiceMusicController {
             ['lyricsTransportPause', () => this.togglePlayPause()],
             ['lyricsTransportFwd', () => this.fastForward()],
             ['lyricsTransportNext', () => this.playNext()],
+            ['lyricsOverlayRewLyricsBtn', () => this.rewLyrics()],
+            ['lyricsOverlayFfLyricsBtn', () => this.ffLyrics()],
         ];
         for (const [id, handler] of transportBindings) {
             const btn = document.getElementById(id);

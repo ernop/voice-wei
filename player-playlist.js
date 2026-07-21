@@ -1312,6 +1312,8 @@ const PlayerPlaylist = (function () {
                     const btn = document.getElementById(id);
                     if (btn) btn.style.display = show ? '' : 'none';
                 }
+                const overlayControls = document.getElementById('lyricsOverlayOffsetControls');
+                if (overlayControls) overlayControls.style.display = show ? '' : 'none';
                 this.updateLyricOffsetStatus();
             },
 

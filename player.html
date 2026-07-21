@@ -189,7 +189,7 @@
                     <button id="transportFfLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
                         style="display: none;" aria-label="Show later lyrics (nudge lyric timing forward)">ff lyrics</button>
                     <span id="transportLyricOffsetStatus" class="transport-lyric-offset-status"
-                        style="display: none;" aria-live="polite">change 0s · total 0s</span>
+                        data-lyric-offset-status style="display: none;" aria-live="polite">change 0s · total 0s</span>
                 </div>
             </div>
 
@@ -379,12 +379,22 @@
         </div>
         <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
         <div class="lyrics-overlay-transport">
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">&#9198;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">&#8635;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">&#9194;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">&#9208;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">&#9193;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">&#9197;</button>
+            <div class="lyrics-overlay-transport-main">
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">&#9198;</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">&#8635;</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">&#9194;</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">&#9208;</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">&#9193;</button>
+                <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">&#9197;</button>
+            </div>
+            <div class="lyrics-overlay-offset-controls" id="lyricsOverlayOffsetControls" style="display: none;">
+                <button class="lyrics-overlay-transport-btn lyrics-overlay-offset-btn" id="lyricsOverlayRewLyricsBtn"
+                    type="button" aria-label="Show earlier lyrics (nudge lyric timing backward)">rew lyrics</button>
+                <button class="lyrics-overlay-transport-btn lyrics-overlay-offset-btn" id="lyricsOverlayFfLyricsBtn"
+                    type="button" aria-label="Show later lyrics (nudge lyric timing forward)">ff lyrics</button>
+                <span id="lyricsOverlayOffsetStatus" class="lyrics-overlay-offset-status"
+                    data-lyric-offset-status aria-live="polite">change 0s · total 0s</span>
+            </div>
         </div>
     </div>
 

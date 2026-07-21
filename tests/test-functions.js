@@ -3302,13 +3302,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 resyncProgressClock() {}
             };
             PlayerLyrics.install(harness);
+            const offsetStatuses = () => Array.from(document.querySelectorAll('[data-lyric-offset-status]'))
+                .map(el => el.textContent || '');
             harness.updateSyncedLyricsPosition(10);
             harness.updateLyricOffsetStatus();
             const before = {
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds,
-                offsetStatus: document.getElementById('transportLyricOffsetStatus')?.textContent || ''
+                offsetStatuses: offsetStatuses()
             };
             await harness.nudgeLyricOffset(5);
             harness.updateSyncedLyricsPosition(10);
@@ -3316,7 +3318,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds,
-                offsetStatus: document.getElementById('transportLyricOffsetStatus')?.textContent || ''
+                offsetStatuses: offsetStatuses()
             };
             await harness.nudgeLyricOffset(-10);
             harness.updateSyncedLyricsPosition(10);
@@ -3324,7 +3326,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds,
-                offsetStatus: document.getElementById('transportLyricOffsetStatus')?.textContent || ''
+                offsetStatuses: offsetStatuses()
             };
             const stored = await window.PlayerHistoryDB.getLyricState(videoId);
             const reloaded = {
@@ -3340,7 +3342,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 before, afterFf, afterRew,
                 storedOffset: stored?.lyricOffsetSeconds,
                 reloadedOffset: reloaded.lyricOffsetSeconds,
-                reloadedOffsetStatus: document.getElementById('transportLyricOffsetStatus')?.textContent || '',
+                reloadedOffsetStatuses: offsetStatuses(),
                 deadlineAtZero: harness.nextLyricDeadline(0)
             };
         });
@@ -3348,18 +3350,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             lyricOffsetNudge.before.highlightIndex === 0
             && lyricOffsetNudge.before.barLyric === 'early line'
             && lyricOffsetNudge.before.offset === 0
-            && lyricOffsetNudge.before.offsetStatus === 'change 0s · total 0s'
+            && lyricOffsetNudge.before.offsetStatuses.length === 2
+            && lyricOffsetNudge.before.offsetStatuses.every(text => text === 'change 0s · total 0s')
             && lyricOffsetNudge.afterFf.highlightIndex === 1
             && lyricOffsetNudge.afterFf.barLyric === 'later line'
             && lyricOffsetNudge.afterFf.offset === 5
-            && lyricOffsetNudge.afterFf.offsetStatus === 'change +5s · total +5s'
+            && lyricOffsetNudge.afterFf.offsetStatuses.every(text => text === 'change +5s · total +5s')
             && lyricOffsetNudge.afterRew.highlightIndex === 0
             && lyricOffsetNudge.afterRew.barLyric === 'early line'
             && lyricOffsetNudge.afterRew.offset === -5
-            && lyricOffsetNudge.afterRew.offsetStatus === 'change -10s · total -5s'
+            && lyricOffsetNudge.afterRew.offsetStatuses.every(text => text === 'change -10s · total -5s')
             && lyricOffsetNudge.storedOffset === -5
             && lyricOffsetNudge.reloadedOffset === -5
-            && lyricOffsetNudge.reloadedOffsetStatus === 'change 0s · total -5s'
+            && lyricOffsetNudge.reloadedOffsetStatuses.every(text => text === 'change 0s · total -5s')
             // With offset -5, first line (file t=5) appears at wall-clock 10;
             // led window opens 0.75s earlier at 9.25.
             && lyricOffsetNudge.deadlineAtZero === 9.25);

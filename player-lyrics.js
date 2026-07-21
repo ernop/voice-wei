@@ -544,17 +544,22 @@ const PlayerLyrics = (function () {
              * @param {number} [deltaSeconds]
              */
             updateLyricOffsetStatus(deltaSeconds = 0) {
-                const el = document.getElementById('transportLyricOffsetStatus');
-                if (!el) return;
+                const elements = document.querySelectorAll('[data-lyric-offset-status]');
+                if (elements.length === 0) return;
                 const item = this.playingPlaylistItem();
                 const show = !!item && this.itemHasTimedLyrics(item);
                 if (!show) {
-                    el.style.display = 'none';
+                    elements.forEach(el => {
+                        if (el instanceof HTMLElement) el.style.display = 'none';
+                    });
                     return;
                 }
                 const total = this.lyricOffsetForItem(item);
-                el.textContent = `change ${formatSignedSeconds(deltaSeconds)} · total ${formatSignedSeconds(total)}`;
-                el.style.display = '';
+                const text = `change ${formatSignedSeconds(deltaSeconds)} · total ${formatSignedSeconds(total)}`;
+                elements.forEach(el => {
+                    el.textContent = text;
+                    if (el instanceof HTMLElement) el.style.display = '';
+                });
             },
 
             /**
