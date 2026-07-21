@@ -1531,6 +1531,10 @@ h1 {
     font-size: 0.95rem;
 }
 
+.lyric-offset-label-mobile {
+    display: none;
+}
+
 .transport-lyric-offset-status {
     display: inline-flex;
     min-height: 50px;
@@ -2150,7 +2154,7 @@ body[data-page="music"] .voice-controls-row {
     }
 
     .lyrics-overlay-content {
-        padding: 54px 8px 108px;
+        padding: 54px 8px 56px;
     }
 
     .lyrics-overlay-song-info {
@@ -2168,33 +2172,80 @@ body[data-page="music"] .voice-controls-row {
     }
 
     .lyrics-overlay-transport {
+        flex-direction: row;
+        min-height: 52px;
         padding: 4px 4px;
         gap: 4px;
     }
 
     .lyrics-overlay-transport-main,
     .lyrics-overlay-offset-controls {
-        gap: 4px;
+        gap: 3px;
     }
 
-    /* Same finger-target rule as the sticky transport bar: these are
-       tapped blind while driving, so they must not shrink on phones. */
+    #lyricsTransportPrev,
+    #lyricsTransportRestart,
+    #lyricsTransportNext {
+        display: none;
+    }
+
+    /* Keep the five controls used while following lyrics on one 44px row:
+       audio back/play/forward plus lyric back/forward. Track navigation
+       remains on the sticky player immediately behind the overlay. */
     .lyrics-overlay-transport-btn {
-        min-height: 48px;
-        padding: 8px 12px;
-        font-size: 1.25rem;
+        min-width: 40px;
+        min-height: 44px;
+        padding: 6px 8px;
+        font-size: 1.05rem;
     }
 
     .lyrics-overlay-offset-btn {
         min-height: 44px;
-        padding: 8px 12px;
-        font-size: 0.9rem;
+        padding: 6px;
+        font-size: 0.7rem;
     }
 
     .lyrics-overlay-offset-status {
         min-height: 44px;
+        padding: 0 4px;
+        font-size: 0.68rem;
+    }
+
+    .lyric-offset-label-wide,
+    .lyric-offset-change-prefix,
+    .lyric-offset-total-prefix {
+        display: none;
+    }
+
+    .lyric-offset-label-mobile {
+        display: inline;
+    }
+
+    .lyric-offset-separator {
+        font-size: 0;
+    }
+
+    .lyric-offset-separator::after {
+        content: "\2192";
+        margin: 0 3px;
+        font-size: 0.7rem;
+    }
+
+    .transport-bar-seek {
+        gap: 4px;
+    }
+
+    .transport-lyric-offset-btn {
+        height: 44px;
+        min-width: 0;
         padding: 0 8px;
-        font-size: 0.76rem;
+        font-size: 0.78rem;
+    }
+
+    .transport-lyric-offset-status {
+        min-height: 44px;
+        padding: 0 7px;
+        font-size: 0.7rem;
     }
 
     .lyrics-overlay .lyrics-line {

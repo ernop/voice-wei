@@ -555,9 +555,11 @@ const PlayerLyrics = (function () {
                     return;
                 }
                 const total = this.lyricOffsetForItem(item);
-                const text = `change ${formatSignedSeconds(deltaSeconds)} · total ${formatSignedSeconds(total)}`;
                 elements.forEach(el => {
-                    el.textContent = text;
+                    const change = /** @type {HTMLElement} */ (el.querySelector('[data-lyric-offset-change]'));
+                    const totalValue = /** @type {HTMLElement} */ (el.querySelector('[data-lyric-offset-total]'));
+                    change.textContent = formatSignedSeconds(deltaSeconds);
+                    totalValue.textContent = formatSignedSeconds(total);
                     if (el instanceof HTMLElement) el.style.display = '';
                 });
             },

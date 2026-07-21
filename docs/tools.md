@@ -322,7 +322,10 @@ ahead of or behind the linked YouTube audio; teal controls = within-song
   seek). Beside those buttons, **change** shows the adjustment made by the
   latest tap and **total** shows the resulting per-song offset; the restored
   total is visible again whenever that song plays. The same two adjusters and
-  synchronized readout stay at the bottom of Big Lyrics. Each song's lyric timing nudge is stored forever on that video's
+  synchronized readout stay at the bottom of Big Lyrics. On phone-width
+  screens they collapse to `lyr -1`, `lyr +1`, and `change → total` on one
+  line; Big Lyrics keeps audio back/play/forward on that same footer line and
+  leaves track navigation on the sticky player behind it. Each song's lyric timing nudge is stored forever on that video's
 lyric state (absent means no offset); the next play reapplies it
 automatically. The older central player block is kept in the DOM for
 progress wiring but stays hidden; the sticky bar is the only on-screen
