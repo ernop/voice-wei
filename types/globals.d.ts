@@ -127,6 +127,8 @@ interface Window {
         patternEntries: () => Array<{ interval: number; label: string }>;
         guideTargets: () => TargetSpan[];
         rails: () => ScaleDegreeNote[];
+        verticalBounds: () => { minMidi: number; maxMidi: number };
+        windowMs: () => number;
     };
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;
