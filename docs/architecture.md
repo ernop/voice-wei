@@ -705,7 +705,17 @@ for ordinary docs/CSS/small-JS work and is also a deploy gate.
 Use `node tests/run-all.js --suite <suite-file>` for targeted browser checks.
 Use `npm run test:full` for slower playback law, shared controls +
 persistence, per-tab functions, and fake-mic listening tests when touching
-those systems. `npm run lint` (ast-grep, including the ownership guards),
+those systems.
+
+One suite is deliberately outside every profile:
+`node tests/audit-search-live.js` runs real songs through the REAL search
+pipeline - `proxy.php` against live Piped/Invidious, the studio-version
+ranking, and the LRCLIB lyric matcher - and prints the pick, runner-up,
+surviving alternates, and matched lyric record per song (Fleet Foxes'
+first two albums by default; pass `"Artist - Song"` arguments or
+`PROXY_BASE=` for other cases). It needs the local PHP server
+(`php -S 127.0.0.1:8000`) and the network, so it never runs in CI; use it
+when investigating wrong-version or wrong-lyrics reports. `npm run lint` (ast-grep, including the ownership guards),
 `npm run typecheck` (checkJs), and `npm test` must stay clean - **zero errors,
 no tolerated baseline**. These run as gates in the deploy workflow; any failure
 blocks the push from reaching the live site.

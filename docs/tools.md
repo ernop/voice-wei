@@ -260,10 +260,18 @@ request and response JSON are logged to the Log panel for every batch.
 
 Searches target the original studio recording unless you ask otherwise:
 the AI is told never to add "live" to search terms, and YouTube results
-are re-ranked before the first is taken - " - Topic" (auto-generated
-album track) and Vevo/official uploads score up, while live / cover /
-remix / karaoke / reaction / sped-up markers in the title score down
-unless your request contained that word. The per-query Model pills under
+are re-ranked before the first is taken. A result whose title does not
+contain the requested song's name is treated as the wrong song outright
+(an artist's official upload of a different track can never win);
+YouTube's auto-generated album tracks ("Provided to YouTube by" /
+" - Topic", flagged by the proxy) and Vevo/official uploads score up;
+live / cover / remix / karaoke / reaction / sped-up markers score down
+unless your request contained that word; and leftover title words beyond
+artist + song + format labels (concert dates, venues, "(Solstice
+Version)"-style renames) score down too. The remembered alternates used
+when a video refuses to embed keep only candidates that pass the same
+same-recording bar, so a retry never silently swaps in a live take or a
+different song. The per-query Model pills under
 the request box pick the exact AI model (Claude or OpenAI) for the next
 request, and the status line names it ("Processing with
 claude-opus-4-8..."). Key-level provider failures - invalid key, spend
