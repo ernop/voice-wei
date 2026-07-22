@@ -83,9 +83,9 @@
         state.rangeHighMidi = bounds.maxMidi;
     }
 
-    // The selected notes are an absolute frame. Scale choice determines
-    // which degree rails appear inside it; targets and sung history never
-    // widen it.
+    // Trace's selected Low/High notes are the absolute frame. Scale choice
+    // determines which degree rails appear inside it; targets and sung
+    // history never widen it.
     function chartScaleNotes() {
         const root = rootMidi();
         if (root === null) return [];
