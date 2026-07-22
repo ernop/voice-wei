@@ -160,13 +160,13 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         const manualBounds = await tab.evaluate(() => window.traceDebug.verticalBounds());
         await tab.click('[data-step-key="rootPitch"][data-step-delta="1"]');
         const afterKeyChange = await tab.evaluate(() => window.traceDebug.verticalBounds());
-        await tab.click('#rangeFollowsKeyToggle');
+        await tab.evaluate(() => document.getElementById('rangeFollowsKeyToggle').click());
         const followedBounds = await tab.evaluate(() => window.traceDebug.verticalBounds());
 
         for (let i = 0; i < 4; i++) {
             await tab.click('[data-step-key="windowMs"][data-step-delta="-1"]');
         }
-        await tab.click('#fixedWindowToggle');
+        await tab.evaluate(() => document.getElementById('fixedWindowToggle').click());
         const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.TRACE_SETTINGS));
         report.check(`trace guide sound default piano, persisted "${saved.guideSound}"`,
             pianoDefault && saved.guideSound === 'beep');
