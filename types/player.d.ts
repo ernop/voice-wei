@@ -28,6 +28,8 @@ interface YouTubeVideoCandidate {
     channelTitle: string;
     duration: string;
     durationSeconds?: number;
+    /** YouTube auto-generated album track ("Provided to YouTube by" / " - Topic"): the studio recording by construction. */
+    isAlbumTrack?: boolean;
 }
 
 /**
@@ -245,6 +247,9 @@ interface VoiceMusicController {
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
     searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
     unwantedVersionMarkers(): RegExp[];
+    simplifyVideoText(value: string): string;
+    neutralTitleWords(): Set<string>;
+    countExtraneousTitleWords(simplifiedTitle: string, songName: string, artist: string, requested: string): number;
     scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
     rankYouTubeResults(videos: YouTubeVideoCandidate[], context: { searchTerm?: string; artist?: string; name?: string }): YouTubeVideoCandidate[];
     searchSongsWithConcurrency(

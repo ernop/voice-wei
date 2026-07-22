@@ -418,23 +418,69 @@ const PlayerPlaylist = (function () {
                 ];
             },
 
+            /** Lowercased, punctuation-free, whitespace-collapsed text for title/channel comparison. @param {string} value */
+            simplifyVideoText(value) {
+                return String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+            },
+
+            /**
+             * Title words that describe the upload format rather than the
+             * recording: a plain studio track's title is the song name plus
+             * (at most) the artist and these words. Anything else left over
+             * is a version signal - a live date, a venue, a festival, a
+             * "(Solstice Version)" - even when no explicit live/cover
+             * marker appears.
+             */
+            neutralTitleWords() {
+                return new Set([
+                    'official', 'video', 'audio', 'music', 'lyric', 'lyrics',
+                    'visualizer', 'visualiser', 'hd', '4k', 'hq',
+                    'remaster', 'remastered', 'stereo', 'mono', 'album',
+                    // Connective filler carries no version information.
+                    'a', 'an', 'the', 'at', 'in', 'on', 'of', 'and', 'from', 'with', 'by'
+                ]);
+            },
+
+            /**
+             * How many title words remain after removing the song name, the
+             * artist, what the search itself asked for, and neutral format
+             * words. 0 for "White Winter Hymnal" or "Artist - Song (OFFICIAL
+             * VIDEO)"; positive for date-stamped concert uploads and renamed
+             * re-recordings.
+             * @param {string} simplifiedTitle @param {string} songName
+             * @param {string} artist @param {string} requested
+             */
+            countExtraneousTitleWords(simplifiedTitle, songName, artist, requested) {
+                const known = new Set([
+                    ...songName.split(' '),
+                    ...artist.split(' '),
+                    ...requested.split(' '),
+                    ...this.neutralTitleWords()
+                ]);
+                return simplifiedTitle.split(' ').filter(word => word && !known.has(word)).length;
+            },
+
             /**
              * How much this search result looks like the original studio
              * recording of the requested song. Signals, not guesses:
-             * " - Topic" channels are YouTube's auto-generated album tracks
-             * (the studio version by construction), Vevo/official uploads
-             * are next best, live/cover/remix/reaction markers in the
-             * title are strong negatives unless the request asked for them,
-             * and a result that names neither the artist in its channel nor
-             * its title is likely someone else's recording of the song.
+             * the video must actually BE the requested song (its title
+             * contains the song name - the dominant term, so an artist's
+             * official upload of a DIFFERENT song can never outrank the
+             * right track), auto-generated album tracks ("Provided to
+             * YouTube by" / " - Topic") are the studio version by
+             * construction, Vevo/official uploads are next best,
+             * live/cover/remix/reaction markers are strong negatives unless
+             * the request asked for them, leftover title words (dates,
+             * venues, version names) score down, and a result that names
+             * neither the artist in its channel nor its title is likely
+             * someone else's recording of the song.
              * @param {YouTubeVideoCandidate} video
              * @param {{ searchTerm?: string, artist?: string, name?: string }} context
              */
             scoreVideoCandidate(video, context) {
                 const title = String(video.title || '');
                 const channel = String(video.channelTitle || '');
-                const simplify = (/** @type {string} */ value) =>
-                    String(value || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+                const simplify = (/** @type {string} */ value) => this.simplifyVideoText(value);
 
                 // Marker words inside the song's own name ("Cover Me Up",
                 // "Live and Let Die") are not version requests: strip the
@@ -453,6 +499,9 @@ const PlayerPlaylist = (function () {
                     score += marker.test(requested) ? 1.2 : -0.6;
                 }
 
+                // The strongest studio signal in the data: YouTube's own
+                // auto-generated album track (detected by the proxy).
+                if (video.isAlbumTrack) score += 0.6;
                 if (/- topic$/i.test(channel.trim())) score += 0.5;
                 if (/vevo/i.test(channel)) score += 0.35;
                 if (/official audio/i.test(title)) score += 0.3;
@@ -462,6 +511,19 @@ const PlayerPlaylist = (function () {
                 if (artist) {
                     if (simplify(channel).includes(artist)) score += 0.2;
                     else if (!simplify(title).includes(artist)) score -= 0.3;
+                }
+
+                if (songName) {
+                    const simplifiedTitle = simplify(title);
+                    if (simplifiedTitle.includes(songName)) {
+                        score += 0.5;
+                        const extraneous = this.countExtraneousTitleWords(simplifiedTitle, songName, artist, requested);
+                        score -= Math.min(extraneous * 0.15, 0.45);
+                    } else {
+                        // Not the requested song. Outweighs every positive
+                        // channel/format signal a wrong-song upload can earn.
+                        score -= 1.0;
+                    }
                 }
 
                 // A known song is a few minutes long: a 12-minute-plus hit
@@ -527,14 +589,23 @@ const PlayerPlaylist = (function () {
                     });
                 }
 
+                const searchContext = { searchTerm: query, ...context };
                 const videos = this.rankYouTubeResults(
                     results
                         .filter(result => result.videoId)
                         .map(result => this.formatYouTubeResult(result)),
-                    { searchTerm: query, ...context }
+                    searchContext
                 );
                 if (videos.length > 0) {
-                    const [firstVideo, ...alternateVideos] = videos;
+                    // The best available result always plays, but the retry
+                    // chain (embed disabled/removed) only holds candidates
+                    // that are plausibly the same recording: an alternate
+                    // scoring below zero is a wrong song, a live take, or a
+                    // cover, and swapping one in silently is worse than
+                    // reporting the failure.
+                    const [firstVideo, ...rankedRest] = videos;
+                    const alternateVideos = rankedRest.filter(video =>
+                        this.scoreVideoCandidate(video, searchContext) >= 0);
                     this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
                     return {
                         ...firstVideo,
@@ -552,7 +623,8 @@ const PlayerPlaylist = (function () {
                     title: video.title || 'Unknown',
                     channelTitle: video.channelTitle || 'Unknown Artist',
                     duration: this.formatSeconds(video.duration),
-                    durationSeconds: Number(video.duration) || 0
+                    durationSeconds: Number(video.duration) || 0,
+                    isAlbumTrack: !!video.isAlbumTrack
                 };
             },
 

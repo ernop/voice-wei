@@ -2831,6 +2831,39 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 { videoId: 'castcover-1', title: 'I Want To Hold Your Hand (Tracks On The Tracks Sessions)', channelTitle: 'Himesh Patel', duration: '3:20', durationSeconds: 200 },
                 { videoId: 'plain-1', title: 'The Beatles - I Want To Hold Your Hand', channelTitle: 'SomeUploader', duration: '2:25', durationSeconds: 145 }
             ], { searchTerm: 'The Beatles I Want to Hold Your Hand', artist: 'The Beatles', name: 'I Want to Hold Your Hand' }).map(video => video.videoId);
+            // The Fleet Foxes regression set (real proxy results): the
+            // artist's official upload of a DIFFERENT song must never beat
+            // the requested track; the auto-generated album track (Piped
+            // strips " - Topic" from the channel, so the proxy's
+            // isAlbumTrack flag is the signal) must beat renamed live
+            // re-recordings ("Solstice Version") and date-stamped concert
+            // uploads that carry no explicit live/concert marker.
+            const lorelaiContext = { searchTerm: 'Fleet Foxes Lorelai', artist: 'Fleet Foxes', name: 'Lorelai' };
+            const wrongSong = harness.rankYouTubeResults([
+                { videoId: 'isles-1', title: 'Fleet Foxes - Isles (Official Audio)', channelTitle: 'Fleet Foxes', duration: '3:09', durationSeconds: 189 },
+                { videoId: 'lorelai-1', title: 'Lorelai', channelTitle: 'Fleet Foxes', duration: '4:25', durationSeconds: 265, isAlbumTrack: true }
+            ], lorelaiContext).map(video => video.videoId);
+            const hbContext = { searchTerm: 'Fleet Foxes Helplessness Blues', artist: 'Fleet Foxes', name: 'Helplessness Blues' };
+            const renamedLive = harness.rankYouTubeResults([
+                { videoId: 'solstice-1', title: 'Fleet Foxes - "Helplessness Blues" (Solstice Version)', channelTitle: 'Fleet Foxes', duration: '5:04', durationSeconds: 304 },
+                { videoId: 'hb-album', title: 'Helplessness Blues', channelTitle: 'Fleet Foxes', duration: '5:02', durationSeconds: 302, isAlbumTrack: true }
+            ], hbContext).map(video => video.videoId);
+            const wwhContext = { searchTerm: 'Fleet Foxes White Winter Hymnal', artist: 'Fleet Foxes', name: 'White Winter Hymnal' };
+            const dateStamped = harness.rankYouTubeResults([
+                { videoId: 'dated-1', title: 'Fleet Foxes - White Winter Hymnal - 2008-11-04', channelTitle: 'steelygray', duration: '2:57', durationSeconds: 177 },
+                { videoId: 'wwh-video', title: 'Fleet Foxes - White Winter Hymnal (OFFICIAL VIDEO)', channelTitle: 'Sub Pop', duration: '2:28', durationSeconds: 148 }
+            ], wwhContext).map(video => video.videoId);
+            // Wrong-song and unrequested-version results are unacceptable
+            // embed-failure fallbacks: only same-recording candidates may
+            // enter the alternate list.
+            const wrongSongAlternateScore = harness.scoreVideoCandidate(
+                { videoId: 'isles-1', title: 'Fleet Foxes - Isles (Official Audio)', channelTitle: 'Fleet Foxes', duration: '3:09', durationSeconds: 189 },
+                lorelaiContext
+            );
+            const plainUploadAlternateScore = harness.scoreVideoCandidate(
+                { videoId: 'plain-lorelai', title: 'Fleet Foxes - Lorelai', channelTitle: 'greg g', duration: '4:26', durationSeconds: 266 },
+                lorelaiContext
+            );
             const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
             const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
             return {
@@ -2840,6 +2873,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
                 nameCollisionFirst: nameCollision[0],
                 wrongArtistFirst: wrongArtist[0],
+                wrongSongFirst: wrongSong[0],
+                renamedLiveFirst: renamedLive[0],
+                dateStampedFirst: dateStamped[0],
+                wrongSongAlternateScore,
+                plainUploadAlternateScore,
                 quotaName: quotaError.name,
                 quotaProvider: quotaError.provider,
                 plainName: plainError.name
@@ -2855,6 +2893,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && versionRanking.quotaName === 'ApiKeyError'
             && versionRanking.quotaProvider === 'claude'
             && versionRanking.plainName === 'Error');
+        report.check(`player never picks the artist's official upload of a different song (${versionRanking.wrongSongFirst}), beats renamed live re-recordings (${versionRanking.renamedLiveFirst}) and date-stamped concert uploads (${versionRanking.dateStampedFirst})`,
+            versionRanking.wrongSongFirst === 'lorelai-1'
+            && versionRanking.renamedLiveFirst === 'hb-album'
+            && versionRanking.dateStampedFirst === 'wwh-video');
+        report.check('player alternate filter rejects wrong-song candidates and keeps same-recording uploads',
+            versionRanking.wrongSongAlternateScore < 0
+            && versionRanking.plainUploadAlternateScore >= 0);
 
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {
