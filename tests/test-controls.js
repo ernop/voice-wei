@@ -33,7 +33,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             { page: 'intervals', steppers: ['rootPitch', 'rootRangeMid', 'droneNote'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
             { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
             { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
-            { page: 'trace', steppers: [], forbidden: 'select, input[type="range"]' },
+            { page: 'trace', steppers: ['rootPitch', 'rangeLowMidi', 'rangeHighMidi', 'guideIntervalMs', 'windowMs'], forbidden: 'select, input[type="range"]' },
             { page: 'player', steppers: [], forbidden: 'select, input[type="range"]' },
             // Books keeps its selects (dynamic voice/model lists, the declared
             // exception) but must use the shared button vocabulary.
@@ -145,7 +145,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         await ctx.close();
     }
 
-    // TRACE: guide sound option persists
+    // TRACE: fixed note bounds, time-window width, and guide sound persist.
     {
         const ctx = await browser.newContext({ permissions: ['microphone'] });
         const tab = await ctx.newPage();
@@ -155,8 +155,44 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         const pianoDefault = await tab.evaluate(() =>
             document.querySelector('[data-guide-sound="piano"]').classList.contains('selected'));
         await tab.click('[data-guide-sound="beep"]');
-        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.TRACE_SETTINGS)?.guideSound);
-        report.check(`trace guide sound default piano, persisted "${saved}"`, pianoDefault && saved === 'beep');
+        const initialBounds = await tab.evaluate(() => window.traceDebug.verticalBounds());
+        await tab.click('[data-step-key="rangeLowMidi"][data-step-delta="1"]');
+        const manualBounds = await tab.evaluate(() => window.traceDebug.verticalBounds());
+        await tab.click('[data-step-key="rootPitch"][data-step-delta="1"]');
+        const afterKeyChange = await tab.evaluate(() => window.traceDebug.verticalBounds());
+        await tab.evaluate(() => document.getElementById('rangeFollowsKeyToggle').click());
+        const followedBounds = await tab.evaluate(() => window.traceDebug.verticalBounds());
+
+        for (let i = 0; i < 4; i++) {
+            await tab.click('[data-step-key="windowMs"][data-step-delta="-1"]');
+        }
+        await tab.evaluate(() => document.getElementById('fixedWindowToggle').click());
+        const saved = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.TRACE_SETTINGS));
+        report.check(`trace guide sound default piano, persisted "${saved.guideSound}"`,
+            pianoDefault && saved.guideSound === 'beep');
+        report.check(`trace bounds become absolute when stepped (${initialBounds.minMidi}-${initialBounds.maxMidi} -> ${manualBounds.minMidi}-${manualBounds.maxMidi})`,
+            manualBounds.minMidi === initialBounds.minMidi + 1
+            && manualBounds.maxMidi === initialBounds.maxMidi
+            && afterKeyChange.minMidi === manualBounds.minMidi
+            && afterKeyChange.maxMidi === manualBounds.maxMidi);
+        report.check(`trace Follow key recomputes bounds (${followedBounds.minMidi}-${followedBounds.maxMidi})`,
+            saved.rangeFollowsKey === true
+            && (followedBounds.minMidi !== manualBounds.minMidi || followedBounds.maxMidi !== manualBounds.maxMidi));
+        report.check(`trace rolling window steps down to 2s (${saved.windowMs}ms)`,
+            saved.fixedWindow === true && saved.windowMs === 2000
+            && await tab.textContent('#fixedWindowLabel') === '2s window');
+
+        await tab.reload({ waitUntil: 'networkidle' });
+        await tab.waitForTimeout(800);
+        const restored = await tab.evaluate(() => ({
+            windowMs: window.traceDebug.windowMs(),
+            bounds: window.traceDebug.verticalBounds(),
+            fixed: /** @type {HTMLInputElement} */ (document.getElementById('fixedWindowToggle')).checked
+        }));
+        report.check('trace range and 2s window restore after reload',
+            restored.windowMs === 2000 && restored.fixed
+            && restored.bounds.minMidi === followedBounds.minMidi
+            && restored.bounds.maxMidi === followedBounds.maxMidi);
         await tab.click('#startBtn');
         await tab.waitForTimeout(1200);
         const status = await tab.textContent('#statusReadout');

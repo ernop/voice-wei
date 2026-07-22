@@ -152,20 +152,19 @@ Two mechanisms sit between detection and history:
 
 **The instrument law: the chart draws what was actually sung.** The
 voice line derives only from the sung history. There is no
-rails/target-based discarding, and the chart's vertical range in
-`pitch-trace-view.js` expands to cover the sung trace (held for the
-take - it does not shrink when extremes scroll out of view), so
-off-rails singing (wrong octave, overshoot) draws at its true pitch
-instead of clamping to an edge or vanishing. The exercise sets only the
-chart's FRAME - which rails are drawn as grid lines and how wide the
-time axis is - never the position, color, or visibility of the voice
-line. (This is load-bearing: the singer adjusts by seeing their real
-pitch. A regression test records samples an octave below the rails and
-asserts they stay in the trace.)
+rails/target-based discarding. Shared test panels and Pitch let the
+vertical range expand to cover the sung trace (held for the take - it
+does not shrink when extremes scroll out of view), so wrong-octave
+singing remains visible at its true pitch. Trace deliberately supplies
+an absolute user-selected vertical frame instead: history outside that
+frame remains recorded at its true pitch but is clipped off-screen and
+never changes the zoom. In either mode the frame never clamps, moves, or
+recolors the voice line.
 
 **Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
 everything through provider callbacks: `rails()`, `targets()`,
-`history()`, `clockMs()`, windowing options. Rails come in three tiers:
+`history()`, `clockMs()`, windowing options, and an optional absolute
+`verticalBounds()` frame. Rails come in three tiers:
 emphasized (the core scale, solid green), context (neighbor notes in
 their own sky-blue color - Trace uses this for the 3 scale notes below
 the root and the 3 above the octave), and dimmed (dashed faint green,
@@ -179,9 +178,10 @@ judgment lives in readouts and progress, not in the chart. The view
 does not load `pitch-score.js`.
 
 **Time axis is stable.** Window WIDTH comes from the page (content
-duration, or a 20s toggle) and does not grow with the clock. Growing it
-used to continuously squeeze the whole chart - the classic Trace twitch.
-The playhead always scrolls inside that fixed width.
+duration, or Trace's selected 2-60s rolling width) and does not grow
+with the clock. Growing it used to continuously squeeze the whole chart
+- the classic Trace twitch. The playhead always scrolls inside that
+fixed width.
 
 **Drawing is never throttled.** A scrolling chart stepped at uneven
 intervals reads as twitching (a 50ms gate polled from a 60Hz frame loop
@@ -211,9 +211,10 @@ panel segments incrementally (`PitchScore.createSegmenter`, pulled from
 (`alignSegments`); the phrases take plan is memoized on its input key
 (targets, rails, and duration all read it every tick); the view finds a
 fixed window's visible slice by scanning back from the end of the
-time-ordered history; the view's held vertical range is monotone for a
+time-ordered history; an automatic vertical range is monotone for a
 take, so each frame folds in only the visible slice (a full history
-scan happens once, to seed an empty held range); Trace rebuilds its
+scan happens once, to seed an empty held range), while Trace's fixed
+vertical bounds require no history scan; Trace rebuilds its
 rails/targets/window model only when a setting or the pattern text
 changes and the frame loop just reads it back (no per-frame pattern
 parsing or scale spelling); and the detector stops scanning at the

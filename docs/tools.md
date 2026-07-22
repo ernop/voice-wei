@@ -142,34 +142,37 @@ Layout: the primary controls - Start/Stop, Reset, the key stepper, and
 the scale-type row - are docked directly onto the top of the chart (one
 visual unit, no gap), so the glance-and-tap set is always next to the
 display. The live pitch/status readout docks onto the chart's bottom
-edge. Secondary options (guide interval, guide sound, the window and
-range toggles) sit below that; the pattern input stays above.
+edge. The Low/High note steppers and Follow key toggle sit with the
+chart controls. Secondary options (guide interval, guide sound, and
+rolling-window width) sit below that; the pattern input stays above.
 
 - Start begins listening; Reset clears the trace (and optionally plays the
   typed pattern as guides - off by default).
 - Key/octave/scale draw the scale-degree rails. Rail labels are the bare
   degree number, mirrored on the left AND right edges of the chart.
-- Beyond the core octave the chart always draws six context rails in
-  their own color (sky blue against the scale's green): the 3 scale
-  notes just below the root and the 3 just above the octave - in major,
-  the 5 6 7 below and the 2 3 4 above.
+- With Follow key on, the Low/High frame follows the selected key and
+  scale and includes six context rails in their own color (sky blue
+  against the scale's green): the 3 scale notes just below the root and
+  the 3 just above the octave.
+- Low and High are absolute note bounds. Stepping either one turns
+  Follow key off, allowing the whole chart to zoom into even a
+  two-semitone span. The bounds never react to singing; out-of-range
+  voice remains recorded but is drawn off-screen. Turning Follow key
+  back on restores the key-relative frame.
 - Type degree patterns like `1 2 3 5 3 1` to draw blue target bands; the
   guide interval stepper sets their horizontal spacing. Octave suffixes
   reach outside the home octave: `5d` (or `5v`/`5↓`) is the 5 an octave
   below the root, `2u` (or `2↑`) the 2 an octave above, stackable as
   `5dd`; numbers past the octave keep climbing (`9` = the 2 above).
-  Rails extend automatically to cover every typed target.
+  Targets outside the selected vertical frame stay off-screen.
 - Guide sound: piano (default) or sine beep.
 - Pause on silence (default on): the clock only advances while you sing.
-- 20s window switches to a fixed 20-second scrolling viewport (default is
-  a content-sized scrolling viewport - the width never grows with the
-  clock, which used to squeeze the chart every frame).
-- Expand range adds rails a full octave above and below (the six context
-  rails keep their color inside the expanded range).
-- The chart draws what you actually sing, wherever it lands: the vertical
-  range expands to cover your voice even outside the rails. Guide bands
-  are bare outlines of the hit zone; they do not recolor from scoring
-  (Trace has no scoring). Filtering is voice-physics only, never
+- Window width steps through 2, 5, 10, 15, 20, 30, 45, and 60 seconds;
+  the window toggle enables that scrolling viewport (default is a
+  content-sized scrolling viewport). The width never grows with the
+  clock, which used to squeeze the chart every frame.
+- Guide bands are bare outlines of the hit zone; they do not recolor
+  from scoring (Trace has no scoring). Filtering is voice-physics only, never
   exercise-based: detections outside the singable band (D2-Bb4:
   barbershop bass low up to just above a lead's top) read as silence,
   and a large instant jump must sustain for a few frames to count as

@@ -19,21 +19,27 @@
         playGuidesOnReset: false,
         pauseOnSilence: true,
         fixedWindow: false,
-        expandRange: false
+        windowMs: 20000,
+        rangeLowMidi: 44,
+        rangeHighMidi: 68,
+        rangeFollowsKey: true
     };
 
     const STORAGE_KEY = StorageKeys.TRACE_SETTINGS;
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'guideIntervalMs', 'guideSound',
         'patternText', 'playGuidesOnReset', 'pauseOnSilence', 'fixedWindow',
-        'expandRange'
+        'windowMs', 'rangeLowMidi', 'rangeHighMidi', 'rangeFollowsKey'
     ];
 
+    const WINDOW_VALUES_MS = Object.freeze([2000, 5000, 10000, 15000, 20000, 30000, 45000, 60000]);
     const ADJUSTER_VALUES = {
         // Zero spacing would stack every guide target at t=0.
-        guideIntervalMs: PracticeControls.NOTE_LENGTH_VALUES
+        guideIntervalMs: PracticeControls.NOTE_LENGTH_VALUES,
+        windowMs: WINDOW_VALUES_MS
     };
-    const FIXED_WINDOW_MS = 20000;
+    const CHART_RANGE_MIN_MIDI = 24; // C1
+    const CHART_RANGE_MAX_MIDI = 107; // B7
 
     /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
     let guidePiano = null;
@@ -54,30 +60,41 @@
         return noteNameToMidi(state.root, state.octave);
     }
 
-    // Rails cover the core octave (or the expanded range) plus the
-    // pattern's reach: a 5d target must sit on a labeled rail, not
-    // below the chart. On top of that, the 3 scale notes just below
-    // the root and the 3 just above the octave are always drawn as
-    // context (e.g. 7 6 5 below, 2 3 4 above in major) - flagged so
-    // the view gives them their own color.
-    function chartScaleNotes() {
-        const intervals = parsedPatternEntries().map(entry => entry.interval);
-        let min = state.expandRange ? -12 : 0;
-        let max = state.expandRange ? 24 : 12;
-        if (intervals.length) {
-            min = Math.min(min, ...intervals);
-            max = Math.max(max, ...intervals);
-        }
-        const contextList = [
+    function contextIntervals() {
+        return [
             ...scaleIntervalsInRange(state.scaleType, -12, -1).slice(-3),
             ...scaleIntervalsInRange(state.scaleType, 13, 24).slice(0, 3)
         ];
-        const contextIntervals = new Set(contextList);
-        const lo = Math.min(min, ...contextList);
-        const hi = Math.max(max, ...contextList);
-        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, lo, hi)
-            .filter(note => (note.interval >= min && note.interval <= max) || contextIntervals.has(note.interval))
-            .map(note => ({ ...note, context: contextIntervals.has(note.interval) }));
+    }
+
+    function automaticRangeBounds() {
+        const root = rootMidi();
+        if (root === null) return { minMidi: state.rangeLowMidi, maxMidi: state.rangeHighMidi };
+        const context = contextIntervals();
+        return {
+            minMidi: Math.max(CHART_RANGE_MIN_MIDI, root + Math.min(0, ...context)),
+            maxMidi: Math.min(CHART_RANGE_MAX_MIDI, root + Math.max(12, ...context))
+        };
+    }
+
+    function syncAutomaticRange() {
+        const bounds = automaticRangeBounds();
+        state.rangeLowMidi = bounds.minMidi;
+        state.rangeHighMidi = bounds.maxMidi;
+    }
+
+    // The selected notes are an absolute frame. Scale choice determines
+    // which degree rails appear inside it; targets and sung history never
+    // widen it.
+    function chartScaleNotes() {
+        const root = rootMidi();
+        if (root === null) return [];
+        const context = new Set(contextIntervals());
+        const minInterval = state.rangeLowMidi - root;
+        const maxInterval = state.rangeHighMidi - root;
+        return scaleDegreeNotesInRange(state.root, state.octave, state.scaleType, minInterval, maxInterval)
+            .filter(note => note.midi >= state.rangeLowMidi && note.midi <= state.rangeHighMidi)
+            .map(note => ({ ...note, context: context.has(note.interval) }));
     }
 
     function setStatus(message) {
@@ -174,10 +191,11 @@
         chartModel.targets = buildGuideTargets();
         // Window WIDTH is stable. Growing it with the clock continuously
         // squeezes the whole chart (the classic Trace twitch). The view
-        // scrolls the playhead; this only picks 20s vs content-sized.
+        // scrolls the playhead; this only picks the selected fixed width
+        // vs content-sized.
         const durationMs = chartModel.targets.length * state.guideIntervalMs;
         chartModel.windowMs = state.fixedWindow
-            ? FIXED_WINDOW_MS
+            ? state.windowMs
             : Math.max(8000, durationMs + 1000);
     }
 
@@ -191,6 +209,7 @@
         clockMs: () => session.clockMs(),
         windowMs: () => chartModel.windowMs,
         fixedWindow: () => state.fixedWindow,
+        verticalBounds: () => ({ minMidi: state.rangeLowMidi, maxMidi: state.rangeHighMidi }),
         showPlayhead: () => session.startedAt > 0
     });
 
@@ -280,6 +299,16 @@
             if (key === 'rootPitch') {
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
+            if (key === 'rangeLowMidi') {
+                return delta < 0
+                    ? state.rangeLowMidi <= CHART_RANGE_MIN_MIDI
+                    : state.rangeLowMidi >= state.rangeHighMidi - 1;
+            }
+            if (key === 'rangeHighMidi') {
+                return delta < 0
+                    ? state.rangeHighMidi <= state.rangeLowMidi + 1
+                    : state.rangeHighMidi >= CHART_RANGE_MAX_MIDI;
+            }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
 
@@ -289,15 +318,23 @@
             startBtn.classList.toggle('listening', session.listening);
         }
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
+        PracticeControls.setValueText('rangeLowValue',
+            scaleMidiToPitchString(state.root, state.octave, state.scaleType, state.rangeLowMidi));
+        PracticeControls.setValueText('rangeHighValue',
+            scaleMidiToPitchString(state.root, state.octave, state.scaleType, state.rangeHighMidi));
         PracticeControls.setValueText('guideIntervalValue', PracticeControls.formatSeconds(state.guideIntervalMs));
+        PracticeControls.setValueText('windowValue', PracticeControls.formatSeconds(state.windowMs));
+        PracticeControls.setValueText('fixedWindowLabel',
+            `${PracticeControls.formatSeconds(state.windowMs)} window`);
         PracticeControls.syncToggle('pauseOnSilenceToggle', state.pauseOnSilence);
         PracticeControls.syncToggle('fixedWindowToggle', state.fixedWindow);
-        PracticeControls.syncToggle('expandRangeToggle', state.expandRange);
+        PracticeControls.syncToggle('rangeFollowsKeyToggle', state.rangeFollowsKey);
     }
 
     /** @param {string} key @param {string | number} value */
     function setStateValue(key, value) {
         state[key] = value;
+        if (key === 'scaleType' && state.rangeFollowsKey) syncAutomaticRange();
         saveSettings();
         rebuildChartModel();
         syncControls();
@@ -310,6 +347,7 @@
         const info = midiToNoteName(bounded);
         state.root = info.name;
         state.octave = info.octave;
+        if (state.rangeFollowsKey) syncAutomaticRange();
         saveSettings();
         rebuildChartModel();
         syncControls();
@@ -321,6 +359,30 @@
         if (key === 'rootPitch') {
             const midi = rootMidi();
             if (midi !== null) setRootPitchFromMidi(midi + delta);
+            return;
+        }
+        if (key === 'rangeLowMidi' || key === 'rangeHighMidi') {
+            const next = state[key] + delta;
+            const valid = key === 'rangeLowMidi'
+                ? next >= CHART_RANGE_MIN_MIDI && next < state.rangeHighMidi
+                : next <= CHART_RANGE_MAX_MIDI && next > state.rangeLowMidi;
+            if (!valid) return;
+            state[key] = next;
+            state.rangeFollowsKey = false;
+            saveSettings();
+            rebuildChartModel();
+            syncControls();
+            drawChart(true);
+            return;
+        }
+        if (key === 'windowMs') {
+            const next = PracticeControls.stepValue(WINDOW_VALUES_MS, state.windowMs, delta);
+            if (next === null) return;
+            state.windowMs = next;
+            saveSettings();
+            rebuildChartModel();
+            syncControls();
+            drawChart(true);
             return;
         }
 
@@ -365,10 +427,12 @@
             rebuildChartModel();
             drawChart(true);
         });
-        PracticeControls.wireToggle('expandRangeToggle', state.expandRange, checked => {
-            state.expandRange = checked;
+        PracticeControls.wireToggle('rangeFollowsKeyToggle', state.rangeFollowsKey, checked => {
+            state.rangeFollowsKey = checked;
+            if (checked) syncAutomaticRange();
             saveSettings();
             rebuildChartModel();
+            syncControls();
             drawChart(true);
         });
         window.addEventListener('resize', resizeCanvas);
@@ -380,12 +444,15 @@
 
     async function boot() {
         SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        if (state.rangeFollowsKey) syncAutomaticRange();
         initUI();
         // Named state inspection for the test suite.
         window.traceDebug = {
             patternEntries: parsedPatternEntries,
             guideTargets: buildGuideTargets,
-            rails: chartScaleNotes
+            rails: chartScaleNotes,
+            verticalBounds: () => ({ minMidi: state.rangeLowMidi, maxMidi: state.rangeHighMidi }),
+            windowMs: () => chartModel.windowMs
         };
         guideSine = PianoCore.createSineSynth();
         try {

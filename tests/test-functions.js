@@ -253,18 +253,66 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const entries = window.traceDebug.patternEntries();
             const targets = window.traceDebug.guideTargets();
             const rails = window.traceDebug.rails();
+            const bounds = window.traceDebug.verticalBounds();
             return {
                 intervals: entries.map(entry => entry.interval).join(','),
                 labels: entries.map(entry => entry.label).join(','),
-                targetsOnRails: targets.length === entries.length
-                    && targets.every(target => rails.some(rail => rail.midi === target.midi)),
+                insideTargetsOnRails: targets
+                    .filter(target => target.midi >= bounds.minMidi && target.midi <= bounds.maxMidi)
+                    .every(target => rails.some(rail => rail.midi === target.midi)),
+                outsideTargetsStayOutside: targets
+                    .filter(target => target.midi < bounds.minMidi || target.midi > bounds.maxMidi)
+                    .every(target => !rails.some(rail => rail.midi === target.midi)),
                 labelsMatchTokens: targets.every((target, i) => target.label === entries[i].label)
             };
         });
         report.check(`trace pattern suffixes reach other octaves (${pattern.intervals} | ${pattern.labels})`,
             pattern.intervals === '-5,0,4,12,14,14,-17'
             && pattern.labels === '5d,1,3,8,2u,9,5dd'
-            && pattern.targetsOnRails && pattern.labelsMatchTokens);
+            && pattern.insideTargetsOnRails && pattern.outsideTargetsStayOutside
+            && pattern.labelsMatchTokens);
+
+        const fixedFrame = await tab.evaluate(() => {
+            const canvas = document.createElement('canvas');
+            canvas.id = 'fixedRangeTestCanvas';
+            canvas.width = 400;
+            canvas.height = 240;
+            document.body.appendChild(canvas);
+            const history = [
+                { time: 100, midi: 70, cents: 0 },
+                { time: 200, midi: 70, cents: 0 }
+            ];
+            const view = PitchTraceView.create({
+                canvasId: canvas.id,
+                defaultHeightPx: 240,
+                rails: () => [
+                    { midi: 60, label: '1', emphasized: true },
+                    { midi: 62, label: '2', emphasized: true }
+                ],
+                targets: () => [],
+                history: () => history,
+                clockMs: () => 200,
+                windowMs: () => 2000,
+                verticalBounds: () => ({ minMidi: 60, maxMidi: 62 }),
+                showPlayhead: () => false
+            });
+            const yellowPixels = () => {
+                const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+                let count = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    if (pixels[i] > 220 && pixels[i + 1] > 160 && pixels[i + 2] < 80) count++;
+                }
+                return count;
+            };
+            view.draw();
+            const offscreenYellow = yellowPixels();
+            history[0].midi = 61;
+            history[1].midi = 61;
+            view.draw();
+            return { offscreenYellow, onscreenYellow: yellowPixels() };
+        });
+        report.check(`trace fixed frame clips out-of-range singing (off=${fixedFrame.offscreenYellow}, on=${fixedFrame.onscreenYellow})`,
+            fixedFrame.offscreenYellow === 0 && fixedFrame.onscreenYellow > 0);
         await tab.close();
     }
 

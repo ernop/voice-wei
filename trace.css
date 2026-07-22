@@ -85,6 +85,17 @@
     flex: 1 1 auto;
 }
 
+.trace-range-row {
+    padding-top: 2px;
+}
+
+.trace-range-help {
+    flex: 1 1 220px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
 .trace-chart-wrap {
     overflow: hidden;
     margin-bottom: 0;

@@ -167,6 +167,9 @@ Numeric steppers use an external `vf-label` (or row label) plus
 `step-field-bare` — the label is never boxed inside the green pill.
 The user-facing name for the root-pitch chooser is **Key** on every
 practice page (state keys may still say `root` / `rootPitch`).
+Trace's **Low** and **High** controls use the same semitone pitch-stepper
+surface for chart endpoints; its **Window** stepper is a discrete
+viewport-width picker (2-60s), not a musical note/gap timing control.
 
 Pitch Test / Sing launches from a fixed bottom dock (`.pitch-test-dock`),
 not from the transport row. Transport is playback only

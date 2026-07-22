@@ -41,9 +41,11 @@ page that shows them:
 | noteLengthMs | the time ladder from 0.1s up (a zero-length note is silence) |
 | gapMs | -50%, -10%, -5%, then the full time ladder from 0 |
 
-Every seconds-valued stepper walks the same shared ladder: note length,
-gap, the Phrases section pause (Sect), the Trace guide interval, and the
-Pitch page match window all step through the same numbers.
+Every note/timing stepper walks the same shared ladder: note length, gap,
+the Phrases section pause (Sect), the Trace guide interval, and the Pitch
+page match window all step through the same numbers. Trace's rolling chart
+width is a viewport size rather than musical timing; its broad presets are
+2, 5, 10, 15, 20, 30, 45, and 60 seconds.
 
 Negative gap presets are overlap ratios of the note length (-50% starts
 the next note halfway through the current one); they display as
@@ -175,8 +177,10 @@ meaningful for one configuration).
 | patternText | empty | degree string | redraw |
 | playGuidesOnReset | false | toggle | immediate |
 | pauseOnSilence | true | toggle | immediate + trace reset |
-| fixedWindow | false | toggle | redraw (20s scroll width; off = content-sized scroll width; never grows with clock) |
-| expandRange | false | toggle | redraw |
+| rangeLowMidi / rangeHighMidi | Bb2 / Ab4 for the default key | semitone note steppers, C1..B7; endpoints cannot cross | redraw (sets the absolute vertical frame; sung notes outside it remain recorded but off-screen) |
+| rangeFollowsKey | true | toggle | redraw (on recomputes the bounds from the selected key/scale; stepping either bound turns it off) |
+| windowMs | 20000 | 2, 5, 10, 15, 20, 30, 45, 60 seconds | redraw |
+| fixedWindow | false | toggle | redraw (selected rolling width; off = content-sized scroll width; never grows with clock) |
 
 ## Scales (`scales-settings`)
 
