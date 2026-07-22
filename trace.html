@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Trace - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=278">
-    <link rel="stylesheet" href="practice-controls.css?v=278">
-    <link rel="stylesheet" href="trace.css?v=278">
+    <link rel="stylesheet" href="style.css?v=279">
+    <link rel="stylesheet" href="practice-controls.css?v=279">
+    <link rel="stylesheet" href="trace.css?v=279">
 </head>
 
 <body data-page="trace">
@@ -48,6 +48,25 @@
                         <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                     </div>
                 </div>
+                <div class="trace-controls-row trace-range-row">
+                    <div class="step-field">
+                        <span class="step-label">Low</span>
+                        <button class="step-btn" type="button" data-step-key="rangeLowMidi" data-step-delta="-1" aria-label="Lower bottom note">-</button>
+                        <span class="step-value" id="rangeLowValue">Bb2</span>
+                        <button class="step-btn" type="button" data-step-key="rangeLowMidi" data-step-delta="1" aria-label="Raise bottom note">+</button>
+                    </div>
+                    <div class="step-field">
+                        <span class="step-label">High</span>
+                        <button class="step-btn" type="button" data-step-key="rangeHighMidi" data-step-delta="-1" aria-label="Lower top note">-</button>
+                        <span class="step-value" id="rangeHighValue">Ab4</span>
+                        <button class="step-btn" type="button" data-step-key="rangeHighMidi" data-step-delta="1" aria-label="Raise top note">+</button>
+                    </div>
+                    <label class="display-toggle">
+                        <input type="checkbox" id="rangeFollowsKeyToggle" checked>
+                        <span>Follow key</span>
+                    </label>
+                    <span class="trace-range-help">The vertical frame stays fixed; notes outside it remain off-screen.</span>
+                </div>
                 <div class="vf-options trace-scale-row">
                     <button class="vf-btn" data-scale="major">major</button>
                     <button class="vf-btn" data-scale="minor">minor</button>
@@ -74,6 +93,12 @@
                     <span class="step-value" id="guideIntervalValue">1s</span>
                     <button class="step-btn" type="button" data-step-key="guideIntervalMs" data-step-delta="1" aria-label="Longer guide interval">+</button>
                 </div>
+                <div class="step-field">
+                    <span class="step-label">Window</span>
+                    <button class="step-btn" type="button" data-step-key="windowMs" data-step-delta="-1" aria-label="Narrower time window">-</button>
+                    <span class="step-value" id="windowValue">20s</span>
+                    <button class="step-btn" type="button" data-step-key="windowMs" data-step-delta="1" aria-label="Wider time window">+</button>
+                </div>
                 <div class="vf-options" aria-label="Guide sound">
                     <button class="vf-btn" data-guide-sound="piano">piano guides</button>
                     <button class="vf-btn" data-guide-sound="beep">beep guides</button>
@@ -85,11 +110,7 @@
                     </label>
                     <label class="display-toggle">
                         <input type="checkbox" id="fixedWindowToggle">
-                        <span>20s window</span>
-                    </label>
-                    <label class="display-toggle">
-                        <input type="checkbox" id="expandRangeToggle">
-                        <span>Expand range</span>
+                        <span id="fixedWindowLabel">20s window</span>
                     </label>
                 </div>
             </section>
@@ -102,18 +123,18 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=278"></script>
-    <script src="app-version.js?v=278"></script>
-    <script src="storage-keys.js?v=278"></script>
-    <script src="shared-header.js?v=278"></script>
-    <script src="music-constants.js?v=278"></script>
-    <script src="piano-core.js?v=278"></script>
-    <script src="pitch-detect-core.js?v=278"></script>
-    <script src="pitch-trace-view.js?v=278"></script>
-    <script src="render-throttle.js?v=278"></script>
-    <script src="practice-controls.js?v=278"></script>
-    <script src="settings-store.js?v=278"></script>
-    <script src="trace.js?v=278"></script>
+    <script src="dev-error-monitor.js?v=279"></script>
+    <script src="app-version.js?v=279"></script>
+    <script src="storage-keys.js?v=279"></script>
+    <script src="shared-header.js?v=279"></script>
+    <script src="music-constants.js?v=279"></script>
+    <script src="piano-core.js?v=279"></script>
+    <script src="pitch-detect-core.js?v=279"></script>
+    <script src="pitch-trace-view.js?v=279"></script>
+    <script src="render-throttle.js?v=279"></script>
+    <script src="practice-controls.js?v=279"></script>
+    <script src="settings-store.js?v=279"></script>
+    <script src="trace.js?v=279"></script>
 </body>
 
 </html>

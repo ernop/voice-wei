@@ -66,6 +66,7 @@ const PitchTraceView = (function () {
      *   clockMs: () => number,
      *   windowMs: () => number,
      *   fixedWindow?: () => boolean,
+     *   verticalBounds?: () => { minMidi: number, maxMidi: number },
      *   showPlayhead: () => boolean
      * }} options
      */
@@ -138,7 +139,8 @@ const PitchTraceView = (function () {
             }
 
             const rails = options.rails();
-            if (!rails.length) return;
+            const fixedBounds = options.verticalBounds ? options.verticalBounds() : null;
+            if (!rails.length && !fixedBounds) return;
 
             // Time axis width is STABLE (caller supplies a fixed window
             // size). The window always scrolls with the playhead - never
@@ -161,30 +163,37 @@ const PitchTraceView = (function () {
             const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
             const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
 
-            // Frame from rails; expand to cover what was sung so an
-            // off-rails note draws at its true pitch. Held min/max never
-            // shrink mid-take (avoids vertical bounce when extremes
-            // scroll out of the visible window). Because they are
-            // monotone for the take, only the visible slice needs
-            // scanning per frame - every sample is on screen the frame
-            // it arrives, so it has already been folded in. A full scan
-            // happens once, to seed an empty held range.
-            let minMidi = Infinity;
-            let maxMidi = -Infinity;
-            for (const rail of rails) {
-                if (rail.midi < minMidi) minMidi = rail.midi;
-                if (rail.midi > maxMidi) maxMidi = rail.midi;
-            }
-            if (rawHistory.length) {
-                const scan = heldMinMidi === null ? rawHistory : visibleHistory;
-                for (const point of scan) {
-                    if (point.midi < minMidi) minMidi = point.midi;
-                    if (point.midi > maxMidi) maxMidi = point.midi;
+            let minMidi;
+            let maxMidi;
+            if (fixedBounds) {
+                minMidi = fixedBounds.minMidi;
+                maxMidi = fixedBounds.maxMidi;
+            } else {
+                // Frame from rails; expand to cover what was sung so an
+                // off-rails note draws at its true pitch. Held min/max never
+                // shrink mid-take (avoids vertical bounce when extremes
+                // scroll out of the visible window). Because they are
+                // monotone for the take, only the visible slice needs
+                // scanning per frame - every sample is on screen the frame
+                // it arrives, so it has already been folded in. A full scan
+                // happens once, to seed an empty held range.
+                minMidi = Infinity;
+                maxMidi = -Infinity;
+                for (const rail of rails) {
+                    if (rail.midi < minMidi) minMidi = rail.midi;
+                    if (rail.midi > maxMidi) maxMidi = rail.midi;
                 }
-                if (heldMinMidi === null || minMidi < heldMinMidi) heldMinMidi = minMidi;
-                if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
-                minMidi = /** @type {number} */ (heldMinMidi);
-                maxMidi = /** @type {number} */ (heldMaxMidi);
+                if (rawHistory.length) {
+                    const scan = heldMinMidi === null ? rawHistory : visibleHistory;
+                    for (const point of scan) {
+                        if (point.midi < minMidi) minMidi = point.midi;
+                        if (point.midi > maxMidi) maxMidi = point.midi;
+                    }
+                    if (heldMinMidi === null || minMidi < heldMinMidi) heldMinMidi = minMidi;
+                    if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
+                    minMidi = /** @type {number} */ (heldMinMidi);
+                    maxMidi = /** @type {number} */ (heldMaxMidi);
+                }
             }
             const midiRange = Math.max(maxMidi - minMidi, 1);
 
@@ -241,6 +250,14 @@ const PitchTraceView = (function () {
             ctx.lineTo(width - right, height - bottom);
             ctx.stroke();
 
+            // Chart content is clipped to the selected frame. In a fixed
+            // vertical range, out-of-range singing remains recorded but
+            // cannot spill into the axis gutters.
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, graphWidth, graphHeight);
+            ctx.clip();
+
             // Labels have no layout engine: keep a per-row cursor so a
             // wide label on a narrow span is skipped instead of colliding.
             ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
@@ -250,6 +267,7 @@ const PitchTraceView = (function () {
             const pxPerMidi = graphHeight / midiRange;
             const bandHalfPx = Math.max(3, (BAND_CENTS / 100) * pxPerMidi);
             options.targets().forEach(target => {
+                if (target.endMs < windowStart || target.startMs > windowStart + timeWindow) return;
                 const y = midiToY(target.midi);
                 const x1 = timeToX(target.startMs);
                 const x2 = timeToX(target.endMs);
@@ -306,6 +324,7 @@ const PitchTraceView = (function () {
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
+            ctx.restore();
         }
 
         return { resize, draw, resetVerticalRange };
