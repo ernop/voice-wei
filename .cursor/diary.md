@@ -4,6 +4,50 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-23 (music search picks the studio recording; live audit harness)
+
+**Context**: Yui reported the Music tool returning live versions "so
+often" and badly mapped lyrics, test case: every track of the first two
+Fleet Foxes albums via GPT-5.5. Reproduced against live Piped before
+editing anything: "Lorelai" picked "Isles (Official Audio)" (a different
+song), "Helplessness Blues" picked the "(Solstice Version)" live
+re-recording, and the embed-failure alternates were stocked with wrong
+songs.
+
+**Root cause (design level)**: two faults, one per layer.
+`scoreVideoCandidate` never asked whether a result IS the requested song
+- it scored version markers and channel signals only, so an artist's
+official upload of any song could outrank the right track. And the
+strongest studio signal in the data (YouTube auto-generated album
+tracks) was dropped at the proxy boundary: Piped strips " - Topic" from
+uploader names, so the client's Topic bonus never fired on the primary
+search path.
+
+**Fix (v280)**: proxy.php emits `isAlbumTrack` (detects "Provided to
+YouTube by" descriptions / " - Topic" uploaders per source); ranking
+requires the song name in the title, rewards album tracks, penalizes
+leftover title words (concert dates, venues, renames); alternates keep
+only candidates passing the same same-recording bar. All 22 test tracks
+now pick the album track or official video with correct timed lyrics.
+
+**For future mei**:
+- `tests/audit-search-live.js` reruns this whole investigation in one
+  command against a local or the production proxy - use it for any
+  wrong-version / wrong-lyrics report before touching code.
+- "Wrong lyrics" complaints are usually wrong VIDEOS: the lyric matcher
+  keys off the AI-provided name/artist, so a wrong-song pick pairs
+  correct lyrics with the wrong recording.
+- The proxy-boundary lesson is now a rule (05-data-handling): when a
+  downstream heuristic underperforms, first ask what signal the
+  normalization boundary threw away.
+- Piped supports `filter=music_songs` (YouTube Music catalog = studio
+  recordings by construction). Deliberately NOT adopted: Piped-only, and
+  cannot serve explicitly requested live/cover versions alone. A merged
+  second upstream source would improve recall for obscure songs; ask yui
+  before building it.
+
+---
+
 ## 2026-07-17 (per-song lyric offset via ff/rew lyrics)
 
 **Changed**: Sticky transport seek row gained **rew lyrics** / **ff lyrics**

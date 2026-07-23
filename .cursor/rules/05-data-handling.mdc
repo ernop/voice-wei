@@ -20,6 +20,16 @@ Complex data deserves a proper data type. Never encode meaning in implicit prope
 - Having something configured does NOT mean data exists; check manifests separately.
 - Never re-compute or re-extract data already normalized upstream.
 
+## Normalization Boundaries Must Pass Signals Through
+A layer that normalizes multiple upstream shapes into one (e.g. `proxy.php`
+merging Piped/Invidious search results) must carry every decision-relevant
+signal across, translating provider-specific encodings into one named field.
+Dropping a field at the boundary silently starves every downstream decision:
+the music player could not recognize studio album tracks because the proxy
+discarded the description/uploader signals that identified them. When a
+downstream heuristic underperforms, first ask what signal the boundary threw
+away.
+
 ## Error Reporting
 Every failure must print:
 - Reason
