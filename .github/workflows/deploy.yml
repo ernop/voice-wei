@@ -22,6 +22,9 @@ permissions:
 # (and cache it) below.
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  # GitHub's Ubuntu image already ships current stable Chrome. The test helper
+  # accepts this explicit path, so deploys need no second browser payload.
+  CHROME_PATH: /usr/bin/google-chrome
 
 jobs:
   # Gates + rsync. Site is live when this job finishes.
@@ -49,20 +52,6 @@ jobs:
       - name: Install npm deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install --no-audit --no-fund
-
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
-
-      # A cache hit already contains the exact package.json-pinned browser.
-      # Running `playwright install` again on every warm deploy cost four
-      # seconds without changing anything.
-      - name: Install Playwright Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
 
       # These gates are independent readers of the checkout. Running them
       # together keeps the browser suite as the critical path while preserving
