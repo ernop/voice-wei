@@ -456,8 +456,9 @@ first read.
 
 ### Other storage
 
-Books large files: IndexedDB (`voice-wei-books`), not localStorage.
-Log panel contents: DOM-only, not persisted.
+Books large files: IndexedDB (`voice-wei-books`), not localStorage. The Books
+Log is DOM-only. The Music Log is persisted in its dedicated IndexedDB as
+described under Music player durable history.
 
 Scored practice persists via `progress-store.js` → `PRACTICE_PROGRESS`.
 
@@ -647,6 +648,26 @@ that mirror the library - `songs`, `lyricStates`, `songReports` - and the re-fet
 silent partial coverage (some songs with state, some without), and the
 library itself is their natural bound. IndexedDB quota is GB-scale;
 record counts are not the risk.
+
+The Music Log DOM is a current-session projection, not an automatic replay of
+the store. Opening the panel performs no database read. **Show Previous**
+explicitly reads the whole capped `logs` store, filters out records from the
+current page session, and prepends the remaining records once. This keeps the
+ordinary diagnostic view relevant while preserving access to all retained
+history.
+
+Song-report generation has one provider-independent boundary:
+`requestSongReportResearch(prompt)` returns `{ text, provider, model }`.
+Provider-specific response envelopes are logged in full and normalized at that
+boundary; `text` must be one continuous plain-prose response with no structural
+markup. `segmentSongReport` then owns the only derived representation: it
+collapses whitespace and splits at punctuation or word boundaries, hard-capped
+at 50 characters. The raw prose and derived lines are saved together before
+Report mode activates. A missing report is therefore not a disabled state:
+selecting Story Report checks IndexedDB, requests only if absent, displays the
+send/wait/result lifecycle with elapsed time, and anchors line one at the
+current playback time after the awaited save. Every transition is written
+through the durable Music Log path.
 
 ## External resilience vs. internal fallbacks
 

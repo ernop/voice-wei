@@ -320,22 +320,29 @@ exact timed time. Big Lyrics closes with Escape. If playback advances to
 another song while Big Lyrics remains open, the new lyrics begin at the top
 instead of retaining the prior song's scroll position.
 
-**Song Report** is the alternative second-line accompaniment. Press **Request
-Song Report** for the selected or sounding song: the currently selected AI
-provider/model researches the web and writes a positive, fact-grounded
-companion from the interesting material it finds—literary interpretation,
-writing and recording choices, personal and band history, well-supported
-relationship stories, places and references, business and chart history,
-reception, and influence. Empty or uninteresting categories are omitted, and
-the report paraphrases rather than reproducing lyrics. The request does not
-pause, seek, or restart the song. When it returns, the prose is saved by
-`videoId`, wrapped into lines no longer than 50 characters, and starts at line
-one immediately. The **Every** stepper chooses 3–30 seconds per line.
-**Identity / Story Report** chooses the second line: identity keeps
-`year - artist - song`, while Story Report advances the saved text. Timed
-lyrics continue independently on the first line. Artwork and YouTube position
-remain the same. A replay starts the saved report from line one without
-another AI call.
+**Song Report** is the alternative second-line accompaniment. Press **Story
+Report** for the selected or sounding song. If that song has a saved report,
+it starts immediately; if not, the same button requests one from the selected
+AI provider/model. **Request Song Report** remains the explicit refresh action.
+While research is in flight, both buttons show the sending/waiting phase and
+the elapsed wait. On return, the Story Report button and adjacent status name
+the returned character/line counts, provider/model, elapsed time, and active
+playback interval.
+
+The model researches the web and returns exactly one continuous plain-text
+prose block: no JSON, Markdown, headings, bullets, labels, citations, source
+list, or prefatory text. The browser normalizes whitespace, then repeatedly
+splits at nearby punctuation when possible, otherwise at a word boundary, with
+a hard 50-character maximum. It saves both the untouched returned prose and
+the derived lines by `videoId`, switches to Report mode, anchors line one at
+the current media time, and starts advancing immediately. The **Every**
+stepper chooses 3–30 seconds per line. **Identity / Story Report** chooses the
+second line: Identity keeps `year - artist - song`, while Story Report advances
+the saved text. Timed lyrics continue independently on the first line.
+Artwork and YouTube position remain the same. A replay starts the saved report
+from line one without another AI call. The Log records the request body,
+waiting lifecycle, complete provider response, normalized prose, split lines,
+save, and playback start or failure.
 
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric-title writes retain those
@@ -397,6 +404,9 @@ Other surfaces on the page:
   search as the playlist filter, with per-row Load buttons and a "Load
   All Shown" button that loads every matching song into the working
   playlist.
+- **Log** opens with only lines from the current page session. **Show
+  Previous** explicitly prepends every earlier-session line still retained by
+  the 5,000-line IndexedDB log store; opening Log alone never loads history.
 - **Song Library** toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
   browser, and plays their melodies on the shared piano. Public-domain
