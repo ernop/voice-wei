@@ -20,11 +20,14 @@ permissions:
 
 # Skip Playwright postinstall browser download; we install Chromium explicitly
 # (and cache it) below.
+#
+# Deliberately NOT the image's hosted Chrome: the Lyrics startup gate is a
+# calibrated 1000ms wall-clock contract, and system Chrome starts ~560ms
+# slower here than cached Playwright Chromium (832ms vs 271ms measured on
+# 2026-07-24), leaving no honest headroom. The gate's integrity outranks the
+# seconds a browserless deploy saves.
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-  # GitHub's Ubuntu image already ships current stable Chrome. The test helper
-  # accepts this explicit path, so deploys need no second browser payload.
-  CHROME_PATH: /usr/bin/google-chrome
 
 jobs:
   # Gates + rsync. Site is live when this job finishes.
@@ -52,6 +55,18 @@ jobs:
       - name: Install npm deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install --no-audit --no-fund
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # A cache hit already contains the exact package.json-pinned browser.
+      - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
 
       # Typecheck and lint are independent readers and run together. The
       # browser suite runs AFTER them, alone: it contains the Lyrics startup
