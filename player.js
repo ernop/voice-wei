@@ -293,10 +293,19 @@ class VoiceMusicController {
                 .filter(phase => phase.name !== 'application initialization')
                 .map(phase => `${phase.name} ${phase.durationMs.toFixed(1)}ms`)
                 .join('; ');
+            const navigation = report.navigation;
+            const transferredKb = report.resources
+                .reduce((total, resource) => total + resource.transferBytes, 0) / 1024;
             this.addMessage(
                 report.withinBudget ? 'claude' : 'error',
                 'Startup',
-                `Ready in ${report.readyAtMs.toFixed(1)}ms / ${report.budgetMs}ms. ${phaseSummary}`
+                `Ready in ${report.readyAtMs.toFixed(1)}ms / ${report.budgetMs}ms. `
+                + `Server ${navigation.serverResponseMs.toFixed(1)}ms; `
+                + `HTML ${navigation.documentDownloadMs.toFixed(1)}ms; `
+                + `parse/blocking resources ${navigation.parseAndBlockingResourcesMs.toFixed(1)}ms; `
+                + `DOMContentLoaded handlers ${navigation.domContentLoadedHandlersMs.toFixed(1)}ms; `
+                + `app/paint ${navigation.appAfterDomContentLoadedMs.toFixed(1)}ms; `
+                + `transferred ${transferredKb.toFixed(1)}KB. ${phaseSummary}`
             );
         } catch (error) {
             this.logError('Initialization error', error);
