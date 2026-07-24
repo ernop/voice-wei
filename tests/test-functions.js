@@ -3711,6 +3711,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             PlayerSongReport.install(requestHarness);
             requestHarness.loadSongReportForItem = async () => null;
+            requestHarness.updateSongReportControls();
+            const idleLabel = document.getElementById('songDisplayReportBtn')?.textContent || '';
 
             const originalActivate = controller.activateSongReport;
             let activationPromise = Promise.resolve();
@@ -3770,7 +3772,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 requests,
                 commandLogs,
                 controls,
-                requestLifecycle: { waiting, completed }
+                requestLifecycle: { idleLabel, waiting, completed }
             };
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
@@ -3820,6 +3822,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.controls.afterDown === '8s'
             && songReport.controls.noReportFallsBackToIdentity);
         const requestLifecycle = songReport.requestLifecycle;
+        report.check('Song Report is the consistent user-facing mode name',
+            requestLifecycle.idleLabel === 'Song Report');
         report.check('Song Report requests a missing report and displays elapsed wait state in both buttons',
             requestLifecycle.waiting.reportButton === 'Waiting 3s'
             && requestLifecycle.waiting.requestButton === 'Waiting 3s'
