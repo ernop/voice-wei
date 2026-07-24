@@ -346,9 +346,9 @@ async function seedFrontMatterBook(page) {
     {
         const page = await browser.newPage({ viewport: { width: 460, height: 900 } });
         collectErrors(page, 'books-library', report.errors);
-        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
 
         for (const [index, name] of ['one', 'two'].entries()) {
             await page.setInputFiles('#fileInput', {
@@ -453,9 +453,9 @@ async function seedFrontMatterBook(page) {
     {
         const page = await browser.newPage();
         collectErrors(page, 'books-sentence-boundaries', report.errors);
-        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         const hardWrappedSentence = `${'This sentence continues across a visual line wrap without ending\n'.repeat(56)}and finally ends here."`;
         const following = ` Second sentence begins cleanly. ${'More ordinary prose follows. '.repeat(80)}`;
         const sourceText = [
@@ -574,7 +574,7 @@ async function seedFrontMatterBook(page) {
             });
             db.close();
         });
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await page.click('.saved-book-item[data-book-id]');
         await page.waitForFunction(() => document.querySelector('#status')?.textContent?.includes('sentence-safe boundaries'));
         const migratedState = await page.evaluate(async () => {
@@ -627,12 +627,12 @@ async function seedFrontMatterBook(page) {
                 }
             };
         });
-        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await seedGeneratedBook(page);
         await seedSecondGeneratedBook(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await page.click('.saved-book-item[data-book-id="book-suite-generated"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
@@ -1101,7 +1101,7 @@ async function seedFrontMatterBook(page) {
         report.check('books chapter-list chunk click plays immediately',
             chunkClickPlay.segmentId === 'seg-b0'
             && chunkClickPlay.playCalls.filter(id => id === 'seg-b0').length >= 2);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await page.click('.saved-book-item[data-book-id="book-suite-generated"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.click('.ai-research-history > summary');
@@ -1122,11 +1122,11 @@ async function seedFrontMatterBook(page) {
         const page = await browser.newPage();
         collectErrors(page, 'books-duration-enqueue', report.errors);
         await page.addInitScript(() => localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite'));
-        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await seedGapBook(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await page.click('.saved-book-item[data-book-id="book-suite-gap"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
@@ -1170,11 +1170,11 @@ async function seedFrontMatterBook(page) {
     {
         const page = await browser.newPage();
         collectErrors(page, 'books-front-matter', report.errors);
-        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await seedFrontMatterBook(page);
-        await page.reload({ waitUntil: 'networkidle' });
+        await page.reload({ waitUntil: 'load' });
         await page.click('.saved-book-item[data-book-id="book-suite-front-matter"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
         await page.evaluate(() => {
