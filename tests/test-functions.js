@@ -3575,7 +3575,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const stored = await window.PlayerHistoryDB.getSongReport(item.videoId);
 
             harness.settings.songDisplayMode = 'lyrics';
-            const lyricsAgain = snap(1);
+            const lyricsAgain = snap(3);
             MediaSessionCore.clearTrack();
             return {
                 lines,
