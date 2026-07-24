@@ -315,6 +315,22 @@ near the moment the line starts; the on-screen highlight stays on the
 exact timed time. Big Lyrics closes with Escape. If playback advances to
 another song while Big Lyrics remains open, the new lyrics begin at the top
 instead of retaining the prior song's scroll position.
+
+**Song Report** is the alternative first-line accompaniment. Press **Request
+Song Report** for the selected or sounding song: the currently selected AI
+provider/model researches the web and writes a positive, fact-grounded
+companion from the interesting material it finds—literary interpretation,
+writing and recording choices, personal and band history, well-supported
+relationship stories, places and references, business and chart history,
+reception, and influence. Empty or uninteresting categories are omitted, and
+the report paraphrases rather than reproducing lyrics. The request does not
+pause, seek, or restart the song. When it returns, the prose is saved by
+`videoId`, wrapped into lines no longer than 50 characters, and starts at line
+one immediately. The **Every** stepper chooses 3–30 seconds per line. The
+**Lyrics / Report** buttons switch the changing first line; the stable
+`year - artist - song` second line, artwork, and YouTube position remain the
+same. A replay starts the saved report from line one without another AI call.
+
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric-title writes retain those
 fields and reassert the same position, so a new lyric remains the same

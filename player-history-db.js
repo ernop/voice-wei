@@ -4,12 +4,13 @@
 // Persistence principles this module enforces:
 // - One owner per concept. IndexedDB owns unbounded/historical data: the log,
 //   lookup history, the known-songs catalog, the YouTube-search cache, the
-//   append-only favorite-event audit, and per-song lyric states. The
+//   append-only favorite-event audit, per-song lyric states, and generated
+//   song reports. The
 //   authoritative favorites SET lives in localStorage (PlayerStorage); this
 //   module never stores a second copy of it.
 // - Time-streams are capped, library entities are not. Event streams (logs,
 //   lookups, favorite events) grow with time, so they carry caps and trim
-//   loudly. Stores that mirror the LIBRARY (songs, lyric states) are never
+//   loudly. Stores that mirror the LIBRARY (songs, lyric states, reports) are never
 //   capped: trimming them would mean partial coverage - some songs with
 //   state, some silently without - and the library itself is their natural
 //   bound. IndexedDB quota is GB-scale; record counts are not the risk.
@@ -25,7 +26,9 @@ const PlayerHistoryDB = (function () {
     // answered "none" with when it was checked).
     // v4 adds `librarySongs`: imported MIDI/MusicXML songs with their full
     // note arrays - far too bulky for the ~5MB localStorage quota.
-    const DB_VERSION = 4;
+    // v5 adds `songReports`: generated listening companions, keyed by the
+    // same stable videoId as lyrics so an expensive report survives replay.
+    const DB_VERSION = 5;
     const LEGACY_FAVORITES_STORE = 'favorites';
     const STORES = Object.freeze({
         LOGS: 'logs',
@@ -34,7 +37,8 @@ const PlayerHistoryDB = (function () {
         YOUTUBE_SEARCHES: 'youtubeSearches',
         FAVORITE_EVENTS: 'favoriteEvents',
         LYRIC_STATES: 'lyricStates',
-        LIBRARY_SONGS: 'librarySongs'
+        LIBRARY_SONGS: 'librarySongs',
+        SONG_REPORTS: 'songReports'
     });
 
     // Caps for TIME-STREAM stores only (they grow with use, forever). When
@@ -114,6 +118,10 @@ const PlayerHistoryDB = (function () {
                 if (!db.objectStoreNames.contains(STORES.LIBRARY_SONGS)) {
                     const store = db.createObjectStore(STORES.LIBRARY_SONGS, { keyPath: 'id' });
                     store.createIndex('importedAt', 'importedAt');
+                }
+                if (!db.objectStoreNames.contains(STORES.SONG_REPORTS)) {
+                    const store = db.createObjectStore(STORES.SONG_REPORTS, { keyPath: 'videoId' });
+                    store.createIndex('generatedAt', 'generatedAt');
                 }
             };
             request.onsuccess = () => resolve(request.result);
@@ -329,6 +337,25 @@ const PlayerHistoryDB = (function () {
     }
 
     /**
+     * Persist a generated song report. Reports mirror the song library and
+     * have no cap; regeneration deliberately replaces the prior report for
+     * that videoId.
+     * @param {SongReportRecord} record
+     */
+    async function putSongReport(record) {
+        if (!record || !record.videoId) {
+            throw new Error('putSongReport requires a videoId');
+        }
+        await put(STORES.SONG_REPORTS, record);
+    }
+
+    /** @param {string} videoId @returns {Promise<SongReportRecord | null>} */
+    async function getSongReport(videoId) {
+        if (!videoId) return null;
+        return (await get(STORES.SONG_REPORTS, videoId)) || null;
+    }
+
+    /**
      * Persist one imported library song (full note array included). No cap:
      * a library entity, naturally bounded by what the user imports.
      * @param {SongLibrarySong} song
@@ -376,6 +403,8 @@ const PlayerHistoryDB = (function () {
         recordFavorite,
         putLyricState,
         getLyricState,
+        putSongReport,
+        getSongReport,
         putLibrarySong,
         listLibrarySongs
     };

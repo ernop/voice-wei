@@ -58,6 +58,7 @@ interface Window {
     PlayerCommands?: typeof PlayerCommands;
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerLyrics?: typeof PlayerLyrics;
+    PlayerSongReport?: typeof PlayerSongReport;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
     PlayerSongs?: typeof PlayerSongs;

@@ -68,6 +68,7 @@ existing doc or deleted - never left dangling.
 | Doc | What it holds |
 |-----|---------------|
 | [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, representation law, typed contracts, engine rules, persistence, testing, deploy |
+| [docs/media-session-lyrics-design.md](docs/media-session-lyrics-design.md) | Contract for changing lyrics/song reports over stable Media Session track identity |
 | [docs/controls.md](docs/controls.md) | Button/control class inventory across all pages + the unification plan (music UI first) |
 | [docs/tools.md](docs/tools.md) | Per-tab usage reference |
 | [docs/parameters.md](docs/parameters.md) | Every setting on every page: values, defaults, change behavior |

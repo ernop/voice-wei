@@ -1460,6 +1460,33 @@ h1 {
     overflow-wrap: anywhere;
 }
 
+.song-report-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.song-report-controls .primary-btn,
+.song-report-controls .vf-btn,
+.song-report-controls .step-btn {
+    min-height: 44px;
+}
+
+.song-report-interval {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.song-report-status {
+    flex: 1 1 170px;
+    color: #a7f3d0;
+    font-size: 0.76rem;
+    line-height: 1.2;
+}
+
 .transport-bar-song-nav,
 .transport-bar-seek {
     display: flex;

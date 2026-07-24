@@ -9,8 +9,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Lyrics - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=284">
-    <link rel="stylesheet" href="practice-controls.css?v=284">
+    <link rel="stylesheet" href="style.css?v=285">
+    <link rel="stylesheet" href="practice-controls.css?v=285">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -70,10 +70,10 @@
             <div class="setting-item">
                 <label class="display-toggle">
                     <input type="checkbox" id="lyricsOnNowPlayingToggle" checked />
-                    <span>Show current lyric on car / lock-screen display</span>
+                    <span>Show listening text on car / lock-screen display</span>
                 </label>
-                <p class="setting-description">While a song with timed lyrics plays, the now-playing title (what
-                    Bluetooth and the tab show) is the current lyric line.</p>
+                <p class="setting-description">The now-playing title (what Bluetooth and the tab show) follows
+                    either timed lyrics or the active song report.</p>
             </div>
             <div class="setting-item">
                 <label class="display-toggle">
@@ -176,6 +176,25 @@
                         aria-label="Open large lyrics overlay">Big Lyrics</button>
                     <button class="transport-bar-info" id="transportBarInfo" type="button"
                         aria-label="Scroll to the current song in the playlist">No song playing</button>
+                </div>
+                <div class="song-report-controls">
+                    <button id="requestSongReportBtn" class="primary-btn" type="button">Request Song Report</button>
+                    <div class="segment-row" aria-label="Listening text">
+                        <button id="songDisplayLyricsBtn" class="vf-btn" type="button" aria-pressed="true">Lyrics</button>
+                        <button id="songDisplayReportBtn" class="vf-btn" type="button" aria-pressed="false" disabled>Report</button>
+                    </div>
+                    <div class="song-report-interval">
+                        <span class="vf-label">Every</span>
+                        <div class="step-field step-field-bare">
+                            <button id="songReportIntervalDownBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for less time">-</button>
+                            <output id="songReportIntervalValue" class="step-value"
+                                aria-label="Seconds per report line">8s</output>
+                            <button id="songReportIntervalUpBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for more time">+</button>
+                        </div>
+                    </div>
+                    <span id="songReportStatus" class="song-report-status">No saved report for this song</span>
                 </div>
                 <div class="transport-bar-seek">
                     <button id="transportBack30Btn" class="transport-bar-btn" aria-label="Back 30 seconds">-30</button>
@@ -400,30 +419,31 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=284"></script>
-    <script src="app-version.js?v=284"></script>
-    <script src="storage-keys.js?v=284"></script>
-    <script src="shared-header.js?v=284"></script>
-    <script src="settings-store.js?v=284"></script>
-    <script src="music-constants.js?v=284"></script>
-    <script src="piano-core.js?v=284"></script>
-    <script src="api-keys-store.js?v=284"></script>
-    <script src="render-throttle.js?v=284"></script>
-    <script src="practice-controls.js?v=284"></script>
-    <script src="voice-output.js?v=284"></script>
-    <script src="voice-command-core.js?v=284"></script>
-    <script src="media-session-core.js?v=284"></script>
-    <script src="player-songs.js?v=284"></script>
-    <script src="player-storage.js?v=284"></script>
-    <script src="player-playback-state.js?v=284"></script>
-    <script src="player-history-db.js?v=284"></script>
-    <script src="player-api-keys.js?v=284"></script>
-    <script src="player-commands.js?v=284"></script>
-    <script src="player-playlist.js?v=284"></script>
-    <script src="player-lyrics.js?v=284"></script>
-    <script src="player-song-library.js?v=284"></script>
-    <script src="player-history-ui.js?v=284"></script>
-    <script src="player.js?v=284"></script>
+    <script src="dev-error-monitor.js?v=285"></script>
+    <script src="app-version.js?v=285"></script>
+    <script src="storage-keys.js?v=285"></script>
+    <script src="shared-header.js?v=285"></script>
+    <script src="settings-store.js?v=285"></script>
+    <script src="music-constants.js?v=285"></script>
+    <script src="piano-core.js?v=285"></script>
+    <script src="api-keys-store.js?v=285"></script>
+    <script src="render-throttle.js?v=285"></script>
+    <script src="practice-controls.js?v=285"></script>
+    <script src="voice-output.js?v=285"></script>
+    <script src="voice-command-core.js?v=285"></script>
+    <script src="media-session-core.js?v=285"></script>
+    <script src="player-songs.js?v=285"></script>
+    <script src="player-storage.js?v=285"></script>
+    <script src="player-playback-state.js?v=285"></script>
+    <script src="player-history-db.js?v=285"></script>
+    <script src="player-api-keys.js?v=285"></script>
+    <script src="player-commands.js?v=285"></script>
+    <script src="player-playlist.js?v=285"></script>
+    <script src="player-lyrics.js?v=285"></script>
+    <script src="player-song-report.js?v=285"></script>
+    <script src="player-song-library.js?v=285"></script>
+    <script src="player-history-ui.js?v=285"></script>
+    <script src="player.js?v=285"></script>
 </body>
 
 </html>

@@ -116,6 +116,15 @@ checked against this list, and new standing intent gets added here.
    so; key-level provider failures (spend/rate limits, billing) show a
    persistent banner naming the provider and where to fix it; the exact
    model in use is named at request time and choosable per query.
+8. **A song can carry a researched listening companion.** On request, the
+   selected AI model researches the sounding song and writes a positive,
+   fact-grounded report spanning literary interpretation, recording and band
+   history, relationships, places and references, business, reception, and
+   influence wherever the material is worthwhile. It never reproduces lyrics
+   or fills missing categories. The report replaces the lyric on the changing
+   first display line, advances at the chosen reading interval, leaves the
+   stable song-identity second line and audio untouched, persists by video,
+   and starts again when that song replays.
 
 ## Current priorities (deduplicated from the idea pool)
 
