@@ -266,6 +266,7 @@ interface PlayerPlaybackDiagnosticSnapshot {
     positionSeconds: number | null;
     youtubeState: number | null;
     mediaSessionState: MediaSessionPlaybackState | 'unavailable';
+    keepAlive: 'absent' | 'playing' | 'paused';
 }
 
 interface PlayerLifecycleMemorySnapshot {
@@ -293,6 +294,7 @@ interface PlayerLifecycleBreadcrumb {
 interface PlayerLifecycleApi {
     start(controller: VoiceMusicController, reporter: (text: string) => void): void;
     recordIntent(intent: string): void;
+    recordHeartbeat(): void;
     recordYouTubeReady(): void;
     recordYouTubeState(state: number): void;
     recordYouTubeError(code: number | string): void;

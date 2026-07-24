@@ -94,6 +94,21 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         && pausedUnderPlaying.stored.playback.positionSeconds === 42.5
         && pausedUnderPlaying.diagnostic.includes('youtube=paused(2)'));
 
+    const heartbeatEvidence = await tab.evaluate(() => {
+        const logLinesBefore = document.querySelectorAll('#logContent .log-line').length;
+        PlayerLifecycle.recordHeartbeat();
+        const stored = SettingsStore.peekData(StorageKeys.PLAYER_LIFECYCLE);
+        return {
+            stored,
+            addedLogLines: document.querySelectorAll('#logContent .log-line').length - logLinesBefore
+        };
+    });
+    report.check('heartbeat refreshes the durable breadcrumb without flooding the Log',
+        heartbeatEvidence.stored?.event === 'heartbeat'
+        && heartbeatEvidence.stored.playback.positionSeconds === 42.5
+        && heartbeatEvidence.stored.playback.keepAlive === 'absent'
+        && heartbeatEvidence.addedLogLines === 0);
+
     const pagehideEvidence = await tab.evaluate(() => {
         window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
         return SettingsStore.peekData(StorageKeys.PLAYER_LIFECYCLE);

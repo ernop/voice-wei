@@ -176,6 +176,7 @@ interface MediaSessionCoreApi {
     clearTrack(): void;
     setPlaybackState(state: MediaSessionPlaybackState): void;
     getPlaybackState(): MediaSessionPlaybackState | 'unavailable';
+    getKeepAliveState(): 'absent' | 'playing' | 'paused';
 }
 
 // -----------------------------------------------------------------------

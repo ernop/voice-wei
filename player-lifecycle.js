@@ -10,6 +10,12 @@
 const PlayerLifecycle = (function () {
     'use strict';
 
+    // Fresh-enough for a post-mortem, cheap enough to run always. Audible
+    // tabs are exempt from background timer throttling, so while music
+    // actually plays the beat stays on schedule; once sound stops, later
+    // beats may arrive minutes apart, which is itself evidence.
+    const HEARTBEAT_MS = 15000;
+
     /** @type {Readonly<Record<string, string>>} */
     const YOUTUBE_STATE_NAMES = Object.freeze({
         '-1': 'unstarted',
@@ -69,7 +75,8 @@ const PlayerLifecycle = (function () {
                 videoId: '',
                 positionSeconds: null,
                 youtubeState: null,
-                mediaSessionState: 'unavailable'
+                mediaSessionState: 'unavailable',
+                keepAlive: 'absent'
             };
         }
 
@@ -93,7 +100,8 @@ const PlayerLifecycle = (function () {
             videoId: playback.activeVideoId,
             positionSeconds,
             youtubeState,
-            mediaSessionState: MediaSessionCore.getPlaybackState()
+            mediaSessionState: MediaSessionCore.getPlaybackState(),
+            keepAlive: MediaSessionCore.getKeepAliveState()
         };
     }
 
@@ -134,8 +142,10 @@ const PlayerLifecycle = (function () {
     /**
      * @param {string} event
      * @param {Record<string, string | number | boolean | null>} [detail]
+     * @param {{ silent?: boolean }} [options] silent updates the durable
+     *   breadcrumb without a Log line (heartbeats would flood the panel)
      */
-    function record(event, detail = {}) {
+    function record(event, detail = {}, options = {}) {
         if (!started) return;
         const playback = playbackSnapshot();
         const breadcrumb = {
@@ -167,6 +177,7 @@ const PlayerLifecycle = (function () {
             `app=${playback.appStatus}`,
             `youtube=${youtubeStateName(playback.youtubeState)}(${playback.youtubeState ?? 'n/a'})`,
             `mediaSession=${playback.mediaSessionState}`,
+            `keepAlive=${playback.keepAlive}`,
             `video=${playback.videoId || 'none'}`,
             `position=${position}`,
             `network=${breadcrumb.network}`,
@@ -176,7 +187,20 @@ const PlayerLifecycle = (function () {
             details
         ].filter(Boolean).join('; ');
         console.info(`[playback diagnostic] ${text}`);
-        if (report) report(text);
+        if (report && !options.silent) report(text);
+    }
+
+    /**
+     * Refresh the durable last-known-alive record. After an unannounced
+     * renderer kill, the gap between this timestamp and the return visit
+     * bounds when playback actually died; the frozen-or-advancing position
+     * across consecutive beats shows whether sound survived hiding.
+     */
+    function recordHeartbeat() {
+        if (!controller) return;
+        const status = controller.playback.status;
+        if (status !== 'playing' && status !== 'paused') return;
+        record('heartbeat', {}, { silent: true });
     }
 
     function previousDescription() {
@@ -229,6 +253,8 @@ const PlayerLifecycle = (function () {
         });
         window.addEventListener('offline', () => record('network-offline'));
         window.addEventListener('online', () => record('network-online'));
+
+        setInterval(recordHeartbeat, HEARTBEAT_MS);
     }
 
     /** @param {string} intent */
@@ -256,6 +282,7 @@ const PlayerLifecycle = (function () {
     return {
         start,
         recordIntent,
+        recordHeartbeat,
         recordYouTubeReady,
         recordYouTubeState,
         recordYouTubeError,

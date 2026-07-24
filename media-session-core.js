@@ -170,6 +170,16 @@ const MediaSessionCore = (function () {
     }
 
     /**
+     * State of the silent session-ownership loop. 'paused' while a page
+     * claims 'playing' means the OS or browser took audio focus away.
+     * @returns {'absent' | 'playing' | 'paused'}
+     */
+    function getKeepAliveState() {
+        if (!audioEl) return 'absent';
+        return audioEl.paused ? 'paused' : 'playing';
+    }
+
+    /**
      * @param {string} title
      * @param {{ artist?: string }} [options]
      */
@@ -471,7 +481,8 @@ const MediaSessionCore = (function () {
         clearPosition,
         clearTrack,
         setPlaybackState,
-        getPlaybackState
+        getPlaybackState,
+        getKeepAliveState
     };
 })();
 

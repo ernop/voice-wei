@@ -81,7 +81,15 @@ finish. On the next load the session-start line includes:
   state, YouTube state, video id, and sampled position;
 - browser version, network connection, device-memory class, and JavaScript
   heap figures when Chrome exposes them; and
-- current application, YouTube, and Media Session playback states.
+- current application, YouTube, Media Session, and silent keep-alive states
+  (a paused keep-alive under a playing claim is audio-focus loss).
+
+A 15-second heartbeat refreshes the breadcrumb silently (no Log line) while
+a track is playing or paused. After an unannounced renderer kill, the gap
+between the last heartbeat and the return visit bounds when playback died,
+and the position across consecutive beats shows whether sound survived
+hiding. Audible tabs are exempt from background timer throttling, so beats
+stay on schedule exactly while sound is actually playing.
 
 This separates the important cases without guessing: a new document with
 `wasDiscarded=yes` confirms browser discard; a prior hidden session with no
