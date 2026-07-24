@@ -329,10 +329,14 @@ the elapsed wait. On return, the Song Report button and adjacent status name
 the returned character/line counts, provider/model, elapsed time, and active
 playback interval.
 
-The model acts as a reporter, not a stylist: every claim or interpretation
-must come from researched material, other people's interpretations stay
-attributed, and the model may not add its own analysis, motives, connective
-details, embellishment, or generic praise. It returns exactly one continuous
+The request carries the song's full stored lyrics (timed lines when present,
+otherwise the plain text), resolved through the normal lyric store path before
+the prompt is built. The model acts as a reporter, not a stylist: every claim
+or interpretation must come from researched material, other people's
+interpretations stay attributed, and the model may not add its own analysis,
+motives, connective details, embellishment, or generic praise. It is directed
+to include the lyrics, quoting the actual lyric lines whenever the report
+discusses them. It returns exactly one continuous
 plain-text prose block: no JSON, Markdown, headings, bullets, labels,
 citations, source list, or prefatory text. The browser normalizes whitespace, then repeatedly
 splits at nearby punctuation when possible, otherwise at a word boundary, with

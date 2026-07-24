@@ -41,6 +41,22 @@ const PlayerSongReport = (function () {
                 return this.songReports.get(item.videoId) || null;
             },
 
+            /**
+             * The song's stored lyrics as plain text for the research
+             * prompt: timed lines joined in order when present, otherwise
+             * the plain lyric text. Empty string when nothing is stored.
+             * @param {PlaylistItem} item
+             */
+            songReportLyricsText(item) {
+                const lyrics = item.lyricsData;
+                if (!lyrics) return '';
+                const syncedText = (lyrics.syncedLines || [])
+                    .map(line => String(line.text || '').trim())
+                    .filter(Boolean)
+                    .join('\n');
+                return syncedText || String(lyrics.plainLyrics || '').trim();
+            },
+
             /** @param {PlaylistItem} item */
             buildSongReportPrompt(item) {
                 const durationSeconds = Math.max(Number(item.durationSeconds) || 180, 60);
@@ -56,11 +72,15 @@ const PlayerSongReport = (function () {
                     item.year ? `Year: ${item.year}` : '',
                     item.comment ? `Existing playlist note: ${item.comment}` : ''
                 ].filter(Boolean).join('\n');
+                const lyricsText = this.songReportLyricsText(item);
+                const lyricsBlock = lyricsText
+                    ? `\nFull lyrics of the song:\n${lyricsText}\n`
+                    : '';
 
                 return `Research this exact song on the web, then report what you find in a listening companion that will appear one short line at a time while the recording plays.
 
 ${identity}
-
+${lyricsBlock}
 You are a careful reporter, not a creative writer or stylist. Your job is to convey other people's documented words, findings, and interpretations accurately. This is not your place to invent analysis, motives, emotions, symbolism, causal stories, connective details, or color.
 
 Investigate broadly before writing. Use only notable, well-supported material that you actually found in sources. Draw from whichever of these areas genuinely yields something interesting:
@@ -74,7 +94,7 @@ Rules:
 - Every factual claim and interpretation must be traceable to material you found. When conveying someone else's interpretation, make clear whose view it is in the prose.
 - Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
 - Select positive, interesting, well-supported material, but never soften, intensify, or change a source's meaning to improve the tone.
-- Do not quote or reproduce the lyrics. When a source analyzes them, paraphrase that source's analysis and attribution.
+- Do include the lyrics: quote the actual lyric lines whenever the report discusses them, and connect researched material to the words being sung.
 - Write direct, information-dense sentences. Do not add scene-setting, flourishes, clever transitions, or generic praise.
 - Return exactly one continuous plain-text prose block whose sentences make sense when wrapped into short display lines.
 - Do not return JSON, Markdown, headings, bullets, labels, citations, source lists, prefatory language, or any text outside that prose block.
@@ -197,6 +217,9 @@ Rules:
                 );
 
                 try {
+                    // The prompt carries the song's full lyrics, so resolve
+                    // them through the normal lyric store path first.
+                    await this.ensureLyricsForItem(item);
                     const prompt = this.buildSongReportPrompt(item);
                     const research = this.requestSongReportResearch(prompt);
                     this.songReportRequestState = {

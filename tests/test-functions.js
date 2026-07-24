@@ -3713,6 +3713,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentPlaylistItem() { return requestItem; },
                 currentPlaybackTime() { return 42; },
                 updateListeningTextPosition() {},
+                ensureLyricsForItem() { return Promise.resolve(requestItem.lyricsData); },
                 requestSongReportResearch() {
                     return new Promise(resolve => {
                         resolveResearch = resolve;
@@ -3807,9 +3808,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt)
-            && /When a source analyzes them, paraphrase that source's analysis/.test(songReport.prompt)
             && /exactly one continuous plain-text prose block/.test(songReport.prompt)
             && /Do not return JSON, Markdown/.test(songReport.prompt));
+        report.check(`song report prompt carries the song's full lyrics and directs the model to quote them`,
+            /Full lyrics of the song:\nlyric line/.test(songReport.prompt)
+            && /Do include the lyrics: quote the actual lyric lines/.test(songReport.prompt)
+            && !/Do not quote or reproduce the lyrics/.test(songReport.prompt));
         report.check(`song report lines stay within 50 characters and persist (${songReport.lines.length} lines)`,
             songReport.lines.length > 2
             && songReport.lines.every(line => line.length > 0 && line.length <= 50)

@@ -122,14 +122,26 @@ checked against this list, and new standing intent gets added here.
    external YouTube readiness and bounded lyric backfill run in parallel and
    do not hold the page in initialization.
 9. **A song can carry a researched listening companion.** On request, the
-   selected AI model researches the sounding song and writes a positive,
-   fact-grounded report spanning literary interpretation, recording and band
-   history, relationships, places and references, business, reception, and
-   influence wherever the material is worthwhile. It never reproduces lyrics
-   or fills missing categories. Timed lyrics remain on the first display line;
-   the report is an alternative to song identity on the second line. It
+   selected AI model receives the song's full stored lyrics, researches the
+   sounding song, and writes a positive, fact-grounded report spanning
+   literary interpretation, recording and band history, relationships, places
+   and references, business, reception, and influence wherever the material
+   is worthwhile. It quotes the actual lyric lines when discussing them and
+   never fills missing categories. Timed lyrics remain on the first display
+   line; the report is an alternative to song identity on the second line. It
    advances at the chosen reading interval, leaves audio/artwork/position
    untouched, persists by video, and starts again when that song replays.
+   The verbatim owner directive that set the lyric policy (2026-07-24):
+
+   > Remove the following line from the book prompt: "Do not quote or
+   > reproduce the lyrics. When a source analyzes them, paraphrase that
+   > source's analysis and attribution"
+   >
+   > In fact we should direct the llm to DO include the lyrics
+   >
+   > Also we must modify the prompt sent to the LLM to include the full text
+   > of the lyrical, which we do have and must also do.  Also save this
+   > request, without any chabge at all, into ournorisuct description files.
 10. **Musical understanding is a second accompaniment mode.** On explicit
    request, a Musical Guide gathers sourced facts about concert key, key
    changes, tempo, meter, tuning, capo/chord shapes, sections, vocal range,

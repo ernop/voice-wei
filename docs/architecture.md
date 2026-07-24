@@ -699,7 +699,10 @@ boundary; `text` must be one continuous plain-prose response with no structural
 markup. The prompt assigns reporting, not authorship: claims and interpretations
 must be traceable to researched material, sourced interpretations remain
 attributed, and the model is forbidden to supply its own analysis, motives,
-connections, embellishment, or stylistic filler. `segmentSongReport` then owns the only derived representation: it
+connections, embellishment, or stylistic filler. The request resolves the
+song's lyrics through `ensureLyricsForItem` first and embeds their full text,
+and the prompt directs the model to quote lyric lines when discussing them.
+`segmentSongReport` then owns the only derived representation: it
 collapses whitespace and splits at punctuation or word boundaries, hard-capped
 at 50 characters. The raw prose and derived lines are saved together before
 Report mode activates. A missing report is therefore not a disabled state:

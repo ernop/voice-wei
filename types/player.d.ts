@@ -537,6 +537,7 @@ interface VoiceMusicController {
     songReportAnchorVideoId: string | null;
     songReportAnchorTime: number;
     songReportForItem(item: PlaylistItem | null | undefined): SongReportRecord | null;
+    songReportLyricsText(item: PlaylistItem): string;
     buildSongReportPrompt(item: PlaylistItem): string;
     segmentSongReport(reportText: string, maxChars?: number): string[];
     loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
