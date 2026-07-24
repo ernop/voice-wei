@@ -72,7 +72,8 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 Production shipping is defined in `.github/workflows/deploy.yml`:
 
-1. Checkout; select Node 24; restore cached `node_modules` + Playwright Chromium
+1. Checkout; select Node 24; restore cached `node_modules`; use the current
+   stable Chrome already installed on GitHub's Ubuntu runner
 2. Run `npm run typecheck`, `npm run lint`, and `npm test` concurrently
 3. rsync `--delete` to the server (excludes below) — **site live**
 
@@ -81,12 +82,13 @@ production workflow has completed. It generates and uploads
 `deploy-telemetry.json` independently, so telemetry setup/API work cannot keep
 the production run open after the site is verified live.
 
-Warm deploys run no npm or Playwright install command: `node_modules` and the
-package-pinned Chromium binary come directly from their caches. Cold deploys
-populate those caches and install Chromium's OS dependencies. The three
-validation gates only read the checkout, so they run concurrently with the
-browser suite as the critical path. Concurrency remains one deploy at a time;
-newer pushes cancel in-flight older ones.
+Warm deploys run no install command: `node_modules` comes from its cache and
+browser tests launch the runner's `/usr/bin/google-chrome` through the existing
+`CHROME_PATH` test contract. Cold deploys install only npm packages; GitHub's
+runner image already owns Chrome and its OS dependencies. The three validation
+gates only read the checkout, so they run concurrently with the browser suite
+as the critical path. Concurrency remains one deploy at a time; newer pushes
+cancel in-flight older ones.
 
 ### rsync excludes (CI and `deploy.sh` must match)
 
