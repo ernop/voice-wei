@@ -41,7 +41,8 @@ install_apt_packages() {
 install_apt_packages
 
 npm install --no-audit --no-fund --no-package-lock
-npx playwright install --with-deps chromium
+# The cloud image supplies Chromium's OS libraries; --with-deps needlessly runs apt.
+npx playwright install chromium
 
 node --version
 npm --version
