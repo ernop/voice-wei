@@ -20,6 +20,7 @@ const FAST_SUITES = [
     'test-player-startup.js',
     'test-books.js'
 ];
+const ISOLATED_FAST_SUITES = new Set(['test-player-startup.js']);
 
 const FULL_SUITES = [
     ...FAST_SUITES,
@@ -60,7 +61,14 @@ async function main() {
     let failures = 0;
     console.log(`Running ${profile} test profile (${suites.join(', ')})`);
     if (profile === 'fast') {
-        const results = await Promise.all(suites.map(suite => runSuite(suite, profile)));
+        const isolatedSuites = suites.filter(suite => ISOLATED_FAST_SUITES.has(suite));
+        const parallelSuites = suites.filter(suite => !ISOLATED_FAST_SUITES.has(suite));
+        const isolatedResults = [];
+        for (const suite of isolatedSuites) {
+            isolatedResults.push(await runSuite(suite, profile));
+        }
+        const parallelResults = await Promise.all(parallelSuites.map(suite => runSuite(suite, profile)));
+        const results = [...isolatedResults, ...parallelResults];
         failures = results.filter(status => status !== 0).length;
     } else {
         for (const suite of suites) {
