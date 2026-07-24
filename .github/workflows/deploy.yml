@@ -53,19 +53,22 @@ jobs:
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install --no-audit --no-fund
 
-      # These gates are independent readers of the checkout. Running them
-      # together keeps the browser suite as the critical path while preserving
-      # every failure.
-      - name: Validate in parallel
+      # Typecheck and lint are independent readers and run together. The
+      # browser suite runs AFTER them, alone: it contains the Lyrics startup
+      # gate, whose 1000ms wall-clock budget is only honest on an otherwise
+      # idle runner (tsc/ast-grep racing on the 2-core runner contaminates
+      # the timing and fails deploys spuriously).
+      - name: Typecheck and lint in parallel
         run: |
           npm run typecheck & typecheck_pid=$!
           npm run lint & lint_pid=$!
-          npm test & tests_pid=$!
           status=0
           wait "$typecheck_pid" || status=1
           wait "$lint_pid" || status=1
-          wait "$tests_pid" || status=1
           exit "$status"
+
+      - name: Browser test suite
+        run: npm test
 
       - name: Set up SSH
         run: |
