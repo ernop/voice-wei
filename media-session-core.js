@@ -159,6 +159,13 @@ const MediaSessionCore = (function () {
         }
     }
 
+    /** @returns {MediaSessionPlaybackState | 'unavailable'} */
+    function getPlaybackState() {
+        return 'mediaSession' in navigator
+            ? navigator.mediaSession.playbackState
+            : 'unavailable';
+    }
+
     /**
      * @param {string} title
      * @param {{ artist?: string }} [options]
@@ -428,7 +435,8 @@ const MediaSessionCore = (function () {
         setPosition,
         clearPosition,
         clearTrack,
-        setPlaybackState
+        setPlaybackState,
+        getPlaybackState
     };
 })();
 
