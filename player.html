@@ -9,8 +9,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Lyrics - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=286">
-    <link rel="stylesheet" href="practice-controls.css?v=286">
+    <link rel="stylesheet" href="style.css?v=287">
+    <link rel="stylesheet" href="practice-controls.css?v=287">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -70,10 +70,10 @@
             <div class="setting-item">
                 <label class="display-toggle">
                     <input type="checkbox" id="lyricsOnNowPlayingToggle" checked />
-                    <span>Show current lyric on car / lock-screen display</span>
+                    <span>Show listening text on car / lock-screen display</span>
                 </label>
-                <p class="setting-description">While a song with timed lyrics plays, the now-playing title (what
-                    Bluetooth and the tab show) is the current lyric line.</p>
+                <p class="setting-description">Timed lyrics stay on the first now-playing line. The second line
+                    shows either song identity or the active Story Report.</p>
             </div>
             <div class="setting-item">
                 <label class="display-toggle">
@@ -168,6 +168,7 @@
                     <span class="transport-bar-time" id="transportBarTimeTotal">0:00</span>
                 </div>
                 <div class="transport-bar-lyric" id="transportBarLyric" style="display: none;"></div>
+                <div class="transport-bar-secondary" id="transportBarSecondary" style="display: none;"></div>
                 <div class="transport-bar-song-nav">
                     <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous track">&#9198;</button>
                     <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
@@ -176,6 +177,25 @@
                         aria-label="Open large lyrics overlay">Big Lyrics</button>
                     <button class="transport-bar-info" id="transportBarInfo" type="button"
                         aria-label="Scroll to the current song in the playlist">No song playing</button>
+                </div>
+                <div class="song-report-controls">
+                    <button id="requestSongReportBtn" class="primary-btn" type="button">Request Song Report</button>
+                    <div class="segment-row" aria-label="Second line">
+                        <button id="songDisplayIdentityBtn" class="vf-btn" type="button" aria-pressed="true">Identity</button>
+                        <button id="songDisplayReportBtn" class="vf-btn" type="button" aria-pressed="false" disabled>Story Report</button>
+                    </div>
+                    <div class="song-report-interval">
+                        <span class="vf-label">Every</span>
+                        <div class="step-field step-field-bare">
+                            <button id="songReportIntervalDownBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for less time">-</button>
+                            <output id="songReportIntervalValue" class="step-value"
+                                aria-label="Seconds per report line">8s</output>
+                            <button id="songReportIntervalUpBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for more time">+</button>
+                        </div>
+                    </div>
+                    <span id="songReportStatus" class="song-report-status">No saved report for this song</span>
                 </div>
                 <div class="transport-bar-seek">
                     <button id="transportBack30Btn" class="transport-bar-btn" aria-label="Back 30 seconds">-30</button>
@@ -399,31 +419,32 @@
     </div>
 
     <script async src="https://www.youtube.com/iframe_api"></script>
-    <script src="dev-error-monitor.js?v=286"></script>
-    <script src="app-version.js?v=286"></script>
-    <script src="storage-keys.js?v=286"></script>
-    <script src="shared-header.js?v=286"></script>
-    <script src="settings-store.js?v=286"></script>
-    <script src="music-constants.js?v=286"></script>
-    <script src="piano-core.js?v=286"></script>
-    <script src="api-keys-store.js?v=286"></script>
-    <script src="render-throttle.js?v=286"></script>
-    <script src="practice-controls.js?v=286"></script>
-    <script src="voice-output.js?v=286"></script>
-    <script src="voice-command-core.js?v=286"></script>
-    <script src="media-session-core.js?v=286"></script>
-    <script src="player-songs.js?v=286"></script>
-    <script src="player-storage.js?v=286"></script>
-    <script src="player-playback-state.js?v=286"></script>
-    <script src="player-history-db.js?v=286"></script>
-    <script src="player-api-keys.js?v=286"></script>
-    <script src="player-commands.js?v=286"></script>
-    <script src="player-playlist.js?v=286"></script>
-    <script src="player-prebuffer-probe.js?v=286"></script>
-    <script src="player-lyrics.js?v=286"></script>
-    <script src="player-song-library.js?v=286"></script>
-    <script src="player-history-ui.js?v=286"></script>
-    <script src="player.js?v=286"></script>
+    <script src="dev-error-monitor.js?v=287"></script>
+    <script src="app-version.js?v=287"></script>
+    <script src="storage-keys.js?v=287"></script>
+    <script src="shared-header.js?v=287"></script>
+    <script src="settings-store.js?v=287"></script>
+    <script src="music-constants.js?v=287"></script>
+    <script src="piano-core.js?v=287"></script>
+    <script src="api-keys-store.js?v=287"></script>
+    <script src="render-throttle.js?v=287"></script>
+    <script src="practice-controls.js?v=287"></script>
+    <script src="voice-output.js?v=287"></script>
+    <script src="voice-command-core.js?v=287"></script>
+    <script src="media-session-core.js?v=287"></script>
+    <script src="player-songs.js?v=287"></script>
+    <script src="player-storage.js?v=287"></script>
+    <script src="player-playback-state.js?v=287"></script>
+    <script src="player-history-db.js?v=287"></script>
+    <script src="player-api-keys.js?v=287"></script>
+    <script src="player-commands.js?v=287"></script>
+    <script src="player-playlist.js?v=287"></script>
+    <script src="player-prebuffer-probe.js?v=287"></script>
+    <script src="player-lyrics.js?v=287"></script>
+    <script src="player-song-report.js?v=287"></script>
+    <script src="player-song-library.js?v=287"></script>
+    <script src="player-history-ui.js?v=287"></script>
+    <script src="player.js?v=287"></script>
 </body>
 
 </html>

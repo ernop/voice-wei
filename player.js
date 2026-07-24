@@ -174,7 +174,9 @@ class VoiceMusicController {
             aiProvider: 'claude',
             lyricsOnNowPlaying: true,
             showSongNotes: false,
-            playlistTimedOnly: false
+            playlistTimedOnly: false,
+            songDisplayMode: 'identity',
+            songReportIntervalSeconds: 8
         });
         /** @type {string} Live playlist view filter (normalized; never persisted) */
         this.playlistFilterQuery = '';
@@ -210,8 +212,8 @@ class VoiceMusicController {
         this.currentLyricsItemId = null;
         /** @type {number} */
         this.currentLyricsLineIndex = -1;
-        /** @type {boolean} Whether the now-playing text currently shows a lyric line */
-        this.nowPlayingShowsLyric = false;
+        /** @type {boolean} Whether now-playing currently carries changing listening text */
+        this.nowPlayingShowsText = false;
         /** @type {boolean} Media-key handlers registered (once per page life) */
         this.mediaActionHandlersSet = false;
         /** @type {boolean} */
@@ -223,6 +225,7 @@ class VoiceMusicController {
         PlayerPlaylist.install(this);
         PlayerPrebufferProbe.install(this);
         PlayerLyrics.install(this);
+        PlayerSongReport.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);
     }
@@ -846,7 +849,7 @@ class VoiceMusicController {
                 const target = /** @type {HTMLInputElement} */ (e.target);
                 this.settings.lyricsOnNowPlaying = target.checked;
                 this.saveSettings();
-                this.relayLyricToNowPlaying(target.checked ? this.currentLyricsLineIndex : -1);
+                this.updateListeningTextPosition(this.currentPlaybackTime());
             });
         }
 
@@ -1093,6 +1096,30 @@ class VoiceMusicController {
         if (transportBarInfo) {
             transportBarInfo.addEventListener('click', () => this.scrollToCurrentSong());
         }
+
+        const requestSongReportBtn = document.getElementById('requestSongReportBtn');
+        if (requestSongReportBtn) {
+            requestSongReportBtn.addEventListener('click', () => {
+                void this.requestSongReport();
+            });
+        }
+        const songDisplayIdentityBtn = document.getElementById('songDisplayIdentityBtn');
+        if (songDisplayIdentityBtn) {
+            songDisplayIdentityBtn.addEventListener('click', () => this.setSongDisplayMode('identity'));
+        }
+        const songDisplayReportBtn = document.getElementById('songDisplayReportBtn');
+        if (songDisplayReportBtn) {
+            songDisplayReportBtn.addEventListener('click', () => this.setSongDisplayMode('report'));
+        }
+        const songReportIntervalDownBtn = document.getElementById('songReportIntervalDownBtn');
+        if (songReportIntervalDownBtn) {
+            songReportIntervalDownBtn.addEventListener('click', () => this.stepSongReportInterval(-1));
+        }
+        const songReportIntervalUpBtn = document.getElementById('songReportIntervalUpBtn');
+        if (songReportIntervalUpBtn) {
+            songReportIntervalUpBtn.addEventListener('click', () => this.stepSongReportInterval(1));
+        }
+        this.updateSongReportControls();
 
         const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
         if (lyricsPanelBtn) {

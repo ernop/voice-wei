@@ -583,7 +583,7 @@ const PlayerLyrics = (function () {
                         lyricOffsetSeconds: next
                     };
                 await window.PlayerHistoryDB.putLyricState(record);
-                this.updateSyncedLyricsPosition(this.currentPlaybackTime());
+                this.updateListeningTextPosition(this.currentPlaybackTime());
                 this.resyncProgressClock();
             },
 
@@ -846,7 +846,7 @@ const PlayerLyrics = (function () {
                 return 0;
             },
 
-            updateSyncedLyricsPosition(currentTime) {
+            updateListeningTextPosition(currentTime) {
                 // Title spots and the sticky lyric row always follow the
                 // sounding track. The panel/overlay highlight only moves
                 // when those views are showing that same track (a chip tap
@@ -860,25 +860,32 @@ const PlayerLyrics = (function () {
                 // Lyric-file clock: playback time plus the per-song nudge.
                 // Identity intro still uses wall-clock currentTime.
                 const lyricTime = currentTime + offset;
+                const reportText = this.songReportTextAt(playingItem, currentTime);
 
                 if (!playingItem || syncedLines.length === 0) {
                     if (showingPlaying) this.applyActiveLyricsLine(-1);
                     // Songs without synced lyrics still get the identity
                     // intro in the title spots for the first seconds.
-                    this.relayLyricToNowPlaying(-1, currentTime);
-                    this.updateTransportBarLyric(playingItem
+                    const lyricText = playingItem
                         ? this.lyricDisplayTextAt(playingItem, [], -1, currentTime)
-                        : '');
+                        : '';
+                    this.relayListeningTextToNowPlaying(lyricText, reportText);
+                    this.updateTransportBarLyric(lyricText);
+                    this.updateTransportBarSecondary(reportText);
                     return;
                 }
 
                 const activeIndex = this.syncedLyricLineIndexAt(syncedLines, lyricTime);
                 if (showingPlaying) this.applyActiveLyricsLine(activeIndex);
-                this.updateTransportBarLyric(this.lyricDisplayTextAt(playingItem, syncedLines, activeIndex, currentTime));
-                this.relayLyricToNowPlaying(
-                    this.syncedLyricLineIndexAt(syncedLines, lyricTime + LYRIC_TITLE_LEAD_SECONDS),
-                    currentTime
+                const barLyric = this.lyricDisplayTextAt(playingItem, syncedLines, activeIndex, currentTime);
+                const ledIndex = this.syncedLyricLineIndexAt(
+                    syncedLines,
+                    lyricTime + LYRIC_TITLE_LEAD_SECONDS
                 );
+                const relayLyric = this.lyricDisplayTextAt(playingItem, syncedLines, ledIndex, currentTime);
+                this.updateTransportBarLyric(barLyric);
+                this.updateTransportBarSecondary(reportText);
+                this.relayListeningTextToNowPlaying(relayLyric, reportText);
             },
 
             /**
@@ -889,6 +896,17 @@ const PlayerLyrics = (function () {
              */
             updateTransportBarLyric(text) {
                 const el = document.getElementById('transportBarLyric');
+                if (!el) return;
+                const line = String(text || '').trim();
+                if (el.textContent !== line) {
+                    el.textContent = line;
+                }
+                el.style.display = line ? 'block' : 'none';
+            },
+
+            /** @param {string} text */
+            updateTransportBarSecondary(text) {
+                const el = document.getElementById('transportBarSecondary');
                 if (!el) return;
                 const line = String(text || '').trim();
                 if (el.textContent !== line) {
@@ -917,11 +935,12 @@ const PlayerLyrics = (function () {
              * synced lyrics apply. The deadline clock sleeps until here.
              * @param {number} currentTime
              */
-            nextLyricDeadline(currentTime) {
+            nextListeningTextDeadline(currentTime) {
                 const item = this.playingPlaylistItem();
-                if (!item || !item.lyricsData) return Infinity;
+                if (!item) return Infinity;
+                let next = this.nextSongReportDeadline(currentTime);
+                if (!item.lyricsData) return next;
                 const offset = this.lyricOffsetForItem(item);
-                let next = Infinity;
                 for (const line of item.lyricsData.syncedLines) {
                     // A line becomes active / enters the led title window
                     // at wall-clock times shifted by the per-song offset.
@@ -1049,30 +1068,28 @@ const PlayerLyrics = (function () {
              * lyricDisplayTextAt). Artist is always year - artist - name
              * while playing, so the car's second row keeps song identity.
              * With nothing to show the surfaces clear.
-             * @param {number} activeIndex
-             * @param {number} [currentTime]
+             * @param {string} primaryText
+             * @param {string} secondaryText
              */
-            relayLyricToNowPlaying(activeIndex, currentTime) {
-                const now = typeof currentTime === 'number' ? currentTime : this.currentPlaybackTime();
+            relayListeningTextToNowPlaying(primaryText, secondaryText) {
                 const item = this.playingPlaylistItem();
                 const playingThisItem = !!item && this.isPlaying && !this.isPaused;
-                const lines = (playingThisItem && item.lyricsData) ? item.lyricsData.syncedLines : [];
-                const line = (this.settings.lyricsOnNowPlaying && playingThisItem)
-                    ? this.lyricDisplayTextAt(item, lines, activeIndex, now)
-                    : '';
+                const enabled = this.settings.lyricsOnNowPlaying && playingThisItem;
+                const primary = enabled ? String(primaryText || '').trim() : '';
+                const secondary = enabled ? String(secondaryText || '').trim() : '';
 
-                if (line) {
+                if (primary || secondary) {
                     // Re-arm session ownership before the push: the silent
                     // keep-alive can be paused out from under us, after which
                     // Chrome routes the car to the YouTube iframe.
                     MediaSessionCore.ensurePlayingSession();
-                    // Repeat writes of the same line are dropped by the core;
-                    // stable artist/artwork/position remain this same track.
-                    MediaSessionCore.setDisplayLine(line);
-                    this.nowPlayingShowsLyric = true;
-                } else if (this.nowPlayingShowsLyric) {
-                    this.nowPlayingShowsLyric = false;
+                    MediaSessionCore.setDisplayLine(primary);
+                    MediaSessionCore.setSecondaryDisplayLine(secondary);
+                    this.nowPlayingShowsText = true;
+                } else if (this.nowPlayingShowsText) {
+                    this.nowPlayingShowsText = false;
                     MediaSessionCore.clearDisplayLine();
+                    MediaSessionCore.clearSecondaryDisplayLine();
                 }
             },
 

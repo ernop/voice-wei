@@ -1,26 +1,30 @@
-# Lyrics over Media Session
+# Listening Text over Media Session
 
 ## Why this needs its own contract
 
-The Lyrics tool uses a track-oriented protocol as a lyric display:
+The Lyrics tool uses a track-oriented protocol as a changing listening-text
+display:
 
 - Media Session `title` carries the current lyric.
-- Media Session `artist` carries `year - artist - song`.
+- Media Session `artist` carries the selected second line: stable
+  `year - artist - song` identity or the current song-report line.
 - A silent audio element keeps the top-level Voice-Wei page in control while
   the audible song plays in a YouTube iframe.
 
 This is intentionally unlike a normal player. In a normal player, a changed
-title usually means a changed track. Here, most title changes mean that the
-same track continued into its next lyric line.
+title usually means a changed track. Here, title and artist changes mean that
+the same track continued into its next lyric or report line.
 
 The implementation must therefore keep four concepts separate:
 
 1. **Track identity** changes only when the sounding `videoId` changes.
-2. **Lyric display** changes at lyric boundaries while track identity stays
-   fixed.
-3. **Playback position** comes from the YouTube player's current time and
+2. **Primary lyric display** changes at lyric boundaries while track identity
+   stays fixed.
+3. **Secondary accompaniment display** changes at report boundaries or reverts
+   to stable identity while track identity stays fixed.
+4. **Playback position** comes from the YouTube player's current time and
    duration, not from lyric timing or the silent ownership audio.
-4. **Session ownership** is the top-level page's silent audio mechanism. It is
+5. **Session ownership** is the top-level page's silent audio mechanism. It is
    transport plumbing, not the song or its timeline.
 
 ## What is true today
@@ -29,8 +33,9 @@ The implementation must therefore keep four concepts separate:
 
 The visible progress bars and `elapsed / total` text read
 `YT.Player.getCurrentTime()` and `YT.Player.getDuration()`. One deadline clock
-renders those values and the current lyric from the same sampled YouTube time.
-Lyric deadlines can wake the clock between whole seconds, but a lyric change
+renders those values and the current listening line from the same sampled
+YouTube time. Lyric/report deadlines can wake the clock between whole seconds,
+but a text change
 does not reset the in-page timeline.
 
 This shared clock is useful: it gives progress and lyrics one source of time.
@@ -56,9 +61,10 @@ complete, internally consistent account of the continuing song.
 
 ### Metadata updates
 
-Every distinct lyric, identity intro, or countdown value assigns a new
-`MediaMetadata` object. Identical repeats are deduplicated. The second-line
-`artist` value remains stable during the song.
+Every distinct lyric, report line, identity intro, or countdown value assigns
+a new `MediaMetadata` object. Identical repeats are deduplicated. Report mode
+changes only the presented artist line; Identity mode restores the stable
+`year - artist - song` value.
 
 The Web Media Session API has no stable track-ID field and no transient lyric
 field. A browser or Bluetooth head unit may interpret a title metadata change
@@ -73,17 +79,18 @@ For the whole time one `videoId` is sounding:
 
 | Surface | Value |
 |---|---|
-| First text line | identity intro, countdown if needed, then current lyric |
-| Second text line | `year - artist - song`, skipping missing fields |
+| First text line | identity intro/countdown/current lyric; report mode never replaces it |
+| Second text line | selected mode: `year - artist - song` identity or current song-report line |
 | Artwork | one explicit image, stable for the song |
 | Position / duration | YouTube song position and duration |
 | Playback state | true playing, paused, or stopped state |
 
-A lyric transition changes only the first text line. It must not:
+A listening-text transition changes only its primary or secondary display
+channel. It must not:
 
 - reset position;
 - change artwork;
-- change the stable second line;
+- overwrite the other display channel;
 - emit previous/next-track behavior; or
 - clear and recreate the logical track in Voice-Wei.
 
@@ -101,14 +108,17 @@ accepts distinct semantic state:
 ```text
 setTrackIdentity({ id, title, artist, album, artwork })
 setDisplayLine(text)
+setSecondaryDisplayLine(text)
 setPosition({ duration, position, playbackRate })
 setPlaybackState(state)
 clearTrack()
 ```
 
-The core composes one `MediaMetadata` value from stable track identity plus the
-changing display line. This does not make receiver behavior predictable, but
-it prevents Voice-Wei itself from confusing lyric changes with song changes.
+The core composes one `MediaMetadata` value from stable track identity plus
+independent primary/title and secondary/artist display lines. This does not
+make receiver behavior predictable, but
+it prevents Voice-Wei itself from confusing lyric/report changes with song
+changes.
 
 Non-player tools can continue using a simple page/exercise registration API;
 they do not need song position or artwork.
@@ -118,7 +128,7 @@ they do not need song position or artwork.
 The core wraps `navigator.mediaSession.setPositionState()`.
 
 The player feeds it from the same YouTube time sample used by
-`renderPlaybackPosition()`, never from `relayLyricToNowPlaying()`. It publishes
+`renderPlaybackPosition()`, never from listening-text relay callbacks. It publishes
 at:
 
 - song start, once duration is readable;
@@ -133,12 +143,12 @@ range because duration may appear before a stable position.
 If a receiver resets its timer when title metadata changes, Voice-Wei can
 reassert the already-known position immediately after that metadata write as a
 device-compatibility measure. This is a synchronized refresh, not a statement
-that the lyric is a new track.
+that the listening line is a new track.
 
 ### 3. Publish explicit stable artwork
 
 Choose artwork once per sounding `videoId` and include it on every composed
-metadata publication. This prevents lyric writes from sending metadata with
+metadata publication. This prevents listening-text writes from sending metadata with
 missing artwork and leaving the receiver to choose or cache an unrelated
 image.
 
@@ -148,24 +158,24 @@ stable for that `videoId` and changes only at a real video boundary.
 ### 4. Remove false boundaries and stale state
 
 Track setup should happen once in the authoritative `playVideo()` path after
-the active `videoId` is known. Lyric rendering should only update the display
-line.
+the active `videoId` is known. Lyric rendering updates only the primary line;
+song-report rendering updates only the secondary line.
 
 Stopping and clearing the playlist clear track identity, position, artwork,
 and playback state together. Pause retains the complete track and freezes its
 last real position.
 
-### 5. Keep lyric propagation conservative
+### 5. Keep listening-text propagation conservative
 
-Each distinct lyric still requires a title metadata update if the car is to
-show it. Do not add extra metadata churn:
+Each distinct lyric or report line still requires a metadata update if the car
+is to show it. Do not add extra metadata churn:
 
 - keep identical-value deduplication;
-- do not republish stable identity because a lyric deadline fired unless the
+- do not republish stable identity because a listening-text deadline fired unless the
   composed metadata must be sent;
 - consider whether the per-second pre-lyric countdown is valuable enough to
   justify one metadata update per second; and
-- never drive position from lyric callbacks.
+- never drive position from listening-text callbacks.
 
 ## Verification
 

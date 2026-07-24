@@ -64,6 +64,7 @@ interface Window {
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerPrebufferProbe?: typeof PlayerPrebufferProbe;
     PlayerLyrics?: typeof PlayerLyrics;
+    PlayerSongReport?: typeof PlayerSongReport;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
     PlayerSongs?: typeof PlayerSongs;
@@ -166,6 +167,8 @@ interface MediaSessionCoreApi {
     setTrackIdentity(identity: MediaSessionTrackIdentity): void;
     setDisplayLine(title: string): void;
     clearDisplayLine(): void;
+    setSecondaryDisplayLine(text: string): void;
+    clearSecondaryDisplayLine(): void;
     setPosition(state: MediaSessionPosition): void;
     clearPosition(force?: boolean): void;
     clearTrack(): void;

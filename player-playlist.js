@@ -1123,6 +1123,7 @@ const PlayerPlaylist = (function () {
                         // Update central player display
                         this.updateCentralPlayer(item);
                         this.updateMediaSessionForItem(item);
+                        this.resetSongReportForPlay(item);
 
                         this.currentLyricsItemId = item.id;
                         this.currentLyricsLineIndex = -1;
@@ -1200,8 +1201,10 @@ const PlayerPlaylist = (function () {
                 // Song change or clear: the bar lyric belongs to the previous
                 // song until this song's synced position writes its own.
                 this.updateTransportBarLyric('');
+                this.updateTransportBarSecondary('');
                 this.updateBigLyricsAvailability();
                 this.updateFirstLyricButton();
+                this.updateSongReportControls();
             },
 
             /** Bring the current song's row into view (the bar's song line). */
@@ -1220,7 +1223,7 @@ const PlayerPlaylist = (function () {
                 // Stable song identity is a separate channel from the lyric
                 // title. A changed videoId is a real media boundary; lyric
                 // lines within it are not.
-                this.nowPlayingShowsLyric = false;
+                this.nowPlayingShowsText = false;
                 // Every play intent must wait for a fresh YouTube sample.
                 // This also covers a one-song playlist looping the same id.
                 MediaSessionCore.clearPosition();
@@ -1238,6 +1241,7 @@ const PlayerPlaylist = (function () {
                 // A new play intent starts at song identity, even when the
                 // same videoId is replayed after its previous final lyric.
                 MediaSessionCore.clearDisplayLine();
+                MediaSessionCore.clearSecondaryDisplayLine();
                 MediaSessionCore.setPlaybackState('playing');
                 if (!this.mediaActionHandlersSet) {
                     this.mediaActionHandlersSet = true;
@@ -1269,7 +1273,7 @@ const PlayerPlaylist = (function () {
                     }
                 }
                 this.playback.markStopped();
-                this.nowPlayingShowsLyric = false;
+                this.nowPlayingShowsText = false;
                 MediaSessionCore.clearTrack();
                 this.updatePlayPauseButton();
                 this.stopProgressUpdates();
@@ -1292,7 +1296,7 @@ const PlayerPlaylist = (function () {
                         MediaSessionCore.setPlaybackState('playing');
                         this.updatePlayPauseButton();
                         this.startProgressUpdates();
-                        this.relayLyricToNowPlaying(this.currentLyricsLineIndex);
+                        this.updateListeningTextPosition(this.currentPlaybackTime());
                         if (currentItem) {
                             this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === currentItem.id);
                             this.currentLyricsItemId = currentItem.id;
@@ -1424,6 +1428,8 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.seekTo === 'function') {
                         player.seekTo(0, true);
+                        const item = this.playingPlaylistItem();
+                        if (item) this.resetSongReportForPlay(item);
                         this.resyncProgressClock();
                     }
                 }
@@ -1490,7 +1496,8 @@ const PlayerPlaylist = (function () {
                 // backfill items are not playlist-bound and keep going.
                 this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');
                 this.playback.reset();
-                this.nowPlayingShowsLyric = false;
+                this.nowPlayingShowsText = false;
+                this.clearSongReportPlayback();
                 MediaSessionCore.clearTrack();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);
@@ -1718,7 +1725,7 @@ const PlayerPlaylist = (function () {
                     delaySec = 0.5; // stalled (buffering): check back, don't spin
                 } else {
                     const nextSecond = Math.floor(currentTime) + 1;
-                    const deadline = Math.min(nextSecond, this.nextLyricDeadline(currentTime));
+                    const deadline = Math.min(nextSecond, this.nextListeningTextDeadline(currentTime));
                     delaySec = Math.max(deadline - currentTime, 0.025);
                 }
                 this.lastRenderedMediaTime = currentTime;
@@ -1775,7 +1782,7 @@ const PlayerPlaylist = (function () {
                     this.progressDiff.text('barTimeTotal', barTotal, this.formatTime(duration));
                 }
 
-                this.updateSyncedLyricsPosition(currentTime);
+                this.updateListeningTextPosition(currentTime);
             },
 
             formatTime(seconds) {

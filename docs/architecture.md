@@ -274,9 +274,10 @@ Media keys and the now-playing surface: phrases, scales, intervals, ears,
 and the player register hardware play/pause/next handlers through
 `media-session-core.js`, which is the ONLY writer of
 `navigator.mediaSession` and `document.title` (ast-grep enforced). The core
-composes stable track identity/artwork, the changing display line, true media
-position, and playback state without letting one concern overwrite another.
-It fans the display line out to car/lock-screen metadata, the tab title, and
+composes stable track identity/artwork, changing primary and secondary display
+lines, true media position, and playback state without letting one concern
+overwrite another. It fans the primary line out to car/lock-screen title
+metadata, the tab title, and
 the site-header heading. Reporting `setPlaybackState('playing')` automatically
 secures session ownership via the silent-WAV loop (without it, Chrome routes
 the car display to whichever frame is audibly playing; with a YouTube iframe
@@ -285,15 +286,17 @@ first user gesture; pages never wire activation.
 Trace and pitch-meter deliberately do not register - they are
 watch-the-screen tools where hardware keys add nothing.
 
-The Lyrics player intentionally changes Media Session title text within one
-continuing song. Track identity, lyric text, YouTube position, artwork, and
-silent-audio session ownership must remain separate concepts; see
+The Lyrics player intentionally changes both presented text lines within one
+continuing song: timed lyrics own the primary/title line, while identity or a
+generated report owns the secondary/artist line. Track identity, both display
+lines, YouTube position, artwork, and silent-audio session ownership remain
+separate concepts; see
 [media-session-lyrics-design.md](media-session-lyrics-design.md).
 
 **Deadline scheduling, not polling.** Timeline-driven UI (the player's
-progress bar, time text, lyric highlight, and now-playing lyric title)
+progress bar, time text, lyric highlight, and now-playing listening text)
 never runs on a fixed-interval timer. The moments at which those
-surfaces change are computable in advance (the next synced-lyric moment,
+surfaces change are computable in advance (the next synced-lyric or song-report moment,
 the next whole display second), so the renderer draws once from the
 player's ACTUAL current time and sleeps until the earliest upcoming
 deadline (`scheduleNextProgressRender` in player-playlist.js). Every
@@ -611,6 +614,10 @@ never touches this DB directly. Stores:
 - `lyricStates`: per-song lyric state keyed by videoId - the single
   permanent owner of lyrics and of any per-song `lyricOffsetSeconds`
   timing nudge (see "Lyric state has one permanent owner" above).
+- `songReports`: the latest researched listening companion per `videoId`,
+  including the exact prompt, provider/model, full prose, and <=50-character
+  display lines. Regeneration replaces that song's prior report; replay reads
+  the saved report without another API call.
 - `librarySongs`: imported MIDI/MusicXML songs with their full note
   arrays, keyed by id (migrated out of localStorage, which their bulk
   was on course to exhaust).
@@ -623,7 +630,7 @@ keys, the live playlist + index, and the **authoritative favorites set**
 synchronous availability at boot; nothing bulky may buy that
 convenience. **IndexedDB** (GB-scale quota) owns everything that grows
 with the library or with time: the stores above, per-song lyric states,
-and imported library songs. No concept is authoritative in two stores
+per-song reports, and imported library songs. No concept is authoritative in two stores
 (P2): favorites live in localStorage; `favoriteEvents` is history only,
 never read back as the source of truth. (An earlier schema also mirrored
 favorites into a `favorites` object store; database version 2 deletes it
@@ -635,7 +642,7 @@ append-only event streams grow with use forever, so they carry caps and
 trim loudly (`logs`/`favoriteEvents` 5000, `lookups` 2000): on nearing 90%
 the player posts a one-time "History storage" notice via the log panel;
 past the cap the oldest records (lowest primary key) are trimmed. Stores
-that mirror the library - `songs`, `lyricStates` - and the re-fetchable
+that mirror the library - `songs`, `lyricStates`, `songReports` - and the re-fetchable
 `youtubeSearches` cache have NO cap: trimming a library store would mean
 silent partial coverage (some songs with state, some without), and the
 library itself is their natural bound. IndexedDB quota is GB-scale;
@@ -739,8 +746,8 @@ in `types/`, required fields for required data, a throwing constructor.
 
 The music player is one controller (`VoiceMusicController` in `player.js`)
 composed from feature modules that mix their methods onto it via
-`Object.assign(controller, ...)` (commands, playlist, lyrics, song-library,
-history-ui). All of these are `@ts-check`, not `@ts-nocheck`: each install
+`Object.assign(controller, ...)` (commands, playlist, lyrics, song-report,
+song-library, history-ui). All of these are `@ts-check`, not `@ts-nocheck`: each install
 wraps its method object in `/** @type {ThisType<VoiceMusicController>} */` so
 `this` is the controller type inside every method, and the controller's full
 surface is declared in `types/player.d.ts` (merged with the `class`). Playback

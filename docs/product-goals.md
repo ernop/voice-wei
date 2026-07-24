@@ -121,6 +121,15 @@ checked against this list, and new standing intent gets added here.
    are usable. Every load records named startup phases and resource costs;
    external YouTube readiness and bounded lyric backfill run in parallel and
    do not hold the page in initialization.
+9. **A song can carry a researched listening companion.** On request, the
+   selected AI model researches the sounding song and writes a positive,
+   fact-grounded report spanning literary interpretation, recording and band
+   history, relationships, places and references, business, reception, and
+   influence wherever the material is worthwhile. It never reproduces lyrics
+   or fills missing categories. Timed lyrics remain on the first display line;
+   the report is an alternative to song identity on the second line. It
+   advances at the chosen reading interval, leaves audio/artwork/position
+   untouched, persists by video, and starts again when that song replays.
 
 ## Current priorities (deduplicated from the idea pool)
 
