@@ -5,23 +5,26 @@
 The Lyrics tool uses a track-oriented protocol as a changing listening-text
 display:
 
-- Media Session `title` carries the current lyric or song-report line.
-- Media Session `artist` carries `year - artist - song`.
+- Media Session `title` carries the current lyric.
+- Media Session `artist` carries the selected second line: stable
+  `year - artist - song` identity or the current song-report line.
 - A silent audio element keeps the top-level Voice-Wei page in control while
   the audible song plays in a YouTube iframe.
 
 This is intentionally unlike a normal player. In a normal player, a changed
-title usually means a changed track. Here, most title changes mean that the
-same track continued into its next lyric or report line.
+title usually means a changed track. Here, title and artist changes mean that
+the same track continued into its next lyric or report line.
 
 The implementation must therefore keep four concepts separate:
 
 1. **Track identity** changes only when the sounding `videoId` changes.
-2. **Listening-text display** changes at lyric or report boundaries while
-   track identity stays fixed.
-3. **Playback position** comes from the YouTube player's current time and
+2. **Primary lyric display** changes at lyric boundaries while track identity
+   stays fixed.
+3. **Secondary accompaniment display** changes at report boundaries or reverts
+   to stable identity while track identity stays fixed.
+4. **Playback position** comes from the YouTube player's current time and
    duration, not from lyric timing or the silent ownership audio.
-4. **Session ownership** is the top-level page's silent audio mechanism. It is
+5. **Session ownership** is the top-level page's silent audio mechanism. It is
    transport plumbing, not the song or its timeline.
 
 ## What is true today
@@ -58,9 +61,10 @@ complete, internally consistent account of the continuing song.
 
 ### Metadata updates
 
-Every distinct lyric, report line, identity intro, or countdown value assigns a new
-`MediaMetadata` object. Identical repeats are deduplicated. The second-line
-`artist` value remains stable during the song.
+Every distinct lyric, report line, identity intro, or countdown value assigns
+a new `MediaMetadata` object. Identical repeats are deduplicated. Report mode
+changes only the presented artist line; Identity mode restores the stable
+`year - artist - song` value.
 
 The Web Media Session API has no stable track-ID field and no transient lyric
 field. A browser or Bluetooth head unit may interpret a title metadata change
@@ -75,17 +79,18 @@ For the whole time one `videoId` is sounding:
 
 | Surface | Value |
 |---|---|
-| First text line | selected accompaniment: identity/countdown/current lyric, or current song-report line |
-| Second text line | `year - artist - song`, skipping missing fields |
+| First text line | identity intro/countdown/current lyric; report mode never replaces it |
+| Second text line | selected mode: `year - artist - song` identity or current song-report line |
 | Artwork | one explicit image, stable for the song |
 | Position / duration | YouTube song position and duration |
 | Playback state | true playing, paused, or stopped state |
 
-A listening-text transition changes only the first text line. It must not:
+A listening-text transition changes only its primary or secondary display
+channel. It must not:
 
 - reset position;
 - change artwork;
-- change the stable second line;
+- overwrite the other display channel;
 - emit previous/next-track behavior; or
 - clear and recreate the logical track in Voice-Wei.
 
@@ -103,13 +108,15 @@ accepts distinct semantic state:
 ```text
 setTrackIdentity({ id, title, artist, album, artwork })
 setDisplayLine(text)
+setSecondaryDisplayLine(text)
 setPosition({ duration, position, playbackRate })
 setPlaybackState(state)
 clearTrack()
 ```
 
-The core composes one `MediaMetadata` value from stable track identity plus the
-changing display line. This does not make receiver behavior predictable, but
+The core composes one `MediaMetadata` value from stable track identity plus
+independent primary/title and secondary/artist display lines. This does not
+make receiver behavior predictable, but
 it prevents Voice-Wei itself from confusing lyric/report changes with song
 changes.
 
@@ -151,8 +158,8 @@ stable for that `videoId` and changes only at a real video boundary.
 ### 4. Remove false boundaries and stale state
 
 Track setup should happen once in the authoritative `playVideo()` path after
-the active `videoId` is known. Lyric and song-report rendering should only
-update the display line.
+the active `videoId` is known. Lyric rendering updates only the primary line;
+song-report rendering updates only the secondary line.
 
 Stopping and clearing the playlist clear track identity, position, artwork,
 and playback state together. Pause retains the complete track and freezes its
@@ -160,8 +167,8 @@ last real position.
 
 ### 5. Keep listening-text propagation conservative
 
-Each distinct lyric or report line still requires a title metadata update if
-the car is to show it. Do not add extra metadata churn:
+Each distinct lyric or report line still requires a metadata update if the car
+is to show it. Do not add extra metadata churn:
 
 - keep identical-value deduplication;
 - do not republish stable identity because a listening-text deadline fired unless the

@@ -2078,7 +2078,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     lyricsPanelVisible: false,
                     lyricsPanelDismissed: false,
                     nowPlayingShowsText: false,
-                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
                     escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
@@ -2198,7 +2198,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     lyricsPanelVisible: false,
                     lyricsPanelDismissed: false,
                     nowPlayingShowsText: false,
-                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
                     escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
@@ -3362,7 +3362,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 }
             };
             const harness = {
-                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 playback: { player: null },
                 currentLyricsItemId: 77,
@@ -3561,21 +3561,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 return {
                     title: navigator.mediaSession.metadata?.title || '',
                     artist: navigator.mediaSession.metadata?.artist || '',
-                    bar: document.getElementById('transportBarLyric')?.textContent || ''
+                    barPrimary: document.getElementById('transportBarLyric')?.textContent || '',
+                    barSecondary: document.getElementById('transportBarSecondary')?.textContent || ''
                 };
             };
-            const first = snap(0);
+            const first = snap(3);
             const beforeBoundary = snap(7.9);
             const second = snap(8);
             const firstDeadline = harness.nextListeningTextDeadline(0);
             harness.songReportAnchorTime = 35;
             const immediateAfterLoad = snap(35);
             harness.resetSongReportForPlay(item);
-            const replay = snap(0);
+            const replay = snap(3);
             const stored = await window.PlayerHistoryDB.getSongReport(item.videoId);
 
-            harness.settings.songDisplayMode = 'lyrics';
-            const lyricsAgain = snap(3);
+            harness.settings.songDisplayMode = 'identity';
+            const identityAgain = snap(3);
             MediaSessionCore.clearTrack();
 
             const controller = window.musicController;
@@ -3593,18 +3594,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             document.getElementById('songReportIntervalDownBtn')?.click();
             const controls = {
                 reportSelected: document.getElementById('songDisplayReportBtn')?.classList.contains('selected') || false,
-                lyricsSelected: document.getElementById('songDisplayLyricsBtn')?.classList.contains('selected') || false,
+                identitySelected: document.getElementById('songDisplayIdentityBtn')?.classList.contains('selected') || false,
                 reportDisabled: /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayReportBtn'))?.disabled,
                 requestLabel: document.getElementById('requestSongReportBtn')?.textContent || '',
                 status: document.getElementById('songReportStatus')?.textContent || '',
                 afterUp,
                 afterDown: document.getElementById('songReportIntervalValue')?.textContent || '',
-                noReportFallsBackToLyrics: false
+                noReportFallsBackToIdentity: false
             };
             controller.songReports.delete(item.videoId);
             controller.updateSongReportControls();
-            controls.noReportFallsBackToLyrics =
-                document.getElementById('songDisplayLyricsBtn')?.classList.contains('selected') || false;
+            controls.noReportFallsBackToIdentity =
+                document.getElementById('songDisplayIdentityBtn')?.classList.contains('selected') || false;
             controller.playlist.pop();
             controller.currentPlaylistIndex = originalIndex;
             controller.settings.songDisplayMode = originalMode;
@@ -3622,7 +3623,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 firstDeadline,
                 immediateAfterLoad,
                 replay,
-                lyricsAgain,
+                identityAgain,
                 storedLines: stored?.lines || [],
                 openai,
                 claude,
@@ -3650,25 +3651,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             songReport.lines.length > 2
             && songReport.lines.every(line => line.length > 0 && line.length <= 50)
             && songReport.storedLines.join('|') === songReport.lines.join('|'));
-        report.check(`song report replaces only first line, advances every 8s, starts immediately, and resets on replay`,
-            songReport.first.title === songReport.lines[0]
-            && songReport.first.bar === songReport.lines[0]
-            && songReport.first.artist === '2001 - Report Artist - Report Song'
-            && songReport.beforeBoundary.title === songReport.lines[0]
-            && songReport.second.title === songReport.lines[1]
+        report.check(`song report keeps lyrics first, advances the second line every 8s, starts immediately, and resets on replay`,
+            songReport.first.title === 'lyric line'
+            && songReport.first.barPrimary === 'lyric line'
+            && songReport.first.artist === songReport.lines[0]
+            && songReport.first.barSecondary === songReport.lines[0]
+            && songReport.beforeBoundary.title === 'lyric line'
+            && songReport.beforeBoundary.artist === songReport.lines[0]
+            && songReport.second.title === 'lyric line'
+            && songReport.second.artist === songReport.lines[1]
             && songReport.firstDeadline === 8
-            && songReport.immediateAfterLoad.title === songReport.lines[0]
-            && songReport.replay.title === songReport.lines[0]
-            && songReport.lyricsAgain.title === 'lyric line');
+            && songReport.immediateAfterLoad.artist === songReport.lines[0]
+            && songReport.replay.artist === songReport.lines[0]
+            && songReport.identityAgain.title === 'lyric line'
+            && songReport.identityAgain.artist === '2001 - Report Artist - Report Song'
+            && songReport.identityAgain.barSecondary === '');
         report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
             songReport.controls.reportSelected
-            && !songReport.controls.lyricsSelected
+            && !songReport.controls.identitySelected
             && songReport.controls.reportDisabled === false
             && songReport.controls.requestLabel === 'Refresh Song Report'
             && songReport.controls.status === `${songReport.lines.length} saved lines`
             && songReport.controls.afterUp === '10s'
             && songReport.controls.afterDown === '8s'
-            && songReport.controls.noReportFallsBackToLyrics);
+            && songReport.controls.noReportFallsBackToIdentity);
 
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze
@@ -3698,7 +3704,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 }
             };
             const harness = {
-                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                 playlist: [playing, other],
                 playback: { player: null },
                 currentLyricsItemId: other.id,
@@ -3760,7 +3766,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyrics: item.lyricsData
             });
             const harness = {
-                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 playback: { player: null },
                 currentLyricsItemId: item.id,
@@ -4031,7 +4037,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 duration: '1:30', durationSeconds: 90, searchTerm: 'x'
             }, { sourceKind: 'search', sourceLabel: 'test' });
             const harness = {
-                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 currentLyricsItemId: null,
                 currentLyricsLineIndex: -1,
@@ -4136,15 +4142,20 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             });
             MediaSessionCore.setPosition({ duration: 240, position: 31.2, playbackRate: 1 });
             MediaSessionCore.setDisplayLine('first lyric');
+            MediaSessionCore.setSecondaryDisplayLine('first report');
             const first = navigator.mediaSession.metadata;
             MediaSessionCore.clearDisplayLine();
             const lyricsOff = {
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
+                mediaArtist: navigator.mediaSession.metadata?.artist || '',
                 documentTitle: document.title,
                 headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
             };
+            MediaSessionCore.clearSecondaryDisplayLine();
+            const identityRestored = navigator.mediaSession.metadata?.artist || '';
             MediaSessionCore.setPosition({ duration: 240, position: 32.4, playbackRate: 1 });
             MediaSessionCore.setDisplayLine('second lyric');
+            MediaSessionCore.setSecondaryDisplayLine('second report');
             const second = navigator.mediaSession.metadata;
             MediaSessionCore.setPlaybackState('paused');
             const paused = {
@@ -4190,6 +4201,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     artwork: second?.artwork[0]?.src || ''
                 },
                 lyricsOff,
+                identityRestored,
                 paused,
                 boundary,
                 cleared,
@@ -4199,18 +4211,21 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`Media Session keeps one track across lyrics, true position, pause, and clear`,
             mediaSessionChannels.first.title === 'first lyric'
             && mediaSessionChannels.second.title === 'second lyric'
-            && mediaSessionChannels.first.artist === mediaSessionChannels.second.artist
+            && mediaSessionChannels.first.artist === 'first report'
+            && mediaSessionChannels.second.artist === 'second report'
             && mediaSessionChannels.first.album === mediaSessionChannels.second.album
             && mediaSessionChannels.first.artwork === mediaSessionChannels.second.artwork
             && mediaSessionChannels.lyricsOff.mediaTitle === 'Channel Song'
+            && mediaSessionChannels.lyricsOff.mediaArtist === 'first report'
             && mediaSessionChannels.lyricsOff.documentTitle === 'Channel Song'
             && mediaSessionChannels.lyricsOff.headerTitle === 'Channel Song'
+            && mediaSessionChannels.identityRestored === '2004 - Channel Artist - Channel Song'
             && mediaSessionChannels.positionWrites.some(state =>
                 state.duration === 240 && state.position === 32.4 && state.playbackRate === 1)
             && mediaSessionChannels.positionWrites.filter(state => state.position === 32.4).length >= 2
             && mediaSessionChannels.positionWrites.every(state => state.position > 0)
             && mediaSessionChannels.paused.title === 'second lyric'
-            && mediaSessionChannels.paused.artist === '2004 - Channel Artist - Channel Song'
+            && mediaSessionChannels.paused.artist === 'second report'
             && mediaSessionChannels.paused.state === 'paused'
             && mediaSessionChannels.boundary.title === 'Next Song'
             && mediaSessionChannels.boundary.artist === '2005 - Next Artist - Next Song'

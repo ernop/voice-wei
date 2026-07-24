@@ -869,9 +869,9 @@ const PlayerLyrics = (function () {
                     const lyricText = playingItem
                         ? this.lyricDisplayTextAt(playingItem, [], -1, currentTime)
                         : '';
-                    const displayText = reportText || lyricText;
-                    this.relayListeningTextToNowPlaying(displayText);
-                    this.updateTransportBarLyric(displayText);
+                    this.relayListeningTextToNowPlaying(lyricText, reportText);
+                    this.updateTransportBarLyric(lyricText);
+                    this.updateTransportBarSecondary(reportText);
                     return;
                 }
 
@@ -883,8 +883,9 @@ const PlayerLyrics = (function () {
                     lyricTime + LYRIC_TITLE_LEAD_SECONDS
                 );
                 const relayLyric = this.lyricDisplayTextAt(playingItem, syncedLines, ledIndex, currentTime);
-                this.updateTransportBarLyric(reportText || barLyric);
-                this.relayListeningTextToNowPlaying(reportText || relayLyric);
+                this.updateTransportBarLyric(barLyric);
+                this.updateTransportBarSecondary(reportText);
+                this.relayListeningTextToNowPlaying(relayLyric, reportText);
             },
 
             /**
@@ -895,6 +896,17 @@ const PlayerLyrics = (function () {
              */
             updateTransportBarLyric(text) {
                 const el = document.getElementById('transportBarLyric');
+                if (!el) return;
+                const line = String(text || '').trim();
+                if (el.textContent !== line) {
+                    el.textContent = line;
+                }
+                el.style.display = line ? 'block' : 'none';
+            },
+
+            /** @param {string} text */
+            updateTransportBarSecondary(text) {
+                const el = document.getElementById('transportBarSecondary');
                 if (!el) return;
                 const line = String(text || '').trim();
                 if (el.textContent !== line) {
@@ -925,12 +937,10 @@ const PlayerLyrics = (function () {
              */
             nextListeningTextDeadline(currentTime) {
                 const item = this.playingPlaylistItem();
-                if (this.songReportTextAt(item, currentTime)) {
-                    return this.nextSongReportDeadline(currentTime);
-                }
-                if (!item || !item.lyricsData) return Infinity;
+                if (!item) return Infinity;
+                let next = this.nextSongReportDeadline(currentTime);
+                if (!item.lyricsData) return next;
                 const offset = this.lyricOffsetForItem(item);
-                let next = Infinity;
                 for (const line of item.lyricsData.syncedLines) {
                     // A line becomes active / enters the led title window
                     // at wall-clock times shifted by the per-song offset.
@@ -1058,27 +1068,28 @@ const PlayerLyrics = (function () {
              * lyricDisplayTextAt). Artist is always year - artist - name
              * while playing, so the car's second row keeps song identity.
              * With nothing to show the surfaces clear.
-             * @param {string} displayText
+             * @param {string} primaryText
+             * @param {string} secondaryText
              */
-            relayListeningTextToNowPlaying(displayText) {
+            relayListeningTextToNowPlaying(primaryText, secondaryText) {
                 const item = this.playingPlaylistItem();
                 const playingThisItem = !!item && this.isPlaying && !this.isPaused;
-                const line = (this.settings.lyricsOnNowPlaying && playingThisItem)
-                    ? String(displayText || '').trim()
-                    : '';
+                const enabled = this.settings.lyricsOnNowPlaying && playingThisItem;
+                const primary = enabled ? String(primaryText || '').trim() : '';
+                const secondary = enabled ? String(secondaryText || '').trim() : '';
 
-                if (line) {
+                if (primary || secondary) {
                     // Re-arm session ownership before the push: the silent
                     // keep-alive can be paused out from under us, after which
                     // Chrome routes the car to the YouTube iframe.
                     MediaSessionCore.ensurePlayingSession();
-                    // Repeat writes of the same line are dropped by the core;
-                    // stable artist/artwork/position remain this same track.
-                    MediaSessionCore.setDisplayLine(line);
+                    MediaSessionCore.setDisplayLine(primary);
+                    MediaSessionCore.setSecondaryDisplayLine(secondary);
                     this.nowPlayingShowsText = true;
                 } else if (this.nowPlayingShowsText) {
                     this.nowPlayingShowsText = false;
                     MediaSessionCore.clearDisplayLine();
+                    MediaSessionCore.clearSecondaryDisplayLine();
                 }
             },
 

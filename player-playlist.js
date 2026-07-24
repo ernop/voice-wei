@@ -1201,6 +1201,7 @@ const PlayerPlaylist = (function () {
                 // Song change or clear: the bar lyric belongs to the previous
                 // song until this song's synced position writes its own.
                 this.updateTransportBarLyric('');
+                this.updateTransportBarSecondary('');
                 this.updateBigLyricsAvailability();
                 this.updateFirstLyricButton();
                 this.updateSongReportControls();
@@ -1240,6 +1241,7 @@ const PlayerPlaylist = (function () {
                 // A new play intent starts at song identity, even when the
                 // same videoId is replayed after its previous final lyric.
                 MediaSessionCore.clearDisplayLine();
+                MediaSessionCore.clearSecondaryDisplayLine();
                 MediaSessionCore.setPlaybackState('playing');
                 if (!this.mediaActionHandlersSet) {
                     this.mediaActionHandlersSet = true;

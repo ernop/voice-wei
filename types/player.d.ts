@@ -12,7 +12,7 @@ interface PlayerAppSettings {
     lyricsOnNowPlaying: boolean;
     showSongNotes: boolean;
     playlistTimedOnly: boolean;
-    songDisplayMode: 'lyrics' | 'report';
+    songDisplayMode: 'identity' | 'report';
     songReportIntervalSeconds: number;
 }
 
@@ -351,6 +351,7 @@ interface VoiceMusicController {
     updateCentralPlayer(item: PlaylistItem): void;
     scrollToCurrentSong(): void;
     updateTransportBarLyric(text: string): void;
+    updateTransportBarSecondary(text: string): void;
     stopPlayback(): void;
     playPlaylist(): void;
     pausePlayback(): void;
@@ -458,7 +459,7 @@ interface VoiceMusicController {
     describeNowPlayingArtist(item: PlaylistItem): string;
     lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
-    relayListeningTextToNowPlaying(line: string): void;
+    relayListeningTextToNowPlaying(primaryText: string, secondaryText: string): void;
     nowPlayingShowsText: boolean;
     mediaActionHandlersSet: boolean;
     ensureLyricsForItem(item: PlaylistItem, options?: { forceLookup?: boolean }): Promise<LyricsResult | null>;
@@ -485,7 +486,7 @@ interface VoiceMusicController {
     segmentSongReport(reportText: string, maxChars?: number): string[];
     loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
     requestSongReport(): Promise<void>;
-    setSongDisplayMode(mode: 'lyrics' | 'report'): void;
+    setSongDisplayMode(mode: 'identity' | 'report'): void;
     stepSongReportInterval(direction: -1 | 1): void;
     resetSongReportForPlay(item: PlaylistItem): void;
     clearSongReportPlayback(): void;

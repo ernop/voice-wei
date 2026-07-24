@@ -126,10 +126,10 @@ checked against this list, and new standing intent gets added here.
    fact-grounded report spanning literary interpretation, recording and band
    history, relationships, places and references, business, reception, and
    influence wherever the material is worthwhile. It never reproduces lyrics
-   or fills missing categories. The report replaces the lyric on the changing
-   first display line, advances at the chosen reading interval, leaves the
-   stable song-identity second line and audio untouched, persists by video,
-   and starts again when that song replays.
+   or fills missing categories. Timed lyrics remain on the first display line;
+   the report is an alternative to song identity on the second line. It
+   advances at the chosen reading interval, leaves audio/artwork/position
+   untouched, persists by video, and starts again when that song replays.
 
 ## Current priorities (deduplicated from the idea pool)
 

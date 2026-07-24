@@ -1460,6 +1460,16 @@ h1 {
     overflow-wrap: anywhere;
 }
 
+.transport-bar-secondary {
+    width: 100%;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.15;
+    color: #bfdbfe;
+    overflow-wrap: anywhere;
+}
+
 .song-report-controls {
     display: flex;
     flex-wrap: wrap;

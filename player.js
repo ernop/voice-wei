@@ -175,7 +175,7 @@ class VoiceMusicController {
             lyricsOnNowPlaying: true,
             showSongNotes: false,
             playlistTimedOnly: false,
-            songDisplayMode: 'lyrics',
+            songDisplayMode: 'identity',
             songReportIntervalSeconds: 8
         });
         /** @type {string} Live playlist view filter (normalized; never persisted) */
@@ -1103,9 +1103,9 @@ class VoiceMusicController {
                 void this.requestSongReport();
             });
         }
-        const songDisplayLyricsBtn = document.getElementById('songDisplayLyricsBtn');
-        if (songDisplayLyricsBtn) {
-            songDisplayLyricsBtn.addEventListener('click', () => this.setSongDisplayMode('lyrics'));
+        const songDisplayIdentityBtn = document.getElementById('songDisplayIdentityBtn');
+        if (songDisplayIdentityBtn) {
+            songDisplayIdentityBtn.addEventListener('click', () => this.setSongDisplayMode('identity'));
         }
         const songDisplayReportBtn = document.getElementById('songDisplayReportBtn');
         if (songDisplayReportBtn) {

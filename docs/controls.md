@@ -58,7 +58,7 @@ dialect class reappears.
 The player consumes the canonical `vf-btn` segment rows, `panel-action-btn`,
 `primary-btn`, `step-field`/`step-btn`, `listen-button`,
 `submit-button-large`, and `text-input`. The song-report row uses those
-canonical controls directly: Request is primary, Lyrics/Report is a segment,
+canonical controls directly: Request is primary, Identity/Story Report is a segment,
 and the seconds-per-line picker is a step field. The player also carries
 these dialects, all defined in style.css:
 

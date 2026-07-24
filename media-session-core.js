@@ -48,13 +48,16 @@ const MediaSessionCore = (function () {
      * }} PositionState
      */
 
-    // A song's identity is stable while its lyric display line changes.
+    // A song's identity is stable while its two presented lines change.
     // Keeping them separate is essential: Media Session is track-oriented,
-    // but the Lyrics page deliberately uses its title field as a lyric relay.
+    // but the Lyrics page uses title for lyrics and artist for selectable
+    // secondary accompaniment.
     /** @type {TrackIdentity | null} */
     let trackIdentity = null;
     /** @type {string | null} null means use the stable track title */
     let displayLine = null;
+    /** @type {string | null} null means use the stable track artist */
+    let secondaryDisplayLine = null;
     /** @type {{ title: string, artist: string } | null} Non-player page metadata */
     let simpleMetadata = null;
     /** @type {string | null} */
@@ -164,6 +167,7 @@ const MediaSessionCore = (function () {
         const artist = options.artist === undefined ? 'Voice-Wei' : options.artist;
         trackIdentity = null;
         displayLine = null;
+        secondaryDisplayLine = null;
         simpleMetadata = { title, artist };
         publishMetadata();
     }
@@ -173,7 +177,7 @@ const MediaSessionCore = (function () {
         if (trackIdentity) {
             return {
                 title: displayLine || trackIdentity.title,
-                artist: trackIdentity.artist,
+                artist: secondaryDisplayLine || trackIdentity.artist,
                 album: trackIdentity.album,
                 artwork: trackIdentity.artwork
             };
@@ -217,6 +221,7 @@ const MediaSessionCore = (function () {
         simpleMetadata = null;
         if (changedTrack) {
             displayLine = null;
+            secondaryDisplayLine = null;
             writtenMetadataKey = null;
             clearPosition(false);
         }
@@ -239,6 +244,16 @@ const MediaSessionCore = (function () {
 
     function clearDisplayLine() {
         setDisplayLine('');
+    }
+
+    /** @param {string} text */
+    function setSecondaryDisplayLine(text) {
+        secondaryDisplayLine = String(text || '').trim() || null;
+        publishMetadata();
+    }
+
+    function clearSecondaryDisplayLine() {
+        setSecondaryDisplayLine('');
     }
 
     /**
@@ -350,6 +365,7 @@ const MediaSessionCore = (function () {
     function clearTrack() {
         trackIdentity = null;
         displayLine = null;
+        secondaryDisplayLine = null;
         simpleMetadata = null;
         writtenMetadataKey = null;
         clearPosition();
@@ -407,6 +423,8 @@ const MediaSessionCore = (function () {
         setTrackIdentity,
         setDisplayLine,
         clearDisplayLine,
+        setSecondaryDisplayLine,
+        clearSecondaryDisplayLine,
         setPosition,
         clearPosition,
         clearTrack,

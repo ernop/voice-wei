@@ -194,7 +194,7 @@ Rules:
                 }
             },
 
-            /** @param {'lyrics' | 'report'} mode */
+            /** @param {'identity' | 'report'} mode */
             setSongDisplayMode(mode) {
                 const item = this.playingPlaylistItem() || this.currentPlaylistItem();
                 if (mode === 'report' && !this.songReportForItem(item)) return;
@@ -292,13 +292,13 @@ Rules:
                 const item = this.playingPlaylistItem() || this.currentPlaylistItem();
                 const record = this.songReportForItem(item);
                 const requestButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('requestSongReportBtn'));
-                const lyricsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayLyricsBtn'));
+                const identityButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayIdentityBtn'));
                 const reportButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayReportBtn'));
                 const interval = document.getElementById('songReportIntervalValue');
                 const status = document.getElementById('songReportStatus');
                 const effectiveMode = this.settings.songDisplayMode === 'report' && record
                     ? 'report'
-                    : 'lyrics';
+                    : 'identity';
 
                 if (requestButton) {
                     requestButton.disabled = !item || this.songReportRequestInFlight;
@@ -306,9 +306,9 @@ Rules:
                         ? 'Researching Report'
                         : (record ? 'Refresh Song Report' : 'Request Song Report');
                 }
-                if (lyricsButton) {
-                    lyricsButton.classList.toggle('selected', effectiveMode === 'lyrics');
-                    lyricsButton.setAttribute('aria-pressed', String(effectiveMode === 'lyrics'));
+                if (identityButton) {
+                    identityButton.classList.toggle('selected', effectiveMode === 'identity');
+                    identityButton.setAttribute('aria-pressed', String(effectiveMode === 'identity'));
                 }
                 if (reportButton) {
                     reportButton.disabled = !record;

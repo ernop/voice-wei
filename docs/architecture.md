@@ -274,9 +274,10 @@ Media keys and the now-playing surface: phrases, scales, intervals, ears,
 and the player register hardware play/pause/next handlers through
 `media-session-core.js`, which is the ONLY writer of
 `navigator.mediaSession` and `document.title` (ast-grep enforced). The core
-composes stable track identity/artwork, the changing display line, true media
-position, and playback state without letting one concern overwrite another.
-It fans the display line out to car/lock-screen metadata, the tab title, and
+composes stable track identity/artwork, changing primary and secondary display
+lines, true media position, and playback state without letting one concern
+overwrite another. It fans the primary line out to car/lock-screen title
+metadata, the tab title, and
 the site-header heading. Reporting `setPlaybackState('playing')` automatically
 secures session ownership via the silent-WAV loop (without it, Chrome routes
 the car display to whichever frame is audibly playing; with a YouTube iframe
@@ -285,10 +286,11 @@ first user gesture; pages never wire activation.
 Trace and pitch-meter deliberately do not register - they are
 watch-the-screen tools where hardware keys add nothing.
 
-The Lyrics player intentionally changes Media Session title text within one
-continuing song. That changing line may be a timed lyric or a generated song
-report. Track identity, listening text, YouTube position, artwork, and
-silent-audio session ownership remain separate concepts; see
+The Lyrics player intentionally changes both presented text lines within one
+continuing song: timed lyrics own the primary/title line, while identity or a
+generated report owns the secondary/artist line. Track identity, both display
+lines, YouTube position, artwork, and silent-audio session ownership remain
+separate concepts; see
 [media-session-lyrics-design.md](media-session-lyrics-design.md).
 
 **Deadline scheduling, not polling.** Timeline-driven UI (the player's

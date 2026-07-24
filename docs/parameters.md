@@ -263,9 +263,9 @@ playback update, or lyric render without replaying anything.
 | openaiModel | gpt-5.5 | gpt-5.5, gpt-5.4, gpt-4.1 | immediate (next request); retired ids alias forward on load (gpt-5.2 to gpt-5.4) |
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
-| lyricsOnNowPlaying | true | toggle | immediate (relay the active timed lyric or song-report line into the media-session title) |
+| lyricsOnNowPlaying | true | toggle | immediate (relay timed lyrics on the first line and the selected identity/report value on the second) |
 | showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
-| songDisplayMode | lyrics | lyrics / report | immediate (switches the changing first display line; Report is available when the selected song has a saved report) |
+| songDisplayMode | identity | identity / report | immediate (switches the second display line; Story Report is available when the selected song has a saved report) |
 | songReportIntervalSeconds | 8 | 3, 4, 5, 6, 8, 10, 12, 15, 20, 30 seconds | immediate (keeps the current report line, then schedules subsequent lines at the new interval; audio never restarts) |
 
 The per-query Model pills under the request box set the same settings
