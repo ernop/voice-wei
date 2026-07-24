@@ -28,9 +28,19 @@ merge to master, push, delete the branch.
   lifecycle transition is written synchronously to localStorage
   (`voice-wei:player-lifecycle`), because Android can kill a hidden renderer
   with no pagehide. Session-start logs `wasDiscarded`, navigation type, prior
-  breadcrumb, and current app/YouTube/Media Session state. Next background
-  stop on the phone: open Log, read the `Playback diagnostic` lines before
-  theorizing. Yui also directed: never record video demos unless asked.
+  breadcrumb, and current app/YouTube/Media Session state. v292 added a
+  15-second silent heartbeat (bounds when playback died) and the silent
+  keep-alive element's state (paused under a playing claim = audio-focus
+  loss). Next background stop on the phone: open Log, read the `Playback
+  diagnostic` lines before theorizing. Yui also directed: never record video
+  demos unless asked.
+- Deploy-gate incident (same evening): one agent parallelized deploy
+  validation, another switched tests to the runner's hosted Chrome. Each
+  looked like a harmless speedup; together they contaminated the calibrated
+  1000ms Lyrics startup gate (271ms -> 2541ms) and blocked deploys. The gate
+  measures wall-clock time: nothing may share the runner while it runs, and
+  its browser is part of the calibration (hosted Chrome alone cost ~560ms).
+  Do not trade measurement integrity for deploy seconds.
 
 ---
 
