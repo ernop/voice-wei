@@ -72,6 +72,7 @@ HTTPS is required for microphone access when deployed.
 ./setup-cloud-agent.sh   # once per fresh cloud VM; installs npm deps, Playwright Chromium, PHP/pip tooling
 npm test      # fast suite: JS syntax, CSS ownership, page-load smoke, Books flow
 npm run test:startup  # isolated Lyrics startup budget + timing contract
+npm run verify:startup  # startup test, then parallel typecheck + lint
 npm run test:full  # slower playback/mic/control/tab end-to-end suite
 ```
 

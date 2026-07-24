@@ -47,12 +47,14 @@ the repo is reachable from here.
    new standing guidance updates this file. No documentation file may
    exist outside the tree below.
 9. **Keep the request-to-live loop short.** For a routine scoped change, the
-   working target is at most one quarter of the July 24 baseline: under seven
-   minutes from first inspection to verified live. Preserve rigor by removing
-   ceremony and duplicated evidence, not by skipping the relevant proof:
+   working target is at most one eighth of the July 24 baseline: under three
+   and a half minutes from first inspection to verified live. Preserve rigor
+   by removing ceremony and duplicated evidence, not by skipping the relevant
+   proof:
    - form a narrow test plan before editing; run the smallest suite that owns
      the changed contract plus typecheck/lint, in parallel where independent;
-     do not run `test:full` by habit;
+     do not run `test:full` by habit. Lyrics startup changes use the complete
+     targeted gate `npm run verify:startup`;
    - use one baseline and one after-change measurement unless the result is
      ambiguous;
    - do not perform GUI testing merely to create proof when automation can
@@ -62,7 +64,8 @@ the repo is reachable from here.
      version changes are resolved before generated version edits exist;
    - after Actions reports `Verify deployment` successful, probe the live
      `VERSION` and changed path and report immediately. Deploy telemetry is
-     post-live bookkeeping and is not part of the ship's critical path.
+     a separate post-live workflow and is not part of the ship's critical
+     path.
 
 ## Documentation tree (every doc, from here)
 
