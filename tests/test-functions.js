@@ -1772,6 +1772,51 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && modelOptions.openaiModels.includes('gpt-5.4')
             && modelOptions.openaiModels.includes('gpt-4.1'));
 
+        const lyricsOverlayNavigation = await tab.evaluate(() => {
+            const controller = window.musicController;
+            const overlay = document.getElementById('lyricsOverlay');
+            const content = document.getElementById('lyricsOverlayContent');
+            const lyricsData = (prefix) => ({
+                provider: 'test',
+                trackName: prefix,
+                artistName: 'Test Artist',
+                albumName: '',
+                duration: 100,
+                instrumental: false,
+                plainLyrics: '',
+                syncedLyrics: '',
+                syncedLines: Array.from({ length: 80 }, (_, index) => ({
+                    time: index,
+                    text: `${prefix} line ${index + 1}`
+                }))
+            });
+            const first = { id: 901, name: 'First', artist: 'Test Artist', lyricsStatus: 'ready', lyricsData: lyricsData('first') };
+            const second = { id: 902, name: 'Second', artist: 'Test Artist', lyricsStatus: 'ready', lyricsData: lyricsData('second') };
+
+            controller.openLyricsOverlay();
+            controller.currentLyricsItemId = first.id;
+            controller.currentLyricsLineIndex = -1;
+            controller.renderLyricsStateForItem(first);
+            content.scrollTop = content.scrollHeight;
+            const priorTrackScroll = content.scrollTop;
+
+            controller.currentLyricsItemId = second.id;
+            controller.currentLyricsLineIndex = -1;
+            controller.renderLyricsStateForItem(second);
+            const nextTrackScroll = content.scrollTop;
+
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            return {
+                priorTrackScroll,
+                nextTrackScroll,
+                overlayClosed: overlay.getAttribute('aria-hidden') === 'true'
+                    && !document.body.classList.contains('lyrics-overlay-open')
+            };
+        });
+        report.check(`player Big Lyrics resets at the next track (${lyricsOverlayNavigation.priorTrackScroll}px -> ${lyricsOverlayNavigation.nextTrackScroll}px)`,
+            lyricsOverlayNavigation.priorTrackScroll > 0 && lyricsOverlayNavigation.nextTrackScroll === 0);
+        report.check('player Escape closes Big Lyrics', lyricsOverlayNavigation.overlayClosed);
+
         const musicHistoryCache = await tab.evaluate(async () => {
             const query = `cache test ${Date.now()}`;
             PlayerHistoryDB.recordYouTubeSearch(query, [{

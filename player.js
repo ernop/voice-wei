@@ -937,6 +937,12 @@ class VoiceMusicController {
                 this.closeLyricsOverlay();
             });
         }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && document.body.classList.contains('lyrics-overlay-open')) {
+                event.preventDefault();
+                this.closeLyricsOverlay();
+            }
+        });
 
         const lyricsOverlaySettingsBtn = document.getElementById('lyricsOverlaySettingsBtn');
         if (lyricsOverlaySettingsBtn) {

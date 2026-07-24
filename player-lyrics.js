@@ -283,6 +283,9 @@ const PlayerLyrics = (function () {
                     const container = document.getElementById(containerId);
                     if (!container) continue;
                     container.innerHTML = '';
+                    // Replaced lyric content belongs to a new render, so it
+                    // must not inherit the prior track's reading position.
+                    container.scrollTop = 0;
 
                     const fragment = document.createDocumentFragment();
                     lines.forEach((line, index) => {

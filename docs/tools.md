@@ -312,7 +312,9 @@ row) is always `year - artist - song` while playing, so identity stays
 under the lyric after the intro ends. Car / lock-screen / tab / header
 titles lead the sung line by 0.75s so Bluetooth metadata redraw lands
 near the moment the line starts; the on-screen highlight stays on the
-exact timed time.
+exact timed time. Big Lyrics closes with Escape. If playback advances to
+another song while Big Lyrics remains open, the new lyrics begin at the top
+instead of retaining the prior song's scroll position.
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric-title writes retain those
 fields and reassert the same position, so a new lyric remains the same
