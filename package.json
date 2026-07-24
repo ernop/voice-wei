@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node dev-server.js",
     "test": "node tests/run-all.js",
+    "test:startup": "node tests/run-all.js --suite test-player-startup.js",
     "test:full": "node tests/run-all.js --full",
     "test:suite": "node tests/run-all.js --suite",
     "typecheck": "tsc --noEmit",

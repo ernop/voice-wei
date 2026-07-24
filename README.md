@@ -71,6 +71,7 @@ HTTPS is required for microphone access when deployed.
 ```bash
 ./setup-cloud-agent.sh   # once per fresh cloud VM; installs npm deps, Playwright Chromium, PHP/pip tooling
 npm test      # fast suite: JS syntax, CSS ownership, page-load smoke, Books flow
+npm run test:startup  # isolated Lyrics startup budget + timing contract
 npm run test:full  # slower playback/mic/control/tab end-to-end suite
 ```
 
@@ -79,9 +80,11 @@ running). It uses Playwright's installed Chromium by default; set `CHROME_PATH`
 only when targeting a specific Chrome/Chromium binary. Full mic tests use
 Chrome's fake audio device. For ordinary text/CSS/small JS changes, use the
 fast default plus any targeted suite (`node tests/run-all.js --suite
-test-controls.js`). The deploy workflow gates on typecheck, lint, and the fast
-browser suite before rsync. Use `npm run test:full` when touching playback, mic,
-progress recording, media session behavior, or cross-tab flows. Also:
+test-controls.js`). Use `npm run test:startup` for Lyrics loading/readiness
+work; it runs alone so other browser processes cannot contaminate wall-clock
+timings. The deploy workflow gates on typecheck, lint, and the fast browser
+suite before rsync. Use `npm run test:full` only when the change crosses
+multiple playback, mic, progress-recording, media-session, or tab contracts. Also:
 `npm run lint` (ast-grep, including the shared-library ownership guards),
 `npm run typecheck`, and `php -l proxy.php` when touching the PHP proxy.
 

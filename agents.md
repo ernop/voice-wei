@@ -46,6 +46,23 @@ the repo is reachable from here.
    docs/architecture.md; control-surface changes update docs/controls.md;
    new standing guidance updates this file. No documentation file may
    exist outside the tree below.
+9. **Keep the request-to-live loop short.** For a routine scoped change, the
+   working target is at most one quarter of the July 24 baseline: under seven
+   minutes from first inspection to verified live. Preserve rigor by removing
+   ceremony and duplicated evidence, not by skipping the relevant proof:
+   - form a narrow test plan before editing; run the smallest suite that owns
+     the changed contract plus typecheck/lint, in parallel where independent;
+     do not run `test:full` by habit;
+   - use one baseline and one after-change measurement unless the result is
+     ambiguous;
+   - do not perform GUI testing merely to create proof when automation can
+     verify the behavior; use the smallest focused walkthrough only when yui
+     requests it or automation cannot exercise the interaction;
+   - synchronize with `origin/master` before the release bump, so concurrent
+     version changes are resolved before generated version edits exist;
+   - after Actions reports `Verify deployment` successful, probe the live
+     `VERSION` and changed path and report immediately. Deploy telemetry is
+     post-live bookkeeping and is not part of the ship's critical path.
 
 ## Documentation tree (every doc, from here)
 
