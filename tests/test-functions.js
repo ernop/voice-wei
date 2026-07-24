@@ -3525,10 +3525,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 requestLabel: document.getElementById('requestSongReportBtn')?.textContent || '',
                 status: document.getElementById('songReportStatus')?.textContent || '',
                 afterUp,
-                afterDown: document.getElementById('songReportIntervalValue')?.textContent || ''
+                afterDown: document.getElementById('songReportIntervalValue')?.textContent || '',
+                noReportFallsBackToLyrics: false
             };
-            controller.playlist.pop();
             controller.songReports.delete(item.videoId);
+            controller.updateSongReportControls();
+            controls.noReportFallsBackToLyrics =
+                document.getElementById('songDisplayLyricsBtn')?.classList.contains('selected') || false;
+            controller.playlist.pop();
             controller.currentPlaylistIndex = originalIndex;
             controller.settings.songDisplayMode = originalMode;
             controller.settings.songReportIntervalSeconds = originalInterval;
@@ -3590,7 +3594,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.controls.requestLabel === 'Refresh Song Report'
             && songReport.controls.status === `${songReport.lines.length} saved lines`
             && songReport.controls.afterUp === '10s'
-            && songReport.controls.afterDown === '8s');
+            && songReport.controls.afterDown === '8s'
+            && songReport.controls.noReportFallsBackToLyrics);
 
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze

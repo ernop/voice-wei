@@ -120,6 +120,10 @@ Rules:
                         this.songReports.set(item.videoId, record);
                     }
                     return record;
+                } catch (error) {
+                    this.logError('Song Report Load Error', error);
+                    this.updateStatus(`Could not load saved song report: ${error instanceof Error ? error.message : String(error)}`);
+                    return null;
                 } finally {
                     if (this.songReportLoadsInFlight.get(item.videoId) === flight) {
                         this.songReportLoadsInFlight.delete(item.videoId);
@@ -292,6 +296,9 @@ Rules:
                 const reportButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayReportBtn'));
                 const interval = document.getElementById('songReportIntervalValue');
                 const status = document.getElementById('songReportStatus');
+                const effectiveMode = this.settings.songDisplayMode === 'report' && record
+                    ? 'report'
+                    : 'lyrics';
 
                 if (requestButton) {
                     requestButton.disabled = !item || this.songReportRequestInFlight;
@@ -300,13 +307,13 @@ Rules:
                         : (record ? 'Refresh Song Report' : 'Request Song Report');
                 }
                 if (lyricsButton) {
-                    lyricsButton.classList.toggle('selected', this.settings.songDisplayMode === 'lyrics');
-                    lyricsButton.setAttribute('aria-pressed', String(this.settings.songDisplayMode === 'lyrics'));
+                    lyricsButton.classList.toggle('selected', effectiveMode === 'lyrics');
+                    lyricsButton.setAttribute('aria-pressed', String(effectiveMode === 'lyrics'));
                 }
                 if (reportButton) {
                     reportButton.disabled = !record;
-                    reportButton.classList.toggle('selected', this.settings.songDisplayMode === 'report' && !!record);
-                    reportButton.setAttribute('aria-pressed', String(this.settings.songDisplayMode === 'report' && !!record));
+                    reportButton.classList.toggle('selected', effectiveMode === 'report');
+                    reportButton.setAttribute('aria-pressed', String(effectiveMode === 'report'));
                 }
                 if (interval) {
                     interval.textContent = `${this.settings.songReportIntervalSeconds}s`;
