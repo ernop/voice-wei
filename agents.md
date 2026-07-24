@@ -60,6 +60,8 @@ the repo is reachable from here.
    - do not perform GUI testing merely to create proof when automation can
      verify the behavior; use the smallest focused walkthrough only when yui
      requests it or automation cannot exercise the interaction;
+   - do not create video demos unless yui explicitly requests one; passing
+     automated browser coverage is the default proof for UI behavior;
    - synchronize with `origin/master` before the release bump, so concurrent
      version changes are resolved before generated version edits exist;
    - after Actions reports `Verify deployment` successful, probe the live
