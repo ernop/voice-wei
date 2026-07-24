@@ -93,9 +93,7 @@ const PlayerLifecycle = (function () {
             videoId: playback.activeVideoId,
             positionSeconds,
             youtubeState,
-            mediaSessionState: 'mediaSession' in navigator
-                ? navigator.mediaSession.playbackState
-                : 'unavailable'
+            mediaSessionState: MediaSessionCore.getPlaybackState()
         };
     }
 
