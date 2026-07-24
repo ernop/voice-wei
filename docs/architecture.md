@@ -24,6 +24,45 @@ player.html + player.js  # AI music player
 ebook.html/js/css        # Ebook to audiobook
 ```
 
+### Lyrics startup contract
+
+The Lyrics page has one readiness boundary: `voice-wei-player-ready`, emitted
+after controller construction, UI wiring, IndexedDB song-library hydration,
+favorite reconciliation scheduling, saved-playlist restoration, and one
+animation frame. `window.__voiceWeiStartup` exposes the same result for
+inspection and tests. Its wall-clock budget is 1000ms from navigation start.
+The initial status says `Initializing...`; `Ready` or `API key required` is
+only authoritative after the readiness event.
+
+Every load writes a `Startup` line to the in-page Log and a detailed report to
+the browser console. The report separates costs that overlap and therefore
+must not be added together:
+
+| Report section | What it measures |
+|----------------|------------------|
+| `navigation.serverResponseMs` | navigation start through the first HTML byte |
+| `documentDownloadMs` | first through last HTML byte |
+| `parseAndBlockingResourcesMs` | HTML parsing plus resources that block `domInteractive` |
+| `domContentLoadedHandlersMs` | all DOMContentLoaded callbacks |
+| `appAfterDomContentLoadedMs` | remaining application work through the first ready frame |
+| `phases` | named controller operations, with item counts for library/favorites/playlist work |
+| `resources` | every resource's URL, initiator, start, network duration, transferred bytes, and decoded bytes |
+| `longTasks` | main-thread tasks over 50ms reported by the browser |
+
+The named phases are controller construction/stored settings, configuration
+and key state, UI/voice wiring, lyrics-view settings, YouTube readiness
+wiring, local-library hydration, favorite-lyrics scheduling, playlist
+restoration, and demo setup. `application initialization` contains those
+phases and is intentionally nested.
+
+External work that does not gate interaction is outside this readiness
+boundary. The YouTube IFrame API starts in parallel and playback awaits its
+ready callback. Favorite and restored-playlist lyric fetches run through the
+bounded background queue after they are scheduled. Tone.js is not a Lyrics
+startup dependency: the page loads it only when Local Song Library playback
+is first requested. `tests/test-player-startup.js` enforces the one-second
+contract on an empty profile and with a 100-song restored playlist.
+
 The URL importer accepts only same-origin GET requests. It resolves and pins
 every outbound hostname before connecting, rejects private/reserved addresses
 and nonstandard ports, revalidates every redirect, verifies TLS, caps response

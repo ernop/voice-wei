@@ -17,6 +17,7 @@ const FAST_SUITES = [
     'test-syntax.js',
     'test-css-ownership.js',
     'test-pages-load.js',
+    'test-player-startup.js',
     'test-books.js'
 ];
 

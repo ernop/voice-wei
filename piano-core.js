@@ -7,12 +7,14 @@
 // so playback control is exact: stopAll() kills the actual voices (with
 // a short declick fade), never by muting the master output and hoping
 // tails die. activeVoices() reports precisely what is sounding.
-// Requires Tone.js and music-constants.js.
+// Requires music-constants.js. Tone.js is loaded on first audio use when a
+// page has not already loaded it.
 //-----------------------------------------------------------------------
 
 const PianoCore = (function () {
     'use strict';
 
+    const TONE_SCRIPT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js';
     const SALAMANDER_BASE_URL = 'https://tonejs.github.io/audio/salamander/';
     const SALAMANDER_URLS = Object.freeze({
         'A0': 'A0.mp3', 'C1': 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
@@ -30,9 +32,27 @@ const PianoCore = (function () {
     // Declick fade when a voice is killed by stopAll(): long enough to
     // avoid a click, short enough to be imperceptible as sound.
     const KILL_FADE_SECONDS = 0.02;
+    /** @type {Promise<void> | null} */
+    let toneLoadPromise = null;
 
-    // Tone.js requires a user gesture before audio can start.
+    function ensureToneLoaded() {
+        if (typeof Tone !== 'undefined') return Promise.resolve();
+        if (toneLoadPromise) return toneLoadPromise;
+
+        toneLoadPromise = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = TONE_SCRIPT_URL;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Could not load Tone.js from ${TONE_SCRIPT_URL}`));
+            document.head.appendChild(script);
+        });
+        return toneLoadPromise;
+    }
+
+    // The first call is always user-initiated, which also satisfies the
+    // browser's audio-context gesture requirement.
     async function ensureStarted() {
+        await ensureToneLoaded();
         if (Tone.context.state !== 'running') await Tone.start();
     }
 

@@ -4,6 +4,140 @@
 
 // How many stored log lines from earlier sessions replay into the panel
 const HISTORICAL_LOG_LINES = 300;
+const PLAYER_STARTUP_BUDGET_MS = 1000;
+
+const PlayerStartup = (function () {
+    'use strict';
+
+    /** @type {PlayerStartupPhase[]} */
+    const phases = [];
+    /** @type {PerformanceEntry[]} */
+    const longTasks = [];
+    const state = {
+        budgetMs: PLAYER_STARTUP_BUDGET_MS,
+        ready: false,
+        report: /** @type {PlayerStartupReport | null} */ (null)
+    };
+    window.__voiceWeiStartup = state;
+
+    if (typeof PerformanceObserver !== 'undefined'
+        && PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+        const observer = new PerformanceObserver(list => {
+            longTasks.push(...list.getEntries());
+        });
+        observer.observe({ type: 'longtask', buffered: true });
+    }
+
+    /**
+     * Phases may nest, so their durations explain individual operations but
+     * are not additive. The ready total is the authoritative wall clock.
+     * @param {string} name
+     * @returns {(detail?: Record<string, string | number | boolean>) => void}
+     */
+    function begin(name) {
+        const startMs = performance.now();
+        let ended = false;
+        return (detail = {}) => {
+            if (ended) throw new Error(`Startup phase ended twice: ${name}`);
+            ended = true;
+            phases.push({
+                name,
+                startMs: round(startMs),
+                durationMs: round(performance.now() - startMs),
+                detail
+            });
+        };
+    }
+
+    /** @param {number} value */
+    function round(value) {
+        return Math.round(value * 10) / 10;
+    }
+
+    /** @param {PerformanceResourceTiming} entry */
+    function resourceRecord(entry) {
+        const url = new URL(entry.name, location.href);
+        return {
+            name: url.hostname === location.hostname
+                ? url.pathname.split('/').pop() || url.pathname
+                : `${url.hostname}${url.pathname}`,
+            initiator: entry.initiatorType,
+            startMs: round(entry.startTime),
+            durationMs: round(entry.duration),
+            transferBytes: entry.transferSize,
+            decodedBytes: entry.decodedBodySize
+        };
+    }
+
+    /** @param {number} readyAtMs */
+    function navigationRecord(readyAtMs) {
+        const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
+            performance.getEntriesByType('navigation')[0]
+        );
+        if (!navigation) {
+            return {
+                serverResponseMs: 0,
+                documentDownloadMs: 0,
+                parseAndBlockingResourcesMs: 0,
+                domContentLoadedHandlersMs: 0,
+                appAfterDomContentLoadedMs: 0,
+                totalReadyMs: round(readyAtMs)
+            };
+        }
+        return {
+            serverResponseMs: round(navigation.responseStart),
+            documentDownloadMs: round(navigation.responseEnd - navigation.responseStart),
+            parseAndBlockingResourcesMs: round(navigation.domInteractive - navigation.responseEnd),
+            domContentLoadedHandlersMs: round(
+                navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart
+            ),
+            appAfterDomContentLoadedMs: round(
+                readyAtMs - navigation.domContentLoadedEventEnd
+            ),
+            totalReadyMs: round(readyAtMs)
+        };
+    }
+
+    /** @param {PlayerStartupReport} report */
+    function logReport(report) {
+        const verdict = report.withinBudget ? 'within' : 'over';
+        console.info(
+            `[Lyrics startup] ready in ${report.readyAtMs.toFixed(1)} ms `
+            + `(${verdict} ${report.budgetMs} ms budget)`
+        );
+        console.table(report.navigation);
+        console.table(report.phases);
+        console.table(report.resources);
+        if (report.longTasks.length) console.table(report.longTasks);
+    }
+
+    async function finish() {
+        await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+        const readyAtMs = round(performance.now());
+        const resources = performance.getEntriesByType('resource')
+            .map(entry => resourceRecord(/** @type {PerformanceResourceTiming} */ (entry)))
+            .sort((left, right) => right.durationMs - left.durationMs);
+        const report = {
+            budgetMs: PLAYER_STARTUP_BUDGET_MS,
+            readyAtMs,
+            withinBudget: readyAtMs <= PLAYER_STARTUP_BUDGET_MS,
+            navigation: navigationRecord(readyAtMs),
+            phases: [...phases].sort((left, right) => left.startMs - right.startMs),
+            resources,
+            longTasks: longTasks.map(entry => ({
+                startMs: round(entry.startTime),
+                durationMs: round(entry.duration)
+            }))
+        };
+        state.report = report;
+        state.ready = true;
+        logReport(report);
+        window.dispatchEvent(new CustomEvent('voice-wei-player-ready', { detail: report }));
+        return report;
+    }
+
+    return { begin, finish };
+})();
 
 class VoiceMusicController {
     constructor() {
@@ -91,8 +225,6 @@ class VoiceMusicController {
         PlayerLyrics.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);
-
-        this.init();
     }
 
     saveFavorites() {
@@ -108,25 +240,67 @@ class VoiceMusicController {
     }
 
     async init() {
+        const endInitialization = PlayerStartup.begin('application initialization');
         try {
             if (window.PlayerHistoryDB) {
                 window.PlayerHistoryDB.setNoticeHandler((message) => {
                     this.addMessage('claude', 'History storage', message);
                 });
             }
+
+            let endPhase = PlayerStartup.begin('configuration and API key state');
             await this.loadConfig();
+            endPhase();
+
+            endPhase = PlayerStartup.begin('UI and voice control wiring');
             this.setupUI();
+            endPhase();
+
+            endPhase = PlayerStartup.begin('lyrics view settings');
             this.applyLyricsViewSettings();
+            endPhase();
+
+            endPhase = PlayerStartup.begin('YouTube API readiness wiring');
             this.setupYouTubeAPI();
+            endPhase();
+
+            endPhase = PlayerStartup.begin('local song library hydration');
             await this.hydrateSongLibrary();
+            endPhase({ songs: this.songLibrary.songs.length });
+
             // Per-song lyric reconciliation over the favorites library:
             // already-resolved songs settle from the permanent store,
             // unresolved ones get looked up through the bounded queue.
+            endPhase = PlayerStartup.begin('favorite lyrics reconciliation scheduling');
             this.reconcileLibraryLyrics();
+            endPhase({
+                favorites: Object.keys(this.favorites).length,
+                queued: this.lyricsFetchQueue.length,
+                active: this.lyricsFetchActive
+            });
+
+            endPhase = PlayerStartup.begin('saved playlist restoration');
             this.restoreSavedPlaylist();
+            endPhase({ songs: this.playlist.length });
+
+            endPhase = PlayerStartup.begin('demo request');
             this.loadDemoSongIfRequested();
+            endPhase();
+            endInitialization();
+
+            const report = await PlayerStartup.finish();
+            const phaseSummary = report.phases
+                .filter(phase => phase.name !== 'application initialization')
+                .map(phase => `${phase.name} ${phase.durationMs.toFixed(1)}ms`)
+                .join('; ');
+            this.addMessage(
+                report.withinBudget ? 'claude' : 'error',
+                'Startup',
+                `Ready in ${report.readyAtMs.toFixed(1)}ms / ${report.budgetMs}ms. ${phaseSummary}`
+            );
         } catch (error) {
             this.logError('Initialization error', error);
+            throw error;
         }
     }
 
@@ -1351,6 +1525,12 @@ class VoiceMusicController {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    window.musicController = new VoiceMusicController();
+document.addEventListener('DOMContentLoaded', () => {
+    const endConstruction = PlayerStartup.begin('controller construction and stored settings');
+    const controller = new VoiceMusicController();
+    endConstruction({
+        favorites: Object.keys(controller.favorites).length
+    });
+    window.musicController = controller;
+    void controller.init();
 });

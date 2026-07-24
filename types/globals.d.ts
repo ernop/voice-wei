@@ -17,6 +17,11 @@ interface Window {
 
     // Early frontend error monitor
     __voiceWeiErrors?: Array<{ type: string; message: string; source?: string }>;
+    __voiceWeiStartup?: {
+        budgetMs: number;
+        ready: boolean;
+        report: PlayerStartupReport | null;
+    };
 
     // YouTube IFrame API ready callback (invoked by the API once loaded)
     onYouTubeIframeAPIReady?: () => void;

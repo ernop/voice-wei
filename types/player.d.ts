@@ -202,6 +202,37 @@ interface PrebufferProbeSlot {
     errorCode: number;
 }
 
+interface PlayerStartupPhase {
+    name: string;
+    startMs: number;
+    durationMs: number;
+    detail: Record<string, string | number | boolean>;
+}
+
+interface PlayerStartupReport {
+    budgetMs: number;
+    readyAtMs: number;
+    withinBudget: boolean;
+    navigation: {
+        serverResponseMs: number;
+        documentDownloadMs: number;
+        parseAndBlockingResourcesMs: number;
+        domContentLoadedHandlersMs: number;
+        appAfterDomContentLoadedMs: number;
+        totalReadyMs: number;
+    };
+    phases: PlayerStartupPhase[];
+    resources: Array<{
+        name: string;
+        initiator: string;
+        startMs: number;
+        durationMs: number;
+        transferBytes: number;
+        decodedBytes: number;
+    }>;
+    longTasks: Array<{ startMs: number; durationMs: number }>;
+}
+
 interface VoiceMusicController {
     // Authoritative playback state plus the thin accessors PlayerPlaylist
     // installs over it. These read/write through this.playback so playback
