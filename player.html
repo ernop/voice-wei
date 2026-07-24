@@ -70,10 +70,10 @@
             <div class="setting-item">
                 <label class="display-toggle">
                     <input type="checkbox" id="lyricsOnNowPlayingToggle" checked />
-                    <span>Show current lyric on car / lock-screen display</span>
+                    <span>Show listening text on car / lock-screen display</span>
                 </label>
-                <p class="setting-description">While a song with timed lyrics plays, the now-playing title (what
-                    Bluetooth and the tab show) is the current lyric line.</p>
+                <p class="setting-description">The now-playing title (what Bluetooth and the tab show) follows
+                    either timed lyrics or the active song report.</p>
             </div>
             <div class="setting-item">
                 <label class="display-toggle">
@@ -176,6 +176,25 @@
                         aria-label="Open large lyrics overlay">Big Lyrics</button>
                     <button class="transport-bar-info" id="transportBarInfo" type="button"
                         aria-label="Scroll to the current song in the playlist">No song playing</button>
+                </div>
+                <div class="song-report-controls">
+                    <button id="requestSongReportBtn" class="primary-btn" type="button">Request Song Report</button>
+                    <div class="segment-row" aria-label="Listening text">
+                        <button id="songDisplayLyricsBtn" class="vf-btn" type="button" aria-pressed="true">Lyrics</button>
+                        <button id="songDisplayReportBtn" class="vf-btn" type="button" aria-pressed="false" disabled>Report</button>
+                    </div>
+                    <div class="song-report-interval">
+                        <span class="vf-label">Every</span>
+                        <div class="step-field step-field-bare">
+                            <button id="songReportIntervalDownBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for less time">-</button>
+                            <output id="songReportIntervalValue" class="step-value"
+                                aria-label="Seconds per report line">8s</output>
+                            <button id="songReportIntervalUpBtn" class="step-btn" type="button"
+                                aria-label="Show each report line for more time">+</button>
+                        </div>
+                    </div>
+                    <span id="songReportStatus" class="song-report-status">No saved report for this song</span>
                 </div>
                 <div class="transport-bar-seek">
                     <button id="transportBack30Btn" class="transport-bar-btn" aria-label="Back 30 seconds">-30</button>
@@ -421,6 +440,7 @@
     <script src="player-playlist.js?v=286"></script>
     <script src="player-prebuffer-probe.js?v=286"></script>
     <script src="player-lyrics.js?v=286"></script>
+    <script src="player-song-report.js?v=286"></script>
     <script src="player-song-library.js?v=286"></script>
     <script src="player-history-ui.js?v=286"></script>
     <script src="player.js?v=286"></script>

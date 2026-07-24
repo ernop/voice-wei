@@ -14,7 +14,9 @@ const PLAYER_SETTINGS_KEYS = [
     'aiProvider',
     'lyricsOnNowPlaying',
     'showSongNotes',
-    'playlistTimedOnly'
+    'playlistTimedOnly',
+    'songDisplayMode',
+    'songReportIntervalSeconds'
 ];
 
 /** @type {LyricsViewSettings} */

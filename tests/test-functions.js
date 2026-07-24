@@ -2077,8 +2077,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     currentLyricsLineIndex: -1,
                     lyricsPanelVisible: false,
                     lyricsPanelDismissed: false,
-                    nowPlayingShowsLyric: false,
-                    settings: { lyricsOnNowPlaying: false },
+                    nowPlayingShowsText: false,
+                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
                     escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
@@ -2089,6 +2089,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     showPlaylistSurfaces() {}
                 };
                 PlayerPlaylist.install(harness);
+                PlayerSongReport.install(harness);
                 PlayerLyrics.install(harness);
                 harness.addPlaylistItemToDOM = () => {};
                 harness.lookups = 0;
@@ -2196,8 +2197,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     currentLyricsLineIndex: -1,
                     lyricsPanelVisible: false,
                     lyricsPanelDismissed: false,
-                    nowPlayingShowsLyric: false,
-                    settings: { lyricsOnNowPlaying: false },
+                    nowPlayingShowsText: false,
+                    settings: { lyricsOnNowPlaying: false, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
                     escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
@@ -2208,6 +2209,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     showPlaylistSurfaces() {}
                 };
                 PlayerPlaylist.install(harness);
+                PlayerSongReport.install(harness);
                 PlayerLyrics.install(harness);
                 harness.addPlaylistItemToDOM = () => {};
                 return harness;
@@ -3360,17 +3362,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 }
             };
             const harness = {
-                settings: { lyricsOnNowPlaying: true },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 playback: { player: null },
                 currentLyricsItemId: 77,
                 currentLyricsLineIndex: -1,
-                nowPlayingShowsLyric: false,
+                nowPlayingShowsText: false,
                 isPlaying: true,
                 isPaused: false,
                 currentPlayingId: 77,
                 currentPlaylistItem() { return item; }
             };
+            PlayerSongReport.install(harness);
             PlayerLyrics.install(harness);
             MediaSessionCore.setTrackIdentity({
                 id: item.videoId,
@@ -3395,17 +3398,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 highlightIndex: harness.currentLyricsLineIndex
             });
             // 0.5s: the song identity intro - who and what is playing.
-            harness.updateSyncedLyricsPosition(0.5);
+            harness.updateListeningTextPosition(0.5);
             const identity = snap();
             // 3s: first line is 9s away (>5s from song start), so the
             // title counts down in front of the upcoming line.
-            harness.updateSyncedLyricsPosition(3);
+            harness.updateListeningTextPosition(3);
             const countdown = snap();
             // 11.5s: line 1 (at 12s) not sung yet but inside the title
             // lead window - the title runs ahead of the highlight.
-            harness.updateSyncedLyricsPosition(11.5);
+            harness.updateListeningTextPosition(11.5);
             const led = snap();
-            harness.updateSyncedLyricsPosition(13);
+            harness.updateListeningTextPosition(13);
             const during = snap();
             harness.isPaused = true;
             MediaSessionCore.setPlaybackState('paused');
@@ -3445,6 +3448,182 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && titleCleanPastIntro
             && artistLineWhilePlaying
             && stableTrackFields);
+
+        // A requested report is web-grounded through the selected provider,
+        // saved by videoId, wrapped to the car-display budget, and then
+        // replaces only the changing first line. Its deadline follows the
+        // configured interval and replay resets it to line one.
+        const songReport = await tab.evaluate(async () => {
+            const originalFetch = window.fetch;
+            const requests = [];
+            const commandHarness = {
+                settings: {
+                    aiProvider: 'openai',
+                    openaiModel: 'gpt-5.5',
+                    claudeModel: 'claude-opus-4-8'
+                },
+                config: { openaiApiKey: 'test-openai-key', claudeApiKey: 'test-claude-key' },
+                addMessage() {}
+            };
+            PlayerCommands.install(commandHarness);
+            window.fetch = async (url, options) => {
+                requests.push({ url: String(url), body: JSON.parse(String(options?.body || '{}')) });
+                if (String(url).includes('openai.com')) {
+                    return new Response(JSON.stringify({ status: 'completed', output_text: 'OpenAI researched report.' }), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                return new Response(JSON.stringify({
+                    stop_reason: 'end_turn',
+                    content: [{ type: 'text', text: 'Claude researched report.' }]
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            };
+
+            const openai = await commandHarness.requestSongReportResearch('research this song');
+            commandHarness.settings.aiProvider = 'claude';
+            const claude = await commandHarness.requestSongReportResearch('research this song');
+            window.fetch = originalFetch;
+
+            const item = {
+                id: 778,
+                videoId: `song-report-${Date.now()}`,
+                name: 'Report Song',
+                artist: 'Report Artist',
+                year: '2001',
+                album: 'Report Album',
+                comment: 'A useful seed',
+                durationSeconds: 180,
+                lyricsStatus: 'ready',
+                lyricOffsetSeconds: 0,
+                lyricsData: {
+                    provider: 'LRCLIB', trackName: 'Report Song', artistName: 'Report Artist',
+                    albumName: 'Report Album', duration: 180, instrumental: false, plainLyrics: '',
+                    syncedLyrics: '[00:00.00]lyric line',
+                    syncedLines: [{ time: 0, text: 'lyric line' }]
+                }
+            };
+            const harness = {
+                settings: {
+                    lyricsOnNowPlaying: true,
+                    songDisplayMode: 'report',
+                    songReportIntervalSeconds: 8
+                },
+                playlist: [item],
+                playback: { player: { getCurrentTime() { return 0; } } },
+                currentLyricsItemId: item.id,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsText: false,
+                isPlaying: true,
+                isPaused: false,
+                currentPlayingId: item.id,
+                saveSettings() {},
+                resyncProgressClock() {},
+                updateStatus() {},
+                truncateForStatus(value) { return String(value); },
+                describePlaylistItem() { return 'Report Artist - Report Song'; },
+                logError() {},
+                showApiKeyProblem() {},
+                currentPlaylistItem() { return item; }
+            };
+            PlayerSongReport.install(harness);
+            PlayerLyrics.install(harness);
+
+            const prose = 'A bright opening gesture welcomes the listener. The arrangement keeps revealing new colors, while the recording story connects artists across places and years.';
+            const lines = harness.segmentSongReport(prose);
+            const prompt = harness.buildSongReportPrompt(item);
+            const record = {
+                videoId: item.videoId,
+                generatedAt: Date.now(),
+                provider: 'openai',
+                model: 'gpt-5.5',
+                prompt,
+                reportText: prose,
+                lines
+            };
+            await window.PlayerHistoryDB.putSongReport(record);
+            harness.songReports.set(item.videoId, record);
+            harness.songReportAnchorVideoId = item.videoId;
+            harness.songReportAnchorTime = 0;
+
+            MediaSessionCore.setTrackIdentity({
+                id: item.videoId,
+                title: item.name,
+                artist: harness.describeNowPlayingArtist(item),
+                album: item.album,
+                artwork: []
+            });
+            const snap = time => {
+                harness.updateListeningTextPosition(time);
+                return {
+                    title: navigator.mediaSession.metadata?.title || '',
+                    artist: navigator.mediaSession.metadata?.artist || '',
+                    bar: document.getElementById('transportBarLyric')?.textContent || ''
+                };
+            };
+            const first = snap(0);
+            const beforeBoundary = snap(7.9);
+            const second = snap(8);
+            const firstDeadline = harness.nextListeningTextDeadline(0);
+            harness.songReportAnchorTime = 35;
+            const immediateAfterLoad = snap(35);
+            harness.resetSongReportForPlay(item);
+            const replay = snap(0);
+            const stored = await window.PlayerHistoryDB.getSongReport(item.videoId);
+
+            harness.settings.songDisplayMode = 'lyrics';
+            const lyricsAgain = snap(1);
+            MediaSessionCore.clearTrack();
+            return {
+                lines,
+                prompt,
+                first,
+                beforeBoundary,
+                second,
+                firstDeadline,
+                immediateAfterLoad,
+                replay,
+                lyricsAgain,
+                storedLines: stored?.lines || [],
+                openai,
+                claude,
+                requests
+            };
+        });
+        const openaiReportRequest = songReport.requests[0]?.body || {};
+        const claudeReportRequest = songReport.requests[1]?.body || {};
+        report.check(`song report requests force provider web research (${songReport.openai.text} / ${songReport.claude.text})`,
+            songReport.openai.provider === 'openai'
+            && songReport.claude.provider === 'claude'
+            && openaiReportRequest.tools?.[0]?.type === 'web_search'
+            && openaiReportRequest.tool_choice === 'required'
+            && claudeReportRequest.tools?.[0]?.type === 'web_search_20250305'
+            && claudeReportRequest.tool_choice?.type === 'any');
+        report.check(`song report prompt requests broad, positive, factual analysis without lyric reproduction`,
+            /literary analysis/.test(songReport.prompt)
+            && /personal and band history/.test(songReport.prompt)
+            && /business, money/.test(songReport.prompt)
+            && /well-sourced interpersonal stories/.test(songReport.prompt)
+            && /Do not quote or reproduce the lyrics/.test(songReport.prompt)
+            && /Omit negative, dull, uncertain/.test(songReport.prompt));
+        report.check(`song report lines stay within 50 characters and persist (${songReport.lines.length} lines)`,
+            songReport.lines.length > 2
+            && songReport.lines.every(line => line.length > 0 && line.length <= 50)
+            && songReport.storedLines.join('|') === songReport.lines.join('|'));
+        report.check(`song report replaces only first line, advances every 8s, starts immediately, and resets on replay`,
+            songReport.first.title === songReport.lines[0]
+            && songReport.first.bar === songReport.lines[0]
+            && songReport.first.artist === '2001 - Report Artist - Report Song'
+            && songReport.beforeBoundary.title === songReport.lines[0]
+            && songReport.second.title === songReport.lines[1]
+            && songReport.firstDeadline === 8
+            && songReport.immediateAfterLoad.title === songReport.lines[0]
+            && songReport.replay.title === songReport.lines[0]
+            && songReport.lyricsAgain.title === 'lyric line');
+
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze
         // the Bluetooth/header lyric line).
@@ -3473,17 +3652,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 }
             };
             const harness = {
-                settings: { lyricsOnNowPlaying: true },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                 playlist: [playing, other],
                 playback: { player: null },
                 currentLyricsItemId: other.id,
                 currentLyricsLineIndex: -1,
-                nowPlayingShowsLyric: false,
+                nowPlayingShowsText: false,
                 isPlaying: true,
                 isPaused: false,
                 currentPlayingId: playing.id,
                 currentPlaylistItem() { return playing; }
             };
+            PlayerSongReport.install(harness);
             PlayerLyrics.install(harness);
             MediaSessionCore.setTrackIdentity({
                 id: 'playing-video',
@@ -3492,7 +3672,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 album: '',
                 artwork: []
             });
-            harness.updateSyncedLyricsPosition(4);
+            harness.updateListeningTextPosition(4);
             const result = {
                 metaTitle: navigator.mediaSession.metadata?.title || '',
                 headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
@@ -3534,12 +3714,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyrics: item.lyricsData
             });
             const harness = {
-                settings: { lyricsOnNowPlaying: true },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 playback: { player: null },
                 currentLyricsItemId: item.id,
                 currentLyricsLineIndex: -1,
-                nowPlayingShowsLyric: false,
+                nowPlayingShowsText: false,
                 isPlaying: true,
                 isPaused: false,
                 currentPlayingId: item.id,
@@ -3551,29 +3731,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateTransportPauseLabel() {},
                 resyncProgressClock() {}
             };
+            PlayerSongReport.install(harness);
             PlayerLyrics.install(harness);
-            harness.updateSyncedLyricsPosition(10);
+            harness.updateListeningTextPosition(10);
             const before = {
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds
             };
             await harness.nudgeLyricOffset(5);
-            harness.updateSyncedLyricsPosition(10);
+            harness.updateListeningTextPosition(10);
             const afterFf = {
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds
             };
             await harness.nudgeLyricOffset(-10);
-            harness.updateSyncedLyricsPosition(10);
+            harness.updateListeningTextPosition(10);
             const afterRew = {
                 highlightIndex: harness.currentLyricsLineIndex,
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 offset: item.lyricOffsetSeconds
             };
             const stored = await window.PlayerHistoryDB.getLyricState(videoId);
-            const deadlineAtZero = harness.nextLyricDeadline(0);
+            const deadlineAtZero = harness.nextListeningTextDeadline(0);
             const reloaded = {
                 id: 99, videoId, name: 'Offset Song', artist: 'Offset Artist',
                 lyricsStatus: 'idle', lyricsData: null, lyricOffsetSeconds: 0
@@ -3705,10 +3886,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const sameVideoReplayPosition = positionWrites[positionWrites.length - 1];
 
             const deadlines = {
-                fromZero: c.nextLyricDeadline(0),
-                beforeFirst: c.nextLyricDeadline(4.5),
-                betweenLines: c.nextLyricDeadline(6),
-                afterLast: c.nextLyricDeadline(9.5)
+                fromZero: c.nextListeningTextDeadline(0),
+                beforeFirst: c.nextListeningTextDeadline(4.5),
+                betweenLines: c.nextListeningTextDeadline(6),
+                afterLast: c.nextListeningTextDeadline(9.5)
             };
 
             // Fake player whose clock advances like real playback.
@@ -3804,11 +3985,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 duration: '1:30', durationSeconds: 90, searchTerm: 'x'
             }, { sourceKind: 'search', sourceLabel: 'test' });
             const harness = {
-                settings: { lyricsOnNowPlaying: true },
+                settings: { lyricsOnNowPlaying: true, songDisplayMode: 'lyrics', songReportIntervalSeconds: 8 },
                 playlist: [item],
                 currentLyricsItemId: null,
                 currentLyricsLineIndex: -1,
-                nowPlayingShowsLyric: false,
+                nowPlayingShowsText: false,
                 isPlaying: false,
                 isPaused: false,
                 currentPlayingId: null,
@@ -3824,6 +4005,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 parseDurationToSeconds() { return 90; },
                 addMessage() {}
             };
+            PlayerSongReport.install(harness);
             PlayerLyrics.install(harness);
             harness.lookupLyrics = async () => ({
                 provider: 'LRCLIB', trackName: 'Store Fail Song', artistName: 'Store Artist',

@@ -5,6 +5,7 @@
 const SKIP_CLAUDE = false;
 const MUSIC_SEARCH_MAX_TOKENS = 16000;
 const MUSIC_SOURCE_CHUNK_CHARS = 50000;
+const SONG_REPORT_MAX_TOKENS = 6000;
 
 const PlayerCommands = (function () {
     'use strict';
@@ -229,6 +230,101 @@ const PlayerCommands = (function () {
                     error.status = status;
                 }
                 return error;
+            },
+
+            /**
+             * Run the dedicated, web-grounded report prompt through the
+             * provider/model already selected for music requests.
+             * @param {string} prompt
+             * @returns {Promise<{ text: string, provider: 'claude' | 'openai', model: string }>}
+             */
+            async requestSongReportResearch(prompt) {
+                const provider = this.settings.aiProvider;
+                if (provider === 'openai') {
+                    if (!this.config?.openaiApiKey) {
+                        throw new Error('OpenAI API key not configured');
+                    }
+                    const model = this.settings.openaiModel;
+                    const requestBody = {
+                        model,
+                        input: prompt,
+                        max_output_tokens: SONG_REPORT_MAX_TOKENS,
+                        ...(/^gpt-5/i.test(model) ? { reasoning: { effort: 'low' } } : {}),
+                        tools: [{ type: 'web_search' }],
+                        tool_choice: 'required'
+                    };
+                    this.addMessage('claude', `Song report request to OpenAI (${model})`, JSON.stringify(requestBody, null, 2));
+
+                    const response = await fetch('https://api.openai.com/v1/responses', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.config.openaiApiKey}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        this.addMessage('error', 'Song report response from OpenAI', JSON.stringify(error, null, 2));
+                        throw this.classifyProviderError('openai', response.status, error);
+                    }
+
+                    const data = await response.json();
+                    this.addMessage('claude', 'Song report response from OpenAI', JSON.stringify(data, null, 2));
+                    if (data.status === 'incomplete') {
+                        throw new Error(`OpenAI song report was incomplete (${data.incomplete_details?.reason || 'unknown reason'})`);
+                    }
+                    return { text: this.extractOpenAIResponseText(data), provider: 'openai', model };
+                }
+
+                if (!this.config?.claudeApiKey) {
+                    throw new Error('Claude API key not configured');
+                }
+                const model = this.settings.claudeModel;
+                const requestBody = {
+                    model,
+                    max_tokens: SONG_REPORT_MAX_TOKENS,
+                    messages: [{ role: 'user', content: prompt }],
+                    tools: [{
+                        type: 'web_search_20250305',
+                        name: 'web_search',
+                        max_uses: 8
+                    }],
+                    tool_choice: { type: 'any' }
+                };
+                this.addMessage('claude', `Song report request to Claude (${model})`, JSON.stringify(requestBody, null, 2));
+
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': this.config.claudeApiKey,
+                        'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    this.addMessage('error', 'Song report response from Claude', JSON.stringify(error, null, 2));
+                    throw this.classifyProviderError('claude', response.status, error);
+                }
+
+                const data = await response.json();
+                this.addMessage('claude', 'Song report response from Claude', JSON.stringify(data, null, 2));
+                if (data.stop_reason === 'max_tokens') {
+                    throw new Error('Claude song report reached its output limit');
+                }
+                const text = (data.content || [])
+                    .filter(block => block.type === 'text')
+                    .map(block => String(block.text || '').trim())
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                if (!text) {
+                    throw new Error('Claude song report did not contain text output');
+                }
+                return { text, provider: 'claude', model };
             },
 
             async processCommandWithClaude(transcript) {

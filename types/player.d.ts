@@ -12,6 +12,8 @@ interface PlayerAppSettings {
     lyricsOnNowPlaying: boolean;
     showSongNotes: boolean;
     playlistTimedOnly: boolean;
+    songDisplayMode: 'lyrics' | 'report';
+    songReportIntervalSeconds: number;
 }
 
 interface LyricsViewSettings {
@@ -123,6 +125,17 @@ interface LyricStateRecord {
     lyricOffsetSeconds?: number;
 }
 
+interface SongReportRecord {
+    videoId: string;
+    generatedAt: number;
+    provider: 'claude' | 'openai';
+    model: string;
+    prompt: string;
+    reportText: string;
+    /** Natural display segments, each no longer than 50 characters. */
+    lines: string[];
+}
+
 interface SongLibraryNote {
     midi: number;
     startMs: number;
@@ -181,6 +194,8 @@ interface PlayerHistoryDBApi {
     recordFavorite(favorite: any, active: boolean): void;
     putLyricState(record: LyricStateRecord): Promise<void>;
     getLyricState(videoId: string): Promise<LyricStateRecord | null>;
+    putSongReport(record: SongReportRecord): Promise<void>;
+    getSongReport(videoId: string): Promise<SongReportRecord | null>;
 }
 
 interface AppConfig {
@@ -273,6 +288,7 @@ interface VoiceMusicController {
     normalizeAISongList(parsed: any): any[];
     normalizeAISongItem(item: any): any;
     classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
+    requestSongReportResearch(prompt: string): Promise<{ text: string; provider: 'claude' | 'openai'; model: string }>;
 
     loadFavoritesToPlaylist(): void;
     shufflePlaylist(): void;
@@ -366,7 +382,7 @@ interface VoiceMusicController {
     resyncProgressClock(): void;
     scheduleNextProgressRender(): void;
     renderPlaybackPosition(): number | null;
-    nextLyricDeadline(currentTime: number): number;
+    nextListeningTextDeadline(currentTime: number): number;
     updateProgressBar(currentTime: number, duration: number): void;
     formatTime(seconds: number): string;
     setupYouTubeAPI(): void;
@@ -429,7 +445,7 @@ interface VoiceMusicController {
     scoreLyricsCandidate(record: LyricsResult, artist: string, title: string, expectedDuration: number): number;
     parseSyncedLyrics(syncedLyrics: string): SyncedLyricLine[];
     currentPlaybackTime(): number;
-    updateSyncedLyricsPosition(currentTime: number): void;
+    updateListeningTextPosition(currentTime: number): void;
     lyricOffsetForItem(item: PlaylistItem | null | undefined): number;
     formatLyricOffset(offsetSeconds: number): string;
     updateLyricOffsetControls(): void;
@@ -442,8 +458,8 @@ interface VoiceMusicController {
     describeNowPlayingArtist(item: PlaylistItem): string;
     lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
-    relayLyricToNowPlaying(activeIndex: number, currentTime?: number): void;
-    nowPlayingShowsLyric: boolean;
+    relayListeningTextToNowPlaying(line: string): void;
+    nowPlayingShowsText: boolean;
     mediaActionHandlersSet: boolean;
     ensureLyricsForItem(item: PlaylistItem, options?: { forceLookup?: boolean }): Promise<LyricsResult | null>;
     resolveLyricState(item: PlaylistItem, forceLookup: boolean): Promise<LyricStateRecord>;
@@ -458,6 +474,25 @@ interface VoiceMusicController {
     pumpLyricsQueue(): void;
     reconcileLibraryLyrics(): void;
     refreshLyricsRowButton(item: PlaylistItem): void;
+
+    songReports: Map<string, SongReportRecord>;
+    songReportLoadsInFlight: Map<string, Promise<SongReportRecord | null>>;
+    songReportRequestInFlight: boolean;
+    songReportAnchorVideoId: string | null;
+    songReportAnchorTime: number;
+    songReportForItem(item: PlaylistItem | null | undefined): SongReportRecord | null;
+    buildSongReportPrompt(item: PlaylistItem): string;
+    segmentSongReport(reportText: string, maxChars?: number): string[];
+    loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
+    requestSongReport(): Promise<void>;
+    setSongDisplayMode(mode: 'lyrics' | 'report'): void;
+    stepSongReportInterval(direction: -1 | 1): void;
+    resetSongReportForPlay(item: PlaylistItem): void;
+    clearSongReportPlayback(): void;
+    songReportLineIndexAt(item: PlaylistItem, currentTime: number): number;
+    songReportTextAt(item: PlaylistItem | null | undefined, currentTime: number): string;
+    nextSongReportDeadline(currentTime: number): number;
+    updateSongReportControls(): void;
 
     songLibrary: SongLibraryStore;
     hydrateSongLibrary(): Promise<void>;

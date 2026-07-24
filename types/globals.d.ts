@@ -64,6 +64,7 @@ interface Window {
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerPrebufferProbe?: typeof PlayerPrebufferProbe;
     PlayerLyrics?: typeof PlayerLyrics;
+    PlayerSongReport?: typeof PlayerSongReport;
     PlayerSongLibrary?: typeof PlayerSongLibrary;
     PlayerStorage?: any;
     PlayerSongs?: typeof PlayerSongs;
