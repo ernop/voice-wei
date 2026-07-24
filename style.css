@@ -1526,9 +1526,42 @@ h1 {
     background: rgba(20, 184, 166, 0.36);
 }
 
-.transport-first-lyric-btn,
-.transport-lyric-offset-btn {
+.transport-first-lyric-btn {
     font-size: 0.95rem;
+}
+
+.lyrics-sync-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lyrics-sync-btn {
+    min-height: 44px;
+    padding: 6px 12px;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 8px;
+    background: rgba(251, 191, 36, 0.12);
+    color: #fde68a;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lyrics-sync-btn:hover,
+.lyrics-sync-btn:active {
+    background: rgba(251, 191, 36, 0.28);
+}
+
+.lyrics-offset-value {
+    min-width: 94px;
+    color: #fef3c7;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    text-align: center;
+    white-space: nowrap;
 }
 
 /* The current-song line: a button - tapping it scrolls the playlist to
@@ -1892,7 +1925,18 @@ body[data-page="music"] .voice-controls-row {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 6px 10px 52px;
+    padding: 6px 10px 108px;
+}
+
+.lyrics-overlay-sync {
+    position: absolute;
+    bottom: 66px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    justify-content: center;
+    padding: 6px 12px;
+    background: var(--lyrics-overlay-bg);
 }
 
 .lyrics-overlay-transport {
@@ -2126,6 +2170,25 @@ body[data-page="music"] .voice-controls-row {
     .lyrics-overlay-transport {
         padding: 4px 4px;
         gap: 4px;
+    }
+
+    .lyrics-overlay-sync {
+        bottom: 56px;
+        padding: 4px;
+        gap: 4px;
+    }
+
+    .lyrics-overlay-sync .lyrics-sync-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 48px;
+        padding: 6px 4px;
+        white-space: normal;
+    }
+
+    .lyrics-overlay-sync .lyrics-offset-value {
+        min-width: 78px;
+        font-size: 0.85rem;
     }
 
     /* Same finger-target rule as the sticky transport bar: these are

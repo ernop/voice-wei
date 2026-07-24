@@ -116,8 +116,9 @@ interface LyricStateRecord {
     lyrics?: LyricsResult;
     /**
      * Per-song lyric timing nudge in seconds (positive = show later
-     * lines / ff lyrics; negative = show earlier / rew lyrics). Absent
-     * or 0 means the timed file is used as-is.
+     * lines / correct lyrics that are too slow; negative = show earlier
+     * lines / correct lyrics that are too fast). Absent or 0 means the
+     * timed file is used as-is.
      */
     lyricOffsetSeconds?: number;
 }
@@ -374,9 +375,11 @@ interface VoiceMusicController {
     currentPlaybackTime(): number;
     updateSyncedLyricsPosition(currentTime: number): void;
     lyricOffsetForItem(item: PlaylistItem | null | undefined): number;
+    formatLyricOffset(offsetSeconds: number): string;
+    updateLyricOffsetControls(): void;
     nudgeLyricOffset(deltaSeconds: number): Promise<void>;
-    ffLyrics(): void;
-    rewLyrics(): void;
+    lyricsTooFast(): Promise<void>;
+    lyricsTooSlow(): Promise<void>;
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
     describeSongIdentity(item: PlaylistItem): string;

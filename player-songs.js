@@ -98,8 +98,8 @@ const PlayerSongs = (function () {
             lyricsStatus: 'idle',
             lyricsData: null,
             // Seconds added to playback time when choosing which lyric
-            // line to show. Missing/0 means no adjustment; nudged via
-            // ff/rew lyrics and stored forever on the lyricStates record.
+            // line to show. Missing/0 means no adjustment; timing controls
+            // persist the nudge forever on the lyricStates record.
             lyricOffsetSeconds: 0
         };
     }

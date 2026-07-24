@@ -297,8 +297,9 @@ in `PLAYER_FAVORITES`. Per-song lyric state lives in the
 `voice-wei-music` IndexedDB (`lyricStates`, keyed by videoId), alongside
 the unbounded history (see "The Song primitive" and "Music player
 durable history" in [architecture.md](architecture.md)). Optional field
-`lyricOffsetSeconds` on a `lyricStates` record is the permanent ff/rew
-lyrics timing nudge for that video (absent = 0).
+`lyricOffsetSeconds` on a `lyricStates` record is the permanent lyric
+timing nudge for that video (absent = 0). **Lyrics too fast** subtracts
+0.5 seconds per tap; **Lyrics too slow** adds 0.5 seconds per tap.
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

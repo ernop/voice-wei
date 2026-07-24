@@ -184,10 +184,14 @@
                     <button id="transportFwd30Btn" class="transport-bar-btn" aria-label="Forward 30 seconds">+30</button>
                     <button id="transportFirstLyricBtn" class="transport-bar-btn transport-first-lyric-btn" type="button"
                         style="display: none;" aria-label="Jump to just before the first lyric">1st</button>
-                    <button id="transportRewLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
-                        style="display: none;" aria-label="Show earlier lyrics (nudge lyric timing backward)">rew lyrics</button>
-                    <button id="transportFfLyricsBtn" class="transport-bar-btn transport-lyric-offset-btn" type="button"
-                        style="display: none;" aria-label="Show later lyrics (nudge lyric timing forward)">ff lyrics</button>
+                </div>
+                <div class="lyrics-sync-controls" id="transportLyricsSyncControls" style="display: none;">
+                    <button id="transportLyricsTooFastBtn" class="lyrics-sync-btn" type="button"
+                        aria-label="Lyrics are too fast; show earlier lyrics">Lyrics too fast</button>
+                    <output id="transportLyricOffset" class="lyrics-offset-value"
+                        aria-label="Current lyric timing offset">Offset 0.0s</output>
+                    <button id="transportLyricsTooSlowBtn" class="lyrics-sync-btn" type="button"
+                        aria-label="Lyrics are too slow; show later lyrics">Lyrics too slow</button>
                 </div>
             </div>
 
@@ -376,6 +380,14 @@
             </div>
         </div>
         <div class="lyrics-overlay-content" id="lyricsOverlayContent"></div>
+        <div class="lyrics-overlay-sync lyrics-sync-controls" id="lyricsOverlaySyncControls" style="display: none;">
+            <button id="lyricsOverlayTooFastBtn" class="lyrics-sync-btn" type="button"
+                aria-label="Lyrics are too fast; show earlier lyrics">Lyrics too fast</button>
+            <output id="lyricsOverlayOffset" class="lyrics-offset-value"
+                aria-label="Current lyric timing offset">Offset 0.0s</output>
+            <button id="lyricsOverlayTooSlowBtn" class="lyrics-sync-btn" type="button"
+                aria-label="Lyrics are too slow; show later lyrics">Lyrics too slow</button>
+        </div>
         <div class="lyrics-overlay-transport">
             <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">&#9198;</button>
             <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">&#8635;</button>

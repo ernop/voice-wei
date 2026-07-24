@@ -3434,8 +3434,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelayIgnoresPanelFocus.headerTitle === 'playing line one'
             && lyricRelayIgnoresPanelFocus.barLyric === 'playing line one'
             && lyricRelayIgnoresPanelFocus.panelFocusId === 22);
-        // Per-song lyric offset: ff/rew lyrics nudge the display clock and
-        // persist forever on the lyricStates record for that videoId.
+        // Per-song lyric offset: listener-language controls nudge the display
+        // clock in 0.5s steps and persist on the lyricStates record.
         const lyricOffsetNudge = await tab.evaluate(async () => {
             const videoId = `offset-nudge-${Date.now()}`;
             const item = {
@@ -3498,19 +3498,47 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 offset: item.lyricOffsetSeconds
             };
             const stored = await window.PlayerHistoryDB.getLyricState(videoId);
+            const deadlineAtZero = harness.nextLyricDeadline(0);
             const reloaded = {
                 id: 99, videoId, name: 'Offset Song', artist: 'Offset Artist',
                 lyricsStatus: 'idle', lyricsData: null, lyricOffsetSeconds: 0
             };
             harness.applyLyricStateToItem(reloaded, stored);
+            item.lyricOffsetSeconds = 0;
+            harness.updateLyricOffsetControls();
+            const initialDisplay = document.getElementById('transportLyricOffset')?.textContent || '';
+            await harness.lyricsTooSlow();
+            const tooSlowDisplay = {
+                normal: document.getElementById('transportLyricOffset')?.textContent || '',
+                overlay: document.getElementById('lyricsOverlayOffset')?.textContent || '',
+                offset: item.lyricOffsetSeconds
+            };
+            await harness.lyricsTooFast();
+            await harness.lyricsTooFast();
+            const tooFastDisplay = {
+                normal: document.getElementById('transportLyricOffset')?.textContent || '',
+                overlay: document.getElementById('lyricsOverlayOffset')?.textContent || '',
+                offset: item.lyricOffsetSeconds
+            };
+            const semanticStored = await window.PlayerHistoryDB.getLyricState(videoId);
             return {
                 before, afterFf, afterRew,
                 storedOffset: stored?.lyricOffsetSeconds,
                 reloadedOffset: reloaded.lyricOffsetSeconds,
-                deadlineAtZero: harness.nextLyricDeadline(0)
+                deadlineAtZero,
+                initialDisplay,
+                tooSlowDisplay,
+                tooFastDisplay,
+                semanticStoredOffset: semanticStored?.lyricOffsetSeconds,
+                buttonLabels: [
+                    document.getElementById('transportLyricsTooFastBtn')?.textContent || '',
+                    document.getElementById('transportLyricsTooSlowBtn')?.textContent || '',
+                    document.getElementById('lyricsOverlayTooFastBtn')?.textContent || '',
+                    document.getElementById('lyricsOverlayTooSlowBtn')?.textContent || ''
+                ]
             };
         });
-        report.check(`player lyric offset ff/rew nudges display and persists (ff=${lyricOffsetNudge.afterFf.offset}, rew=${lyricOffsetNudge.afterRew.offset}, stored=${lyricOffsetNudge.storedOffset})`,
+        report.check(`player lyric offset nudges display and persists (${lyricOffsetNudge.afterFf.offset}s -> ${lyricOffsetNudge.afterRew.offset}s)`,
             lyricOffsetNudge.before.highlightIndex === 0
             && lyricOffsetNudge.before.barLyric === 'early line'
             && lyricOffsetNudge.before.offset === 0
@@ -3525,6 +3553,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // With offset -5, first line (file t=5) appears at wall-clock 10;
             // led window opens 0.75s earlier at 9.25.
             && lyricOffsetNudge.deadlineAtZero === 9.25);
+        report.check(`player lyric timing controls use 0.5s listener-language steps (${lyricOffsetNudge.initialDisplay} -> ${lyricOffsetNudge.tooSlowDisplay.normal} -> ${lyricOffsetNudge.tooFastDisplay.normal})`,
+            lyricOffsetNudge.initialDisplay === 'Offset 0.0s'
+            && lyricOffsetNudge.tooSlowDisplay.offset === 0.5
+            && lyricOffsetNudge.tooSlowDisplay.normal === 'Offset +0.5s'
+            && lyricOffsetNudge.tooSlowDisplay.overlay === 'Offset +0.5s'
+            && lyricOffsetNudge.tooFastDisplay.offset === -0.5
+            && lyricOffsetNudge.tooFastDisplay.normal === 'Offset -0.5s'
+            && lyricOffsetNudge.tooFastDisplay.overlay === 'Offset -0.5s'
+            && lyricOffsetNudge.semanticStoredOffset === -0.5
+            && lyricOffsetNudge.buttonLabels.join('|') === 'Lyrics too fast|Lyrics too slow|Lyrics too fast|Lyrics too slow');
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric

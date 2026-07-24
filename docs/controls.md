@@ -69,6 +69,7 @@ these dialects, all defined in style.css:
 | `transport-bar-btn` (+ `transport-bar-playpause`) | Sticky bottom transport bar | Fold into the same media-transport family |
 | `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers (now in the central player's secondary control row) | State classes on media-transport buttons, not separate button kinds |
 | `lyrics-overlay-transport-btn`, `lyrics-overlay-control-btn`, `lyrics-overlay-action-btn`, `lyrics-panel-hide-btn` | Overlay transport + view chips + hide | Three near-identical chip kinds; collapse to media-transport (transport) and `panel-action-btn` (view chips, hide) |
+| `lyrics-sync-btn`, `lyrics-offset-value` | Shared timing correction controls and live offset in the sticky bar and Big Lyrics | Keep as one semantic lyric-sync family across both surfaces |
 | `favorite-btn`, `lyrics-row-btn`, `playlist-remove-btn` | Playlist row star / per-row lyrics chip / per-row remove | Row-level gameplay surface; keep, document in architecture's distinct list |
 
 Retired in the playlist-organization pass (v218): `quick-action-btn` on the

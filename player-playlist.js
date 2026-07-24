@@ -1396,15 +1396,13 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            /** Show "1st" / ff lyrics / rew lyrics only while the playing track has timed lyrics. */
+            /** Show "1st" only while the playing track has timed lyrics. */
             updateFirstLyricButton() {
                 const item = this.currentPlaylistItem();
                 const show = !!this.currentPlayingId && !!item && this.itemHasTimedLyrics(item)
                     && item.id === this.currentPlayingId;
-                for (const id of ['transportFirstLyricBtn', 'transportFfLyricsBtn', 'transportRewLyricsBtn']) {
-                    const btn = document.getElementById(id);
-                    if (btn) btn.style.display = show ? '' : 'none';
-                }
+                const btn = document.getElementById('transportFirstLyricBtn');
+                if (btn) btn.style.display = show ? '' : 'none';
             },
 
             fastForward() {

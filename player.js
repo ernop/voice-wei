@@ -897,13 +897,13 @@ class VoiceMusicController {
         if (transportFirstLyricBtn) {
             transportFirstLyricBtn.addEventListener('click', () => this.seekToFirstLyric());
         }
-        const transportFfLyricsBtn = document.getElementById('transportFfLyricsBtn');
-        if (transportFfLyricsBtn) {
-            transportFfLyricsBtn.addEventListener('click', () => this.ffLyrics());
+        for (const id of ['transportLyricsTooFastBtn', 'lyricsOverlayTooFastBtn']) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => this.lyricsTooFast());
         }
-        const transportRewLyricsBtn = document.getElementById('transportRewLyricsBtn');
-        if (transportRewLyricsBtn) {
-            transportRewLyricsBtn.addEventListener('click', () => this.rewLyrics());
+        for (const id of ['transportLyricsTooSlowBtn', 'lyricsOverlayTooSlowBtn']) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => this.lyricsTooSlow());
         }
         const transportBarInfo = document.getElementById('transportBarInfo');
         if (transportBarInfo) {

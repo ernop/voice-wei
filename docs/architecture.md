@@ -502,10 +502,11 @@ search that actually answered empty; failures (rate limit, network,
 timeout) save nothing, so the song stays unresolved and the next
 interaction retries. An optional `lyricOffsetSeconds` on the same record
 is the user's permanent timing nudge for that video (positive = show
-later lines / ff lyrics; negative = rew lyrics; absent or 0 = use the
-timed file as-is). Re-searches preserve an existing offset. The write
-discipline is save-then-activate: the store write is awaited first, then
-the live playlist item is updated from that same record
+later lines / correct lyrics that are too slow; negative = show earlier
+lines / correct lyrics that are too fast; absent or 0 = use the timed file
+as-is). Re-searches preserve an existing offset. The write discipline is
+save-then-activate: the store write is awaited first, then the live
+playlist item is updated from that same record
 (`resolveLyricState` -> `applyLyricStateToItem`). A live item is
 therefore only ever 'ready' with data that came from or through the
 store - there is no second source that can disagree with it. (An earlier
