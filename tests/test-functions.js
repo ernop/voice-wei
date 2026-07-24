@@ -3475,6 +3475,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     return !!(candidate && candidate.lyricsData && candidate.lyricsData.syncedLines
                         && candidate.lyricsData.syncedLines.length > 0);
                 },
+                updateTransportPauseLabel() {},
                 resyncProgressClock() {}
             };
             PlayerLyrics.install(harness);
