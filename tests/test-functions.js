@@ -1913,26 +1913,74 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryCache.videoId === 'cached-video'
             && musicHistoryCache.source === 'test');
 
-        // Log lines persist across sessions: recorded to IndexedDB as they
-        // happen, and the panel replays earlier-session lines on first open.
+        // Log lines persist across sessions, but opening the panel shows only
+        // this page session until the explicit history button is pressed.
         const logHistory = await tab.evaluate(async () => {
-            const stamp = `log history probe ${Date.now()}`;
-            PlayerHistoryDB.recordLog({ type: 'claude', label: 'Probe', text: stamp, line: `[00:00:00] Probe: ${stamp}` });
+            const previousStamp = `previous log probe ${Date.now()}`;
+            const currentStamp = `current log probe ${Date.now()}`;
+            PlayerHistoryDB.recordLog({
+                type: 'claude',
+                label: 'Probe',
+                text: previousStamp,
+                line: `[00:00:00] Probe: ${previousStamp}`
+            });
             await new Promise(resolve => setTimeout(resolve, 120));
-            const recent = await PlayerHistoryDB.listRecentLogs(50);
             const c = window.musicController;
-            // Pretend this session started after the probe was written, so
-            // the replay path treats it as an earlier session's line.
-            c.sessionStartedAt = new Date(Date.now() + 1000).toISOString();
+            c.sessionStartedAt = new Date().toISOString();
+            c.addMessage('claude', 'Probe', currentStamp);
+            await new Promise(resolve => setTimeout(resolve, 120));
+            const stored = await PlayerHistoryDB.listStoredLogs();
+
+            document.querySelectorAll('#logContent .log-history, #logContent .log-history-divider')
+                .forEach(line => line.remove());
             c.historicalLogsLoaded = false;
-            await c.loadHistoricalLogs();
+            c.historicalLogsLoading = false;
+            const container = document.getElementById('logContainer');
+            if (container && !container.classList.contains('collapsed')) {
+                c.toggleLogPanel();
+            }
+            c.toggleLogPanel();
+            const historyBeforeClick = document.querySelectorAll('#logContent .log-history').length;
+            const historyButton = /** @type {HTMLButtonElement} */ (document.getElementById('loadHistoryLogBtn'));
+            const buttonVisible = historyButton.style.display !== 'none';
+
+            const originalLoad = c.loadHistoricalLogs;
+            let loadPromise = Promise.resolve();
+            c.loadHistoricalLogs = function () {
+                loadPromise = originalLoad.call(this);
+                return loadPromise;
+            };
+            historyButton.click();
+            await loadPromise;
+            c.loadHistoricalLogs = originalLoad;
+
             const replayed = Array.from(document.querySelectorAll('#logContent .log-line.log-history'))
-                .some(line => line.textContent.includes(stamp));
+                .some(line => line.textContent.includes(previousStamp));
+            const currentWasNotReplayed = !Array.from(document.querySelectorAll('#logContent .log-line.log-history'))
+                .some(line => line.textContent.includes(currentStamp));
+            const currentVisible = Array.from(document.querySelectorAll('#logContent .log-line:not(.log-history)'))
+                .some(line => line.textContent.includes(currentStamp));
             const divider = !!document.querySelector('#logContent .log-history-divider');
-            return { stored: recent.some(record => record.text === stamp), replayed, divider };
+            return {
+                stored: stored.some(record => record.text === previousStamp),
+                historyBeforeClick,
+                buttonVisible,
+                buttonText: historyButton.textContent,
+                replayed,
+                currentWasNotReplayed,
+                currentVisible,
+                divider
+            };
         });
-        report.check('player log lines persist and replay from earlier sessions',
-            logHistory.stored && logHistory.replayed && logHistory.divider);
+        report.check('player Log opens current-session only and explicitly loads every retained previous line',
+            logHistory.stored
+            && logHistory.historyBeforeClick === 0
+            && logHistory.buttonVisible
+            && logHistory.buttonText.startsWith('Previous Shown')
+            && logHistory.replayed
+            && logHistory.currentWasNotReplayed
+            && logHistory.currentVisible
+            && logHistory.divider);
 
         const playlistSourceGroups = await tab.evaluate(() => {
             const harness = {
@@ -3451,11 +3499,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
         // A requested report is web-grounded through the selected provider,
         // saved by videoId, wrapped to the car-display budget, and then
-        // replaces only the changing first line. Its deadline follows the
+        // replaces only the changing second line. Its deadline follows the
         // configured interval and replay resets it to line one.
         const songReport = await tab.evaluate(async () => {
             const originalFetch = window.fetch;
             const requests = [];
+            const commandLogs = [];
             const commandHarness = {
                 settings: {
                     aiProvider: 'openai',
@@ -3463,7 +3512,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     claudeModel: 'claude-opus-4-8'
                 },
                 config: { openaiApiKey: 'test-openai-key', claudeApiKey: 'test-claude-key' },
-                addMessage() {}
+                addMessage(type, label, text) {
+                    commandLogs.push({ type, label, text });
+                }
             };
             PlayerCommands.install(commandHarness);
             window.fetch = async (url, options) => {
@@ -3614,6 +3665,91 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             controller.updateCentralPlayer(controller.currentPlaylistItem());
             controller.updateSongReportControls();
 
+            const requestItem = {
+                ...item,
+                id: 779,
+                videoId: `missing-song-report-${Date.now()}`,
+                name: 'Missing Report Song'
+            };
+            const lifecycleLogs = [];
+            let resolveResearch = /** @type {((result: { text: string, provider: 'openai', model: string }) => void) | null} */ (null);
+            const requestHarness = {
+                settings: {
+                    lyricsOnNowPlaying: true,
+                    songDisplayMode: 'identity',
+                    songReportIntervalSeconds: 8,
+                    aiProvider: 'openai',
+                    openaiModel: 'gpt-5.5',
+                    claudeModel: 'claude-opus-4-8'
+                },
+                currentPlayingId: requestItem.id,
+                saveSettings() {},
+                resyncProgressClock() {},
+                updateStatus() {},
+                truncateForStatus(value) { return String(value); },
+                describePlaylistItem(target) { return `${target.artist} - ${target.name}`; },
+                addMessage(type, label, text) {
+                    lifecycleLogs.push({ type, label, text: String(text) });
+                },
+                logError(label, error) {
+                    lifecycleLogs.push({
+                        type: 'error',
+                        label,
+                        text: error instanceof Error ? error.message : String(error)
+                    });
+                },
+                showApiKeyProblem() {},
+                playingPlaylistItem() { return null; },
+                currentPlaylistItem() { return requestItem; },
+                currentPlaybackTime() { return 42; },
+                updateListeningTextPosition() {},
+                requestSongReportResearch() {
+                    return new Promise(resolve => {
+                        resolveResearch = resolve;
+                    });
+                }
+            };
+            PlayerSongReport.install(requestHarness);
+            requestHarness.loadSongReportForItem = async () => null;
+
+            const originalActivate = controller.activateSongReport;
+            let activationPromise = Promise.resolve();
+            controller.activateSongReport = function () {
+                activationPromise = requestHarness.activateSongReport();
+                return activationPromise;
+            };
+            document.getElementById('songDisplayReportBtn')?.click();
+            await Promise.resolve();
+            await Promise.resolve();
+            if (!resolveResearch) throw new Error('Story Report did not start a missing-report request');
+
+            requestHarness.songReportRequestState = {
+                ...requestHarness.songReportRequestState,
+                elapsedMs: 3200
+            };
+            requestHarness.updateSongReportControls();
+            const waiting = {
+                reportButton: document.getElementById('songDisplayReportBtn')?.textContent || '',
+                requestButton: document.getElementById('requestSongReportBtn')?.textContent || '',
+                status: document.getElementById('songReportStatus')?.textContent || ''
+            };
+
+            const returnedProse = 'The returned report opens brightly. Its arrangement connects the performance to a carefully researched recording story.';
+            resolveResearch({ text: returnedProse, provider: 'openai', model: 'gpt-5.5' });
+            await activationPromise;
+            const completedRecord = requestHarness.songReportForItem(requestItem);
+            const completed = {
+                reportButton: document.getElementById('songDisplayReportBtn')?.textContent || '',
+                status: document.getElementById('songReportStatus')?.textContent || '',
+                mode: requestHarness.settings.songDisplayMode,
+                anchor: requestHarness.songReportAnchorTime,
+                returnedProse: completedRecord?.reportText || '',
+                lines: completedRecord?.lines || [],
+                logLabels: lifecycleLogs.map(entry => entry.label)
+            };
+            controller.activateSongReport = originalActivate;
+            controller.updateSongReportControls();
+
             return {
                 lines,
                 prompt,
@@ -3628,7 +3764,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 openai,
                 claude,
                 requests,
-                controls
+                commandLogs,
+                controls,
+                requestLifecycle: { waiting, completed }
             };
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
@@ -3646,6 +3784,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /business, money/.test(songReport.prompt)
             && /well-sourced interpersonal stories/.test(songReport.prompt)
             && /Do not quote or reproduce the lyrics/.test(songReport.prompt)
+            && /exactly one continuous plain-text prose block/.test(songReport.prompt)
+            && /Do not return JSON, Markdown/.test(songReport.prompt)
             && /Omit negative, dull, uncertain/.test(songReport.prompt));
         report.check(`song report lines stay within 50 characters and persist (${songReport.lines.length} lines)`,
             songReport.lines.length > 2
@@ -3675,6 +3815,34 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.controls.afterUp === '10s'
             && songReport.controls.afterDown === '8s'
             && songReport.controls.noReportFallsBackToIdentity);
+        const requestLifecycle = songReport.requestLifecycle;
+        report.check('Story Report requests a missing report and displays elapsed wait state in both buttons',
+            requestLifecycle.waiting.reportButton === 'Waiting 3s'
+            && requestLifecycle.waiting.requestButton === 'Waiting 3s'
+            && requestLifecycle.waiting.status.includes('OpenAI gpt-5.5')
+            && requestLifecycle.waiting.status.includes('waiting 3s'));
+        report.check('returned report is identified, split, saved, and starts from line one at the current media time',
+            requestLifecycle.completed.reportButton === `Playing ${requestLifecycle.completed.lines.length} lines`
+            && requestLifecycle.completed.status.includes(`returned ${requestLifecycle.completed.returnedProse.length} characters`)
+            && requestLifecycle.completed.status.includes(`playing ${requestLifecycle.completed.lines.length} lines every 8s`)
+            && requestLifecycle.completed.mode === 'report'
+            && requestLifecycle.completed.anchor === 42
+            && requestLifecycle.completed.lines.length > 1
+            && requestLifecycle.completed.lines.every(line => line.length <= 50));
+        const lifecycleLabels = requestLifecycle.completed.logLabels;
+        const providerLabels = songReport.commandLogs.map(entry => entry.label);
+        report.check('song report request, provider payloads, returned prose, split, save, and playback are logged',
+            providerLabels.some(label => label.startsWith('Song report request to OpenAI'))
+            && providerLabels.includes('Song report response from OpenAI')
+            && providerLabels.some(label => label.startsWith('Song report request to Claude'))
+            && providerLabels.includes('Song report response from Claude')
+            && lifecycleLabels.includes('Song report request')
+            && lifecycleLabels.includes('Song report request sent')
+            && lifecycleLabels.includes('Song report response received')
+            && lifecycleLabels.includes('Song report returned prose')
+            && lifecycleLabels.includes('Song report split')
+            && lifecycleLabels.includes('Song report saved')
+            && lifecycleLabels.includes('Song report playback'));
 
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze

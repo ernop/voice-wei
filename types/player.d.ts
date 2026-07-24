@@ -136,6 +136,18 @@ interface SongReportRecord {
     lines: string[];
 }
 
+interface SongReportRequestState {
+    phase: 'idle' | 'sending' | 'waiting' | 'received' | 'playing' | 'failed';
+    videoId: string | null;
+    startedAt: number;
+    elapsedMs: number;
+    provider: 'claude' | 'openai' | null;
+    model: string;
+    returnedCharacters: number;
+    returnedLines: number;
+    error: string;
+}
+
 interface SongLibraryNote {
     midi: number;
     startMs: number;
@@ -187,7 +199,7 @@ interface PlayerHistoryDBApi {
     recordSongs(songs: any[], sourceKind: string): void;
     recordYouTubeSearch(query: string, results: any[], meta?: Record<string, any>): void;
     getYouTubeSearch(query: string): Promise<any | null>;
-    listRecentLogs(limit: number): Promise<any[]>;
+    listStoredLogs(): Promise<any[]>;
     listLookups(): Promise<any[]>;
     listSongs(): Promise<any[]>;
     listYouTubeSearches(): Promise<any[]>;
@@ -479,6 +491,8 @@ interface VoiceMusicController {
     songReports: Map<string, SongReportRecord>;
     songReportLoadsInFlight: Map<string, Promise<SongReportRecord | null>>;
     songReportRequestInFlight: boolean;
+    songReportRequestState: SongReportRequestState;
+    songReportRequestTimer: number | null;
     songReportAnchorVideoId: string | null;
     songReportAnchorTime: number;
     songReportForItem(item: PlaylistItem | null | undefined): SongReportRecord | null;
@@ -486,6 +500,8 @@ interface VoiceMusicController {
     segmentSongReport(reportText: string, maxChars?: number): string[];
     loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
     requestSongReport(): Promise<void>;
+    activateSongReport(): Promise<void>;
+    formatSongReportElapsed(elapsedMs: number): string;
     setSongDisplayMode(mode: 'identity' | 'report'): void;
     stepSongReportInterval(direction: -1 | 1): void;
     resetSongReportForPlay(item: PlaylistItem): void;

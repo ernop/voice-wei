@@ -15,6 +15,20 @@ const PlayerSongReport = (function () {
         /** @type {Map<string, Promise<SongReportRecord | null>>} */
         controller.songReportLoadsInFlight = new Map();
         controller.songReportRequestInFlight = false;
+        /** @type {SongReportRequestState} */
+        controller.songReportRequestState = {
+            phase: 'idle',
+            videoId: null,
+            startedAt: 0,
+            elapsedMs: 0,
+            provider: null,
+            model: '',
+            returnedCharacters: 0,
+            returnedLines: 0,
+            error: ''
+        };
+        /** @type {number | null} */
+        controller.songReportRequestTimer = null;
         controller.songReportAnchorVideoId = null;
         controller.songReportAnchorTime = 0;
 
@@ -56,8 +70,8 @@ Rules:
 - Be factual. Do not invent, speculate, repeat unsupported rumors, or make invasive claims.
 - Keep the tone positive, warm, and interesting. Omit negative, dull, uncertain, or unsupported material instead of mentioning its absence.
 - Do not quote or reproduce the lyrics. Analyze and paraphrase them.
-- Do not use headings, bullets, labels, citations, source lists, or prefatory language.
-- Return only continuous plain prose made of crisp, varied sentences that make sense when wrapped into short display lines.
+- Return exactly one continuous plain-text prose block made of crisp, varied sentences that make sense when wrapped into short display lines.
+- Do not return JSON, Markdown, headings, bullets, labels, citations, source lists, prefatory language, or any text outside that prose block.
 - Aim for about ${targetChars} characters total, enough for roughly ${targetLines} display lines.`;
             },
 
@@ -145,20 +159,92 @@ Rules:
                 const item = this.playingPlaylistItem() || this.currentPlaylistItem();
                 if (!item) {
                     this.updateStatus('Play or select a song before requesting a report');
+                    this.addMessage('error', 'Song report request', 'No song is playing or selected');
                     return;
                 }
 
+                const provider = this.settings.aiProvider;
+                const model = provider === 'openai'
+                    ? this.settings.openaiModel
+                    : this.settings.claudeModel;
+                const providerName = provider === 'openai' ? 'OpenAI' : 'Claude';
+                const itemName = this.truncateForStatus(this.describePlaylistItem(item), 80);
+                const startedAt = Date.now();
                 this.songReportRequestInFlight = true;
+                this.songReportRequestState = {
+                    phase: 'sending',
+                    videoId: item.videoId,
+                    startedAt,
+                    elapsedMs: 0,
+                    provider,
+                    model,
+                    returnedCharacters: 0,
+                    returnedLines: 0,
+                    error: ''
+                };
                 this.updateSongReportControls();
-                this.updateStatus(`Researching song report: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
+                this.updateStatus(`Sending song report request: ${itemName}`);
+                this.addMessage(
+                    'claude',
+                    'Song report request',
+                    `Starting ${providerName} (${model}) research for ${this.describePlaylistItem(item)}`
+                );
 
                 try {
                     const prompt = this.buildSongReportPrompt(item);
-                    const result = await this.requestSongReportResearch(prompt);
+                    const research = this.requestSongReportResearch(prompt);
+                    this.songReportRequestState = {
+                        ...this.songReportRequestState,
+                        phase: 'waiting',
+                        elapsedMs: Date.now() - startedAt
+                    };
+                    this.updateSongReportControls();
+                    this.addMessage(
+                        'claude',
+                        'Song report request sent',
+                        `${providerName} (${model}); waiting for the provider response`
+                    );
+                    this.songReportRequestTimer = window.setInterval(() => {
+                        if (this.songReportRequestState.phase !== 'waiting') return;
+                        this.songReportRequestState = {
+                            ...this.songReportRequestState,
+                            elapsedMs: Date.now() - startedAt
+                        };
+                        this.updateSongReportControls();
+                    }, 1000);
+
+                    const result = await research;
+                    const elapsedMs = Date.now() - startedAt;
+                    this.songReportRequestState = {
+                        ...this.songReportRequestState,
+                        phase: 'received',
+                        elapsedMs,
+                        provider: result.provider,
+                        model: result.model,
+                        returnedCharacters: result.text.length
+                    };
+                    this.updateSongReportControls();
+                    this.addMessage(
+                        'claude',
+                        'Song report response received',
+                        `${result.provider === 'openai' ? 'OpenAI' : 'Claude'} (${result.model}) returned `
+                        + `${result.text.length} characters in ${this.formatSongReportElapsed(elapsedMs)}`
+                    );
+                    this.addMessage('claude', 'Song report returned prose', result.text);
+
                     const lines = this.segmentSongReport(result.text);
                     if (lines.length === 0) {
                         throw new Error('The song report response was empty');
                     }
+                    this.songReportRequestState = {
+                        ...this.songReportRequestState,
+                        returnedLines: lines.length
+                    };
+                    this.addMessage('claude', 'Song report split', JSON.stringify({
+                        maximumCharactersPerLine: SONG_REPORT_LINE_MAX_CHARS,
+                        lineCount: lines.length,
+                        lines
+                    }, null, 2));
 
                     /** @type {SongReportRecord} */
                     const record = {
@@ -172,6 +258,11 @@ Rules:
                     };
                     await window.PlayerHistoryDB.putSongReport(record);
                     this.songReports.set(item.videoId, record);
+                    this.addMessage(
+                        'claude',
+                        'Song report saved',
+                        `${lines.length} lines saved for ${this.describePlaylistItem(item)}`
+                    );
                     this.settings.songDisplayMode = 'report';
                     this.saveSettings();
                     this.songReportAnchorVideoId = item.videoId;
@@ -181,17 +272,80 @@ Rules:
                     this.updateSongReportControls();
                     this.updateListeningTextPosition(this.currentPlaybackTime());
                     this.resyncProgressClock();
+                    this.songReportRequestState = {
+                        ...this.songReportRequestState,
+                        phase: 'playing'
+                    };
+                    this.addMessage(
+                        'claude',
+                        'Song report playback',
+                        `Started line 1 of ${lines.length} at ${this.songReportAnchorTime.toFixed(1)}s; `
+                        + `advancing every ${this.settings.songReportIntervalSeconds}s`
+                    );
+                    this.updateSongReportControls();
                     this.updateStatus(`Song report ready: ${lines.length} lines`);
                 } catch (error) {
+                    this.songReportRequestState = {
+                        ...this.songReportRequestState,
+                        phase: 'failed',
+                        elapsedMs: Date.now() - startedAt,
+                        error: error instanceof Error ? error.message : String(error)
+                    };
                     this.logError('Song Report Error', error);
                     this.updateStatus(`Song report failed: ${error instanceof Error ? error.message : String(error)}`);
                     if (error instanceof Error && error.name === 'ApiKeyError') {
                         this.showApiKeyProblem(error);
                     }
                 } finally {
+                    if (this.songReportRequestTimer !== null) {
+                        window.clearInterval(this.songReportRequestTimer);
+                        this.songReportRequestTimer = null;
+                    }
                     this.songReportRequestInFlight = false;
                     this.updateSongReportControls();
                 }
+            },
+
+            async activateSongReport() {
+                if (this.songReportRequestInFlight) return;
+                const item = this.playingPlaylistItem() || this.currentPlaylistItem();
+                if (!item) {
+                    this.updateStatus('Play or select a song before requesting a report');
+                    this.addMessage('error', 'Song report selection', 'No song is playing or selected');
+                    return;
+                }
+
+                let record = this.songReportForItem(item);
+                if (!record) {
+                    this.addMessage(
+                        'claude',
+                        'Song report selection',
+                        `Checking saved report for ${this.describePlaylistItem(item)}`
+                    );
+                    record = await this.loadSongReportForItem(item);
+                }
+                if (!record) {
+                    this.addMessage(
+                        'claude',
+                        'Song report selection',
+                        `No saved report for ${this.describePlaylistItem(item)}; requesting one`
+                    );
+                    await this.requestSongReport();
+                    return;
+                }
+
+                this.setSongDisplayMode('report');
+                this.addMessage(
+                    'claude',
+                    'Song report playback',
+                    `Started saved report for ${this.describePlaylistItem(item)} at line 1`
+                );
+            },
+
+            /** @param {number} elapsedMs */
+            formatSongReportElapsed(elapsedMs) {
+                const seconds = Math.max(0, elapsedMs) / 1000;
+                return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
             },
 
             /** @param {'identity' | 'report'} mode */
@@ -299,29 +453,72 @@ Rules:
                 const effectiveMode = this.settings.songDisplayMode === 'report' && record
                     ? 'report'
                     : 'identity';
+                const requestState = item && this.songReportRequestState.videoId === item.videoId
+                    ? this.songReportRequestState
+                    : null;
+                const requestActive = requestState
+                    && (requestState.phase === 'sending'
+                        || requestState.phase === 'waiting'
+                        || requestState.phase === 'received');
+                const elapsedSeconds = requestState
+                    ? Math.floor(requestState.elapsedMs / 1000)
+                    : 0;
+                const lifecycleLabel = requestState?.phase === 'sending'
+                    ? 'Sending Report'
+                    : requestState?.phase === 'waiting'
+                        ? `Waiting ${elapsedSeconds}s`
+                        : requestState?.phase === 'received'
+                            ? `Received ${requestState.returnedCharacters} chars`
+                            : '';
 
                 if (requestButton) {
                     requestButton.disabled = !item || this.songReportRequestInFlight;
-                    requestButton.textContent = this.songReportRequestInFlight
-                        ? 'Researching Report'
+                    requestButton.textContent = requestActive
+                        ? lifecycleLabel
                         : (record ? 'Refresh Song Report' : 'Request Song Report');
                 }
                 if (identityButton) {
-                    identityButton.classList.toggle('selected', effectiveMode === 'identity');
-                    identityButton.setAttribute('aria-pressed', String(effectiveMode === 'identity'));
+                    identityButton.classList.toggle('selected', effectiveMode === 'identity' && !requestActive);
+                    identityButton.setAttribute('aria-pressed', String(effectiveMode === 'identity' && !requestActive));
                 }
                 if (reportButton) {
-                    reportButton.disabled = !record;
-                    reportButton.classList.toggle('selected', effectiveMode === 'report');
-                    reportButton.setAttribute('aria-pressed', String(effectiveMode === 'report'));
+                    const reportSelected = effectiveMode === 'report' || Boolean(requestActive);
+                    reportButton.disabled = !item || this.songReportRequestInFlight;
+                    reportButton.textContent = requestActive
+                        ? lifecycleLabel
+                        : (requestState?.phase === 'playing' && effectiveMode === 'report'
+                            ? `Playing ${requestState.returnedLines} lines`
+                            : (requestState?.phase === 'failed' ? 'Retry Story Report' : 'Story Report'));
+                    reportButton.classList.toggle('selected', reportSelected);
+                    reportButton.setAttribute('aria-pressed', String(reportSelected));
                 }
                 if (interval) {
                     interval.textContent = `${this.settings.songReportIntervalSeconds}s`;
                 }
                 if (status) {
-                    status.textContent = this.songReportRequestInFlight
-                        ? 'Researching without interrupting playback'
-                        : (record ? `${record.lines.length} saved lines` : 'No saved report for this song');
+                    const providerName = requestState?.provider === 'openai' ? 'OpenAI' : 'Claude';
+                    const providerModel = requestState?.provider
+                        ? `${providerName} ${requestState.model}`
+                        : '';
+                    if (requestState?.phase === 'sending') {
+                        status.textContent = `Sending to ${providerModel}`;
+                    } else if (requestState?.phase === 'waiting') {
+                        status.textContent = `${providerModel} · waiting ${elapsedSeconds}s without interrupting playback`;
+                    } else if (requestState?.phase === 'received') {
+                        status.textContent = `${providerModel} returned ${requestState.returnedCharacters} characters `
+                            + `in ${this.formatSongReportElapsed(requestState.elapsedMs)}; splitting for playback`;
+                    } else if (requestState?.phase === 'playing') {
+                        status.textContent = `${providerModel} returned ${requestState.returnedCharacters} characters `
+                            + `in ${this.formatSongReportElapsed(requestState.elapsedMs)}; playing `
+                            + `${requestState.returnedLines} lines every ${this.settings.songReportIntervalSeconds}s`;
+                    } else if (requestState?.phase === 'failed') {
+                        status.textContent = `Report failed after ${this.formatSongReportElapsed(requestState.elapsedMs)}: `
+                            + requestState.error;
+                    } else {
+                        status.textContent = record
+                            ? `${record.lines.length} saved lines`
+                            : 'No saved report; Story Report will request one';
+                    }
                 }
             }
         }));

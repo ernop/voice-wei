@@ -290,14 +290,11 @@ const PlayerHistoryDB = (function () {
     }
 
     /**
-     * The most recent stored log lines (oldest first), for replaying
-     * earlier sessions into the log panel. Ids are autoIncrement, so key
-     * order is chronological.
-     * @param {number} limit
+     * Every retained log line, oldest first. The store cap is the single
+     * owner of the history limit; UI callers must not impose a second limit.
      */
-    async function listRecentLogs(limit) {
-        const records = /** @type {any[]} */ (await getAll(STORES.LOGS));
-        return records.slice(-Math.max(0, limit));
+    async function listStoredLogs() {
+        return /** @type {any[]} */ (await getAll(STORES.LOGS));
     }
 
     async function listLookups() {
@@ -396,7 +393,7 @@ const PlayerHistoryDB = (function () {
         recordSongs,
         recordYouTubeSearch,
         getYouTubeSearch,
-        listRecentLogs,
+        listStoredLogs,
         listLookups,
         listSongs,
         listYouTubeSearches,

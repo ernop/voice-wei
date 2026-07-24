@@ -2,8 +2,6 @@
 // Voice music controller — composes player-storage, player-api-keys,
 // player-commands, player-playlist, and player-lyrics modules.
 
-// How many stored log lines from earlier sessions replay into the panel
-const HISTORICAL_LOG_LINES = 300;
 const PLAYER_STARTUP_BUDGET_MS = 1000;
 
 const PlayerStartup = (function () {
@@ -147,6 +145,8 @@ class VoiceMusicController {
         this.sessionStartedAt = new Date().toISOString();
         /** @type {boolean} Earlier-session log lines already replayed into the panel */
         this.historicalLogsLoaded = false;
+        /** @type {boolean} Earlier-session log read currently in flight */
+        this.historicalLogsLoading = false;
         // The single authoritative location for all playback state: status,
         // the reused YouTube player handle and its readiness, the active/
         // current item, the playlist cursor, and playback intents all live
@@ -391,6 +391,7 @@ class VoiceMusicController {
         const container = document.getElementById('logContainer');
         const content = document.getElementById('logContent');
         const toggleBtn = document.getElementById('logToggleBtn');
+        const historyBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('loadHistoryLogBtn'));
         const selectBtn = document.getElementById('selectAllLogBtn');
         const copyBtn = document.getElementById('copyAllLogBtn');
         const clearBtn = document.getElementById('clearLogBtn');
@@ -399,45 +400,62 @@ class VoiceMusicController {
         const isCollapsed = container.classList.toggle('collapsed');
         content.style.display = isCollapsed ? 'none' : '';
         if (toggleBtn) toggleBtn.textContent = isCollapsed ? 'Show' : 'Hide';
+        if (historyBtn) historyBtn.style.display = isCollapsed ? 'none' : '';
         if (selectBtn) selectBtn.style.display = isCollapsed ? 'none' : '';
         if (copyBtn) copyBtn.style.display = isCollapsed ? 'none' : '';
         if (clearBtn) clearBtn.style.display = isCollapsed ? 'none' : '';
-        if (!isCollapsed) {
-            void this.loadHistoricalLogs();
-        }
     }
 
     /**
-     * Replay stored log lines from earlier sessions (IndexedDB `logs`,
-     * where every line is recorded) into the top of the panel, once, the
-     * first time it is opened. Lines carry their date and render dimmer
-     * so the current session stays visually distinct.
+     * Explicitly replay every retained earlier-session line into the top of
+     * the panel once. Merely opening Log leaves it current-session only.
      */
     async loadHistoricalLogs() {
-        if (this.historicalLogsLoaded || !window.PlayerHistoryDB) return;
-        this.historicalLogsLoaded = true;
+        if (this.historicalLogsLoaded || this.historicalLogsLoading || !window.PlayerHistoryDB) return;
         const logContent = document.getElementById('logContent');
         if (!logContent) return;
-
-        const records = await window.PlayerHistoryDB.listRecentLogs(HISTORICAL_LOG_LINES);
-        // Everything recorded before this page opened belongs to earlier
-        // sessions; the current session's lines are already in the DOM.
-        const earlier = records.filter(record => record.createdAt < this.sessionStartedAt);
-        if (earlier.length === 0) return;
-
-        const fragment = document.createDocumentFragment();
-        for (const record of earlier) {
-            const line = document.createElement('div');
-            line.className = `log-line log-${record.type || 'claude'} log-history`;
-            const day = String(record.createdAt || '').slice(0, 10);
-            line.textContent = `[${day}] ${record.line || `${record.label}: ${record.text}`}`;
-            fragment.appendChild(line);
+        const historyBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('loadHistoryLogBtn'));
+        this.historicalLogsLoading = true;
+        if (historyBtn) {
+            historyBtn.disabled = true;
+            historyBtn.textContent = 'Loading Previous';
         }
-        const divider = document.createElement('div');
-        divider.className = 'log-line log-history-divider';
-        divider.textContent = `--- earlier sessions above (last ${earlier.length} stored lines) / current session below ---`;
-        fragment.appendChild(divider);
-        logContent.insertBefore(fragment, logContent.firstChild);
+
+        try {
+            const records = await window.PlayerHistoryDB.listStoredLogs();
+            // Everything recorded before this page opened belongs to earlier
+            // sessions; the current session's lines are already in the DOM.
+            const earlier = records.filter(record => record.createdAt < this.sessionStartedAt);
+            this.historicalLogsLoaded = true;
+            if (historyBtn) {
+                historyBtn.textContent = earlier.length > 0
+                    ? `Previous Shown (${earlier.length})`
+                    : 'No Previous Logs';
+            }
+            if (earlier.length === 0) return;
+
+            const fragment = document.createDocumentFragment();
+            for (const record of earlier) {
+                const line = document.createElement('div');
+                line.className = `log-line log-${record.type || 'claude'} log-history`;
+                const day = String(record.createdAt || '').slice(0, 10);
+                line.textContent = `[${day}] ${record.line || `${record.label}: ${record.text}`}`;
+                fragment.appendChild(line);
+            }
+            const divider = document.createElement('div');
+            divider.className = 'log-line log-history-divider';
+            divider.textContent = `--- earlier sessions above (${earlier.length} retained lines) / current session below ---`;
+            fragment.appendChild(divider);
+            logContent.insertBefore(fragment, logContent.firstChild);
+        } catch (error) {
+            this.logError('Log History Load Error', error);
+            if (historyBtn) {
+                historyBtn.disabled = false;
+                historyBtn.textContent = 'Show Previous';
+            }
+        } finally {
+            this.historicalLogsLoading = false;
+        }
     }
 
     clearLog() {
@@ -933,6 +951,13 @@ class VoiceMusicController {
                 this.toggleLogPanel();
             });
         }
+        const loadHistoryLogBtn = document.getElementById('loadHistoryLogBtn');
+        if (loadHistoryLogBtn) {
+            loadHistoryLogBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                void this.loadHistoricalLogs();
+            });
+        }
 
         const clearLogBtn = document.getElementById('clearLogBtn');
         if (clearLogBtn) {
@@ -1109,7 +1134,9 @@ class VoiceMusicController {
         }
         const songDisplayReportBtn = document.getElementById('songDisplayReportBtn');
         if (songDisplayReportBtn) {
-            songDisplayReportBtn.addEventListener('click', () => this.setSongDisplayMode('report'));
+            songDisplayReportBtn.addEventListener('click', () => {
+                void this.activateSongReport();
+            });
         }
         const songReportIntervalDownBtn = document.getElementById('songReportIntervalDownBtn');
         if (songReportIntervalDownBtn) {
