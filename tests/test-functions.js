@@ -1693,6 +1693,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
     // ============ PLAYER VOICE: shared core drives commands and music requests ============
     {
         const ctx = await browser.newContext();
+        await ctx.route('https://i.ytimg.com/**', route => route.fulfill({
+            status: 200,
+            contentType: 'image/png',
+            body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+        }));
         // Fake key (long enough to pass the gate) and a controllable fake
         // SpeechRecognition, installed before page scripts run.
         await ctx.addInitScript(() => {
@@ -3220,11 +3225,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // song identity for the first seconds, a countdown prefix before
         // a late first lyric line, then the bare lyric led ahead of the
         // sung moment. Title never carries song/artist past the intro;
-        // Media Session artist stays year - artist - song while playing.
-        // Pause clears the surfaces.
+        // Media Session artist/artwork stay stable while the title changes.
+        // Pause freezes the same track and current lyric.
         const lyricRelay = await tab.evaluate(() => {
             const item = {
-                id: 77, name: 'Test Song', artist: 'Test Artist', year: '1999', album: 'Test Album',
+                id: 77, videoId: 'test-video', name: 'Test Song', artist: 'Test Artist', year: '1999', album: 'Test Album',
                 lyricsStatus: 'ready',
                 lyricsData: {
                     provider: 'LRCLIB', trackName: 'Test Song', artistName: 'Test Artist',
@@ -3249,12 +3254,25 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentPlaylistItem() { return item; }
             };
             PlayerLyrics.install(harness);
+            MediaSessionCore.setTrackIdentity({
+                id: item.videoId,
+                title: item.name,
+                artist: harness.describeNowPlayingArtist(item),
+                album: item.album,
+                artwork: [{
+                    src: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+                    sizes: '480x360',
+                    type: 'image/jpeg'
+                }]
+            });
             const meta = () => navigator.mediaSession.metadata;
             const snap = () => ({
                 docTitle: document.title,
                 headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
                 metaTitle: meta() ? meta().title : '',
                 metaArtist: meta() ? meta().artist : '',
+                metaAlbum: meta() ? meta().album : '',
+                artwork: meta()?.artwork[0]?.src || '',
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 highlightIndex: harness.currentLyricsLineIndex
             });
@@ -3272,9 +3290,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.updateSyncedLyricsPosition(13);
             const during = snap();
             harness.isPaused = true;
-            harness.relayLyricToNowPlaying(harness.currentLyricsLineIndex, 13);
+            MediaSessionCore.setPlaybackState('paused');
             const after = snap();
             harness.updateTransportBarLyric('');
+            MediaSessionCore.clearTrack();
             return { identity, countdown, led, during, after };
         });
         const identityText = 'Test Artist - Test Song - 1999 - Test Album';
@@ -3283,7 +3302,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             .every(snap => !snap.metaTitle.includes('Test Song') && !snap.docTitle.includes('Test Song'));
         const artistLineWhilePlaying = [lyricRelay.identity, lyricRelay.countdown, lyricRelay.led, lyricRelay.during]
             .every(snap => snap.metaArtist === artistLine);
-        report.check(`player titles: identity intro, countdown, then lyric + artist line ("${lyricRelay.identity.metaTitle}" / "${lyricRelay.identity.metaArtist}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}")`,
+        const stableTrackFields = [lyricRelay.identity, lyricRelay.countdown, lyricRelay.led, lyricRelay.during, lyricRelay.after]
+            .every(snap => snap.metaAlbum === 'Test Album'
+                && snap.artwork.endsWith('/test-video/hqdefault.jpg'));
+        report.check(`player titles: identity intro, countdown, then lyric + stable track identity ("${lyricRelay.identity.metaTitle}" / "${lyricRelay.identity.metaArtist}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}")`,
             lyricRelay.identity.metaTitle === identityText
             && lyricRelay.identity.docTitle === identityText
             && lyricRelay.identity.headerTitle === identityText
@@ -3298,12 +3320,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelay.during.metaTitle === 'late first line'
             && lyricRelay.during.barLyric === 'late first line'
             && lyricRelay.during.highlightIndex === 0
-            && lyricRelay.after.metaTitle === ''
-            && lyricRelay.after.metaArtist === ''
-            && lyricRelay.after.docTitle !== 'late first line'
-            && lyricRelay.after.headerTitle === 'Lyrics'
+            && lyricRelay.after.metaTitle === 'late first line'
+            && lyricRelay.after.metaArtist === artistLine
+            && lyricRelay.after.docTitle === 'late first line'
+            && lyricRelay.after.headerTitle === 'late first line'
             && titleCleanPastIntro
-            && artistLineWhilePlaying);
+            && artistLineWhilePlaying
+            && stableTrackFields);
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze
         // the Bluetooth/header lyric line).
@@ -3344,13 +3367,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 currentPlaylistItem() { return playing; }
             };
             PlayerLyrics.install(harness);
+            MediaSessionCore.setTrackIdentity({
+                id: 'playing-video',
+                title: playing.name,
+                artist: harness.describeNowPlayingArtist(playing),
+                album: '',
+                artwork: []
+            });
             harness.updateSyncedLyricsPosition(4);
-            return {
+            const result = {
                 metaTitle: navigator.mediaSession.metadata?.title || '',
                 headerTitle: document.querySelector('#siteHeader h1')?.textContent || '',
                 barLyric: document.getElementById('transportBarLyric')?.textContent || '',
                 panelFocusId: harness.currentLyricsItemId
             };
+            MediaSessionCore.clearTrack();
+            return result;
         });
         report.check(`player car/title relay follows playing song while panel shows another ("${lyricRelayIgnoresPanelFocus.metaTitle}")`,
             lyricRelayIgnoresPanelFocus.metaTitle === 'playing line one'
@@ -3472,6 +3504,26 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             c.currentLyricsItemId = item.id;
             c.playback.setActiveMedia(item.id, item.videoId);
             c.playback.markPlaying(item.id);
+            const realSetPositionState = navigator.mediaSession.setPositionState.bind(navigator.mediaSession);
+            const positionWrites = [];
+            navigator.mediaSession.setPositionState = state => {
+                positionWrites.push(state ? { ...state } : null);
+                return realSetPositionState(state);
+            };
+            const realSetActionHandler = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+            const mediaHandlers = new Map();
+            navigator.mediaSession.setActionHandler = (action, handler) => {
+                mediaHandlers.set(action, handler);
+                return realSetActionHandler(action, handler);
+            };
+            c.mediaActionHandlersSet = false;
+            c.updateMediaSessionForItem(item);
+            navigator.mediaSession.setActionHandler = realSetActionHandler;
+            MediaSessionCore.setPosition({ duration: 120, position: 119, playbackRate: 1 });
+            MediaSessionCore.setDisplayLine('stale final lyric');
+            c.updateMediaSessionForItem(item);
+            const sameVideoReplayTitle = navigator.mediaSession.metadata?.title || '';
+            const sameVideoReplayPosition = positionWrites[positionWrites.length - 1];
 
             const deadlines = {
                 fromZero: c.nextLyricDeadline(0),
@@ -3484,9 +3536,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             let reads = 0;
             let mediaStart = 0.2;
             let wallStart = performance.now();
+            const seekCalls = [];
             const fakePlayer = {
                 getCurrentTime() { reads++; return mediaStart + (performance.now() - wallStart) / 1000; },
-                getDuration() { return 120; }
+                getDuration() { return 120; },
+                getPlaybackRate() { return 1.25; },
+                seekTo(time) {
+                    seekCalls.push(time);
+                    mediaStart = time;
+                    wallStart = performance.now();
+                },
+                pauseVideo() {},
+                stopVideo() {}
             };
             c.playback.markPlayerReady(fakePlayer);
 
@@ -3505,22 +3566,53 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             c.resyncProgressClock();
             await new Promise(resolve => setTimeout(resolve, 450));
             const titleAfterLead = navigator.mediaSession.metadata?.title || '';
+            mediaHandlers.get('seekto')?.({ action: 'seekto', seekTime: 6, fastSeek: false });
 
-            c.stopProgressUpdates();
+            const lastPosition = positionWrites[positionWrites.length - 1] || null;
+            c.pausePlayback();
+            const paused = {
+                title: navigator.mediaSession.metadata?.title || '',
+                state: navigator.mediaSession.playbackState,
+                position: positionWrites.filter(value => value !== null).at(-1) || null
+            };
+            c.stopPlayback();
+            const stopped = {
+                metadata: navigator.mediaSession.metadata,
+                state: navigator.mediaSession.playbackState,
+                lastPosition: positionWrites[positionWrites.length - 1]
+            };
+            navigator.mediaSession.setPositionState = realSetPositionState;
             c.playback.reset();
             c.currentLyricsItemId = null;
-            c.relayLyricToNowPlaying(-1);
             c.playlist.pop();
-            return { deadlines, idleReads, titleAfterLead };
+            return {
+                deadlines, idleReads, titleAfterLead, lastPosition, paused, stopped,
+                sameVideoReplayTitle, sameVideoReplayPosition,
+                mediaActions: [...mediaHandlers.keys()], seekCalls
+            };
         });
-        report.check(`player progress clock sleeps to deadlines (idle reads ${deadlineClock.idleReads}, lead title "${deadlineClock.titleAfterLead}")`,
+        report.check(`player progress clock publishes YouTube position and pause/stop preserve then clear it (idle reads ${deadlineClock.idleReads}, lead title "${deadlineClock.titleAfterLead}")`,
             !deadlineClock.error
             && deadlineClock.deadlines.fromZero === 4.25
             && deadlineClock.deadlines.beforeFirst === 5
             && deadlineClock.deadlines.betweenLines === 8.25
             && deadlineClock.deadlines.afterLast === Infinity
             && deadlineClock.idleReads <= 2
-            && deadlineClock.titleAfterLead === 'clock line one');
+            && deadlineClock.sameVideoReplayTitle === 'Clock Song'
+            && deadlineClock.sameVideoReplayPosition === null
+            && ['seekbackward', 'seekforward', 'seekto'].every(action =>
+                deadlineClock.mediaActions.includes(action))
+            && deadlineClock.seekCalls[0] === 6
+            && deadlineClock.titleAfterLead === 'clock line one'
+            && deadlineClock.lastPosition?.duration === 120
+            && deadlineClock.lastPosition?.playbackRate === 1.25
+            && deadlineClock.lastPosition?.position >= 4.1
+            && deadlineClock.paused?.title === 'clock line one'
+            && deadlineClock.paused?.state === 'paused'
+            && deadlineClock.paused?.position?.duration === 120
+            && deadlineClock.stopped?.metadata === null
+            && deadlineClock.stopped?.state === 'none'
+            && deadlineClock.stopped?.lastPosition === null);
 
         // Save-then-activate under a failing store write: the live item is
         // never activated with lyrics the permanent store does not hold
@@ -3613,6 +3705,113 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check(`player imported songs migrate to IndexedDB (idb: ${songLibraryMigration.inIdb}, blob empty: ${songLibraryMigration.blobEmpty})`,
             songLibraryMigration.inIdb && songLibraryMigration.blobEmpty && songLibraryMigration.inMemory);
+
+        // Media Session treats lyric changes as display updates inside one
+        // stable track. Identity/artwork survive; position advances and is
+        // reasserted after metadata; only clearTrack ends the session.
+        const mediaSessionChannels = await tab.evaluate(() => {
+            const realSetPositionState = navigator.mediaSession.setPositionState.bind(navigator.mediaSession);
+            const positionWrites = [];
+            navigator.mediaSession.setPositionState = state => {
+                positionWrites.push(state ? { ...state } : null);
+                return realSetPositionState(state);
+            };
+            MediaSessionCore.setTrackIdentity({
+                id: 'channel-video',
+                title: 'Channel Song',
+                artist: '2004 - Channel Artist - Channel Song',
+                album: 'Channel Album',
+                artwork: [{
+                    src: 'https://i.ytimg.com/vi/channel-video/hqdefault.jpg',
+                    sizes: '480x360',
+                    type: 'image/jpeg'
+                }]
+            });
+            MediaSessionCore.setPosition({ duration: 240, position: 31.2, playbackRate: 1 });
+            MediaSessionCore.setDisplayLine('first lyric');
+            const first = navigator.mediaSession.metadata;
+            MediaSessionCore.clearDisplayLine();
+            const lyricsOff = {
+                mediaTitle: navigator.mediaSession.metadata?.title || '',
+                documentTitle: document.title,
+                headerTitle: document.querySelector('#siteHeader h1')?.textContent || ''
+            };
+            MediaSessionCore.setPosition({ duration: 240, position: 32.4, playbackRate: 1 });
+            MediaSessionCore.setDisplayLine('second lyric');
+            const second = navigator.mediaSession.metadata;
+            MediaSessionCore.setPlaybackState('paused');
+            const paused = {
+                title: navigator.mediaSession.metadata?.title || '',
+                artist: navigator.mediaSession.metadata?.artist || '',
+                state: navigator.mediaSession.playbackState
+            };
+            MediaSessionCore.setTrackIdentity({
+                id: 'next-video',
+                title: 'Next Song',
+                artist: '2005 - Next Artist - Next Song',
+                album: 'Next Album',
+                artwork: [{
+                    src: 'https://i.ytimg.com/vi/next-video/hqdefault.jpg',
+                    sizes: '480x360',
+                    type: 'image/jpeg'
+                }]
+            });
+            const boundary = {
+                title: navigator.mediaSession.metadata?.title || '',
+                artist: navigator.mediaSession.metadata?.artist || '',
+                artwork: navigator.mediaSession.metadata?.artwork[0]?.src || '',
+                lastPosition: positionWrites[positionWrites.length - 1]
+            };
+            MediaSessionCore.clearTrack();
+            const cleared = {
+                metadata: navigator.mediaSession.metadata,
+                state: navigator.mediaSession.playbackState,
+                lastPosition: positionWrites[positionWrites.length - 1]
+            };
+            navigator.mediaSession.setPositionState = realSetPositionState;
+            return {
+                first: {
+                    title: first?.title || '',
+                    artist: first?.artist || '',
+                    album: first?.album || '',
+                    artwork: first?.artwork[0]?.src || ''
+                },
+                second: {
+                    title: second?.title || '',
+                    artist: second?.artist || '',
+                    album: second?.album || '',
+                    artwork: second?.artwork[0]?.src || ''
+                },
+                lyricsOff,
+                paused,
+                boundary,
+                cleared,
+                positionWrites: positionWrites.filter(value => value !== null)
+            };
+        });
+        report.check(`Media Session keeps one track across lyrics, true position, pause, and clear`,
+            mediaSessionChannels.first.title === 'first lyric'
+            && mediaSessionChannels.second.title === 'second lyric'
+            && mediaSessionChannels.first.artist === mediaSessionChannels.second.artist
+            && mediaSessionChannels.first.album === mediaSessionChannels.second.album
+            && mediaSessionChannels.first.artwork === mediaSessionChannels.second.artwork
+            && mediaSessionChannels.lyricsOff.mediaTitle === 'Channel Song'
+            && mediaSessionChannels.lyricsOff.documentTitle === 'Channel Song'
+            && mediaSessionChannels.lyricsOff.headerTitle === 'Channel Song'
+            && mediaSessionChannels.positionWrites.some(state =>
+                state.duration === 240 && state.position === 32.4 && state.playbackRate === 1)
+            && mediaSessionChannels.positionWrites.filter(state => state.position === 32.4).length >= 2
+            && mediaSessionChannels.positionWrites.every(state => state.position > 0)
+            && mediaSessionChannels.paused.title === 'second lyric'
+            && mediaSessionChannels.paused.artist === '2004 - Channel Artist - Channel Song'
+            && mediaSessionChannels.paused.state === 'paused'
+            && mediaSessionChannels.boundary.title === 'Next Song'
+            && mediaSessionChannels.boundary.artist === '2005 - Next Artist - Next Song'
+            && mediaSessionChannels.boundary.artwork.endsWith('/next-video/hqdefault.jpg')
+            && mediaSessionChannels.boundary.lastPosition === null
+            && mediaSessionChannels.cleared.metadata === null
+            && mediaSessionChannels.cleared.state === 'none'
+            && mediaSessionChannels.cleared.lastPosition === null);
 
         // Minimal display communication: identical repeat writes to the
         // now-playing surfaces are dropped at the core - one metadata

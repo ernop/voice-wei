@@ -313,9 +313,14 @@ under the lyric after the intro ends. Car / lock-screen / tab / header
 titles lead the sung line by 0.75s so Bluetooth metadata redraw lands
 near the moment the line starts; the on-screen highlight stays on the
 exact timed time.
-Writes are pushed into the OS media session exactly when the text
-changes (line boundaries / countdown seconds); the car pulls its redraw
-from that. On this page the header gives the lyric
+The Media Session also carries the selected video's stable YouTube thumbnail
+and the true YouTube elapsed/total position. Lyric-title writes retain those
+fields and reassert the same position, so a new lyric remains the same
+continuing track. Pause freezes that complete state; stop or playlist clear
+removes it. Car seek-back, seek-forward, and seek-to actions seek the YouTube
+player. Writes are pushed into the OS media session exactly when the text
+changes (line boundaries / countdown seconds); the car pulls its redraw from
+that. On this page the header gives the lyric
 heading its own full-width line, with the nav tabs and the settings gear
 sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
 button (the older central-player secondary row is hidden).

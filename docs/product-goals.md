@@ -95,7 +95,9 @@ checked against this list, and new standing intent gets added here.
    short song-identity intro at track start and a countdown before a
    late first line. The Media Session artist line (car/lock-screen
    second row) stays `year - artist - song` for the whole play so song
-   identity remains visible under the lyric.
+   identity remains visible under the lyric. Artwork and elapsed/total
+   position stay tied to the same sounding `videoId`; a lyric change is
+   never modeled as a new song.
 4. **Nothing is ever lost.** Every song seen, every lookup, every lyric
    state is durably recorded (IndexedDB); the playlist is a convenience
    view over that. Interruption at ANY point (page evicted mid-search,

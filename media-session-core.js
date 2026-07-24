@@ -31,20 +31,38 @@ const MediaSessionCore = (function () {
     let explicitState = null;
     /** @type {string | null} Header heading text before the first override */
     let defaultHeaderText = null;
-    // Desired vs last-published metadata. Callers express what the
-    // surfaces should show; identical repeats are dropped so the car is
-    // not spammed. When the silent keep-alive re-arms, published is
-    // cleared so the desired text is forced through again - Chrome can
-    // route the session to a YouTube iframe mid-song and discard our
-    // MediaMetadata while our dedupe cache still thinks it is live.
+    /**
+     * @typedef {{
+     *   id: string,
+     *   title: string,
+     *   artist: string,
+     *   album: string,
+     *   artwork: MediaImage[]
+     * }} TrackIdentity
+     */
+    /**
+     * @typedef {{
+     *   duration: number,
+     *   position: number,
+     *   playbackRate: number
+     * }} PositionState
+     */
+
+    // A song's identity is stable while its lyric display line changes.
+    // Keeping them separate is essential: Media Session is track-oriented,
+    // but the Lyrics page deliberately uses its title field as a lyric relay.
+    /** @type {TrackIdentity | null} */
+    let trackIdentity = null;
+    /** @type {string | null} null means use the stable track title */
+    let displayLine = null;
+    /** @type {{ title: string, artist: string } | null} Non-player page metadata */
+    let simpleMetadata = null;
     /** @type {string | null} */
-    let desiredMetaTitle = null;
+    let writtenMetadataKey = null;
+    /** @type {PositionState | null} */
+    let positionState = null;
     /** @type {string | null} */
-    let desiredMetaArtist = null;
-    /** @type {string | null} */
-    let writtenMetaTitle = null;
-    /** @type {string | null} */
-    let writtenMetaArtist = null;
+    let writtenPositionKey = null;
 
     function createSilentWavUrl() {
         const sampleCount = SAMPLE_RATE * SILENCE_SECONDS;
@@ -91,11 +109,12 @@ const MediaSessionCore = (function () {
         try {
             await audioEl.play();
             // Reclaiming the element means the OS may have been showing
-            // another frame's session (YouTube). Force the next metadata
-            // publish through even if the text has not changed.
-            writtenMetaTitle = null;
-            writtenMetaArtist = null;
+            // another frame's session (YouTube). Force the complete stable
+            // identity, lyric line, and real song position through again.
+            writtenMetadataKey = null;
+            writtenPositionKey = null;
             publishMetadata();
+            publishPosition();
             // The silent loop would otherwise be computed as 'playing';
             // pages that report transport state keep their word here.
             if ('mediaSession' in navigator) {
@@ -143,26 +162,139 @@ const MediaSessionCore = (function () {
      */
     function updateMetadata(title, options = {}) {
         const artist = options.artist === undefined ? 'Voice-Wei' : options.artist;
-        desiredMetaTitle = title;
-        desiredMetaArtist = artist;
+        trackIdentity = null;
+        displayLine = null;
+        simpleMetadata = { title, artist };
         publishMetadata();
     }
 
-    /** Push desired metadata when it differs from what we last published. */
+    /** @returns {MediaMetadataInit | null} */
+    function composedMetadata() {
+        if (trackIdentity) {
+            return {
+                title: displayLine || trackIdentity.title,
+                artist: trackIdentity.artist,
+                album: trackIdentity.album,
+                artwork: trackIdentity.artwork
+            };
+        }
+        return simpleMetadata;
+    }
+
+    /** Push complete metadata when any presented field differs. */
     function publishMetadata() {
         if (!('mediaSession' in navigator)) return;
-        if (desiredMetaTitle === null || desiredMetaArtist === null) return;
-        if (desiredMetaTitle === writtenMetaTitle && desiredMetaArtist === writtenMetaArtist) return;
+        const metadata = composedMetadata();
+        if (!metadata) return;
+        const key = JSON.stringify(metadata);
+        if (key === writtenMetadataKey) return;
 
         try {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: desiredMetaTitle,
-                artist: desiredMetaArtist
-            });
-            writtenMetaTitle = desiredMetaTitle;
-            writtenMetaArtist = desiredMetaArtist;
+            navigator.mediaSession.metadata = new MediaMetadata(metadata);
+            writtenMetadataKey = key;
+            // Some receivers reset their displayed timer when title metadata
+            // changes. Reassert the same song position without treating the
+            // lyric as a track boundary.
+            publishPosition(true);
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
+        }
+    }
+
+    /**
+     * Set stable metadata once per sounding media identity.
+     * @param {TrackIdentity} identity
+     */
+    function setTrackIdentity(identity) {
+        const changedTrack = !trackIdentity || trackIdentity.id !== identity.id;
+        trackIdentity = {
+            id: String(identity.id || ''),
+            title: String(identity.title || 'Unknown song'),
+            artist: String(identity.artist || ''),
+            album: String(identity.album || ''),
+            artwork: Array.isArray(identity.artwork) ? identity.artwork : []
+        };
+        simpleMetadata = null;
+        if (changedTrack) {
+            displayLine = null;
+            writtenMetadataKey = null;
+            clearPosition(false);
+        }
+        publishMetadata();
+        if (!displayLine) showDisplayLine(trackIdentity.title);
+    }
+
+    /** @param {string} title */
+    function setDisplayLine(title) {
+        displayLine = String(title || '').trim() || null;
+        publishMetadata();
+        if (displayLine) {
+            showDisplayLine(displayLine);
+        } else if (trackIdentity) {
+            showDisplayLine(trackIdentity.title);
+        } else {
+            restoreDisplayLine();
+        }
+    }
+
+    function clearDisplayLine() {
+        setDisplayLine('');
+    }
+
+    /**
+     * Publish the audible media's true position, never the silent ownership
+     * WAV's position. Invalid/unreadable player values are ignored.
+     * @param {PositionState} state
+     */
+    function setPosition(state) {
+        const duration = Number(state.duration);
+        const position = Number(state.position);
+        const playbackRate = Number(state.playbackRate);
+        if (!Number.isFinite(duration) || duration <= 0
+            || !Number.isFinite(position)
+            || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
+
+        positionState = {
+            duration,
+            position: Math.min(Math.max(position, 0), duration),
+            playbackRate
+        };
+        publishPosition();
+    }
+
+    /** @param {boolean} [force] */
+    function publishPosition(force = false) {
+        if (!positionState || !('mediaSession' in navigator)
+            || typeof navigator.mediaSession.setPositionState !== 'function') return;
+        // The receiver extrapolates between samples. Whole-second dedupe keeps
+        // lyric-deadline renders from producing extra position traffic.
+        const key = [
+            positionState.duration,
+            positionState.position.toFixed(1),
+            positionState.playbackRate
+        ].join('|');
+        if (!force && key === writtenPositionKey) return;
+        try {
+            navigator.mediaSession.setPositionState(positionState);
+            writtenPositionKey = key;
+        } catch (err) {
+            // Optional surface; invalid browser/device implementations must
+            // not interrupt playback.
+        }
+    }
+
+    /** @param {boolean} [force] */
+    function clearPosition(force = true) {
+        const hadPosition = positionState !== null || writtenPositionKey !== null;
+        positionState = null;
+        writtenPositionKey = null;
+        if (!force && !hadPosition) return;
+        if (!('mediaSession' in navigator)
+            || typeof navigator.mediaSession.setPositionState !== 'function') return;
+        try {
+            navigator.mediaSession.setPositionState();
+        } catch (err) {
+            // Optional surface.
         }
     }
 
@@ -179,16 +311,8 @@ const MediaSessionCore = (function () {
         if (defaultHeaderText === null) defaultHeaderText = heading.textContent || '';
     }
 
-    /**
-     * THE now-playing text: one call updates every surface a listener
-     * can see - car/lock-screen metadata, the tab title, and the site
-     * header heading. Pages express "show this"; the fan-out is owned
-     * here so the surfaces can never disagree.
-     * @param {string} title
-     * @param {{ artist?: string }} [options]
-     */
-    function setNowPlayingTitle(title, options = {}) {
-        updateMetadata(title, options);
+    /** @param {string} title */
+    function showDisplayLine(title) {
         if (document.title !== title) document.title = title;
         const heading = headerHeading();
         if (heading && heading.textContent !== title) {
@@ -197,9 +321,7 @@ const MediaSessionCore = (function () {
         }
     }
 
-    /** Restore every surface to its page default. */
-    function clearNowPlayingTitle() {
-        updateMetadata('', { artist: '' });
+    function restoreDisplayLine() {
         if (document.title !== DEFAULT_DOCUMENT_TITLE) document.title = DEFAULT_DOCUMENT_TITLE;
         const heading = headerHeading();
         if (heading && defaultHeaderText !== null && heading.textContent !== defaultHeaderText) {
@@ -207,7 +329,46 @@ const MediaSessionCore = (function () {
         }
     }
 
-    /** @param {Array<[MediaSessionAction, () => void]>} handlers */
+    /**
+     * Backward-compatible combined call for non-player tools. The Lyrics
+     * player uses setTrackIdentity + setDisplayLine instead.
+     * @param {string} title
+     * @param {{ artist?: string }} [options]
+     */
+    function setNowPlayingTitle(title, options = {}) {
+        updateMetadata(title, options);
+        showDisplayLine(title);
+    }
+
+    /** Restore every surface to its page default. */
+    function clearNowPlayingTitle() {
+        updateMetadata('', { artist: '' });
+        restoreDisplayLine();
+    }
+
+    /** End the logical track and release all stale external presentation. */
+    function clearTrack() {
+        trackIdentity = null;
+        displayLine = null;
+        simpleMetadata = null;
+        writtenMetadataKey = null;
+        clearPosition();
+        restoreDisplayLine();
+        explicitState = 'none';
+        if (audioEl) {
+            audioEl.pause();
+            audioEl.currentTime = 0;
+        }
+        if (!('mediaSession' in navigator)) return;
+        try {
+            navigator.mediaSession.metadata = null;
+            navigator.mediaSession.playbackState = 'none';
+        } catch (err) {
+            // Optional surface.
+        }
+    }
+
+    /** @param {Array<[MediaSessionAction, MediaSessionActionHandler]>} handlers */
     function setActionHandlers(handlers) {
         if (!('mediaSession' in navigator)) return;
         handlers.forEach(([action, handler]) => {
@@ -221,7 +382,7 @@ const MediaSessionCore = (function () {
 
     /**
      * @param {string} title
-     * @param {Array<[MediaSessionAction, () => void]>} handlers
+     * @param {Array<[MediaSessionAction, MediaSessionActionHandler]>} handlers
      */
     function register(title, handlers) {
         updateMetadata(title);
@@ -243,6 +404,12 @@ const MediaSessionCore = (function () {
         updateMetadata,
         setNowPlayingTitle,
         clearNowPlayingTitle,
+        setTrackIdentity,
+        setDisplayLine,
+        clearDisplayLine,
+        setPosition,
+        clearPosition,
+        clearTrack,
         setPlaybackState
     };
 })();

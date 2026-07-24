@@ -234,14 +234,15 @@ its hold-detection loops. User-facing behavior per page is in
 Media keys and the now-playing surface: phrases, scales, intervals, ears,
 and the player register hardware play/pause/next handlers through
 `media-session-core.js`, which is the ONLY writer of
-`navigator.mediaSession` and `document.title` (ast-grep enforced). One
-call (`setNowPlayingTitle`) fans out to every surface a listener sees -
-car/lock-screen metadata, the tab title, and the site-header heading - so
-the surfaces cannot disagree, and reporting `setPlaybackState('playing')`
-automatically secures session ownership via the silent-WAV loop (without
-it, Chrome routes the car display to whichever frame is audibly playing;
-with a YouTube iframe that means youtube.com's metadata, not ours). The
-core self-primes on the first user gesture; pages never wire activation.
+`navigator.mediaSession` and `document.title` (ast-grep enforced). The core
+composes stable track identity/artwork, the changing display line, true media
+position, and playback state without letting one concern overwrite another.
+It fans the display line out to car/lock-screen metadata, the tab title, and
+the site-header heading. Reporting `setPlaybackState('playing')` automatically
+secures session ownership via the silent-WAV loop (without it, Chrome routes
+the car display to whichever frame is audibly playing; with a YouTube iframe
+that means youtube.com's metadata, not ours). The core self-primes on the
+first user gesture; pages never wire activation.
 Trace and pitch-meter deliberately do not register - they are
 watch-the-screen tools where hardware keys add nothing.
 

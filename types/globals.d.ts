@@ -63,7 +63,7 @@ interface Window {
     PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
-    MediaSessionCore?: any;
+    MediaSessionCore?: MediaSessionCoreApi;
     PitchTestPanel?: any;
     DiagLog?: any;
     ProgressStore?: any;
@@ -133,6 +133,37 @@ interface Window {
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;
     normalizeModifier?: (spoken: string | null | undefined) => string | null;
+}
+
+interface MediaSessionTrackIdentity {
+    id: string;
+    title: string;
+    artist: string;
+    album: string;
+    artwork: MediaImage[];
+}
+
+interface MediaSessionPosition {
+    duration: number;
+    position: number;
+    playbackRate: number;
+}
+
+interface MediaSessionCoreApi {
+    activate(): Promise<void>;
+    ensurePlayingSession(): void;
+    register(title: string, handlers: Array<[MediaSessionAction, MediaSessionActionHandler]>): void;
+    setActionHandlers(handlers: Array<[MediaSessionAction, MediaSessionActionHandler]>): void;
+    updateMetadata(title: string, options?: { artist?: string }): void;
+    setNowPlayingTitle(title: string, options?: { artist?: string }): void;
+    clearNowPlayingTitle(): void;
+    setTrackIdentity(identity: MediaSessionTrackIdentity): void;
+    setDisplayLine(title: string): void;
+    clearDisplayLine(): void;
+    setPosition(state: MediaSessionPosition): void;
+    clearPosition(force?: boolean): void;
+    clearTrack(): void;
+    setPlaybackState(state: MediaSessionPlaybackState): void;
 }
 
 // -----------------------------------------------------------------------

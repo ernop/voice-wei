@@ -303,6 +303,7 @@ interface VoiceMusicController {
     hideTransportBar(): void;
     setupProgressBar(): void;
     seekToPercentage(percentage: number): void;
+    seekToTime(seconds: number): void;
     startProgressUpdates(): void;
     stopProgressUpdates(): void;
     resyncProgressClock(): void;

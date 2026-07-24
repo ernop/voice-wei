@@ -1038,14 +1038,13 @@ const PlayerLyrics = (function () {
                     // keep-alive can be paused out from under us, after which
                     // Chrome routes the car to the YouTube iframe.
                     MediaSessionCore.ensurePlayingSession();
-                    // Repeat writes of the same line are dropped by the core.
-                    MediaSessionCore.setNowPlayingTitle(line, {
-                        artist: this.describeNowPlayingArtist(item)
-                    });
+                    // Repeat writes of the same line are dropped by the core;
+                    // stable artist/artwork/position remain this same track.
+                    MediaSessionCore.setDisplayLine(line);
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;
-                    MediaSessionCore.clearNowPlayingTitle();
+                    MediaSessionCore.clearDisplayLine();
                 }
             },
 

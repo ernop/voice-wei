@@ -40,23 +40,19 @@ It does not mean a lyric is a new song.
 
 Voice-Wei currently publishes:
 
-- Media Session metadata (`title` and `artist`)
+- complete Media Session metadata (`title`, `artist`, `album`, and `artwork`)
+- the real YouTube position, duration, and playback rate
 - Media Session playback state
-- media-key action handlers
+- play, pause, previous/next, relative seek, and absolute seek handlers
 
-Voice-Wei does **not** publish Media Session position state or artwork.
+The elapsed-total state is sampled from the same YouTube clock as the in-page
+progress bar; it never comes from the hidden 10-second ownership WAV. Artwork
+is the selected video's `hqdefault.jpg`, keyed by the sounding `videoId`, and
+remains unchanged across lyric updates.
 
-Consequently, an OS/car elapsed-total display is not currently trustworthy as
-the song clock. Depending on browser routing, it may reflect:
-
-- the hidden 10-second looping WAV used to own the session;
-- the YouTube iframe's media session; or
-- device-specific cached/default state.
-
-Likewise, the image may be Voice-Wei's favicon, YouTube artwork from a routed
-iframe session, or cached device artwork. Voice-Wei does not currently select
-it. YouTube artwork is a plausible explanation for a first-song image that
-then sticks, but it has not been proven on the observed device.
+Receiver presentation is still device-specific. A car may omit a field,
+crop artwork, or redraw when the lyric title changes, but Voice-Wei sends one
+complete, internally consistent account of the continuing song.
 
 ### Metadata updates
 
@@ -95,15 +91,15 @@ A real song boundary is a changed sounding `videoId`, including an alternate
 video selected after playback failure. That boundary may update all fields and
 reset position to the new song's actual current time.
 
-## Recommended implementation
+## Implemented design
 
 ### 1. Give Media Session separate semantic inputs
 
-Keep `media-session-core.js` as the only browser Media Session writer, but
-replace the title-plus-artist call shape with distinct state:
+`media-session-core.js` remains the only browser Media Session writer and
+accepts distinct semantic state:
 
 ```text
-setTrackIdentity({ id, artistLine, artwork })
+setTrackIdentity({ id, title, artist, album, artwork })
 setDisplayLine(text)
 setPosition({ duration, position, playbackRate })
 setPlaybackState(state)
@@ -119,10 +115,11 @@ they do not need song position or artwork.
 
 ### 2. Publish the real YouTube position independently
 
-Add a core wrapper around `navigator.mediaSession.setPositionState()`.
+The core wraps `navigator.mediaSession.setPositionState()`.
 
-The player should feed it from the same YouTube time sample used by
-`renderPlaybackPosition()`, not from `relayLyricToNowPlaying()`. Publish at:
+The player feeds it from the same YouTube time sample used by
+`renderPlaybackPosition()`, never from `relayLyricToNowPlaying()`. It publishes
+at:
 
 - song start, once duration is readable;
 - seek;
@@ -145,14 +142,8 @@ metadata publication. This prevents lyric writes from sending metadata with
 missing artwork and leaving the receiver to choose or cache an unrelated
 image.
 
-The first implementation should choose one deliberate policy:
-
-- the current video's YouTube thumbnail, stable for that `videoId`; or
-- a bundled Voice-Wei image, stable for every song.
-
-The current video thumbnail is more informative; a bundled image is more
-predictable and independent of image-host behavior. This is a product choice,
-not a required part of position correctness.
+The selected video's YouTube thumbnail is the deliberate artwork policy. It is
+stable for that `videoId` and changes only at a real video boundary.
 
 ### 4. Remove false boundaries and stale state
 
@@ -160,9 +151,9 @@ Track setup should happen once in the authoritative `playVideo()` path after
 the active `videoId` is known. Lyric rendering should only update the display
 line.
 
-Stopping and clearing the playlist must clear track identity, position,
-artwork, and playback state together. At present, normal stop clears the
-session, while some playlist-clear paths can leave stale metadata.
+Stopping and clearing the playlist clear track identity, position, artwork,
+and playback state together. Pause retains the complete track and freezes its
+last real position.
 
 ### 5. Keep lyric propagation conservative
 
@@ -176,7 +167,7 @@ show it. Do not add extra metadata churn:
   justify one metadata update per second; and
 - never drive position from lyric callbacks.
 
-## Verification plan
+## Verification
 
 Automated browser tests should prove Voice-Wei's semantics:
 

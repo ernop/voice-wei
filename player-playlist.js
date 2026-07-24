@@ -1216,14 +1216,27 @@ const PlayerPlaylist = (function () {
             updateMediaSessionForItem(item) {
                 if (!item) return;
 
-                // The now-playing title belongs to the lyric relay: the
-                // driver sings along from it, so song/artist names are
-                // never written here. Clear the previous song's lyric
-                // until this song's lines start arriving. Reporting
-                // 'playing' secures session ownership (the core's silent
-                // loop) so the car reads THIS page, not youtube.com.
+                // Stable song identity is a separate channel from the lyric
+                // title. A changed videoId is a real media boundary; lyric
+                // lines within it are not.
                 this.nowPlayingShowsLyric = false;
-                MediaSessionCore.clearNowPlayingTitle();
+                // Every play intent must wait for a fresh YouTube sample.
+                // This also covers a one-song playlist looping the same id.
+                MediaSessionCore.clearPosition();
+                MediaSessionCore.setTrackIdentity({
+                    id: item.videoId,
+                    title: item.name || item.title || 'Unknown song',
+                    artist: this.describeNowPlayingArtist(item),
+                    album: item.album || '',
+                    artwork: [{
+                        src: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+                        sizes: '480x360',
+                        type: 'image/jpeg'
+                    }]
+                });
+                // A new play intent starts at song identity, even when the
+                // same videoId is replayed after its previous final lyric.
+                MediaSessionCore.clearDisplayLine();
                 MediaSessionCore.setPlaybackState('playing');
                 if (!this.mediaActionHandlersSet) {
                     this.mediaActionHandlersSet = true;
@@ -1231,29 +1244,35 @@ const PlayerPlaylist = (function () {
                         ['play', () => this.playPlaylist()],
                         ['pause', () => this.pausePlayback()],
                         ['previoustrack', () => this.playPrevious()],
-                        ['nexttrack', () => this.playNext()]
+                        ['nexttrack', () => this.playNext()],
+                        ['seekbackward', details => this.seekBy(-(details.seekOffset || 10))],
+                        ['seekforward', details => this.seekBy(details.seekOffset || 10)],
+                        ['seekto', details => {
+                            if (typeof details.seekTime === 'number') {
+                                this.seekToTime(details.seekTime);
+                            }
+                        }]
                     ]);
                 }
             },
 
             stopPlayback() {
-                if (this.currentPlayingId) {
-                    const player = this.playback.player;
-                    if (player && typeof player.stopVideo === 'function') {
-                        try {
-                            this.playback.suppressAutoAdvanceFor(1500);
-                            player.stopVideo();
-                            this.playback.markStopped();
-                            this.relayLyricToNowPlaying(-1);
-                            MediaSessionCore.setPlaybackState('none');
-                            this.updatePlayPauseButton();
-                            this.stopProgressUpdates();
-                            this.updateProgressBar(0, 1);
-                        } catch (e) {
-                            console.error('Error stopping video:', e);
-                        }
+                if (!this.currentPlayingId) return;
+                const player = this.playback.player;
+                if (player && typeof player.stopVideo === 'function') {
+                    try {
+                        this.playback.suppressAutoAdvanceFor(1500);
+                        player.stopVideo();
+                    } catch (e) {
+                        console.error('Error stopping video:', e);
                     }
                 }
+                this.playback.markStopped();
+                this.nowPlayingShowsLyric = false;
+                MediaSessionCore.clearTrack();
+                this.updatePlayPauseButton();
+                this.stopProgressUpdates();
+                this.updateProgressBar(0, 1);
             },
 
             playPlaylist() {
@@ -1295,8 +1314,10 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.pauseVideo === 'function') {
                         player.pauseVideo();
+                        // Freeze the receiver at the real YouTube position
+                        // before stopping the deadline clock.
+                        this.renderPlaybackPosition();
                         this.playback.markPaused();
-                        this.relayLyricToNowPlaying(-1);
                         MediaSessionCore.setPlaybackState('paused');
                         this.updatePlayPauseButton();
                         this.stopProgressUpdates();
@@ -1469,6 +1490,8 @@ const PlayerPlaylist = (function () {
                 // backfill items are not playlist-bound and keep going.
                 this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');
                 this.playback.reset();
+                this.nowPlayingShowsLyric = false;
+                MediaSessionCore.clearTrack();
                 this.updatePlayPauseButton();
                 this.updateCentralPlayer(null);
                 this.updatePlaylistLabel();
@@ -1644,6 +1667,18 @@ const PlayerPlaylist = (function () {
                 }
             },
 
+            /** @param {number} seconds */
+            seekToTime(seconds) {
+                if (!this.currentPlayingId) return;
+                const player = this.playback.player;
+                if (!player || typeof player.getDuration !== 'function'
+                    || typeof player.seekTo !== 'function') return;
+                const duration = Number(player.getDuration());
+                if (!Number.isFinite(duration) || duration <= 0) return;
+                player.seekTo(Math.min(Math.max(Number(seconds) || 0, 0), duration), true);
+                this.resyncProgressClock();
+            },
+
             // Deadline scheduling, not polling: everything these surfaces
             // show changes at KNOWN media times - the next synced lyric
             // moment (line time, and line time minus the title lead) and
@@ -1704,6 +1739,10 @@ const PlayerPlaylist = (function () {
                     const currentTime = player.getCurrentTime();
                     const duration = player.getDuration();
                     if (duration && duration > 0) {
+                        const playbackRate = (typeof player.getPlaybackRate === 'function')
+                            ? Number(player.getPlaybackRate()) || 1
+                            : 1;
+                        MediaSessionCore.setPosition({ duration, playbackRate, position: currentTime });
                         this.updateProgressBar(currentTime, duration);
                         return currentTime;
                     }
