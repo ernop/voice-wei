@@ -3434,6 +3434,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelayIgnoresPanelFocus.headerTitle === 'playing line one'
             && lyricRelayIgnoresPanelFocus.barLyric === 'playing line one'
             && lyricRelayIgnoresPanelFocus.panelFocusId === 22);
+        await tab.setViewportSize({ width: 400, height: 800 });
         // Per-song lyric offset: listener-language controls nudge the display
         // clock in 0.5s steps and persist on the lyricStates record.
         const lyricOffsetNudge = await tab.evaluate(async () => {
@@ -3521,6 +3522,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 offset: item.lyricOffsetSeconds
             };
             const semanticStored = await window.PlayerHistoryDB.getLyricState(videoId);
+            const inViewport = (ids) => ids.every(id => {
+                const rect = document.getElementById(id)?.getBoundingClientRect();
+                return !!rect && rect.width > 0 && rect.height > 0
+                    && rect.left >= 0 && rect.right <= window.innerWidth
+                    && rect.top >= 0 && rect.bottom <= window.innerHeight;
+            });
+            document.getElementById('playlistTransportBar').style.display = 'block';
+            harness.updateLyricOffsetControls();
+            const normalMobileFits = inViewport([
+                'transportLyricsTooFastBtn', 'transportLyricOffset', 'transportLyricsTooSlowBtn'
+            ]);
+            harness.openLyricsOverlay();
+            const overlayMobileFits = inViewport([
+                'lyricsOverlayTooFastBtn', 'lyricsOverlayOffset', 'lyricsOverlayTooSlowBtn'
+            ]);
+            harness.closeLyricsOverlay();
             return {
                 before, afterFf, afterRew,
                 storedOffset: stored?.lyricOffsetSeconds,
@@ -3530,6 +3547,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 tooSlowDisplay,
                 tooFastDisplay,
                 semanticStoredOffset: semanticStored?.lyricOffsetSeconds,
+                normalMobileFits,
+                overlayMobileFits,
                 buttonLabels: [
                     document.getElementById('transportLyricsTooFastBtn')?.textContent || '',
                     document.getElementById('transportLyricsTooSlowBtn')?.textContent || '',
@@ -3553,7 +3572,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // With offset -5, first line (file t=5) appears at wall-clock 10;
             // led window opens 0.75s earlier at 9.25.
             && lyricOffsetNudge.deadlineAtZero === 9.25);
-        report.check(`player lyric timing controls use 0.5s listener-language steps (${lyricOffsetNudge.initialDisplay} -> ${lyricOffsetNudge.tooSlowDisplay.normal} -> ${lyricOffsetNudge.tooFastDisplay.normal})`,
+        report.check(`player lyric timing controls use 0.5s steps and fit 400px (${lyricOffsetNudge.initialDisplay} -> ${lyricOffsetNudge.tooSlowDisplay.normal} -> ${lyricOffsetNudge.tooFastDisplay.normal})`,
             lyricOffsetNudge.initialDisplay === 'Offset 0.0s'
             && lyricOffsetNudge.tooSlowDisplay.offset === 0.5
             && lyricOffsetNudge.tooSlowDisplay.normal === 'Offset +0.5s'
@@ -3562,7 +3581,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricOffsetNudge.tooFastDisplay.normal === 'Offset -0.5s'
             && lyricOffsetNudge.tooFastDisplay.overlay === 'Offset -0.5s'
             && lyricOffsetNudge.semanticStoredOffset === -0.5
+            && lyricOffsetNudge.normalMobileFits
+            && lyricOffsetNudge.overlayMobileFits
             && lyricOffsetNudge.buttonLabels.join('|') === 'Lyrics too fast|Lyrics too slow|Lyrics too fast|Lyrics too slow');
+        await tab.setViewportSize({ width: 1280, height: 720 });
         // Deadline clock, not polling: the progress/lyric renderer sleeps
         // until the next known media-time boundary (whole display second
         // or lyric moment) instead of ticking every 100ms, and the lyric
