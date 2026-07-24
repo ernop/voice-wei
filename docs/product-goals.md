@@ -136,10 +136,12 @@ checked against this list, and new standing intent gets added here.
    starting pitch, and how to sing/play/hear the recording. It preserves
    provenance, disagreement, and unknowns rather than inventing precision,
    while its short second-line cues show only validated useful material.
-   Live phone-microphone pitch is an experimental extension: the existing
-   monophonic detector can test yui's voice, not infer chords from a full mix,
-   and actual phone/car Bluetooth routing must pass before it becomes a
-   product promise.
+   Live phone-microphone analysis is an experimental extension that listens
+   only to the recording coming from the speakers—not to yui singing. The
+   existing monophonic detector cannot infer chords/key from a full mix, so
+   tempo/key/chord work needs its own confidence-gated spectral pipeline and
+   actual phone/car Bluetooth routing must pass before it becomes a product
+   promise.
 
 ## Current priorities (deduplicated from the idea pool)
 
@@ -158,7 +160,7 @@ checked against this list, and new standing intent gets added here.
    operations by voice.
 5. **Listening accompaniment**: correct the two-line Story Report contract,
    add source-grounded Musical Guide, then run the real phone/car microphone
-   feasibility matrix before considering live pitch.
+   feasibility matrix before considering live song analysis.
 6. **Resilience**: PWA/offline caching and visible external API failures.
 
 ## Backlog (the idea pool, deduplicated)

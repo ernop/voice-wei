@@ -247,8 +247,9 @@ contract is:
 `Identity` is the default stable `year - artist - song` line. `Story Report`
 advances the positive cultural/literary report at the selected interval.
 `Musical Guide` advances sourced musical facts, section notes, and singing
-guidance; a later proven microphone mode may temporarily prioritize a stable
-live-pitch summary.
+guidance; a later proven microphone mode may temporarily prioritize stable
+facts detected from the sounding recording, such as key, tempo, or a coarse
+chord root.
 
 v287 implements separate primary and secondary display channels, correcting
 the initial branch implementation that suppressed lyrics during Story Report.
@@ -262,25 +263,26 @@ The on-page sticky surface should render the same two lines explicitly even
 when a receiver chooses a different layout. Report generation and microphone
 analysis never pause, seek, restart, or speak over the song.
 
-## Three Different Analysis Problems
+## Scope: Analyze the Sounding Song, Not the User
 
-The word “pitch” hides three separate jobs:
+The word “pitch” hides separate jobs:
 
-1. **User pitch:** detect what yui is singing into the phone microphone.
-2. **Recording melody:** isolate and track the recorded lead vocal.
-3. **Harmony:** infer key, modulation, and chords from the complete recording.
+1. **Recording melody:** track the recording's predominant melodic line and,
+   only with stronger evidence, decide whether it is the lead vocal.
+2. **Harmony/rhythm:** infer key, chord roots, tempo, and musical changes from
+   the complete recording.
+
+User singing is explicitly outside this Lyrics feature. The existing practice
+tools continue to own user-voice tracing and scoring.
 
 The existing McLeod Pitch Method (MPM) in `pitch-detect-core.js` is a
-monophonic voice detector. It returns one fundamental between D2 and Bb4 from a
-2048-sample time-domain frame. That is appropriate for an isolated singer. A
-full mix contains vocals, bass, chords, and percussion simultaneously, so MPM
-will jump among dominant periodic sources and cannot identify a chord or
-reliably establish a key.
-
-Recording melody extraction needs source separation or a polyphonic melody
-tracker such as pYIN/MELODIA-class contour analysis. Harmony needs spectral
-pitch-class features (chroma/HPCP) aggregated across seconds, followed by
-key/chord models. Neither is a small extension of the current detector.
+monophonic voice detector. A full mix contains vocals, bass, chords, and
+percussion simultaneously, so MPM will jump among dominant periodic sources
+and cannot identify a chord or reliably establish a key. Song analysis needs a
+separate spectral pipeline: pitch-class features (chroma/HPCP) and temporal
+models for harmony/rhythm, with predominant-melody contours as a later
+experiment. It may share microphone ownership with `pitch-detect-core.js`; it
+must not reinterpret MPM output as song analysis.
 
 ## Phone Microphone While Bluetooth Plays
 
@@ -331,11 +333,10 @@ usually exposes all three. Safari may ignore independent noise-suppression and
 gain controls, and car/headset hardware may apply processing before the browser
 receives samples.
 
-For detecting yui over speakers, a second condition with echo cancellation on
-is also necessary. Echo cancellation can damage sustained harmonics or
-consonant/voicing boundaries, while no cancellation may make the detector lock
-to the recording. There is no correct setting in the abstract; the car route
-must decide it from measured pitch accuracy.
+Echo cancellation is especially dangerous here because the locally played
+song is the desired signal: an effective canceller may remove or spectrally
+damage exactly what Musical Guide needs to analyze. Processing-off is the
+target route; browser-default processing is a negative-control condition.
 
 ### Hard limits
 
@@ -345,14 +346,13 @@ must decide it from measured pitch accuracy.
 - The page must be treated as foreground-only. iOS can interrupt capture or
   Web Audio when hidden/locked, Android behavior varies by OEM, and YouTube
   policy does not provide a supported background embedded-player contract.
-- A live pitch trace updates at animation-frame speed; car metadata does not.
+- Spectral estimates can update many times per second; car metadata does not.
   Bluetooth receivers redraw unpredictably and the Media Session API gives no
-  delivery-frequency guarantee. The phone can show the full trace, while line
-  two should receive only a pitch that has remained stable, at most about once
-  per second initially.
-- With loud car speakers and no usable echo cancellation, MPM may detect the
-  recording rather than yui. This is a measured failure, not a case for
-  guessing which source won.
+  delivery-frequency guarantee. The phone can show diagnostics, while line
+  two receives only a confidence-gated musical summary at a tested cadence.
+- Road noise, speech, navigation prompts, and conversation can contaminate the
+  song. Low confidence must suppress output rather than producing a plausible
+  label.
 
 ### Required device experiment
 
@@ -374,18 +374,225 @@ For each route:
    `AudioContext` state, mute/end events, and whether output audibly falls from
    A2DP to HFP.
 3. Tap the phone and accessory microphones to identify the physical input.
-4. Test processing off, echo cancellation on, and the browser default.
+4. Test processing off and the browser default; echo-cancelled capture is an
+   expected-failure control because it may remove the song.
 5. Measure acoustic latency with a controlled same-origin click/chirp before
    comparing it with YouTube time.
-6. Test isolated sung notes, full recorded mix, and yui singing over the mix.
-   Score voiced recall, octave errors, and cents error rather than judging by a
-   plausible-looking note label.
+6. Play full annotated recordings covering clear/ambiguous key, chord changes,
+   tempo, meter, instrumental/vocal sections, and modulation. Score each task
+   against its annotation rather than judging by a plausible-looking label.
 7. Test route changes, interruption by a call, brief backgrounding, and lock.
    Background success is diagnostic only, never a portability promise.
 
 The experiment should be a diagnostic mode owned by `pitch-detect-core.js`,
 the sole `getUserMedia()` owner. It should expose raw route/settings evidence
 before any key or coaching claim.
+
+## Live Song-Only Detection
+
+### What is realistically detectable
+
+Published benchmarks use clean digital audio. A phone re-recording car speakers
+adds room response, mono summation, car EQ, road noise, clipping, navigation
+prompts, and possible browser processing, so those benchmarks are ceilings.
+Initial acoustic expectations are engineering priors to test, not product
+claims:
+
+| Information | Feasibility from car-speaker capture | Earliest useful result |
+|-------------|--------------------------------------|------------------------|
+| tempo | strongest candidate; half/double ambiguity remains | provisional after 8-15s; update every 1-2s |
+| global major/minor key | useful with long aggregation and abstention | provisional after 20-30s; stable after 40-60s |
+| tuning offset | possible in tonal, unclipped passages | after 20-30s |
+| chord root | conditional on clear harmony and beat confidence | 2-4 beats late |
+| major/minor chord | weaker than root; omit extensions/inversions | 2-4 beats late |
+| local key change | retrospective and ambiguous | 5-10s after a sustained change |
+| section boundary | contrast detection only, not verse/chorus naming | 6-12s late |
+| meter/downbeat | weak; common meters only after long context | 30-60s, experimental |
+| predominant melody | may follow vocal, guitar, synth, or bass | delayed research trace only |
+| lead-vocal melody | source identity cannot be guaranteed from salience | not a product output |
+
+Clean-audio context:
+
+- NNLS Chroma reached 80% on the 2009 MIREX chord collection, but its authors
+  evaluated digital recordings, not phone/car capture
+  ([Mauch and Dixon](https://webspace.eecs.qmul.ac.uk/s.e.dixon/pub/2010/Mauch-Dixon-ISMIR-2010.pdf)).
+- Current MIREX chord systems remain far from perfect even before acoustic
+  recapture ([MIREX chord results](https://music-ir.org/mirex/wiki/2020:Audio_Chord_Estimation_Results)).
+- MELODIA estimates a **predominant** melodic contour, not vocal identity; it
+  may choose another salient instrument
+  ([MELODIA](https://www.upf.edu/web/mtg/melodia)).
+- Essentia marks its meter algorithm experimental and not evaluated
+  ([Meter](https://essentia.upf.edu/reference/std_Meter.html)).
+
+### Recommended causal signal pipeline
+
+Do not send full-mix audio through MPM. Use a separate, bounded-latency
+pipeline:
+
+1. Capture mono PCM from the built-in phone microphone with browser processing
+   disabled. Reject HFP/speech-band routes, clipping, low level, and streams
+   whose effective bandwidth is unsuitable.
+2. Use `AudioWorklet` only to move fixed blocks into a ring buffer. Run all
+   feature extraction and inference in a Worker so analysis cannot interrupt
+   playback or the audio-rendering thread.
+3. Maintain a 4096-sample Hann STFT with a 1024-sample hop at 44.1/48 kHz for
+   spectral peaks, onsets, quality checks, and tuning. The existing 2048-frame
+   MPM analyser is not a sufficient harmonic representation.
+4. Estimate global tuning from stable spectral-peak deviations over 20-30
+   seconds. Feed the estimate into a 36-bin harmonic pitch class profile
+   (HPCP), preserving three bins per semitone until final decisions.
+5. Build separate whole-band/treble and bass-emphasized chroma. Whole-band
+   evidence supports key; bass evidence helps distinguish chord roots from
+   upper harmonics.
+6. Estimate global key by correlating rolling HPCP with 24 major/minor key
+   profiles. Smooth with a low-transition 24-key-plus-uncertain HMM. Do not
+   expose church modes or tonicizations.
+7. For chords, average chroma between accepted beats, compare only 24
+   major/minor templates plus no-chord, then apply a fixed-lag HMM/Viterbi
+   smoother. Compare ordinary HPCP against NNLS chroma before selecting the
+   production front end.
+8. Derive several onset functions (spectral flux, complex-domain change,
+   low-frequency energy) and feed an online tempogram/comb bank plus causal
+   beat-phase tracker. Whole-track rhythm algorithms are not automatically
+   valid in a live stream.
+9. For section changes, combine beat-synchronous chroma, log-mel/MFCC timbre,
+   loudness, and rhythmic density. A bounded-history self-similarity novelty
+   detector may say “section changed”; it cannot safely name verse or chorus.
+10. Keep predominant melody outside the primary pipeline. A later delayed
+    experiment may process overlapping chunks with MELODIA and a singing-voice
+    classifier, but must label the result “predominant melody,” never “vocal.”
+
+The algorithm's timestamps describe what reaches the microphone now. A2DP
+latency matters only when persisting those observations against YouTube media
+time; that mapping needs route calibration.
+
+### Confidence and abstention
+
+Raw algorithm “strength” values are not probabilities. Calibrate every display
+gate on held-out physical car recordings.
+
+Three layers decide whether line two may speak:
+
+1. **Session quality:** A2DP retained, built-in microphone selected, processing
+   off, full-enough bandwidth, no sustained clipping, adequate music level.
+2. **Observation quality:** tonal concentration, onset periodicity, harmonic
+   peak count, estimated signal/noise, and agreement between bass/treble
+   evidence.
+3. **Decision quality:** top-two margin, persistence across windows, agreement
+   between algorithm variants, and calibrated precision on unseen captures.
+
+Initial display rules:
+
+- Key: same major/minor key across three windows and calibrated precision >=80%.
+- Chord: ordinary and NNLS chroma agree on root, two beat windows agree, and
+  calibrated root precision >=75%.
+- Tempo: dominant tempo clearly exceeds half/double candidates and varies <2%
+  for five seconds.
+- Tuning: at least three consistent pitch classes and uncertainty <=5 cents.
+- Section: both harmonic and timbral novelty exceed calibrated thresholds.
+- Melody: never reaches Bluetooth output until predominant-contour accuracy and
+  source-identity evidence pass separate tests.
+
+When confidence fails, retain the last value briefly, then show `Listening` or
+`Signal unsuitable`; never cycle through guesses. Report both precision and
+coverage during evaluation: a detector that speaks once per song can look
+accurate while being useless.
+
+### Second-line display policy
+
+The analyzer can compute frequently, but Bluetooth metadata should be sparse:
+
+```text
+Listening to song...
+Tempo ~118 BPM
+Key estimate: G major
+G major · chord root E
+Possible key change: A major
+Section changed
+Signal unsuitable
+```
+
+The first lyric line remains independent. Start with no faster than one
+secondary-line update per second, then use actual car redraw behavior to set
+the limit. Chord changes should require two consistent beat windows; key and
+tempo should update only after meaningful confidence changes. A detailed phone
+panel may show diagnostics that never reach the car.
+
+### Browser implementation candidates
+
+Adding any dependency requires a separate decision after a measurement spike:
+
+| Candidate | Fit | Cost / constraint |
+|-----------|-----|-------------------|
+| [Essentia.js](https://mtg.github.io/essentia.js/) | strongest prototype: WASM HPCP, tuning, NNLS chroma, key, chords, rhythm, MELODIA | roughly multi-megabyte browser payload; AGPLv3 or commercial license; API still evolving |
+| [Meyda](https://meyda.js.org/audio-features.html) | permissive MIT, lightweight STFT/chroma/MFCC/flux building blocks | no tuning-aware HPCP, chord/key temporal models, or robust beat tracker; avoid its deprecated `ScriptProcessorNode` wrapper |
+| [NNLS Chroma / Chordino](https://isophonics.net/nnls-chroma) | strong research baseline for tuning-aware chord features | original C++ Vamp plugin is GPLv2 with no maintained official browser port; smoothing is described as non-state-of-the-art |
+| TensorFlow.js / ONNX Runtime Web | possible classifiers after classical baseline | model load, thermal behavior, browser backend support, and sustained mobile CPU/GPU require proof |
+| Basic Pitch TS | polyphonic note transcription experiment | optimized for one instrument, not identifying lead vocal in a full mix |
+| browser source separation | could improve vocal analysis | model size, memory, battery, latency, and model-weight licensing make it unsuitable for the default loop |
+
+The efficient research path is an isolated Essentia.js measurement spike, not
+a product dependency: test whether the algorithm family survives phone/car
+recapture. If it does, wei can decide whether its license is acceptable or a
+small permissively licensed implementation of only the validated pipeline is
+better.
+
+### Evaluation corpus and acceptance gates
+
+Use annotations only with audio obtained legally:
+
+- Isophonics Beatles/Queen: key regions, chords, beats, and sections for
+  locally owned matching releases.
+- GiantSteps+: global key and tempo on EDM excerpts.
+- Ballroom: beats and metric positions across common dance meters.
+- MedleyDB: royalty-free multitracks and melody/vocal annotations, under its
+  noncommercial research terms.
+- SALAMI: structural annotations, prioritizing tracks with lawful audio.
+
+Evaluate three levels:
+
+1. Clean digital PCM baseline.
+2. Deterministic simulation: mono, representative car EQ/impulse responses,
+   compression/clipping, road noise at multiple SNRs, and an HFP
+   speech-bandwidth expected-failure condition.
+3. Physical capture: at least Pixel/Samsung/iPhone, two cars, mount/cup-holder/
+   seat positions, parked/idling/urban/highway, and several playback levels.
+
+Split by song, phone, and car so calibration never sees another version of the
+held-out condition. Record every route, constraint setting, and acoustic
+condition.
+
+Initial physical-capture go/no-go thresholds:
+
+| Task | Required result when displayed |
+|------|--------------------------------|
+| route | A2DP + built-in mic + unprocessed usable bandwidth in >=95% of sessions per supported platform |
+| global key | >=80% exact precision, >=60% coverage, p95 stable result <=45s |
+| chord root | >=75% weighted recall over displayed time, >=40% coverage |
+| major/minor chord | >=65% weighted recall over displayed time |
+| tempo | >=90% within 4%, >=80% coverage, p95 first result <=12s |
+| beat | F1 >=0.75 and p95 phase error <=100ms before beat-driven UI |
+| local key | >=70% exact precision when displayed; otherwise hide |
+| section boundary | F1@3s >=0.60, <=0.3 false alarms/minute, p95 delay <=10s |
+| tuning | median error <=5 cents, 90th percentile <=10 cents |
+| predominant melody | RPA >=0.75 and overall accuracy >=0.65 before any product display |
+| runtime | real-time factor <=0.30, <1% dropped blocks, stable 20-minute thermal run |
+
+Use standardized MIR metrics (`mir_eval`) and publish precision together with
+coverage and time-to-result. The first spike succeeds if tempo and global key
+pass; chords and melody are independent later gates.
+
+### Strictly out of scope
+
+- Listening to, scoring, or separating the user's singing.
+- Treating MPM's dominant pitch as the song's key, chord, or vocal line.
+- Direct YouTube PCM access or phone tab capture.
+- Exact YouTube-time alignment before route calibration.
+- Chord extensions, inversions, slash chords, capo shapes, or prediction.
+- Semantic verse/chorus labels from acoustic novelty alone.
+- Claiming a predominant contour is the lead vocal.
+- Mandatory mobile source separation.
+- Supporting routes that switch to HFP or retain destructive echo cancellation.
 
 ## External Musical Information
 
@@ -560,23 +767,28 @@ After explicit approval of any new runtime source:
 1. Build the device matrix above as a diagnostic, not a user-facing promise.
 2. Extend `pitch-detect-core.js` to expose capture settings and spectral frames
    while preserving its ownership of microphone access.
-3. Measure MPM on isolated voice and sing-over-playback conditions.
-4. Add chroma/HPCP key estimation as a separate algorithm; never reinterpret
-   MPM's one-note output as a chord/key.
+3. Measure the song-only spectral pipeline on annotated full mixes; do not run
+   user-voice scoring or MPM.
+4. Add tuning-aware chroma/HPCP key and tempo estimation first, followed by
+   separately gated chord-root experiments.
 5. Store confidence, route, processing settings, and calibration with every
    experiment.
 
-### Stage 4: Live singing display
+### Stage 4: Live song-analysis display
 
 Only after a real car route passes:
 
-1. Show the full pitch trace and confidence on the phone.
-2. Publish a held note/cents summary to the secondary Bluetooth line no faster
-   than receiver testing supports.
-3. Never publish a pitch when accompaniment leakage makes source identity
-   ambiguous.
-4. Keep voice recognition and pitch capture as explicit mutually exclusive
-   microphone sessions.
+1. Keep the three second-line options `Identity | Story Report | Musical
+   Guide`; within Musical Guide, accepted live detections temporarily
+   prioritize its saved sourced cues.
+2. Publish confidence-gated tempo and global key first, no faster than receiver
+   testing supports.
+3. Add chord root/major-minor only if their independent physical-capture gates
+   pass.
+4. Keep detailed quality/confidence diagnostics on the phone; line two shows
+   only accepted musical information.
+5. Pause analysis rather than guess during navigation prompts, conversation,
+   clipping, HFP routing, or destructive browser processing.
 
 ### Stage 5: Section and vocal alignment
 
@@ -585,8 +797,8 @@ Only after a real car route passes:
    strong.
 3. Add user correction for key, capo, section boundaries, and source match;
    user-corrected claims outrank estimates.
-4. Compare live singing against a target only when a legal,
-   recording-specific vocal melody exists.
+4. Evaluate delayed predominant-melody contours against recording annotations;
+   never label them vocal without source-identity evidence.
 
 Arbitrary commercial-recording vocal extraction, source separation, and
 generated notation remain research. They must not be implied by a global key
@@ -598,12 +810,16 @@ estimate or a chord-page link.
 2. Story and Musical records are separate typed concepts with one shared cue
    renderer.
 3. Source-grounded Musical Guide precedes microphone-derived analysis.
-4. Existing MPM can test user voice; it cannot infer full-mix harmony.
-5. Full-mix key needs chroma/HPCP and measured confidence.
-6. Exact recorded vocal melody is unavailable for most commercial songs
+4. This microphone mode analyzes only the sounding recording; user singing
+   remains in the separate practice tools.
+5. Existing MPM is not part of song analysis and cannot infer full-mix harmony.
+6. Full-mix key needs tuning-aware chroma/HPCP and measured confidence.
+7. Tempo and global major/minor key are the first live acceptance targets;
+   chords, meter, sections, and melody have independent gates.
+8. Exact recorded vocal melody is unavailable for most commercial songs
    without restricted notation or heavy source-separation/transcription work.
-7. Restricted chord/tab/range sites are outbound links only.
-8. No new runtime data provider, account, paid service, or analysis dependency
+9. Restricted chord/tab/range sites are outbound links only.
+10. No new runtime data provider, account, paid service, or analysis dependency
    is added without explicit approval.
-9. The real phone/car route, not desktop simulation, is the acceptance test
+11. The real phone/car route, not desktop simulation, is the acceptance test
    for microphone and second-line Bluetooth behavior.
