@@ -18,6 +18,7 @@ const FAST_SUITES = [
     'test-css-ownership.js',
     'test-pages-load.js',
     'test-player-startup.js',
+    'test-player-lifecycle.js',
     'test-books.js'
 ];
 const ISOLATED_FAST_SUITES = new Set(['test-player-startup.js']);

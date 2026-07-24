@@ -15,6 +15,7 @@ const StorageKeys = Object.freeze({
     PITCH_METER_SETTINGS: 'voice-wei:pitch-meter-settings',
     PLAYER_SETTINGS: 'voice-wei:player-settings',
     PLAYER_PLAYLIST: 'voice-wei:player-playlist',
+    PLAYER_LIFECYCLE: 'voice-wei:player-lifecycle',
     PLAYER_FAVORITES: 'voice-wei:player-favorites',
     PLAYER_SONG_LIBRARY: 'voice-wei:player-song-library',
     // Retired: per-song lyric state moved to IndexedDB (voice-wei-music

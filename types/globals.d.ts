@@ -70,6 +70,7 @@ interface Window {
     PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
+    PlayerLifecycle?: PlayerLifecycleApi;
     MediaSessionCore?: MediaSessionCoreApi;
     PitchTestPanel?: any;
     DiagLog?: any;

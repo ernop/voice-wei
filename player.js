@@ -228,6 +228,9 @@ class VoiceMusicController {
         PlayerSongReport.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);
+        PlayerLifecycle.start(this, text => {
+            this.addMessage('claude', 'Playback diagnostic', text);
+        });
     }
 
     saveFavorites() {
