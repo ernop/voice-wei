@@ -43,7 +43,8 @@ Push to master (deployable paths)
   → GitHub Actions
   → typecheck + lint + npm test
   → rsync --delete to /srv/voice-wei/site on the production server
-  → (parallel job) deploy-telemetry.json for the Deploys page
+  → deployment workflow completes; site is live
+  → separate completed-workflow trigger refreshes deploy-telemetry.json
   → reload; check header version
 ```
 
@@ -69,12 +70,16 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 ## GitHub Actions workflow
 
-Defined in `.github/workflows/deploy.yml`:
+Production shipping is defined in `.github/workflows/deploy.yml`:
 
 1. Checkout; restore cached `node_modules` + Playwright browsers when possible
 2. `npm run typecheck`, `npm run lint`, `npm test`
 3. rsync `--delete` to the server (excludes below) — **site live**
-4. Separate `telemetry` job uploads `deploy-telemetry.json` (does not delay ship)
+
+`.github/workflows/deploy-telemetry.yml` starts only after a successful
+production workflow has completed. It generates and uploads
+`deploy-telemetry.json` independently, so telemetry setup/API work cannot keep
+the production run open after the site is verified live.
 
 Warm deploys skip `npm install` and Playwright's OS-deps install (browsers
 come from cache). Cold deploys populate the caches. Concurrency: one deploy

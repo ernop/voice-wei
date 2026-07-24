@@ -1,0 +1,51 @@
+name: Refresh Deploy Telemetry
+
+on:
+  workflow_run:
+    workflows: [Deploy to Production]
+    types: [completed]
+
+concurrency:
+  group: deploy-telemetry
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  telemetry:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate deploy telemetry
+        run: node .github/scripts/generate-deploy-telemetry.js
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_TELEMETRY_PAGES: 1
+
+      - name: Set up SSH
+        run: |
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload deploy telemetry
+        run: |
+          rsync -avz \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
+            deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/deploy_key
