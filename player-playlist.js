@@ -830,9 +830,11 @@ const PlayerPlaylist = (function () {
                                 onReady: (event) => {
                                     console.log('Player ready for:', item.videoId);
                                     this.playback.markPlayerReady(event.target);
+                                    PlayerLifecycle.recordYouTubeReady();
                                     settleReady({ ok: true, player: event.target });
                                 },
                                 onStateChange: (event) => {
+                                    PlayerLifecycle.recordYouTubeState(event.data);
                                     // Auto-advance to next when video ends
                                     if (event.data === YT.PlayerState.ENDED) {
                                         if (this.playback.shouldSuppressAutoAdvance()) {
@@ -843,6 +845,7 @@ const PlayerPlaylist = (function () {
                                 },
                                 onError: (event) => {
                                     console.error('Player error:', event.data);
+                                    PlayerLifecycle.recordYouTubeError(event.data);
                                     const detail = this.describeYouTubePlayerError(event.data);
                                     const activeItem = this.playlist.find(candidate => candidate.id === this.playback.activeItemId) || item;
                                     const entry = this.playerReadyPromises.get(activeItem.id);
@@ -1086,6 +1089,7 @@ const PlayerPlaylist = (function () {
 
             async playVideo(item) {
                 this.ensurePlaylistPlayer(item);
+                PlayerLifecycle.recordIntent('play-track');
 
                 // Stop currently playing video
                 if (this.currentPlayingId && this.currentPlayingId !== item.id) {
@@ -1263,6 +1267,7 @@ const PlayerPlaylist = (function () {
 
             stopPlayback() {
                 if (!this.currentPlayingId) return;
+                PlayerLifecycle.recordIntent('stop');
                 const player = this.playback.player;
                 if (player && typeof player.stopVideo === 'function') {
                     try {
@@ -1291,6 +1296,7 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.playVideo === 'function') {
                         const currentItem = this.playlist.find(item => item.id === this.currentPlayingId) || null;
+                        PlayerLifecycle.recordIntent('resume');
                         player.playVideo();
                         this.playback.markPlaying(this.playback.currentPlayingId);
                         MediaSessionCore.setPlaybackState('playing');
@@ -1318,6 +1324,7 @@ const PlayerPlaylist = (function () {
                 if (this.currentPlayingId) {
                     const player = this.playback.player;
                     if (player && typeof player.pauseVideo === 'function') {
+                        PlayerLifecycle.recordIntent('pause');
                         player.pauseVideo();
                         // Freeze the receiver at the real YouTube position
                         // before stopping the deadline clock.

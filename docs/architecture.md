@@ -63,6 +63,34 @@ startup dependency: the page loads it only when Local Song Library playback
 is first requested. `tests/test-player-startup.js` enforces the one-second
 contract on an empty profile and with a 100-song restored playlist.
 
+### Lyrics background-playback evidence
+
+`player-lifecycle.js` records evidence; it does not infer a cause or change
+playback. Every session start, document visibility transition, page
+freeze/resume, pagehide/pageshow, online/offline transition, transport intent,
+and YouTube ready/state/error callback writes a readable **Playback diagnostic**
+line through the durable Music Log.
+
+The same transition synchronously replaces one localStorage breadcrumb. This
+single last-event record is deliberate: Android can kill a hidden renderer
+without firing `pagehide`, so an asynchronous history write alone may not
+finish. On the next load the session-start line includes:
+
+- `document.wasDiscarded` support/value and navigation type;
+- the prior event, visibility, orderly-pagehide marker, application transport
+  state, YouTube state, video id, and sampled position;
+- browser version, network connection, device-memory class, and JavaScript
+  heap figures when Chrome exposes them; and
+- current application, YouTube, and Media Session playback states.
+
+This separates the important cases without guessing: a new document with
+`wasDiscarded=yes` confirms browser discard; a prior hidden session with no
+orderly pagehide is evidence of abrupt teardown on browsers lacking that flag;
+a surviving session whose YouTube callback changes from playing to paused
+shows iframe/media intervention instead. `tests/test-player-lifecycle.js`
+enforces those distinctions, including an ordinary reload with an orderly
+pagehide.
+
 The URL importer accepts only same-origin GET requests. It resolves and pins
 every outbound hostname before connecting, rejects private/reserved addresses
 and nonstandard ports, revalidates every redirect, verifies TLS, caps response

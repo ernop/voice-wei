@@ -407,6 +407,11 @@ Other surfaces on the page:
 - **Log** opens with only lines from the current page session. **Show
   Previous** explicitly prepends every earlier-session line still retained by
   the 5,000-line IndexedDB log store; opening Log alone never loads history.
+  **Playback diagnostic** lines record visibility/page lifecycle, browser
+  discard evidence, network and memory context, application transport intent,
+  and every YouTube player state. After an Android background stop, the next
+  session-start line includes the last synchronously saved state even when the
+  old page was killed without an exit event.
 - **Song Library** toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
   browser, and plays their melodies on the shared piano. Public-domain

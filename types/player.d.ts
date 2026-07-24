@@ -260,6 +260,45 @@ interface PlayerStartupReport {
     longTasks: Array<{ startMs: number; durationMs: number }>;
 }
 
+interface PlayerPlaybackDiagnosticSnapshot {
+    appStatus: 'idle' | 'loading' | 'playing' | 'paused' | 'error' | 'unavailable';
+    videoId: string;
+    positionSeconds: number | null;
+    youtubeState: number | null;
+    mediaSessionState: MediaSessionPlaybackState | 'unavailable';
+}
+
+interface PlayerLifecycleMemorySnapshot {
+    deviceMemoryGb: number | null;
+    usedJsHeapMb: number | null;
+    heapLimitMb: number | null;
+}
+
+interface PlayerLifecycleBreadcrumb {
+    sessionId: string;
+    sequence: number;
+    event: string;
+    recordedAt: string;
+    visibility: DocumentVisibilityState;
+    hidden: boolean;
+    network: string;
+    navigationType: string;
+    discarded: 'yes' | 'no' | 'unsupported';
+    orderlyExit: boolean;
+    memory: PlayerLifecycleMemorySnapshot;
+    playback: PlayerPlaybackDiagnosticSnapshot;
+    detail: Record<string, string | number | boolean | null>;
+}
+
+interface PlayerLifecycleApi {
+    start(controller: VoiceMusicController, reporter: (text: string) => void): void;
+    recordIntent(intent: string): void;
+    recordYouTubeReady(): void;
+    recordYouTubeState(state: number): void;
+    recordYouTubeError(code: number | string): void;
+    getPreviousBreadcrumb(): PlayerLifecycleBreadcrumb | null;
+}
+
 interface VoiceMusicController {
     // Authoritative playback state plus the thin accessors PlayerPlaylist
     // installs over it. These read/write through this.playback so playback
