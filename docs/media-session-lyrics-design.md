@@ -61,10 +61,13 @@ complete, internally consistent account of the continuing song.
 
 ### Metadata updates
 
-Every distinct lyric, report line, identity intro, or countdown value assigns
-a new `MediaMetadata` object. Identical repeats are deduplicated. Report mode
+Each real track installs one `MediaMetadata` object. Distinct lyric, report
+line, identity intro, or countdown values mutate that object's `title` and/or
+`artist` fields in place; identical repeats are deduplicated. Report mode
 changes only the presented artist line; Identity mode restores the stable
-`year - artist - song` value.
+`year - artist - song` value. A line transition never clears or rewrites
+Media Session position state, so the receiver's time remaining stays
+continuous.
 
 The Web Media Session API has no stable track-ID field and no transient lyric
 field. A browser or Bluetooth head unit may interpret a title metadata change
@@ -140,10 +143,11 @@ at:
 Clear position on stop or playlist teardown. Clamp values to the API's valid
 range because duration may appear before a stable position.
 
-If a receiver resets its timer when title metadata changes, Voice-Wei can
-reassert the already-known position immediately after that metadata write as a
-device-compatibility measure. This is a synchronized refresh, not a statement
-that the listening line is a new track.
+Replacing `navigator.mediaSession.metadata` can make a receiver discard its
+timer. Voice-Wei therefore replaces that object only at a true track/session
+boundary and reasserts position there. Listening-line transitions use the
+standard mutable `MediaMetadata` fields on the installed object and do not
+call `setPositionState()`.
 
 ### 3. Publish explicit stable artwork
 

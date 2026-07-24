@@ -266,7 +266,7 @@ playback update, or lyric render without replaying anything.
 | lyricsOnNowPlaying | true | toggle | immediate (relay timed lyrics on the first line and the selected identity/report value on the second) |
 | showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
 | songDisplayMode | identity | identity / report | immediate (switches the second display line; Song Report is available whenever a song is selected and requests one when none is saved) |
-| songReportIntervalSeconds | 8 | 3, 4, 5, 6, 8, 10, 12, 15, 20, 30 seconds | immediate (keeps the current report line, then schedules subsequent lines at the new interval; audio never restarts) |
+| songReportIntervalSeconds | 8 | 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30 seconds | immediate (keeps the current report line, then schedules subsequent lines at the new interval; audio never restarts) |
 
 The per-query Model pills under the request box set the same settings
 (provider + that provider's model) in one tap; the settings panel

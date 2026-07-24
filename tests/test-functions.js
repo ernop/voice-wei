@@ -3620,6 +3620,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const beforeBoundary = snap(7.9);
             const second = snap(8);
             const firstDeadline = harness.nextListeningTextDeadline(0);
+            harness.settings.songReportIntervalSeconds = 0.5;
+            const halfSecondBeforeBoundary = snap(0.49);
+            const halfSecondSecond = snap(0.5);
+            const halfSecondDeadline = harness.nextListeningTextDeadline(0);
+            harness.settings.songReportIntervalSeconds = 8;
             harness.songReportAnchorTime = 35;
             const immediateAfterLoad = snap(35);
             harness.resetSongReportForPlay(item);
@@ -3651,8 +3656,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 status: document.getElementById('songReportStatus')?.textContent || '',
                 afterUp,
                 afterDown: document.getElementById('songReportIntervalValue')?.textContent || '',
+                minimum: '',
                 noReportFallsBackToIdentity: false
             };
+            for (let index = 0; index < 20; index++) {
+                document.getElementById('songReportIntervalDownBtn')?.click();
+            }
+            controls.minimum = document.getElementById('songReportIntervalValue')?.textContent || '';
             controller.songReports.delete(item.videoId);
             controller.updateSongReportControls();
             controls.noReportFallsBackToIdentity =
@@ -3720,11 +3730,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 activationPromise = requestHarness.activateSongReport();
                 return activationPromise;
             };
-            const storyReportButton = /** @type {HTMLButtonElement} */ (
+            const songReportButton = /** @type {HTMLButtonElement} */ (
                 document.getElementById('songDisplayReportBtn')
             );
-            storyReportButton.disabled = false;
-            storyReportButton.click();
+            songReportButton.disabled = false;
+            songReportButton.click();
             await Promise.resolve();
             await Promise.resolve();
             if (!resolveResearch) throw new Error('Song Report did not start a missing-report request');
@@ -3763,6 +3773,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 beforeBoundary,
                 second,
                 firstDeadline,
+                halfSecondBeforeBoundary,
+                halfSecondSecond,
+                halfSecondDeadline,
                 immediateAfterLoad,
                 replay,
                 identityAgain,
@@ -3784,15 +3797,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && openaiReportRequest.tool_choice === 'required'
             && claudeReportRequest.tools?.[0]?.type === 'web_search_20250305'
             && claudeReportRequest.tool_choice?.type === 'any');
-        report.check(`song report prompt requests broad, positive, factual analysis without lyric reproduction`,
-            /literary analysis/.test(songReport.prompt)
+        report.check(`song report prompt requires sourced reporting without model-authored interpretation or style`,
+            /careful reporter, not a creative writer or stylist/.test(songReport.prompt)
+            && /published literary or critical analysis/.test(songReport.prompt)
             && /personal and band history/.test(songReport.prompt)
             && /business, money/.test(songReport.prompt)
             && /well-sourced interpersonal stories/.test(songReport.prompt)
-            && /Do not quote or reproduce the lyrics/.test(songReport.prompt)
+            && /Every factual claim and interpretation must be traceable/.test(songReport.prompt)
+            && /Do not add your own interpretation or inference/.test(songReport.prompt)
+            && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
+            && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt)
+            && /When a source analyzes them, paraphrase that source's analysis/.test(songReport.prompt)
             && /exactly one continuous plain-text prose block/.test(songReport.prompt)
-            && /Do not return JSON, Markdown/.test(songReport.prompt)
-            && /Omit negative, dull, uncertain/.test(songReport.prompt));
+            && /Do not return JSON, Markdown/.test(songReport.prompt));
         report.check(`song report lines stay within 50 characters and persist (${songReport.lines.length} lines)`,
             songReport.lines.length > 2
             && songReport.lines.every(line => line.length > 0 && line.length <= 50)
@@ -3807,6 +3824,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.second.title === 'lyric line'
             && songReport.second.artist === songReport.lines[1]
             && songReport.firstDeadline === 8
+            && songReport.halfSecondBeforeBoundary.artist === songReport.lines[0]
+            && songReport.halfSecondSecond.artist === songReport.lines[1]
+            && songReport.halfSecondDeadline === 0.5
             && songReport.immediateAfterLoad.artist === songReport.lines[0]
             && songReport.replay.artist === songReport.lines[0]
             && songReport.identityAgain.title === 'lyric line'
@@ -3820,6 +3840,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.controls.status === `${songReport.lines.length} saved lines`
             && songReport.controls.afterUp === '10s'
             && songReport.controls.afterDown === '8s'
+            && songReport.controls.minimum === '0.5s'
             && songReport.controls.noReportFallsBackToIdentity);
         const requestLifecycle = songReport.requestLifecycle;
         report.check('Song Report is the consistent user-facing mode name',
@@ -4295,9 +4316,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player imported songs migrate to IndexedDB (idb: ${songLibraryMigration.inIdb}, blob empty: ${songLibraryMigration.blobEmpty})`,
             songLibraryMigration.inIdb && songLibraryMigration.blobEmpty && songLibraryMigration.inMemory);
 
-        // Media Session treats lyric changes as display updates inside one
-        // stable track. Identity/artwork survive; position advances and is
-        // reasserted after metadata; only clearTrack ends the session.
+        // Media Session treats lyric/report changes as scalar updates on one
+        // installed metadata object. Position advances independently and is
+        // never cleared or rewritten by a line transition.
         const mediaSessionChannels = await tab.evaluate(() => {
             const realSetPositionState = navigator.mediaSession.setPositionState.bind(navigator.mediaSession);
             const positionWrites = [];
@@ -4317,9 +4338,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 }]
             });
             MediaSessionCore.setPosition({ duration: 240, position: 31.2, playbackRate: 1 });
-            MediaSessionCore.setDisplayLine('first lyric');
-            MediaSessionCore.setSecondaryDisplayLine('first report');
-            const first = navigator.mediaSession.metadata;
+            const installedMetadata = navigator.mediaSession.metadata;
+            const writesBeforeFirstLines = positionWrites.length;
+            MediaSessionCore.setDisplayLines('first lyric', 'first report');
+            const firstLinePositionWrites = positionWrites.length - writesBeforeFirstLines;
+            const first = {
+                title: navigator.mediaSession.metadata?.title || '',
+                artist: navigator.mediaSession.metadata?.artist || '',
+                album: navigator.mediaSession.metadata?.album || '',
+                artwork: navigator.mediaSession.metadata?.artwork[0]?.src || ''
+            };
             MediaSessionCore.clearDisplayLine();
             const lyricsOff = {
                 mediaTitle: navigator.mediaSession.metadata?.title || '',
@@ -4330,9 +4358,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             MediaSessionCore.clearSecondaryDisplayLine();
             const identityRestored = navigator.mediaSession.metadata?.artist || '';
             MediaSessionCore.setPosition({ duration: 240, position: 32.4, playbackRate: 1 });
-            MediaSessionCore.setDisplayLine('second lyric');
-            MediaSessionCore.setSecondaryDisplayLine('second report');
-            const second = navigator.mediaSession.metadata;
+            const writesBeforeSecondLines = positionWrites.length;
+            MediaSessionCore.setDisplayLines('second lyric', 'second report');
+            const secondLinePositionWrites = positionWrites.length - writesBeforeSecondLines;
+            const sameMetadataObject = navigator.mediaSession.metadata === installedMetadata;
+            const second = {
+                title: navigator.mediaSession.metadata?.title || '',
+                artist: navigator.mediaSession.metadata?.artist || '',
+                album: navigator.mediaSession.metadata?.album || '',
+                artwork: navigator.mediaSession.metadata?.artwork[0]?.src || ''
+            };
             MediaSessionCore.setPlaybackState('paused');
             const paused = {
                 title: navigator.mediaSession.metadata?.title || '',
@@ -4364,18 +4399,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             navigator.mediaSession.setPositionState = realSetPositionState;
             return {
-                first: {
-                    title: first?.title || '',
-                    artist: first?.artist || '',
-                    album: first?.album || '',
-                    artwork: first?.artwork[0]?.src || ''
-                },
-                second: {
-                    title: second?.title || '',
-                    artist: second?.artist || '',
-                    album: second?.album || '',
-                    artwork: second?.artwork[0]?.src || ''
-                },
+                first,
+                second,
+                firstLinePositionWrites,
+                secondLinePositionWrites,
+                sameMetadataObject,
                 lyricsOff,
                 identityRestored,
                 paused,
@@ -4384,11 +4412,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 positionWrites: positionWrites.filter(value => value !== null)
             };
         });
-        report.check(`Media Session keeps one track across lyrics, true position, pause, and clear`,
+        report.check(`Media Session mutates one track across listening lines without disturbing time remaining`,
             mediaSessionChannels.first.title === 'first lyric'
             && mediaSessionChannels.second.title === 'second lyric'
             && mediaSessionChannels.first.artist === 'first report'
             && mediaSessionChannels.second.artist === 'second report'
+            && mediaSessionChannels.sameMetadataObject
+            && mediaSessionChannels.firstLinePositionWrites === 0
+            && mediaSessionChannels.secondLinePositionWrites === 0
             && mediaSessionChannels.first.album === mediaSessionChannels.second.album
             && mediaSessionChannels.first.artwork === mediaSessionChannels.second.artwork
             && mediaSessionChannels.lyricsOff.mediaTitle === 'Channel Song'
@@ -4398,7 +4429,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && mediaSessionChannels.identityRestored === '2004 - Channel Artist - Channel Song'
             && mediaSessionChannels.positionWrites.some(state =>
                 state.duration === 240 && state.position === 32.4 && state.playbackRate === 1)
-            && mediaSessionChannels.positionWrites.filter(state => state.position === 32.4).length >= 2
+            && mediaSessionChannels.positionWrites.filter(state => state.position === 32.4).length === 1
             && mediaSessionChannels.positionWrites.every(state => state.position > 0)
             && mediaSessionChannels.paused.title === 'second lyric'
             && mediaSessionChannels.paused.artist === 'second report'

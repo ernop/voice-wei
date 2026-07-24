@@ -166,6 +166,7 @@ interface MediaSessionCoreApi {
     clearNowPlayingTitle(): void;
     setTrackIdentity(identity: MediaSessionTrackIdentity): void;
     setDisplayLine(title: string): void;
+    setDisplayLines(primaryText: string, secondaryText: string): void;
     clearDisplayLine(): void;
     setSecondaryDisplayLine(text: string): void;
     clearSecondaryDisplayLine(): void;

@@ -1083,8 +1083,7 @@ const PlayerLyrics = (function () {
                     // keep-alive can be paused out from under us, after which
                     // Chrome routes the car to the YouTube iframe.
                     MediaSessionCore.ensurePlayingSession();
-                    MediaSessionCore.setDisplayLine(primary);
-                    MediaSessionCore.setSecondaryDisplayLine(secondary);
+                    MediaSessionCore.setDisplayLines(primary, secondary);
                     this.nowPlayingShowsText = true;
                 } else if (this.nowPlayingShowsText) {
                     this.nowPlayingShowsText = false;

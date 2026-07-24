@@ -329,14 +329,17 @@ the elapsed wait. On return, the Song Report button and adjacent status name
 the returned character/line counts, provider/model, elapsed time, and active
 playback interval.
 
-The model researches the web and returns exactly one continuous plain-text
-prose block: no JSON, Markdown, headings, bullets, labels, citations, source
-list, or prefatory text. The browser normalizes whitespace, then repeatedly
+The model acts as a reporter, not a stylist: every claim or interpretation
+must come from researched material, other people's interpretations stay
+attributed, and the model may not add its own analysis, motives, connective
+details, embellishment, or generic praise. It returns exactly one continuous
+plain-text prose block: no JSON, Markdown, headings, bullets, labels,
+citations, source list, or prefatory text. The browser normalizes whitespace, then repeatedly
 splits at nearby punctuation when possible, otherwise at a word boundary, with
 a hard 50-character maximum. It saves both the untouched returned prose and
 the derived lines by `videoId`, switches to Report mode, anchors line one at
 the current media time, and starts advancing immediately. The **Every**
-stepper chooses 3–30 seconds per line. **Identity / Song Report** chooses the
+stepper chooses 0.5–30 seconds per line. **Identity / Song Report** chooses the
 second line: Identity keeps `year - artist - song`, while Song Report advances
 the saved text. Timed lyrics continue independently on the first line.
 Artwork and YouTube position remain the same. A replay starts the saved report
@@ -345,13 +348,15 @@ waiting lifecycle, complete provider response, normalized prose, split lines,
 save, and playback start or failure.
 
 The Media Session also carries the selected video's stable YouTube thumbnail
-and the true YouTube elapsed/total position. Lyric-title writes retain those
-fields and reassert the same position, so a new lyric remains the same
-continuing track. Pause freezes that complete state; stop or playlist clear
-removes it. Car seek-back, seek-forward, and seek-to actions seek the YouTube
-player. Writes are pushed into the OS media session exactly when the text
-changes (line boundaries / countdown seconds); the car pulls its redraw from
-that. On this page the header gives the lyric
+and the true YouTube elapsed/total position. Lyric/report changes mutate the
+installed track metadata's text fields in place; they do not replace the
+metadata object, clear position, or rewrite position state. This prevents a
+line transition from blanking and resetting the receiver's time-remaining
+display. Pause freezes that complete state; stop or playlist clear removes it.
+Car seek-back, seek-forward, and seek-to actions seek the YouTube player.
+Writes are pushed into the OS media session exactly when the text changes
+(line boundaries / countdown seconds); the car pulls its redraw from that. On
+this page the header gives the lyric
 heading its own full-width line, with the nav tabs and the settings gear
 sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
 button (the older central-player secondary row is hidden).

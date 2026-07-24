@@ -62,6 +62,8 @@ const MediaSessionCore = (function () {
     let simpleMetadata = null;
     /** @type {string | null} */
     let writtenMetadataKey = null;
+    /** @type {string | null} Track whose MediaMetadata object is installed */
+    let writtenTrackId = null;
     /** @type {PositionState | null} */
     let positionState = null;
     /** @type {string | null} */
@@ -115,6 +117,7 @@ const MediaSessionCore = (function () {
             // another frame's session (YouTube). Force the complete stable
             // identity, lyric line, and real song position through again.
             writtenMetadataKey = null;
+            writtenTrackId = null;
             writtenPositionKey = null;
             publishMetadata();
             publishPosition();
@@ -185,7 +188,12 @@ const MediaSessionCore = (function () {
         return simpleMetadata;
     }
 
-    /** Push complete metadata when any presented field differs. */
+    /**
+     * Push complete metadata when any presented field differs. Listening-line
+     * changes mutate the installed track object's scalar fields in place, as
+     * specified by MediaMetadata, so the receiver never sees a replacement
+     * track object or a position-state rewrite at a line boundary.
+     */
     function publishMetadata() {
         if (!('mediaSession' in navigator)) return;
         const metadata = composedMetadata();
@@ -194,12 +202,23 @@ const MediaSessionCore = (function () {
         if (key === writtenMetadataKey) return;
 
         try {
-            navigator.mediaSession.metadata = new MediaMetadata(metadata);
+            const installed = navigator.mediaSession.metadata;
+            const canUpdateInstalledTrack = !!trackIdentity
+                && writtenTrackId === trackIdentity.id
+                && installed instanceof MediaMetadata;
+            if (canUpdateInstalledTrack) {
+                if (installed.title !== metadata.title) installed.title = metadata.title;
+                if (installed.artist !== metadata.artist) installed.artist = metadata.artist;
+                if (installed.album !== metadata.album) installed.album = metadata.album;
+            } else {
+                navigator.mediaSession.metadata = new MediaMetadata(metadata);
+                writtenTrackId = trackIdentity ? trackIdentity.id : null;
+                // A new installed object can make a receiver discard its
+                // timer. Reassert only at this true object boundary; ordinary
+                // lyric/report updates never touch position state.
+                publishPosition(true);
+            }
             writtenMetadataKey = key;
-            // Some receivers reset their displayed timer when title metadata
-            // changes. Reassert the same song position without treating the
-            // lyric as a track boundary.
-            publishPosition(true);
         } catch (err) {
             // Metadata is optional; action handlers are the useful part here.
         }
@@ -250,6 +269,20 @@ const MediaSessionCore = (function () {
     function setSecondaryDisplayLine(text) {
         secondaryDisplayLine = String(text || '').trim() || null;
         publishMetadata();
+    }
+
+    /** @param {string} primaryText @param {string} secondaryText */
+    function setDisplayLines(primaryText, secondaryText) {
+        displayLine = String(primaryText || '').trim() || null;
+        secondaryDisplayLine = String(secondaryText || '').trim() || null;
+        publishMetadata();
+        if (displayLine) {
+            showDisplayLine(displayLine);
+        } else if (trackIdentity) {
+            showDisplayLine(trackIdentity.title);
+        } else {
+            restoreDisplayLine();
+        }
     }
 
     function clearSecondaryDisplayLine() {
@@ -368,6 +401,7 @@ const MediaSessionCore = (function () {
         secondaryDisplayLine = null;
         simpleMetadata = null;
         writtenMetadataKey = null;
+        writtenTrackId = null;
         clearPosition();
         restoreDisplayLine();
         explicitState = 'none';
@@ -422,6 +456,7 @@ const MediaSessionCore = (function () {
         clearNowPlayingTitle,
         setTrackIdentity,
         setDisplayLine,
+        setDisplayLines,
         clearDisplayLine,
         setSecondaryDisplayLine,
         clearSecondaryDisplayLine,

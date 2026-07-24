@@ -3,7 +3,9 @@
 // and timing. The existing player deadline clock renders these lines.
 
 const SONG_REPORT_LINE_MAX_CHARS = 50;
-const SONG_REPORT_INTERVAL_VALUES = Object.freeze([3, 4, 5, 6, 8, 10, 12, 15, 20, 30]);
+const SONG_REPORT_INTERVAL_VALUES = Object.freeze([
+    0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30
+]);
 
 const PlayerSongReport = (function () {
     'use strict';
@@ -55,22 +57,26 @@ const PlayerSongReport = (function () {
                     item.comment ? `Existing playlist note: ${item.comment}` : ''
                 ].filter(Boolean).join('\n');
 
-                return `Research this exact song on the web, then write a fascinating, appreciative listening companion that will appear one short line at a time while the recording plays.
+                return `Research this exact song on the web, then report what you find in a listening companion that will appear one short line at a time while the recording plays.
 
 ${identity}
 
-Investigate broadly before writing. Use only notable, well-supported material. Draw from whichever of these areas genuinely yields something interesting:
-- literary analysis: narrative, themes, imagery, symbolism, allusions, locations, cultural references, title, and the relationship between words and music
+You are a careful reporter, not a creative writer or stylist. Your job is to convey other people's documented words, findings, and interpretations accurately. This is not your place to invent analysis, motives, emotions, symbolism, causal stories, connective details, or color.
+
+Investigate broadly before writing. Use only notable, well-supported material that you actually found in sources. Draw from whichever of these areas genuinely yields something interesting:
+- published literary or critical analysis: narrative, themes, imagery, symbolism, allusions, locations, cultural references, title, and the relationship between words and music
 - the writing and recording story, arrangement, production, performances, musical influences, and artistic choices
 - the artists' personal and band history at the time, creative relationships, and well-sourced interpersonal stories sometimes described as gossip
 - career, business, money, label, chart, sales, awards, audience, critical reception, and later influence
 - real places, people, events, books, films, traditions, or scenes connected to the song
 
 Rules:
-- Be factual. Do not invent, speculate, repeat unsupported rumors, or make invasive claims.
-- Keep the tone positive, warm, and interesting. Omit negative, dull, uncertain, or unsupported material instead of mentioning its absence.
-- Do not quote or reproduce the lyrics. Analyze and paraphrase them.
-- Return exactly one continuous plain-text prose block made of crisp, varied sentences that make sense when wrapped into short display lines.
+- Every factual claim and interpretation must be traceable to material you found. When conveying someone else's interpretation, make clear whose view it is in the prose.
+- Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
+- Select positive, interesting, well-supported material, but never soften, intensify, or change a source's meaning to improve the tone.
+- Do not quote or reproduce the lyrics. When a source analyzes them, paraphrase that source's analysis and attribution.
+- Write direct, information-dense sentences. Do not add scene-setting, flourishes, clever transitions, or generic praise.
+- Return exactly one continuous plain-text prose block whose sentences make sense when wrapped into short display lines.
 - Do not return JSON, Markdown, headings, bullets, labels, citations, source lists, prefatory language, or any text outside that prose block.
 - Aim for about ${targetChars} characters total, enough for roughly ${targetLines} display lines.`;
             },
