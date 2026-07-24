@@ -41,7 +41,7 @@ and deliver a weaker version of the requested change.
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
-| Music | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
+| Lyrics | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |
 | Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
 
 ## System invariants
@@ -73,9 +73,9 @@ and deliver a weaker version of the requested change.
   git.” The header version is one signal, not the goal — see
   [live-change.md](live-change.md).
 
-## Music player: intended behavior and user needs
+## Lyrics player: intended behavior and user needs
 
-The accumulated product intent for the Music tab, stated as the user's
+The accumulated product intent for the Lyrics tab, stated as the user's
 needs (behavior reference: [tools.md](tools.md); construction:
 [architecture.md](architecture.md)). Changes to the player should be
 checked against this list, and new standing intent gets added here.

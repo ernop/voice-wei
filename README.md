@@ -33,7 +33,7 @@ by choosing continuity as an unspoken constraint.
 | [Trace](https://fuseki.net/voice-wei/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
 | [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
 | [Ears](https://fuseki.net/voice-wei/ears.html) | Interval ear training: identify them, sing them, drone matching |
-| [Music](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (one AI-provider key required) |
+| [Lyrics](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (one AI-provider key required) |
 | [Books](https://fuseki.net/voice-wei/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
 
 Full usage details per tool: [docs/tools.md](docs/tools.md).

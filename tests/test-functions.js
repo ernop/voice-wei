@@ -3297,7 +3297,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelay.during.highlightIndex === 0
             && lyricRelay.after.metaTitle === ''
             && lyricRelay.after.docTitle !== 'late first line'
-            && lyricRelay.after.headerTitle === 'Music'
+            && lyricRelay.after.headerTitle === 'Lyrics'
             && neverSongArtistPastIntro);
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze

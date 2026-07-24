@@ -1,4 +1,4 @@
-const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '280';
+const APP_VERSION = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '281';
 
 const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
@@ -6,7 +6,7 @@ const HEADER_PAGES = [
     { id: "phrases", href: "phrases.html", label: "Phrases" },
     { id: "trace", href: "trace.html", label: "Trace" },
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
-    { id: "music", href: "player.html", label: "Music" },
+    { id: "music", href: "player.html", label: "Lyrics" },
     { id: "books", href: "ebook.html", label: "Books" },
     { id: "deploys", href: "deploys.html", label: "Deploys" }
 ];
