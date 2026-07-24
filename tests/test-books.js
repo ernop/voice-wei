@@ -356,10 +356,11 @@ async function seedFrontMatterBook(page) {
                 mimeType: 'text/plain',
                 buffer: Buffer.from(`${name} text `.repeat(120))
             });
-            await page.waitForFunction(expectedCount => {
+            await page.waitForFunction(({ expectedCount, title }) => {
                 return document.querySelectorAll('.saved-book-item').length === expectedCount
-                    && !document.querySelector('.books-shell')?.classList.contains('book-open');
-            }, index + 1);
+                    && !document.querySelector('.books-shell')?.classList.contains('book-open')
+                    && document.querySelector('#status')?.textContent?.includes(`Imported ${title} and added`);
+            }, { expectedCount: index + 1, title: name });
         }
 
         const shelf = await page.evaluate(async () => {
