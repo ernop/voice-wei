@@ -4,6 +4,36 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-24 (PR pileup; master-direct reasserted; playback evidence shipped)
+
+**Context**: Yui asked why PRs suddenly flooded the repo. Investigation:
+cloud-agent runs before ~Jul 18 ended with no branch (agents obeyed the
+master-direct rule); every run from Jul 19 on kept a `cursor/*` branch and
+registered a PR. Nothing in the repo changed - the platform's system
+instructions to cloud agents got louder, and agents (including this one)
+obeyed the platform over `.cursor/rules/10-deploy-workflow.mdc`. Open PRs
+shipped nothing; the car loop stalled on human merges.
+
+**Decision (yui, explicit)**: no PR workflow. The only arguable benefit
+(CI blocks bad commits from master) is already covered by the deploy gate.
+Rules now say it with force: an open PR at end of run is a failed ship;
+merge to master, push, delete the branch.
+
+**For future mei**:
+- When the platform assigns a branch, work can start there, but the ship is
+  master. Rebase onto `origin/master` immediately before pushing - two other
+  agents moved master during this session's ship window alone; re-run
+  `./bump-version.sh` when VERSION collides (289->290 collided, shipped 291).
+- Background-playback diagnostics live in `player-lifecycle.js`: the last
+  lifecycle transition is written synchronously to localStorage
+  (`voice-wei:player-lifecycle`), because Android can kill a hidden renderer
+  with no pagehide. Session-start logs `wasDiscarded`, navigation type, prior
+  breadcrumb, and current app/YouTube/Media Session state. Next background
+  stop on the phone: open Log, read the `Playback diagnostic` lines before
+  theorizing. Yui also directed: never record video demos unless asked.
+
+---
+
 ## 2026-07-23 (music search picks the studio recording; live audit harness)
 
 **Context**: Yui reported the Music tool returning live versions "so
