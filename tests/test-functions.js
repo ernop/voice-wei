@@ -3577,6 +3577,38 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.settings.songDisplayMode = 'lyrics';
             const lyricsAgain = snap(3);
             MediaSessionCore.clearTrack();
+
+            const controller = window.musicController;
+            const originalIndex = controller.currentPlaylistIndex;
+            const originalMode = controller.settings.songDisplayMode;
+            const originalInterval = controller.settings.songReportIntervalSeconds;
+            controller.playlist.push(item);
+            controller.currentPlaylistIndex = controller.playlist.length - 1;
+            controller.songReports.set(item.videoId, record);
+            controller.updateCentralPlayer(item);
+            controller.updateSongReportControls();
+            document.getElementById('songDisplayReportBtn')?.click();
+            document.getElementById('songReportIntervalUpBtn')?.click();
+            const afterUp = document.getElementById('songReportIntervalValue')?.textContent || '';
+            document.getElementById('songReportIntervalDownBtn')?.click();
+            const controls = {
+                reportSelected: document.getElementById('songDisplayReportBtn')?.classList.contains('selected') || false,
+                lyricsSelected: document.getElementById('songDisplayLyricsBtn')?.classList.contains('selected') || false,
+                reportDisabled: /** @type {HTMLButtonElement | null} */ (document.getElementById('songDisplayReportBtn'))?.disabled,
+                requestLabel: document.getElementById('requestSongReportBtn')?.textContent || '',
+                status: document.getElementById('songReportStatus')?.textContent || '',
+                afterUp,
+                afterDown: document.getElementById('songReportIntervalValue')?.textContent || ''
+            };
+            controller.playlist.pop();
+            controller.songReports.delete(item.videoId);
+            controller.currentPlaylistIndex = originalIndex;
+            controller.settings.songDisplayMode = originalMode;
+            controller.settings.songReportIntervalSeconds = originalInterval;
+            controller.saveSettings();
+            controller.updateCentralPlayer(controller.currentPlaylistItem());
+            controller.updateSongReportControls();
+
             return {
                 lines,
                 prompt,
@@ -3590,7 +3622,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 storedLines: stored?.lines || [],
                 openai,
                 claude,
-                requests
+                requests,
+                controls
             };
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
@@ -3623,6 +3656,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.immediateAfterLoad.title === songReport.lines[0]
             && songReport.replay.title === songReport.lines[0]
             && songReport.lyricsAgain.title === 'lyric line');
+        report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
+            songReport.controls.reportSelected
+            && !songReport.controls.lyricsSelected
+            && songReport.controls.reportDisabled === false
+            && songReport.controls.requestLabel === 'Refresh Song Report'
+            && songReport.controls.status === `${songReport.lines.length} saved lines`
+            && songReport.controls.afterUp === '10s'
+            && songReport.controls.afterDown === '8s');
 
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze
