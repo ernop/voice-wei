@@ -188,6 +188,20 @@ interface AppConfig {
     openaiApiKey?: string;
 }
 
+interface PrebufferProbeSlot {
+    item: PlaylistItem;
+    slotIndex: number;
+    stage: string;
+    readyMs: number;
+    coldStartMs: number;
+    warmStartMs: number;
+    bufferedAfterPrewarmSeconds: number;
+    bufferedAfterWarmSeconds: number;
+    warmRequestedAt: number;
+    finished: boolean;
+    errorCode: number;
+}
+
 interface VoiceMusicController {
     // Authoritative playback state plus the thin accessors PlayerPlaylist
     // installs over it. These read/write through this.playback so playback
@@ -262,6 +276,17 @@ interface VoiceMusicController {
     ensurePlaylistPlayer(item: PlaylistItem): void;
     recreatePlaylistPlayer(item: PlaylistItem): void;
     ensureYouTubeApi(): Promise<void>;
+    prebufferProbeEnabled: boolean;
+    prebufferProbeRunId: number;
+    prebufferProbePlayers: YT.Player[];
+    prebufferProbeTimers: ReturnType<typeof setTimeout>[];
+    prebufferProbeSlots: PrebufferProbeSlot[];
+    prebufferProbeCandidates(currentItem: PlaylistItem): PlaylistItem[];
+    cleanupPrebufferProbe(): void;
+    schedulePrebufferProbe(runId: number, callback: () => void, delayMs: number): void;
+    startPrebufferProbeFor(currentItem: PlaylistItem): Promise<void>;
+    handlePrebufferProbeState(runId: number, slot: PrebufferProbeSlot, player: YT.Player, state: number, runStartedAt: number): void;
+    finishPrebufferProbeSlot(runId: number, slot: PrebufferProbeSlot, player: YT.Player): void;
     applyVideoDataToPlaylistItem(item: PlaylistItem, videoData: any): void;
     refreshPlaylistRowVideo(item: PlaylistItem): void;
     describeYouTubePlayerError(code: number | string): string;

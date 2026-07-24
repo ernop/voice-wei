@@ -87,6 +87,7 @@ class VoiceMusicController {
 
         PlayerCommands.install(this);
         PlayerPlaylist.install(this);
+        PlayerPrebufferProbe.install(this);
         PlayerLyrics.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);

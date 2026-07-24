@@ -265,6 +265,15 @@ acceptable only where the data source is genuinely eventless and
 continuous: mic frames (requestAnimationFrame in pitch-detect-core) and
 the deploys dashboard's remote refresh.
 
+**YouTube prebuffer experiment.** Normal playback owns one reused iframe.
+The opt-in `?prebufferProbe=1` diagnostic adds exactly two independent,
+muted, off-screen players for the next two physical playlist entries. Each
+plays briefly, pauses at the start, then measures warm-resume latency and
+buffered seconds through the IFrame API before being destroyed. It never
+becomes the audible player and is not constructed on the normal URL. Results
+are persisted through the existing Log path so real phone/network behavior
+can be analyzed before changing playback architecture.
+
 ## Pitch correctness (one owner)
 
 `pitch-score.js` is the single definition of "did the singer hit this note,

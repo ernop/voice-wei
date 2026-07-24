@@ -360,6 +360,13 @@ Other surfaces on the page:
 - **Notes toggle** (playlist header): shows or hides every song's comment
   line instantly. Off by default; rows stay compact until you want the
   AI's per-song notes.
+- **Three-player prebuffer probe**: append `?prebufferProbe=1` to the Music
+  URL, load at least three songs, and start one. Normal playback remains on
+  its existing player while two muted off-screen players warm the next two
+  physical playlist entries. After about seven seconds, open Log and copy all
+  lines labeled **Prebuffer probe**; they report player readiness, cold start,
+  buffered seconds, warm-resume latency, and any YouTube errors. The probe is
+  diagnostic only and is completely absent without the query parameter.
 - **Load Favorites** appends the favorited tracks to the playlist.
 - **History / Cache** toggles a panel with past lookups, the known-songs
   catalog, and the YouTube search cache (all from the `voice-wei-music`

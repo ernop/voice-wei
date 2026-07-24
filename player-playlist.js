@@ -1144,6 +1144,7 @@ const PlayerPlaylist = (function () {
 
                         // Start progress bar updates
                         this.startProgressUpdates();
+                        void this.startPrebufferProbeFor(item);
 
                         // Log the play action; the status line gets fresh
                         // truth on every track so stale "Player loading"
@@ -1451,6 +1452,7 @@ const PlayerPlaylist = (function () {
              * player surfaces - the piece a replace-on-new-search reuses.
              */
             clearPlaylistItems() {
+                this.cleanupPrebufferProbe();
                 // Stop any playing video
                 if (this.currentPlayingId) {
                     const player = this.playback.player;

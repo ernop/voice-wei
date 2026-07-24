@@ -1772,6 +1772,79 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && modelOptions.openaiModels.includes('gpt-5.4')
             && modelOptions.openaiModels.includes('gpt-4.1'));
 
+        const prebufferProbe = await tab.evaluate(async () => {
+            const realYT = window.YT;
+            const instances = [];
+            class FakeProbePlayer {
+                constructor(id, options) {
+                    this.id = id;
+                    this.options = options;
+                    this.muted = false;
+                    this.playCalls = 0;
+                    this.pauseCalls = 0;
+                    this.destroyed = false;
+                    instances.push(this);
+                    queueMicrotask(() => options.events.onReady({ target: this }));
+                }
+                mute() { this.muted = true; }
+                playVideo() {
+                    this.playCalls++;
+                    queueMicrotask(() => this.options.events.onStateChange({ target: this, data: 1 }));
+                }
+                pauseVideo() { this.pauseCalls++; }
+                seekTo() {}
+                destroy() { this.destroyed = true; }
+                getDuration() { return 100; }
+                getVideoLoadedFraction() { return 0.2; }
+            }
+            window.YT = { Player: FakeProbePlayer, PlayerState: { PLAYING: 1 } };
+            const items = ['Current', 'Next One', 'Next Two', 'Later'].map((name, index) => ({
+                id: index + 1,
+                videoId: `probe-${index + 1}`,
+                name,
+                title: name
+            }));
+            const messages = [];
+            const harness = {
+                playlist: items,
+                addMessage(type, label, text) { messages.push({ type, label, text }); },
+                async ensureYouTubeApi() {}
+            };
+            PlayerPrebufferProbe.install(harness);
+            const defaultDisabled = harness.prebufferProbeEnabled === false;
+            harness.prebufferProbeEnabled = true;
+            const candidates = harness.prebufferProbeCandidates(items[0]).map(item => item.name);
+            await harness.startPrebufferProbeFor(items[0]);
+            await new Promise(resolve => setTimeout(resolve, 0));
+            const started = instances.length === 2
+                && instances.every(player => player.muted && player.playCalls === 1)
+                && harness.prebufferProbeSlots.every(slot => slot.stage === 'prewarming')
+                && !!document.getElementById('prebuffer-probe-host');
+
+            harness.prebufferProbeSlots.forEach((slot, index) => {
+                slot.readyMs = 100 + index;
+                slot.coldStartMs = 200 + index;
+                slot.warmStartMs = 30 + index;
+                slot.bufferedAfterPrewarmSeconds = 12 + index;
+                slot.bufferedAfterWarmSeconds = 13 + index;
+                harness.finishPrebufferProbeSlot(harness.prebufferProbeRunId, slot, instances[index]);
+            });
+            const reported = messages.filter(message => message.label === 'Prebuffer probe').length === 3
+                && messages.some(message => message.label === 'Prebuffer probe complete')
+                && messages.some(message => message.text.includes('warm resume 30ms'));
+            harness.cleanupPrebufferProbe();
+            const cleaned = instances.every(player => player.destroyed)
+                && !document.getElementById('prebuffer-probe-host');
+            window.YT = realYT;
+            return { defaultDisabled, candidates, started, reported, cleaned };
+        });
+        report.check('player three-player prebuffer probe is opt-in, warms next two, reports, and cleans up',
+            prebufferProbe.defaultDisabled
+            && prebufferProbe.candidates.join('|') === 'Next One|Next Two'
+            && prebufferProbe.started
+            && prebufferProbe.reported
+            && prebufferProbe.cleaned);
+
         const lyricsOverlayNavigation = await tab.evaluate(() => {
             const controller = window.musicController;
             const overlay = document.getElementById('lyricsOverlay');
