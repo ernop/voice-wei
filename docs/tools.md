@@ -398,6 +398,14 @@ Other surfaces on the page:
 - **Notes toggle** (playlist header): shows or hides every song's comment
   line instantly. Off by default; rows stay compact until you want the
   AI's per-song notes.
+- **Keep-alive necessity experiment**: append `?keepAlive=0` to the Music URL
+  to run the complete Media Session surface (lyric titles, artwork, position,
+  media keys) without the silent ownership audio. Play a song, background the
+  page, and check the lock screen / car display: page-controlled lyric lines
+  mean the silent loop is unnecessary on that browser; YouTube's own metadata
+  means ownership still requires it. `Playback diagnostic` lines label the
+  session `keepAlive=disabled` so evidence from experiment runs is
+  distinguishable.
 - **Three-player prebuffer probe**: append `?prebufferProbe=1` to the Music
   URL, load at least three songs, and start one. Normal playback remains on
   its existing player while two muted off-screen players warm the next two

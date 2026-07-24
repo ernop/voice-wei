@@ -266,7 +266,7 @@ interface PlayerPlaybackDiagnosticSnapshot {
     positionSeconds: number | null;
     youtubeState: number | null;
     mediaSessionState: MediaSessionPlaybackState | 'unavailable';
-    keepAlive: 'absent' | 'playing' | 'paused';
+    keepAlive: 'absent' | 'playing' | 'paused' | 'disabled';
 }
 
 interface PlayerLifecycleMemorySnapshot {

@@ -135,6 +135,36 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         && reloadEvidence.diagnostic.includes('navigation=reload')
         && reloadEvidence.diagnostic.includes('previousOrderlyExit=yes'));
 
+    // The ?keepAlive=0 necessity experiment: identical Media Session
+    // surface with no silent ownership audio ever created.
+    const experimentTab = await browser.newPage();
+    collectErrors(experimentTab, 'keep-alive-experiment', errors);
+    await experimentTab.route('**/iframe_api', route => route.fulfill({
+        contentType: 'application/javascript',
+        body: 'queueMicrotask(() => window.onYouTubeIframeAPIReady?.());'
+    }));
+    await experimentTab.route('https://lrclib.net/**', route => route.fulfill({
+        contentType: 'application/json',
+        body: '[]'
+    }));
+    await experimentTab.goto(`${BASE_URL}/player.html?keepAlive=0`, { waitUntil: 'domcontentloaded' });
+    await experimentTab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+    const experiment = await experimentTab.evaluate(async () => {
+        document.body.click();
+        await MediaSessionCore.activate();
+        MediaSessionCore.setPlaybackState('playing');
+        MediaSessionCore.updateMetadata('Experiment line');
+        return {
+            keepAliveState: MediaSessionCore.getKeepAliveState(),
+            audioElements: document.querySelectorAll('audio').length,
+            mediaSessionState: MediaSessionCore.getPlaybackState()
+        };
+    });
+    report.check('keepAlive=0 publishes the full session surface with zero audio elements',
+        experiment.keepAliveState === 'disabled'
+        && experiment.audioElements === 0
+        && experiment.mediaSessionState === 'playing');
+
     errors.forEach(error => report.errors.push(error));
     await browser.close();
     report.finish();

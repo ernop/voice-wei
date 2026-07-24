@@ -23,6 +23,13 @@ const MediaSessionCore = (function () {
     const SILENCE_SECONDS = 10;
     const SAMPLE_RATE = 8000;
 
+    // Necessity experiment: ?keepAlive=0 runs the complete Media Session
+    // surface (metadata, position, handlers, playback state) WITHOUT the
+    // silent ownership loop. If car/lock-screen displays still follow the
+    // page under this flag, the ownership trick is unnecessary on that
+    // browser and should be removed.
+    const KEEP_ALIVE_DISABLED = new URLSearchParams(window.location.search).get('keepAlive') === '0';
+
     const DEFAULT_DOCUMENT_TITLE = document.title;
 
     /** @type {HTMLAudioElement | null} */
@@ -101,6 +108,18 @@ const MediaSessionCore = (function () {
     }
 
     async function activate() {
+        if (KEEP_ALIVE_DISABLED) {
+            // Publish the full surface anyway - the experiment measures
+            // whether these writes reach the OS without audible ownership.
+            writtenMetadataKey = null;
+            writtenPositionKey = null;
+            publishMetadata();
+            publishPosition();
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = explicitState || 'playing';
+            }
+            return;
+        }
         if (!audioEl) {
             audioEl = new Audio(createSilentWavUrl());
             audioEl.loop = true;
@@ -171,10 +190,12 @@ const MediaSessionCore = (function () {
 
     /**
      * State of the silent session-ownership loop. 'paused' while a page
-     * claims 'playing' means the OS or browser took audio focus away.
-     * @returns {'absent' | 'playing' | 'paused'}
+     * claims 'playing' means the OS or browser took audio focus away;
+     * 'disabled' means the ?keepAlive=0 necessity experiment is active.
+     * @returns {'absent' | 'playing' | 'paused' | 'disabled'}
      */
     function getKeepAliveState() {
+        if (KEEP_ALIVE_DISABLED) return 'disabled';
         if (!audioEl) return 'absent';
         return audioEl.paused ? 'paused' : 'playing';
     }
