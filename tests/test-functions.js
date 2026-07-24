@@ -3718,7 +3718,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 activationPromise = requestHarness.activateSongReport();
                 return activationPromise;
             };
-            document.getElementById('songDisplayReportBtn')?.click();
+            const storyReportButton = /** @type {HTMLButtonElement} */ (
+                document.getElementById('songDisplayReportBtn')
+            );
+            storyReportButton.disabled = false;
+            storyReportButton.click();
             await Promise.resolve();
             await Promise.resolve();
             if (!resolveResearch) throw new Error('Story Report did not start a missing-report request');

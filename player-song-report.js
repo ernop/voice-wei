@@ -163,7 +163,7 @@ Rules:
                     return;
                 }
 
-                const provider = this.settings.aiProvider;
+                const provider = /** @type {'claude' | 'openai'} */ (this.settings.aiProvider);
                 const model = provider === 'openai'
                     ? this.settings.openaiModel
                     : this.settings.claudeModel;
