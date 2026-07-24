@@ -130,6 +130,16 @@ checked against this list, and new standing intent gets added here.
    the report is an alternative to song identity on the second line. It
    advances at the chosen reading interval, leaves audio/artwork/position
    untouched, persists by video, and starts again when that song replays.
+10. **Musical understanding is a second accompaniment mode.** On explicit
+   request, a Musical Guide gathers sourced facts about concert key, key
+   changes, tempo, meter, tuning, capo/chord shapes, sections, vocal range,
+   starting pitch, and how to sing/play/hear the recording. It preserves
+   provenance, disagreement, and unknowns rather than inventing precision,
+   while its short second-line cues show only validated useful material.
+   Live phone-microphone pitch is an experimental extension: the existing
+   monophonic detector can test yui's voice, not infer chords from a full mix,
+   and actual phone/car Bluetooth routing must pass before it becomes a
+   product promise.
 
 ## Current priorities (deduplicated from the idea pool)
 
@@ -146,7 +156,10 @@ checked against this list, and new standing intent gets added here.
    lower-range control drills specifically.
 4. **Conversational player**: follow-ups like "more like that" and playlist
    operations by voice.
-5. **Resilience**: PWA/offline caching and visible external API failures.
+5. **Listening accompaniment**: correct the two-line Story Report contract,
+   add source-grounded Musical Guide, then run the real phone/car microphone
+   feasibility matrix before considering live pitch.
+6. **Resilience**: PWA/offline caching and visible external API failures.
 
 ## Backlog (the idea pool, deduplicated)
 

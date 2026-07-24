@@ -1,10 +1,12 @@
 # Music Player Lyrics Research
 
-Research notes behind the player's lyrics features. **Status: phases 1-3
-shipped** (LRCLIB lookup, the big-text overlay, and synced line
-highlighting live in `player-lyrics.js`; see [tools.md](tools.md) for the
-user-facing behavior). Phases 4-5 (musical metadata, alignment
-generation) remain research and feed the backlog in
+Research notes behind the player's lyrics and listening-accompaniment
+features. **Status: phases 1-3 shipped** (LRCLIB lookup, the big-text
+overlay, and synced line highlighting live in `player-lyrics.js`; see
+[tools.md](tools.md) for user-facing behavior). Story Report shipped in v287:
+lyrics remain on line one while Identity/Story Report selects line two.
+Musical Guide, microphone analysis, and
+recording-aligned singing information remain research and feed the backlog in
 [product-goals.md](product-goals.md).
 
 ## Goal
@@ -12,8 +14,9 @@ generation) remain research and feed the backlog in
 Extend the YouTube-based music player so it can:
 - find lyrics for tracks returned from YouTube search
 - show large sing-along lyrics on a phone
-- later synchronize lyrics to playback
-- later surface musical metadata such as key, pitch, and possible transcription
+- synchronize lyrics to playback and relay them on the first car-display line
+- offer identity or a researched Story Report on the second line
+- later surface sourced musical understanding and proven live pitch analysis
 
 ## Current Inputs We Already Have
 
@@ -231,124 +234,376 @@ Conclusion:
 - do not start here
 - keep it as a future enhancement
 
-## Key, Pitch, Tempo, Chords, And Notation
+## Two-Line Listening Accompaniment Contract
 
-These are different problem classes and should be treated separately.
+The car / lock-screen surface has two logical text lines. The clarified product
+contract is:
 
-### A. Key / Mode / Tempo
+| Line | Owner | Values |
+|------|-------|--------|
+| First | timed lyrics | song identity intro/countdown, then the current lyric |
+| Second | accompaniment mode | `Identity`, `Story Report`, or `Musical Guide` |
 
-Most realistic sources:
-- external metadata APIs
-- local audio analysis
+`Identity` is the default stable `year - artist - song` line. `Story Report`
+advances the positive cultural/literary report at the selected interval.
+`Musical Guide` advances sourced musical facts, section notes, and singing
+guidance; a later proven microphone mode may temporarily prioritize a stable
+live-pitch summary.
 
-Research notes:
-- `Essentia.js` can do browser-side music analysis including key extraction and tempo detection
-- `Soundcharts` and other commercial audio-feature APIs exist
-- `Spotify` metadata is increasingly restricted and should not be treated as a stable foundation here
+v287 implements separate primary and secondary display channels, correcting
+the initial branch implementation that suppressed lyrics during Story Report.
+Both channels may cause a `MediaMetadata` rewrite because the Web
+Media Session API has no transient subtitle fields, but neither may alter the
+sounding `videoId`, artwork, YouTube position, or playback state. Receiver
+field order is device-specific, so the actual car must verify which metadata
+field appears as line two.
 
-Recommendation:
-- if wei want lightweight metadata, analyze audio locally or on a worker/server rather than depending on Spotify
+The on-page sticky surface should render the same two lines explicitly even
+when a receiver chooses a different layout. Report generation and microphone
+analysis never pause, seek, restart, or speak over the song.
 
-### B. Vocal Pitch / Absolute Pitch / Sung Note Tracking
+## Three Different Analysis Problems
 
-There are two separate goals:
-- detect the user's current sung pitch from microphone input
-- estimate a song's vocal melody or pitch center from track audio
+The word “pitch” hides three separate jobs:
 
-For the user microphone:
-- browser pitch detection is already practical with Web Audio
-- YIN/autocorrelation style detectors are suitable
-- this is the easiest path for live singing feedback
+1. **User pitch:** detect what yui is singing into the phone microphone.
+2. **Recording melody:** isolate and track the recorded lead vocal.
+3. **Harmony:** infer key, modulation, and chords from the complete recording.
 
-For the song audio:
-- much harder because the vocal is inside a full mix
-- likely needs vocal separation first
+The existing McLeod Pitch Method (MPM) in `pitch-detect-core.js` is a
+monophonic voice detector. It returns one fundamental between D2 and Bb4 from a
+2048-sample time-domain frame. That is appropriate for an isolated singer. A
+full mix contains vocals, bass, chords, and percussion simultaneously, so MPM
+will jump among dominant periodic sources and cannot identify a chord or
+reliably establish a key.
 
-Recommendation:
-- live user pitch detection is feasible in-browser
-- song-vocal pitch extraction is a later research feature
+Recording melody extraction needs source separation or a polyphonic melody
+tracker such as pYIN/MELODIA-class contour analysis. Harmony needs spectral
+pitch-class features (chroma/HPCP) aggregated across seconds, followed by
+key/chord models. Neither is a small extension of the current detector.
 
-### C. Chords / Harmony
+## Phone Microphone While Bluetooth Plays
 
-Open-source options exist, such as `Chordino`, but they are not simple browser drop-ins.
+### Feasibility verdict
 
-Recommendation:
-- do not make chord detection part of v1 lyrics
-- consider offline or server-side analysis later
+A foreground, unlocked mobile browser can generally keep a YouTube embed
+playing while `getUserMedia()` captures microphone audio. This is a plausible
+experiment, not yet a portable product contract.
 
-### D. Notation / Melody Transcription
+The best route is **high-quality A2DP output plus the phone's built-in
+microphone**. A Bluetooth car/headset microphone uses the bidirectional
+HFP/SCO profile; selecting it normally switches output away from stereo A2DP
+to lower-bandwidth mono voice audio. Android Chrome can expose enough devices
+to select the built-in mic explicitly on some phones. iOS/Safari owns more of
+the route and may still prioritize HFP when a dual-profile accessory is
+connected.
 
-This is the hardest dream on the list.
+Relevant platform contracts:
 
-Practical options:
-- generate approximate melody/MIDI from audio with tools like `Basic Pitch`
-- obtain licensed sheet music from commercial providers
+- [Media Capture and Streams](https://www.w3.org/TR/mediacapture-streams/)
+  defines `echoCancellation`, `noiseSuppression`, and `autoGainControl`.
+  Boolean constraints are requests unless made exact; accepted settings must
+  be read back from the track.
+- [Apple Bluetooth audio-session options](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetootha2dp)
+  distinguish output-only A2DP from bidirectional HFP and give HFP routing
+  priority when its input is selected.
+- [Web Audio](https://www.w3.org/TR/webaudio/) supplies the foreground
+  analyser clock, but route and accessory latency are outside its control.
+- The [YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference)
+  exposes playback state/time, not audio samples. Same-origin/CORS rules mean
+  Voice-Wei cannot connect the cross-origin YouTube media element to Web Audio.
 
-What is realistic:
-- generated transcription can be useful for rough melody hints
-- it will not reliably produce clean, publication-grade sheet music for arbitrary commercial recordings
-- licensed notation APIs exist, but access appears commercial and specialized
+The microphone therefore hears the car speakers acoustically. It does not
+receive a clean digital copy of the recording.
 
-Conclusion:
-- melody extraction may become a useful "practice assist" feature
-- true notation should be treated as optional and likely commercial
+### Processing constraints
 
-## Proposed Build Order
+For music analysis, test a capture request with:
 
-### Phase 1: Lyrics Now
-- add lyrics panel
-- integrate LRCLIB lookup
-- match using artist/title/duration
-- add big-text mobile overlay
+```text
+echoCancellation: false
+noiseSuppression: false
+autoGainControl: false
+```
 
-### Phase 2: Better Coverage
-- add fallback plain-lyrics source such as lyrics.ovh if needed
-- cache lyric matches locally
-- expose match confidence and "wrong lyrics" feedback
+and record the actual `MediaStreamTrack.getSettings()` result. Android Chrome
+usually exposes all three. Safari may ignore independent noise-suppression and
+gain controls, and car/headset hardware may apply processing before the browser
+receives samples.
 
-### Phase 3: Sync
-- prefer synced lyrics when LRCLIB returns them
-- line highlighting during YouTube playback
-- smooth auto-scroll
+For detecting yui over speakers, a second condition with echo cancellation on
+is also necessary. Echo cancellation can damage sustained harmonics or
+consonant/voicing boundaries, while no cancellation may make the detector lock
+to the recording. There is no correct setting in the abstract; the car route
+must decide it from measured pitch accuracy.
 
-### Phase 4: Musical Metadata
-- experiment with key and tempo extraction
-- show song key when confidence is good enough
-- explore singer aids such as suggested starting note or transposition hint
+### Hard limits
 
-### Phase 5: Research Features
-- lyric alignment generation from audio
-- vocal extraction
-- melody transcription
-- chord analysis
-- notation export or sheet-music linking
+- A2DP adds route-dependent buffering. `YT.Player.getCurrentTime()` is media
+  time, not the instant that sample exits the car speaker. Alignment needs a
+  measured offset per phone/accessory route.
+- The page must be treated as foreground-only. iOS can interrupt capture or
+  Web Audio when hidden/locked, Android behavior varies by OEM, and YouTube
+  policy does not provide a supported background embedded-player contract.
+- A live pitch trace updates at animation-frame speed; car metadata does not.
+  Bluetooth receivers redraw unpredictably and the Media Session API gives no
+  delivery-frequency guarantee. The phone can show the full trace, while line
+  two should receive only a pitch that has remained stable, at most about once
+  per second initially.
+- With loud car speakers and no usable echo cancellation, MPM may detect the
+  recording rather than yui. This is a measured failure, not a case for
+  guessing which source won.
 
-## Cost View
+### Required device experiment
 
-### Cheapest credible path
-- LRCLIB first
-- local cache in browser
-- no backend required initially
+No product implementation should precede a route experiment:
 
-### Moderate-cost path
-- keep LRCLIB for free coverage
-- add Musixmatch for synced/licensed depth where needed
+| Phone/browser | Output | Requested input |
+|---------------|--------|-----------------|
+| Android Chrome (at least Pixel and Samsung) | phone speaker | built-in mic |
+| Android Chrome | A2DP-only speaker | built-in mic |
+| Android Chrome | dual-profile car/headset | default, built-in, then Bluetooth mic |
+| iPhone Safari | phone speaker | built-in mic |
+| iPhone Safari | A2DP-only speaker | available input |
+| iPhone Safari | AirPods and actual car | default and any enumerated phone mic |
 
-### High-effort research path
-- build alignment and music-analysis pipelines ourselves
-- likely requires backend jobs, storage, and heavier compute
+For each route:
 
-## Key Product Decisions
+1. Start playback then capture; repeat capture then playback.
+2. Record device labels, track capabilities/settings, sample rate,
+   `AudioContext` state, mute/end events, and whether output audibly falls from
+   A2DP to HFP.
+3. Tap the phone and accessory microphones to identify the physical input.
+4. Test processing off, echo cancellation on, and the browser default.
+5. Measure acoustic latency with a controlled same-origin click/chirp before
+   comparing it with YouTube time.
+6. Test isolated sung notes, full recorded mix, and yui singing over the mix.
+   Score voiced recall, octave errors, and cents error rather than judging by a
+   plausible-looking note label.
+7. Test route changes, interruption by a call, brief backgrounding, and lock.
+   Background success is diagnostic only, never a portability promise.
 
-1. Use provider-supplied synced lyrics before trying to generate sync ourselves.
-2. Treat large-text phone lyrics as a first-class feature, not a side panel only.
-3. Separate "user singing analysis" from "song audio analysis" because the first is much easier.
-4. Treat notation as a late-stage research feature, not a baseline promise.
+The experiment should be a diagnostic mode owned by `pitch-detect-core.js`,
+the sole `getUserMedia()` owner. It should expose raw route/settings evidence
+before any key or coaching claim.
 
-## Suggested Next Implementation
+## External Musical Information
 
-If wei implement this soon, the first slice should be:
-- add a `Lyrics` button on `player.html`
-- fetch from LRCLIB using normalized title + artist + duration
-- show lyrics in a side panel and a full-screen overlay
-- if synced lyrics are available, keep the data structure ready even if initial UI is plain text
+There is no single broad, legally reusable source for modern recordings'
+section keys, chords, and vocal melodies. Recording identity and every musical
+claim must retain separate provenance.
+
+### Sources suitable for direct integration
+
+| Source | Useful data | Contract and limitation |
+|--------|-------------|-------------------------|
+| [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API) | exact recording/release identity, MBID, ISRC, artist, duration, external links | no key/chords/melody; core data is CC0; keyless API with a meaningful User-Agent and rate limit |
+| [Wikidata](https://www.wikidata.org/wiki/Wikidata:Data_access) | sparse tonality, BPM, and meter claims with references | CC0 and keyless, but usually composition-level and very incomplete |
+| [McGill Billboard](https://ddmal.ca/research/The_McGill_Billboard_Project_(Chord_Analysis_Dataset)/) | beat-level chords, key changes, and verse/chorus/bridge structure for 740 chart recordings | CC0 and recording-aligned; limited mainly to 1958-1991 |
+| [SALAMI](https://github.com/DDMAL/salami-data-public) | hierarchical section boundaries for 1,300+ tracks | CC0; no chords or vocal melody |
+| [OpenScore Lieder](https://github.com/OpenScore/Lieder) | exact vocal notes, written key/meter/tempo, range, and starting pitch for public-domain art songs | CC0 scores; edition/composition facts are not automatically facts about a selected recording |
+
+[ReccoBeats](https://reccobeats.com/docs/documentation/introduction) is a
+current no-key candidate for estimated global key/mode/BPM/meter. It has no
+published reliability guarantee or service-level contract. It would be a new
+runtime dependency and therefore needs explicit approval plus a measured
+accuracy audit before integration. Values must be labeled `estimated`, never
+presented as score facts.
+
+### Sources that should be links, not ingested data
+
+- [Hooktheory TheoryTab](https://www.hooktheory.com/theorytab/) has the most
+  relevant section-labeled chords, key changes, and melody/range material, but
+  its public API exposes progression statistics rather than complete song
+  transcriptions and its terms prohibit scraping/redistribution.
+- Ultimate Guitar, Songsterr, and Chordify have broad chord/tab coverage but
+  no supported public data API for this use. Publisher/user licenses do not
+  transfer to Voice-Wei.
+- Genius is useful for annotations and section names, not structured musical
+  analysis; its API requires an account and does not grant lyric reuse.
+- Musicnotes and Singing Carrots often show original key or vocal range but
+  should be surfaced as ordinary links only.
+- GetSongKey/GetSongBPM require an account/API key and backlink; Tunebat and
+  SongBPM have no suitable stable public contract.
+
+The app may show normal outbound links to these sites. It must not scrape,
+copy chord-over-lyric pages, automate paid downloads, or assume that an AI
+summary changes the source's reuse rights.
+
+### Sources not suitable as foundations
+
+- Spotify Audio Features is deprecated/restricted for new apps, requires
+  account/quota conditions, and carries storage/ML restrictions.
+- AcousticBrainz stopped accepting submissions in 2022; its estimates are
+  frozen, its live service is expected to retire, and MetaBrainz documents
+  unreliable key/BPM predictions. Dumps may support a future offline audit,
+  not a live dependency.
+- DALI contains aligned vocal notes for modern songs but is restricted to
+  noncommercial research. POP909 and other research datasets have unresolved
+  composition-rights questions for product reuse.
+
+### Existing-provider web research
+
+The already configured Claude/OpenAI provider can search the web on explicit
+request. Musical Guide can use that path without adding an account or browser
+key, but its prompt and output contract must differ from Story Report:
+
+- identify the exact recording/version first;
+- cite every factual musical claim;
+- distinguish concert key, chord-shape key, capo, and tuning;
+- report source disagreement and confidence in the saved detail panel;
+- emit `unknown` rather than infer exact chords, range, or melody;
+- never reproduce restricted lyrics, tablature, or notation;
+- derive short second-line cues only from claims that passed validation.
+
+The second line can omit unknowns. The persisted full analysis cannot silently
+omit uncertainty, because incorrect singing instructions are worse than no
+instruction.
+
+## Musical Guide Data Contract
+
+Free-form prose is not sufficient for musical claims. One persisted record per
+selected recording should use named fields:
+
+```text
+RecordingMusicalAnalysis
+  videoId
+  recordingIdentity { musicBrainzRecordingId?, isrc?, artist, title, release }
+  global
+    concertKey: Claim<KeyMode>?
+    tempoBpm: Claim<number>?
+    meter: Claim<string>?
+    tuningHz: Claim<number>?
+    instrumentTuning: Claim<string>?
+    capo: Claim<number>?
+    chordShapeKey: Claim<KeyMode>?
+  sections[]
+    { label, startSec?, endSec?, key?, chords?, sourceIds[], confidence }
+  vocal
+    { range?, tessitura?, firstPitch?, melodySource?, recordingSpecific }
+  singingTips[]
+  listeningNotes[]
+  sourceLinks[]
+  generatedAt
+  provider
+  model
+
+Claim<T>
+  value
+  confidence
+  method: sourced | score-derived | dataset | estimated | user-corrected
+  sourceIds[]
+```
+
+`concertKey`, `chordShapeKey`, capo, and tuning are never aliases. A score's
+vocal range carries `recordingSpecific: false` until the selected recording is
+verified against it.
+
+The shared display layer derives `DisplayCue[]` from typed Story Report and
+Musical Guide records:
+
+```text
+DisplayCue { mode, text, startSec?, intervalIndex?, sourceIds[] }
+```
+
+Story cues advance by the selected interval. Musical cues use track/section
+time when a source provides trustworthy boundaries; otherwise they use the
+same interval clock. Lyrics keep their existing LRCLIB timeline independently.
+One deadline scheduler renders both lines from actual YouTube time.
+
+## Combined Build Plan
+
+### Stage 0: Correct and unify the two-line display — SHIPPED v287
+
+1. Keep timed lyrics on the primary line.
+2. Move Story Report to the secondary line.
+3. Add explicit `Identity | Story Report` secondary-line modes.
+4. Give `media-session-core.js` separate stable track identity, primary
+   display line, and secondary display line inputs.
+5. Keep artwork/position/playback keyed only to `videoId`.
+6. Verify the actual car displays title/artist in the expected order before
+   relying on the words “first” and “second.”
+
+### Stage 1: Source-grounded Musical Guide
+
+1. Add **Request Musical Guide** beside Story Report.
+2. Extend the selector to `Identity | Story Report | Musical Guide`.
+3. Use the selected existing AI provider's required web search.
+4. Save the structured record, exact prompt, complete response, citations,
+   model/provider, and source links before activating it.
+5. Validate keys/chords/ranges as typed claims; preserve conflicts and
+   unknowns in a detail panel.
+6. Generate <=50-character second-line cues for how to sing, play, understand,
+   and listen to the song.
+7. Reuse the selected interval; align cues to sections only when timestamps
+   are sourced.
+8. On replay, restart the saved guide without another request.
+
+This is the first useful musical version because it does not depend on
+unproven microphone routing.
+
+### Stage 2: Keyless/open structured enrichment
+
+After explicit approval of any new runtime source:
+
+1. Resolve exact recording identity through MusicBrainz.
+2. Read sparse Wikidata claims and references.
+3. Match CC0 McGill/SALAMI annotations where catalog coverage exists.
+4. Derive vocal facts from explicitly compatible open scores only, labeled as
+   score-derived.
+5. Audit ReccoBeats against known recordings before deciding whether its
+   estimates deserve a runtime role.
+6. Surface ordinary links for restricted chord/tab/range sites.
+
+### Stage 3: Microphone route diagnostic
+
+1. Build the device matrix above as a diagnostic, not a user-facing promise.
+2. Extend `pitch-detect-core.js` to expose capture settings and spectral frames
+   while preserving its ownership of microphone access.
+3. Measure MPM on isolated voice and sing-over-playback conditions.
+4. Add chroma/HPCP key estimation as a separate algorithm; never reinterpret
+   MPM's one-note output as a chord/key.
+5. Store confidence, route, processing settings, and calibration with every
+   experiment.
+
+### Stage 4: Live singing display
+
+Only after a real car route passes:
+
+1. Show the full pitch trace and confidence on the phone.
+2. Publish a held note/cents summary to the secondary Bluetooth line no faster
+   than receiver testing supports.
+3. Never publish a pitch when accompaniment leakage makes source identity
+   ambiguous.
+4. Keep voice recognition and pitch capture as explicit mutually exclusive
+   microphone sessions.
+
+### Stage 5: Section and vocal alignment
+
+1. Align sourced verse/chorus/bridge boundaries to LRCLIB line times.
+2. Show section key/chords beside the corresponding lyric when provenance is
+   strong.
+3. Add user correction for key, capo, section boundaries, and source match;
+   user-corrected claims outrank estimates.
+4. Compare live singing against a target only when a legal,
+   recording-specific vocal melody exists.
+
+Arbitrary commercial-recording vocal extraction, source separation, and
+generated notation remain research. They must not be implied by a global key
+estimate or a chord-page link.
+
+## Decisions Established by This Research
+
+1. Lyrics remain the primary line; secondary accompaniment is mode-selectable.
+2. Story and Musical records are separate typed concepts with one shared cue
+   renderer.
+3. Source-grounded Musical Guide precedes microphone-derived analysis.
+4. Existing MPM can test user voice; it cannot infer full-mix harmony.
+5. Full-mix key needs chroma/HPCP and measured confidence.
+6. Exact recorded vocal melody is unavailable for most commercial songs
+   without restricted notation or heavy source-separation/transcription work.
+7. Restricted chord/tab/range sites are outbound links only.
+8. No new runtime data provider, account, paid service, or analysis dependency
+   is added without explicit approval.
+9. The real phone/car route, not desktop simulation, is the acceptance test
+   for microphone and second-line Bluetooth behavior.
