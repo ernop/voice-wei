@@ -664,7 +664,7 @@ markup. `segmentSongReport` then owns the only derived representation: it
 collapses whitespace and splits at punctuation or word boundaries, hard-capped
 at 50 characters. The raw prose and derived lines are saved together before
 Report mode activates. A missing report is therefore not a disabled state:
-selecting Story Report checks IndexedDB, requests only if absent, displays the
+selecting Song Report checks IndexedDB, requests only if absent, displays the
 send/wait/result lifecycle with elapsed time, and anchors line one at the
 current playback time after the awaited save. Every transition is written
 through the durable Music Log path.

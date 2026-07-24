@@ -488,7 +488,7 @@ Rules:
                         ? lifecycleLabel
                         : (requestState?.phase === 'playing' && effectiveMode === 'report'
                             ? `Playing ${requestState.returnedLines} lines`
-                            : (requestState?.phase === 'failed' ? 'Retry Story Report' : 'Story Report'));
+                            : (requestState?.phase === 'failed' ? 'Retry Song Report' : 'Song Report'));
                     reportButton.classList.toggle('selected', reportSelected);
                     reportButton.setAttribute('aria-pressed', String(reportSelected));
                 }
@@ -517,7 +517,7 @@ Rules:
                     } else {
                         status.textContent = record
                             ? `${record.lines.length} saved lines`
-                            : 'No saved report; Story Report will request one';
+                            : 'No saved report; Song Report will request one';
                     }
                 }
             }

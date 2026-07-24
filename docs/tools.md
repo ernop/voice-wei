@@ -320,12 +320,12 @@ exact timed time. Big Lyrics closes with Escape. If playback advances to
 another song while Big Lyrics remains open, the new lyrics begin at the top
 instead of retaining the prior song's scroll position.
 
-**Song Report** is the alternative second-line accompaniment. Press **Story
+**Song Report** is the alternative second-line accompaniment. Press **Song
 Report** for the selected or sounding song. If that song has a saved report,
 it starts immediately; if not, the same button requests one from the selected
 AI provider/model. **Request Song Report** remains the explicit refresh action.
 While research is in flight, both buttons show the sending/waiting phase and
-the elapsed wait. On return, the Story Report button and adjacent status name
+the elapsed wait. On return, the Song Report button and adjacent status name
 the returned character/line counts, provider/model, elapsed time, and active
 playback interval.
 
@@ -336,8 +336,8 @@ splits at nearby punctuation when possible, otherwise at a word boundary, with
 a hard 50-character maximum. It saves both the untouched returned prose and
 the derived lines by `videoId`, switches to Report mode, anchors line one at
 the current media time, and starts advancing immediately. The **Every**
-stepper chooses 3–30 seconds per line. **Identity / Story Report** chooses the
-second line: Identity keeps `year - artist - song`, while Story Report advances
+stepper chooses 3–30 seconds per line. **Identity / Song Report** chooses the
+second line: Identity keeps `year - artist - song`, while Song Report advances
 the saved text. Timed lyrics continue independently on the first line.
 Artwork and YouTube position remain the same. A replay starts the saved report
 from line one without another AI call. The Log records the request body,

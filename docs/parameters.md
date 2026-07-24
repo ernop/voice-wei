@@ -265,7 +265,7 @@ playback update, or lyric render without replaying anything.
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay timed lyrics on the first line and the selected identity/report value on the second) |
 | showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
-| songDisplayMode | identity | identity / report | immediate (switches the second display line; Story Report is available when the selected song has a saved report) |
+| songDisplayMode | identity | identity / report | immediate (switches the second display line; Song Report is available whenever a song is selected and requests one when none is saved) |
 | songReportIntervalSeconds | 8 | 3, 4, 5, 6, 8, 10, 12, 15, 20, 30 seconds | immediate (keeps the current report line, then schedules subsequent lines at the new interval; audio never restarts) |
 
 The per-query Model pills under the request box set the same settings

@@ -3725,7 +3725,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             storyReportButton.click();
             await Promise.resolve();
             await Promise.resolve();
-            if (!resolveResearch) throw new Error('Story Report did not start a missing-report request');
+            if (!resolveResearch) throw new Error('Song Report did not start a missing-report request');
 
             requestHarness.songReportRequestState = {
                 ...requestHarness.songReportRequestState,
@@ -3820,7 +3820,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.controls.afterDown === '8s'
             && songReport.controls.noReportFallsBackToIdentity);
         const requestLifecycle = songReport.requestLifecycle;
-        report.check('Story Report requests a missing report and displays elapsed wait state in both buttons',
+        report.check('Song Report requests a missing report and displays elapsed wait state in both buttons',
             requestLifecycle.waiting.reportButton === 'Waiting 3s'
             && requestLifecycle.waiting.requestButton === 'Waiting 3s'
             && requestLifecycle.waiting.status.includes('OpenAI gpt-5.5')
