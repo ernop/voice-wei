@@ -379,6 +379,7 @@ interface VoiceMusicController {
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
     lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
     describeSongIdentity(item: PlaylistItem): string;
+    describeNowPlayingArtist(item: PlaylistItem): string;
     lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;
     applyActiveLyricsLine(activeIndex: number, force?: boolean): void;
     relayLyricToNowPlaying(activeIndex: number, currentTime?: number): void;

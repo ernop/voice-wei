@@ -3219,8 +3219,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // The now-playing title (car / lock screen / tab / header line):
         // song identity for the first seconds, a countdown prefix before
         // a late first lyric line, then the bare lyric led ahead of the
-        // sung moment - and outside the identity window, never song or
-        // artist. Pause clears the surfaces.
+        // sung moment. Title never carries song/artist past the intro;
+        // Media Session artist stays year - artist - song while playing.
+        // Pause clears the surfaces.
         const lyricRelay = await tab.evaluate(() => {
             const item = {
                 id: 77, name: 'Test Song', artist: 'Test Artist', year: '1999', album: 'Test Album',
@@ -3277,10 +3278,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return { identity, countdown, led, during, after };
         });
         const identityText = 'Test Artist - Test Song - 1999 - Test Album';
-        const neverSongArtistPastIntro = [lyricRelay.countdown, lyricRelay.led, lyricRelay.during, lyricRelay.after]
-            .every(snap => !snap.metaTitle.includes('Test Song') && !snap.metaArtist.includes('Test Artist')
-                && !snap.docTitle.includes('Test Song'));
-        report.check(`player titles: identity intro, countdown, then lyric only ("${lyricRelay.identity.metaTitle}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}", clean past intro: ${neverSongArtistPastIntro})`,
+        const artistLine = '1999 - Test Artist - Test Song';
+        const titleCleanPastIntro = [lyricRelay.countdown, lyricRelay.led, lyricRelay.during, lyricRelay.after]
+            .every(snap => !snap.metaTitle.includes('Test Song') && !snap.docTitle.includes('Test Song'));
+        const artistLineWhilePlaying = [lyricRelay.identity, lyricRelay.countdown, lyricRelay.led, lyricRelay.during]
+            .every(snap => snap.metaArtist === artistLine);
+        report.check(`player titles: identity intro, countdown, then lyric + artist line ("${lyricRelay.identity.metaTitle}" / "${lyricRelay.identity.metaArtist}" -> "${lyricRelay.countdown.metaTitle}" -> "${lyricRelay.led.metaTitle}")`,
             lyricRelay.identity.metaTitle === identityText
             && lyricRelay.identity.docTitle === identityText
             && lyricRelay.identity.headerTitle === identityText
@@ -3296,9 +3299,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricRelay.during.barLyric === 'late first line'
             && lyricRelay.during.highlightIndex === 0
             && lyricRelay.after.metaTitle === ''
+            && lyricRelay.after.metaArtist === ''
             && lyricRelay.after.docTitle !== 'late first line'
             && lyricRelay.after.headerTitle === 'Lyrics'
-            && neverSongArtistPastIntro);
+            && titleCleanPastIntro
+            && artistLineWhilePlaying);
         // Car/title relay follows the sounding track even when the lyrics
         // panel is focused on a different row (chip tap must not freeze
         // the Bluetooth/header lyric line).

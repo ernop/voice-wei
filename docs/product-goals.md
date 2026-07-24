@@ -93,7 +93,9 @@ checked against this list, and new standing intent gets added here.
 3. **Sing along from any display.** The now-playing title (car
    Bluetooth, lock screen, tab, header) is the sung lyric line, with a
    short song-identity intro at track start and a countdown before a
-   late first line. Never song/artist outside the identity intro.
+   late first line. The Media Session artist line (car/lock-screen
+   second row) stays `year - artist - song` for the whole play so song
+   identity remains visible under the lyric.
 4. **Nothing is ever lost.** Every song seen, every lookup, every lyric
    state is durably recorded (IndexedDB); the playlist is a convenience
    view over that. Interruption at ANY point (page evicted mid-search,

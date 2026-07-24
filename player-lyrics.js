@@ -943,6 +943,19 @@ const PlayerLyrics = (function () {
             },
 
             /**
+             * Media Session artist line (car/lock-screen second row):
+             * year - artist - song name. Title stays the lyric; this line
+             * keeps song identity visible for the whole play.
+             * @param {PlaylistItem} item
+             */
+            describeNowPlayingArtist(item) {
+                return [item.year, item.artist, item.name]
+                    .map(part => String(part || '').trim())
+                    .filter(Boolean)
+                    .join(' - ');
+            },
+
+            /**
              * What the title spots (car/lock-screen metadata, tab title,
              * header lyric line, sticky-bar lyric row) show at a moment:
              * - First seconds of a song: the song's identity, so the
@@ -1003,11 +1016,11 @@ const PlayerLyrics = (function () {
              * the tab title). Writes are event-driven - the deadline clock
              * wakes exactly at lyric-line boundaries and display seconds -
              * and identical repeats are dropped by the core, so the car
-             * gets one push per distinct text. The text is the sung lyric
-             * line, except: the song-identity intro for a song's first
-             * seconds, and the countdown prefix before a late first line
-             * (see lyricDisplayTextAt). Outside those, song/artist names
-             * are never written; with nothing to show the surfaces clear.
+             * gets one push per distinct text. Title is the sung lyric
+             * line (plus identity intro / late-first-line countdown; see
+             * lyricDisplayTextAt). Artist is always year - artist - name
+             * while playing, so the car's second row keeps song identity.
+             * With nothing to show the surfaces clear.
              * @param {number} activeIndex
              * @param {number} [currentTime]
              */
@@ -1026,7 +1039,9 @@ const PlayerLyrics = (function () {
                     // Chrome routes the car to the YouTube iframe.
                     MediaSessionCore.ensurePlayingSession();
                     // Repeat writes of the same line are dropped by the core.
-                    MediaSessionCore.setNowPlayingTitle(line, { artist: '' });
+                    MediaSessionCore.setNowPlayingTitle(line, {
+                        artist: this.describeNowPlayingArtist(item)
+                    });
                     this.nowPlayingShowsLyric = true;
                 } else if (this.nowPlayingShowsLyric) {
                     this.nowPlayingShowsLyric = false;

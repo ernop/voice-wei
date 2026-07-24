@@ -307,10 +307,12 @@ title spots follow one sequence per song: for the first 2 seconds the
 song's identity (artist - name - year - album, so you know who and what
 it is), then -- when the first lyric line starts more than 5 seconds in
 -- the upcoming line prefixed with a per-second countdown, then the bare
-sung lyric line and nothing else (song/artist are never written outside
-the identity intro). Car / lock-screen / tab / header titles lead the
-sung line by 0.75s so Bluetooth metadata redraw lands near the moment
-the line starts; the on-screen highlight stays on the exact timed time.
+sung lyric line. The Media Session artist field (car/lock-screen second
+row) is always `year - artist - song` while playing, so identity stays
+under the lyric after the intro ends. Car / lock-screen / tab / header
+titles lead the sung line by 0.75s so Bluetooth metadata redraw lands
+near the moment the line starts; the on-screen highlight stays on the
+exact timed time.
 Writes are pushed into the OS media session exactly when the text
 changes (line boundaries / countdown seconds); the car pulls its redraw
 from that. On this page the header gives the lyric
