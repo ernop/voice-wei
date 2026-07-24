@@ -226,6 +226,10 @@ Claude or OpenAI interprets the request; the same-origin PHP endpoint then
 queries Piped/Invidious to find videos without a YouTube API key. Music
 requires one AI-provider key stored in localStorage. Settings cover keys,
 auto-submit vs manual voice mode, model selection, and spoken responses.
+The page records `Startup: Ready in ...` in its Log after controls, stored
+settings, the local song library, and the restored playlist are usable. The
+browser console carries the full named phase, navigation, resource, and
+long-task tables when a slow load needs diagnosis.
 
 Transport voice commands:
 

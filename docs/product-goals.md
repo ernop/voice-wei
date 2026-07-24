@@ -116,6 +116,11 @@ checked against this list, and new standing intent gets added here.
    so; key-level provider failures (spend/rate limits, billing) show a
    persistent banner naming the provider and where to fix it; the exact
    model in use is named at request time and choosable per query.
+8. **Ready within one second.** The page has one measured readiness boundary
+   after its controls, stored settings, local library, and restored playlist
+   are usable. Every load records named startup phases and resource costs;
+   external YouTube readiness and bounded lyric backfill run in parallel and
+   do not hold the page in initialization.
 
 ## Current priorities (deduplicated from the idea pool)
 
