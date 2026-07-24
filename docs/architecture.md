@@ -245,6 +245,11 @@ core self-primes on the first user gesture; pages never wire activation.
 Trace and pitch-meter deliberately do not register - they are
 watch-the-screen tools where hardware keys add nothing.
 
+The Lyrics player intentionally changes Media Session title text within one
+continuing song. Track identity, lyric text, YouTube position, artwork, and
+silent-audio session ownership must remain separate concepts; see
+[media-session-lyrics-design.md](media-session-lyrics-design.md).
+
 **Deadline scheduling, not polling.** Timeline-driven UI (the player's
 progress bar, time text, lyric highlight, and now-playing lyric title)
 never runs on a fixed-interval timer. The moments at which those
