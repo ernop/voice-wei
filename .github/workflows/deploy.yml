@@ -29,21 +29,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
+          package-manager-cache: false
 
       # package-lock.json is gitignored (project choice). Cache node_modules by
       # package.json so warm deploys skip npm install entirely.
       - name: Cache node_modules
         id: npm-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package.json') }}
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package.json') }}
 
       - name: Install npm deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
@@ -51,29 +52,31 @@ jobs:
 
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
 
-      # Cold: download Chromium + OS deps. Warm: browsers restored from cache;
-      # skip install-deps (ubuntu-latest already has the libs headless needs).
+      # A cache hit already contains the exact package.json-pinned browser.
+      # Running `playwright install` again on every warm deploy cost four
+      # seconds without changing anything.
       - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # These gates are independent readers of the checkout. Running them
+      # together keeps the browser suite as the critical path while preserving
+      # every failure.
+      - name: Validate in parallel
         run: |
-          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install chromium
-          else
-            npx playwright install --with-deps chromium
-          fi
-
-      - name: Typecheck (typed contracts)
-        run: npm run typecheck
-
-      - name: Lint (architecture guards)
-        run: npm run lint
-
-      - name: Fast browser suite
-        run: npm test
+          npm run typecheck & typecheck_pid=$!
+          npm run lint & lint_pid=$!
+          npm test & tests_pid=$!
+          status=0
+          wait "$typecheck_pid" || status=1
+          wait "$lint_pid" || status=1
+          wait "$tests_pid" || status=1
+          exit "$status"
 
       - name: Set up SSH
         run: |

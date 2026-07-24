@@ -72,8 +72,8 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 Production shipping is defined in `.github/workflows/deploy.yml`:
 
-1. Checkout; restore cached `node_modules` + Playwright browsers when possible
-2. `npm run typecheck`, `npm run lint`, `npm test`
+1. Checkout; select Node 24; restore cached `node_modules` + Playwright Chromium
+2. Run `npm run typecheck`, `npm run lint`, and `npm test` concurrently
 3. rsync `--delete` to the server (excludes below) — **site live**
 
 `.github/workflows/deploy-telemetry.yml` starts only after a successful
@@ -81,9 +81,12 @@ production workflow has completed. It generates and uploads
 `deploy-telemetry.json` independently, so telemetry setup/API work cannot keep
 the production run open after the site is verified live.
 
-Warm deploys skip `npm install` and Playwright's OS-deps install (browsers
-come from cache). Cold deploys populate the caches. Concurrency: one deploy
-at a time; newer pushes cancel in-flight older ones.
+Warm deploys run no npm or Playwright install command: `node_modules` and the
+package-pinned Chromium binary come directly from their caches. Cold deploys
+populate those caches and install Chromium's OS dependencies. The three
+validation gates only read the checkout, so they run concurrently with the
+browser suite as the critical path. Concurrency remains one deploy at a time;
+newer pushes cancel in-flight older ones.
 
 ### rsync excludes (CI and `deploy.sh` must match)
 
