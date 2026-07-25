@@ -646,6 +646,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
+        report.check(`song report prompt excludes music videos and bare personnel credits`,
+            /Do not report music-video concepts, imagery, production, cast, directors, reception, or view counts/.test(songReport.prompt)
+            && /Credits are not notes/.test(songReport.prompt)
+            && /Do not name musicians or other personnel merely to say who played, sang, wrote, produced, engineered, directed, or appeared/.test(songReport.prompt)
+            && /Mention a person only when a well-sourced story, relationship, or creative decision involving them is itself notable/.test(songReport.prompt));
         report.check(`song report prompt supports separate research from references in the lyrics`,
             /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics; report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
         report.check(`song report prompt includes Orwell's six rules verbatim`,

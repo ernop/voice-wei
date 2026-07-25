@@ -111,6 +111,8 @@ Rules:
 - Every factual claim and interpretation must be traceable to material you found. Keep source attribution out of lyricNotes and generalNotes; put it only in the final attributions list.
 - Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
 - Select positive, interesting, well-supported material, but never soften, intensify, or change a source's meaning to improve the tone.
+- Do not report music-video concepts, imagery, production, cast, directors, reception, or view counts.
+- Credits are not notes. Do not name musicians or other personnel merely to say who played, sang, wrote, produced, engineered, directed, or appeared. Mention a person only when a well-sourced story, relationship, or creative decision involving them is itself notable.
 ${lyricRules}
 - Display notes must state only the sourced idea. Never name or refer to a critic, reviewer, magazine, publication, or other source in a note, and never use phrases such as "critics said" or "according to."
 - Never put a raw URL anywhere in the response, including attributions.
