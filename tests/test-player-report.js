@@ -357,6 +357,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 generalNotes: ['The vocals and rhythm were recorded live.'],
                 attributions: ['Example Review: second-verse reading']
             }), item);
+            // The display boundary strips citations and URLs that slip
+            // past the prompt; citation-only notes vanish from display.
+            const sanitizedEntries = harness.parseSongReportResponse(JSON.stringify({
+                lyricNotes: [
+                    { line: 1, note: 'The [opening line](https://example.com/analysis) sets the scene [2].' }
+                ],
+                generalNotes: [
+                    'The producer described the take at rollingstone.com/interview as unplanned.',
+                    'See https://example.com/full-review',
+                    'Sales climbed after the tour (www.billboard.com).'
+                ]
+            }), item);
             const record = {
                 videoId: item.videoId,
                 generatedAt: Date.now(),
@@ -573,6 +585,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 prompt,
                 parsedEntries,
+                sanitizedEntries,
                 schedule,
                 beforeNotes,
                 atAnchoredNote,
@@ -652,6 +665,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.parsedEntries[2].time === null
             && songReport.storedEntries.length === 2
             && songReport.storedEntries[0].time === 60);
+        report.check(`display notes shed citations and URLs; citation-only notes never display`,
+            songReport.sanitizedEntries.length === 3
+            && songReport.sanitizedEntries[0].text === 'The opening line sets the scene.'
+            && songReport.sanitizedEntries[1].text === 'The producer described the take at as unplanned.'
+            && songReport.sanitizedEntries[2].text === 'Sales climbed after the tour.');
         report.check(`lyric-anchored notes play at their sung moment with general notes in the largest gap`,
             songReport.schedule.length === 2
             && songReport.schedule[0].at === 60

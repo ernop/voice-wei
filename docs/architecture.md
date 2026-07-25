@@ -714,7 +714,12 @@ requires JSON output: `lyricNotes` keyed to those line numbers plus
 provided lyrics (no quoting is permitted when none were provided).
 `parseSongReportResponse` converts that JSON into
 `SongReportEntry` records - a note keyed to a valid line number carries that
-line's sung time; everything else is untimed. `songReportSchedule` owns
+line's sung time; everything else is untimed. Before an entry exists,
+`sanitizeSongReportNote` enforces the no-citation display contract at the
+parse boundary: markdown links keep only their visible words, bare URLs,
+domains, and numeric citation markers are stripped, and a note left under
+twenty characters by that cleaning is dropped from display (the stored raw
+response retains the full material). `songReportSchedule` owns
 playback timing: anchored notes at their absolute sung moments, untimed notes
 at the midpoints of the largest remaining gaps (or interval-advanced from the
 anchor when nothing is anchored), with over-budget notes wrapped by

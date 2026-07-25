@@ -132,6 +132,35 @@ vi. Break any of these rules sooner than say anything outright barbarous.
             },
 
             /**
+             * Display notes never carry citations or URLs. The prompt
+             * forbids them; this boundary strips any that slip through a
+             * provider response. A note that was nothing but a citation
+             * disappears from display - the raw response with its
+             * attributions stays in the stored record and the Log.
+             * @param {string} noteText
+             */
+            sanitizeSongReportNote(noteText) {
+                const original = String(noteText || '').replace(/\s+/g, ' ').trim();
+                // Markdown links keep their visible words.
+                let text = original.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+                // Bare URLs and domain paths disappear; stop before a
+                // closing bracket so surrounding punctuation survives.
+                text = text.replace(/\bhttps?:\/\/[^\s)\]]+/gi, ' ');
+                text = text.replace(/\bwww\.[^\s)\]]+/gi, ' ');
+                text = text.replace(/\b[\w-]+\.(?:com|org|net|edu|gov|io|co|fm|tv|uk|de|fr)\b(?:\/[^\s)\]]*)?/gi, ' ');
+                // Numeric citation markers such as [3] or [1, 2].
+                text = text.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, ' ');
+                // Brackets and parens left empty by the removals.
+                text = text.replace(/\(\s*\)|\[\s*\]/g, ' ');
+                text = text.replace(/\s+([.,;:!?])/g, '$1');
+                text = text.replace(/\s+/g, ' ').trim();
+                // A cleaned note this short was mostly citation; it has no
+                // displayable idea left.
+                if (text !== original && text.length < 20) return '';
+                return text;
+            },
+
+            /**
              * Turn the model's JSON response into report entries. Notes tied
              * to a valid numbered lyric line carry that line's sung time;
              * everything else is a general (untimed) note.
@@ -158,14 +187,14 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                 /** @type {SongReportEntry[]} */
                 const entries = [];
                 for (const note of parsed.lyricNotes || []) {
-                    const text = String(note?.note || '').trim();
+                    const text = this.sanitizeSongReportNote(note?.note);
                     if (!text) continue;
                     const lineNumber = Number(note?.line);
                     const synced = Number.isInteger(lineNumber) ? syncedLines[lineNumber - 1] : undefined;
                     entries.push({ time: synced ? synced.time : null, text });
                 }
                 for (const note of parsed.generalNotes || []) {
-                    const text = String(note || '').trim();
+                    const text = this.sanitizeSongReportNote(note);
                     if (text) entries.push({ time: null, text });
                 }
                 if (entries.length === 0) {

@@ -339,7 +339,11 @@ without source names or attribution phrases. They never contain raw URLs,
 song or album titles, release dates or years, record labels, publication
 names, or critic names. Source attribution follows the display-note fields in
 a separate `attributions` list retained in the research response and never
-shown as a note. Distinctive words, phrases, places, terms, people, objects,
+shown as a note. The parse boundary enforces this beyond the prompt: markdown
+links collapse to their visible words, bare URLs, domains, and numeric
+citation markers are stripped from every note before display, and a note that
+was mostly citation never displays at all (the raw response keeps everything).
+Distinctive words, phrases, places, terms, people, objects,
 events, or ideas in the lyrics may seed separate research; useful sourced
 context does not need a source that already connects it to the song. Every
 note follows George Orwell's six writing rules, which the research prompt

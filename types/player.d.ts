@@ -550,6 +550,7 @@ interface VoiceMusicController {
     songReportForItem(item: PlaylistItem | null | undefined): SongReportRecord | null;
     songReportLyricsText(item: PlaylistItem): string;
     buildSongReportPrompt(item: PlaylistItem): string;
+    sanitizeSongReportNote(noteText: string | null | undefined): string;
     parseSongReportResponse(responseText: string, item: PlaylistItem): SongReportEntry[];
     songReportSchedule(item: PlaylistItem): Array<{ at: number; text: string }>;
     songReportDisplayAt(item: PlaylistItem | null | undefined, currentTime: number): { text: string; blank: boolean };
