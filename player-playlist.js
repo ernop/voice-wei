@@ -855,6 +855,16 @@ const PlayerPlaylist = (function () {
                                 },
                                 onStateChange: (event) => {
                                     PlayerLifecycle.recordYouTubeState(event.data);
+                                    // Android can pause the iframe as the page
+                                    // becomes hidden. Preserve an active
+                                    // transport unless our own state already
+                                    // records an intentional pause.
+                                    if (event.data === YT.PlayerState.PAUSED
+                                        && document.hidden
+                                        && this.playback.isPlaying) {
+                                        event.target.playVideo();
+                                        return;
+                                    }
                                     // Auto-advance to next when video ends
                                     if (event.data === YT.PlayerState.ENDED) {
                                         if (this.playback.shouldSuppressAutoAdvance()) {
@@ -1344,7 +1354,6 @@ const PlayerPlaylist = (function () {
                     const player = this.playback.player;
                     if (player && typeof player.pauseVideo === 'function') {
                         PlayerLifecycle.recordIntent('pause');
-                        player.pauseVideo();
                         // Freeze the receiver at the real YouTube position
                         // before stopping the deadline clock.
                         this.renderPlaybackPosition();
@@ -1352,6 +1361,9 @@ const PlayerPlaylist = (function () {
                         MediaSessionCore.setPlaybackState('paused');
                         this.updatePlayPauseButton();
                         this.stopProgressUpdates();
+                        // State changes before the provider command so even a
+                        // synchronous PAUSED callback remains intentional.
+                        player.pauseVideo();
                     }
                 }
             },

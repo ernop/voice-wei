@@ -427,6 +427,9 @@ Other surfaces on the page:
   means ownership still requires it. `Playback diagnostic` lines label the
   session `keepAlive=disabled` so evidence from experiment runs is
   distinguishable.
+- During active playback, an unsolicited YouTube pause as the page becomes
+  hidden is resumed immediately. A pause from the page transport, Media
+  Session controls, or voice command remains paused.
 - **Three-player prebuffer probe**: append `?prebufferProbe=1` to the Music
   URL, load at least three songs, and start one. Normal playback remains on
   its existing player while two muted off-screen players warm the next two

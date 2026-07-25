@@ -94,6 +94,100 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         && pausedUnderPlaying.stored.playback.positionSeconds === 42.5
         && pausedUnderPlaying.diagnostic.includes('youtube=paused(2)'));
 
+    const hiddenPauseRecovery = await tab.evaluate(async () => {
+        const controller = window.musicController;
+        if (!controller) throw new Error('Music controller missing');
+        const realYT = window.YT;
+        const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+        const visibilityDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+        class FakePlayer {
+            constructor(id, options) {
+                this.options = options;
+                this.playCalls = 0;
+                this.pauseCalls = 0;
+                this.state = 1;
+                queueMicrotask(() => options.events.onReady({ target: this }));
+            }
+            playVideo() {
+                this.playCalls++;
+                this.state = 1;
+            }
+            pauseVideo() {
+                this.pauseCalls++;
+                this.state = 2;
+                this.options.events.onStateChange({ target: this, data: 2 });
+            }
+            getCurrentTime() { return 48; }
+            getPlayerState() { return this.state; }
+            getDuration() { return 180; }
+            getPlaybackRate() { return 1; }
+        }
+        window.YT = {
+            Player: FakePlayer,
+            PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2 }
+        };
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        const item = {
+            id: 78,
+            videoId: 'hidden-pause-video',
+            name: 'Hidden pause test',
+            title: 'Hidden pause test'
+        };
+        controller.playback.reset();
+        controller.playlist = [item];
+        controller.createPlaylistPlayer(item);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const player = controller.playback.player;
+        if (!(player instanceof FakePlayer)) throw new Error('Fake YouTube player missing');
+        controller.playback.markPlaying(item.id);
+        navigator.mediaSession.playbackState = 'playing';
+
+        player.state = 2;
+        player.options.events.onStateChange({ target: player, data: 2 });
+        const providerPause = {
+            playCalls: player.playCalls,
+            appStatus: controller.playback.status,
+            mediaSessionState: MediaSessionCore.getPlaybackState(),
+            hidden: document.hidden
+        };
+
+        player.state = 1;
+        controller.playback.markPlaying(item.id);
+        const playCallsBeforeUserPause = player.playCalls;
+        controller.pausePlayback();
+        const userPause = {
+            addedPlayCalls: player.playCalls - playCallsBeforeUserPause,
+            pauseCalls: player.pauseCalls,
+            appStatus: controller.playback.status,
+            mediaSessionState: MediaSessionCore.getPlaybackState()
+        };
+
+        if (hiddenDescriptor) Object.defineProperty(document, 'hidden', hiddenDescriptor);
+        else delete document.hidden;
+        if (visibilityDescriptor) Object.defineProperty(document, 'visibilityState', visibilityDescriptor);
+        else delete document.visibilityState;
+        window.YT = realYT;
+        controller.playback.reset();
+        controller.playlist = [];
+        controller.playback.setActiveMedia(77, 'diagnostic-video');
+        controller.playback.markPlayerReady(/** @type {any} */ ({
+            getCurrentTime: () => 42.5,
+            getPlayerState: () => 2
+        }));
+        controller.playback.markPlaying(77);
+        return { providerPause, userPause };
+    });
+    report.check('hidden provider pause resumes playback without overriding an intentional user pause',
+        hiddenPauseRecovery.providerPause.hidden
+        && hiddenPauseRecovery.providerPause.playCalls === 1
+        && hiddenPauseRecovery.providerPause.appStatus === 'playing'
+        && hiddenPauseRecovery.providerPause.mediaSessionState === 'playing'
+        && hiddenPauseRecovery.userPause.pauseCalls === 1
+        && hiddenPauseRecovery.userPause.addedPlayCalls === 0
+        && hiddenPauseRecovery.userPause.appStatus === 'paused'
+        && hiddenPauseRecovery.userPause.mediaSessionState === 'paused');
+
     const heartbeatEvidence = await tab.evaluate(() => {
         const logLinesBefore = document.querySelectorAll('#logContent .log-line').length;
         PlayerLifecycle.recordHeartbeat();
