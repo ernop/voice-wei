@@ -540,6 +540,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const overlay = document.getElementById('apiKeyOverlay');
             return !overlay || getComputedStyle(overlay).display === 'none';
         });
+        const keyLoadLog = await tab.evaluate(() =>
+            Array.from(document.querySelectorAll('#logContent .log-line'))
+                .map(line => line.textContent || '')
+                .find(line => line.includes('Claude API Key:')) || '');
         await tab.click('#settingsBtn');
         await tab.waitForTimeout(400);
         const panelOpen = await tab.evaluate(() =>
@@ -548,7 +552,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await tab.waitForTimeout(300);
         const panelClosed = await tab.evaluate(() =>
             getComputedStyle(document.getElementById('settingsPanel')).display === 'none');
-        report.check('player with key: overlay gone, settings open/close', overlayGone && panelOpen && panelClosed);
+        report.check('player with key: overlay gone, logs omit key fragments, settings open/close',
+            overlayGone
+            && keyLoadLog.includes('Claude API Key: Loaded')
+            && !keyLoadLog.includes('test-key-')
+            && panelOpen
+            && panelClosed);
 
         // The Notes toggle is wired to the real controller: default off,
         // checking it flips the setting and the container class instantly.

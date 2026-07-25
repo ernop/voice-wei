@@ -518,12 +518,10 @@ class VoiceMusicController {
         this.config = PlayerApiKeys.loadConfig();
 
         if (this.config.claudeApiKey) {
-            const keyPreview = this.config.claudeApiKey.substring(0, 10) + '...';
-            this.addMessage('claude', 'Claude API Key', `Loaded (${keyPreview})`);
+            this.addMessage('claude', 'Claude API Key', 'Loaded');
         }
         if (this.config.openaiApiKey) {
-            const keyPreview = this.config.openaiApiKey.substring(0, 10) + '...';
-            this.addMessage('claude', 'OpenAI API Key', `Loaded (${keyPreview})`);
+            this.addMessage('claude', 'OpenAI API Key', 'Loaded');
         }
 
         const hasAnyKey = this.config.claudeApiKey || this.config.openaiApiKey;
