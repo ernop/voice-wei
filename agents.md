@@ -162,6 +162,10 @@ parameters (setting behaviors), tools (user-visible behavior).
    that change, then push `master` once — Actions deploys. Skip the bump for
    docs/tests/rules-only pushes. Never push a bump-only commit. Cursor's PR
    diff stays empty under master-direct; that is expected.
+   **End-of-run invariant:** before the final summary, `gh pr list --state
+   open` must be empty and `git ls-remote --heads origin 'cursor/*'` must
+   return nothing; delete any residue mei created (`git push origin --delete
+   <branch>`).
 3. After deploy, confirm on the live site: reload and check the header version
    matches what was just shipped.
 4. When a session produced lessons worth keeping, append a diary entry
