@@ -1204,8 +1204,7 @@ const PlayerPlaylist = (function () {
                 }
                 // Song change or clear: the bar lyric belongs to the previous
                 // song until this song's synced position writes its own.
-                this.updateTransportBarLyric('');
-                this.updateTransportBarSecondary('');
+                this.resetTransportBarText();
                 this.updateBigLyricsAvailability();
                 this.updateFirstLyricButton();
                 this.updateSongReportControls();

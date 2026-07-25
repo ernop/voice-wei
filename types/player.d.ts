@@ -412,6 +412,9 @@ interface VoiceMusicController {
     scrollToCurrentSong(): void;
     updateTransportBarLyric(text: string): void;
     updateTransportBarSecondary(text: string): void;
+    setTransportBarRowText(id: string, text: string): void;
+    resetTransportBarText(): void;
+    armLyricScrollGuard(container: HTMLElement): void;
     stopPlayback(): void;
     playPlaylist(): void;
     pausePlayback(): void;

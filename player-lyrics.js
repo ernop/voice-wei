@@ -9,6 +9,12 @@ const PlayerLyrics = (function () {
     // the line actually starts. The on-screen highlight stays unled.
     const LYRIC_TITLE_LEAD_SECONDS = 0.75;
 
+    // How long a manual wheel/touch scroll in a lyric container keeps
+    // the auto-centering highlight from moving it. Long enough to read a
+    // verse ahead; short enough that sing-along following resumes soon
+    // after the reader lets go.
+    const LYRIC_USER_SCROLL_HOLDOFF_MS = 6000;
+
     // A half-second step is fine enough to correct ordinary lyric drift
     // while remaining easy to count through repeated taps.
     const LYRIC_OFFSET_STEP_SECONDS = 0.5;
@@ -894,18 +900,11 @@ const PlayerLyrics = (function () {
 
             /**
              * The sticky now-playing bar's lyric row: the sung (or next
-             * upcoming) line, always on screen while scrolling. Empty text
-             * collapses the row.
+             * upcoming) line, always on screen while scrolling.
              * @param {string} text
              */
             updateTransportBarLyric(text) {
-                const el = document.getElementById('transportBarLyric');
-                if (!el) return;
-                const line = String(text || '').trim();
-                if (el.textContent !== line) {
-                    el.textContent = line;
-                }
-                el.style.display = line ? 'block' : 'none';
+                this.setTransportBarRowText('transportBarLyric', text);
             },
 
             /**
@@ -914,14 +913,53 @@ const PlayerLyrics = (function () {
              * @param {string} text
              */
             updateTransportBarSecondary(text) {
-                const el = document.getElementById('transportBarSecondary');
+                this.setTransportBarRowText('transportBarSecondary', text);
+            },
+
+            /**
+             * Shared bar-row updater. Once a row has shown text for the
+             * current track, an empty update keeps the row's box (blank)
+             * instead of collapsing it: the bar is sticky, so mid-track
+             * height changes shove the whole page under the reader on
+             * every lyric gap. Rows truly collapse only at track
+             * boundaries (resetTransportBarText).
+             * @param {string} id
+             * @param {string} text
+             */
+            setTransportBarRowText(id, text) {
+                const el = document.getElementById(id);
                 if (!el) return;
                 const raw = String(text || '');
                 const line = raw.trim();
-                if (el.textContent !== line) {
-                    el.textContent = line;
+                if (line) {
+                    if (el.textContent !== line) el.textContent = line;
+                    el.dataset.holdsSpace = '1';
+                    el.style.display = 'block';
+                    return;
                 }
-                el.style.display = raw ? 'block' : 'none';
+                // Whitespace-only text (the between-note blank) opens and
+                // holds the row deliberately; a truly empty update holds it
+                // only once the row has shown content this track. Both keep
+                // the sticky bar's height constant mid-track.
+                if (raw || el.dataset.holdsSpace === '1') {
+                    el.dataset.holdsSpace = '1';
+                    if (el.textContent !== '\u00A0') el.textContent = '\u00A0';
+                    el.style.display = 'block';
+                    return;
+                }
+                if (el.textContent !== '') el.textContent = '';
+                el.style.display = 'none';
+            },
+
+            /** Track boundary: release both rows' held space and collapse. */
+            resetTransportBarText() {
+                for (const id of ['transportBarLyric', 'transportBarSecondary']) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    delete el.dataset.holdsSpace;
+                    el.textContent = '';
+                    el.style.display = 'none';
+                }
             },
 
             /** @param {SyncedLyricLine[]} syncedLines @param {number} time */
@@ -960,6 +998,24 @@ const PlayerLyrics = (function () {
                 return next;
             },
 
+            /**
+             * A reader scrolling a lyric container owns it for a few
+             * seconds: the auto-centering highlight must not snatch the
+             * position back mid-read. Wheel/touch are user-only signals
+             * (programmatic scrollBy fires neither), so this cannot be
+             * tripped by the auto-scroll itself.
+             * @param {HTMLElement} container
+             */
+            armLyricScrollGuard(container) {
+                if (container.dataset.scrollGuardArmed === '1') return;
+                container.dataset.scrollGuardArmed = '1';
+                const markUserScroll = () => {
+                    container.dataset.userScrollUntil = String(Date.now() + LYRIC_USER_SCROLL_HOLDOFF_MS);
+                };
+                container.addEventListener('wheel', markUserScroll, { passive: true });
+                container.addEventListener('touchmove', markUserScroll, { passive: true });
+            },
+
             applyActiveLyricsLine(activeIndex, force = false) {
                 if (!force && this.currentLyricsLineIndex === activeIndex) return;
                 this.currentLyricsLineIndex = activeIndex;
@@ -978,12 +1034,19 @@ const PlayerLyrics = (function () {
                             ? isOverlay
                             : !isOverlay;
                         if (isActive && shouldScroll) {
-                            const container = htmlElement.closest('.lyrics-overlay-content, .lyrics-content');
+                            const container = /** @type {HTMLElement | null} */ (
+                                htmlElement.closest('.lyrics-overlay-content, .lyrics-content')
+                            );
                             if (container) {
-                                const containerRect = container.getBoundingClientRect();
-                                const elRect = htmlElement.getBoundingClientRect();
-                                const offset = elRect.top - containerRect.top - (containerRect.height / 2) + (elRect.height / 2);
-                                container.scrollBy({ top: offset, behavior: force ? 'auto' : 'smooth' });
+                                this.armLyricScrollGuard(container);
+                                const readerOwnsScroll = !force
+                                    && Date.now() < Number(container.dataset.userScrollUntil || 0);
+                                if (!readerOwnsScroll) {
+                                    const containerRect = container.getBoundingClientRect();
+                                    const elRect = htmlElement.getBoundingClientRect();
+                                    const offset = elRect.top - containerRect.top - (containerRect.height / 2) + (elRect.height / 2);
+                                    container.scrollBy({ top: offset, behavior: force ? 'auto' : 'smooth' });
+                                }
                             }
                         }
                     });

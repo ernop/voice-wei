@@ -3497,6 +3497,94 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && artistLineWhilePlaying
             && stableTrackFields);
 
+        // The sticky bar must never change height mid-track: lyric gaps and
+        // blank lines empty a row's text, but the row's box holds until a
+        // real track boundary releases it. A sticky bar that grows/shrinks
+        // shoves the whole page under a reader scrolled below it.
+        const stickyBarStability = await tab.evaluate(() => {
+            const harness = {};
+            PlayerLyrics.install(harness);
+            const lyricRow = document.getElementById('transportBarLyric');
+            const secondaryRow = document.getElementById('transportBarSecondary');
+            harness.resetTransportBarText();
+
+            harness.updateTransportBarLyric('sung line');
+            const shown = { display: lyricRow.style.display, text: lyricRow.textContent };
+            harness.updateTransportBarLyric('');
+            const gap = { display: lyricRow.style.display, text: lyricRow.textContent };
+            harness.updateTransportBarLyric('next line');
+            const resumed = { display: lyricRow.style.display, text: lyricRow.textContent };
+
+            // A row that never showed text this track must not appear.
+            harness.updateTransportBarSecondary('');
+            const neverShown = { display: secondaryRow.style.display, text: secondaryRow.textContent };
+
+            harness.resetTransportBarText();
+            const afterBoundary = {
+                lyricDisplay: lyricRow.style.display,
+                lyricText: lyricRow.textContent,
+                holdReleased: lyricRow.dataset.holdsSpace === undefined
+            };
+            return { shown, gap, resumed, neverShown, afterBoundary };
+        });
+        report.check('sticky bar rows hold their box through lyric gaps and collapse only at track boundaries',
+            stickyBarStability.shown.display === 'block'
+            && stickyBarStability.shown.text === 'sung line'
+            && stickyBarStability.gap.display === 'block'
+            && stickyBarStability.gap.text === '\u00A0'
+            && stickyBarStability.resumed.text === 'next line'
+            && stickyBarStability.neverShown.display === 'none'
+            && stickyBarStability.neverShown.text === ''
+            && stickyBarStability.afterBoundary.lyricDisplay === 'none'
+            && stickyBarStability.afterBoundary.lyricText === ''
+            && stickyBarStability.afterBoundary.holdReleased);
+
+        // A reader scrolling the lyric panel owns its position: the
+        // auto-centering highlight yields for the holdoff window, then
+        // resumes following the song.
+        const lyricScrollGuard = await tab.evaluate(async () => {
+            const harness = { currentLyricsLineIndex: -1 };
+            PlayerLyrics.install(harness);
+            const realContainer = document.getElementById('lyricsContent');
+            if (realContainer) realContainer.id = 'lyricsContentParked';
+            const container = document.createElement('div');
+            container.id = 'lyricsContent';
+            container.className = 'lyrics-content';
+            container.style.cssText = 'height: 100px; max-height: 100px; overflow-y: auto;';
+            for (let i = 0; i < 60; i++) {
+                const line = document.createElement('div');
+                line.className = 'lyrics-line';
+                line.style.cssText = 'height: 20px;';
+                line.textContent = `line ${i}`;
+                container.appendChild(line);
+            }
+            document.body.appendChild(container);
+            try {
+                harness.applyActiveLyricsLine(30, true);
+                const autoCentered = container.scrollTop;
+
+                container.dispatchEvent(new WheelEvent('wheel'));
+                container.scrollTop = 5;
+                harness.applyActiveLyricsLine(35);
+                await new Promise(resolve => setTimeout(resolve, 250));
+                const whileReading = container.scrollTop;
+
+                container.dataset.userScrollUntil = String(Date.now() - 1);
+                harness.applyActiveLyricsLine(40);
+                await new Promise(resolve => setTimeout(resolve, 400));
+                const afterHoldoff = container.scrollTop;
+
+                return { autoCentered, whileReading, afterHoldoff };
+            } finally {
+                container.remove();
+                if (realContainer) realContainer.id = 'lyricsContent';
+            }
+        });
+        report.check(`lyric panel auto-centering yields to a reading scroll and resumes after the holdoff (${lyricScrollGuard.autoCentered} -> ${lyricScrollGuard.whileReading} -> ${lyricScrollGuard.afterHoldoff})`,
+            lyricScrollGuard.autoCentered > 0
+            && lyricScrollGuard.whileReading === 5
+            && lyricScrollGuard.afterHoldoff > 100);
+
         // A requested report is web-grounded through the selected provider
         // and returns short notes: lyric-anchored notes play at their line's
         // sung moment, general notes fill the gaps, and a 0.2s blank
@@ -3891,7 +3979,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.halfSecondSecond.artist === 'legacy two'
             && songReport.halfSecondDeadline === 0.5
             && songReport.identityAgain.artist === '2001 - Report Artist - Report Song'
-            && songReport.identityAgain.barSecondary === '');
+            // Mid-track mode switch empties the second line's TEXT but must
+            // not collapse its row: the bar is sticky and a height change
+            // there shoves the page under the reader.
+            && songReport.identityAgain.barSecondary === '\u00A0');
         report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
             songReport.controls.reportSelected
             && !songReport.controls.identitySelected

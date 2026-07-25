@@ -373,7 +373,9 @@ The always-reachable surface is the now-playing control line under the
 header: it scrolls with the page until it reaches the top, then hooks
 there. It carries a clickable track-position strip (current and total
 time at the ends; click or drag anywhere to jump), the current timed
-lyric line (own full row when present), a song-nav row
+lyric line (own full row; once shown it holds its space through lyric
+gaps so the sticky bar never changes height mid-track and shoves the
+page under the reader - rows collapse only at track boundaries), a song-nav row
 (previous/play-pause/next, Big Lyrics, and the current song line -
 tapping the song line scrolls the playlist to that row; green controls =
 between-song / track actions), and a within-song seek row (-30/-5/+5/+30,
