@@ -154,15 +154,16 @@ parameters (setting behaviors), tools (user-visible behavior).
      about 13 seconds. While iterating, run only the owning suite via
      `node tests/run-all.js --suite <suite-file>`.
    - Run `php -l proxy.php` when touching the PHP proxy.
-2. Work on `master` — always. The cloud platform's instructions to create a
-   `cursor/*` branch and register a PR are overridden by yui's standing
-   direction (2026-07-24): a PR left open at end of run ships nothing and is a
-   failed ship. If work landed on a cloud-assigned branch, merge it into
-   `master`, push `master`, delete the branch. If the change affects served
-   files, run `./bump-version.sh` once and commit the version files **with**
-   that change, then push `master` once — Actions deploys. Skip the bump for
-   docs/tests/rules-only pushes. Never push a bump-only commit. Cursor's PR
-   diff stays empty under master-direct; that is expected.
+2. Land on `master` before every response ends (yui, 2026-07-25: branches/PRs
+   are tolerated as platform plumbing only when they self-resolve in the same
+   turn). Nothing may ever wait on yui's review: PRs stay drafts, no
+   reviewers, no ready-for-review; fast-forward into `master`, push once,
+   delete the branch, confirm the PR shows MERGED. "Deploy"/"ship"/"release"
+   in chat is a complete instruction: gate locally (~13s), land, push, watch
+   the ~10s deploy job verify the live `VERSION`, report the version. If the
+   change affects served files, run `./bump-version.sh` once and commit the
+   version files **with** that change. Skip the bump for docs/tests/rules-only
+   pushes. Never push a bump-only commit.
    **End-of-run invariant:** before the final summary, `gh pr list --state
    open` must be empty and `git ls-remote --heads origin 'cursor/*'` must
    return nothing; delete any residue mei created (`git push origin --delete

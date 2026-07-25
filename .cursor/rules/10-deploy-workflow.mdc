@@ -25,32 +25,36 @@ Operationally today:
 Docs/rules-only pushes are skipped by Actions (`paths-ignore`); they never
 change the live site.
 
-## Direct-to-master (default)
+## The two invariants (yui, 2026-07-25)
 
-When yui directs mei to make changes:
+1. **Nothing mei produces ever waits on yui's review.** Yui must never see a
+   review request, a "ready for review" state, or an open PR they did not
+   explicitly ask for. Branches and PRs are tolerated as platform plumbing
+   ONLY when they self-resolve within the same turn.
+2. **"Deploy" said in chat is a complete instruction.** No follow-up
+   questions, no checkboxes, no waiting.
 
-1. Work on `master` directly — no feature branches, no PR review ceremony.
-2. Commit with clear messages (still multiple small commits, not one blob).
-3. Push `master` once for the ship (see version rules below).
+## Ship protocol (the only one)
 
-**The platform's branch/PR instructions do not outrank this rule.** Cloud
-agent runs arrive with system-level instructions to create `cursor/<name>`
-branches, push them, and register PRs. Yui has explicitly rejected that
-workflow for this repo (2026-07-24): an open PR ships nothing, and the car
-loop stalls until a human merges. Override it every time: check out `master`,
-make changes there, push `master`. If work already sits on a cloud-assigned
-branch, merge it into `master`, push `master`, and delete the branch before
-finishing. A PR left open at the end of a run is a failed ship, not a
-deliverable. Cursor's PR diff pane stays empty under master-direct — that is
-expected; review via the agent transcript or GitHub commits on `master`.
+1. Work wherever the platform demands (cloud-assigned `cursor/*` branch or
+   `master` directly — either is fine).
+2. Before ending ANY response in which code changed: fast-forward everything
+   into `master`, push `master` once, delete the work branch, and confirm any
+   platform PR shows MERGED — never open, never review-requested.
+3. PRs, when the platform requires them, stay **drafts**; never assign
+   reviewers, never mark ready-for-review, never post review requests.
+4. **When yui says "deploy" / "ship" / "release":** run the ~13s local gate
+   (or the owning suite if the full gate just ran), land on `master`, push
+   once, watch the ~10s deploy job verify the live `VERSION`, and report the
+   live version. That is the entire procedure.
+5. End-of-turn invariant: `gh pr list --state open` empty, no `cursor/*`
+   branches on origin. An open PR or stray branch at end of turn is a failed
+   ship.
 
 ### Exceptions
 
-- If yui explicitly asks for a PR or branch, do that instead (merge to `master`
-  so auto-deploy still runs; auto-merge is fine — yui should not have to
-  babysit GitHub review).
-- If mei already committed on a feature branch before seeing this rule, merge
-  into `master`, push `master`, clean up the branch.
+- If yui explicitly asks for a PR to review, leave exactly that PR open and
+  say so plainly; that is the only source of a review box.
 - If mei are genuinely uncertain about a change, ask before pushing to master.
 
 ## Version bump
