@@ -1508,6 +1508,23 @@ h1 {
     line-height: 1.2;
 }
 
+/* The full saved report as readable text; bounded so the sticky bar
+   never swallows the page when it is open. */
+.song-report-text {
+    flex: 1 1 100%;
+    max-height: 40vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
 .transport-bar-song-nav,
 .transport-bar-seek {
     display: flex;

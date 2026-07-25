@@ -59,7 +59,9 @@ The player consumes the canonical `vf-btn` segment rows, `panel-action-btn`,
 `primary-btn`, `step-field`/`step-btn`, `listen-button`,
 `submit-button-large`, and `text-input`. The song-report row uses those
 canonical controls directly: Request is primary, Identity/Song Report is a
-segment, and the seconds-per-line picker is a step field. Song Report is
+segment, the seconds-per-line picker is a step field, and Report Text is a
+`vf-btn` toggle that opens the saved report as text in a bounded scrollable
+panel. Song Report is
 available whenever a song is selected: it activates a saved report or requests
 one when none is stored, and its label carries request wait/result state. The
 Log header uses `panel-action-btn`; **Show Previous** is a separate explicit

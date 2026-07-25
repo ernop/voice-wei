@@ -375,7 +375,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 provider: 'openai',
                 model: 'gpt-5.5',
                 prompt,
-                reportText: 'raw JSON response',
+                reportText: JSON.stringify({
+                    lyricNotes: [{ line: 2, note: 'The second verse turns the hook into a response.' }],
+                    generalNotes: ['The vocals and rhythm were recorded live.'],
+                    attributions: ['Example Review: second-verse reading']
+                }),
                 entries: [
                     { time: 60, text: 'The second verse turns the hook into a response.' },
                     { time: null, text: 'The vocals and rhythm were recorded live.' }
@@ -459,6 +463,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             document.getElementById('songReportIntervalUpBtn')?.click();
             const afterUp = document.getElementById('songReportIntervalValue')?.textContent || '';
             document.getElementById('songReportIntervalDownBtn')?.click();
+            document.getElementById('songReportTextBtn')?.click();
+            const textPanel = document.getElementById('songReportTextPanel');
+            const reportText = {
+                openText: textPanel?.textContent || '',
+                openVisible: textPanel?.style.display !== 'none',
+                buttonExpanded: document.getElementById('songReportTextBtn')?.getAttribute('aria-expanded') || ''
+            };
+            document.getElementById('songReportTextBtn')?.click();
+            reportText.closedVisible = textPanel?.style.display !== 'none';
             const controls = {
                 reportSelected: document.getElementById('songDisplayReportBtn')?.classList.contains('selected') || false,
                 identitySelected: document.getElementById('songDisplayIdentityBtn')?.classList.contains('selected') || false,
@@ -586,6 +599,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 prompt,
                 parsedEntries,
                 sanitizedEntries,
+                reportText,
                 schedule,
                 beforeNotes,
                 atAnchoredNote,
@@ -670,6 +684,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.sanitizedEntries[0].text === 'The opening line sets the scene.'
             && songReport.sanitizedEntries[1].text === 'The producer described the take at as unplanned.'
             && songReport.sanitizedEntries[2].text === 'Sales climbed after the tour.');
+        report.check(`Report Text shows the whole report with timed notes and the attributions appendix, then closes`,
+            songReport.reportText.openVisible
+            && songReport.reportText.buttonExpanded === 'true'
+            && songReport.reportText.openText.includes('[1:00] The second verse turns the hook into a response.')
+            && songReport.reportText.openText.includes('The vocals and rhythm were recorded live.')
+            && songReport.reportText.openText.includes('Attributions:\nExample Review: second-verse reading')
+            && songReport.reportText.closedVisible === false);
         report.check(`lyric-anchored notes play at their sung moment with general notes in the largest gap`,
             songReport.schedule.length === 2
             && songReport.schedule[0].at === 60

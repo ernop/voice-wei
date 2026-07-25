@@ -324,6 +324,11 @@ instead of retaining the prior song's scroll position.
 Report** for the selected or sounding song. If that song has a saved report,
 it starts immediately; if not, the same button requests one from the selected
 AI provider/model. **Request Song Report** remains the explicit refresh action.
+**Report Text** (enabled when a report is saved) opens the whole report as
+readable text under the controls: every note in playback order with anchored
+notes keeping their sung time, then the attributions appendix from the raw
+response. Pressing it again closes the panel; it follows the current song and
+closes if that song has no saved report.
 While research is in flight, both buttons show the sending/waiting phase and
 the elapsed wait. On return, the Song Report button and adjacent status name
 the returned character/line counts, provider/model, elapsed time, and active

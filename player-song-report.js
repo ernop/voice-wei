@@ -132,6 +132,66 @@ vi. Break any of these rules sooner than say anything outright barbarous.
             },
 
             /**
+             * The whole saved report as readable text: every note in
+             * playback order (anchored notes keep their sung time), then
+             * the attributions appendix from the raw response when the
+             * record has one.
+             * @param {SongReportRecord} record
+             */
+            songReportAsText(record) {
+                const lines = [];
+                for (const entry of record.entries || []) {
+                    if (typeof entry.time === 'number') {
+                        const minutes = Math.floor(entry.time / 60);
+                        const seconds = String(Math.floor(entry.time % 60)).padStart(2, '0');
+                        lines.push(`[${minutes}:${seconds}] ${entry.text}`);
+                    } else {
+                        lines.push(entry.text);
+                    }
+                }
+                const raw = String(record.reportText || '');
+                const start = raw.indexOf('{');
+                const end = raw.lastIndexOf('}');
+                if (start >= 0 && end > start) {
+                    try {
+                        /** @type {{ attributions?: string[] }} */
+                        const parsed = JSON.parse(raw.slice(start, end + 1));
+                        const attributions = (parsed.attributions || [])
+                            .map(item => String(item || '').trim())
+                            .filter(Boolean);
+                        if (attributions.length) {
+                            lines.push('', 'Attributions:', ...attributions);
+                        }
+                    } catch (error) {
+                        // Legacy records store prose, not JSON; they simply
+                        // have no attributions appendix.
+                    }
+                }
+                return lines.join('\n');
+            },
+
+            /** Show or hide the saved report as text under the controls. */
+            toggleSongReportText() {
+                const panel = document.getElementById('songReportTextPanel');
+                const button = document.getElementById('songReportTextBtn');
+                if (!panel) return;
+                if (panel.style.display !== 'none') {
+                    panel.style.display = 'none';
+                    if (button) button.setAttribute('aria-expanded', 'false');
+                    return;
+                }
+                const item = this.playingPlaylistItem() || this.currentPlaylistItem();
+                const record = this.songReportForItem(item);
+                if (!record) {
+                    this.updateStatus('No saved report for this song');
+                    return;
+                }
+                panel.textContent = this.songReportAsText(record);
+                panel.style.display = 'block';
+                if (button) button.setAttribute('aria-expanded', 'true');
+            },
+
+            /**
              * Display notes never carry citations or URLs. The prompt
              * forbids them; this boundary strips any that slip through a
              * provider response. A note that was nothing but a citation
@@ -734,6 +794,19 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                         status.textContent = record
                             ? `${record.entries.length} saved notes`
                             : 'No saved report; Song Report will request one';
+                    }
+                }
+                const textButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('songReportTextBtn'));
+                const textPanel = document.getElementById('songReportTextPanel');
+                if (textButton) textButton.disabled = !record;
+                if (textPanel && textPanel.style.display !== 'none') {
+                    // An open panel follows the current song's saved report
+                    // and closes when that report disappears.
+                    if (record) {
+                        textPanel.textContent = this.songReportAsText(record);
+                    } else {
+                        textPanel.style.display = 'none';
+                        if (textButton) textButton.setAttribute('aria-expanded', 'false');
                     }
                 }
             }

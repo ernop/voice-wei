@@ -559,6 +559,8 @@ interface VoiceMusicController {
     songReportSchedule(item: PlaylistItem): Array<{ at: number; text: string }>;
     songReportDisplayAt(item: PlaylistItem | null | undefined, currentTime: number): { text: string; blank: boolean };
     segmentSongReport(reportText: string, maxChars?: number): string[];
+    songReportAsText(record: SongReportRecord): string;
+    toggleSongReportText(): void;
     loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
     requestSongReport(): Promise<void>;
     activateSongReport(): Promise<void>;

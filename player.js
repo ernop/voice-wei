@@ -1132,6 +1132,10 @@ class VoiceMusicController {
                 void this.requestSongReport();
             });
         }
+        const songReportTextBtn = document.getElementById('songReportTextBtn');
+        if (songReportTextBtn) {
+            songReportTextBtn.addEventListener('click', () => this.toggleSongReportText());
+        }
         const songDisplayIdentityBtn = document.getElementById('songDisplayIdentityBtn');
         if (songDisplayIdentityBtn) {
             songDisplayIdentityBtn.addEventListener('click', () => this.setSongDisplayMode('identity'));
