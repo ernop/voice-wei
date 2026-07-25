@@ -3966,7 +3966,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.deadlines.toGeneral === 120
             && songReport.deadlines.toBlankEnd === 120.2);
         report.check(`a 0.2s blank separates consecutive notes on the page while the relay carries the note`,
-            songReport.blankBetweenNotes.barSecondary === ''
+            // The blank renders as a non-breaking space: visually empty, but
+            // the row keeps its line box so the sticky bar's height never
+            // changes mid-track.
+            songReport.blankBetweenNotes.barSecondary === '\u00A0'
             && songReport.blankRowOpen === 'block'
             && songReport.blankBetweenNotes.artist === 'Recorded in 1971 at Abbey Road.');
         report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
@@ -3974,7 +3977,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.migratedEntries.every(entry => entry.time === null)
             && songReport.halfSecondFirst.artist === 'legacy one'
             && songReport.halfSecondFirst.barSecondary === 'legacy one'
-            && songReport.halfSecondBlank.barSecondary === ''
+            && songReport.halfSecondBlank.barSecondary === '\u00A0'
             && songReport.halfSecondBlank.artist === 'legacy two'
             && songReport.halfSecondSecond.artist === 'legacy two'
             && songReport.halfSecondDeadline === 0.5
