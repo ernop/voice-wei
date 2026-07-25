@@ -616,16 +616,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`song report prompt requires sourced reporting without model-authored interpretation or style`,
             /careful reporter, not a creative writer or stylist/.test(songReport.prompt)
             && /published literary or critical analysis/.test(songReport.prompt)
-            && /personal and band history/.test(songReport.prompt)
+            && /personal and band history at the time, creative relationships, and well-sourced interpersonal stories/.test(songReport.prompt)
             && /business, money/.test(songReport.prompt)
-            && /well-sourced interpersonal stories/.test(songReport.prompt)
             && /Every factual claim and interpretation must be traceable/.test(songReport.prompt)
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
         report.check(`song report prompt supports separate research from references in the lyrics`,
-            /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics/.test(songReport.prompt)
-            && /report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
+            /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics; report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
         report.check(`song report prompt includes Orwell's six rules verbatim`,
             /Write every note under George Orwell's six rules, reproduced here verbatim:/.test(songReport.prompt)
             && songReport.prompt.includes(orwellSixRules));
@@ -636,8 +634,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`song report prompt keeps metadata, source names, and URLs out of display notes`,
             /metadata above is research context only, not material to repeat/.test(songReport.prompt)
             && /Keep source attribution out of lyricNotes and generalNotes/.test(songReport.prompt)
-            && /Never name or refer to a critic, reviewer, magazine, publication, or other source in a note/.test(songReport.prompt)
-            && /never use phrases such as "critics said" or "according to."/.test(songReport.prompt)
+            && /Never name or refer to a critic, reviewer, magazine, publication, or other source in a note, and never use phrases such as "critics said" or "according to\."/.test(songReport.prompt)
             && /Never put a raw URL anywhere in the response, including attributions/.test(songReport.prompt)
             && /Never mention the song title, album title, release date, release year, or record label in a note/.test(songReport.prompt)
             && /Put any source names and attribution details in attributions, after lyricNotes and generalNotes/.test(songReport.prompt));

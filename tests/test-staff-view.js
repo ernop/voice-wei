@@ -62,10 +62,8 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
 
     // E3..G4 spans both registers: 11 notes -> 12 beats over two staves.
     const grand = await setSeries('1 1 1 1 1 6v 7bv 7v 2 3 8');
-    report.check(`grand staff renders for register-spanning series (h=${grand && grand.height})`,
-        Boolean(grand) && grand.height > 120);
-    report.check(`grand staff places notes on both staves (spread=${grand && Math.round(grand.ySpread)})`,
-        Boolean(grand) && grand.ySpread > 60);
+    report.check(`grand staff renders across both staves for register-spanning series (h=${grand && grand.height}, spread=${grand && Math.round(grand.ySpread)})`,
+        Boolean(grand) && grand.height > 120 && grand.ySpread > 60);
     report.check(`grand staff keeps one sounding tickable per beat (${grand && grand.drawn} drawn)`,
         Boolean(grand) && grand.drawn === 12 && grand.planLength === 11);
     report.check('grand staff crop keeps the brace in view',

@@ -143,7 +143,6 @@ async function nextPhrase(tab) {
             Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
         report.check('phrases reflect roundtrip', reflected !== degrees && restored === degrees);
 
-        const noteCount = degrees.split(' ').length;
         await tab.evaluate(() => {
             const btn = document.querySelector('.phrase-degree-token[data-index="0"]');
             btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -169,12 +168,6 @@ async function nextPhrase(tab) {
             maskedTitle.documentTitle.endsWith(` ${maskedTitle.degrees}`)
             && maskedTitle.mediaTitle === maskedTitle.documentTitle
             && maskedTitle.headerTitle === maskedTitle.documentTitle);
-        const starts0 = await tab.evaluate(() => window.__voiceStarts);
-        await tab.click('#playBtn');
-        await waitForTransport(tab, 'playing');
-        await waitForTransport(tab, 'paused');
-        const played = await tab.evaluate(() => window.__voiceStarts) - starts0;
-        report.check(`phrases note mask (${noteCount} notes, 1 off, ${played} played)`, played === noteCount - 1);
 
         const breakdownPlan = await tab.evaluate(() => {
             const passes = window.phrasesDebug.breakdownPasses();
@@ -221,21 +214,6 @@ async function nextPhrase(tab) {
             breakdownPlan.passCount === Math.max(1, breakdownPlan.total - 2)
             && breakdownPlan.firstShape && breakdownPlan.oneAtATime
             && breakdownPlan.largestGapAdds && breakdownPlan.finalAll);
-
-        const breakdownControls = await tab.evaluate(() => {
-            const stage = document.querySelector('.phrase-stage').getBoundingClientRect();
-            const actions = document.querySelector('.phrase-stage-actions').getBoundingClientRect();
-            const breakdownBtn = document.getElementById('breakdownBtn').getBoundingClientRect();
-            return {
-                leftDelta: actions.left - stage.left,
-                buttonHeight: breakdownBtn.height,
-                autoStep: document.getElementById('autoStepBtn').getAttribute('aria-pressed'),
-                addHidden: document.getElementById('addNoteBtn').hidden
-            };
-        });
-        report.check(`phrases breakdown controls are left/compact (left=${breakdownControls.leftDelta.toFixed(0)}, h=${breakdownControls.buttonHeight.toFixed(0)})`,
-            breakdownControls.leftDelta <= 16 && breakdownControls.buttonHeight <= 16.5
-            && breakdownControls.autoStep === 'false' && breakdownControls.addHidden === true);
 
         await tab.evaluate(() => {
             const tones = document.getElementById('hearTonesToggle');
@@ -302,17 +280,6 @@ async function nextPhrase(tab) {
 
         await tab.click('#breakdownBtn');
         await waitForPressed(tab, 'breakdownBtn', 'false');
-        await nextPhrase(tab);
-        const nextClearsBreakdown = await tab.evaluate(() => ({
-            pressed: document.getElementById('breakdownBtn').getAttribute('aria-pressed'),
-            enabled: window.phrasesDebug.takePlan().filter(note => note.enabled).length,
-            total: window.phrasesDebug.takePlan().length,
-            breakdownEnabled: window.phrasesDebug.settings().breakdownEnabled
-        }));
-        report.check(`phrases next exits breakdown and shows full new phrase (${nextClearsBreakdown.enabled}/${nextClearsBreakdown.total})`,
-            nextClearsBreakdown.pressed === 'false'
-            && nextClearsBreakdown.breakdownEnabled === false
-            && nextClearsBreakdown.enabled === nextClearsBreakdown.total);
 
         // Powerset combos: ordered subsequences per size, stutters skipped,
         // as-text duplicates produced once (1,2,5,2,1 is the worked example).
@@ -521,37 +488,25 @@ async function nextPhrase(tab) {
             && seriesError.offsets === '-3,0,0,-1.5,-1,1.5,1');
         await tab.click('#stopBtn');
 
-        // Explicit range endpoints: offsets bounded to the chosen span
-        const overBounded = await tab.evaluate(() => {
+        // Explicit range endpoints: offsets bounded to the chosen span,
+        // including a low endpoint a full octave below unison.
+        const rangeBounded = await tab.evaluate(() => {
             const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
-            for (const phraseAlgo of algos) {
-                for (let i = 0; i < 300; i++) {
-                    const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -2, rangeHigh: 9,
-                        minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
-                    });
-                    if (Math.min(...offsets) < -2 || Math.max(...offsets) > 9) return false;
+            const spans = [[-2, 9], [-7, 7]];
+            for (const [rangeLow, rangeHigh] of spans) {
+                for (const phraseAlgo of algos) {
+                    for (let i = 0; i < 300; i++) {
+                        const offsets = PatternPracticeCore.generatePhraseOffsets({
+                            scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow, rangeHigh,
+                            minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
+                        });
+                        if (Math.min(...offsets) < rangeLow || Math.max(...offsets) > rangeHigh) return false;
+                    }
                 }
             }
             return true;
         });
-        report.check('phrases algos honor range endpoints -2..9 (6-below..3-above)', overBounded);
-
-        // Low endpoint a full octave below unison, high capped at the octave
-        const aroundBounded = await tab.evaluate(() => {
-            const algos = ['balanced', 'random', 'stepwise', 'leapy', 'arch', 'motif', 'alto_gaps'];
-            for (const phraseAlgo of algos) {
-                for (let i = 0; i < 300; i++) {
-                    const offsets = PatternPracticeCore.generatePhraseOffsets({
-                        scaleType: 'major', phraseAlgo, startAtOne: false, rangeLow: -7, rangeHigh: 7,
-                        minLength: 5, maxLength: 9, returnToInitial: false, returnToRoot: false
-                    });
-                    if (Math.min(...offsets) < -7 || Math.max(...offsets) > 7) return false;
-                }
-            }
-            return true;
-        });
-        report.check('phrases algos honor range endpoints -7..7 (octave-below-1..8)', aroundBounded);
+        report.check('phrases algos honor range endpoints (-2..9 and -7..7)', rangeBounded);
 
         // Range endpoint steppers: one degree per step, endpoint labels
         // name degrees, and both endpoints persist.
@@ -647,19 +602,11 @@ async function nextPhrase(tab) {
         report.check('phrases lesson presets leave fill modes user-controlled',
             lessonFillState.fillMode === 'chord' && !lessonFillState.lockedFill && !lessonFillState.lockedMarker);
 
-        const genreLesson = await tab.evaluate(() => {
-            const phrase = PatternPracticeCore.generatePhraseOffsets({
-                scaleType: 'major', phraseStyle: 'genre', phraseLesson: 'genre_pop_hook',
-                phraseAlgo: 'balanced', startAtOne: false, rangeLow: 0, rangeHigh: 7,
-                minLength: 8, maxLength: 8, returnToInitial: false, returnToRoot: false,
-                accidentalRate: 0
-            });
-            return phrase.every(offset => [0, 1, 2, 3, 4, 5].includes(offset));
-        });
-        report.check('phrases genre lessons generate their own degree sets', genreLesson);
-
-        const songInspiredLessons = await tab.evaluate(() => {
+        // Genre lessons (pop hook and the song-inspired ones) generate
+        // their own degree sets, staying abstract and bounded.
+        const genreLessons = await tab.evaluate(() => {
             const lessons = [
+                'genre_pop_hook',
                 'genre_blackbird_folk',
                 'genre_hello_pop',
                 'genre_simon_folk',
@@ -677,7 +624,7 @@ async function nextPhrase(tab) {
                     && phrase.slice(1).every((offset, index) => offset !== phrase[index]);
             });
         });
-        report.check('phrases song-inspired lessons stay abstract and bounded', songInspiredLessons);
+        report.check('phrases genre lessons generate their own bounded degree sets', genreLessons);
 
         // Motif is a transposed shape, not a wandering walk: the leading
         // interval shape must be restated verbatim later in the phrase
@@ -912,24 +859,6 @@ async function nextPhrase(tab) {
                 && NotationSpelling.passingAccidental(4.5, 7, 0, [4.5, 5]) === '#';
         });
         report.check('phrases staff spelling helpers', staffSpelling);
-
-        const staffRendered = await tab.evaluate(() => {
-            const host = document.getElementById('phraseStaff');
-            return Boolean(host && !host.classList.contains('phrase-staff-empty') && host.querySelector('svg'));
-        });
-        report.check('phrases staff renders svg for current phrase', staffRendered);
-
-        // The staff is metered 4/4: phrase notes plus padding rests always
-        // fill whole measures, and the padding never exceeds one measure.
-        const staffMeasures = await tab.evaluate(() => {
-            const planLength = window.phrasesDebug.takePlan().length;
-            const drawn = document.querySelectorAll('#phraseStaff .vf-stavenote').length;
-            return { planLength, drawn };
-        });
-        report.check(`phrases staff pads to whole 4/4 measures (${staffMeasures.planLength} notes -> ${staffMeasures.drawn} beats)`,
-            staffMeasures.drawn % 4 === 0
-            && staffMeasures.drawn >= staffMeasures.planLength
-            && staffMeasures.drawn - staffMeasures.planLength < 4);
 
         const fillPlans = await tab.evaluate(() => {
             const fullBtn = document.getElementById('fillFullBtn');

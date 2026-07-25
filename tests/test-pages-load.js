@@ -1,12 +1,13 @@
 // @ts-check
-// Every page must load with zero console errors and zero page errors.
+// Load-smoke for pages that NO other suite navigates to. Every other page
+// (scales, intervals, phrases, trace, pitch-meter, player, ebook) is opened
+// with collectErrors by its own product suite, which proves clean load as a
+// side effect; re-loading them here added nothing. ears.html stays because
+// only this suite exercises the redirect stub to intervals.html?mode=ear.
 
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
-const PAGES = [
-    'index.html', 'scales.html', 'intervals.html', 'phrases.html', 'trace.html',
-    'pitch-meter.html', 'ears.html', 'player.html', 'ebook.html', 'deploys.html'
-];
+const PAGES = ['index.html', 'ears.html', 'deploys.html'];
 const SETTLE_MS = Number(process.env.TEST_SETTLE_MS || 250);
 
 (async () => {

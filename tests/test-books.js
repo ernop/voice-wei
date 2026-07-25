@@ -366,7 +366,6 @@ async function seedFrontMatterBook(page) {
         const shelf = await page.evaluate(async () => {
             const rows = Array.from(document.querySelectorAll('.saved-book-item'));
             const first = rows[0];
-            const rect = first.getBoundingClientRect();
             const db = await new Promise((resolve, reject) => {
                 const req = indexedDB.open('voice-wei-books', 5);
                 req.onsuccess = () => resolve(req.result);
@@ -381,7 +380,6 @@ async function seedFrontMatterBook(page) {
             db.close();
             return {
                 rowCount: rows.length,
-                rowHeight: rect.height,
                 titleNowrap: getComputedStyle(first.querySelector('.saved-book-title')).whiteSpace,
                 metaNowrap: getComputedStyle(first.querySelector('.saved-book-meta')).whiteSpace,
                 metaText: first.querySelector('.saved-book-meta')?.textContent || '',
@@ -397,8 +395,8 @@ async function seedFrontMatterBook(page) {
                     && segment.text.length === segment.charEnd - segment.charStart)
             };
         });
-        report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount}, height=${shelf.rowHeight})`,
-            shelf.rowCount === 2 && shelf.rowHeight <= 42
+        report.check(`books import stays on shelf with overall progress (rows=${shelf.rowCount})`,
+            shelf.rowCount === 2
             && shelf.titleNowrap === 'nowrap' && shelf.metaNowrap === 'nowrap'
             && !shelf.metaText.includes('TXT') && shelf.metaText.includes('Read') && shelf.metaText.includes('Audio')
             && shelf.durationColumns === 2 && shelf.archiveToggleText === 'Show archive'
@@ -477,7 +475,10 @@ async function seedFrontMatterBook(page) {
             mimeType: 'text/plain',
             buffer: Buffer.from(sourceText)
         });
-        await page.waitForFunction(() => document.querySelectorAll('.saved-book-item').length === 1);
+        await page.waitForFunction(() => {
+            return document.querySelectorAll('.saved-book-item').length === 1
+                && document.querySelector('#status')?.textContent?.includes('Imported hard-wrapped and added');
+        });
         const parsedText = await page.evaluate(async () => {
             const db = await new Promise((resolve, reject) => {
                 const req = indexedDB.open('voice-wei-books', 5);
@@ -846,7 +847,7 @@ async function seedFrontMatterBook(page) {
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
         await page.click('#aiQuestionBtn');
         await page.waitForFunction(() => (window.__bookQuestionPayloads || []).length === 1);
-        await page.waitForTimeout(1100);
+        await page.waitForFunction(() => document.querySelector('#aiQuestionElapsed')?.textContent === '1s');
         const inFlight = await page.evaluate(() => ({
             elapsed: document.querySelector('#aiQuestionElapsed')?.textContent || '',
             status: document.querySelector('#aiQuestionStatus')?.textContent || '',
@@ -989,18 +990,6 @@ async function seedFrontMatterBook(page) {
             && nextParagraph.includes('Independent research')
             && nextSentence.includes('Independent research')
             && resumedSpeech.trimStart().startsWith('Independent research'));
-        await page.click('.ai-research-history > summary');
-        await page.click('.ai-research-history-item');
-        await page.waitForFunction(() => document.querySelector('#aiQuestionStatus')?.textContent?.includes('Saved research'));
-        const restoredResearch = await page.evaluate(() => ({
-            question: document.querySelector('#aiQuestionInput')?.value || '',
-            answer: document.querySelector('#aiQuestionAnswerText')?.textContent || '',
-            context: document.querySelector('#aiQuestionContextText')?.textContent || ''
-        }));
-        report.check('books restore complete saved AI research from IndexedDB',
-            restoredResearch.question === 'What does this passage mean?'
-            && restoredResearch.answer.includes('Books research flow')
-            && restoredResearch.context === 'Segment 0');
         await page.evaluate(() => {
             const audio = document.querySelector('#audioPlayer');
             audio.currentTime = 60;

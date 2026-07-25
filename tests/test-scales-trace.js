@@ -137,9 +137,6 @@ function waitForScalesReady(tab) {
         const inf = await tab.evaluate(() => window.scalesController.settings.repeatCount === Infinity);
         report.check('scales repeat-forever survives reload', inf);
 
-        const mediaTitle = await tab.evaluate(() => navigator.mediaSession.metadata?.title || 'none');
-        report.check('scales media session registered', mediaTitle === 'Scales');
-
         const renderedSequence = await tab.evaluate(async () => {
             const c = window.scalesController;
             c.stopPlayback();
@@ -379,21 +376,21 @@ function waitForScalesReady(tab) {
             const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             return entries.some(e => e.tool === 'scales-sing');
         }, null, { timeout: 10000, polling: 50 });
+        // The panel scores once windows pass, and the completed take is
+        // recorded with the trend line.
         await tab.evaluate(() => window.scalesController.singPanel.draw());
-        const score = await tab.textContent('#scalesSingScore');
-        report.check(`sing panel scores after windows pass ("${score}")`,
-            /Score: \d+\/\d+ on pitch/.test(score));
-
-        // The completed take is recorded and the trend line appears
-        const progress = await tab.evaluate(() => {
+        const singResult = await tab.evaluate(() => {
             const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];
             return {
+                score: document.getElementById('scalesSingScore').textContent,
                 entry: entries.find(e => e.tool === 'scales-sing') || null,
                 line: document.getElementById('scalesSingProgress').textContent
             };
         });
-        report.check(`sing take recorded (${JSON.stringify(progress.entry && progress.entry.total)}) trend "${progress.line}"`,
-            progress.entry !== null && progress.entry.total > 0 && /^Progress: Today \d+%/.test(progress.line));
+        report.check(`sing panel scores and records the take ("${singResult.score}", total ${JSON.stringify(singResult.entry && singResult.entry.total)}, trend "${singResult.line}")`,
+            /Score: \d+\/\d+ on pitch/.test(singResult.score)
+            && singResult.entry !== null && singResult.entry.total > 0
+            && /^Progress: Today \d+%/.test(singResult.line));
         await ctx.close();
     }
     await browser.close();

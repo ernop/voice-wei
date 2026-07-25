@@ -1,5 +1,11 @@
 // @ts-check
-// Fast syntax check for every checked-in JavaScript file.
+// Syntax check for JavaScript files the typecheck gate cannot see, plus
+// source invariants that no browser suite asserts.
+//
+// tsconfig.json includes only root-level `*.js` (allowJs+checkJs), so
+// `npm run typecheck` already parses every root file; re-parsing them
+// here was pure redundancy. Subdirectory JS (tests/, .github/scripts/)
+// is outside that include list, so `node --check` still owns it.
 
 const fs = require('fs');
 const path = require('path');
@@ -16,6 +22,8 @@ function collectJsFiles(dir, out) {
             if (!SKIP_DIRS.has(entry.name)) collectJsFiles(path.join(dir, entry.name), out);
             continue;
         }
+        // Root-level *.js is parsed by tsc (tsconfig include: "*.js").
+        if (dir === ROOT) continue;
         if (entry.isFile() && entry.name.endsWith('.js')) out.push(path.join(dir, entry.name));
     }
 }
