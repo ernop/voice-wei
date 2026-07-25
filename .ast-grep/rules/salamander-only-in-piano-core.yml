@@ -6,6 +6,9 @@ files:
   - "**/*.js"
 ignores:
   - "**/piano-core.js"
+  # The test helper stubs the sample CDN with local silence; that is network
+  # isolation, not a second sampler setup.
+  - "**/tests/helpers.js"
 rule:
   kind: string_fragment
   regex: "salamander"
