@@ -8,9 +8,19 @@
 // pages' debug handles, DOM control state). The only clock-based waits
 // left are the observation windows that negative assertions need ("no
 // voice started in this span"), and those are anchored to observed event
-// times and sized in multiples of the configured note cadence. Sections
-// are independent pages, so they run in parallel contexts; checks are
-// buffered per section and reported in a stable order.
+// times and sized in multiples of the configured note cadence.
+//
+// Mid-playback changes are applied atomically: one in-page evaluate
+// pushes a marker event into window.__trace and clicks the control in
+// the same JS task. The pages' change/stop handlers kill voices
+// synchronously inside that task (and the play loops re-check their
+// token/playbackId synchronously right before each voice start), so
+// ordering is asserted from trace positions relative to the marker, not
+// from timestamps sampled over a driver round trip - a race that made
+// counts and ordering wrong on slow (CI 2-core) runners, where a
+// pre-change voice could start between the sample and the click.
+// Sections are independent pages, so they run in parallel contexts;
+// checks are buffered per section and reported in a stable order.
 
 const { BASE_URL, launch, collectErrors, instrumentVoices, createReporter } = require('./helpers');
 
@@ -62,22 +72,32 @@ const WAIT = { timeout: 10000, polling: 25 };
             Array.from(document.querySelectorAll('.phrase-degree-token')).map(el => el.textContent).join(' '));
         const notesBefore = await tab.evaluate(() =>
             Array.from(document.querySelectorAll('.phrase-note-name-token')).map(el => el.textContent).join(' '));
-        const tChange = await tab.evaluate(() => performance.now());
-        await tab.click('[data-step-key="rootPitch"][data-step-delta="1"]');
+        // Marker + click in one JS task: everything past the marker's
+        // trace position is post-change, with no room for a pre-change
+        // voice to slip in between (see header comment).
+        const changeIdx = await tab.evaluate(() => {
+            const idx = window.__trace.length;
+            window.__trace.push({ t: performance.now(), type: 'change' });
+            /** @type {HTMLElement} */ (
+                document.querySelector('[data-step-key="rootPitch"][data-step-delta="1"]')).click();
+            return idx;
+        });
         // Wait until playback demonstrably continued past the change (a
-        // new voice started) and the 150ms kill-burst window has fully
-        // elapsed, so the no-kill check below observes the whole span.
-        await tab.waitForFunction(tc =>
-            window.__trace.some(e => e.type === 'voice-start' && e.t >= tc)
-            && performance.now() >= tc + 250, tChange, WAIT);
-        const trace = await tab.evaluate(() => window.__trace);
+        // new voice started) and a kill burst from a wrongly triggered
+        // restart (which lands within one 250ms damper of the change)
+        // would have fully elapsed.
+        await tab.waitForFunction(idx =>
+            window.__trace.slice(idx + 1).some(e => e.type === 'voice-start')
+            && performance.now() >= window.__trace[idx].t + 250, changeIdx, WAIT);
+        const afterChange = (await tab.evaluate(() => window.__trace)).slice(changeIdx + 1);
 
         // Setting changes never start or restart playback: the running
-        // loop continues uninterrupted (no kill burst at the change) and
-        // picks the new key up live on its next note.
-        const kills = trace.filter(e => e.type === 'kill' && e.t >= tChange && e.t < tChange + 150);
-        const newStarts = trace.filter(e => e.type === 'voice-start' && e.t >= tChange);
-        check(`phrases root+ mid-playback: no restart (${kills.length} kills at change), playback continues (${newStarts.length} voices)`,
+        // loop continues uninterrupted (no kill anywhere in the observed
+        // post-change span - normal playback never kills) and picks the
+        // new key up live on its next note.
+        const kills = afterChange.filter(e => e.type === 'kill');
+        const newStarts = afterChange.filter(e => e.type === 'voice-start');
+        check(`phrases root+ mid-playback: no restart (${kills.length} kills after change), playback continues (${newStarts.length} voices)`,
             kills.length === 0 && newStarts.length > 0);
 
         const degreesAfter = await tab.evaluate(() =>
@@ -109,8 +129,13 @@ const WAIT = { timeout: 10000, polling: 25 };
         // show-names is redraw-only
         const startsBefore = (await tab.evaluate(() => window.__voiceStarts));
         const showBefore = await tab.evaluate(() => window.phrasesDebug.settings().showNoteNames);
-        const tToggle = await tab.evaluate(() => performance.now());
-        await tab.evaluate(() => document.getElementById('showNamesToggle').click());
+        // Sample the toggle time in the same task as the click, so the
+        // observation window is anchored at the actual toggle.
+        const tToggle = await tab.evaluate(() => {
+            const t = performance.now();
+            document.getElementById('showNamesToggle').click();
+            return t;
+        });
         // Observable: the setting flipped; then a 300ms window (one full
         // note cadence at the 300ms default) in which a wrongly triggered
         // replay's first voice would have started.
@@ -124,14 +149,21 @@ const WAIT = { timeout: 10000, polling: 25 };
         const startsAtPlay = await tab.evaluate(() => window.__voiceStarts);
         await tab.click('#playBtn');
         await tab.waitForFunction(n => window.__voiceStarts > n, startsAtPlay, WAIT);
-        await tab.click('#stopBtn');
-        // 150ms grace for a voice already in flight at the stop, then a
-        // 700ms observation window: at the 300ms default cadence a loop
-        // that survived the stop would land 2+ voices inside it.
-        const t2 = await tab.evaluate(() => performance.now() + 150);
-        await tab.waitForFunction(t => performance.now() >= t + 700, t2, WAIT);
-        const lateStarts = (await tab.evaluate(() => window.__trace))
-            .filter(e => e.type === 'voice-start' && e.t > t2).length;
+        // Stop with a trace marker in the same task: the stop handler
+        // invalidates the play token and kills synchronously, so any
+        // voice-start past the marker's trace position is a violation -
+        // no in-flight grace is needed. Observe for 700ms: at the 300ms
+        // default cadence a loop that survived would land 2+ voices.
+        const stopIdx = await tab.evaluate(() => {
+            const idx = window.__trace.length;
+            window.__trace.push({ t: performance.now(), type: 'stop' });
+            document.getElementById('stopBtn').click();
+            return idx;
+        });
+        await tab.waitForFunction(idx =>
+            performance.now() >= window.__trace[idx].t + 700, stopIdx, WAIT);
+        const lateStarts = (await tab.evaluate(() => window.__trace)).slice(stopIdx + 1)
+            .filter(e => e.type === 'voice-start').length;
         check('phrases stop is final (no voices after stop)', lateStarts === 0);
     });
 
@@ -199,20 +231,33 @@ const WAIT = { timeout: 10000, polling: 25 };
             && navigator.mediaSession.metadata.title === 'Scales', undefined, WAIT);
         await tab.evaluate(instrumentVoices);
         await tab.click('#againBtn');
-        // Change the root while the first note is still sounding (0.3s
-        // note + 0.25s damper at default settings), so the old-settings
-        // voice is live and must be killed.
+        // Change the root only after playback is audibly in progress (a
+        // voice has started). At default settings (0.3s notes, no gap,
+        // 0.25s damper) voices overlap, so an old-settings voice is
+        // still live whenever the change lands within the pass.
         await tab.waitForFunction(() => window.__voiceStarts >= 1, undefined, WAIT);
-        const tChange = await tab.evaluate(() => performance.now());
-        await tab.click('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]');
-        await tab.waitForFunction(tc =>
-            window.__trace.some(e => e.type === 'kill' && e.t >= tc)
-            && window.__trace.some(e => e.type === 'voice-start' && e.t >= tc), tChange, WAIT);
-        const trace = await tab.evaluate(() => window.__trace);
-        const kills = trace.filter(e => e.type === 'kill' && e.t >= tChange);
-        const newStarts = trace.filter(e => e.type === 'voice-start' && e.t >= tChange);
-        check(`scales root-change: ${kills.length} kills then ${newStarts.length} voices, kill-first`,
-            kills.length > 0 && newStarts.length > 0 && kills[0].t <= newStarts[0].t);
+        // Marker + click in one JS task: the click handler kills
+        // synchronously (stopPlayback inside onSettingChanged), so the
+        // kill burst follows the marker in trace order and no pre-change
+        // voice-start can land in between (see header comment).
+        const changeIdx = await tab.evaluate(() => {
+            const idx = window.__trace.length;
+            window.__trace.push({ t: performance.now(), type: 'change' });
+            /** @type {HTMLElement} */ (
+                document.querySelector('.step-btn[data-step-key="rootPitch"][data-step-delta="1"]')).click();
+            return idx;
+        });
+        await tab.waitForFunction(idx =>
+            window.__trace.slice(idx + 1).some(e => e.type === 'voice-start'), changeIdx, WAIT);
+        const afterChange = (await tab.evaluate(() => window.__trace)).slice(changeIdx + 1);
+        // The playback law, read off the event sequence itself: between
+        // the change and the first post-change voice-start there is at
+        // least one kill (old voices die before any new-settings voice
+        // starts), and playback continues (that voice-start exists).
+        const firstStartIdx = afterChange.findIndex(e => e.type === 'voice-start');
+        const killsBeforeStart = afterChange.slice(0, firstStartIdx).filter(e => e.type === 'kill').length;
+        check(`scales root-change: ${killsBeforeStart} kills between change and first new voice, kill-first then continues`,
+            firstStartIdx !== -1 && killsBeforeStart > 0);
         await tab.evaluate(() => window.scalesController.stopPlayback());
     });
 

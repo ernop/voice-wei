@@ -114,7 +114,15 @@ function instrumentVoices() {
     };
     const cah = Tone.Param.prototype.cancelAndHoldAtTime;
     Tone.Param.prototype.cancelAndHoldAtTime = function (...args) {
-        window.__trace.push({ t: performance.now(), type: 'kill' });
+        // Two callers reach this hook: a kill (stopAll cancels the gain
+        // ramp NOW) and a starting voice scheduling its own stop at its
+        // musical end, always >= 0.3s ahead (Tone's source.stop cancels
+        // the internal gain at the stop time). Only the immediate
+        // cancel is a kill; counting the scheduled self-stop would pair
+        // every voice-start with a phantom kill just after it.
+        if (this.toSeconds(args[0]) <= Tone.now() + 0.15) {
+            window.__trace.push({ t: performance.now(), type: 'kill' });
+        }
         return cah.apply(this, args);
     };
 }
