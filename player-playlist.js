@@ -12,6 +12,13 @@ const YOUTUBE_SEARCH_CONCURRENCY = 4;
 const PlayerPlaylist = (function () {
     'use strict';
 
+    /** @type {HTMLElement | null} */
+    let playlistRowEventBody = null;
+    /** @type {EventListener | null} */
+    let playlistRowEventHandler = null;
+    /** @type {object | null} */
+    let playlistRowEventOwner = null;
+
     /** @param {VoiceMusicController} controller */
     function install(controller) {
         // All playback state lives in controller.playback (one authoritative
@@ -60,10 +67,18 @@ const PlayerPlaylist = (function () {
              * IndexedDB read, and only the unresolved ones hit the provider.
              */
             appendPlaylistItem(item) {
-                this.playlist.push(item);
-                this.addPlaylistItemToDOM(item);
+                this.appendPlaylistItems([item]);
+            },
+
+            /** Add songs as one state and DOM transaction; single adds use this same path. */
+            appendPlaylistItems(items) {
+                if (items.length === 0) return;
+                this.playlist.push(...items);
+                this.addPlaylistItemsToDOM(items);
                 if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
-                this.queueLyricsLookup(item);
+                for (const item of items) {
+                    this.queueLyricsLookup(item);
+                }
             },
 
             loadFavoritesToPlaylist() {
@@ -102,9 +117,7 @@ const PlayerPlaylist = (function () {
             rerenderPlaylistDom() {
                 const playlistBody = document.getElementById('playlistBody');
                 playlistBody.innerHTML = '';
-                for (const item of this.playlist) {
-                    this.addPlaylistItemToDOM(item);
-                }
+                this.addPlaylistItemsToDOM(this.playlist);
                 if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
 
                 // Rebind current index to the currently playing item after reorder
@@ -646,78 +659,85 @@ const PlayerPlaylist = (function () {
             // The AI note is a second line only when the Notes toggle is on.
             // Star + lyric marker sit in a padded leading gutter so a near
             // miss on the star favorites instead of starting the song.
-            addPlaylistItemToDOM(item) {
-                const playlistBody = document.getElementById('playlistBody');
-                const row = document.createElement('div');
-                row.className = 'playlist-row';
-                row.dataset.itemId = String(item.id);
-                row.dataset.videoId = item.videoId;
-
+            playlistItemRowHtml(item) {
                 const isFav = this.isFavorite(item.videoId);
                 const marker = this.lyricsRowMarker(item);
-
-                row.innerHTML = `
-                    <div class="playlist-row-leading">
-                        <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${item.videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                        <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${marker.aria}" title="${marker.aria}">${marker.label}</button>
+                const videoId = this.escapeHtml(item.videoId);
+                const markerAria = this.escapeHtml(marker.aria);
+                return `
+                    <div class="playlist-row" data-item-id="${item.id}" data-video-id="${videoId}">
+                        <div class="playlist-row-leading">
+                            <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
+                            <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${markerAria}" title="${markerAria}">${marker.label}</button>
+                        </div>
+                        <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
+                        <span class="playlist-row-meta">
+                            <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
+                        </span>
+                        <span class="playlist-song-duration">${this.escapeHtml(item.duration || '--:--')}</span>
+                        <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
+                        ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
                     </div>
-                    <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
-                    <span class="playlist-row-meta">
-                        <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
-                    </span>
-                    <span class="playlist-song-duration">${item.duration || '--:--'}</span>
-                    <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
-                    ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
                 `;
+            },
 
-                // Favorite button click - pass full song data
-                const favBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.favorite-btn'));
-                if (favBtn) {
-                    favBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const videoId = favBtn.dataset.videoId || '';
-                        const isNowFavorited = this.toggleFavorite(videoId, item);
-                        favBtn.classList.toggle('favorited', isNowFavorited);
-                        favBtn.textContent = isNowFavorited ? '\u2605' : '\u2606';
-                    });
+            bindPlaylistRowEvents(playlistBody) {
+                if (playlistRowEventBody === playlistBody && playlistRowEventOwner === this) return;
+                if (playlistRowEventBody && playlistRowEventHandler) {
+                    playlistRowEventBody.removeEventListener('click', playlistRowEventHandler);
                 }
 
-                const lyricsBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.lyrics-row-btn'));
-                if (lyricsBtn) {
-                    lyricsBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
+                playlistRowEventBody = playlistBody;
+                playlistRowEventOwner = this;
+                playlistRowEventHandler = (event) => {
+                    const target = /** @type {HTMLElement} */ (event.target);
+                    const row = /** @type {HTMLElement | null} */ (target.closest('.playlist-row'));
+                    if (!row || !playlistBody.contains(row)) return;
+                    const itemId = Number(row.dataset.itemId);
+                    const item = this.playlist.find(entry => entry.id === itemId);
+                    if (!item) return;
+
+                    const favoriteButton = /** @type {HTMLButtonElement | null} */ (target.closest('.favorite-btn'));
+                    if (favoriteButton) {
+                        event.stopPropagation();
+                        const isNowFavorited = this.toggleFavorite(item.videoId, item);
+                        favoriteButton.classList.toggle('favorited', isNowFavorited);
+                        favoriteButton.textContent = isNowFavorited ? '\u2605' : '\u2606';
+                        return;
+                    }
+                    if (target.closest('.lyrics-row-btn')) {
+                        event.stopPropagation();
                         void this.showLyricsForItem(item);
-                    });
-                }
-
-                const removeBtn = /** @type {HTMLButtonElement | null} */ (row.querySelector('.playlist-remove-btn'));
-                if (removeBtn) {
-                    removeBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
+                        return;
+                    }
+                    if (target.closest('.playlist-remove-btn')) {
+                        event.stopPropagation();
                         this.removePlaylistItem(item.id);
-                    });
-                }
+                        return;
+                    }
+                    if (target.closest('button, .playlist-row-leading')) {
+                        event.stopPropagation();
+                        return;
+                    }
+                    void this.playVideo(item);
+                };
+                playlistBody.addEventListener('click', playlistRowEventHandler);
+            },
 
-                // Leading gutter (star + lyric marker): taps here never play.
-                const leading = row.querySelector('.playlist-row-leading');
-                if (leading) {
-                    leading.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                    });
-                }
-
-                // Tap/click to play (on the row body, not leading controls)
-                row.addEventListener('click', (e) => {
-                    const target = /** @type {HTMLElement} */ (e.target);
-                    if (target.closest('button, .playlist-row-leading')) return;
-                    this.playVideo(item);
-                });
-
-                playlistBody.appendChild(row);
+            addPlaylistItemsToDOM(items) {
+                if (items.length === 0) return;
+                const playlistBody = document.getElementById('playlistBody');
+                const markup = items.map(item => this.playlistItemRowHtml(item)).join('');
+                this.bindPlaylistRowEvents(playlistBody);
+                playlistBody.insertAdjacentHTML('beforeend', markup);
 
                 // YouTube iframes are created on first play. Creating one for
                 // every playlist row up front is expensive on mobile and can
                 // leave hidden players stuck before onReady fires.
+            },
+
+            addPlaylistItemToDOM(item) {
+                this.addPlaylistItemsToDOM([item]);
             },
 
             removePlaylistItem(itemId) {
@@ -1550,14 +1570,16 @@ const PlayerPlaylist = (function () {
 
                 this.showPlaylistSurfaces();
 
+                const restoredItems = [];
                 for (const entry of saved.items) {
                     const item = PlayerSongs.createPlaylistItem(entry, {
                         sourceKind: 'restored',
                         sourceLabel: 'Known at load'
                     });
                     if (!item) continue;
-                    this.appendPlaylistItem(item);
+                    restoredItems.push(item);
                 }
+                this.appendPlaylistItems(restoredItems);
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordSongs(this.playlist, 'restored-at-load');
                 }
@@ -1573,9 +1595,13 @@ const PlayerPlaylist = (function () {
             },
 
             escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
+                return String(text).replace(/[&<>"']/g, character => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[character]);
             },
 
             decodeHtml(text) {

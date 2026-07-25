@@ -363,6 +363,7 @@ interface VoiceMusicController {
     rerenderPlaylistDom(): void;
     removePlaylistItem(itemId: number): void;
     appendPlaylistItem(item: PlaylistItem): void;
+    appendPlaylistItems(items: PlaylistItem[]): void;
     showPlaylistSurfaces(): void;
     clearPlaylistItems(): void;
     updatePlaylistLabel(): void;
@@ -408,6 +409,9 @@ interface VoiceMusicController {
     alternateVideoSearchAttempts: Set<number>;
     playVideo(item: PlaylistItem): Promise<void>;
     updateMediaSessionForItem(item: PlaylistItem): void;
+    playlistItemRowHtml(item: PlaylistItem): string;
+    bindPlaylistRowEvents(playlistBody: HTMLElement): void;
+    addPlaylistItemsToDOM(items: PlaylistItem[]): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
     updateCentralPlayer(item: PlaylistItem): void;
     scrollToCurrentSong(): void;

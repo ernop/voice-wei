@@ -407,6 +407,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 showTransportBar() {},
                 decodeHtml(value) { return value; },
                 addPlaylistItemToDOM() {},
+                addPlaylistItemsToDOM() {},
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
                 speakText() {}
@@ -414,6 +415,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             PlayerPlaylist.install(harness);
             harness.showTransportBar = () => {};
             harness.addPlaylistItemToDOM = () => {};
+            harness.addPlaylistItemsToDOM = () => {};
             harness.updatePlaylistLabel = () => {};
             harness.persistPlaylist = () => {};
             harness.ensureLyricsForItem = () => Promise.resolve();
@@ -481,6 +483,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     showPlaylistSurfaces() {},
                     decodeHtml(value) { return value; },
                     addPlaylistItemToDOM() {},
+                    addPlaylistItemsToDOM() {},
                     updatePlaylistLabel() {},
                     persistPlaylist() {},
                     queueLyricsLookup() {},

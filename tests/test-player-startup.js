@@ -4,7 +4,7 @@
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 const STARTUP_BUDGET_MS = 1000;
-const RESTORED_PLAYLIST_SIZE = 100;
+const RESTORED_PLAYLIST_SIZE = 883;
 
 (async () => {
     const report = createReporter('player startup');
@@ -84,18 +84,25 @@ const RESTORED_PLAYLIST_SIZE = 100;
             return PlayerSongs.persistedPlaylistEntry(item);
         });
         PlayerStorage.savePlaylist(entries, 0);
+        PlayerStorage.saveFavorites(Object.fromEntries(entries.map(entry => [
+            entry.videoId,
+            { ...entry, favoritedAt: Date.now() }
+        ])));
     }, RESTORED_PLAYLIST_SIZE);
 
     await tab.reload({ waitUntil: 'domcontentloaded' });
     await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
     const restored = await startupSnapshot(tab);
     const restorePhase = restored.phases.find(phase => phase.name === 'saved playlist restoration');
+    const favoritesPhase = restored.phases.find(phase => phase.name === 'favorite lyrics reconciliation scheduling');
     report.check(
         `${RESTORED_PLAYLIST_SIZE}-song restore remains within ${STARTUP_BUDGET_MS}ms (${restored.readyAtMs}ms)`,
         restored.readyAtMs <= STARTUP_BUDGET_MS && restored.playlistSize === RESTORED_PLAYLIST_SIZE
     );
     report.check('playlist restore timing records restored song count',
         restorePhase?.detail.songs === RESTORED_PLAYLIST_SIZE);
+    report.check('startup coverage reconciles the observed favorite-library scale',
+        favoritesPhase?.detail.favorites === RESTORED_PLAYLIST_SIZE);
 
     await tab.evaluate(() => PianoCore.ensureStarted());
     report.check('first local-library audio intent loads Tone.js exactly once',

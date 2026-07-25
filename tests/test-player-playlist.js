@@ -177,6 +177,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 title: 'Text Song', channelTitle: 'B', duration: '1:00', comment: '', searchTerm: '',
                 lyricsStatus: 'ready', lyricsData: { syncedLines: [], plainLyrics: 'hi' }
             };
+            harness.playlist.push(timed, simple);
             harness.addPlaylistItemToDOM(timed);
             harness.addPlaylistItemToDOM(simple);
             const row1 = document.querySelector('.playlist-row[data-item-id="701"]');
@@ -227,6 +228,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 PlayerSongReport.install(harness);
                 PlayerLyrics.install(harness);
                 harness.addPlaylistItemToDOM = () => {};
+                harness.addPlaylistItemsToDOM = () => {};
                 harness.lookups = 0;
                 harness.inFlight = 0;
                 harness.maxInFlight = 0;
@@ -347,6 +349,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 PlayerSongReport.install(harness);
                 PlayerLyrics.install(harness);
                 harness.addPlaylistItemToDOM = () => {};
+                harness.addPlaylistItemsToDOM = () => {};
                 return harness;
             };
             const makeItem = (name) => PlayerSongs.createPlaylistItem({
