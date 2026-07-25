@@ -3677,10 +3677,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const prompt = harness.buildSongReportPrompt(item);
             const parsedEntries = harness.parseSongReportResponse(JSON.stringify({
                 lyricNotes: [
-                    { line: 2, note: 'Critics singled out the second verse hook.' },
+                    { line: 2, note: 'The second verse turns the hook into a response.' },
                     { line: 99, note: 'This line number does not exist.' }
                 ],
-                generalNotes: ['Recorded in 1971 at Abbey Road.']
+                generalNotes: ['The vocal and rhythm track were cut live.'],
+                attributions: ['Example Review: second-verse reading']
             }), item);
             const record = {
                 videoId: item.videoId,
@@ -3690,8 +3691,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 prompt,
                 reportText: 'raw JSON response',
                 entries: [
-                    { time: 60, text: 'Critics singled out the second verse hook.' },
-                    { time: null, text: 'Recorded in 1971 at Abbey Road.' }
+                    { time: 60, text: 'The second verse turns the hook into a response.' },
+                    { time: null, text: 'The vocal and rhythm track were cut live.' }
                 ]
             };
             await window.PlayerHistoryDB.putSongReport(record);
@@ -3876,8 +3877,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
 
             const returnedJson = JSON.stringify({
-                lyricNotes: [{ line: 1, note: 'Opens with its title phrase.' }],
-                generalNotes: ['Cut live in one take.']
+                lyricNotes: [{ line: 1, note: 'The opening lyric establishes the central refrain.' }],
+                generalNotes: ['The performance was cut live in one take.'],
+                attributions: ['Example Archive: live-session account']
             });
             resolveResearch({ text: returnedJson, provider: 'openai', model: 'gpt-5.5' });
             await activationPromise;
@@ -3939,12 +3941,20 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
+        report.check(`song report prompt keeps metadata, source names, and URLs out of display notes`,
+            /metadata above is research context only, not material to repeat/.test(songReport.prompt)
+            && /Keep source attribution out of lyricNotes and generalNotes/.test(songReport.prompt)
+            && /Never name or refer to a critic, reviewer, magazine, publication, or other source in a note/.test(songReport.prompt)
+            && /never use phrases such as "critics said" or "according to."/.test(songReport.prompt)
+            && /Never put a raw URL anywhere in the response, including attributions/.test(songReport.prompt)
+            && /Never mention the song title, album title, release date, release year, or record label in a note/.test(songReport.prompt)
+            && /Put any source names and attribution details in attributions, after lyricNotes and generalNotes/.test(songReport.prompt));
         report.check(`song report prompt numbers the lyrics, ties notes to lines, and quotes only provided lyrics`,
             /Full lyrics of the song, one line per row, numbered:\n1 \| lyric line\n2 \| second verse line/.test(songReport.prompt)
             && /Tie each note to the numbered lyric line it discusses/.test(songReport.prompt)
             && /quoting only from the numbered lyrics above/.test(songReport.prompt)
             && /Aim for roughly 12 notes in total/.test(songReport.prompt)
-            && /"lyricNotes":\[\{"line":<numbered lyric line>,"note":"<short sentence>"\}\],"generalNotes":\["<short sentence>"\]/.test(songReport.prompt)
+            && /"lyricNotes":\[\{"line":<numbered lyric line>,"note":"<short sentence>"\}\],"generalNotes":\["<short sentence>"\],"attributions":\["<source name and supported idea; no URL>"\]/.test(songReport.prompt)
             && !/Do not quote or reproduce the lyrics/.test(songReport.prompt));
         report.check(`parsed notes anchor valid lyric lines and demote unknown lines to general`,
             songReport.parsedEntries.length === 3
@@ -3959,9 +3969,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.schedule[1].at === 120
             && songReport.beforeNotes.barSecondary === ''
             && songReport.beforeNotes.artist === '2001 - Report Artist - Report Song'
-            && songReport.atAnchoredNote.artist === 'Critics singled out the second verse hook.'
-            && songReport.atAnchoredNote.barSecondary === 'Critics singled out the second verse hook.'
-            && songReport.atGeneralNote.artist === 'Recorded in 1971 at Abbey Road.'
+            && songReport.atAnchoredNote.artist === 'The second verse turns the hook into a response.'
+            && songReport.atAnchoredNote.barSecondary === 'The second verse turns the hook into a response.'
+            && songReport.atGeneralNote.artist === 'The vocal and rhythm track were cut live.'
             && songReport.deadlines.toAnchored === 60
             && songReport.deadlines.toGeneral === 120
             && songReport.deadlines.toBlankEnd === 120.2);
@@ -3971,7 +3981,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // changes mid-track.
             songReport.blankBetweenNotes.barSecondary === '\u00A0'
             && songReport.blankRowOpen === 'block'
-            && songReport.blankBetweenNotes.artist === 'Recorded in 1971 at Abbey Road.');
+            && songReport.blankBetweenNotes.artist === 'The vocal and rhythm track were cut live.');
         report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
             songReport.migratedEntries.length === 2
             && songReport.migratedEntries.every(entry => entry.time === null)

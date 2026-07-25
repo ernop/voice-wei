@@ -97,24 +97,28 @@ const PlayerSongReport = (function () {
 
 ${identity}
 ${lyricsBlock}
-You are a careful reporter, not a creative writer or stylist. Your job is to convey other people's documented words, findings, and interpretations accurately. This is not your place to invent analysis, motives, emotions, symbolism, causal stories, connective details, or color.
+You are a careful reporter, not a creative writer or stylist. Your job is to convey other people's documented words, findings, and interpretations accurately. This is not your place to invent analysis, motives, emotions, symbolism, causal stories, connective details, or color. The song-identifying metadata above is research context only, not material to repeat in the report.
 
 Investigate broadly before writing. Use only notable, well-supported material that you actually found in sources. Draw from whichever of these areas genuinely yields something interesting:
 - published literary or critical analysis: narrative, themes, imagery, symbolism, allusions, locations, cultural references, title, and the relationship between words and music
 - the writing and recording story, arrangement, production, performances, musical influences, and artistic choices
 - the artists' personal and band history at the time, creative relationships, and well-sourced interpersonal stories sometimes described as gossip
-- career, business, money, label, chart, sales, awards, audience, critical reception, and later influence
+- career, business, money, chart, sales, awards, audience, critical reception, and later influence
 - real places, people, events, books, films, traditions, or scenes connected to the song
 
 Rules:
-- Every factual claim and interpretation must be traceable to material you found. When conveying someone else's interpretation, make clear whose view it is.
+- Every factual claim and interpretation must be traceable to material you found. Keep source attribution out of lyricNotes and generalNotes; put it only in the final attributions list.
 - Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
 - Select positive, interesting, well-supported material, but never soften, intensify, or change a source's meaning to improve the tone.
 ${lyricRules}
+- Display notes must state only the sourced idea. Never name or refer to a critic, reviewer, magazine, publication, or other source in a note, and never use phrases such as "critics said" or "according to."
+- Never put a raw URL anywhere in the response, including attributions.
+- Never mention the song title, album title, release date, release year, or record label in a note. The listener already knows them.
+- Put any source names and attribution details in attributions, after lyricNotes and generalNotes. Attributions are retained with the research response but never displayed as notes.
 - Write short, direct, information-dense sentences of at most 80 characters per note. Do not add scene-setting, flourishes, clever transitions, or generic praise.
 - Aim for roughly ${targetNotes} notes in total.
 - Return only JSON in exactly this shape, with no text outside it:
-{"lyricNotes":[{"line":<numbered lyric line>,"note":"<short sentence>"}],"generalNotes":["<short sentence>"]}`;
+{"lyricNotes":[{"line":<numbered lyric line>,"note":"<short sentence>"}],"generalNotes":["<short sentence>"],"attributions":["<source name and supported idea; no URL>"]}`;
             },
 
             /**

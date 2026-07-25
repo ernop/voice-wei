@@ -697,13 +697,17 @@ Song-report generation has one provider-independent boundary:
 Provider-specific response envelopes are logged in full and normalized at that
 boundary. The prompt assigns reporting, not authorship: claims and
 interpretations must be traceable to researched material, sourced
-interpretations remain attributed, and the model is forbidden to supply its
-own analysis, motives, connections, embellishment, or stylistic filler. The
-request resolves the song's lyrics through `ensureLyricsForItem` first,
-numbers timed lyric lines in the prompt, and requires JSON output:
-`lyricNotes` keyed to those line numbers plus `generalNotes`, quoting lyric
-words only from the provided lyrics (no quoting is permitted when none were
-provided). `parseSongReportResponse` converts that JSON into
+ideas appear in display notes without attribution, and the model is forbidden
+to supply its own analysis, motives, connections, embellishment, or stylistic
+filler. Display notes also exclude raw URLs, song and album titles, release
+dates and years, record labels, publication names, and critic names. Source
+attribution is isolated in a final `attributions` list that is retained only
+in the raw research response. The request resolves the song's lyrics through
+`ensureLyricsForItem` first, numbers timed lyric lines in the prompt, and
+requires JSON output: `lyricNotes` keyed to those line numbers plus
+`generalNotes`, followed by `attributions`, quoting lyric words only from the
+provided lyrics (no quoting is permitted when none were provided).
+`parseSongReportResponse` converts that JSON into
 `SongReportEntry` records - a note keyed to a valid line number carries that
 line's sung time; everything else is untimed. `songReportSchedule` owns
 playback timing: anchored notes at their absolute sung moments, untimed notes

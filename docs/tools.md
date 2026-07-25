@@ -333,12 +333,17 @@ The request carries the song's full stored lyrics, resolved through the
 normal lyric store path before the prompt is built: timed lyrics are numbered
 one line per row, plain lyrics go in as text. The model acts as a reporter,
 not a stylist: every claim or interpretation must come from researched
-material, other people's interpretations stay attributed, and the model may
-not add its own analysis, motives, connective details, embellishment, or
-generic praise. It returns short notes (at most 80 characters each) as JSON:
-`lyricNotes` tied to numbered lyric lines and `generalNotes` for everything
-else, quoting lyric words only from the provided lyrics. When no lyrics are
-available the prompt requires general notes only and forbids quoting.
+material, and the model may not add its own analysis, motives, connective
+details, embellishment, or generic praise. Display notes state sourced ideas
+without source names or attribution phrases. They never contain raw URLs,
+song or album titles, release dates or years, record labels, publication
+names, or critic names. Source attribution follows the display-note fields in
+a separate `attributions` list retained in the research response and never
+shown as a note. The model returns short notes (at most 80 characters each) as
+JSON: `lyricNotes` tied to numbered lyric lines and `generalNotes` for
+everything else, quoting lyric words only from the provided lyrics. When no
+lyrics are available the prompt requires general notes only and forbids
+quoting.
 
 Playback anchors each lyric note to its line's sung time, so a note appears
 exactly when that part of the song arrives. General notes fill the largest
