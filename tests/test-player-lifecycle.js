@@ -135,6 +135,25 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         && reloadEvidence.diagnostic.includes('navigation=reload')
         && reloadEvidence.diagnostic.includes('previousOrderlyExit=yes'));
 
+    // Unprompted layout shifts are recorded with the elements that moved,
+    // so "the page moved on its own" reports name their culprit.
+    const layoutShiftEvidence = await tab.evaluate(async () => {
+        const intruder = document.createElement('div');
+        intruder.id = 'layoutShiftIntruder';
+        intruder.style.cssText = 'height: 320px; background: #123;';
+        document.body.prepend(intruder);
+        await new Promise(resolve => setTimeout(resolve, 400));
+        intruder.remove();
+        const lines = Array.from(document.querySelectorAll('#logContent .log-line'))
+            .map(line => line.textContent || '');
+        return {
+            shiftLine: lines.findLast(line => line.includes('event=layout-shift')) || ''
+        };
+    });
+    report.check('unprompted layout shifts are logged with the shifted elements named',
+        layoutShiftEvidence.shiftLine.includes('event=layout-shift')
+        && layoutShiftEvidence.shiftLine.includes('moved='));
+
     // The ?keepAlive=0 necessity experiment: identical Media Session
     // surface with no silent ownership audio ever created.
     const experimentTab = await browser.newPage();

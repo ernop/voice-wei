@@ -16,6 +16,16 @@ const PlayerLifecycle = (function () {
     // beats may arrive minutes apart, which is itself evidence.
     const HEARTBEAT_MS = 15000;
 
+    // "The page moved on its own" evidence: layout shifts NOT caused by
+    // recent user input, above this score, are logged with the elements
+    // that moved. Small enough to catch a bar row toggling; large enough
+    // to skip subpixel noise.
+    const LAYOUT_SHIFT_MIN_VALUE = 0.01;
+    // At most one Log line per window; shifts between are counted and
+    // folded into the next line so a thrashing element cannot flood the
+    // capped log store.
+    const LAYOUT_SHIFT_LOG_INTERVAL_MS = 5000;
+
     /** @type {Readonly<Record<string, string>>} */
     const YOUTUBE_STATE_NAMES = Object.freeze({
         '-1': 'unstarted',
@@ -255,6 +265,60 @@ const PlayerLifecycle = (function () {
         window.addEventListener('online', () => record('network-online'));
 
         setInterval(recordHeartbeat, HEARTBEAT_MS);
+        observeLayoutShifts();
+    }
+
+    /** @param {Node | null | undefined} node */
+    function describeShiftedNode(node) {
+        if (!node || !(node instanceof Element)) return '';
+        const id = node.id ? `#${node.id}` : '';
+        const firstClass = node.classList.length ? `.${node.classList[0]}` : '';
+        return `${node.tagName.toLowerCase()}${id}${firstClass}`;
+    }
+
+    /**
+     * Name the JS that moves the page. Chrome attributes every layout
+     * shift to the elements that moved; shifts without recent user input
+     * are exactly "the page moved on its own". Programmatic window
+     * scrolls (scrollIntoView etc.) are not layout shifts and will not
+     * appear here - absence of shift evidence during a felt jump points
+     * at a scripted scroll instead.
+     */
+    function observeLayoutShifts() {
+        if (typeof PerformanceObserver === 'undefined'
+            || !PerformanceObserver.supportedEntryTypes.includes('layout-shift')) return;
+        let lastLoggedAt = 0;
+        let suppressedCount = 0;
+        let suppressedTotal = 0;
+        const observer = new PerformanceObserver(list => {
+            for (const entry of list.getEntries()) {
+                const shift = /** @type {PerformanceEntry & {
+                 *   value: number, hadRecentInput: boolean,
+                 *   sources?: Array<{ node?: Node }>
+                 * }} */ (entry);
+                if (shift.hadRecentInput || shift.value < LAYOUT_SHIFT_MIN_VALUE) continue;
+                const now = Date.now();
+                if (now - lastLoggedAt < LAYOUT_SHIFT_LOG_INTERVAL_MS) {
+                    suppressedCount++;
+                    suppressedTotal += shift.value;
+                    continue;
+                }
+                lastLoggedAt = now;
+                const moved = (shift.sources || [])
+                    .map(source => describeShiftedNode(source.node))
+                    .filter(Boolean)
+                    .join(',');
+                record('layout-shift', {
+                    value: Math.round(shift.value * 1000) / 1000,
+                    moved: moved || 'unattributed',
+                    suppressedSincePrior: suppressedCount,
+                    suppressedValue: Math.round(suppressedTotal * 1000) / 1000
+                });
+                suppressedCount = 0;
+                suppressedTotal = 0;
+            }
+        });
+        observer.observe({ type: 'layout-shift', buffered: true });
     }
 
     /** @param {string} intent */

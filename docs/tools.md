@@ -434,7 +434,10 @@ Other surfaces on the page:
   discard evidence, network and memory context, application transport intent,
   and every YouTube player state. After an Android background stop, the next
   session-start line includes the last synchronously saved state even when the
-  old page was killed without an exit event.
+  old page was killed without an exit event. Layout shifts not caused by user
+  input are logged with the elements that moved (`event=layout-shift;
+  moved=...`), so "the page moved on its own" reports name their culprit; a
+  felt jump with no shift line points at a scripted scroll instead.
 - **Song Library** toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
   browser, and plays their melodies on the shared piano. Public-domain
