@@ -40,6 +40,17 @@ main {
     min-height: 0;
 }
 
+/* These pages mutate text continuously while the reader is parked
+   (lyric bar wrapping 1<->2 lines, statuses, log entries, panel
+   auto-scroll). Browser scroll anchoring converts each such layout
+   change into a scroll adjustment on the ancestor scroller, dragging
+   the view line by line. Disable anchoring on the two ancestor
+   scrollers (viewport and main); inner scrollers keep their own. */
+html,
+main {
+    overflow-anchor: none;
+}
+
 /* Log Container - full history below playlist */
 .log-container {
     margin-top: 20px;

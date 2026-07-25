@@ -154,6 +154,16 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         layoutShiftEvidence.shiftLine.includes('event=layout-shift')
         && layoutShiftEvidence.shiftLine.includes('moved='));
 
+    // Scroll anchoring on the ancestor scrollers converts the page's
+    // continuous text mutation (lyric bar wrap, statuses, panel
+    // auto-scroll) into unprompted window scrolls; it must stay disabled.
+    const anchorGuard = await tab.evaluate(() => ({
+        html: getComputedStyle(document.documentElement).overflowAnchor,
+        main: getComputedStyle(document.querySelector('main')).overflowAnchor
+    }));
+    report.check('ancestor scrollers keep scroll anchoring disabled so the reader stays parked',
+        anchorGuard.html === 'none' && anchorGuard.main === 'none');
+
     // The ?keepAlive=0 necessity experiment: identical Media Session
     // surface with no silent ownership audio ever created.
     const experimentTab = await browser.newPage();
