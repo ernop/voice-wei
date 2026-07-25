@@ -3923,6 +3923,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
         const claudeReportRequest = songReport.requests[1]?.body || {};
+        const orwellSixRules = [
+            'i. Never use a metaphor, simile or other figure of speech which you are used to seeing in print.',
+            'ii. Never use a long word where a short one will do.',
+            'iii. If it is possible to cut a word out, always cut it out.',
+            'iv. Never use the passive where you can use the active.',
+            'v. Never use a foreign phrase, a scientific word or a jargon word if you can think of an everyday English equivalent.',
+            'vi. Break any of these rules sooner than say anything outright barbarous.'
+        ].join('\n');
         report.check(`song report requests force provider web research at default reasoning effort`,
             songReport.openai.provider === 'openai'
             && songReport.claude.provider === 'claude'
@@ -3941,6 +3949,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
+        report.check(`song report prompt supports separate research from references in the lyrics`,
+            /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics/.test(songReport.prompt)
+            && /report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
+        report.check(`song report prompt includes Orwell's six rules verbatim`,
+            /Write every note under George Orwell's six rules, reproduced here verbatim:/.test(songReport.prompt)
+            && songReport.prompt.includes(orwellSixRules));
         report.check(`song report prompt keeps metadata, source names, and URLs out of display notes`,
             /metadata above is research context only, not material to repeat/.test(songReport.prompt)
             && /Keep source attribution out of lyricNotes and generalNotes/.test(songReport.prompt)

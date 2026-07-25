@@ -105,6 +105,7 @@ Investigate broadly before writing. Use only notable, well-supported material th
 - the artists' personal and band history at the time, creative relationships, and well-sourced interpersonal stories sometimes described as gossip
 - career, business, money, chart, sales, awards, audience, critical reception, and later influence
 - real places, people, events, books, films, traditions, or scenes connected to the song
+- separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics; report useful sourced context even when no source connects it to the song
 
 Rules:
 - Every factual claim and interpretation must be traceable to material you found. Keep source attribution out of lyricNotes and generalNotes; put it only in the final attributions list.
@@ -117,6 +118,14 @@ ${lyricRules}
 - Put any source names and attribution details in attributions, after lyricNotes and generalNotes. Attributions are retained with the research response but never displayed as notes.
 - Write short, direct, information-dense sentences of at most 80 characters per note. Do not add scene-setting, flourishes, clever transitions, or generic praise.
 - Aim for roughly ${targetNotes} notes in total.
+
+Write every note under George Orwell's six rules, reproduced here verbatim:
+i. Never use a metaphor, simile or other figure of speech which you are used to seeing in print.
+ii. Never use a long word where a short one will do.
+iii. If it is possible to cut a word out, always cut it out.
+iv. Never use the passive where you can use the active.
+v. Never use a foreign phrase, a scientific word or a jargon word if you can think of an everyday English equivalent.
+vi. Break any of these rules sooner than say anything outright barbarous.
 - Return only JSON in exactly this shape, with no text outside it:
 {"lyricNotes":[{"line":<numbered lyric line>,"note":"<short sentence>"}],"generalNotes":["<short sentence>"],"attributions":["<source name and supported idea; no URL>"]}`;
             },
