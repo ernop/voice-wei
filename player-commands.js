@@ -271,11 +271,20 @@ const PlayerCommands = (function () {
                     }
 
                     const data = await response.json();
-                    this.addMessage('claude', 'Song report response from OpenAI', JSON.stringify(data, null, 2));
                     if (data.status === 'incomplete') {
                         throw new Error(`OpenAI song report was incomplete (${data.incomplete_details?.reason || 'unknown reason'})`);
                     }
-                    return { text: this.extractOpenAIResponseText(data), provider: 'openai', model };
+                    const text = this.extractOpenAIResponseText(data);
+                    const searchQueries = (data.output || [])
+                        .filter(block => block.type === 'web_search_call')
+                        .flatMap(block => block.action.queries);
+                    this.addMessage('claude', 'Song report response from OpenAI', JSON.stringify({
+                        status: data.status,
+                        model: data.model || model,
+                        searchQueries,
+                        outputCharacters: text.length
+                    }, null, 2));
+                    return { text, provider: 'openai', model };
                 }
 
                 if (!this.config?.claudeApiKey) {
@@ -312,7 +321,6 @@ const PlayerCommands = (function () {
                 }
 
                 const data = await response.json();
-                this.addMessage('claude', 'Song report response from Claude', JSON.stringify(data, null, 2));
                 if (data.stop_reason === 'max_tokens') {
                     throw new Error('Claude song report reached its output limit');
                 }
@@ -325,6 +333,15 @@ const PlayerCommands = (function () {
                 if (!text) {
                     throw new Error('Claude song report did not contain text output');
                 }
+                const searchQueries = (data.content || [])
+                    .filter(block => block.type === 'server_tool_use' && block.name === 'web_search')
+                    .map(block => String(block.input.query));
+                this.addMessage('claude', 'Song report response from Claude', JSON.stringify({
+                    stopReason: data.stop_reason,
+                    model: data.model || model,
+                    searchQueries,
+                    outputCharacters: text.length
+                }, null, 2));
                 return { text, provider: 'claude', model };
             },
 

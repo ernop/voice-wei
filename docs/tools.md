@@ -343,17 +343,22 @@ shown as a note. The parse boundary enforces this beyond the prompt: markdown
 links collapse to their visible words, bare URLs, domains, and numeric
 citation markers are stripped from every note before display, and a note that
 was mostly citation never displays at all (the raw response keeps everything).
-Distinctive words, phrases, places, terms, people, objects,
-events, or ideas in the lyrics may seed separate research; useful sourced
-context does not need a source that already connects it to the song. Every
-note follows George Orwell's six writing rules, which the research prompt
-includes verbatim. Notes use ordinary, literal English rather than music,
-critical, journalistic, or insider slang: for example, `recorded live`, not
-`cut live`. The model returns short notes (at most 80 characters each) as
-JSON: `lyricNotes` tied to numbered lyric lines and `generalNotes` for
+The model turns distinctive declarations, images, repeated phrases, people,
+places, and other lyric details into concrete research questions. It searches
+the exact phrase for a songwriter explanation in interviews, liner notes,
+memoirs, or official commentary before using published analysis; criticism is
+never presented as the songwriter's intent. If the stored lyrics are absent,
+the model first finds reliable lyric excerpts as private research context but
+does not quote them. Music-video material and bare personnel credits are
+excluded. Useful sourced context does not need a source that already connects
+it to the song. Every note follows George Orwell's six writing rules, which
+the research prompt includes verbatim. Notes use ordinary, literal English
+rather than music, critical, journalistic, or insider slang: for example,
+`recorded live`, not `cut live`. The model returns short notes (at most 80
+characters each) as JSON: `lyricNotes` tied to numbered lyric lines and `generalNotes` for
 everything else, quoting lyric words only from the provided lyrics. When no
-lyrics are available the prompt requires general notes only and forbids
-quoting.
+stored lyrics are available, the prompt requires general notes only and
+forbids quoting.
 
 Playback anchors each lyric note to its line's sung time, so a note appears
 exactly when that part of the song arrives. General notes fill the largest
@@ -367,8 +372,9 @@ line: Identity keeps `year - artist - song`, while Song Report plays the
 saved notes. Timed lyrics continue independently on the first line. Artwork
 and YouTube position remain the same. A replay reuses the saved notes without
 another AI call, and reports saved before timed notes still play as untimed
-lines. The Log records the request body, waiting lifecycle, complete provider
-response, parsed notes, save, and playback start or failure.
+lines. The Log records the request body, waiting lifecycle, compact provider
+response summary (status, model, searches, and output size), parsed notes,
+save, and playback start or failure.
 
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric/report changes mutate the

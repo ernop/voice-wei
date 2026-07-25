@@ -282,14 +282,36 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             window.fetch = async (url, options) => {
                 requests.push({ url: String(url), body: JSON.parse(String(options?.body || '{}')) });
                 if (String(url).includes('openai.com')) {
-                    return new Response(JSON.stringify({ status: 'completed', output_text: 'OpenAI researched report.' }), {
+                    return new Response(JSON.stringify({
+                        status: 'completed',
+                        model: 'gpt-5.5-test',
+                        output_text: 'OpenAI researched report.',
+                        output: [{
+                            type: 'web_search_call',
+                            action: { queries: ['exact lyric songwriter interview'] }
+                        }, {
+                            type: 'reasoning',
+                            encrypted_content: 'openai-response-noise'
+                        }]
+                    }), {
                         status: 200,
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
                 return new Response(JSON.stringify({
                     stop_reason: 'end_turn',
-                    content: [{ type: 'text', text: 'Claude researched report.' }]
+                    model: 'claude-test',
+                    content: [{
+                        type: 'server_tool_use',
+                        name: 'web_search',
+                        input: { query: 'exact lyric songwriter explained' }
+                    }, {
+                        type: 'web_search_tool_result',
+                        content: 'claude-response-noise'
+                    }, {
+                        type: 'text',
+                        text: 'Claude researched report.'
+                    }]
                 }), {
                     status: 200,
                     headers: { 'Content-Type': 'application/json' }
@@ -349,6 +371,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             PlayerLyrics.install(harness);
 
             const prompt = harness.buildSongReportPrompt(item);
+            const noLyricsPrompt = harness.buildSongReportPrompt({
+                ...item,
+                lyricsStatus: 'not_found',
+                lyricsData: null
+            });
             const parsedEntries = harness.parseSongReportResponse(JSON.stringify({
                 lyricNotes: [
                     { line: 2, note: 'The second verse turns the hook into a response.' },
@@ -595,6 +622,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
             return {
                 prompt,
+                noLyricsPrompt,
                 parsedEntries,
                 sanitizedEntries,
                 schedule,
@@ -651,6 +679,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Credits are not notes/.test(songReport.prompt)
             && /Do not name musicians or other personnel merely to say who played, sang, wrote, produced, engineered, directed, or appeared/.test(songReport.prompt)
             && /Mention a person only when a well-sourced story, relationship, or creative decision involving them is itself notable/.test(songReport.prompt));
+        report.check(`song report turns distinctive lyrics into interview-first research questions even without supplied lyrics`,
+            /Inspect the lyrics for the strongest specific questions/.test(songReport.prompt)
+            && /whether the songwriter has explained it in an interview, liner notes, memoir, or official commentary/.test(songReport.prompt)
+            && /Search the exact phrase with the songwriter's name/.test(songReport.prompt)
+            && /Prefer the songwriter's own explanation/.test(songReport.prompt)
+            && /without presenting it as the songwriter's intent/.test(songReport.prompt)
+            && /If no lyrics are provided above, find reliable lyric excerpts as research context/.test(songReport.noLyricsPrompt)
+            && /Never quote or reproduce lyric words that were not supplied above/.test(songReport.noLyricsPrompt));
         report.check(`song report prompt supports separate research from references in the lyrics`,
             /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics; report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
         report.check(`song report prompt includes Orwell's six rules verbatim`,
@@ -755,11 +791,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && requestLifecycle.missingKey.logs[0].text === 'Claude API key not configured');
         const lifecycleLabels = requestLifecycle.completed.logLabels;
         const providerLabels = songReport.commandLogs.map(entry => entry.label);
-        report.check('song report request, provider payloads, returned prose, split, save, and playback are logged',
+        const providerResponseLogs = songReport.commandLogs
+            .filter(entry => entry.label.startsWith('Song report response from'));
+        report.check('song report request, provider summaries, returned prose, split, save, and playback are logged',
             providerLabels.some(label => label.startsWith('Song report request to OpenAI'))
             && providerLabels.includes('Song report response from OpenAI')
             && providerLabels.some(label => label.startsWith('Song report request to Claude'))
             && providerLabels.includes('Song report response from Claude')
+            && providerResponseLogs.some(entry => entry.text.includes('exact lyric songwriter interview'))
+            && providerResponseLogs.some(entry => entry.text.includes('exact lyric songwriter explained'))
+            && providerResponseLogs.every(entry => !entry.text.includes('openai-response-noise'))
+            && providerResponseLogs.every(entry => !entry.text.includes('claude-response-noise'))
             && lifecycleLabels.includes('Song report request')
             && lifecycleLabels.includes('Song report request sent')
             && lifecycleLabels.includes('Song report response received')

@@ -107,6 +107,13 @@ Investigate broadly before writing. Use only notable, well-supported material th
 - real places, people, events, books, films, traditions, or scenes connected to the song
 - separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics; report useful sourced context even when no source connects it to the song
 
+Research method:
+- Inspect the lyrics for the strongest specific questions: unusual declarations, images, repeated phrases, named people or places, and lines whose meaning is not literal or obvious.
+- For each strong lead, ask what it refers to and whether the songwriter has explained it in an interview, liner notes, memoir, or official commentary. Search the exact phrase with the songwriter's name and terms such as "interview," "meaning," and "explained."
+- If no lyrics are provided above, find reliable lyric excerpts as research context so you can still identify these questions. Never quote or reproduce lyric words that were not supplied above.
+- Prefer the songwriter's own explanation. If none exists, use well-supported published analysis without presenting it as the songwriter's intent. If neither exists, omit the interpretation rather than inventing one.
+- Keep this research process private. Return only the requested notes and attributions.
+
 Rules:
 - Every factual claim and interpretation must be traceable to material you found. Keep source attribution out of lyricNotes and generalNotes; put it only in the final attributions list.
 - Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
