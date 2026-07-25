@@ -674,7 +674,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             return {
                 normalFirst: normal[0],
                 normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
-                normalFullSetLast: normal[normal.length - 1] === 'full-1',
+                normalFullSetRejected: !normal.includes('full-1'),
                 liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
                 nameCollisionFirst: nameCollision[0],
                 wrongArtistFirst: wrongArtist[0],
@@ -691,7 +691,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player ranks studio versions first (${versionRanking.normalFirst}, name-collision pick ${versionRanking.nameCollisionFirst}, wrong-artist pick ${versionRanking.wrongArtistFirst}) and classifies key-level errors`,
             versionRanking.normalFirst === 'studio-1'
             && versionRanking.normalLiveLast
-            && versionRanking.normalFullSetLast
+            && versionRanking.normalFullSetRejected
             && versionRanking.liveRequestedFirstIsLive
             && versionRanking.nameCollisionFirst === 'cmu-studio'
             && versionRanking.wrongArtistFirst === 'plain-1'
@@ -705,6 +705,86 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('player alternate filter rejects wrong-song candidates and keeps same-recording uploads',
             versionRanking.wrongSongAlternateScore < 0
             && versionRanking.plainUploadAlternateScore >= 0);
+
+        const fabricatedIdentityRejected = await tab.evaluate(async () => {
+            const harness = {
+                playlist: [],
+                youtubeAlternateResults: new Map(),
+                settings: { playlistTimedOnly: false },
+                messages: [],
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus() {},
+                showPlaylistSurfaces() {},
+                showTransportBar() {},
+                decodeHtml(value) { return value; },
+                addPlaylistItemsToDOM() {},
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                queueLyricsLookup() {}
+            };
+            PlayerPlaylist.install(harness);
+            harness.addPlaylistItemsToDOM = () => {};
+            const realFetch = window.fetch;
+            window.fetch = async () => new Response(JSON.stringify({
+                results: [{
+                    videoId: 'Da2OCjxF-3s',
+                    title: 'Trains Across the Sea',
+                    channelTitle: 'Silver Jews',
+                    duration: 195,
+                    isAlbumTrack: true
+                }],
+                source: 'test'
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            const result = await harness.searchAndAddToPlaylist([{
+                name: 'Trubbel',
+                artist: 'Silver Jews',
+                album: 'American Water',
+                year: '1998',
+                comment: '',
+                searchTerm: 'Silver Jews Trubbel'
+            }]);
+            const validRequestedVersion = harness.videoMatchesRequestedSong({
+                videoId: 'live-version',
+                title: 'The Shins - New Slang (Live at KEXP)',
+                channelTitle: 'KEXP',
+                duration: '4:10',
+                durationSeconds: 250
+            }, { name: 'New Slang' });
+            const artistOnlyResult = harness.videoMatchesRequestedSong({
+                videoId: 'artist-channel',
+                title: 'Silver Jews - Random Rules',
+                channelTitle: 'Silver Jews',
+                duration: '3:00',
+                durationSeconds: 180
+            }, { name: '' });
+            const unrelatedChannelResult = harness.videoMatchesRequestedSong({
+                videoId: 'plain-uploader',
+                title: 'The Beatles - I Want To Hold Your Hand',
+                channelTitle: 'SomeUploader',
+                duration: '2:25',
+                durationSeconds: 145
+            }, { name: 'I Want to Hold Your Hand' });
+            window.fetch = realFetch;
+            return {
+                addedCount: result.addedCount,
+                skippedCount: result.skippedCount,
+                playlistLength: harness.playlist.length,
+                videoId: harness.playlist[0]?.videoId || '',
+                name: harness.playlist[0]?.name || '',
+                selectedTitle: harness.playlist[0]?.title || '',
+                validRequestedVersion,
+                artistOnlyResult,
+                unrelatedChannelResult
+            };
+        });
+        report.check(`player rejects a title-mismatched YouTube result instead of fabricating requested metadata (${fabricatedIdentityRejected.name || 'no playlist item'} -> ${fabricatedIdentityRejected.selectedTitle || 'rejected'})`,
+            fabricatedIdentityRejected.addedCount === 0
+            && fabricatedIdentityRejected.skippedCount === 1
+            && fabricatedIdentityRejected.playlistLength === 0
+            && fabricatedIdentityRejected.videoId === ''
+            && fabricatedIdentityRejected.validRequestedVersion
+            && fabricatedIdentityRejected.artistOnlyResult
+            && fabricatedIdentityRejected.unrelatedChannelResult);
 
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {

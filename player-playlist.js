@@ -437,6 +437,21 @@ const PlayerPlaylist = (function () {
             },
 
             /**
+             * Ranking decides which recording of a song is best; it must not
+             * decide whether a result is that song. A named-song request is
+             * eligible only when the video title identifies that requested
+             * song. Artist-only and free-form searches have no song identity
+             * to enforce and retain the provider's candidate set.
+             * @param {YouTubeVideoCandidate} video
+             * @param {{ searchTerm?: string, artist?: string, name?: string }} context
+             */
+            videoMatchesRequestedSong(video, context) {
+                const songName = this.simplifyVideoText(context.name || '');
+                if (!songName) return true;
+                return this.simplifyVideoText(video.title || '').includes(songName);
+            },
+
+            /**
              * Title words that describe the upload format rather than the
              * recording: a plain studio track's title is the song name plus
              * (at most) the artist and these words. Anything else left over
@@ -546,13 +561,15 @@ const PlayerPlaylist = (function () {
             },
 
             /**
-             * Order search results studio-version-first (stable: the
-             * proxy's relevance order breaks ties).
+             * Reject results that do not identify a requested named song,
+             * then order eligible recordings studio-version-first (stable:
+             * the proxy's relevance order breaks ties).
              * @param {YouTubeVideoCandidate[]} videos
-             * @param {{ searchTerm?: string, artist?: string }} context
+             * @param {{ searchTerm?: string, artist?: string, name?: string }} context
              */
             rankYouTubeResults(videos, context) {
                 return videos
+                    .filter(video => this.videoMatchesRequestedSong(video, context))
                     .map((video, index) => ({ video, index, score: this.scoreVideoCandidate(video, context) }))
                     .sort((a, b) => (b.score - a.score) || (a.index - b.index))
                     .map(entry => entry.video);
@@ -610,12 +627,9 @@ const PlayerPlaylist = (function () {
                     searchContext
                 );
                 if (videos.length > 0) {
-                    // The best available result always plays, but the retry
-                    // chain (embed disabled/removed) only holds candidates
-                    // that are plausibly the same recording: an alternate
-                    // scoring below zero is a wrong song, a live take, or a
-                    // cover, and swapping one in silently is worse than
-                    // reporting the failure.
+                    // Every candidate already passed song identity. Ranking
+                    // chooses the preferred recording; the retry chain then
+                    // excludes unrequested versions and other poor matches.
                     const [firstVideo, ...rankedRest] = videos;
                     const alternateVideos = rankedRest.filter(video =>
                         this.scoreVideoCandidate(video, searchContext) >= 0);

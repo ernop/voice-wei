@@ -372,6 +372,7 @@ interface VoiceMusicController {
     searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
     unwantedVersionMarkers(): RegExp[];
     simplifyVideoText(value: string): string;
+    videoMatchesRequestedSong(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): boolean;
     neutralTitleWords(): Set<string>;
     countExtraneousTitleWords(simplifiedTitle: string, songName: string, artist: string, requested: string): number;
     scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
