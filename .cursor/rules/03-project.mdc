@@ -28,7 +28,8 @@ Product intent: [docs/product-goals.md](docs/product-goals.md). Construction:
 
 ## Deploy (summary)
 
-Push to `master` → Actions (typecheck, lint, the ~13s full test gate) → rsync to fuseki.net.
+Push to `master` → Actions rsyncs to fuseki.net immediately (~15s to live);
+typecheck/lint/tests validate in parallel after — red validate = fix forward.
 Full rules: `.cursor/rules/10-deploy-workflow.mdc`. Version bump: once per
 user-facing ship, same push as the change.
 

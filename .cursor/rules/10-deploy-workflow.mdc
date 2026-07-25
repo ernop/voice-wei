@@ -75,6 +75,12 @@ with content + version together.
 
 ## Pipeline (reference)
 
-Push to `master` (when not paths-ignored) → typecheck → lint → `npm test` →
-rsync `--delete` (excludes docs/tests/tooling; list shared with `deploy.sh`) →
-live. Manual: `./deploy.sh`. Details: [docs/setup.md](docs/setup.md).
+Deploy-first (yui's direction, 2026-07-25; single-user site): push to
+`master` (when not paths-ignored) → rsync `--delete` immediately (excludes
+docs/tests/tooling; list shared with `deploy.sh`) → live in ~15s, verified
+against the shipped `VERSION`. A parallel `validate` job runs typecheck,
+lint, and the full `npm test` gate AFTER the site is live; a red run means
+fix forward now, not roll back the ceremony. Agents still run the ~13s gate
+(or the owning suite) locally before pushing — CI validation is the backstop,
+not the primary check. Manual: `./deploy.sh`. Details:
+[docs/setup.md](docs/setup.md).

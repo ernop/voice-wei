@@ -40,13 +40,17 @@ queries Piped/Invidious, with IndexedDB search results retained for outages.
 
 ```
 Push to master (deployable paths)
-  → GitHub Actions
-  → typecheck + lint + npm test
-  → rsync --delete to /srv/voice-wei/site on the production server
-  → deployment workflow completes; site is live
-  → separate completed-workflow trigger refreshes deploy-telemetry.json
+  → GitHub Actions "deploy" job: rsync --delete to /srv/voice-wei/site
+    → live in ~15s; job verifies live VERSION equals the shipped VERSION
+  → GitHub Actions "validate" job IN PARALLEL: typecheck + lint + npm test
+    → red validate = the live site needs a fix-forward push now
+  → completed-workflow trigger refreshes deploy-telemetry.json
   → reload; check header version
 ```
+
+Deploy-first is deliberate (single-user site, yui's direction 2026-07-25):
+agents run the ~13s local gate before pushing; CI validation is the backstop
+that runs after the site is already live.
 
 Docs/rules-only pushes are `paths-ignore`d and do not run the workflow.
 `workflow_dispatch` can redeploy the current commit manually. Cursor agents
@@ -72,23 +76,23 @@ deploy by pushing `master` (or merging a PR into `master`).
 
 Production shipping is defined in `.github/workflows/deploy.yml`:
 
-1. Checkout; select Node 24; restore cached `node_modules`; use the current
-   stable Chrome already installed on GitHub's Ubuntu runner
-2. Run `npm run typecheck`, `npm run lint`, and `npm test` concurrently
-3. rsync `--delete` to the server (excludes below) — **site live**
+Two parallel jobs:
 
-`.github/workflows/deploy-telemetry.yml` starts only after a successful
-production workflow has completed. It generates and uploads
-`deploy-telemetry.json` independently, so telemetry setup/API work cannot keep
-the production run open after the site is verified live.
+- **deploy**: checkout → SSH → rsync `--delete` (excludes below) — **site
+  live** — then verify the live `VERSION` equals the shipped one.
+- **validate**: checkout; Node 24; cached `node_modules` + cached Playwright
+  Chromium (the Lyrics startup gate's 1000ms wall-clock budget needs the
+  faster-starting Playwright build, measured 2026-07-24); typecheck + lint in
+  parallel, then the full `npm test` gate alone on the idle runner.
 
-Warm deploys run no install command: `node_modules` comes from its cache and
-browser tests launch the runner's `/usr/bin/google-chrome` through the existing
-`CHROME_PATH` test contract. Cold deploys install only npm packages; GitHub's
-runner image already owns Chrome and its OS dependencies. The three validation
-gates only read the checkout, so they run concurrently with the browser suite
-as the critical path. Concurrency remains one deploy at a time; newer pushes
-cancel in-flight older ones.
+`.github/workflows/deploy-telemetry.yml` starts only after a fully successful
+production workflow (both jobs). It generates and uploads
+`deploy-telemetry.json` independently.
+
+Warm runs install nothing: `node_modules` and Chromium come from caches.
+Concurrency remains one workflow at a time; in-flight runs are never
+cancelled (an aborted rsync `--delete` could leave a partial tree), newer
+pushes queue behind the ~15s deploy instead.
 
 ### rsync excludes (CI and `deploy.sh` must match)
 

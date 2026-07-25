@@ -167,8 +167,12 @@ parameters (setting behaviors), tools (user-visible behavior).
    open` must be empty and `git ls-remote --heads origin 'cursor/*'` must
    return nothing; delete any residue mei created (`git push origin --delete
    <branch>`).
-3. After deploy, confirm on the live site: reload and check the header version
-   matches what was just shipped.
+3. The deploy job rsyncs immediately on push (no CI gates in front — yui's
+   deploy-first direction, 2026-07-25) and the site is live in ~15s; the
+   `validate` job re-runs typecheck/lint/`npm test` in parallel. Confirm the
+   deploy job verified the live version, and if validate goes red, fix
+   forward immediately — the broken build is already live. Local testing
+   before the push (step 1) is therefore not optional.
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
 

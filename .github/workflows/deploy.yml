@@ -10,80 +10,36 @@ on:
       - 'demos/**'
   workflow_dispatch:
 
+# Never cancel mid-run: an aborted rsync --delete can leave a partial tree.
+# Deploys are ~15s, so queued runs wait briefly instead.
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   actions: read
   contents: read
 
-# Skip Playwright postinstall browser download; we install Chromium explicitly
-# (and cache it) below.
+# Skip Playwright postinstall browser download; the validate job installs
+# Chromium explicitly (and caches it).
 #
 # Deliberately NOT the image's hosted Chrome: the Lyrics startup gate is a
 # calibrated 1000ms wall-clock contract, and system Chrome starts ~560ms
 # slower here than cached Playwright Chromium (832ms vs 271ms measured on
-# 2026-07-24), leaving no honest headroom. The gate's integrity outranks the
-# seconds a browserless deploy saves.
+# 2026-07-24), leaving no honest headroom.
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
 jobs:
-  # Gates + rsync. Site is live when this job finishes.
+  # Site is live when this job finishes - no gates in front. Yui is the only
+  # user and directed deploy-first (2026-07-25): agents validate locally
+  # before pushing, the validate job re-checks in parallel, and a red run is
+  # the fix-forward signal.
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          package-manager-cache: false
-
-      # package-lock.json is gitignored (project choice). Cache node_modules by
-      # package.json so warm deploys skip npm install entirely.
-      - name: Cache node_modules
-        id: npm-cache
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package.json') }}
-
-      - name: Install npm deps
-        if: steps.npm-cache.outputs.cache-hit != 'true'
-        run: npm install --no-audit --no-fund
-
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
-
-      # A cache hit already contains the exact package.json-pinned browser.
-      - name: Install Playwright Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      # Typecheck and lint are independent readers and run together. The
-      # browser suite runs AFTER them, alone: it contains the Lyrics startup
-      # gate, whose 1000ms wall-clock budget is only honest on an otherwise
-      # idle runner (tsc/ast-grep racing on the 2-core runner contaminates
-      # the timing and fails deploys spuriously).
-      - name: Typecheck and lint in parallel
-        run: |
-          npm run typecheck & typecheck_pid=$!
-          npm run lint & lint_pid=$!
-          status=0
-          wait "$typecheck_pid" || status=1
-          wait "$lint_pid" || status=1
-          exit "$status"
-
-      - name: Browser test suite
-        run: npm test
 
       - name: Set up SSH
         run: |
@@ -128,9 +84,69 @@ jobs:
             -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
 
+      # The live site must serve exactly the VERSION this commit ships.
       - name: Verify deployment
-        run: curl --fail --silent --show-error https://fuseki.net/voice-wei/VERSION
+        run: |
+          EXPECTED=$(tr -d '[:space:]' < VERSION)
+          LIVE=$(curl -fsS "https://fuseki.net/voice-wei/VERSION?cb=$(date +%s)" | tr -d '[:space:]')
+          echo "expected $EXPECTED, live $LIVE"
+          test "$LIVE" = "$EXPECTED"
 
       - name: Cleanup
         if: always()
         run: rm -f /tmp/deploy_key
+
+  # Runs in parallel with deploy, not in front of it. A failure here means
+  # the live site needs a fix-forward push now.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # package-lock.json is gitignored (project choice). Cache node_modules by
+      # package.json so warm runs skip npm install entirely.
+      - name: Cache node_modules
+        id: npm-cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package.json') }}
+
+      - name: Install npm deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm install --no-audit --no-fund
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # A cache hit already contains the exact package.json-pinned browser.
+      - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # Typecheck and lint are independent readers and run together. The
+      # browser suite runs AFTER them, alone: it contains the Lyrics startup
+      # gate, whose 1000ms wall-clock budget is only honest on an otherwise
+      # idle runner.
+      - name: Typecheck and lint in parallel
+        run: |
+          npm run typecheck & typecheck_pid=$!
+          npm run lint & lint_pid=$!
+          status=0
+          wait "$typecheck_pid" || status=1
+          wait "$lint_pid" || status=1
+          exit "$status"
+
+      - name: Browser test suite
+        run: npm test
