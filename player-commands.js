@@ -233,6 +233,30 @@ const PlayerCommands = (function () {
             },
 
             /**
+             * The provider response verbatim, minus encrypted payload
+             * fields. Encrypted blobs are unreadable and enormous, so they
+             * are removed outright; every other field is logged as
+             * returned, never summarized.
+             * @param {unknown} value
+             * @returns {unknown}
+             */
+            stripEncryptedFields(value) {
+                if (Array.isArray(value)) {
+                    return value.map(entry => this.stripEncryptedFields(entry));
+                }
+                if (!value || typeof value !== 'object') {
+                    return value;
+                }
+                /** @type {Record<string, unknown>} */
+                const cleaned = {};
+                for (const [key, entry] of Object.entries(value)) {
+                    if (key === 'encrypted_content' || key === 'encrypted_index') continue;
+                    cleaned[key] = this.stripEncryptedFields(entry);
+                }
+                return cleaned;
+            },
+
+            /**
              * Run the dedicated, web-grounded report prompt through the
              * provider/model already selected for music requests.
              * @param {string} prompt
@@ -271,20 +295,11 @@ const PlayerCommands = (function () {
                     }
 
                     const data = await response.json();
+                    this.addMessage('claude', 'Song report response from OpenAI', JSON.stringify(this.stripEncryptedFields(data), null, 2));
                     if (data.status === 'incomplete') {
                         throw new Error(`OpenAI song report was incomplete (${data.incomplete_details?.reason || 'unknown reason'})`);
                     }
-                    const text = this.extractOpenAIResponseText(data);
-                    const searchQueries = (data.output || [])
-                        .filter(block => block.type === 'web_search_call')
-                        .flatMap(block => block.action.queries);
-                    this.addMessage('claude', 'Song report response from OpenAI', JSON.stringify({
-                        status: data.status,
-                        model: data.model || model,
-                        searchQueries,
-                        outputCharacters: text.length
-                    }, null, 2));
-                    return { text, provider: 'openai', model };
+                    return { text: this.extractOpenAIResponseText(data), provider: 'openai', model };
                 }
 
                 if (!this.config?.claudeApiKey) {
@@ -321,6 +336,7 @@ const PlayerCommands = (function () {
                 }
 
                 const data = await response.json();
+                this.addMessage('claude', 'Song report response from Claude', JSON.stringify(this.stripEncryptedFields(data), null, 2));
                 if (data.stop_reason === 'max_tokens') {
                     throw new Error('Claude song report reached its output limit');
                 }
@@ -333,15 +349,6 @@ const PlayerCommands = (function () {
                 if (!text) {
                     throw new Error('Claude song report did not contain text output');
                 }
-                const searchQueries = (data.content || [])
-                    .filter(block => block.type === 'server_tool_use' && block.name === 'web_search')
-                    .map(block => String(block.input.query));
-                this.addMessage('claude', 'Song report response from Claude', JSON.stringify({
-                    stopReason: data.stop_reason,
-                    model: data.model || model,
-                    searchQueries,
-                    outputCharacters: text.length
-                }, null, 2));
                 return { text, provider: 'claude', model };
             },
 

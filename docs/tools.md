@@ -372,9 +372,9 @@ line: Identity keeps `year - artist - song`, while Song Report plays the
 saved notes. Timed lyrics continue independently on the first line. Artwork
 and YouTube position remain the same. A replay reuses the saved notes without
 another AI call, and reports saved before timed notes still play as untimed
-lines. The Log records the request body, waiting lifecycle, compact provider
-response summary (status, model, searches, and output size), parsed notes,
-save, and playback start or failure.
+lines. The Log records the request body, waiting lifecycle, the provider
+response verbatim with only unreadable encrypted payload fields removed,
+parsed notes, save, and playback start or failure.
 
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric/report changes mutate the

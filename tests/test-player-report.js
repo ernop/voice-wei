@@ -307,10 +307,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                         input: { query: 'exact lyric songwriter explained' }
                     }, {
                         type: 'web_search_tool_result',
-                        content: 'claude-response-noise'
+                        content: [{
+                            type: 'web_search_result',
+                            title: 'Songwriter interview page',
+                            encrypted_content: 'claude-response-noise'
+                        }]
                     }, {
                         type: 'text',
-                        text: 'Claude researched report.'
+                        text: 'Claude researched report.',
+                        citations: [{ encrypted_index: 'claude-citation-noise' }]
                     }]
                 }), {
                     status: 200,
@@ -793,15 +798,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const providerLabels = songReport.commandLogs.map(entry => entry.label);
         const providerResponseLogs = songReport.commandLogs
             .filter(entry => entry.label.startsWith('Song report response from'));
-        report.check('song report request, provider summaries, returned prose, split, save, and playback are logged',
+        report.check('song report responses are logged verbatim with only encrypted fields removed',
+            providerResponseLogs.some(entry => entry.text.includes('OpenAI researched report.')
+                && entry.text.includes('exact lyric songwriter interview')
+                && entry.text.includes('"type": "reasoning"'))
+            && providerResponseLogs.some(entry => entry.text.includes('Claude researched report.')
+                && entry.text.includes('exact lyric songwriter explained')
+                && entry.text.includes('Songwriter interview page'))
+            && providerResponseLogs.every(entry => !entry.text.includes('encrypted_content')
+                && !entry.text.includes('encrypted_index')
+                && !entry.text.includes('openai-response-noise')
+                && !entry.text.includes('claude-response-noise')
+                && !entry.text.includes('claude-citation-noise')));
+        report.check('song report request, provider responses, returned prose, split, save, and playback are logged',
             providerLabels.some(label => label.startsWith('Song report request to OpenAI'))
             && providerLabels.includes('Song report response from OpenAI')
             && providerLabels.some(label => label.startsWith('Song report request to Claude'))
             && providerLabels.includes('Song report response from Claude')
-            && providerResponseLogs.some(entry => entry.text.includes('exact lyric songwriter interview'))
-            && providerResponseLogs.some(entry => entry.text.includes('exact lyric songwriter explained'))
-            && providerResponseLogs.every(entry => !entry.text.includes('openai-response-noise'))
-            && providerResponseLogs.every(entry => !entry.text.includes('claude-response-noise'))
             && lifecycleLabels.includes('Song report request')
             && lifecycleLabels.includes('Song report request sent')
             && lifecycleLabels.includes('Song report response received')

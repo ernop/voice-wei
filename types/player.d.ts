@@ -333,6 +333,7 @@ interface VoiceMusicController {
     processCommandWithOpenAI(transcript: string): Promise<any>;
     buildOpenAIRequest(prompt: string): { url: string; body: any };
     extractOpenAIResponseText(data: any): string;
+    stripEncryptedFields(value: unknown): unknown;
     extractUrlsFromTranscript(transcript: string): string[];
     inferKnownPageUrls(transcript: string): string[];
     prepareMusicSearchRequest(transcript: string): Promise<any>;
