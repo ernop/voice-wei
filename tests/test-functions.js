@@ -3680,7 +3680,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     { line: 2, note: 'The second verse turns the hook into a response.' },
                     { line: 99, note: 'This line number does not exist.' }
                 ],
-                generalNotes: ['The vocal and rhythm track were cut live.'],
+                generalNotes: ['The vocals and rhythm were recorded live.'],
                 attributions: ['Example Review: second-verse reading']
             }), item);
             const record = {
@@ -3692,7 +3692,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 reportText: 'raw JSON response',
                 entries: [
                     { time: 60, text: 'The second verse turns the hook into a response.' },
-                    { time: null, text: 'The vocal and rhythm track were cut live.' }
+                    { time: null, text: 'The vocals and rhythm were recorded live.' }
                 ]
             };
             await window.PlayerHistoryDB.putSongReport(record);
@@ -3878,7 +3878,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
             const returnedJson = JSON.stringify({
                 lyricNotes: [{ line: 1, note: 'The opening lyric establishes the central refrain.' }],
-                generalNotes: ['The performance was cut live in one take.'],
+                generalNotes: ['The performance was recorded live in one take.'],
                 attributions: ['Example Archive: live-session account']
             });
             resolveResearch({ text: returnedJson, provider: 'openai', model: 'gpt-5.5' });
@@ -3955,6 +3955,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`song report prompt includes Orwell's six rules verbatim`,
             /Write every note under George Orwell's six rules, reproduced here verbatim:/.test(songReport.prompt)
             && songReport.prompt.includes(orwellSixRules));
+        report.check(`song report prompt requires ordinary language instead of insider slang`,
+            /Use ordinary, literal English/.test(songReport.prompt)
+            && /Do not imitate musicians, critics, journalists, insiders, or a cool persona/.test(songReport.prompt)
+            && /say "recorded live," never "cut live."/.test(songReport.prompt));
         report.check(`song report prompt keeps metadata, source names, and URLs out of display notes`,
             /metadata above is research context only, not material to repeat/.test(songReport.prompt)
             && /Keep source attribution out of lyricNotes and generalNotes/.test(songReport.prompt)
@@ -3985,7 +3989,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.beforeNotes.artist === '2001 - Report Artist - Report Song'
             && songReport.atAnchoredNote.artist === 'The second verse turns the hook into a response.'
             && songReport.atAnchoredNote.barSecondary === 'The second verse turns the hook into a response.'
-            && songReport.atGeneralNote.artist === 'The vocal and rhythm track were cut live.'
+            && songReport.atGeneralNote.artist === 'The vocals and rhythm were recorded live.'
             && songReport.deadlines.toAnchored === 60
             && songReport.deadlines.toGeneral === 120
             && songReport.deadlines.toBlankEnd === 120.2);
@@ -3995,7 +3999,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // changes mid-track.
             songReport.blankBetweenNotes.barSecondary === '\u00A0'
             && songReport.blankRowOpen === 'block'
-            && songReport.blankBetweenNotes.artist === 'The vocal and rhythm track were cut live.');
+            && songReport.blankBetweenNotes.artist === 'The vocals and rhythm were recorded live.');
         report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
             songReport.migratedEntries.length === 2
             && songReport.migratedEntries.every(entry => entry.time === null)

@@ -343,8 +343,10 @@ shown as a note. Distinctive words, phrases, places, terms, people, objects,
 events, or ideas in the lyrics may seed separate research; useful sourced
 context does not need a source that already connects it to the song. Every
 note follows George Orwell's six writing rules, which the research prompt
-includes verbatim. The model returns short notes (at most 80 characters each)
-as JSON: `lyricNotes` tied to numbered lyric lines and `generalNotes` for
+includes verbatim. Notes use ordinary, literal English rather than music,
+critical, journalistic, or insider slang: for example, `recorded live`, not
+`cut live`. The model returns short notes (at most 80 characters each) as
+JSON: `lyricNotes` tied to numbered lyric lines and `generalNotes` for
 everything else, quoting lyric words only from the provided lyrics. When no
 lyrics are available the prompt requires general notes only and forbids
 quoting.

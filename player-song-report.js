@@ -116,6 +116,7 @@ ${lyricRules}
 - Never put a raw URL anywhere in the response, including attributions.
 - Never mention the song title, album title, release date, release year, or record label in a note. The listener already knows them.
 - Put any source names and attribution details in attributions, after lyricNotes and generalNotes. Attributions are retained with the research response but never displayed as notes.
+- Use ordinary, literal English. Do not imitate musicians, critics, journalists, insiders, or a cool persona. Replace trade slang and affected shorthand with plain words: say "recorded live," never "cut live."
 - Write short, direct, information-dense sentences of at most 80 characters per note. Do not add scene-setting, flourishes, clever transitions, or generic praise.
 - Aim for roughly ${targetNotes} notes in total.
 

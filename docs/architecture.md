@@ -705,12 +705,13 @@ attribution is isolated in a final `attributions` list that is retained only
 in the raw research response. Distinctive lyric words, phrases, places, terms,
 people, objects, events, and ideas may launch separate sourced research even
 when the source does not analyze the song. The prompt reproduces George
-Orwell's six writing rules verbatim and applies them to every note. The
-request resolves the song's lyrics through `ensureLyricsForItem` first,
-numbers timed lyric lines in the prompt, and requires JSON output:
-`lyricNotes` keyed to those line numbers plus `generalNotes`, followed by
-`attributions`, quoting lyric words only from the provided lyrics (no quoting
-is permitted when none were provided).
+Orwell's six writing rules verbatim and applies them to every note. A separate
+plain-language rule forbids music, critical, journalistic, and insider slang
+or an affected persona. The request resolves the song's lyrics through
+`ensureLyricsForItem` first, numbers timed lyric lines in the prompt, and
+requires JSON output: `lyricNotes` keyed to those line numbers plus
+`generalNotes`, followed by `attributions`, quoting lyric words only from the
+provided lyrics (no quoting is permitted when none were provided).
 `parseSongReportResponse` converts that JSON into
 `SongReportEntry` records - a note keyed to a valid line number carries that
 line's sung time; everything else is untimed. `songReportSchedule` owns
