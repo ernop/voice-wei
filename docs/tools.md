@@ -373,8 +373,9 @@ saved notes. Timed lyrics continue independently on the first line. Artwork
 and YouTube position remain the same. A replay reuses the saved notes without
 another AI call, and reports saved before timed notes still play as untimed
 lines. The Log records the request body, waiting lifecycle, the provider
-response verbatim with only unreadable encrypted payload fields removed,
-parsed notes, save, and playback start or failure.
+response verbatim, parsed notes, save, and playback start or failure. The
+Log's single write path (not any caller) removes unreadable encrypted
+payload fields from every line; nothing else is altered or summarized.
 
 The Media Session also carries the selected video's stable YouTube thumbnail
 and the true YouTube elapsed/total position. Lyric/report changes mutate the

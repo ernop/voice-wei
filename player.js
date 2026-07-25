@@ -341,10 +341,26 @@ class VoiceMusicController {
         });
     }
 
+    /**
+     * Provider payloads carry unreadable encrypted blobs (reasoning
+     * `encrypted_content`, citation `encrypted_index`). Every Log line
+     * passes through addMessage, so the removal lives here at the one
+     * emission point - no call site sanitizes, and nothing else in the
+     * text is altered or summarized.
+     * @param {string} text
+     */
+    static scrubEncryptedLogFields(text) {
+        if (!/"encrypted_(?:content|index)":/.test(text)) return text;
+        return text
+            .replace(/"encrypted_(?:content|index)":\s*"(?:[^"\\]|\\.)*",?\s*/g, '')
+            .replace(/,(\s*[}\]])/g, '$1');
+    }
+
     addMessage(type, label, text) {
         const logContent = document.getElementById('logContent');
         if (!logContent) return;
 
+        const cleanText = VoiceMusicController.scrubEncryptedLogFields(String(text));
         const timestamp = new Date().toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -353,7 +369,7 @@ class VoiceMusicController {
 
         const line = document.createElement('div');
         line.className = `log-line log-${type}`;
-        line.textContent = `[${timestamp}] ${label}: ${text}`;
+        line.textContent = `[${timestamp}] ${label}: ${cleanText}`;
 
         logContent.appendChild(line);
         logContent.scrollTop = logContent.scrollHeight;
@@ -362,7 +378,7 @@ class VoiceMusicController {
             window.PlayerHistoryDB.recordLog({
                 type,
                 label,
-                text: String(text),
+                text: cleanText,
                 line: line.textContent || ''
             });
         }

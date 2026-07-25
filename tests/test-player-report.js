@@ -328,6 +328,16 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const claude = await commandHarness.requestSongReportResearch('research this song');
             window.fetch = originalFetch;
 
+            // Route each verbatim provider-response log through the real
+            // emission point (addMessage) and capture the rendered line.
+            const emittedResponseLines = commandLogs
+                .filter(entry => entry.label.startsWith('Song report response from'))
+                .map(entry => {
+                    window.musicController.addMessage(entry.type, entry.label, entry.text);
+                    const lines = document.querySelectorAll('#logContent .log-line');
+                    return lines[lines.length - 1].textContent || '';
+                });
+
             const item = {
                 id: 778,
                 videoId: `song-report-${Date.now()}`,
@@ -648,6 +658,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 claude,
                 requests,
                 commandLogs,
+                emittedResponseLines,
                 controls,
                 requestLifecycle: { idleLabel, waiting, completed, missingKey }
             };
@@ -798,18 +809,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         const providerLabels = songReport.commandLogs.map(entry => entry.label);
         const providerResponseLogs = songReport.commandLogs
             .filter(entry => entry.label.startsWith('Song report response from'));
-        report.check('song report responses are logged verbatim with only encrypted fields removed',
+        report.check('call sites pass provider responses through untouched',
             providerResponseLogs.some(entry => entry.text.includes('OpenAI researched report.')
-                && entry.text.includes('exact lyric songwriter interview')
-                && entry.text.includes('"type": "reasoning"'))
+                && entry.text.includes('openai-response-noise'))
             && providerResponseLogs.some(entry => entry.text.includes('Claude researched report.')
-                && entry.text.includes('exact lyric songwriter explained')
-                && entry.text.includes('Songwriter interview page'))
-            && providerResponseLogs.every(entry => !entry.text.includes('encrypted_content')
-                && !entry.text.includes('encrypted_index')
-                && !entry.text.includes('openai-response-noise')
-                && !entry.text.includes('claude-response-noise')
-                && !entry.text.includes('claude-citation-noise')));
+                && entry.text.includes('claude-response-noise')));
+        report.check('the Log emission point drops only encrypted fields and keeps everything else verbatim',
+            songReport.emittedResponseLines.length === 2
+            && songReport.emittedResponseLines.some(line => line.includes('OpenAI researched report.')
+                && line.includes('exact lyric songwriter interview')
+                && line.includes('"type": "reasoning"'))
+            && songReport.emittedResponseLines.some(line => line.includes('Claude researched report.')
+                && line.includes('exact lyric songwriter explained')
+                && line.includes('Songwriter interview page'))
+            && songReport.emittedResponseLines.every(line => !line.includes('encrypted_content')
+                && !line.includes('encrypted_index')
+                && !line.includes('openai-response-noise')
+                && !line.includes('claude-response-noise')
+                && !line.includes('claude-citation-noise')));
         report.check('song report request, provider responses, returned prose, split, save, and playback are logged',
             providerLabels.some(label => label.startsWith('Song report request to OpenAI'))
             && providerLabels.includes('Song report response from OpenAI')
