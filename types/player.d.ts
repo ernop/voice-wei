@@ -125,6 +125,12 @@ interface LyricStateRecord {
     lyricOffsetSeconds?: number;
 }
 
+/** One report note: anchored to a lyric line's sung time, or general (null). */
+interface SongReportEntry {
+    time: number | null;
+    text: string;
+}
+
 interface SongReportRecord {
     videoId: string;
     generatedAt: number;
@@ -132,8 +138,9 @@ interface SongReportRecord {
     model: string;
     prompt: string;
     reportText: string;
-    /** Natural display segments, each no longer than 50 characters. */
-    lines: string[];
+    entries: SongReportEntry[];
+    /** Pre-timed-notes records carried display lines; migrated to entries on load. */
+    lines?: string[];
 }
 
 interface SongReportRequestState {
@@ -539,6 +546,9 @@ interface VoiceMusicController {
     songReportForItem(item: PlaylistItem | null | undefined): SongReportRecord | null;
     songReportLyricsText(item: PlaylistItem): string;
     buildSongReportPrompt(item: PlaylistItem): string;
+    parseSongReportResponse(responseText: string, item: PlaylistItem): SongReportEntry[];
+    songReportSchedule(item: PlaylistItem): Array<{ at: number; text: string }>;
+    songReportDisplayAt(item: PlaylistItem | null | undefined, currentTime: number): { text: string; blank: boolean };
     segmentSongReport(reportText: string, maxChars?: number): string[];
     loadSongReportForItem(item: PlaylistItem): Promise<SongReportRecord | null>;
     requestSongReport(): Promise<void>;
@@ -549,7 +559,6 @@ interface VoiceMusicController {
     resetSongReportForPlay(item: PlaylistItem): void;
     clearSongReportPlayback(): void;
     songReportLineIndexAt(item: PlaylistItem, currentTime: number): number;
-    songReportTextAt(item: PlaylistItem | null | undefined, currentTime: number): string;
     nextSongReportDeadline(currentTime: number): number;
     updateSongReportControls(): void;
 

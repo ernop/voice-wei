@@ -695,21 +695,28 @@ history.
 Song-report generation has one provider-independent boundary:
 `requestSongReportResearch(prompt)` returns `{ text, provider, model }`.
 Provider-specific response envelopes are logged in full and normalized at that
-boundary; `text` must be one continuous plain-prose response with no structural
-markup. The prompt assigns reporting, not authorship: claims and interpretations
-must be traceable to researched material, sourced interpretations remain
-attributed, and the model is forbidden to supply its own analysis, motives,
-connections, embellishment, or stylistic filler. The request resolves the
-song's lyrics through `ensureLyricsForItem` first and embeds their full text,
-and the prompt directs the model to quote lyric lines when discussing them.
-`segmentSongReport` then owns the only derived representation: it
-collapses whitespace and splits at punctuation or word boundaries, hard-capped
-at 50 characters. The raw prose and derived lines are saved together before
-Report mode activates. A missing report is therefore not a disabled state:
-selecting Song Report checks IndexedDB, requests only if absent, displays the
-send/wait/result lifecycle with elapsed time, and anchors line one at the
-current playback time after the awaited save. Every transition is written
-through the durable Music Log path.
+boundary. The prompt assigns reporting, not authorship: claims and
+interpretations must be traceable to researched material, sourced
+interpretations remain attributed, and the model is forbidden to supply its
+own analysis, motives, connections, embellishment, or stylistic filler. The
+request resolves the song's lyrics through `ensureLyricsForItem` first,
+numbers timed lyric lines in the prompt, and requires JSON output:
+`lyricNotes` keyed to those line numbers plus `generalNotes`, quoting lyric
+words only from the provided lyrics (no quoting is permitted when none were
+provided). `parseSongReportResponse` converts that JSON into
+`SongReportEntry` records - a note keyed to a valid line number carries that
+line's sung time; everything else is untimed. `songReportSchedule` owns
+playback timing: anchored notes at their absolute sung moments, untimed notes
+at the midpoints of the largest remaining gaps (or interval-advanced from the
+anchor when nothing is anchored), with over-budget notes wrapped by
+`segmentSongReport` into consecutive interval-spaced segments. Consecutive
+notes are separated by a 0.2-second blank on the in-page second line only;
+the Media Session relay never carries the blank. Records saved before timed
+notes migrate to untimed entries on load. The raw response and parsed entries
+are saved together before Report mode activates. A missing report is
+therefore not a disabled state: selecting Song Report checks IndexedDB,
+requests only if absent, and displays the send/wait/result lifecycle with
+elapsed time. Every transition is written through the durable Music Log path.
 
 ## External resilience vs. internal fallbacks
 

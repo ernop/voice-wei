@@ -245,11 +245,12 @@ const PlayerCommands = (function () {
                         throw new Error('OpenAI API key not configured');
                     }
                     const model = this.settings.openaiModel;
+                    // Default reasoning effort: the report demands careful
+                    // sourcing and attribution, not the fastest answer.
                     const requestBody = {
                         model,
                         input: prompt,
                         max_output_tokens: SONG_REPORT_MAX_TOKENS,
-                        ...(/^gpt-5/i.test(model) ? { reasoning: { effort: 'low' } } : {}),
                         tools: [{ type: 'web_search' }],
                         tool_choice: 'required'
                     };

@@ -128,9 +128,11 @@ checked against this list, and new standing intent gets added here.
    and references, business, reception, and influence wherever the material
    is worthwhile. It quotes the actual lyric lines when discussing them and
    never fills missing categories. Timed lyrics remain on the first display
-   line; the report is an alternative to song identity on the second line. It
-   advances at the chosen reading interval, leaves audio/artwork/position
-   untouched, persists by video, and starts again when that song replays.
+   line; the report is an alternative to song identity on the second line.
+   Notes about a specific lyric line play at that line's sung moment; general
+   notes fill the gaps (or advance at the chosen reading interval when the
+   song has no timed lyrics). It leaves audio/artwork/position untouched,
+   persists by video, and plays again when that song replays.
    The verbatim owner directive that set the lyric policy (2026-07-24):
 
    > Remove the following line from the book prompt: "Do not quote or

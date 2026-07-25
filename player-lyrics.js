@@ -860,7 +860,11 @@ const PlayerLyrics = (function () {
                 // Lyric-file clock: playback time plus the per-song nudge.
                 // Identity intro still uses wall-clock currentTime.
                 const lyricTime = currentTime + offset;
-                const reportText = this.songReportTextAt(playingItem, currentTime);
+                // The in-page display honors the brief between-note blank;
+                // the Media Session relay carries the note itself (a 0.2s
+                // blank is pure churn over Bluetooth).
+                const report = this.songReportDisplayAt(playingItem, currentTime);
+                const barReportText = report.blank ? '\u00a0' : report.text;
 
                 if (!playingItem || syncedLines.length === 0) {
                     if (showingPlaying) this.applyActiveLyricsLine(-1);
@@ -869,9 +873,9 @@ const PlayerLyrics = (function () {
                     const lyricText = playingItem
                         ? this.lyricDisplayTextAt(playingItem, [], -1, currentTime)
                         : '';
-                    this.relayListeningTextToNowPlaying(lyricText, reportText);
+                    this.relayListeningTextToNowPlaying(lyricText, report.text);
                     this.updateTransportBarLyric(lyricText);
-                    this.updateTransportBarSecondary(reportText);
+                    this.updateTransportBarSecondary(barReportText);
                     return;
                 }
 
@@ -884,8 +888,8 @@ const PlayerLyrics = (function () {
                 );
                 const relayLyric = this.lyricDisplayTextAt(playingItem, syncedLines, ledIndex, currentTime);
                 this.updateTransportBarLyric(barLyric);
-                this.updateTransportBarSecondary(reportText);
-                this.relayListeningTextToNowPlaying(relayLyric, reportText);
+                this.updateTransportBarSecondary(barReportText);
+                this.relayListeningTextToNowPlaying(relayLyric, report.text);
             },
 
             /**
@@ -904,15 +908,20 @@ const PlayerLyrics = (function () {
                 el.style.display = line ? 'block' : 'none';
             },
 
-            /** @param {string} text */
+            /**
+             * A non-breaking space renders the between-note blank: the row
+             * stays open but visibly empty. An empty string collapses it.
+             * @param {string} text
+             */
             updateTransportBarSecondary(text) {
                 const el = document.getElementById('transportBarSecondary');
                 if (!el) return;
-                const line = String(text || '').trim();
+                const raw = String(text || '');
+                const line = raw.trim();
                 if (el.textContent !== line) {
                     el.textContent = line;
                 }
-                el.style.display = line ? 'block' : 'none';
+                el.style.display = raw ? 'block' : 'none';
             },
 
             /** @param {SyncedLyricLine[]} syncedLines @param {number} time */

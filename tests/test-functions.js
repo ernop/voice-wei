@@ -3497,10 +3497,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && artistLineWhilePlaying
             && stableTrackFields);
 
-        // A requested report is web-grounded through the selected provider,
-        // saved by videoId, wrapped to the car-display budget, and then
-        // replaces only the changing second line. Its deadline follows the
-        // configured interval and replay resets it to line one.
+        // A requested report is web-grounded through the selected provider
+        // and returns short notes: lyric-anchored notes play at their line's
+        // sung moment, general notes fill the gaps, and a 0.2s blank
+        // separates consecutive notes on the in-page second line.
         const songReport = await tab.evaluate(async () => {
             const originalFetch = window.fetch;
             const requests = [];
@@ -3553,8 +3553,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyricsData: {
                     provider: 'LRCLIB', trackName: 'Report Song', artistName: 'Report Artist',
                     albumName: 'Report Album', duration: 180, instrumental: false, plainLyrics: '',
-                    syncedLyrics: '[00:00.00]lyric line',
-                    syncedLines: [{ time: 0, text: 'lyric line' }]
+                    syncedLyrics: '[00:00.00]lyric line\n[01:00.00]second verse line',
+                    syncedLines: [
+                        { time: 0, text: 'lyric line' },
+                        { time: 60, text: 'second verse line' }
+                    ]
                 }
             };
             const harness = {
@@ -3583,22 +3586,33 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             PlayerSongReport.install(harness);
             PlayerLyrics.install(harness);
 
-            const prose = 'A bright opening gesture welcomes the listener. The arrangement keeps revealing new colors, while the recording story connects artists across places and years.';
-            const lines = harness.segmentSongReport(prose);
             const prompt = harness.buildSongReportPrompt(item);
+            const parsedEntries = harness.parseSongReportResponse(JSON.stringify({
+                lyricNotes: [
+                    { line: 2, note: 'Critics singled out the second verse hook.' },
+                    { line: 99, note: 'This line number does not exist.' }
+                ],
+                generalNotes: ['Recorded in 1971 at Abbey Road.']
+            }), item);
             const record = {
                 videoId: item.videoId,
                 generatedAt: Date.now(),
                 provider: 'openai',
                 model: 'gpt-5.5',
                 prompt,
-                reportText: prose,
-                lines
+                reportText: 'raw JSON response',
+                entries: [
+                    { time: 60, text: 'Critics singled out the second verse hook.' },
+                    { time: null, text: 'Recorded in 1971 at Abbey Road.' }
+                ]
             };
             await window.PlayerHistoryDB.putSongReport(record);
             harness.songReports.set(item.videoId, record);
             harness.songReportAnchorVideoId = item.videoId;
             harness.songReportAnchorTime = 0;
+            // Anchored note at 60s; the general note lands in the largest
+            // gap (60..180), so at 120s.
+            const schedule = harness.songReportSchedule(item);
 
             MediaSessionCore.setTrackIdentity({
                 id: item.videoId,
@@ -3616,24 +3630,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     barSecondary: document.getElementById('transportBarSecondary')?.textContent || ''
                 };
             };
-            const first = snap(3);
-            const beforeBoundary = snap(7.9);
-            const second = snap(8);
-            const firstDeadline = harness.nextListeningTextDeadline(0);
-            harness.settings.songReportIntervalSeconds = 0.5;
-            const halfSecondBeforeBoundary = snap(0.49);
-            const halfSecondSecond = snap(0.5);
-            const halfSecondDeadline = harness.nextListeningTextDeadline(0);
-            harness.settings.songReportIntervalSeconds = 8;
-            harness.songReportAnchorTime = 35;
-            const immediateAfterLoad = snap(35);
-            harness.resetSongReportForPlay(item);
-            const replay = snap(3);
+            const beforeNotes = snap(3);
+            const atAnchoredNote = snap(60);
+            const blankBetweenNotes = snap(120.1);
+            const blankRowOpen = document.getElementById('transportBarSecondary')?.style.display || '';
+            const atGeneralNote = snap(121);
+            const deadlines = {
+                toAnchored: harness.nextSongReportDeadline(0),
+                toGeneral: harness.nextSongReportDeadline(60.05),
+                toBlankEnd: harness.nextSongReportDeadline(120.05)
+            };
             const stored = await window.PlayerHistoryDB.getSongReport(item.videoId);
 
             harness.settings.songDisplayMode = 'identity';
-            const identityAgain = snap(3);
+            const identityAgain = snap(60);
+
+            // Records saved before timed notes migrate to untimed entries and
+            // keep the interval-advancing behavior, down to 0.5s per line.
+            await window.PlayerHistoryDB.putSongReport({
+                videoId: item.videoId,
+                generatedAt: Date.now(),
+                provider: 'openai',
+                model: 'gpt-5.5',
+                prompt,
+                reportText: 'legacy prose',
+                lines: ['legacy one', 'legacy two']
+            });
+            harness.songReports.delete(item.videoId);
+            const migrated = await harness.loadSongReportForItem(item);
+            harness.settings.songDisplayMode = 'report';
+            harness.songReportAnchorVideoId = item.videoId;
+            harness.songReportAnchorTime = 0;
+            harness.settings.songReportIntervalSeconds = 0.5;
+            const halfSecondFirst = snap(0.49);
+            const halfSecondBlank = snap(0.55);
+            const halfSecondSecond = snap(0.75);
+            const halfSecondDeadline = harness.nextSongReportDeadline(0);
+            harness.settings.songReportIntervalSeconds = 8;
+            harness.settings.songDisplayMode = 'identity';
             MediaSessionCore.clearTrack();
+            await window.PlayerHistoryDB.putSongReport(record);
 
             const controller = window.musicController;
             const originalIndex = controller.currentPlaylistIndex;
@@ -3751,8 +3787,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 status: document.getElementById('songReportStatus')?.textContent || ''
             };
 
-            const returnedProse = 'The returned report opens brightly. Its arrangement connects the performance to a carefully researched recording story.';
-            resolveResearch({ text: returnedProse, provider: 'openai', model: 'gpt-5.5' });
+            const returnedJson = JSON.stringify({
+                lyricNotes: [{ line: 1, note: 'Opens with its title phrase.' }],
+                generalNotes: ['Cut live in one take.']
+            });
+            resolveResearch({ text: returnedJson, provider: 'openai', model: 'gpt-5.5' });
             await activationPromise;
             const completedRecord = requestHarness.songReportForItem(requestItem);
             const completed = {
@@ -3760,27 +3799,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 status: document.getElementById('songReportStatus')?.textContent || '',
                 mode: requestHarness.settings.songDisplayMode,
                 anchor: requestHarness.songReportAnchorTime,
-                returnedProse: completedRecord?.reportText || '',
-                lines: completedRecord?.lines || [],
+                returnedText: completedRecord?.reportText || '',
+                entries: completedRecord?.entries || [],
                 logLabels: lifecycleLogs.map(entry => entry.label)
             };
             controller.activateSongReport = originalActivate;
             controller.updateSongReportControls();
 
             return {
-                lines,
                 prompt,
-                first,
-                beforeBoundary,
-                second,
-                firstDeadline,
-                halfSecondBeforeBoundary,
+                parsedEntries,
+                schedule,
+                beforeNotes,
+                atAnchoredNote,
+                blankBetweenNotes,
+                blankRowOpen,
+                atGeneralNote,
+                deadlines,
+                storedEntries: stored?.entries || [],
+                migratedEntries: migrated?.entries || [],
+                halfSecondFirst,
+                halfSecondBlank,
                 halfSecondSecond,
                 halfSecondDeadline,
-                immediateAfterLoad,
-                replay,
                 identityAgain,
-                storedLines: stored?.lines || [],
                 openai,
                 claude,
                 requests,
@@ -3791,11 +3833,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
         const claudeReportRequest = songReport.requests[1]?.body || {};
-        report.check(`song report requests force provider web research (${songReport.openai.text} / ${songReport.claude.text})`,
+        report.check(`song report requests force provider web research at default reasoning effort`,
             songReport.openai.provider === 'openai'
             && songReport.claude.provider === 'claude'
             && openaiReportRequest.tools?.[0]?.type === 'web_search'
             && openaiReportRequest.tool_choice === 'required'
+            && openaiReportRequest.reasoning === undefined
             && claudeReportRequest.tools?.[0]?.type === 'web_search_20250305'
             && claudeReportRequest.tool_choice?.type === 'any');
         report.check(`song report prompt requires sourced reporting without model-authored interpretation or style`,
@@ -3807,33 +3850,46 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Every factual claim and interpretation must be traceable/.test(songReport.prompt)
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
-            && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt)
-            && /exactly one continuous plain-text prose block/.test(songReport.prompt)
-            && /Do not return JSON, Markdown/.test(songReport.prompt));
-        report.check(`song report prompt carries the song's full lyrics and directs the model to quote them`,
-            /Full lyrics of the song:\nlyric line/.test(songReport.prompt)
-            && /Do include the lyrics: quote the actual lyric lines/.test(songReport.prompt)
+            && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
+        report.check(`song report prompt numbers the lyrics, ties notes to lines, and quotes only provided lyrics`,
+            /Full lyrics of the song, one line per row, numbered:\n1 \| lyric line\n2 \| second verse line/.test(songReport.prompt)
+            && /Tie each note to the numbered lyric line it discusses/.test(songReport.prompt)
+            && /quoting only from the numbered lyrics above/.test(songReport.prompt)
+            && /Aim for roughly 12 notes in total/.test(songReport.prompt)
+            && /"lyricNotes":\[\{"line":<numbered lyric line>,"note":"<short sentence>"\}\],"generalNotes":\["<short sentence>"\]/.test(songReport.prompt)
             && !/Do not quote or reproduce the lyrics/.test(songReport.prompt));
-        report.check(`song report lines stay within 50 characters and persist (${songReport.lines.length} lines)`,
-            songReport.lines.length > 2
-            && songReport.lines.every(line => line.length > 0 && line.length <= 50)
-            && songReport.storedLines.join('|') === songReport.lines.join('|'));
-        report.check(`song report keeps lyrics first, advances the second line every 8s, starts immediately, and resets on replay`,
-            songReport.first.title === 'lyric line'
-            && songReport.first.barPrimary === 'lyric line'
-            && songReport.first.artist === songReport.lines[0]
-            && songReport.first.barSecondary === songReport.lines[0]
-            && songReport.beforeBoundary.title === 'lyric line'
-            && songReport.beforeBoundary.artist === songReport.lines[0]
-            && songReport.second.title === 'lyric line'
-            && songReport.second.artist === songReport.lines[1]
-            && songReport.firstDeadline === 8
-            && songReport.halfSecondBeforeBoundary.artist === songReport.lines[0]
-            && songReport.halfSecondSecond.artist === songReport.lines[1]
+        report.check(`parsed notes anchor valid lyric lines and demote unknown lines to general`,
+            songReport.parsedEntries.length === 3
+            && songReport.parsedEntries[0].time === 60
+            && songReport.parsedEntries[1].time === null
+            && songReport.parsedEntries[2].time === null
+            && songReport.storedEntries.length === 2
+            && songReport.storedEntries[0].time === 60);
+        report.check(`lyric-anchored notes play at their sung moment with general notes in the largest gap`,
+            songReport.schedule.length === 2
+            && songReport.schedule[0].at === 60
+            && songReport.schedule[1].at === 120
+            && songReport.beforeNotes.barSecondary === ''
+            && songReport.beforeNotes.artist === '2001 - Report Artist - Report Song'
+            && songReport.atAnchoredNote.artist === 'Critics singled out the second verse hook.'
+            && songReport.atAnchoredNote.barSecondary === 'Critics singled out the second verse hook.'
+            && songReport.atGeneralNote.artist === 'Recorded in 1971 at Abbey Road.'
+            && songReport.deadlines.toAnchored === 60
+            && songReport.deadlines.toGeneral === 120
+            && songReport.deadlines.toBlankEnd === 120.2);
+        report.check(`a 0.2s blank separates consecutive notes on the page while the relay carries the note`,
+            songReport.blankBetweenNotes.barSecondary === ''
+            && songReport.blankRowOpen === 'block'
+            && songReport.blankBetweenNotes.artist === 'Recorded in 1971 at Abbey Road.');
+        report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
+            songReport.migratedEntries.length === 2
+            && songReport.migratedEntries.every(entry => entry.time === null)
+            && songReport.halfSecondFirst.artist === 'legacy one'
+            && songReport.halfSecondFirst.barSecondary === 'legacy one'
+            && songReport.halfSecondBlank.barSecondary === ''
+            && songReport.halfSecondBlank.artist === 'legacy two'
+            && songReport.halfSecondSecond.artist === 'legacy two'
             && songReport.halfSecondDeadline === 0.5
-            && songReport.immediateAfterLoad.artist === songReport.lines[0]
-            && songReport.replay.artist === songReport.lines[0]
-            && songReport.identityAgain.title === 'lyric line'
             && songReport.identityAgain.artist === '2001 - Report Artist - Report Song'
             && songReport.identityAgain.barSecondary === '');
         report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
@@ -3841,7 +3897,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && !songReport.controls.identitySelected
             && songReport.controls.reportDisabled === false
             && songReport.controls.requestLabel === 'Refresh Song Report'
-            && songReport.controls.status === `${songReport.lines.length} saved lines`
+            && songReport.controls.status === '2 saved notes'
             && songReport.controls.afterUp === '10s'
             && songReport.controls.afterDown === '8s'
             && songReport.controls.minimum === '0.5s'
@@ -3854,14 +3910,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && requestLifecycle.waiting.requestButton === 'Waiting 3s'
             && requestLifecycle.waiting.status.includes('OpenAI gpt-5.5')
             && requestLifecycle.waiting.status.includes('waiting 3s'));
-        report.check('returned report is identified, split, saved, and starts from line one at the current media time',
-            requestLifecycle.completed.reportButton === `Playing ${requestLifecycle.completed.lines.length} lines`
-            && requestLifecycle.completed.status.includes(`returned ${requestLifecycle.completed.returnedProse.length} characters`)
-            && requestLifecycle.completed.status.includes(`playing ${requestLifecycle.completed.lines.length} lines every 8s`)
+        report.check('returned notes are identified, parsed, saved, and start playing with lyric anchors',
+            requestLifecycle.completed.reportButton === `Playing ${requestLifecycle.completed.entries.length} notes`
+            && requestLifecycle.completed.status.includes(`returned ${requestLifecycle.completed.returnedText.length} characters`)
+            && requestLifecycle.completed.status.includes(`playing ${requestLifecycle.completed.entries.length} notes at their lyric moments`)
             && requestLifecycle.completed.mode === 'report'
             && requestLifecycle.completed.anchor === 42
-            && requestLifecycle.completed.lines.length > 1
-            && requestLifecycle.completed.lines.every(line => line.length <= 50));
+            && requestLifecycle.completed.entries.length === 2
+            && requestLifecycle.completed.entries[0].time === 0
+            && requestLifecycle.completed.entries[1].time === null);
         const lifecycleLabels = requestLifecycle.completed.logLabels;
         const providerLabels = songReport.commandLogs.map(entry => entry.label);
         report.check('song report request, provider payloads, returned prose, split, save, and playback are logged',
@@ -3872,8 +3929,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lifecycleLabels.includes('Song report request')
             && lifecycleLabels.includes('Song report request sent')
             && lifecycleLabels.includes('Song report response received')
-            && lifecycleLabels.includes('Song report returned prose')
-            && lifecycleLabels.includes('Song report split')
+            && lifecycleLabels.includes('Song report returned notes')
+            && lifecycleLabels.includes('Song report notes parsed')
             && lifecycleLabels.includes('Song report saved')
             && lifecycleLabels.includes('Song report playback'));
 

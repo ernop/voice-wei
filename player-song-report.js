@@ -1,8 +1,13 @@
 // @ts-check
-// AI-researched song reports: request, persistence, segmentation, controls,
-// and timing. The existing player deadline clock renders these lines.
+// AI-researched song reports: request, persistence, note scheduling,
+// controls, and timing. Notes tied to a lyric line play at that line's sung
+// moment; general notes fill the gaps. The existing player deadline clock
+// renders the schedule.
 
 const SONG_REPORT_LINE_MAX_CHARS = 50;
+// A brief blank on the second display line between consecutive report notes,
+// so a new note is visibly a new note.
+const SONG_REPORT_BLANK_SECONDS = 0.2;
 const SONG_REPORT_INTERVAL_VALUES = Object.freeze([
     0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30
 ]);
@@ -60,11 +65,9 @@ const PlayerSongReport = (function () {
             /** @param {PlaylistItem} item */
             buildSongReportPrompt(item) {
                 const durationSeconds = Math.max(Number(item.durationSeconds) || 180, 60);
-                const targetLines = Math.min(
-                    60,
-                    Math.max(12, Math.ceil(durationSeconds / this.settings.songReportIntervalSeconds))
-                );
-                const targetChars = targetLines * 42;
+                // Note count follows the song's length at a listening pace,
+                // never the transient display-interval setting.
+                const targetNotes = Math.min(40, Math.max(8, Math.round(durationSeconds / 15)));
                 const identity = [
                     `Song: ${item.name || item.title || 'Unknown'}`,
                     `Artist: ${item.artist || item.channelTitle || 'Unknown'}`,
@@ -72,12 +75,25 @@ const PlayerSongReport = (function () {
                     item.year ? `Year: ${item.year}` : '',
                     item.comment ? `Existing playlist note: ${item.comment}` : ''
                 ].filter(Boolean).join('\n');
-                const lyricsText = this.songReportLyricsText(item);
-                const lyricsBlock = lyricsText
-                    ? `\nFull lyrics of the song:\n${lyricsText}\n`
-                    : '';
 
-                return `Research this exact song on the web, then report what you find in a listening companion that will appear one short line at a time while the recording plays.
+                const syncedLines = item.lyricsData ? item.lyricsData.syncedLines || [] : [];
+                const numberedLyrics = syncedLines
+                    .map((line, index) => `${index + 1} | ${line.text}`)
+                    .join('\n');
+                const plainLyrics = this.songReportLyricsText(item);
+                const hasNumberedLyrics = numberedLyrics.trim().length > 0;
+                const lyricsBlock = hasNumberedLyrics
+                    ? `\nFull lyrics of the song, one line per row, numbered:\n${numberedLyrics}\n`
+                    : (plainLyrics ? `\nFull lyrics of the song:\n${plainLyrics}\n` : '');
+                const lyricRules = hasNumberedLyrics
+                    ? `- Tie each note to the numbered lyric line it discusses whenever the material concerns a specific part of the song; use general notes for everything else.
+- Do include the lyrics: quote lyric words inside a note when the note discusses them, quoting only from the numbered lyrics above.`
+                    : (plainLyrics
+                        ? `- There are no numbered lyric lines, so put every note in generalNotes.
+- Do include the lyrics: quote lyric words inside a note when the note discusses them, quoting only from the lyrics above.`
+                        : `- No lyrics are available, so put every note in generalNotes and do not quote any lyrics.`);
+
+                return `Research this exact song on the web, then report what you find as short listening notes. Each note appears on the player's second display line while the recording plays; a note tied to a lyric line appears exactly when that line is sung.
 
 ${identity}
 ${lyricsBlock}
@@ -91,14 +107,57 @@ Investigate broadly before writing. Use only notable, well-supported material th
 - real places, people, events, books, films, traditions, or scenes connected to the song
 
 Rules:
-- Every factual claim and interpretation must be traceable to material you found. When conveying someone else's interpretation, make clear whose view it is in the prose.
+- Every factual claim and interpretation must be traceable to material you found. When conveying someone else's interpretation, make clear whose view it is.
 - Do not add your own interpretation or inference. Do not invent, speculate, embellish, repeat unsupported rumors, or make invasive claims.
 - Select positive, interesting, well-supported material, but never soften, intensify, or change a source's meaning to improve the tone.
-- Do include the lyrics: quote the actual lyric lines whenever the report discusses them, and connect researched material to the words being sung.
-- Write direct, information-dense sentences. Do not add scene-setting, flourishes, clever transitions, or generic praise.
-- Return exactly one continuous plain-text prose block whose sentences make sense when wrapped into short display lines.
-- Do not return JSON, Markdown, headings, bullets, labels, citations, source lists, prefatory language, or any text outside that prose block.
-- Aim for about ${targetChars} characters total, enough for roughly ${targetLines} display lines.`;
+${lyricRules}
+- Write short, direct, information-dense sentences of at most 80 characters per note. Do not add scene-setting, flourishes, clever transitions, or generic praise.
+- Aim for roughly ${targetNotes} notes in total.
+- Return only JSON in exactly this shape, with no text outside it:
+{"lyricNotes":[{"line":<numbered lyric line>,"note":"<short sentence>"}],"generalNotes":["<short sentence>"]}`;
+            },
+
+            /**
+             * Turn the model's JSON response into report entries. Notes tied
+             * to a valid numbered lyric line carry that line's sung time;
+             * everything else is a general (untimed) note.
+             * @param {string} responseText
+             * @param {PlaylistItem} item
+             * @returns {SongReportEntry[]}
+             */
+            parseSongReportResponse(responseText, item) {
+                const source = String(responseText || '');
+                const start = source.indexOf('{');
+                const end = source.lastIndexOf('}');
+                if (start < 0 || end <= start) {
+                    throw new Error('The song report response did not contain the required JSON');
+                }
+                /** @type {{ lyricNotes?: Array<{ line?: number, note?: string }>, generalNotes?: string[] }} */
+                let parsed;
+                try {
+                    parsed = JSON.parse(source.slice(start, end + 1));
+                } catch (error) {
+                    throw new Error('The song report response JSON could not be parsed');
+                }
+
+                const syncedLines = item.lyricsData ? item.lyricsData.syncedLines || [] : [];
+                /** @type {SongReportEntry[]} */
+                const entries = [];
+                for (const note of parsed.lyricNotes || []) {
+                    const text = String(note?.note || '').trim();
+                    if (!text) continue;
+                    const lineNumber = Number(note?.line);
+                    const synced = Number.isInteger(lineNumber) ? syncedLines[lineNumber - 1] : undefined;
+                    entries.push({ time: synced ? synced.time : null, text });
+                }
+                for (const note of parsed.generalNotes || []) {
+                    const text = String(note || '').trim();
+                    if (text) entries.push({ time: null, text });
+                }
+                if (entries.length === 0) {
+                    throw new Error('The song report contained no notes');
+                }
+                return entries;
             },
 
             /**
@@ -156,8 +215,19 @@ Rules:
 
                 try {
                     const record = await flight;
-                    if (record && Array.isArray(record.lines) && record.lines.length > 0) {
-                        this.songReports.set(item.videoId, record);
+                    if (record) {
+                        // Records saved before timed notes carry only display
+                        // lines; migrate them to untimed entries on load.
+                        const entries = Array.isArray(record.entries) && record.entries.length > 0
+                            ? record.entries
+                            : (Array.isArray(record.lines)
+                                ? record.lines.map(text => ({ time: null, text }))
+                                : []);
+                        if (entries.length > 0) {
+                            const migrated = { ...record, entries };
+                            this.songReports.set(item.videoId, migrated);
+                            return migrated;
+                        }
                     }
                     return record;
                 } catch (error) {
@@ -177,8 +247,8 @@ Rules:
 
             /**
              * Explicitly research the selected/sounding song. Playback is
-             * untouched; when the response lands, report line one starts at
-             * the current media time.
+             * untouched; when the response lands, lyric-anchored notes play
+             * at their sung moments and general notes fill the gaps.
              */
             async requestSongReport() {
                 if (this.songReportRequestInFlight) return;
@@ -259,20 +329,19 @@ Rules:
                         `${result.provider === 'openai' ? 'OpenAI' : 'Claude'} (${result.model}) returned `
                         + `${result.text.length} characters in ${this.formatSongReportElapsed(elapsedMs)}`
                     );
-                    this.addMessage('claude', 'Song report returned prose', result.text);
+                    this.addMessage('claude', 'Song report returned notes', result.text);
 
-                    const lines = this.segmentSongReport(result.text);
-                    if (lines.length === 0) {
-                        throw new Error('The song report response was empty');
-                    }
+                    const entries = this.parseSongReportResponse(result.text, item);
+                    const anchoredCount = entries.filter(entry => typeof entry.time === 'number').length;
                     this.songReportRequestState = {
                         ...this.songReportRequestState,
-                        returnedLines: lines.length
+                        returnedLines: entries.length
                     };
-                    this.addMessage('claude', 'Song report split', JSON.stringify({
-                        maximumCharactersPerLine: SONG_REPORT_LINE_MAX_CHARS,
-                        lineCount: lines.length,
-                        lines
+                    this.addMessage('claude', 'Song report notes parsed', JSON.stringify({
+                        noteCount: entries.length,
+                        lyricAnchoredNotes: anchoredCount,
+                        generalNotes: entries.length - anchoredCount,
+                        entries
                     }, null, 2));
 
                     /** @type {SongReportRecord} */
@@ -283,14 +352,14 @@ Rules:
                         model: result.model,
                         prompt,
                         reportText: result.text,
-                        lines
+                        entries
                     };
                     await window.PlayerHistoryDB.putSongReport(record);
                     this.songReports.set(item.videoId, record);
                     this.addMessage(
                         'claude',
                         'Song report saved',
-                        `${lines.length} lines saved for ${this.describePlaylistItem(item)}`
+                        `${entries.length} notes saved for ${this.describePlaylistItem(item)}`
                     );
                     this.settings.songDisplayMode = 'report';
                     this.saveSettings();
@@ -308,11 +377,11 @@ Rules:
                     this.addMessage(
                         'claude',
                         'Song report playback',
-                        `Started line 1 of ${lines.length} at ${this.songReportAnchorTime.toFixed(1)}s; `
-                        + `advancing every ${this.settings.songReportIntervalSeconds}s`
+                        `Started ${entries.length} notes (${anchoredCount} at their sung lyric moments, `
+                        + `${entries.length - anchoredCount} general)`
                     );
                     this.updateSongReportControls();
-                    this.updateStatus(`Song report ready: ${lines.length} lines`);
+                    this.updateStatus(`Song report ready: ${entries.length} notes`);
                 } catch (error) {
                     this.songReportRequestState = {
                         ...this.songReportRequestState,
@@ -367,7 +436,7 @@ Rules:
                 this.addMessage(
                     'claude',
                     'Song report playback',
-                    `Started saved report for ${this.describePlaylistItem(item)} at line 1`
+                    `Started saved report for ${this.describePlaylistItem(item)} (${record.entries.length} notes)`
                 );
             },
 
@@ -408,11 +477,16 @@ Rules:
 
                 const item = this.playingPlaylistItem();
                 const now = this.currentPlaybackTime();
+                const record = item ? this.songReportForItem(item) : null;
+                const anchoredNotes = !!record
+                    && record.entries.some(entry => typeof entry.time === 'number');
                 const currentLine = item ? this.songReportLineIndexAt(item, now) : 0;
                 this.settings.songReportIntervalSeconds = next;
-                if (item && this.songReportForItem(item)) {
+                // Lyric-anchored notes keep their absolute sung moments; only
+                // the untimed sequence re-anchors to hold its current line.
+                if (item && record && !anchoredNotes) {
                     this.songReportAnchorVideoId = item.videoId;
-                    this.songReportAnchorTime = now - (currentLine * next);
+                    this.songReportAnchorTime = now - (Math.max(0, currentLine) * next);
                 }
                 this.saveSettings();
                 this.updateSongReportControls();
@@ -434,41 +508,111 @@ Rules:
                 this.updateSongReportControls();
             },
 
-            /** @param {PlaylistItem} item @param {number} currentTime */
-            songReportLineIndexAt(item, currentTime) {
+            /**
+             * The moments each display line appears. Lyric-anchored notes
+             * play at their line's sung time; general notes fill the largest
+             * gaps between them (or advance from the anchor at the display
+             * interval when nothing is anchored). Notes longer than the
+             * display budget wrap into consecutive interval-spaced segments.
+             * @param {PlaylistItem} item
+             * @returns {Array<{ at: number, text: string }>}
+             */
+            songReportSchedule(item) {
                 const record = this.songReportForItem(item);
-                if (!record || record.lines.length === 0) return -1;
-                const anchor = this.songReportAnchorVideoId === item.videoId
-                    ? this.songReportAnchorTime
-                    : 0;
-                const elapsed = Math.max(0, currentTime - anchor);
-                return Math.min(
-                    Math.floor(elapsed / this.settings.songReportIntervalSeconds),
-                    record.lines.length - 1
+                if (!record || !Array.isArray(record.entries) || record.entries.length === 0) return [];
+                const interval = this.settings.songReportIntervalSeconds;
+                const anchored = record.entries
+                    .filter(entry => typeof entry.time === 'number')
+                    .map(entry => ({ at: /** @type {number} */ (entry.time), text: entry.text }))
+                    .sort((a, b) => a.at - b.at);
+                const untimed = record.entries.filter(entry => typeof entry.time !== 'number');
+
+                if (anchored.length === 0) {
+                    const anchor = this.songReportAnchorVideoId === item.videoId
+                        ? this.songReportAnchorTime
+                        : 0;
+                    return untimed
+                        .flatMap(entry => this.segmentSongReport(entry.text))
+                        .map((text, index) => ({ at: anchor + (index * interval), text }));
+                }
+
+                const placed = [...anchored];
+                const songEnd = Math.max(
+                    Number(item.durationSeconds) || 0,
+                    anchored[anchored.length - 1].at + 30
                 );
+                /** @type {Array<{ start: number, end: number }>} */
+                const gaps = [{ start: 0, end: anchored[0].at }];
+                for (let i = 0; i < anchored.length - 1; i++) {
+                    gaps.push({ start: anchored[i].at, end: anchored[i + 1].at });
+                }
+                gaps.push({ start: anchored[anchored.length - 1].at, end: songEnd });
+                for (const entry of untimed) {
+                    gaps.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+                    const gap = gaps.shift();
+                    if (!gap) break;
+                    const at = gap.start + ((gap.end - gap.start) / 2);
+                    placed.push({ at, text: entry.text });
+                    gaps.push({ start: gap.start, end: at }, { start: at, end: gap.end });
+                }
+
+                /** @type {Array<{ at: number, text: string }>} */
+                const schedule = [];
+                for (const note of placed) {
+                    this.segmentSongReport(note.text).forEach((text, index) => {
+                        schedule.push({ at: note.at + (index * interval), text });
+                    });
+                }
+                return schedule.sort((a, b) => a.at - b.at);
             },
 
-            /** @param {PlaylistItem | null | undefined} item @param {number} currentTime */
-            songReportTextAt(item, currentTime) {
-                if (this.settings.songDisplayMode !== 'report' || !item) return '';
-                const record = this.songReportForItem(item);
-                if (!record) return '';
+            /** @param {PlaylistItem} item @param {number} currentTime */
+            songReportLineIndexAt(item, currentTime) {
+                const schedule = this.songReportSchedule(item);
+                let index = -1;
+                for (let i = 0; i < schedule.length; i++) {
+                    if (schedule[i].at <= currentTime) index = i;
+                    else break;
+                }
+                return index;
+            },
+
+            /**
+             * What the second display line shows now: the scheduled note,
+             * with a brief blank between consecutive notes so a new note is
+             * visibly a change. The blank applies to the in-page display;
+             * the Media Session relay carries the note itself.
+             * @param {PlaylistItem | null | undefined} item
+             * @param {number} currentTime
+             * @returns {{ text: string, blank: boolean }}
+             */
+            songReportDisplayAt(item, currentTime) {
+                if (this.settings.songDisplayMode !== 'report' || !item) {
+                    return { text: '', blank: false };
+                }
+                const schedule = this.songReportSchedule(item);
                 const index = this.songReportLineIndexAt(item, currentTime);
-                return index >= 0 ? record.lines[index] : '';
+                if (index < 0) return { text: '', blank: false };
+                const blank = index > 0
+                    && (currentTime - schedule[index].at) < SONG_REPORT_BLANK_SECONDS;
+                return { text: schedule[index].text, blank };
             },
 
             /** @param {number} currentTime */
             nextSongReportDeadline(currentTime) {
                 const item = this.playingPlaylistItem();
                 if (this.settings.songDisplayMode !== 'report' || !item) return Infinity;
-                const record = this.songReportForItem(item);
-                if (!record || record.lines.length < 2) return Infinity;
-                const index = this.songReportLineIndexAt(item, currentTime);
-                if (index < 0 || index >= record.lines.length - 1) return Infinity;
-                const anchor = this.songReportAnchorVideoId === item.videoId
-                    ? this.songReportAnchorTime
-                    : 0;
-                return anchor + ((index + 1) * this.settings.songReportIntervalSeconds);
+                const schedule = this.songReportSchedule(item);
+                let next = Infinity;
+                for (let i = 0; i < schedule.length; i++) {
+                    const moments = i > 0
+                        ? [schedule[i].at, schedule[i].at + SONG_REPORT_BLANK_SECONDS]
+                        : [schedule[i].at];
+                    for (const at of moments) {
+                        if (at > currentTime && at < next) next = at;
+                    }
+                }
+                return next;
             },
 
             updateSongReportControls() {
@@ -516,7 +660,7 @@ Rules:
                     reportButton.textContent = requestActive
                         ? lifecycleLabel
                         : (requestState?.phase === 'playing' && effectiveMode === 'report'
-                            ? `Playing ${requestState.returnedLines} lines`
+                            ? `Playing ${requestState.returnedLines} notes`
                             : (requestState?.phase === 'failed' ? 'Retry Song Report' : 'Song Report'));
                     reportButton.classList.toggle('selected', reportSelected);
                     reportButton.setAttribute('aria-pressed', String(reportSelected));
@@ -535,17 +679,17 @@ Rules:
                         status.textContent = `${providerModel} · waiting ${elapsedSeconds}s without interrupting playback`;
                     } else if (requestState?.phase === 'received') {
                         status.textContent = `${providerModel} returned ${requestState.returnedCharacters} characters `
-                            + `in ${this.formatSongReportElapsed(requestState.elapsedMs)}; splitting for playback`;
+                            + `in ${this.formatSongReportElapsed(requestState.elapsedMs)}; parsing notes`;
                     } else if (requestState?.phase === 'playing') {
                         status.textContent = `${providerModel} returned ${requestState.returnedCharacters} characters `
                             + `in ${this.formatSongReportElapsed(requestState.elapsedMs)}; playing `
-                            + `${requestState.returnedLines} lines every ${this.settings.songReportIntervalSeconds}s`;
+                            + `${requestState.returnedLines} notes at their lyric moments`;
                     } else if (requestState?.phase === 'failed') {
                         status.textContent = `Report failed after ${this.formatSongReportElapsed(requestState.elapsedMs)}: `
                             + requestState.error;
                     } else {
                         status.textContent = record
-                            ? `${record.lines.length} saved lines`
+                            ? `${record.entries.length} saved notes`
                             : 'No saved report; Song Report will request one';
                     }
                 }
