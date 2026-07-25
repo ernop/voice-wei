@@ -88,6 +88,50 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && modelOptions.openaiModels.includes('gpt-5.4')
             && modelOptions.openaiModels.includes('gpt-4.1'));
 
+        // The one-time Fable 5 target switch: fresh installs land on
+        // claude-fable-5, an unmarked stored OpenAI selection migrates
+        // once, and a marked selection is the owner's choice and stays.
+        const freshTarget = await tab.evaluate(() => ({
+            provider: window.musicController.settings.aiProvider,
+            model: window.musicController.settings.claudeModel,
+            marker: window.musicController.settings.llmMigration,
+            persistedMarker: SettingsStore.peekData('voice-wei:player-settings')?.llmMigration
+        }));
+        await tab.evaluate(() => {
+            const envelope = JSON.parse(localStorage.getItem('voice-wei:player-settings'));
+            envelope.data.aiProvider = 'openai';
+            envelope.data.claudeModel = 'claude-opus-4-8';
+            delete envelope.data.llmMigration;
+            localStorage.setItem('voice-wei:player-settings', JSON.stringify(envelope));
+        });
+        await tab.reload({ waitUntil: 'domcontentloaded' });
+        await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+        const migratedTarget = await tab.evaluate(() => ({
+            provider: window.musicController.settings.aiProvider,
+            model: window.musicController.settings.claudeModel
+        }));
+        await tab.evaluate(() => {
+            const envelope = JSON.parse(localStorage.getItem('voice-wei:player-settings'));
+            envelope.data.aiProvider = 'openai';
+            envelope.data.openaiModel = 'gpt-5.4';
+            localStorage.setItem('voice-wei:player-settings', JSON.stringify(envelope));
+        });
+        await tab.reload({ waitUntil: 'domcontentloaded' });
+        await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+        const ownerChoice = await tab.evaluate(() => ({
+            provider: window.musicController.settings.aiProvider,
+            model: window.musicController.settings.openaiModel
+        }));
+        report.check('player targets Claude Fable 5 once and then honors later provider choices',
+            freshTarget.provider === 'claude'
+            && freshTarget.model === 'claude-fable-5'
+            && freshTarget.marker === 'fable-5-target'
+            && freshTarget.persistedMarker === 'fable-5-target'
+            && migratedTarget.provider === 'claude'
+            && migratedTarget.model === 'claude-fable-5'
+            && ownerChoice.provider === 'openai'
+            && ownerChoice.model === 'gpt-5.4');
+
         const prebufferProbe = await tab.evaluate(async () => {
             const realYT = window.YT;
             const instances = [];

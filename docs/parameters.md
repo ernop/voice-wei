@@ -259,7 +259,8 @@ playback update, or lyric render without replaying anything.
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
 | aiProvider | claude | claude / openai segment row | immediate (next request; shows that provider's model row and key panel) |
-| claudeModel | claude-opus-4-8 | claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5 | immediate (next request); retired ids alias forward on load (sonnet-4-6 to sonnet-5, opus-4-5 to opus-4-8) |
+| claudeModel | claude-fable-5 | claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5 | immediate (next request); retired ids alias forward on load (sonnet-4-6 to sonnet-5, opus-4-5 to opus-4-8) |
+| llmMigration | fable-5-target | internal marker, not a control | one-time owner-directed switch: installs without the marker move to Claude Fable 5 on load, then every later provider/model choice is untouched |
 | openaiModel | gpt-5.5 | gpt-5.5, gpt-5.4, gpt-4.1 | immediate (next request); retired ids alias forward on load (gpt-5.2 to gpt-5.4) |
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |

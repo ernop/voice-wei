@@ -9,6 +9,7 @@ interface PlayerAppSettings {
     claudeModel: string;
     openaiModel: string;
     aiProvider: string;
+    llmMigration: string;
     lyricsOnNowPlaying: boolean;
     showSongNotes: boolean;
     playlistTimedOnly: boolean;

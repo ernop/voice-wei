@@ -12,6 +12,7 @@ const PLAYER_SETTINGS_KEYS = [
     'claudeModel',
     'openaiModel',
     'aiProvider',
+    'llmMigration',
     'lyricsOnNowPlaying',
     'showSongNotes',
     'playlistTimedOnly',

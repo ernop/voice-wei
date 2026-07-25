@@ -169,9 +169,10 @@ class VoiceMusicController {
             this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
             autoSubmitMode: true,
-            claudeModel: 'claude-opus-4-8',
+            claudeModel: 'claude-fable-5',
             openaiModel: 'gpt-5.5',
             aiProvider: 'claude',
+            llmMigration: '',
             lyricsOnNowPlaying: true,
             showSongNotes: false,
             playlistTimedOnly: false,
@@ -1356,8 +1357,17 @@ class VoiceMusicController {
             'gpt-4o-mini': 'gpt-4.1',
             'gpt-5.2': 'gpt-5.4'
         };
-        this.settings.claudeModel = claudeAliases[this.settings.claudeModel] || this.settings.claudeModel || 'claude-opus-4-8';
+        this.settings.claudeModel = claudeAliases[this.settings.claudeModel] || this.settings.claudeModel || 'claude-fable-5';
         this.settings.openaiModel = openaiAliases[this.settings.openaiModel] || this.settings.openaiModel || 'gpt-5.5';
+        // Owner-directed target switch (2026-07-25): existing installs move
+        // to Claude Fable 5 exactly once. The persisted marker keeps every
+        // later manual provider/model choice untouched.
+        if (this.settings.llmMigration !== 'fable-5-target') {
+            this.settings.llmMigration = 'fable-5-target';
+            this.settings.aiProvider = 'claude';
+            this.settings.claudeModel = 'claude-fable-5';
+            PlayerStorage.saveSettings(this.settings);
+        }
     }
 
     async submitTypedCommand() {
