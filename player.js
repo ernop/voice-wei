@@ -501,7 +501,7 @@ class VoiceMusicController {
             const response = await fetch('proxy.php?test=1');
             if (response.ok) {
                 const data = await response.json();
-                if (data.status === 'Proxy is working') {
+                if (data.ok === true) {
                     this.addMessage('claude', 'Proxy Test', 'Server-side proxy is working');
                 } else {
                     this.addMessage('error', 'Proxy Test', 'Unexpected response from proxy');

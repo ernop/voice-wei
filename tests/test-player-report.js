@@ -494,6 +494,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             const lifecycleLogs = [];
             let resolveResearch = /** @type {((result: { text: string, provider: 'openai', model: string }) => void) | null} */ (null);
+            let researchCalls = 0;
             const requestHarness = {
                 settings: {
                     lyricsOnNowPlaying: true,
@@ -503,6 +504,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     openaiModel: 'gpt-5.5',
                     claudeModel: 'claude-opus-4-8'
                 },
+                config: { openaiApiKey: 'test-openai-key' },
                 currentPlayingId: requestItem.id,
                 saveSettings() {},
                 resyncProgressClock() {},
@@ -526,6 +528,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateListeningTextPosition() {},
                 ensureLyricsForItem() { return Promise.resolve(requestItem.lyricsData); },
                 requestSongReportResearch() {
+                    researchCalls++;
                     return new Promise(resolve => {
                         resolveResearch = resolve;
                     });
@@ -579,6 +582,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 entries: completedRecord?.entries || [],
                 logLabels: lifecycleLogs.map(entry => entry.label)
             };
+            const missingKeyLogStart = lifecycleLogs.length;
+            requestHarness.settings.aiProvider = 'claude';
+            await requestHarness.requestSongReport();
+            const missingKey = {
+                researchCalls,
+                logs: lifecycleLogs.slice(missingKeyLogStart),
+                inFlight: requestHarness.songReportRequestInFlight
+            };
             controller.activateSongReport = originalActivate;
             controller.updateSongReportControls();
 
@@ -605,7 +616,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 requests,
                 commandLogs,
                 controls,
-                requestLifecycle: { idleLabel, waiting, completed }
+                requestLifecycle: { idleLabel, waiting, completed, missingKey }
             };
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
@@ -730,6 +741,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && requestLifecycle.completed.entries.length === 2
             && requestLifecycle.completed.entries[0].time === 0
             && requestLifecycle.completed.entries[1].time === null);
+        report.check('an unconfigured provider fails before a song-report request is announced or sent',
+            requestLifecycle.missingKey.researchCalls === 1
+            && requestLifecycle.missingKey.inFlight === false
+            && requestLifecycle.missingKey.logs.length === 1
+            && requestLifecycle.missingKey.logs[0].type === 'error'
+            && requestLifecycle.missingKey.logs[0].label === 'Song report request'
+            && requestLifecycle.missingKey.logs[0].text === 'Claude API key not configured');
         const lifecycleLabels = requestLifecycle.completed.logLabels;
         const providerLabels = songReport.commandLogs.map(entry => entry.label);
         report.check('song report request, provider payloads, returned prose, split, save, and playback are logged',

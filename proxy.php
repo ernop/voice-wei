@@ -427,6 +427,7 @@ if (isset($_GET['assetUrl'])) {
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([
+        'ok' => true,
         'status' => 'Search and Books URL import are working',
         'php_version' => PHP_VERSION,
         'curl_available' => function_exists('curl_init'),

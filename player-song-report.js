@@ -307,6 +307,15 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                     ? this.settings.openaiModel
                     : this.settings.claudeModel;
                 const providerName = provider === 'openai' ? 'OpenAI' : 'Claude';
+                const providerKey = provider === 'openai'
+                    ? this.config?.openaiApiKey
+                    : this.config?.claudeApiKey;
+                if (!providerKey) {
+                    const message = `${providerName} API key not configured`;
+                    this.updateStatus(`Song report unavailable: ${message}`);
+                    this.addMessage('error', 'Song report request', message);
+                    return;
+                }
                 const itemName = this.truncateForStatus(this.describePlaylistItem(item), 80);
                 const startedAt = Date.now();
                 this.songReportRequestInFlight = true;
