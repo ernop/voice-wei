@@ -422,7 +422,7 @@ class VoiceMusicController {
         this.historicalLogsLoading = true;
         if (historyBtn) {
             historyBtn.disabled = true;
-            historyBtn.textContent = 'Loading Previous';
+            historyBtn.textContent = 'Loading Old Logs';
         }
 
         try {
@@ -433,8 +433,8 @@ class VoiceMusicController {
             this.historicalLogsLoaded = true;
             if (historyBtn) {
                 historyBtn.textContent = earlier.length > 0
-                    ? `Previous Shown (${earlier.length})`
-                    : 'No Previous Logs';
+                    ? `Old Logs Loaded (${earlier.length})`
+                    : 'No Old Logs';
             }
             if (earlier.length === 0) return;
 
@@ -455,7 +455,7 @@ class VoiceMusicController {
             this.logError('Log History Load Error', error);
             if (historyBtn) {
                 historyBtn.disabled = false;
-                historyBtn.textContent = 'Show Previous';
+                historyBtn.textContent = 'Load Old Logs';
             }
         } finally {
             this.historicalLogsLoading = false;

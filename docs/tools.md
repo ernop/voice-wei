@@ -447,9 +447,10 @@ Other surfaces on the page:
   search as the playlist filter, with per-row Load buttons and a "Load
   All Shown" button that loads every matching song into the working
   playlist.
-- **Log** opens with only lines from the current page session. **Show
-  Previous** explicitly prepends every earlier-session line still retained by
-  the 5,000-line IndexedDB log store; opening Log alone never loads history.
+- **Log** opens with only lines from the current page session, and **Copy
+  All** copies only those visible session lines. **Load Old Logs** explicitly
+  prepends every earlier-session line still retained by the 5,000-line
+  IndexedDB log store; after that explicit load, **Copy All** includes them.
   **Playback diagnostic** lines record visibility/page lifecycle, browser
   discard evidence, network and memory context, application transport intent,
   and every YouTube player state. After an Android background stop, the next

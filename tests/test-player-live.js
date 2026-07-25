@@ -280,6 +280,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const historyBeforeClick = document.querySelectorAll('#logContent .log-history').length;
             const historyButton = /** @type {HTMLButtonElement} */ (document.getElementById('loadHistoryLogBtn'));
             const buttonVisible = historyButton.style.display !== 'none';
+            const clipboardWrites = [];
+            const clipboard = navigator.clipboard;
+            const originalWriteText = clipboard.writeText;
+            clipboard.writeText = async text => {
+                clipboardWrites.push(text);
+            };
+            document.getElementById('copyAllLogBtn').click();
+            await Promise.resolve();
+            const copiedBeforeHistory = clipboardWrites.at(-1) || '';
 
             const originalLoad = c.loadHistoricalLogs;
             let loadPromise = Promise.resolve();
@@ -290,6 +299,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             historyButton.click();
             await loadPromise;
             c.loadHistoricalLogs = originalLoad;
+            document.getElementById('copyAllLogBtn').click();
+            await Promise.resolve();
+            const copiedAfterHistory = clipboardWrites.at(-1) || '';
+            clipboard.writeText = originalWriteText;
 
             const replayed = Array.from(document.querySelectorAll('#logContent .log-line.log-history'))
                 .some(line => line.textContent.includes(previousStamp));
@@ -303,17 +316,23 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 historyBeforeClick,
                 buttonVisible,
                 buttonText: historyButton.textContent,
+                copiedCurrentOnly: copiedBeforeHistory.includes(currentStamp)
+                    && !copiedBeforeHistory.includes(previousStamp),
+                copiedHistoryAfterLoad: copiedAfterHistory.includes(currentStamp)
+                    && copiedAfterHistory.includes(previousStamp),
                 replayed,
                 currentWasNotReplayed,
                 currentVisible,
                 divider
             };
         });
-        report.check('player Log opens current-session only and explicitly loads every retained previous line',
+        report.check('player Log and Copy All stay session-only until Load Old Logs includes retained history',
             logHistory.stored
             && logHistory.historyBeforeClick === 0
             && logHistory.buttonVisible
-            && logHistory.buttonText.startsWith('Previous Shown')
+            && logHistory.buttonText.startsWith('Old Logs Loaded')
+            && logHistory.copiedCurrentOnly
+            && logHistory.copiedHistoryAfterLoad
             && logHistory.replayed
             && logHistory.currentWasNotReplayed
             && logHistory.currentVisible
