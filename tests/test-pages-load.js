@@ -7,7 +7,7 @@ const PAGES = [
     'index.html', 'scales.html', 'intervals.html', 'phrases.html', 'trace.html',
     'pitch-meter.html', 'ears.html', 'player.html', 'ebook.html', 'deploys.html'
 ];
-const SETTLE_MS = Number(process.env.TEST_SETTLE_MS || (process.env.TEST_PROFILE === 'full' ? 2000 : 250));
+const SETTLE_MS = Number(process.env.TEST_SETTLE_MS || 250);
 
 (async () => {
     const report = createReporter('pages load');

@@ -8,7 +8,6 @@
     "test": "node tests/run-all.js",
     "test:startup": "node tests/run-all.js --suite test-player-startup.js",
     "verify:startup": "node tests/verify-startup.js",
-    "test:full": "node tests/run-all.js --full",
     "test:suite": "node tests/run-all.js --suite",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",

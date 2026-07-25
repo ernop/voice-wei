@@ -22,8 +22,61 @@ function launchOptions(extraArgs = []) {
     return options;
 }
 
+// Piano samples normally come from the Salamander CDN. The gate must never
+// depend on external network: under parallel load those fetches fail and
+// poison console-error assertions. Every page and context created from a
+// test browser transparently receives the same locally served silent WAV.
+const SILENT_WAV = buildSilentWav();
+
+function buildSilentWav() {
+    const sampleRate = 44100;
+    const sampleCount = Math.round(sampleRate * 0.05);
+    const buffer = Buffer.alloc(44 + sampleCount * 2);
+    buffer.write('RIFF', 0);
+    buffer.writeUInt32LE(36 + sampleCount * 2, 4);
+    buffer.write('WAVE', 8);
+    buffer.write('fmt ', 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(1, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(sampleRate * 2, 28);
+    buffer.writeUInt16LE(2, 32);
+    buffer.writeUInt16LE(16, 34);
+    buffer.write('data', 36);
+    buffer.writeUInt32LE(sampleCount * 2, 40);
+    return buffer;
+}
+
+/** @param {import('playwright').Page | import('playwright').BrowserContext} target */
+async function routePianoSamples(target) {
+    await target.route('https://tonejs.github.io/audio/salamander/**', route => route.fulfill({
+        status: 200,
+        contentType: 'audio/wav',
+        body: SILENT_WAV
+    }));
+}
+
+/** @param {import('playwright').Browser} browser */
+function stubExternalAudio(browser) {
+    const newPage = browser.newPage.bind(browser);
+    browser.newPage = async (...args) => {
+        const page = await newPage(...args);
+        await routePianoSamples(page);
+        return page;
+    };
+    const newContext = browser.newContext.bind(browser);
+    browser.newContext = async (...args) => {
+        const context = await newContext(...args);
+        await routePianoSamples(context);
+        return context;
+    };
+    return browser;
+}
+
 function launch() {
-    return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions());
+    return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions())
+        .then(stubExternalAudio);
 }
 
 // Fake microphone (emits a tone) for pages that listen.
@@ -31,7 +84,7 @@ function launchWithMic() {
     return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions([
         '--use-fake-device-for-media-stream',
         '--use-fake-ui-for-media-stream'
-    ]));
+    ])).then(stubExternalAudio);
 }
 
 /**

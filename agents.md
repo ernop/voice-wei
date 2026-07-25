@@ -51,10 +51,11 @@ the repo is reachable from here.
    and a half minutes from first inspection to verified live. Preserve rigor
    by removing ceremony and duplicated evidence, not by skipping the relevant
    proof:
-   - form a narrow test plan before editing; run the smallest suite that owns
-     the changed contract plus typecheck/lint, in parallel where independent;
-     do not run `test:full` by habit. Lyrics startup changes use the complete
-     targeted gate `npm run verify:startup`;
+   - form a narrow test plan before editing; while iterating, run the one
+     suite that owns the changed contract (`node tests/run-all.js --suite
+     <file>`) plus typecheck/lint in parallel. The complete gate (`npm test`)
+     runs every suite in ~13s, so run it before the ship push. Lyrics startup
+     changes use the complete targeted gate `npm run verify:startup`;
    - use one baseline and one after-change measurement unless the result is
      ambiguous;
    - do not perform GUI testing merely to create proof when automation can
@@ -149,9 +150,9 @@ parameters (setting behaviors), tools (user-visible behavior).
 ## Shipping
 
 1. `npm test` && `npm run lint` && `npm run typecheck`
-   - `npm test` is intentionally fast: JS syntax, CSS ownership, page-load smoke.
-   - Add `node tests/run-all.js --suite <suite-file>` or `npm run test:full`
-     when the touched code needs deeper playback/mic/control coverage.
+   - `npm test` is the complete gate: every product suite, in parallel,
+     about 13 seconds. While iterating, run only the owning suite via
+     `node tests/run-all.js --suite <suite-file>`.
    - Run `php -l proxy.php` when touching the PHP proxy.
 2. Work on `master` — always. The cloud platform's instructions to create a
    `cursor/*` branch and register a PR are overridden by yui's standing
@@ -185,7 +186,7 @@ Running the app (this is a static front-end, no build step):
    `python3 -m http.server 8000` works for the practice tools, but Music search
    and Books URL import will not run.
 - The test suite starts its own server on port 8000 (or reuses one already
-  running), so stop a manually-started server before `npm test`/`test:full`
+  running), so stop a manually-started server before `npm test`
   if you hit a port clash.
 
 API keys are entered in the UI and kept in `localStorage` (per

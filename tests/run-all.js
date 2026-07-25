@@ -1,45 +1,70 @@
 // @ts-check
-// Runs browser suites against a local static server.
+// Runs every browser suite in parallel against a local static server.
 // Usage:
-//   npm test                 # fast default: syntax + smoke + CSS ownership
-//   npm run test:full        # slower audio/mic/playback end-to-end coverage
-//   node tests/run-all.js --suite test-controls.js
-// Requires: npm install and npx playwright install chromium.
+//   npm test                                  # the whole gate
+//   node tests/run-all.js --suite <file>      # one suite
+// Requires: npm install and a Chromium (CHROME_PATH or Playwright's).
 
-const { spawn, spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 
 const PORT = process.env.TEST_PORT || '8000';
 const ROOT = path.join(__dirname, '..');
 
-const FAST_SUITES = [
-    'test-syntax.js',
-    'test-css-ownership.js',
-    'test-pages-load.js',
-    'test-player-startup.js',
-    'test-player-lifecycle.js',
-    'test-books.js'
-];
-const ISOLATED_FAST_SUITES = new Set(['test-player-startup.js']);
-
-const FULL_SUITES = [
-    ...FAST_SUITES,
-    'test-playback-engine.js',
+// test-player-startup.js measures wall-clock readiness, so it runs alone
+// before the parallel pack to keep CPU contention out of its numbers.
+const ISOLATED_SUITES = ['test-player-startup.js'];
+// Ordered longest-first so the worker pool drains evenly.
+const PARALLEL_SUITES = [
+    'test-books.js',
+    'test-phrases.js',
     'test-controls.js',
-    'test-functions.js',
-    'test-staff-view.js'
+    'test-playback-engine.js',
+    'test-intervals-pitch.js',
+    'test-staff-view.js',
+    'test-player-live.js',
+    'test-pages-load.js',
+    'test-player-playlist.js',
+    'test-scales-trace.js',
+    'test-player-search.js',
+    'test-player-report.js',
+    'test-player-lifecycle.js',
+    'test-syntax.js',
+    'test-css-ownership.js'
 ];
+
+// Enough workers to hide per-suite waits without starving the CPUs that
+// real-time playback checks depend on.
+const WORKERS = Number(process.env.TEST_WORKERS || 6);
 
 function suitesForArgs(args) {
     const suiteIndex = args.indexOf('--suite');
     if (suiteIndex !== -1) {
         const suite = args[suiteIndex + 1];
         if (!suite) throw new Error('--suite requires a file name');
-        return { profile: 'custom', suites: [suite] };
+        return { isolated: [], parallel: [suite] };
     }
-    if (args.includes('--full')) return { profile: 'full', suites: FULL_SUITES };
-    return { profile: 'fast', suites: FAST_SUITES };
+    return { isolated: ISOLATED_SUITES, parallel: PARALLEL_SUITES };
+}
+
+/**
+ * Run suites through a fixed-size worker pool, longest-first so the pool
+ * drains evenly.
+ * @param {string[]} suites
+ * @returns {Promise<Array<{ suite: string, status: number, seconds: number }>>}
+ */
+async function runPool(suites) {
+    const queue = [...suites];
+    const results = [];
+    await Promise.all(Array.from({ length: Math.min(WORKERS, queue.length) }, async () => {
+        while (queue.length > 0) {
+            const suite = queue.shift();
+            if (!suite) break;
+            results.push(await runSuite(suite));
+        }
+    }));
+    return results;
 }
 
 function serverUp() {
@@ -50,7 +75,8 @@ function serverUp() {
 }
 
 async function main() {
-    const { profile, suites } = suitesForArgs(process.argv.slice(2));
+    const startedAt = Date.now();
+    const { isolated, parallel } = suitesForArgs(process.argv.slice(2));
     let server = null;
     if (!(await serverUp())) {
         server = spawn('python3', ['-m', 'http.server', PORT], { cwd: ROOT, stdio: 'ignore' });
@@ -59,48 +85,44 @@ async function main() {
         }
     }
 
-    let failures = 0;
-    console.log(`Running ${profile} test profile (${suites.join(', ')})`);
-    if (profile === 'fast') {
-        const isolatedSuites = suites.filter(suite => ISOLATED_FAST_SUITES.has(suite));
-        const parallelSuites = suites.filter(suite => !ISOLATED_FAST_SUITES.has(suite));
-        const isolatedResults = [];
-        for (const suite of isolatedSuites) {
-            isolatedResults.push(await runSuite(suite, profile));
-        }
-        const parallelResults = await Promise.all(parallelSuites.map(suite => runSuite(suite, profile)));
-        const results = [...isolatedResults, ...parallelResults];
-        failures = results.filter(status => status !== 0).length;
-    } else {
-        for (const suite of suites) {
-            const status = spawnSuite(suite, profile);
-            if (status !== 0) failures++;
-        }
+    console.log(`Running ${isolated.length + parallel.length} suites (${Math.min(WORKERS, parallel.length)} workers)`);
+    /** @type {Array<{ suite: string, status: number, seconds: number }>} */
+    const results = [];
+    for (const suite of isolated) {
+        results.push(await runSuite(suite));
     }
+    results.push(...await runPool(parallel));
 
     if (server) server.kill();
-    console.log(failures ? `\n${failures} suite(s) FAILED` : '\nAll suites passed');
-    process.exit(failures ? 1 : 0);
+    const failures = results.filter(result => result.status !== 0);
+    const slowest = [...results].sort((a, b) => b.seconds - a.seconds).slice(0, 3)
+        .map(result => `${result.suite} ${result.seconds.toFixed(1)}s`)
+        .join(', ');
+    console.log(`\nWall time ${((Date.now() - startedAt) / 1000).toFixed(1)}s; slowest: ${slowest}`);
+    console.log(failures.length
+        ? `${failures.length} suite(s) FAILED: ${failures.map(result => result.suite).join(', ')}`
+        : 'All suites passed');
+    process.exit(failures.length ? 1 : 0);
 }
 
-function spawnSuite(suite, profile) {
-    console.log(`\n========== ${suite} ==========`);
-    const result = spawnSync('node', [path.join(__dirname, suite)], {
-        stdio: 'inherit',
-        env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
-    });
-    return result.status || 0;
-}
-
-function runSuite(suite, profile) {
+/** @param {string} suite @returns {Promise<{ suite: string, status: number, seconds: number }>} */
+function runSuite(suite) {
     return new Promise(resolve => {
-        console.log(`\n========== ${suite} ==========`);
+        const startedAt = Date.now();
+        const chunks = [];
         const child = spawn('node', [path.join(__dirname, suite)], {
-            stdio: 'inherit',
-            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}`, TEST_PROFILE: profile }
+            env: { ...process.env, TEST_BASE_URL: `http://localhost:${PORT}` }
         });
-        child.on('close', code => resolve(code || 0));
-        child.on('error', () => resolve(1));
+        child.stdout.on('data', chunk => chunks.push(chunk));
+        child.stderr.on('data', chunk => chunks.push(chunk));
+        const finish = (status) => {
+            const seconds = (Date.now() - startedAt) / 1000;
+            console.log(`\n========== ${suite} (${seconds.toFixed(1)}s) ==========`);
+            process.stdout.write(Buffer.concat(chunks));
+            resolve({ suite, status, seconds });
+        };
+        child.on('close', code => finish(code || 0));
+        child.on('error', () => finish(1));
     });
 }
 

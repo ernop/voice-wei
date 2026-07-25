@@ -27,8 +27,8 @@ Fresh cloud VM: `./setup-cloud-agent.sh` once (php, npm deps, Playwright).
 ## Verify before ship
 
 ```bash
-npm test && npm run lint && npm run typecheck
-# when touching playback/mic/controls: npm run test:full
+npm test && npm run lint && npm run typecheck   # npm test = whole gate, ~13s
+# while iterating on one product: node tests/run-all.js --suite <file>
 # when touching proxy.php: php -l proxy.php
 ```
 

@@ -838,15 +838,35 @@ gate enforces this.
 
 ## Testing
 
-`npm test` runs the fast headless profile in `tests/`: JavaScript syntax,
-CSS ownership, page-load smoke, and the fast Books workflow suite (local
-library, book mode, custom player, history). It is the default pre-push check
-for ordinary docs/CSS/small-JS work and is also a deploy gate.
+`npm test` is the whole gate: every suite, every product, one command,
+about 13 seconds wall. There are no fast/full profiles. The runner
+(`tests/run-all.js`) executes the startup-timing suite alone first (its
+wall-clock budget must not share CPUs), then drains the rest through a
+bounded worker pool (`TEST_WORKERS`, default 6), longest suites first, and
+prints per-suite times plus the slowest three.
 
-Use `node tests/run-all.js --suite <suite-file>` for targeted browser checks.
-Use `npm run test:full` for slower playback law, shared controls +
-persistence, per-tab functions, and fake-mic listening tests when touching
-those systems.
+Suites are product-scoped, extracted from the retired tab-functions
+monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
+`test-player-live`, `test-player-search`, `test-player-playlist`,
+`test-player-report`, plus the standing `test-books`, `test-controls`,
+`test-playback-engine`, `test-staff-view`, `test-pages-load`,
+`test-player-startup`, `test-player-lifecycle`, `test-syntax`, and
+`test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one
+suite while iterating.
+
+Two disciplines keep the gate fast and honest:
+
+- **No fixed sleeps where state is observable.** Tests wait on explicit
+  signals - `window.__voiceWeiStartup.ready`, page debug handles
+  (`phrasesDebug`, `traceDebug`, `intervalsDebug`, `pitchMeter`),
+  `window.__voiceStarts` / `window.__trace` voice instrumentation,
+  Media Session transport state, DOM text/classes, and store contents
+  (`PRACTICE_PROGRESS`, settings keys) - never wall-clock pads. Where a
+  test configures note/gap durations and its assertions are structural
+  (counts, ordering, persistence), it configures short durations.
+- **No external network.** `tests/helpers.js` transparently serves every
+  Salamander piano-sample request as a locally generated silent WAV on all
+  pages and contexts, so the gate cannot flake on CDN availability.
 
 One suite is deliberately outside every profile:
 `node tests/audit-search-live.js` runs real songs through the REAL search
