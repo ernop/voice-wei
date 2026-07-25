@@ -171,94 +171,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && artistLineWhilePlaying
             && stableTrackFields);
 
-        // The sticky bar must never change height mid-track: lyric gaps and
-        // blank lines empty a row's text, but the row's box holds until a
-        // real track boundary releases it. A sticky bar that grows/shrinks
-        // shoves the whole page under a reader scrolled below it.
-        const stickyBarStability = await tab.evaluate(() => {
-            const harness = {};
-            PlayerLyrics.install(harness);
-            const lyricRow = document.getElementById('transportBarLyric');
-            const secondaryRow = document.getElementById('transportBarSecondary');
-            harness.resetTransportBarText();
-
-            harness.updateTransportBarLyric('sung line');
-            const shown = { display: lyricRow.style.display, text: lyricRow.textContent };
-            harness.updateTransportBarLyric('');
-            const gap = { display: lyricRow.style.display, text: lyricRow.textContent };
-            harness.updateTransportBarLyric('next line');
-            const resumed = { display: lyricRow.style.display, text: lyricRow.textContent };
-
-            // A row that never showed text this track must not appear.
-            harness.updateTransportBarSecondary('');
-            const neverShown = { display: secondaryRow.style.display, text: secondaryRow.textContent };
-
-            harness.resetTransportBarText();
-            const afterBoundary = {
-                lyricDisplay: lyricRow.style.display,
-                lyricText: lyricRow.textContent,
-                holdReleased: lyricRow.dataset.holdsSpace === undefined
-            };
-            return { shown, gap, resumed, neverShown, afterBoundary };
-        });
-        report.check('sticky bar rows hold their box through lyric gaps and collapse only at track boundaries',
-            stickyBarStability.shown.display === 'block'
-            && stickyBarStability.shown.text === 'sung line'
-            && stickyBarStability.gap.display === 'block'
-            && stickyBarStability.gap.text === '\u00A0'
-            && stickyBarStability.resumed.text === 'next line'
-            && stickyBarStability.neverShown.display === 'none'
-            && stickyBarStability.neverShown.text === ''
-            && stickyBarStability.afterBoundary.lyricDisplay === 'none'
-            && stickyBarStability.afterBoundary.lyricText === ''
-            && stickyBarStability.afterBoundary.holdReleased);
-
-        // A reader scrolling the lyric panel owns its position: the
-        // auto-centering highlight yields for the holdoff window, then
-        // resumes following the song.
-        const lyricScrollGuard = await tab.evaluate(async () => {
-            const harness = { currentLyricsLineIndex: -1 };
-            PlayerLyrics.install(harness);
-            const realContainer = document.getElementById('lyricsContent');
-            if (realContainer) realContainer.id = 'lyricsContentParked';
-            const container = document.createElement('div');
-            container.id = 'lyricsContent';
-            container.className = 'lyrics-content';
-            container.style.cssText = 'height: 100px; max-height: 100px; overflow-y: auto;';
-            for (let i = 0; i < 60; i++) {
-                const line = document.createElement('div');
-                line.className = 'lyrics-line';
-                line.style.cssText = 'height: 20px;';
-                line.textContent = `line ${i}`;
-                container.appendChild(line);
-            }
-            document.body.appendChild(container);
-            try {
-                harness.applyActiveLyricsLine(30, true);
-                const autoCentered = container.scrollTop;
-
-                container.dispatchEvent(new WheelEvent('wheel'));
-                container.scrollTop = 5;
-                harness.applyActiveLyricsLine(35);
-                await new Promise(resolve => setTimeout(resolve, 250));
-                const whileReading = container.scrollTop;
-
-                container.dataset.userScrollUntil = String(Date.now() - 1);
-                harness.applyActiveLyricsLine(40);
-                await new Promise(resolve => setTimeout(resolve, 400));
-                const afterHoldoff = container.scrollTop;
-
-                return { autoCentered, whileReading, afterHoldoff };
-            } finally {
-                container.remove();
-                if (realContainer) realContainer.id = 'lyricsContent';
-            }
-        });
-        report.check(`lyric panel auto-centering yields to a reading scroll and resumes after the holdoff (${lyricScrollGuard.autoCentered} -> ${lyricScrollGuard.whileReading} -> ${lyricScrollGuard.afterHoldoff})`,
-            lyricScrollGuard.autoCentered > 0
-            && lyricScrollGuard.whileReading === 5
-            && lyricScrollGuard.afterHoldoff > 100);
-
         // A requested report is web-grounded through the selected provider
         // and returns short notes: lyric-anchored notes play at their line's
         // sung moment, general notes fill the gaps, and a 0.2s blank
@@ -351,11 +263,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const prompt = harness.buildSongReportPrompt(item);
             const parsedEntries = harness.parseSongReportResponse(JSON.stringify({
                 lyricNotes: [
-                    { line: 2, note: 'The second verse turns the hook into a response.' },
+                    { line: 2, note: 'Critics singled out the second verse hook.' },
                     { line: 99, note: 'This line number does not exist.' }
                 ],
-                generalNotes: ['The vocal and rhythm track were cut live.'],
-                attributions: ['Example Review: second-verse reading']
+                generalNotes: ['Recorded in 1971 at Abbey Road.']
             }), item);
             const record = {
                 videoId: item.videoId,
@@ -365,8 +276,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 prompt,
                 reportText: 'raw JSON response',
                 entries: [
-                    { time: 60, text: 'The second verse turns the hook into a response.' },
-                    { time: null, text: 'The vocal and rhythm track were cut live.' }
+                    { time: 60, text: 'Critics singled out the second verse hook.' },
+                    { time: null, text: 'Recorded in 1971 at Abbey Road.' }
                 ]
             };
             await window.PlayerHistoryDB.putSongReport(record);
@@ -551,9 +462,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
 
             const returnedJson = JSON.stringify({
-                lyricNotes: [{ line: 1, note: 'The opening lyric establishes the central refrain.' }],
-                generalNotes: ['The performance was cut live in one take.'],
-                attributions: ['Example Archive: live-session account']
+                lyricNotes: [{ line: 1, note: 'Opens with its title phrase.' }],
+                generalNotes: ['Cut live in one take.']
             });
             resolveResearch({ text: returnedJson, provider: 'openai', model: 'gpt-5.5' });
             await activationPromise;
@@ -597,14 +507,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         const openaiReportRequest = songReport.requests[0]?.body || {};
         const claudeReportRequest = songReport.requests[1]?.body || {};
-        const orwellSixRules = [
-            'i. Never use a metaphor, simile or other figure of speech which you are used to seeing in print.',
-            'ii. Never use a long word where a short one will do.',
-            'iii. If it is possible to cut a word out, always cut it out.',
-            'iv. Never use the passive where you can use the active.',
-            'v. Never use a foreign phrase, a scientific word or a jargon word if you can think of an everyday English equivalent.',
-            'vi. Break any of these rules sooner than say anything outright barbarous.'
-        ].join('\n');
         report.check(`song report requests force provider web research at default reasoning effort`,
             songReport.openai.provider === 'openai'
             && songReport.claude.provider === 'claude'
@@ -623,26 +525,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && /Do not add your own interpretation or inference/.test(songReport.prompt)
             && /never soften, intensify, or change a source's meaning/.test(songReport.prompt)
             && /Do not add scene-setting, flourishes, clever transitions, or generic praise/.test(songReport.prompt));
-        report.check(`song report prompt supports separate research from references in the lyrics`,
-            /separate research prompted by distinctive words, phrases, places, terms, people, objects, events, or ideas in the lyrics/.test(songReport.prompt)
-            && /report useful sourced context even when no source connects it to the song/.test(songReport.prompt));
-        report.check(`song report prompt includes Orwell's six rules verbatim`,
-            /Write every note under George Orwell's six rules, reproduced here verbatim:/.test(songReport.prompt)
-            && songReport.prompt.includes(orwellSixRules));
-        report.check(`song report prompt keeps metadata, source names, and URLs out of display notes`,
-            /metadata above is research context only, not material to repeat/.test(songReport.prompt)
-            && /Keep source attribution out of lyricNotes and generalNotes/.test(songReport.prompt)
-            && /Never name or refer to a critic, reviewer, magazine, publication, or other source in a note/.test(songReport.prompt)
-            && /never use phrases such as "critics said" or "according to."/.test(songReport.prompt)
-            && /Never put a raw URL anywhere in the response, including attributions/.test(songReport.prompt)
-            && /Never mention the song title, album title, release date, release year, or record label in a note/.test(songReport.prompt)
-            && /Put any source names and attribution details in attributions, after lyricNotes and generalNotes/.test(songReport.prompt));
         report.check(`song report prompt numbers the lyrics, ties notes to lines, and quotes only provided lyrics`,
             /Full lyrics of the song, one line per row, numbered:\n1 \| lyric line\n2 \| second verse line/.test(songReport.prompt)
             && /Tie each note to the numbered lyric line it discusses/.test(songReport.prompt)
             && /quoting only from the numbered lyrics above/.test(songReport.prompt)
             && /Aim for roughly 12 notes in total/.test(songReport.prompt)
-            && /"lyricNotes":\[\{"line":<numbered lyric line>,"note":"<short sentence>"\}\],"generalNotes":\["<short sentence>"\],"attributions":\["<source name and supported idea; no URL>"\]/.test(songReport.prompt)
+            && /"lyricNotes":\[\{"line":<numbered lyric line>,"note":"<short sentence>"\}\],"generalNotes":\["<short sentence>"\]/.test(songReport.prompt)
             && !/Do not quote or reproduce the lyrics/.test(songReport.prompt));
         report.check(`parsed notes anchor valid lyric lines and demote unknown lines to general`,
             songReport.parsedEntries.length === 3
@@ -657,33 +545,27 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.schedule[1].at === 120
             && songReport.beforeNotes.barSecondary === ''
             && songReport.beforeNotes.artist === '2001 - Report Artist - Report Song'
-            && songReport.atAnchoredNote.artist === 'The second verse turns the hook into a response.'
-            && songReport.atAnchoredNote.barSecondary === 'The second verse turns the hook into a response.'
-            && songReport.atGeneralNote.artist === 'The vocal and rhythm track were cut live.'
+            && songReport.atAnchoredNote.artist === 'Critics singled out the second verse hook.'
+            && songReport.atAnchoredNote.barSecondary === 'Critics singled out the second verse hook.'
+            && songReport.atGeneralNote.artist === 'Recorded in 1971 at Abbey Road.'
             && songReport.deadlines.toAnchored === 60
             && songReport.deadlines.toGeneral === 120
             && songReport.deadlines.toBlankEnd === 120.2);
         report.check(`a 0.2s blank separates consecutive notes on the page while the relay carries the note`,
-            // The blank renders as a non-breaking space: visually empty, but
-            // the row keeps its line box so the sticky bar's height never
-            // changes mid-track.
-            songReport.blankBetweenNotes.barSecondary === '\u00A0'
+            songReport.blankBetweenNotes.barSecondary === ''
             && songReport.blankRowOpen === 'block'
-            && songReport.blankBetweenNotes.artist === 'The vocal and rhythm track were cut live.');
+            && songReport.blankBetweenNotes.artist === 'Recorded in 1971 at Abbey Road.');
         report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
             songReport.migratedEntries.length === 2
             && songReport.migratedEntries.every(entry => entry.time === null)
             && songReport.halfSecondFirst.artist === 'legacy one'
             && songReport.halfSecondFirst.barSecondary === 'legacy one'
-            && songReport.halfSecondBlank.barSecondary === '\u00A0'
+            && songReport.halfSecondBlank.barSecondary === ''
             && songReport.halfSecondBlank.artist === 'legacy two'
             && songReport.halfSecondSecond.artist === 'legacy two'
             && songReport.halfSecondDeadline === 0.5
             && songReport.identityAgain.artist === '2001 - Report Artist - Report Song'
-            // Mid-track mode switch empties the second line's TEXT but must
-            // not collapse its row: the bar is sticky and a height change
-            // there shoves the page under the reader.
-            && songReport.identityAgain.barSecondary === '\u00A0');
+            && songReport.identityAgain.barSecondary === '');
         report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
             songReport.controls.reportSelected
             && !songReport.controls.identitySelected
