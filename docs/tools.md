@@ -543,7 +543,14 @@ OpenAI.
   required high-context web search with text and image results. The research
   frame tells the model to work for the listener, validate claims rather than
   treating the book as canonical truth, use multiple sources where warranted,
-  and answer carefully with clickable citations and useful images. While in
+  and answer carefully with clickable citations and useful images. Because the
+  answer text is displayed and spoken exactly as written, the instructions
+  require plain prose in ordinary, literal English with no persona, markdown,
+  or formatting syntax; no raw URLs in the answer text (links stay in
+  citations, sources, and images); no repetition of the question, book title,
+  author, or chapter name; source names in prose only when the source's
+  identity matters to weighing the claim; and George Orwell's six writing
+  rules, included verbatim. While in
   flight, the full provider/model/configuration and elapsed time stay visible.
   **Read answer aloud when it returns** is read live at response time, so a
   change made during research is honored. Complete results—question, answer,
