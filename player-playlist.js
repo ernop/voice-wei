@@ -437,6 +437,38 @@ const PlayerPlaylist = (function () {
             },
 
             /**
+             * Ranking chooses among recordings only after identity is known.
+             * A named-song result must identify that song in its YouTube title;
+             * artist-only/free-form searches have no song name to enforce.
+             * @param {YouTubeVideoCandidate} video
+             * @param {{ name?: string }} context
+             */
+            videoMatchesRequestedSong(video, context) {
+                const songName = this.simplifyVideoText(context.name || '');
+                if (!songName) return true;
+                const videoTitle = this.simplifyVideoText(video.title || '');
+                return ` ${videoTitle} `.includes(` ${songName} `);
+            },
+
+            /**
+             * A corrupt shared video key is not evidence that two rows intend
+             * the same song. Favorite repair requires the named metadata to
+             * agree before moving a row to the repaired key.
+             * @param {Song} song
+             * @param {Song} intendedSong
+             */
+            songMatchesIntendedIdentity(song, intendedSong) {
+                const intendedName = this.simplifyVideoText(intendedSong.name || '');
+                const intendedArtist = this.simplifyVideoText(intendedSong.artist || '');
+                if (!intendedName
+                    || this.simplifyVideoText(song.name || '') !== intendedName) {
+                    return false;
+                }
+                return !intendedArtist
+                    || this.simplifyVideoText(song.artist || '') === intendedArtist;
+            },
+
+            /**
              * Title words that describe the upload format rather than the
              * recording: a plain studio track's title is the song name plus
              * (at most) the artist and these words. Anything else left over
@@ -546,13 +578,15 @@ const PlayerPlaylist = (function () {
             },
 
             /**
-             * Order search results studio-version-first (stable: the
-             * proxy's relevance order breaks ties).
+             * Reject results that do not identify a requested named song,
+             * then order eligible recordings studio-version-first (stable:
+             * the proxy's relevance order breaks ties).
              * @param {YouTubeVideoCandidate[]} videos
-             * @param {{ searchTerm?: string, artist?: string }} context
+             * @param {{ searchTerm?: string, artist?: string, name?: string }} context
              */
             rankYouTubeResults(videos, context) {
                 return videos
+                    .filter(video => this.videoMatchesRequestedSong(video, context))
                     .map((video, index) => ({ video, index, score: this.scoreVideoCandidate(video, context) }))
                     .sort((a, b) => (b.score - a.score) || (a.index - b.index))
                     .map(entry => entry.video);
@@ -610,12 +644,9 @@ const PlayerPlaylist = (function () {
                     searchContext
                 );
                 if (videos.length > 0) {
-                    // The best available result always plays, but the retry
-                    // chain (embed disabled/removed) only holds candidates
-                    // that are plausibly the same recording: an alternate
-                    // scoring below zero is a wrong song, a live take, or a
-                    // cover, and swapping one in silently is worse than
-                    // reporting the failure.
+                    // Every candidate already passed song identity. Ranking
+                    // chooses the preferred recording; the retry chain then
+                    // excludes unrequested versions and other poor matches.
                     const [firstVideo, ...rankedRest] = videos;
                     const alternateVideos = rankedRest.filter(video =>
                         this.scoreVideoCandidate(video, searchContext) >= 0);
@@ -928,15 +959,100 @@ const PlayerPlaylist = (function () {
                 this.playback.setActiveItem(item.id);
             },
 
-            applyVideoDataToPlaylistItem(item, videoData) {
-                item.videoId = videoData.videoId;
-                item.title = videoData.title;
-                item.channelTitle = videoData.channelTitle;
-                item.duration = videoData.duration;
-                item.durationSeconds = videoData.durationSeconds;
-                item.lyricsStatus = 'idle';
-                item.lyricsData = null;
-                item.lyricOffsetSeconds = 0;
+            /**
+             * The sole owner of a YouTube identity change. Every live row
+             * using the old video moves in one transaction; a favorite follows
+             * the named-song intent with its original favoritedAt. Lyrics and
+             * reports never cross the boundary: the new video resolves only
+             * against its own persistent keys.
+             * @param {string} oldVideoId
+             * @param {YouTubeVideoCandidate} videoData
+             * @param {{ relation: 'equivalent-recording' } | { relation: 'favorite-repair', intendedSong: Song }} transition
+             * @returns {PlaylistItem[]}
+             */
+            transitionVideoIdentity(oldVideoId, videoData, transition) {
+                if (!oldVideoId || !videoData?.videoId) {
+                    throw new Error('transitionVideoIdentity requires old and new video IDs');
+                }
+                if (transition.relation !== 'equivalent-recording'
+                    && transition.relation !== 'favorite-repair') {
+                    throw new Error('transitionVideoIdentity requires an explicit identity relation');
+                }
+                if (transition.relation === 'favorite-repair' && !transition.intendedSong) {
+                    throw new Error('Favorite repair requires an intended song');
+                }
+                if (oldVideoId === videoData.videoId) return [];
+
+                const sharedIdentityItems = this.playlist.filter(item => item.videoId === oldVideoId);
+                const affectedItems = sharedIdentityItems.filter(item =>
+                    transition.relation === 'equivalent-recording'
+                    || this.songMatchesIntendedIdentity(item, transition.intendedSong));
+
+                const oldFavorite = this.favorites?.[oldVideoId];
+                let replacement = null;
+                if (oldFavorite) {
+                    replacement = PlayerSongs.createFavorite({
+                        ...oldFavorite,
+                        videoId: videoData.videoId,
+                        title: videoData.title,
+                        channelTitle: videoData.channelTitle,
+                        duration: videoData.duration,
+                        durationSeconds: videoData.durationSeconds
+                    });
+                    if (!replacement) {
+                        throw new Error('Could not construct replacement favorite');
+                    }
+                    replacement.favoritedAt = oldFavorite.favoritedAt;
+                    delete this.favorites[oldVideoId];
+                    this.favorites[replacement.videoId] = replacement;
+                    this.saveFavorites();
+                }
+
+                for (const item of affectedItems) {
+                    item.videoId = videoData.videoId;
+                    item.title = videoData.title;
+                    item.channelTitle = videoData.channelTitle;
+                    item.duration = videoData.duration;
+                    item.durationSeconds = Number(videoData.durationSeconds) || 0;
+                    item.lyricsStatus = 'idle';
+                    item.lyricsData = null;
+                    item.lyricOffsetSeconds = 0;
+                    this.refreshPlaylistRowVideo(item);
+                    this.queueLyricsLookup(item);
+                }
+                if (oldFavorite) {
+                    const affectedIds = new Set(affectedItems.map(item => item.id));
+                    for (const item of sharedIdentityItems) {
+                        if (!affectedIds.has(item.id)) this.refreshPlaylistRowFavorite(item);
+                    }
+                }
+
+                const historySong = replacement || affectedItems[0];
+                if (historySong && window.PlayerHistoryDB) {
+                    window.PlayerHistoryDB.recordSong(historySong, `identity-${transition.relation}`);
+                }
+
+                if (this.songReportAnchorVideoId === oldVideoId) {
+                    this.clearSongReportPlayback();
+                }
+                if (affectedItems.some(item => item.id === this.currentLyricsItemId)) {
+                    const current = affectedItems.find(item => item.id === this.currentLyricsItemId) || null;
+                    this.currentLyricsLineIndex = -1;
+                    this.renderLyricsStateForItem(current);
+                }
+                this.persistPlaylist();
+                return affectedItems;
+            },
+
+            refreshPlaylistRowFavorite(item) {
+                const row = /** @type {HTMLElement | null} */ (document.querySelector(`[data-item-id="${item.id}"]`));
+                if (!row) return;
+                const favBtn = /** @type {HTMLElement | null} */ (row.querySelector('.favorite-btn'));
+                if (!favBtn) return;
+                favBtn.dataset.videoId = item.videoId;
+                const favorited = this.isFavorite(item.videoId);
+                favBtn.classList.toggle('favorited', favorited);
+                favBtn.textContent = favorited ? '\u2605' : '\u2606';
             },
 
             refreshPlaylistRowVideo(item) {
@@ -944,13 +1060,7 @@ const PlayerPlaylist = (function () {
                 if (!row) return;
 
                 row.dataset.videoId = item.videoId;
-                const favBtn = /** @type {HTMLElement | null} */ (row.querySelector('.favorite-btn'));
-                if (favBtn) {
-                    favBtn.dataset.videoId = item.videoId;
-                    const favorited = this.isFavorite(item.videoId);
-                    favBtn.classList.toggle('favorited', favorited);
-                    favBtn.textContent = favorited ? '\u2605' : '\u2606';
-                }
+                this.refreshPlaylistRowFavorite(item);
 
                 const lyricsBtn = row.querySelector('.lyrics-row-btn');
                 if (lyricsBtn) {
@@ -1021,12 +1131,20 @@ const PlayerPlaylist = (function () {
                 }
 
                 const previousVideoId = item.videoId;
+                const identityEquivalent = !!this.simplifyVideoText(item.name || '')
+                    && this.videoMatchesRequestedSong(nextVideo, { name: item.name });
+                if (!identityEquivalent) {
+                    this.youtubeAlternateResults.delete(item.id);
+                    return false;
+                }
                 this.addMessage('claude', 'Retrying video result',
                     `Track: ${this.describePlaylistItem(item)}\nSearch term: ${item.searchTerm || '(none)'}\nPrevious video ID: ${previousVideoId}\nReason: ${detail}\nNext video ID: ${nextVideo.videoId}\nNext title: ${nextVideo.title}`);
-                this.applyVideoDataToPlaylistItem(item, nextVideo);
-                this.refreshPlaylistRowVideo(item);
-                this.recreatePlaylistPlayer(item);
-                this.persistPlaylist();
+                const affectedItems = this.transitionVideoIdentity(previousVideoId, nextVideo, {
+                    relation: 'equivalent-recording'
+                });
+                for (const affectedItem of affectedItems) {
+                    this.recreatePlaylistPlayer(affectedItem);
+                }
                 return true;
             },
 
@@ -1064,11 +1182,13 @@ const PlayerPlaylist = (function () {
                 if (!item.searchTerm) return false;
                 if (this.alternateVideoSearchAttempts.has(item.id)) return false;
                 this.alternateVideoSearchAttempts.add(item.id);
+                const searchVideoId = item.videoId;
                 try {
                     const videoData = await this.searchYouTube(item.searchTerm, { artist: item.artist || '', name: item.name || '' });
+                    if (item.videoId !== searchVideoId) return false;
                     if (!videoData) return false;
                     const candidates = [videoData, ...(videoData.alternateVideos || [])]
-                        .filter(video => video.videoId && video.videoId !== item.videoId)
+                        .filter(video => video.videoId && video.videoId !== searchVideoId)
                         .map(video => {
                             const candidate = { ...video };
                             delete candidate.alternateVideos;
@@ -1087,10 +1207,12 @@ const PlayerPlaylist = (function () {
             async reportPlayerLoadFailure(item, failure) {
                 const description = this.describePlaylistItem(item);
                 const { detail, errorCode } = this.playerLoadFailureInfo(failure);
+                const failedVideoId = item.videoId;
                 let retrying = this.tryNextVideoResult(item, failure);
                 if (!retrying && this.shouldRetryWithAlternateVideo(errorCode)) {
                     this.updateStatus(`Finding an alternate video for: ${this.truncateForStatus(description, 80)}`);
                     if (await this.refreshAlternatesFromSearch(item)) {
+                        if (item.videoId !== failedVideoId) return;
                         retrying = this.tryNextVideoResult(item, failure);
                     }
                 }
@@ -1190,6 +1312,9 @@ const PlayerPlaylist = (function () {
                     this.addMessage('claude', 'Player loading', `Waiting for player: ${description}\nVideo ID: ${item.videoId}\nSearch term: ${item.searchTerm || '(none)'}`);
                     const loadingVideoId = item.videoId;
                     const ready = await this.waitForPlayerReady(item);
+                    if (item.videoId !== loadingVideoId) {
+                        return;
+                    }
                     if (ready.ok) {
                         const readyPlayer = ready.player || this.playback.player;
                         if (readyPlayer) {
@@ -1197,11 +1322,60 @@ const PlayerPlaylist = (function () {
                         }
                         return this.playVideo(item);
                     }
-                    if (item.videoId !== loadingVideoId) {
-                        return;
-                    }
                     void this.reportPlayerLoadFailure(item, ready.error);
                 }
+            },
+
+            favoriteNeedsVideoIdentityRepair(favorite) {
+                return !!this.simplifyVideoText(favorite?.name || '')
+                    && !this.videoMatchesRequestedSong(favorite, { name: favorite.name });
+            },
+
+            /**
+             * Repair only favorites whose stored YouTube title contradicts
+             * their named song. Valid favorites perform no YouTube request.
+             * Work is bounded by the normal keyless-search worker pool and is
+             * intentionally not awaited by startup.
+             * @returns {number} repair candidates scheduled
+             */
+            healSavedFavoriteVideoIdentities() {
+                const repairs = Object.entries(this.favorites)
+                    .filter(([, favorite]) => this.favoriteNeedsVideoIdentityRepair(favorite))
+                    .map(([videoId, favorite], index) => ({
+                        index,
+                        videoId,
+                        favorite,
+                        song: {
+                            ...favorite,
+                            searchTerm: favorite.searchTerm
+                                || [favorite.artist, favorite.name].filter(Boolean).join(' ')
+                        }
+                    }))
+                    .filter(entry => !!entry.song.searchTerm);
+                if (repairs.length === 0) return 0;
+
+                const validSongs = repairs.map(entry => ({ song: entry.song, index: entry.index }));
+                void this.searchSongsWithConcurrency(validSongs, {
+                    onResult: ({ index, videoData, error }) => {
+                        const repair = repairs.find(entry => entry.index === index);
+                        if (!repair || error || !videoData) return;
+                        if (this.favorites[repair.videoId] !== repair.favorite) return;
+                        if (!this.videoMatchesRequestedSong(videoData, { name: repair.favorite.name })) return;
+
+                        const affectedItems = this.transitionVideoIdentity(repair.videoId, videoData, {
+                            relation: 'favorite-repair',
+                            intendedSong: repair.favorite
+                        });
+                        if (affectedItems.length === 0) {
+                            const backfill = PlayerSongs.createPlaylistItem(this.favorites[videoData.videoId], {
+                                sourceKind: 'backfill',
+                                sourceLabel: 'Favorite identity repair'
+                            });
+                            if (backfill) this.queueLyricsLookup(backfill);
+                        }
+                    }
+                });
+                return repairs.length;
             },
 
             updateCentralPlayer(item) {

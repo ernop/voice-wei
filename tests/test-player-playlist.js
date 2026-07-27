@@ -411,6 +411,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const fav = (name) => ({
                 videoId: `int-${run}-fav-${name}`,
                 name: `Favorite ${name}`, artist: 'Integrity Artist',
+                title: `Integrity Artist - Favorite ${name}`,
                 duration: '1:40', durationSeconds: 100, searchTerm: name
             });
             const reconcile = makeHarness({ a: fav('A'), b: fav('B') });

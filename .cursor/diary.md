@@ -4,6 +4,38 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-27 (favorite video identity drift healed)
+
+**Context**: Yui reported pervasive favorites where the YouTube audio and
+stored lyrics named different songs, especially on the phone. Runtime
+reproduction found that embed-failure retry mutated a playlist row's
+`videoId` while its favorite kept the old key; delayed lyric and Song Report
+reads then applied old-key data through the now-mutated item and leaked their
+in-flight map entries. Reload preserved the split. Favorites saved before
+strict title matching also kept fabricated song metadata over unrelated
+YouTube IDs forever.
+
+**Fix (v307)**: `transitionVideoIdentity` now owns every video replacement,
+rekeys favorites, refreshes all affected rows, clears video-bound runtime
+state, records the replacement in Known Songs, and persists the coherent
+result. Lyrics and reports capture their starting `videoId` and discard stale
+completion. Startup re-searches only favorites whose stored YouTube title
+contradicts the named song, through the existing keyless path; valid
+favorites make no request. The title gate matches whole normalized words, so
+a short title such as "One" cannot accept "Someone."
+
+**For future mei**:
+- `videoId` is a mutable media pointer in retry/repair flows, despite being
+  the Song storage key. Any asynchronous work keyed by it must capture and
+  validate the starting value before touching a live item.
+- Never copy lyrics or reports across a video replacement. Resolve the new
+  key independently; descriptive song metadata alone does not prove that two
+  recordings share timing or content.
+- Existing-data repair belongs beside prevention. Rejecting future bad search
+  results did not heal favorites already persisted under unrelated IDs.
+
+---
+
 ## 2026-07-24 (PR pileup; master-direct reasserted; playback evidence shipped)
 
 **Context**: Yui asked why PRs suddenly flooded the repo. Investigation:

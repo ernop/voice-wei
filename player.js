@@ -290,6 +290,10 @@ class VoiceMusicController {
             this.restoreSavedPlaylist();
             endPhase({ songs: this.playlist.length });
 
+            endPhase = PlayerStartup.begin('favorite video identity repair scheduling');
+            const favoriteVideoRepairs = this.healSavedFavoriteVideoIdentities();
+            endPhase({ candidates: favoriteVideoRepairs });
+
             endPhase = PlayerStartup.begin('demo request');
             this.loadDemoSongIfRequested();
             endPhase();

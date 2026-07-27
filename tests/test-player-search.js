@@ -669,12 +669,31 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 { videoId: 'plain-lorelai', title: 'Fleet Foxes - Lorelai', channelTitle: 'greg g', duration: '4:26', durationSeconds: 266 },
                 lorelaiContext
             );
+            const titleMismatchRejected = harness.rankYouTubeResults([{
+                videoId: 'wrong-title',
+                title: 'Silver Jews - Trains Across the Sea',
+                channelTitle: 'Silver Jews',
+                duration: '3:15',
+                durationSeconds: 195,
+                isAlbumTrack: true
+            }], {
+                searchTerm: 'Silver Jews Trubbel',
+                artist: 'Silver Jews',
+                name: 'Trubbel'
+            }).length === 0;
+            const partialWordMismatchRejected = !harness.videoMatchesRequestedSong({
+                videoId: 'partial-word-title',
+                title: 'Someone Like You',
+                channelTitle: 'Different Artist',
+                duration: '4:45',
+                durationSeconds: 285
+            }, { name: 'One' });
             const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
             const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
             return {
                 normalFirst: normal[0],
                 normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
-                normalFullSetLast: normal[normal.length - 1] === 'full-1',
+                normalFullSetRejected: !normal.includes('full-1'),
                 liveRequestedFirstIsLive: liveRequested[0] === 'live-1',
                 nameCollisionFirst: nameCollision[0],
                 wrongArtistFirst: wrongArtist[0],
@@ -683,6 +702,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 dateStampedFirst: dateStamped[0],
                 wrongSongAlternateScore,
                 plainUploadAlternateScore,
+                titleMismatchRejected,
+                partialWordMismatchRejected,
                 quotaName: quotaError.name,
                 quotaProvider: quotaError.provider,
                 plainName: plainError.name
@@ -691,7 +712,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player ranks studio versions first (${versionRanking.normalFirst}, name-collision pick ${versionRanking.nameCollisionFirst}, wrong-artist pick ${versionRanking.wrongArtistFirst}) and classifies key-level errors`,
             versionRanking.normalFirst === 'studio-1'
             && versionRanking.normalLiveLast
-            && versionRanking.normalFullSetLast
+            && versionRanking.normalFullSetRejected
             && versionRanking.liveRequestedFirstIsLive
             && versionRanking.nameCollisionFirst === 'cmu-studio'
             && versionRanking.wrongArtistFirst === 'plain-1'
@@ -704,7 +725,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && versionRanking.dateStampedFirst === 'wwh-video');
         report.check('player alternate filter rejects wrong-song candidates and keeps same-recording uploads',
             versionRanking.wrongSongAlternateScore < 0
-            && versionRanking.plainUploadAlternateScore >= 0);
+            && versionRanking.plainUploadAlternateScore >= 0
+            && versionRanking.titleMismatchRejected
+            && versionRanking.partialWordMismatchRejected);
 
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {
@@ -811,12 +834,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 players: new Map(),
                 playerReadyPromises: new Map(),
                 youtubeAlternateResults: new Map(),
+                playlist: [],
                 messages: [],
                 status: '',
                 settings: { readClaudeResponse: false },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus(message) { this.status = message; },
                 truncateForStatus(text) { return String(text || ''); },
+                queueLyricsLookup() {},
                 speakText() {}
             };
             PlayerPlaylist.install(harness);
@@ -840,10 +865,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyricsStatus: 'idle',
                 lyricsData: null
             };
+            harness.playlist.push(item);
             harness.youtubeAlternateResults.set(item.id, [{
                 videoId: 'good-video',
-                title: 'Good Result',
-                channelTitle: 'Good Channel',
+                title: 'Retry Artist - Retry Song (Official Audio)',
+                channelTitle: 'Retry Artist',
                 duration: '2:00',
                 durationSeconds: 120
             }]);
@@ -862,7 +888,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         report.check('player retries alternate video before final load failure',
             alternateRetry.videoId === 'good-video'
-            && alternateRetry.title === 'Good Result'
+            && alternateRetry.title === 'Retry Artist - Retry Song (Official Audio)'
             && alternateRetry.remaining === 0
             && alternateRetry.recreatedVideoId === 'good-video'
             && alternateRetry.playedVideoId === 'good-video'
@@ -870,6 +896,306 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && alternateRetry.retryReason.includes('owner disabled embedded playback')
             && alternateRetry.hasRetryLog
             && !alternateRetry.hasFailureLog);
+
+        const videoIdentityTransition = await tab.evaluate(async () => {
+            const oldVideoId = `identity-old-${Date.now()}`;
+            const newVideoId = `identity-new-${Date.now()}`;
+            const item = PlayerSongs.createPlaylistItem({
+                videoId: oldVideoId,
+                name: 'Identity Song',
+                artist: 'Identity Artist',
+                title: 'Identity Artist - Identity Song',
+                channelTitle: 'Identity Artist',
+                duration: '3:00',
+                durationSeconds: 180,
+                searchTerm: 'Identity Artist Identity Song'
+            }, { sourceKind: 'favorite', sourceLabel: 'Identity test' });
+            const favorite = PlayerSongs.createFavorite(item);
+            const favoritedAt = 123456789;
+            favorite.favoritedAt = favoritedAt;
+            item.lyricsStatus = 'ready';
+            item.lyricsData = {
+                provider: 'LRCLIB', trackName: 'Identity Song', artistName: 'Identity Artist',
+                albumName: '', duration: 180, instrumental: false, plainLyrics: 'old',
+                syncedLyrics: null, syncedLines: []
+            };
+            const harness = {
+                playlist: [item],
+                favorites: { [oldVideoId]: favorite },
+                settings: {
+                    readClaudeResponse: false,
+                    lyricsOnNowPlaying: false,
+                    songDisplayMode: 'identity',
+                    songReportIntervalSeconds: 8,
+                    playlistTimedOnly: false
+                },
+                youtubeAlternateResults: new Map(),
+                alternateVideoSearchAttempts: new Set(),
+                lyricsLookupCache: new Map(),
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
+                currentLyricsItemId: null,
+                currentLyricsLineIndex: -1,
+                nowPlayingShowsText: false,
+                persistedVideoIds: [],
+                addMessage() {},
+                updateStatus() {},
+                truncateForStatus(value) { return String(value || ''); },
+                isFavorite(videoId) { return !!this.favorites[videoId]; },
+                saveFavorites() {},
+                persistPlaylist() {
+                    this.persistedVideoIds = this.playlist.map(entry => entry.videoId);
+                },
+                refreshPlaylistRowVideo() {},
+                recreatePlaylistPlayer() {},
+                queueLyricsLookup() {},
+                renderLyricsStateForItem() {},
+                resyncProgressClock() {},
+                logError() {},
+                saveSettings() {}
+            };
+            PlayerPlaylist.install(harness);
+            PlayerLyrics.install(harness);
+            PlayerSongReport.install(harness);
+            harness.queueLyricsLookup = () => {};
+            harness.persistPlaylist = function () {
+                this.persistedVideoIds = this.playlist.map(entry => entry.videoId);
+            };
+            const row = document.createElement('div');
+            row.className = 'playlist-row';
+            row.dataset.itemId = String(item.id);
+            row.dataset.videoId = oldVideoId;
+            row.innerHTML = `<button class="favorite-btn favorited" data-video-id="${oldVideoId}">\u2605</button><button class="lyrics-row-btn ready">Lyrics</button><span class="playlist-song-duration">3:00</span>`;
+            document.getElementById('playlistBody').appendChild(row);
+            const recordedHistory = [];
+            const realRecordSong = PlayerHistoryDB.recordSong;
+            PlayerHistoryDB.recordSong = (song, sourceKind) => {
+                recordedHistory.push({ videoId: song.videoId, sourceKind });
+            };
+
+            const realGetLyricState = PlayerHistoryDB.getLyricState;
+            const realGetSongReport = PlayerHistoryDB.getSongReport;
+            let finishLyrics;
+            let finishReport;
+            PlayerHistoryDB.getLyricState = () => new Promise(resolve => { finishLyrics = resolve; });
+            PlayerHistoryDB.getSongReport = () => new Promise(resolve => { finishReport = resolve; });
+            item.lyricsStatus = 'idle';
+            item.lyricsData = null;
+            const lyricFlight = harness.ensureLyricsForItem(item);
+            const reportFlight = harness.loadSongReportForItem(item);
+
+            harness.youtubeAlternateResults.set(item.id, [{
+                videoId: newVideoId,
+                title: 'Identity Artist - Identity Song (Official Audio)',
+                channelTitle: 'Identity Artist',
+                duration: '3:01',
+                durationSeconds: 181
+            }]);
+            const transitioned = harness.tryNextVideoResult(item, {
+                errorCode: 150,
+                error: 'embed disabled'
+            });
+
+            finishLyrics({
+                videoId: oldVideoId,
+                status: 'found',
+                checkedAt: Date.now(),
+                searchVersion: 2,
+                lyrics: {
+                    provider: 'LRCLIB', trackName: 'Old Identity Song', artistName: 'Old Artist',
+                    albumName: '', duration: 180, instrumental: false, plainLyrics: 'old',
+                    syncedLyrics: '[00:01.00]old', syncedLines: [{ time: 1, text: 'old' }]
+                }
+            });
+            finishReport({
+                videoId: oldVideoId,
+                generatedAt: Date.now(),
+                provider: 'openai',
+                model: 'test',
+                prompt: 'test',
+                reportText: 'old report',
+                entries: [{ time: null, text: 'old report' }]
+            });
+            await Promise.all([lyricFlight, reportFlight]);
+            PlayerHistoryDB.getLyricState = realGetLyricState;
+            PlayerHistoryDB.getSongReport = realGetSongReport;
+            PlayerHistoryDB.recordSong = realRecordSong;
+
+            harness.youtubeAlternateResults.set(item.id, [{
+                videoId: 'different-song',
+                title: 'Different Artist - Different Song',
+                channelTitle: 'Different Artist',
+                duration: '4:00',
+                durationSeconds: 240
+            }]);
+            const rejectedDifferentSong = !harness.tryNextVideoResult(item, {
+                errorCode: 101,
+                error: 'embed disabled'
+            });
+
+            return {
+                transitioned,
+                rejectedDifferentSong,
+                itemVideoId: item.videoId,
+                favoriteKeys: Object.keys(harness.favorites),
+                favoriteVideoId: harness.favorites[newVideoId]?.videoId || '',
+                favoritedAt: harness.favorites[newVideoId]?.favoritedAt || 0,
+                persistedVideoIds: harness.persistedVideoIds,
+                lyricsStatus: item.lyricsStatus,
+                hasLyrics: !!item.lyricsData,
+                lyricFlightKeys: [...harness.lyricsLookupsInFlight.keys()],
+                reportFlightKeys: [...harness.songReportLoadsInFlight.keys()],
+                reportAtNewKey: harness.songReports.has(newVideoId),
+                rowVideoId: row.dataset.videoId,
+                favoriteButtonVideoId: row.querySelector('.favorite-btn')?.dataset.videoId || '',
+                favoriteButtonStarred: row.querySelector('.favorite-btn')?.classList.contains('favorited') || false,
+                recordedHistory
+            };
+        });
+        report.check('video identity transition atomically moves playlist/favorite and rejects stale async results',
+            videoIdentityTransition.transitioned
+            && videoIdentityTransition.rejectedDifferentSong
+            && videoIdentityTransition.itemVideoId.startsWith('identity-new-')
+            && videoIdentityTransition.favoriteKeys.length === 1
+            && videoIdentityTransition.favoriteKeys[0] === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.favoriteVideoId === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.favoritedAt === 123456789
+            && videoIdentityTransition.persistedVideoIds[0] === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.lyricsStatus === 'idle'
+            && !videoIdentityTransition.hasLyrics
+            && videoIdentityTransition.lyricFlightKeys.length === 0
+            && videoIdentityTransition.reportFlightKeys.length === 0
+            && !videoIdentityTransition.reportAtNewKey
+            && videoIdentityTransition.rowVideoId === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.favoriteButtonVideoId === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.favoriteButtonStarred
+            && videoIdentityTransition.recordedHistory.length === 1
+            && videoIdentityTransition.recordedHistory[0].videoId === videoIdentityTransition.itemVideoId
+            && videoIdentityTransition.recordedHistory[0].sourceKind === 'identity-equivalent-recording');
+
+        const savedFavoriteRepair = await tab.evaluate(() => {
+            const validVideoId = `valid-${Date.now()}`;
+            const wrongVideoId = `wrong-${Date.now()}`;
+            const repairedVideoId = `repaired-${Date.now()}`;
+            const valid = {
+                videoId: validVideoId,
+                name: 'Valid Song',
+                artist: 'Valid Artist',
+                title: 'Valid Artist - Valid Song',
+                channelTitle: 'Valid Artist',
+                duration: '3:00',
+                durationSeconds: 180,
+                searchTerm: 'Valid Artist Valid Song',
+                favoritedAt: 100
+            };
+            const wrong = {
+                videoId: wrongVideoId,
+                name: 'Intended Song',
+                artist: 'Intended Artist',
+                title: 'Unrelated Artist - Unrelated Song',
+                channelTitle: 'Unrelated Artist',
+                duration: '4:00',
+                durationSeconds: 240,
+                searchTerm: 'Intended Artist Intended Song',
+                favoritedAt: 200
+            };
+            const item = PlayerSongs.createPlaylistItem(wrong, {
+                sourceKind: 'restored',
+                sourceLabel: 'Favorite repair test'
+            });
+            const unrelatedItem = PlayerSongs.createPlaylistItem({
+                ...wrong,
+                name: 'Other Intended Song',
+                artist: 'Other Intended Artist',
+                searchTerm: 'Other Intended Artist Other Intended Song'
+            }, {
+                sourceKind: 'restored',
+                sourceLabel: 'Shared corrupt key test'
+            });
+            item.lyricsStatus = 'ready';
+            item.lyricsData = {
+                provider: 'LRCLIB', trackName: 'Unrelated Song', artistName: 'Unrelated Artist',
+                albumName: '', duration: 240, instrumental: false, plainLyrics: 'wrong',
+                syncedLyrics: null, syncedLines: []
+            };
+            const unrelatedRow = document.createElement('div');
+            unrelatedRow.className = 'playlist-row';
+            unrelatedRow.dataset.itemId = String(unrelatedItem.id);
+            unrelatedRow.dataset.videoId = wrongVideoId;
+            unrelatedRow.innerHTML = `<button class="favorite-btn favorited" data-video-id="${wrongVideoId}">\u2605</button>`;
+            document.getElementById('playlistBody').appendChild(unrelatedRow);
+            const harness = {
+                playlist: [item, unrelatedItem],
+                favorites: { [validVideoId]: valid, [wrongVideoId]: wrong },
+                settings: { playlistTimedOnly: false },
+                searched: [],
+                queued: [],
+                songReportAnchorVideoId: null,
+                isFavorite(videoId) { return !!this.favorites[videoId]; },
+                saveFavorites() {},
+                persistPlaylist() {},
+                refreshPlaylistRowVideo() {},
+                queueLyricsLookup(candidate) { this.queued.push(candidate.videoId); },
+                renderLyricsStateForItem() {},
+                clearSongReportPlayback() {}
+            };
+            PlayerPlaylist.install(harness);
+            const recordedHistory = [];
+            const realRecordSong = PlayerHistoryDB.recordSong;
+            PlayerHistoryDB.recordSong = (song, sourceKind) => {
+                recordedHistory.push({ videoId: song.videoId, sourceKind });
+            };
+            harness.searchSongsWithConcurrency = function (validSongs, { onResult }) {
+                    this.searched.push(...validSongs.map(entry => entry.song.videoId));
+                    onResult({
+                        index: validSongs[0].index,
+                        error: null,
+                        videoData: {
+                            videoId: repairedVideoId,
+                            title: 'Intended Artist - Intended Song (Official Audio)',
+                            channelTitle: 'Intended Artist',
+                            duration: '3:30',
+                            durationSeconds: 210
+                        }
+                    });
+                    return Promise.resolve([]);
+            };
+            const scheduled = harness.healSavedFavoriteVideoIdentities();
+            PlayerHistoryDB.recordSong = realRecordSong;
+            return {
+                scheduled,
+                searched: harness.searched,
+                favoriteKeys: Object.keys(harness.favorites),
+                repairedFavoritedAt: harness.favorites[repairedVideoId]?.favoritedAt || 0,
+                playlistVideoId: item.videoId,
+                unrelatedVideoId: unrelatedItem.videoId,
+                unrelatedName: unrelatedItem.name,
+                unrelatedFavoriteStarred: unrelatedRow.querySelector('.favorite-btn')?.classList.contains('favorited') || false,
+                lyricsStatus: item.lyricsStatus,
+                hasLyrics: !!item.lyricsData,
+                queued: harness.queued,
+                recordedHistory
+            };
+        });
+        report.check('saved favorite healing moves only intended-song rows, refreshes stars, and records the repaired key',
+            savedFavoriteRepair.scheduled === 1
+            && savedFavoriteRepair.searched.length === 1
+            && savedFavoriteRepair.searched[0].startsWith('wrong-')
+            && savedFavoriteRepair.favoriteKeys.length === 2
+            && savedFavoriteRepair.favoriteKeys.some(key => key.startsWith('valid-'))
+            && savedFavoriteRepair.favoriteKeys.some(key => key.startsWith('repaired-'))
+            && savedFavoriteRepair.repairedFavoritedAt === 200
+            && savedFavoriteRepair.playlistVideoId.startsWith('repaired-')
+            && savedFavoriteRepair.unrelatedVideoId.startsWith('wrong-')
+            && savedFavoriteRepair.unrelatedName === 'Other Intended Song'
+            && !savedFavoriteRepair.unrelatedFavoriteStarred
+            && savedFavoriteRepair.lyricsStatus === 'idle'
+            && !savedFavoriteRepair.hasLyrics
+            && savedFavoriteRepair.queued.length === 1
+            && savedFavoriteRepair.recordedHistory.length === 1
+            && savedFavoriteRepair.recordedHistory[0].videoId.startsWith('repaired-')
+            && savedFavoriteRepair.recordedHistory[0].sourceKind === 'identity-favorite-repair');
 
         const nonVideoSpecificNoRetry = await tab.evaluate(async () => {
             const harness = {

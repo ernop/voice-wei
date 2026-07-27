@@ -372,6 +372,8 @@ interface VoiceMusicController {
     searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
     unwantedVersionMarkers(): RegExp[];
     simplifyVideoText(value: string): string;
+    videoMatchesRequestedSong(video: YouTubeVideoCandidate, context: { name?: string }): boolean;
+    songMatchesIntendedIdentity(song: Song, intendedSong: Song): boolean;
     neutralTitleWords(): Set<string>;
     countExtraneousTitleWords(simplifiedTitle: string, songName: string, artist: string, requested: string): number;
     scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
@@ -396,7 +398,14 @@ interface VoiceMusicController {
     startPrebufferProbeFor(currentItem: PlaylistItem): Promise<void>;
     handlePrebufferProbeState(runId: number, slot: PrebufferProbeSlot, player: YT.Player, state: number, runStartedAt: number): void;
     finishPrebufferProbeSlot(runId: number, slot: PrebufferProbeSlot, player: YT.Player): void;
-    applyVideoDataToPlaylistItem(item: PlaylistItem, videoData: any): void;
+    transitionVideoIdentity(
+        oldVideoId: string,
+        videoData: YouTubeVideoCandidate,
+        transition:
+            | { relation: 'equivalent-recording' }
+            | { relation: 'favorite-repair'; intendedSong: Song }
+    ): PlaylistItem[];
+    refreshPlaylistRowFavorite(item: PlaylistItem): void;
     refreshPlaylistRowVideo(item: PlaylistItem): void;
     describeYouTubePlayerError(code: number | string): string;
     playerLoadFailureInfo(failure: any): { detail: string; errorCode: number | null };
@@ -406,6 +415,8 @@ interface VoiceMusicController {
     waitForPlayerReady(item: PlaylistItem, timeoutMs?: number): Promise<any>;
     reportPlayerLoadFailure(item: PlaylistItem, failure: any): Promise<void>;
     refreshAlternatesFromSearch(item: PlaylistItem): Promise<boolean>;
+    favoriteNeedsVideoIdentityRepair(favorite: FavoriteData): boolean;
+    healSavedFavoriteVideoIdentities(): number;
     alternateVideoSearchAttempts: Set<number>;
     playVideo(item: PlaylistItem): Promise<void>;
     updateMediaSessionForItem(item: PlaylistItem): void;

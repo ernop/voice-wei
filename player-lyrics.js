@@ -356,6 +356,9 @@ const PlayerLyrics = (function () {
                 let queued = 0;
                 const seen = new Set();
                 for (const favorite of Object.values(this.favorites)) {
+                    // A title-mismatched favorite must repair its YouTube
+                    // identity before any lyric state is resolved for it.
+                    if (this.favoriteNeedsVideoIdentityRepair(favorite)) continue;
                     if (seen.has(favorite.videoId)) continue;
                     seen.add(favorite.videoId);
                     const item = PlayerSongs.createPlaylistItem(favorite, {
@@ -402,10 +405,12 @@ const PlayerLyrics = (function () {
                     return item.lyricsData;
                 }
 
-                let flight = this.lyricsLookupsInFlight.get(item.videoId);
+                const lookupVideoId = item.videoId;
+                let flight = this.lyricsLookupsInFlight.get(lookupVideoId);
                 if (!flight) {
-                    flight = this.resolveLyricState(item, forceLookup);
-                    this.lyricsLookupsInFlight.set(item.videoId, flight);
+                    const lookupItem = { ...item, videoId: lookupVideoId };
+                    flight = this.resolveLyricState(lookupItem, forceLookup);
+                    this.lyricsLookupsInFlight.set(lookupVideoId, flight);
                 }
 
                 // A simple-lyrics upgrade check keeps showing what it has;
@@ -423,8 +428,10 @@ const PlayerLyrics = (function () {
 
                 try {
                     const state = await flight;
+                    if (item.videoId !== lookupVideoId) return item.lyricsData;
                     this.applyLyricStateToItem(item, state);
                 } catch (error) {
+                    if (item.videoId !== lookupVideoId) return item.lyricsData;
                     // Expected, handled external failure (provider or DB):
                     // nothing was saved. A song with simple lyrics keeps
                     // them (the upgrade just did not happen); a song with
@@ -435,11 +442,12 @@ const PlayerLyrics = (function () {
                         item.lyricsStatus = 'error';
                     }
                 } finally {
-                    if (this.lyricsLookupsInFlight.get(item.videoId) === flight) {
-                        this.lyricsLookupsInFlight.delete(item.videoId);
+                    if (this.lyricsLookupsInFlight.get(lookupVideoId) === flight) {
+                        this.lyricsLookupsInFlight.delete(lookupVideoId);
                     }
                 }
 
+                if (item.videoId !== lookupVideoId) return item.lyricsData;
                 this.refreshLyricsRowButton(item);
 
                 if (this.currentLyricsItemId === item.id) {
@@ -474,7 +482,8 @@ const PlayerLyrics = (function () {
              * @returns {Promise<LyricStateRecord>}
              */
             async resolveLyricState(item, forceLookup) {
-                const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
+                const lookupVideoId = item.videoId;
+                const saved = await window.PlayerHistoryDB.getLyricState(lookupVideoId);
                 const savedHasTimed = !!saved && saved.status === 'found' && !!saved.lyrics
                     && Array.isArray(saved.lyrics.syncedLines) && saved.lyrics.syncedLines.length > 0;
                 if (savedHasTimed) {
@@ -500,7 +509,7 @@ const PlayerLyrics = (function () {
                         && !!saved && saved.status === 'found' && !!saved.lyrics;
                     state = keepExistingSimple
                         ? { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION }
-                        : { videoId: item.videoId, status: 'found', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION, lyrics };
+                        : { videoId: lookupVideoId, status: 'found', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION, lyrics };
                     if (foundTimed && saved && !savedHasTimed) {
                         this.addMessage('claude', 'Timed lyrics found', `Upgraded from simple lyrics: ${this.describePlaylistItem(item)}`);
                     }
@@ -508,7 +517,7 @@ const PlayerLyrics = (function () {
                     // Upgrade attempt answered empty: keep the simple lyrics.
                     state = { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
                 } else {
-                    state = { videoId: item.videoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                    state = { videoId: lookupVideoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
                 }
                 if (typeof preservedOffset === 'number') {
                     state.lyricOffsetSeconds = preservedOffset;
@@ -573,15 +582,15 @@ const PlayerLyrics = (function () {
             async nudgeLyricOffset(deltaSeconds) {
                 const item = this.playingPlaylistItem();
                 if (!item || !item.videoId || !this.itemHasTimedLyrics(item)) return;
+                const offsetVideoId = item.videoId;
                 const next = Math.round((this.lyricOffsetForItem(item) + deltaSeconds) * 10) / 10;
-                item.lyricOffsetSeconds = next;
-                this.updateLyricOffsetControls();
-                const saved = await window.PlayerHistoryDB.getLyricState(item.videoId);
+                const saved = await window.PlayerHistoryDB.getLyricState(offsetVideoId);
+                if (item.videoId !== offsetVideoId) return;
                 /** @type {LyricStateRecord} */
                 const record = saved
                     ? { ...saved, lyricOffsetSeconds: next }
                     : {
-                        videoId: item.videoId,
+                        videoId: offsetVideoId,
                         status: 'found',
                         checkedAt: Date.now(),
                         searchVersion: LYRICS_SEARCH_VERSION,
@@ -589,6 +598,9 @@ const PlayerLyrics = (function () {
                         lyricOffsetSeconds: next
                     };
                 await window.PlayerHistoryDB.putLyricState(record);
+                if (item.videoId !== offsetVideoId) return;
+                item.lyricOffsetSeconds = next;
+                this.updateLyricOffsetControls();
                 this.updateListeningTextPosition(this.currentPlaybackTime());
                 this.resyncProgressClock();
             },

@@ -52,8 +52,8 @@ must not be added together:
 The named phases are controller construction/stored settings, configuration
 and key state, UI/voice wiring, lyrics-view settings, YouTube readiness
 wiring, local-library hydration, favorite-lyrics scheduling, playlist
-restoration, and demo setup. `application initialization` contains those
-phases and is intentionally nested.
+restoration, favorite-video repair scheduling, and demo setup. `application
+initialization` contains those phases and is intentionally nested.
 
 External work that does not gate interaction is outside this readiness
 boundary. The YouTube IFrame API starts in parallel and playback awaits its
@@ -582,6 +582,31 @@ lookup); a new AI search **replaces** the working playlist
 nothing: every song is recorded to the known-songs catalog when it is
 added, so the working playlist is a matter of convenience over durable
 data.
+
+**Video identity changes have one owner.** `transitionVideoIdentity` is the
+only operation allowed to replace a Song's `videoId`. It updates every live
+playlist row on an equivalent recording; favorite repair updates only rows
+whose normalized name and artist match that favorite's intended song. The
+transition rekeys the favorite before refreshing its rows, preserves
+`favoritedAt`, resets video-bound runtime state, persists playlist and
+favorites, and records the replacement key in Known Songs. A retry candidate
+must identify the requested named song before it can cross this boundary.
+Lyrics and reports are not copied to the new key; each resolves from its own
+`videoId` record.
+
+Every video-bound asynchronous operation captures the `videoId` at flight
+start. Its result may write or populate only that captured key and may update a
+live item only while the item still has that identity. In-flight maps are also
+cleaned by the captured key, so an identity transition cannot leak a flight or
+apply an old lyric/report to the replacement video.
+
+Saved favorites receive a targeted repair pass after playlist restoration. A
+favorite whose stored YouTube title does not identify its non-empty named song
+is searched again through the existing keyless path; valid favorites perform
+no YouTube request. A successful repair uses the same identity transition, so
+a restored playlist and favorite move together. Mismatched favorites skip
+lyric reconciliation until repair, preventing wrong-video lyric state from
+being created.
 
 **Lyric state has one permanent owner: IndexedDB `lyricStates`, keyed by
 videoId.** Each record is either `found` (carrying the LyricsResult) or

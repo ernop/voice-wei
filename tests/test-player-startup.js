@@ -48,6 +48,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
         'local song library hydration',
         'favorite lyrics reconciliation scheduling',
         'saved playlist restoration',
+        'favorite video identity repair scheduling',
         'demo request',
         'application initialization'
     ];

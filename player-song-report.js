@@ -310,15 +310,18 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                     return cached;
                 }
 
-                let flight = this.songReportLoadsInFlight.get(item.videoId);
+                const loadVideoId = item.videoId;
+                let flight = this.songReportLoadsInFlight.get(loadVideoId);
                 if (!flight) {
-                    flight = window.PlayerHistoryDB.getSongReport(item.videoId);
-                    this.songReportLoadsInFlight.set(item.videoId, flight);
+                    flight = window.PlayerHistoryDB.getSongReport(loadVideoId);
+                    this.songReportLoadsInFlight.set(loadVideoId, flight);
                 }
 
                 try {
                     const record = await flight;
+                    if (item.videoId !== loadVideoId) return null;
                     if (record) {
+                        if (record.videoId !== loadVideoId) return null;
                         // Records saved before timed notes carry only display
                         // lines; migrate them to untimed entries on load.
                         const entries = Array.isArray(record.entries) && record.entries.length > 0
@@ -328,21 +331,22 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                                 : []);
                         if (entries.length > 0) {
                             const migrated = { ...record, entries };
-                            this.songReports.set(item.videoId, migrated);
+                            this.songReports.set(loadVideoId, migrated);
                             return migrated;
                         }
                     }
                     return record;
                 } catch (error) {
+                    if (item.videoId !== loadVideoId) return null;
                     this.logError('Song Report Load Error', error);
                     this.updateStatus(`Could not load saved song report: ${error instanceof Error ? error.message : String(error)}`);
                     return null;
                 } finally {
-                    if (this.songReportLoadsInFlight.get(item.videoId) === flight) {
-                        this.songReportLoadsInFlight.delete(item.videoId);
+                    if (this.songReportLoadsInFlight.get(loadVideoId) === flight) {
+                        this.songReportLoadsInFlight.delete(loadVideoId);
                     }
                     this.updateSongReportControls();
-                    if (this.currentPlayingId === item.id) {
+                    if (item.videoId === loadVideoId && this.currentPlayingId === item.id) {
                         this.resyncProgressClock();
                     }
                 }
@@ -369,10 +373,11 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                 const providerName = provider === 'openai' ? 'OpenAI' : 'Claude';
                 const itemName = this.truncateForStatus(this.describePlaylistItem(item), 80);
                 const startedAt = Date.now();
+                const requestVideoId = item.videoId;
                 this.songReportRequestInFlight = true;
                 this.songReportRequestState = {
                     phase: 'sending',
-                    videoId: item.videoId,
+                    videoId: requestVideoId,
                     startedAt,
                     elapsedMs: 0,
                     provider,
@@ -393,6 +398,7 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                     // The prompt carries the song's full lyrics, so resolve
                     // them through the normal lyric store path first.
                     await this.ensureLyricsForItem(item);
+                    if (item.videoId !== requestVideoId) return;
                     const prompt = this.buildSongReportPrompt(item);
                     const research = this.requestSongReportResearch(prompt);
                     this.songReportRequestState = {
@@ -416,6 +422,7 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                     }, 1000);
 
                     const result = await research;
+                    if (item.videoId !== requestVideoId) return;
                     const elapsedMs = Date.now() - startedAt;
                     this.songReportRequestState = {
                         ...this.songReportRequestState,
@@ -449,7 +456,7 @@ vi. Break any of these rules sooner than say anything outright barbarous.
 
                     /** @type {SongReportRecord} */
                     const record = {
-                        videoId: item.videoId,
+                        videoId: requestVideoId,
                         generatedAt: Date.now(),
                         provider: result.provider,
                         model: result.model,
@@ -458,7 +465,8 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                         entries
                     };
                     await window.PlayerHistoryDB.putSongReport(record);
-                    this.songReports.set(item.videoId, record);
+                    if (item.videoId !== requestVideoId) return;
+                    this.songReports.set(requestVideoId, record);
                     this.addMessage(
                         'claude',
                         'Song report saved',
@@ -466,7 +474,7 @@ vi. Break any of these rules sooner than say anything outright barbarous.
                     );
                     this.settings.songDisplayMode = 'report';
                     this.saveSettings();
-                    this.songReportAnchorVideoId = item.videoId;
+                    this.songReportAnchorVideoId = requestVideoId;
                     this.songReportAnchorTime = this.currentPlayingId === item.id
                         ? this.currentPlaybackTime()
                         : 0;
@@ -518,12 +526,14 @@ vi. Break any of these rules sooner than say anything outright barbarous.
 
                 let record = this.songReportForItem(item);
                 if (!record) {
+                    const loadVideoId = item.videoId;
                     this.addMessage(
                         'claude',
                         'Song report selection',
                         `Checking saved report for ${this.describePlaylistItem(item)}`
                     );
                     record = await this.loadSongReportForItem(item);
+                    if (item.videoId !== loadVideoId) return;
                 }
                 if (!record) {
                     this.addMessage(
