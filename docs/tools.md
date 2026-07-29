@@ -664,8 +664,12 @@ outlines, your sung pitch as a yellow trace, and a voice-gated timeline
 **The chart draws what you sing.** Rails and targets are for comparison
 only; they never gate what is recorded or drawn, and scoring verdicts
 never recolor the chart (judgment lives in the readout and progress
-line). Off-rails singing (wrong octave, overshoot) draws at its true
-pitch - the chart's vertical range expands to cover it. Rejection is
+line). The vertical frame is stable for the whole take: it spans the
+rails and targets (chords movement stacks targets above the octave -
+those sit inside the frame too) and singing never resizes it, so a
+momentary low or high note cannot rescale the chart mid-take. Off-frame
+singing stays recorded at its true pitch and still scores, but draws
+off-screen; use Expand range for more room. Rejection is
 voice-physics only: detections outside the singable band (D2-Bb4:
 barbershop bass low up to just above a lead's top) are the room, not the
 singer, and read as silence; and a large instant jump must sustain for a

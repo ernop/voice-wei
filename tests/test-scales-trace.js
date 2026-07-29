@@ -257,6 +257,36 @@ function waitForScalesReady(tab) {
             microtonal.chordFifthOnMicrotonalDegree === 70.5);
         report.check(`microtonal rast playback hits exact fractional midis (${microtonal.played})`,
             microtonal.played === '60,62,63.5,65,67,69,70.5,72');
+
+        // Chords movement stacks thirds and fifths above the section
+        // octave; the Sing rails (which set the chart frame) must cover
+        // every planned target, not just the section range.
+        const chordsSing = await tab.evaluate(() => {
+            const c = window.scalesController;
+            const saved = {
+                root: c.settings.root, octave: c.settings.octave,
+                scaleType: c.settings.scaleType, movementStyle: c.settings.movementStyle
+            };
+            c.settings.root = 'D';
+            c.settings.octave = 3;
+            c.settings.scaleType = 'major';
+            c.settings.movementStyle = 'chords';
+            const rails = c.buildSingRails(false);
+            const targets = c.buildSingTargets();
+            Object.assign(c.settings, saved);
+            const railMidis = rails.map(rail => rail.midi);
+            return {
+                railMin: Math.min(...railMidis),
+                railMax: Math.max(...railMidis),
+                targetMin: Math.min(...targets.map(t => t.midi)),
+                targetMax: Math.max(...targets.map(t => t.midi)),
+                everyTargetOnRail: targets.every(t => railMidis.includes(t.midi))
+            };
+        });
+        report.check(`scales chords sing rails cover the stacked targets (rails ${chordsSing.railMin}-${chordsSing.railMax}, targets ${chordsSing.targetMin}-${chordsSing.targetMax})`,
+            chordsSing.railMin <= chordsSing.targetMin
+            && chordsSing.railMax >= chordsSing.targetMax
+            && chordsSing.everyTargetOnRail);
         await tab.close();
     }
 
@@ -335,6 +365,71 @@ function waitForScalesReady(tab) {
         });
         report.check(`trace fixed frame clips out-of-range singing (off=${fixedFrame.offscreenYellow}, on=${fixedFrame.onscreenYellow})`,
             fixedFrame.offscreenYellow === 0 && fixedFrame.onscreenYellow > 0);
+
+        // The panel's automatic frame is stable chart furniture: it
+        // spans rails AND targets, and sung history never resizes it -
+        // a momentary low note must not rescale the chart mid-take.
+        const stableFrame = await tab.evaluate(() => {
+            const canvas = document.createElement('canvas');
+            canvas.id = 'stableFrameTestCanvas';
+            canvas.width = 400;
+            canvas.height = 240;
+            document.body.appendChild(canvas);
+            const history = [
+                { time: 100, midi: 61, cents: 0 },
+                { time: 160, midi: 61, cents: 0 },
+                { time: 220, midi: 61, cents: 0 }
+            ];
+            const view = PitchTraceView.create({
+                canvasId: canvas.id,
+                defaultHeightPx: 240,
+                rails: () => [
+                    { midi: 60, label: '1', emphasized: true },
+                    { midi: 62, label: '2', emphasized: true }
+                ],
+                // A target above the rails (chords stacking a fifth over
+                // the octave) must sit inside the frame.
+                targets: () => [{ midi: 64, startMs: 0, endMs: 500, label: '3', active: true }],
+                history: () => history,
+                clockMs: () => 800,
+                windowMs: () => 2000,
+                showPlayhead: () => false
+            });
+            const scanPixels = () => {
+                const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+                let yellowTop = -1;
+                let yellowBottom = -1;
+                let blue = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    const [r, g, b] = [pixels[i], pixels[i + 1], pixels[i + 2]];
+                    if (r > 220 && g > 160 && b < 80) {
+                        const y = Math.floor(i / 4 / canvas.width);
+                        if (yellowTop === -1) yellowTop = y;
+                        yellowBottom = y;
+                    }
+                    if (b > 150 && b > r + 30) blue++;
+                }
+                return { yellowTop, yellowBottom, blue };
+            };
+            view.draw();
+            const before = scanPixels();
+            // A momentary low grunt, far below the rails (still inside
+            // the singable band). Confirmed samples, past the trace
+            // break so no connector line is drawn.
+            history.push({ time: 600, midi: 45, cents: 0 });
+            history.push({ time: 660, midi: 45, cents: 0 });
+            history.push({ time: 720, midi: 45, cents: 0 });
+            view.draw();
+            const after = scanPixels();
+            return { before, after };
+        });
+        report.check(`panel auto frame includes targets above the rails (blue=${stableFrame.before.blue})`,
+            stableFrame.before.blue > 0);
+        report.check('panel auto frame stays stable when a momentary low note arrives '
+            + `(yellow rows ${stableFrame.before.yellowTop}-${stableFrame.before.yellowBottom} -> ${stableFrame.after.yellowTop}-${stableFrame.after.yellowBottom})`,
+            stableFrame.before.yellowTop > 0
+            && Math.abs(stableFrame.after.yellowTop - stableFrame.before.yellowTop) <= 1
+            && Math.abs(stableFrame.after.yellowBottom - stableFrame.before.yellowBottom) <= 1);
         await tab.close();
     }
 

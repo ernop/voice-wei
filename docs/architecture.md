@@ -230,14 +230,17 @@ Two mechanisms sit between detection and history:
 
 **The instrument law: the chart draws what was actually sung.** The
 voice line derives only from the sung history. There is no
-rails/target-based discarding. Shared test panels and Pitch let the
-vertical range expand to cover the sung trace (held for the take - it
-does not shrink when extremes scroll out of view), so wrong-octave
-singing remains visible at its true pitch. Trace deliberately supplies
-an absolute user-selected vertical frame instead: history outside that
-frame remains recorded at its true pitch but is clipped off-screen and
-never changes the zoom. In either mode the frame never clamps, moves, or
-recolors the voice line.
+rails/target-based discarding. The frame is equally stable chart
+furniture: for the shared test panels it spans the rails AND targets
+(plus a small pad) and the sung history never resizes it - a momentary
+low or high note used to rescale the whole chart mid-take, crushing the
+lanes and disorienting the singer. Out-of-frame singing stays recorded
+at its true pitch (and still scores) but is clipped off-screen. Trace
+supplies an absolute user-selected vertical frame with the same
+clipping. Pitch opts into `frameFollowsVoice`: its job is showing
+whatever is sung, so there the frame expands to cover the take (held
+monotone - it does not shrink when extremes scroll out of view). In
+every mode the frame never clamps, moves, or recolors the voice line.
 
 **Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
 everything through provider callbacks: `rails()`, `targets()`,
@@ -289,10 +292,11 @@ panel segments incrementally (`PitchScore.createSegmenter`, pulled from
 (`alignSegments`); the phrases take plan is memoized on its input key
 (targets, rails, and duration all read it every tick); the view finds a
 fixed window's visible slice by scanning back from the end of the
-time-ordered history; an automatic vertical range is monotone for a
-take, so each frame folds in only the visible slice (a full history
-scan happens once, to seed an empty held range), while Trace's fixed
-vertical bounds require no history scan; Trace rebuilds its
+time-ordered history; the stable rails/targets frame and Trace's fixed
+vertical bounds require no history scan, and Pitch's voice-following
+range is monotone for a take, so each frame folds in only the visible
+slice (a full history scan happens once, to seed an empty held
+range); Trace rebuilds its
 rails/targets/window model only when a setting or the pattern text
 changes and the frame loop just reads it back (no per-frame pattern
 parsing or scale spelling); and the detector stops scanning at the

@@ -230,7 +230,6 @@
     function resetTrace() {
         guidePlaybackToken++;
         session.reset();
-        view.resetVerticalRange();
         clearPitchReadout();
         setStatus(session.listening ? 'Listening' : 'Ready');
         drawChart(true);

@@ -10,6 +10,14 @@
 // zoom) and are drawn alongside, but no target, score, or exercise
 // datum may move, hide, or recolor the voice line.
 //
+// The frame is equally a stable instrument face: rails and targets
+// define it, and the sung history never resizes it (one momentary low
+// note used to rescale the whole chart mid-take, crushing the lanes
+// and disorienting the singer). Out-of-frame singing stays recorded at
+// its true pitch but is clipped off-screen. Pages whose purpose is to
+// follow the voice wherever it goes (pitch-meter) opt into
+// `frameFollowsVoice` instead.
+//
 // Target bands are bare outlines of the hit zone (+/- BAND_CENTS).
 // Scoring verdicts never recolor them - judgment lives in readouts,
 // not in the chart. This module does not import pitch-score.js.
@@ -34,6 +42,13 @@ const PitchTraceView = (function () {
     // convention so "inside the outline" means the same thing as a hit,
     // but the view owns the constant so Trace does not load scoring.
     const BAND_CENTS = 60;
+
+    // Auto-frame padding in semitones beyond the rails/targets span.
+    // The top pad leaves room for the highest target's band and its
+    // label above it; the bottom pad keeps the lowest band off the
+    // time axis.
+    const FRAME_PAD_BELOW = 1;
+    const FRAME_PAD_ABOVE = 2;
 
     // Bare outline only - never green/yellow/red from a verdict.
     const TARGET_OUTLINE = {
@@ -67,13 +82,15 @@ const PitchTraceView = (function () {
      *   windowMs: () => number,
      *   fixedWindow?: () => boolean,
      *   verticalBounds?: () => { minMidi: number, maxMidi: number },
+     *   frameFollowsVoice?: boolean,
      *   showPlayhead: () => boolean
      * }} options
      */
     function create(options) {
-        // Vertical range hysteresis: expand immediately to cover sung
-        // pitch, shrink only when history is cleared. Stops the chart
-        // from bouncing when a brief extreme leaves the visible window.
+        // frameFollowsVoice hysteresis: expand immediately to cover
+        // sung pitch, shrink only when history is cleared. Stops the
+        // chart from bouncing when a brief extreme leaves the visible
+        // window. Unused in the default stable-frame mode.
         /** @type {number | null} */
         let heldMinMidi = null;
         /** @type {number | null} */
@@ -163,27 +180,38 @@ const PitchTraceView = (function () {
             const stride = Math.max(1, Math.ceil(visibleHistory.length / MAX_TRACE_POINTS));
             const history = stride === 1 ? visibleHistory : visibleHistory.filter((_, index) => index % stride === 0);
 
+            const targets = options.targets();
+
             let minMidi;
             let maxMidi;
             if (fixedBounds) {
                 minMidi = fixedBounds.minMidi;
                 maxMidi = fixedBounds.maxMidi;
             } else {
-                // Frame from rails; expand to cover what was sung so an
-                // off-rails note draws at its true pitch. Held min/max never
-                // shrink mid-take (avoids vertical bounce when extremes
-                // scroll out of the visible window). Because they are
-                // monotone for the take, only the visible slice needs
-                // scanning per frame - every sample is on screen the frame
-                // it arrives, so it has already been folded in. A full scan
-                // happens once, to seed an empty held range.
+                // Frame from the chart furniture: rails AND targets (a
+                // target above the rails - chords stacking a fifth over
+                // the octave - must sit inside the frame, not clipped at
+                // its edge). In the default stable mode the sung history
+                // never resizes the frame; see the instrument law above.
                 minMidi = Infinity;
                 maxMidi = -Infinity;
                 for (const rail of rails) {
                     if (rail.midi < minMidi) minMidi = rail.midi;
                     if (rail.midi > maxMidi) maxMidi = rail.midi;
                 }
-                if (rawHistory.length) {
+                for (const target of targets) {
+                    if (target.midi < minMidi) minMidi = target.midi;
+                    if (target.midi > maxMidi) maxMidi = target.midi;
+                }
+                if (options.frameFollowsVoice && rawHistory.length) {
+                    // Expand to cover what was sung. Held min/max never
+                    // shrink mid-take (avoids vertical bounce when
+                    // extremes scroll out of the visible window).
+                    // Because they are monotone for the take, only the
+                    // visible slice needs scanning per frame - every
+                    // sample is on screen the frame it arrives, so it
+                    // has already been folded in. A full scan happens
+                    // once, to seed an empty held range.
                     const scan = heldMinMidi === null ? rawHistory : visibleHistory;
                     for (const point of scan) {
                         if (point.midi < minMidi) minMidi = point.midi;
@@ -193,6 +221,9 @@ const PitchTraceView = (function () {
                     if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
                     minMidi = /** @type {number} */ (heldMinMidi);
                     maxMidi = /** @type {number} */ (heldMaxMidi);
+                } else if (!options.frameFollowsVoice) {
+                    minMidi -= FRAME_PAD_BELOW;
+                    maxMidi += FRAME_PAD_ABOVE;
                 }
             }
             const midiRange = Math.max(maxMidi - minMidi, 1);
@@ -266,7 +297,7 @@ const PitchTraceView = (function () {
             const labelCursor = new Map();
             const pxPerMidi = graphHeight / midiRange;
             const bandHalfPx = Math.max(3, (BAND_CENTS / 100) * pxPerMidi);
-            options.targets().forEach(target => {
+            targets.forEach(target => {
                 if (target.endMs < windowStart || target.startMs > windowStart + timeWindow) return;
                 const y = midiToY(target.midi);
                 const x1 = timeToX(target.startMs);
@@ -327,7 +358,7 @@ const PitchTraceView = (function () {
             ctx.restore();
         }
 
-        return { resize, draw, resetVerticalRange };
+        return { resize, draw };
     }
 
     return { create, BAND_CENTS };

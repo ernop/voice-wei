@@ -443,7 +443,6 @@ const PitchTestPanel = (function () {
 
         function resetSession() {
             session.reset();
-            view.resetVerticalRange();
             takeRecorded = false;
             clearReadout();
             setStatus('Sing to start time');

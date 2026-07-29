@@ -107,6 +107,10 @@ class PitchMeterController {
         this.traceView = PitchTraceView.create({
             canvasId: 'pitchChart',
             defaultHeightPx: 300,
+            // The meter's whole job is showing whatever is sung, so the
+            // frame follows the voice here (test panels keep a stable
+            // rails/targets frame instead).
+            frameFollowsVoice: true,
             rails: () => this.targetNotes.map(note => ({
                 midi: note.midi,
                 label: note.name,
