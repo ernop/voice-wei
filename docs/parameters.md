@@ -198,7 +198,9 @@ generates ahead of the now-line - never the sheet already drawn.
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
 run, saves it as a Past Run when at least a bar was traversed, and
-rewinds to the lead-in), Next (new sequence), Listen (microphone on/off).
+rewinds to the lead-in), Next (new sequence), Listen (microphone on/off),
+Copy Text (clipboard: every setting plus the generated sequence as
+degree.duration tokens and note names, for pasting to an agent).
 Past Runs persist under `staff-sessions`: newest first, capped at 20,
 with sung traces kept on the 8 most recent. Load reopens a run's sheet
 and trace in page mode; Start after a load re-runs the same sheet.

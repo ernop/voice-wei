@@ -240,6 +240,56 @@
     }
 
     //-------------------------------------------------------------------
+    // State-as-text: everything an agent needs to reproduce this moment
+    //-------------------------------------------------------------------
+
+    const DURATION_TEXT = { 0.5: '8', 1: 'q', 2: 'h', 4: 'w' };
+
+    function buildStateText() {
+        const version = (typeof AppVersion !== 'undefined' && AppVersion.current) ? AppVersion.current : '?';
+        const lines = [];
+        lines.push(`Voice-Wei Staff state (v${version}) ${new Date().toISOString()}`);
+        lines.push(`key: ${scaleRootPitchString(state.root, state.octave)} ${state.scaleType.replace(/_/g, ' ')}`);
+        lines.push(`style: ${state.phraseStyle} / lesson ${state.phraseLesson}`
+            + (state.phraseStyle === 'free' ? ` / algo ${state.phraseAlgo}` : ''));
+        lines.push(`anchors: ${state.startAtOne ? 'start at 1' : 'random start'}, ${state.returnToInitial ? 'return to 1' : 'no return'}`);
+        lines.push(`range: ${rangeEndpointLabel(state.rangeLow)}..${rangeEndpointLabel(state.rangeHigh)}`
+            + ` | phrase length ${state.minLength}-${state.maxLength}`
+            + ` | passing ${Math.round(state.accidentalRate * 100)}%`);
+        lines.push(`note values: ${state.durationBeats.map(beats => DURATION_TEXT[beats] || beats).join(' ')}`
+            + ` | rest between phrases: ${state.restBeats} beats | bars: ${state.measures}`);
+        lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
+            + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
+            + ` | width ${state.staffWidthPct}%`
+            + ` | hear tones ${state.hearTones ? 'on' : 'off'} | numbers ${state.showDegrees ? 'on' : 'off'}`);
+        const events = streamEvents();
+        const notes = events.filter(event => event.type === 'note');
+        lines.push(`sequence: ${Math.ceil(totalBeats() / 4)} bars, ${notes.length} notes`
+            + ' (degree.duration, r = rest; q quarter, h half, w whole, 8 eighth; | = barline)');
+        const tokens = [];
+        let bar = 0;
+        for (const event of events) {
+            const barIndex = Math.floor(event.startBeat / 4);
+            while (bar < barIndex) { tokens.push('|'); bar++; }
+            const duration = DURATION_TEXT[event.beats] || String(event.beats);
+            tokens.push(event.type === 'rest' ? `r.${duration}` : `${event.degree}.${duration}`);
+        }
+        lines.push(tokens.join(' '));
+        lines.push(`note names: ${notes.map(note => note.noteName).join(' ')}`);
+        return lines.join('\n');
+    }
+
+    async function copyStateText() {
+        const text = buildStateText();
+        try {
+            await navigator.clipboard.writeText(text);
+            setStatus('Settings + sequence copied as text');
+        } catch (err) {
+            setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    //-------------------------------------------------------------------
     // Generation
     //-------------------------------------------------------------------
 
@@ -844,6 +894,7 @@
         getEl('stopBtn')?.addEventListener('click', () => { stopRun({ save: true }); });
         getEl('nextBtn')?.addEventListener('click', () => { regenerate(); });
         getEl('listenBtn')?.addEventListener('click', () => { toggleListening(); });
+        getEl('copyStateBtn')?.addEventListener('click', () => { copyStateText(); });
         getEl('clearSessionsBtn')?.addEventListener('click', () => {
             persistSessions([]);
             renderSessionList();
@@ -906,6 +957,7 @@
             setMode,
             regenerate,
             settings: () => ({ ...state, durationBeats: state.durationBeats.slice() }),
+            stateText: buildStateText,
             singPanel: () => singPanel,
             singRails: buildSingRails,
             singTargets: buildSingTargets,

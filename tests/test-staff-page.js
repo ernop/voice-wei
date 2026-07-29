@@ -238,6 +238,30 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('loading a session restores its sung trace', review.traceRestored);
     report.check('a loaded session reviews in page mode', review.mode === 'page');
 
+    // Copy Text: the full state as pasteable text - settings plus the
+    // generated sequence, token-for-token.
+    const stateText = await tab.evaluate(() => {
+        const text = window.staffDebug.stateText();
+        const events = window.staffDebug.events();
+        const noteTokens = (text.match(/(^|\s)[0-9][0-9#b\u2191\u2193]*\.[qhw8]/g) || []).length;
+        const restTokens = (text.match(/(^|\s)r\.[qhw8]/g) || []).length;
+        return {
+            hasHeader: text.includes('Voice-Wei Staff state'),
+            hasKey: /key: .+ major|minor|chromatic|pentatonic/.test(text),
+            hasSettings: text.includes('tempo:') && text.includes('range:') && text.includes('note values:'),
+            noteTokens,
+            restTokens,
+            noteCount: events.filter(event => event.type === 'note').length,
+            restCount: events.filter(event => event.type === 'rest').length,
+            hasNames: text.includes('note names: '),
+            buttonExists: Boolean(document.getElementById('copyStateBtn'))
+        };
+    });
+    report.check('Copy Text has header, key, and settings lines',
+        stateText.hasHeader && stateText.hasKey && stateText.hasSettings && stateText.buttonExists);
+    report.check(`Copy Text sequence tokens match the events (${stateText.noteTokens}/${stateText.noteCount} notes, ${stateText.restTokens}/${stateText.restCount} rests)`,
+        stateText.noteTokens === stateText.noteCount && stateText.restTokens === stateText.restCount && stateText.hasNames);
+
     // --- Controls: mode buttons and duration invariant ------------------
     await tab.click('[data-staff-mode="scroll"]');
     const afterModeClick = await tab.evaluate(() => window.staffDebug.settings().mode);

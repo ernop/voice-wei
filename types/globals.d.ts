@@ -143,6 +143,7 @@ interface Window {
         setMode: (mode: 'page' | 'scroll') => void;
         regenerate: () => void;
         settings: () => any;
+        stateText: () => string;
         singPanel: () => any;
         singRails: (expandRange: boolean) => RailLine[];
         singTargets: () => TargetSpan[];

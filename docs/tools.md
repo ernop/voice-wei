@@ -190,8 +190,18 @@ never cross a barline.
   the take is scored per note like Phrases Test. The panel's voice-gated
   clock is independent of the scrolling staff - sing the sheet in your
   own time.
+- **Copy Text** (by the readout) copies the complete state as plain
+  text - every setting plus the generated sequence as degree.duration
+  tokens with barlines and the spelled note names - ready to paste into
+  a conversation with an agent.
 - Hardware media keys: play/pause control the moving staff, next
   generates a new sequence.
+- The style/lesson palettes are the range authority: a lesson like
+  "staff steps" is BY DESIGN degrees 1-5 in mostly single steps
+  (~90% of moves), and the Range steppers only clamp a lesson's
+  palette, never widen it. For lines that roam the full range, use the
+  free style (arch/balanced/leapy) or wider lessons (landmarks,
+  theatre, jazz).
 
 Setting behaviors: root/scale **reproject** the current sheet; tempo and
 hear-tones apply **live**; spacing/now/width **redraw**; the generation
