@@ -1,0 +1,146 @@
+/* Staff page: continuously scrolling grand-staff sight singing. */
+
+.staff-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 6px 0 2px;
+    padding: 8px 8px 6px;
+    border: 1px solid rgba(134, 239, 172, 0.18);
+    border-radius: 12px;
+    background: rgba(13, 40, 24, 0.93);
+}
+
+.staff-stage-host {
+    width: 100%;
+}
+
+.staff-scroll-empty {
+    display: none;
+}
+
+.staff-scroll-shell {
+    position: relative;
+    width: var(--staff-width, 100%);
+    margin: 0 auto;
+    border-radius: 8px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.staff-scroll-viewport {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+.staff-scroll-viewport-page {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.staff-scroll-strip {
+    position: relative;
+    will-change: transform;
+}
+
+.staff-scroll-chunk {
+    position: absolute;
+    top: 0;
+}
+
+.staff-scroll-chunk svg {
+    display: block;
+    max-width: none;
+}
+
+.staff-scroll-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* Opaque: scrolling notes disappear beneath the clefs/key signature. */
+    background: #f8fafc;
+    border-right: 1px solid rgba(15, 23, 42, 0.18);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.staff-scroll-header svg {
+    display: block;
+}
+
+.staff-scroll-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.staff-stage-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    width: 100%;
+    min-height: 18px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.8rem;
+}
+
+.staff-pitch-readout {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    color: #86efac;
+    min-width: 150px;
+}
+
+.staff-status-readout {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.staff-mode-row .vf-btn,
+.staff-duration-row .vf-btn {
+    text-transform: none;
+}
+
+.staff-control-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
+.staff-control-card {
+    padding: 6px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.staff-listen-button.listening {
+    border-color: rgba(245, 158, 11, 0.85);
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+    color: white;
+    box-shadow: 0 4px 18px rgba(245, 158, 11, 0.32);
+}
+
+.staff-session-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.staff-session-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.staff-session-detail {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    white-space: nowrap;
+}

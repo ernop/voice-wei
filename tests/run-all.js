@@ -22,6 +22,7 @@ const PARALLEL_SUITES = [
     'test-controls.js',
     'test-playback-engine.js',
     'test-intervals-pitch.js',
+    'test-staff-page.js',
     'test-staff-view.js',
     'test-player-live.js',
     'test-pages-load.js',

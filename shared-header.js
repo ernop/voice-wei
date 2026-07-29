@@ -4,6 +4,7 @@ const HEADER_PAGES = [
     { id: "scales", href: "scales.html", label: "Scales" },
     { id: "intervals", href: "intervals.html", label: "Intervals" },
     { id: "phrases", href: "phrases.html", label: "Phrases" },
+    { id: "staff", href: "staff.html", label: "Staff" },
     { id: "trace", href: "trace.html", label: "Trace" },
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
     { id: "music", href: "player.html", label: "Lyrics" },

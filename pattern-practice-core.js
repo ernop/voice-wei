@@ -1126,7 +1126,8 @@ const PatternPracticeCore = (function () {
      *   returnToRoot: boolean,
      *   phraseAlgo?: string,
      *   phraseStyle?: string,
-     *   phraseLesson?: string
+     *   phraseLesson?: string,
+     *   accidentalRate?: number
      * }} options
      * @returns {number[]}
      */
@@ -1251,6 +1252,119 @@ const PatternPracticeCore = (function () {
         });
     }
 
+    // Continuous staff-reading stream: phrase chunks joined by rests,
+    // metered into 4/4 measures with per-note durations drawn from the
+    // enabled duration set. Quarters dominate; longer values color the
+    // line without taking it over.
+    const DURATION_WEIGHTS = Object.freeze({ 0.5: 2, 1: 4, 2: 2, 4: 1 });
+    const STANDARD_REST_BEATS = Object.freeze([4, 2, 1, 0.5]);
+
+    /**
+     * @param {number[]} durations ascending allowed note lengths in beats
+     * @param {number} remaining beats left in the current measure
+     * @returns {number | null} a weighted pick that fits, or null
+     */
+    function pickDurationBeats(durations, remaining) {
+        const fits = durations.filter(beats => beats <= remaining + 1e-9);
+        if (!fits.length) return null;
+        const total = fits.reduce((sum, beats) => sum + (DURATION_WEIGHTS[beats] || 1), 0);
+        let roll = Math.random() * total;
+        for (const beats of fits) {
+            roll -= DURATION_WEIGHTS[beats] || 1;
+            if (roll <= 0) return beats;
+        }
+        return fits[fits.length - 1];
+    }
+
+    /**
+     * A stateful generator for the Staff page: an unbounded stream of
+     * timed note/rest events. Each call to nextEvents() extends the
+     * stream by at least minBeats using the SAME phrase generators the
+     * Phrases page uses (style/lesson/algo options pass through), then
+     * separates phrases with the configured rest span. Notes never
+     * cross a barline: a note that cannot fit the measure remainder is
+     * pushed to the next measure and the remainder is filled with
+     * standard rests (whole/half/quarter/eighth), largest first.
+     *
+     * @param {{
+     *   scaleType: string,
+     *   startAtOne: boolean,
+     *   rangeLow: number,
+     *   rangeHigh: number,
+     *   minLength: number,
+     *   maxLength: number,
+     *   returnToInitial: boolean,
+     *   returnToRoot: boolean,
+     *   phraseAlgo?: string,
+     *   phraseStyle?: string,
+     *   phraseLesson?: string,
+     *   accidentalRate?: number,
+     *   durationBeats?: number[],
+     *   restBeats?: number,
+     *   startBeat?: number
+     * }} options
+     */
+    function createContinuousSequence(options) {
+        const beatsPerMeasure = 4;
+        const durations = (Array.isArray(options.durationBeats) && options.durationBeats.length
+            ? options.durationBeats.slice()
+            : [1]).sort((a, b) => a - b);
+        const restBeats = Math.max(0, options.restBeats ?? 1);
+        let beat = Math.max(0, options.startBeat || 0);
+
+        /** @param {TimedSequenceEvent[]} events @param {number} spanBeats */
+        function pushRests(events, spanBeats) {
+            let remaining = spanBeats;
+            while (remaining > 1e-9) {
+                const room = beatsPerMeasure - positiveModulo(beat, beatsPerMeasure);
+                let piece = Math.min(remaining, room);
+                for (const value of STANDARD_REST_BEATS) {
+                    if (value <= piece + 1e-9) {
+                        events.push({ type: 'rest', beats: value, startBeat: beat });
+                        beat += value;
+                        remaining -= value;
+                        piece = 0;
+                        break;
+                    }
+                }
+                if (piece !== 0) break; // remainder smaller than an eighth
+            }
+        }
+
+        return {
+            /**
+             * Generate at least minBeats of new content.
+             * @param {number} minBeats
+             * @returns {TimedSequenceEvent[]}
+             */
+            nextEvents(minBeats) {
+                /** @type {TimedSequenceEvent[]} */
+                const events = [];
+                const targetBeat = beat + Math.max(1, minBeats);
+                while (beat < targetBeat) {
+                    const offsets = generatePhraseOffsets({
+                        ...options,
+                        accidentalRate: options.accidentalRate || 0
+                    });
+                    for (const offset of offsets) {
+                        const remaining = beatsPerMeasure - positiveModulo(beat, beatsPerMeasure);
+                        let beats = pickDurationBeats(durations, remaining);
+                        if (beats === null) {
+                            pushRests(events, remaining);
+                            beats = pickDurationBeats(durations, beatsPerMeasure);
+                            if (beats === null) beats = durations[0];
+                        }
+                        events.push({ type: 'note', offset, beats, startBeat: beat });
+                        beat += beats;
+                    }
+                    if (restBeats > 0) pushRests(events, restBeats);
+                }
+                return events;
+            },
+            get beatCursor() { return beat; }
+        };
+    }
+
     function generatePhrase(options) {
         const rootMidi = noteNameToMidi(options.root, options.octave);
         if (rootMidi === null) return null;
@@ -1313,6 +1427,7 @@ const PatternPracticeCore = (function () {
         melodicWildness,
         createUniqueSubsequenceIterator,
         reflectOffsets,
+        createContinuousSequence,
         generatePhrase,
         phraseFromOffsets
     };

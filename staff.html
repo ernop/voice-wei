@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>Staff - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=307">
+    <link rel="stylesheet" href="practice-controls.css?v=307">
+    <link rel="stylesheet" href="staff.css?v=307">
+</head>
+
+<body data-page="staff">
+    <div class="container">
+        <header id="siteHeader"></header>
+
+        <main>
+            <div class="voice-controls-row">
+                <button id="stopBtn" class="stop-button" aria-label="Stop">
+                    <span class="button-text">Stop</span>
+                    <span class="button-icon">&#9632;</span>
+                </button>
+                <button id="startBtn" class="play-button" aria-label="Start or pause the moving staff">
+                    <span class="button-text">Start</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="nextBtn" class="next-button" aria-label="Generate a new sequence">
+                    <span class="button-text">Next</span>
+                    <span class="button-icon">&#9654;</span>
+                </button>
+                <button id="listenBtn" class="repeat-button staff-listen-button" aria-label="Toggle microphone listening" aria-pressed="false">
+                    <span class="button-text">Listen</span>
+                    <span class="button-icon">&#127908;</span>
+                </button>
+            </div>
+
+            <section class="staff-stage" aria-live="polite">
+                <div class="segment-row staff-mode-row">
+                    <button class="vf-btn" data-staff-mode="page"
+                        title="The whole sequence on a still staff: read and sing at your own pace">page</button>
+                    <button class="vf-btn" data-staff-mode="scroll"
+                        title="The staff moves right to left; sing each note as it reaches the red now-line">scroll</button>
+                </div>
+                <div class="staff-stage-host staff-scroll-empty" id="staffHost" aria-label="Scrolling staff notation"></div>
+                <div class="staff-stage-meta">
+                    <span class="staff-pitch-readout" id="pitchReadout">Pitch: --</span>
+                    <span class="staff-status-readout" id="statusReadout"></span>
+                </div>
+            </section>
+
+            <div class="voice-first-ui vf-compact staff-control-grid">
+                <section class="staff-control-card">
+                    <div class="vf-row">
+                        <span class="vf-label" title="Beats per minute: how fast notes pass the now-line">Tempo</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="bpm" data-step-delta="-1" aria-label="Slower tempo">-</button>
+                            <span class="step-value" id="bpmValue">60</span>
+                            <button class="step-btn" type="button" data-step-key="bpm" data-step-delta="1" aria-label="Faster tempo">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Rest between generated phrases, in beats">Rest</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="-1" aria-label="Shorter rest between phrases">-</button>
+                            <span class="step-value" id="restBeatsValue">2 beats</span>
+                            <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="1" aria-label="Longer rest between phrases">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Sequence length in 4/4 measures (scroll mode keeps generating past this)">Bars</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="measures" data-step-delta="-1" aria-label="Fewer measures">-</button>
+                            <span class="step-value" id="measuresValue">16</span>
+                            <button class="step-btn" type="button" data-step-key="measures" data-step-delta="1" aria-label="More measures">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline">Key</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
+                            <span class="step-value" id="rootPitchValue">C3</span>
+                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline">Min</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="-1" aria-label="Shorter minimum phrase length">-</button>
+                            <span class="step-value" id="minLengthValue">5</span>
+                            <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="1" aria-label="Longer minimum phrase length">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline">Max</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="-1" aria-label="Shorter maximum phrase length">-</button>
+                            <span class="step-value" id="maxLengthValue">8</span>
+                            <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="1" aria-label="Longer maximum phrase length">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline"
+                            title="Chance of choosing a chromatic passing note between adjacent scale degrees">Pass</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="-1" aria-label="Lower passing-note rate">-</button>
+                            <span class="step-value" id="accidentalRateValue">0%</span>
+                            <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="1" aria-label="Higher passing-note rate">+</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="staff-control-card">
+                    <div class="vf-row">
+                        <span class="vf-label" title="Which note values the generator may use">Notes</span>
+                        <div class="segment-row staff-duration-row">
+                            <button class="vf-btn" data-duration-beats="0.5" title="Eighth notes">eighth</button>
+                            <button class="vf-btn" data-duration-beats="1" title="Quarter notes">quarter</button>
+                            <button class="vf-btn" data-duration-beats="2" title="Half notes">half</button>
+                            <button class="vf-btn" data-duration-beats="4" title="Whole notes">whole</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Horizontal room per beat">Spacing</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="pxPerBeat" data-step-delta="-1" aria-label="Tighter note spacing">-</button>
+                            <span class="step-value" id="pxPerBeatValue">26px</span>
+                            <button class="step-btn" type="button" data-step-key="pxPerBeat" data-step-delta="1" aria-label="Wider note spacing">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Where the now-line sits across the staff">Now</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="nowFraction" data-step-delta="-1" aria-label="Now-line further left">-</button>
+                            <span class="step-value" id="nowFractionValue">30%</span>
+                            <button class="step-btn" type="button" data-step-key="nowFraction" data-step-delta="1" aria-label="Now-line further right">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Staff width as a share of the page">Width</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="staffWidthPct" data-step-delta="-1" aria-label="Narrower staff">-</button>
+                            <span class="step-value" id="staffWidthPctValue">100%</span>
+                            <button class="step-btn" type="button" data-step-key="staffWidthPct" data-step-delta="1" aria-label="Wider staff">+</button>
+                        </div>
+                        <label class="display-toggle" title="Play each note on the piano as it crosses the now-line">
+                            <input type="checkbox" id="hearTonesToggle" checked>
+                            <span>hear tones</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="staff-control-card">
+                    <div class="segment-row staff-style-row">
+                        <button class="vf-btn" data-phrase-style="free" title="Free-form motion algorithms">free</button>
+                        <button class="vf-btn" data-phrase-style="staff" title="Beginner staff-reading patterns: steps, skips, and landmarks">staff read</button>
+                        <button class="vf-btn" data-phrase-style="sight" title="Progressive vocal sight-singing degree sets">sight sing</button>
+                        <button class="vf-btn" data-phrase-style="barbershop" title="Chord-tone and function drills for barbershop singing">barbershop</button>
+                        <button class="vf-btn" data-phrase-style="genre" title="Genre-flavored melodic studies">genre</button>
+                    </div>
+                    <div class="segment-row staff-lesson-row" data-lesson-family="staff">
+                        <button class="vf-btn" data-phrase-lesson="staff_steps" title="Line-space stepwise staff reading">staff steps</button>
+                        <button class="vf-btn" data-phrase-lesson="staff_skips" title="Line-line / space-space third motion">staff skips</button>
+                        <button class="vf-btn" data-phrase-lesson="staff_mixed" title="Small staff-reading step and skip mix">staff mixed</button>
+                        <button class="vf-btn" data-phrase-lesson="staff_landmarks" title="Landmark and chord-anchor note reading">landmarks</button>
+                    </div>
+                    <div class="segment-row staff-lesson-row" data-lesson-family="sight">
+                        <button class="vf-btn" data-phrase-lesson="sight_do_re" title="Movable-do 1 and 2 only">1-2</button>
+                        <button class="vf-btn" data-phrase-lesson="sight_pentachord" title="Degrees 1-5, mostly close motion">pentachord</button>
+                        <button class="vf-btn" data-phrase-lesson="sight_triad" title="Tonic-triad sight singing">triad</button>
+                        <button class="vf-btn" data-phrase-lesson="sight_cadence" title="Short phrase endings that pull back to 1">cadence</button>
+                    </div>
+                    <div class="segment-row staff-lesson-row" data-lesson-family="barbershop">
+                        <button class="vf-btn" data-phrase-lesson="barber_tonic" title="Barbershop tonic chord tones: 1, 3, 5, 8">bs tonic</button>
+                        <button class="vf-btn" data-phrase-lesson="barber_dominant" title="Dominant function: 5, 7, 2, 4">bs dominant</button>
+                        <button class="vf-btn" data-phrase-lesson="barber_subdominant" title="Subdominant function: 4, 6, 1">bs subdom</button>
+                        <button class="vf-btn" data-phrase-lesson="barber_thirds" title="Practice finding and returning to thirds">bs 3rds</button>
+                        <button class="vf-btn" data-phrase-lesson="barber_sevenths" title="Practice dominant seventh chord members">bs 7ths</button>
+                    </div>
+                    <div class="segment-row staff-lesson-row" data-lesson-family="genre">
+                        <button class="vf-btn" data-phrase-lesson="genre_folk_hymn" title="Stepwise folk/hymn-style diatonic lines">folk/hymn</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_pop_hook" title="Short pentatonic pop-hook shapes">pop hook</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_theatre" title="Wider musical-theatre-style phrase arcs">theatre</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_jazz" title="Chord-aware jazz-standard color tones">jazz</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_gospel" title="Pentatonic gospel/soul turns">gospel</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_classical" title="Small classical sequence patterns">classical</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_calypso" title="Bright triad-and-sixth calypso shapes">calypso</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_klezmer" title="Harmonic-minor klezmer color">klezmer</button>
+                        <button class="vf-btn" data-phrase-lesson="genre_modal" title="Modal/minor color studies">modal</button>
+                    </div>
+                    <div class="segment-row staff-anchor-row">
+                        <button class="vf-btn phrase-toggle-btn" id="startAnchorBtn" type="button" aria-pressed="true"
+                            title="Toggle: start each phrase at degree 1, or at a random degree">start at 1</button>
+                        <button class="vf-btn phrase-toggle-btn" id="returnAnchorBtn" type="button" aria-pressed="true"
+                            title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
+                    </div>
+                    <div class="vf-row staff-range-row">
+                        <span class="vf-label" title="Lowest degree phrases may use. Below 1 reaches under the unison.">Range Low</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="-1" aria-label="Lower range endpoint down one degree">-</button>
+                            <span class="step-value" id="rangeLowValue">1</span>
+                            <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="1" aria-label="Raise range endpoint up one degree">+</button>
+                        </div>
+                        <span class="vf-label vf-label-inline" title="Highest degree phrases may use.">Range High</span>
+                        <div class="step-field step-field-bare">
+                            <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="-1" aria-label="Lower top endpoint down one degree">-</button>
+                            <span class="step-value" id="rangeHighValue">5&#8593;</span>
+                            <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="1" aria-label="Raise top endpoint up one degree">+</button>
+                        </div>
+                    </div>
+                    <div class="segment-row staff-algo-row">
+                        <button class="vf-btn" data-phrase-algo="balanced" title="Mixed contour with local motion and occasional leaps">balanced</button>
+                        <button class="vf-btn" data-phrase-algo="random" title="Uniform random notes inside the selected range">random</button>
+                        <button class="vf-btn" data-phrase-algo="stepwise" title="Mostly conjunct motion by neighboring scale degrees">stepwise</button>
+                        <button class="vf-btn" data-phrase-algo="leapy" title="Disjunct motion with contrary step compensation">leapy</button>
+                        <button class="vf-btn" data-phrase-algo="arch" title="Phrase-level rise-and-fall contour">arch</button>
+                        <button class="vf-btn" data-phrase-algo="motif" title="One short interval shape restated from moving anchors">motif</button>
+                        <button class="vf-btn" data-phrase-algo="alto_gaps" title="Alto gap work around 3-4 and 7-8">alto gaps</button>
+                        <button class="vf-btn" data-phrase-algo="rearrange" title="Every scale note in the range exactly once, in random order">rearrange</button>
+                    </div>
+                </section>
+
+                <section class="staff-control-card">
+                    <div class="segment-row staff-scale-row">
+                        <button class="vf-btn" data-scale="major">major</button>
+                        <button class="vf-btn" data-scale="minor">minor</button>
+                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale="harmonic_minor">h minor</button>
+                        <button class="vf-btn" data-scale="melodic_minor">m minor</button>
+                    </div>
+                </section>
+            </div>
+
+            <div class="command-history">
+                <div class="history-header">
+                    <h3>Past Runs</h3>
+                    <button id="clearSessionsBtn" class="panel-action-btn danger">Clear</button>
+                </div>
+                <div class="history-list" id="sessionList">
+                    <p class="history-empty">No saved runs yet</p>
+                </div>
+            </div>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vexflow/3.0.9/vexflow-min.js"></script>
+    <script src="dev-error-monitor.js?v=307"></script>
+    <script src="app-version.js?v=307"></script>
+    <script src="storage-keys.js?v=307"></script>
+    <script src="shared-header.js?v=307"></script>
+    <script src="music-constants.js?v=307"></script>
+    <script src="pattern-practice-core.js?v=307"></script>
+    <script src="piano-core.js?v=307"></script>
+    <script src="pitch-detect-core.js?v=307"></script>
+    <script src="render-throttle.js?v=307"></script>
+    <script src="practice-controls.js?v=307"></script>
+    <script src="settings-store.js?v=307"></script>
+    <script src="media-session-core.js?v=307"></script>
+    <script src="notation-spelling.js?v=307"></script>
+    <script src="staff-scroll-view.js?v=307"></script>
+    <script src="staff.js?v=307"></script>
+</body>
+
+</html>

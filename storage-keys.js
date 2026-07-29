@@ -11,6 +11,8 @@ const StorageKeys = Object.freeze({
     INTERVALS_SETTINGS: 'voice-wei:intervals-settings',
     INTERVALS_EAR_STATS: 'voice-wei:intervals-ear-stats',
     PHRASES_SETTINGS: 'voice-wei:phrases-settings',
+    STAFF_SETTINGS: 'voice-wei:staff-settings',
+    STAFF_SESSIONS: 'voice-wei:staff-sessions',
     TRACE_SETTINGS: 'voice-wei:trace-settings',
     PITCH_METER_SETTINGS: 'voice-wei:pitch-meter-settings',
     PLAYER_SETTINGS: 'voice-wei:player-settings',

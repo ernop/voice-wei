@@ -175,6 +175,68 @@ interface TakeNote {
     enabled: boolean;
 }
 
+/**
+ * One event of a continuous metered sequence (Staff page): a note or a
+ * rest with a duration in beats and an absolute start beat. Offsets are
+ * scale-degree offsets like everywhere else; rests carry no offset.
+ */
+interface TimedSequenceEvent {
+    type: 'note' | 'rest';
+    /** Scale-degree offset; notes only */
+    offset?: number;
+    /** Duration in beats (0.5 = eighth, 1 = quarter, 2 = half, 4 = whole) */
+    beats: number;
+    /** Absolute start position in beats from sequence start */
+    startBeat: number;
+}
+
+/**
+ * A fully projected staff-stream event: the timed event zipped with its
+ * key projection (SequenceNote fields) for note events. Built once by
+ * the page; the scroll view and playback both read this list.
+ */
+interface StaffStreamEvent extends TimedSequenceEvent {
+    /** MIDI note number; notes only */
+    midi?: number;
+    /** Display degree label; notes only */
+    degree?: string;
+    /** Pitch string (e.g. "F#3"); notes only */
+    noteName?: string;
+}
+
+/** One sung pitch sample mapped onto the staff-beat timeline. */
+interface StaffTraceSample {
+    /** Position on the sequence timeline, in beats */
+    beat: number;
+    /** Continuous MIDI value (cents included as the fraction) */
+    midi: number;
+}
+
+/**
+ * Contract for StaffScrollView.create(): the continuously scrolling
+ * grand-staff renderer on the Staff page. The view owns staff geometry,
+ * VexFlow rendering, the now-line, and the sung-trace overlay; the page
+ * owns the event list, the clock, and all settings.
+ */
+interface StaffScrollViewConfig {
+    hostId: string;
+    key: () => KeyContext;
+    events: () => StaffStreamEvent[];
+    /** Horizontal scale: pixels per beat */
+    pxPerBeat: () => number;
+    /** Now-line position as a fraction of the visible staff width */
+    nowFraction: () => number;
+    mode: () => 'page' | 'scroll';
+    /** Current position on the sequence timeline, in beats */
+    clockBeat: () => number;
+    /** Sung samples on the beat timeline (drawn as the trace overlay) */
+    trace: () => StaffTraceSample[];
+    /** Trace line breaks across sample gaps longer than this many beats */
+    traceGapBeats: () => number;
+    /** Live sung pitch for the page-mode indicator dot; null = silent */
+    liveMidi: () => number | null;
+}
+
 /** One horizontal reference line on a pitch trace. */
 interface RailLine {
     /** MIDI note number the rail sits on */

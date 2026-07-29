@@ -102,6 +102,48 @@ interface Window {
             notes: () => PhrasePlanNote[];
         }) => { draw: () => void; clear: () => void };
     };
+    StaffScrollView?: {
+        create: (config: StaffScrollViewConfig) => {
+            render: () => void;
+            frame: () => void;
+            clear: () => void;
+            resize: () => void;
+            yForMidi: (midi: number) => number;
+            geometry: () => {
+                headerWidth: number;
+                nowScreenX: number;
+                scrollOffset: number;
+                chunkCount: number;
+                notePositions: Array<{ beat: number; midi: number; clef: 'treble' | 'bass'; x: number; y: number }>;
+            };
+        };
+    };
+
+    // Named state inspection for the test suite (staff page)
+    staffDebug?: {
+        events: () => StaffStreamEvent[];
+        timedEvents: () => TimedSequenceEvent[];
+        geometry: () => {
+            headerWidth: number;
+            nowScreenX: number;
+            scrollOffset: number;
+            chunkCount: number;
+            notePositions: Array<{ beat: number; midi: number; clef: 'treble' | 'bass'; x: number; y: number }>;
+        };
+        yForMidi: (midi: number) => number;
+        clockBeat: () => number;
+        setClockBeat: (beat: number) => void;
+        firedNoteCount: () => number;
+        startRun: () => Promise<void>;
+        stopRun: () => void;
+        recordTraceSample: (beat: number, midi: number) => void;
+        traceSamples: () => StaffTraceSample[];
+        sessions: () => any[];
+        loadSessionAt: (index: number) => void;
+        setMode: (mode: 'page' | 'scroll') => void;
+        regenerate: () => void;
+        settings: () => any;
+    };
 
     // Named state inspection for the test suite (phrases take plan)
     phrasesDebug?: {
