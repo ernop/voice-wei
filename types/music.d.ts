@@ -283,6 +283,14 @@ interface PitchTestPanelConfig {
     contentDurationMs: () => number;
 
     /**
+     * Optional external take clock. While it returns a number, the
+     * page's transport owns take time: samples, targets, playhead, and
+     * scoring all share it, so the chart can never drift from the
+     * exercise (null = the default voice-gated clock).
+     */
+    takeClockMs?: () => number | null;
+
+    /**
      * Plays one tone. The panel sequences the guide itself from the
      * active targets, so the guide is by construction the same notes,
      * key, and timing as the drawn notation - a page cannot supply a

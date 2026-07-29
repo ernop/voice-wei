@@ -215,7 +215,7 @@ target-coupled filtering.
 
 **Recording** (`createTraceSession`, same file). A requestAnimationFrame
 loop reads a pitch every frame and appends accepted samples to `history`.
-Two mechanisms sit between detection and history:
+Three mechanisms sit between detection and history:
 
 - *Glitch holdback*: a jump > 5.5 midi arriving within 220ms of the
   previous sample is held back until 3 consecutive samples agree at the
@@ -227,6 +227,11 @@ Two mechanisms sit between detection and history:
 - *Voice-gated clock*: with pause-on-silence on (the default), time only
   advances while voice is detected, so a take does not scroll away while
   the singer breathes. Off means wall-clock from the last reset.
+- *External take clock*: a page whose exercise runs on its own transport
+  (Staff's moving sheet) supplies `takeClockMs`; while it returns a
+  number, that IS the take clock - samples are stamped with it and the
+  chart, targets, playhead, and scoring all share it, so the take can
+  never drift from the transport. Voice gating does not apply then.
 
 **The instrument law: the chart draws what was actually sung.** The
 voice line derives only from the sung history. There is no

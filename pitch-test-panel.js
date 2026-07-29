@@ -84,6 +84,9 @@ const PitchTestPanel = (function () {
 
         const session = PitchDetectCore.createTraceSession({
             pauseOnSilence: () => options.pauseOnSilence,
+            // A page transport can own the take clock (see the session
+            // contract); pause-on-silence does not apply while it does.
+            takeClockMs: config.takeClockMs,
             onAccepted: sample => {
                 updateReadout(sample.note, sample.cents, sample.freq);
                 setStatus('Listening and drawing');

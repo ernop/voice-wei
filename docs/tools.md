@@ -195,9 +195,13 @@ never cross a barline.
 - **Sing** (bottom dock) opens the shared pitch test panel against the
   current sheet: targets are the sheet's notes at their metered timing
   (current bpm), rails span the working range plus every sheet note, and
-  the take is scored per note like Phrases Test. The panel's voice-gated
-  clock is independent of the scrolling staff - sing the sheet in your
-  own time.
+  the take is scored per note like Phrases Test. While a run is on the
+  move (Start), the TRANSPORT owns the take clock - trace, targets, and
+  playhead all share run time, so the panel and the moving sheet can
+  never drift apart (pause on silence does not apply then). Starting a
+  run from the top restarts an open take so they begin together; Stop
+  hands the clock back and starts a fresh self-paced take (time starts
+  with your voice, as on other pages).
 - **Copy Text** (by the readout) copies the complete state as plain
   text - every setting plus the generated sequence as degree.duration
   tokens with barlines and the spelled note names - ready to paste into

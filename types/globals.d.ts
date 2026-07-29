@@ -152,6 +152,7 @@ interface Window {
         singPanel: () => any;
         singRails: (expandRange: boolean) => RailLine[];
         singTargets: () => TargetSpan[];
+        singTakeClockMs: () => number | null;
         applySettings: (partial: Record<string, unknown>) => void;
     };
 

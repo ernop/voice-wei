@@ -300,8 +300,16 @@ const PitchDetectCore = (function () {
      * recorder + requestAnimationFrame loop. This is the engine behind
      * the pitch trace charts (test page, phrases test panel, pitch meter).
      *
+     * The take clock has two sources. By default it is voice-gated (or
+     * wall time with pause-on-silence off): time belongs to the singer.
+     * A page whose exercise runs on its own transport supplies
+     * `takeClockMs`; while it returns a number, that IS the take clock -
+     * samples are stamped with it and `clockMs()` returns it - so the
+     * trace, targets, and playhead can never drift from the transport.
+     *
      * @param {{
      *   pauseOnSilence: () => boolean,
+     *   takeClockMs?: () => number | null,
      *   onAccepted?: (sample: PitchSample) => void,
      *   onSilence?: () => void,
      *   onFrame?: () => void,
@@ -333,7 +341,13 @@ const PitchDetectCore = (function () {
         // consumer last asked (the on-page log renders these as summaries).
         const diagCounts = { frames: 0, voiced: 0, quiet: 0, noPitch: 0, belowBand: 0, aboveBand: 0, held: 0 };
 
+        function externalClockMs() {
+            return options.takeClockMs ? options.takeClockMs() : null;
+        }
+
         function clockMs() {
+            const external = externalClockMs();
+            if (external !== null) return external;
             if (options.pauseOnSilence()) return voiceElapsedMs;
             return startedAt ? performance.now() - startedAt : 0;
         }
@@ -408,8 +422,10 @@ const PitchDetectCore = (function () {
             const read = capture.lastRead;
             if (info) {
                 diagCounts.voiced++;
+                const external = externalClockMs();
                 const sample = {
-                    time: options.pauseOnSilence() ? nextVoiceTime() : clockMs(),
+                    time: external !== null ? external
+                        : options.pauseOnSilence() ? nextVoiceTime() : clockMs(),
                     freq: info.freq,
                     midi: info.midi,
                     cents: info.cents,

@@ -536,6 +536,41 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     });
     report.check(`staff sing panel opens and records samples (${singScored.recorded} samples, "${singScored.keyLine}")`,
         singScored.open && singScored.recorded === 5 && /^Key: /.test(singScored.keyLine));
+
+    // While a run is on the move the TRANSPORT owns the take clock, so
+    // the panel and the moving sheet can never split; with no run the
+    // panel is self-paced (voice-gated).
+    const clockSync = await tab.evaluate(async () => {
+        const debug = window.staffDebug;
+        debug.stopRun();
+        const idleClock = debug.singTakeClockMs();
+        const historyBeforeStart = debug.singPanel().history.length; // 5 from above
+        await debug.startRun();
+        const bpm = debug.settings().bpm;
+        debug.setClockBeat(8);
+        const runningClock = debug.singTakeClockMs();
+        const historyAfterStart = debug.singPanel().history.length;
+        debug.stopRun();
+        const clockAfterStop = debug.singTakeClockMs();
+        const historyAfterStop = debug.singPanel().history.length;
+        return {
+            idleClock,
+            historyBeforeStart,
+            runningClock,
+            expectedRunningClock: 8 * (60000 / bpm),
+            historyAfterStart,
+            clockAfterStop,
+            historyAfterStop
+        };
+    });
+    report.check(`staff sing take clock is voice-gated with no run (${clockSync.idleClock})`,
+        clockSync.idleClock === null);
+    report.check(`staff sing take clock follows the transport mid-run (${clockSync.runningClock}ms at beat 8)`,
+        clockSync.runningClock === clockSync.expectedRunningClock);
+    report.check(`starting a run resets the open take so they begin together (${clockSync.historyBeforeStart} -> ${clockSync.historyAfterStart} samples)`,
+        clockSync.historyBeforeStart === 5 && clockSync.historyAfterStart === 0);
+    report.check(`stopping the run hands the clock back and starts a fresh take (clock ${clockSync.clockAfterStop}, ${clockSync.historyAfterStop} samples)`,
+        clockSync.clockAfterStop === null && clockSync.historyAfterStop === 0);
     await tab.evaluate(() => { window.staffDebug.singPanel().close(); });
 
     await browser.close();
