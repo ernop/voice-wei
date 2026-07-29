@@ -272,7 +272,7 @@ a dozen rails and bands). `RateGate` throttles apply only to ANALYSIS
 (scoring, ~100ms) and TEXT readouts (~50ms), never to the pixels.
 
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
-(Sing), and Intervals (Sing) embed the same component; a page supplies a
+(Sing), Intervals (Sing), and Staff (Sing) embed the same component; a page supplies a
 typed `PitchTestPanelConfig` (key, rails, targets, content duration,
 `playNote`). The panel renders its own markup, owns the trace session,
 and sequences guide playback from the same target spans it draws - guide
@@ -307,7 +307,7 @@ per tick (plus allocation/GC pressure, the felt "grinding"); the
 incremental path is ~1.4ms.
 
 Consumers: the Trace page uses session + view directly; Phrases, Scales,
-and Intervals go through `pitch-test-panel.js`; pitch-meter uses the same
+Intervals, and Staff go through `pitch-test-panel.js`; pitch-meter uses the same
 session plus its own call-and-response/play-along modes (scored through
 the same `pitch-score.js`); ears uses low-level `createMicCapture` for
 its hold-detection loops. User-facing behavior per page is in

@@ -421,7 +421,7 @@ original/research; Delete book removes all browser-local records.
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,
-`intervals-sing-panel`).
+`intervals-sing-panel`, `staff-sing`).
 
 | Option | Default | Behavior |
 |--------|---------|----------|

@@ -9,11 +9,12 @@
 //   sequence ahead of the now-line, and saves the run for review
 // - a saved run loads back as a reviewable sheet with its sung trace
 
-const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
+const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./helpers');
 
 (async () => {
     const report = createReporter('staff page');
-    const browser = await launch();
+    // Fake mic so the Sing panel's listen start succeeds silently.
+    const browser = await launchWithMic();
     const tab = await browser.newPage();
     collectErrors(tab, 'staff', report.errors);
 
@@ -223,6 +224,66 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         return window.staffDebug.settings().durationBeats.length;
     });
     report.check('at least one duration always stays enabled', durationInvariant >= 1);
+
+    // --- Sing panel: the shared docked test chart on the staff page ----
+    const singModel = await tab.evaluate(() => {
+        window.staffDebug.regenerate();
+        const rails = window.staffDebug.singRails(false);
+        const targets = window.staffDebug.singTargets();
+        const events = window.staffDebug.events().filter(event => event.type === 'note');
+        const railMidis = rails.map(rail => rail.midi);
+        const bpm = window.staffDebug.settings().bpm;
+        const msPerBeat = 60000 / bpm;
+        const timingMatches = targets.every((target, index) => {
+            const event = events[index];
+            return Math.abs(target.startMs - event.startBeat * msPerBeat) < 1e-6
+                && Math.abs(target.endMs - (event.startBeat + event.beats) * msPerBeat) < 1e-6;
+        });
+        return {
+            railCount: rails.length,
+            targetCount: targets.length,
+            noteCount: events.length,
+            midisMatch: targets.every((target, index) => target.midi === events[index].midi),
+            timingMatches,
+            targetsCovered: targets.every(target =>
+                target.midi >= Math.min(...railMidis) && target.midi <= Math.max(...railMidis)),
+            docked: Boolean(document.querySelector('#staffSingDock .pitch-test-launch-button'))
+        };
+    });
+    report.check(`staff sing targets are the sheet notes (${singModel.targetCount}/${singModel.noteCount})`,
+        singModel.targetCount === singModel.noteCount && singModel.targetCount > 0 && singModel.midisMatch);
+    report.check('staff sing target timing follows the sheet beats at the current bpm', singModel.timingMatches);
+    report.check(`staff sing rails cover every sheet note (${singModel.railCount} rails)`,
+        singModel.railCount > 0 && singModel.targetsCovered);
+    report.check('staff sing launch button lives in the bottom dock', singModel.docked);
+
+    // Open the panel, sing one note through the sample seam, and check
+    // the take scores and records like every other panel page.
+    await tab.evaluate(() => {
+        window.staffDebug.singPanel().open();
+    });
+    await tab.waitForFunction(() => {
+        const listenBtn = document.getElementById('staffSingListenBtn');
+        return listenBtn && listenBtn.textContent.includes('Listening On');
+    }, null, { timeout: 10000 });
+    const singScored = await tab.evaluate(async () => {
+        const panel = window.staffDebug.singPanel();
+        // Stop the mic (the fake device beeps forever) and feed samples
+        // through the deterministic seam instead.
+        document.getElementById('staffSingListenBtn')?.click();
+        // Wall-clock mode so unsung target windows pass deterministically.
+        document.getElementById('staffSingPauseToggle')?.click();
+        const targets = window.staffDebug.singTargets();
+        for (let k = 0; k < 5; k++) panel.recordSample(targets[0].midi, 30 + k * 50);
+        return {
+            open: panel.isOpen,
+            recorded: panel.history.length,
+            keyLine: document.getElementById('staffSingKey')?.textContent || ''
+        };
+    });
+    report.check(`staff sing panel opens and records samples (${singScored.recorded} samples, "${singScored.keyLine}")`,
+        singScored.open && singScored.recorded === 5 && /^Key: /.test(singScored.keyLine));
+    await tab.evaluate(() => { window.staffDebug.singPanel().close(); });
 
     await browser.close();
     report.finish();

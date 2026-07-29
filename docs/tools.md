@@ -184,6 +184,12 @@ never cross a barline.
   in page mode for review - the staff with your sung line drawn over it -
   and Start re-runs the same sheet as a fresh take. Recent runs keep
   their traces; older ones keep just the sheet.
+- **Sing** (bottom dock) opens the shared pitch test panel against the
+  current sheet: targets are the sheet's notes at their metered timing
+  (current bpm), rails span the working range plus every sheet note, and
+  the take is scored per note like Phrases Test. The panel's voice-gated
+  clock is independent of the scrolling staff - sing the sheet in your
+  own time.
 - Hardware media keys: play/pause control the moving staff, next
   generates a new sequence.
 
@@ -655,8 +661,8 @@ OpenAI.
 
 ## Pitch test panel (shared)
 
-The embedded "listen" component used by Phrases (Test), Scales (Sing), and
-Intervals (Sing). Each page launches it from a fixed **bottom dock**
+The embedded "listen" component used by Phrases (Test), Scales (Sing),
+Intervals (Sing), and Staff (Sing). Each page launches it from a fixed **bottom dock**
 (independent of the transport row): scale-degree rails, target-band
 outlines, your sung pitch as a yellow trace, and a voice-gated timeline
 (time starts when singing is detected).

@@ -236,6 +236,14 @@
         </main>
     </div>
 
+    <aside class="pitch-test-dock" id="staffSingDock" aria-label="Sing test">
+        <div class="pitch-test-dock-bar">
+            <button id="singBtn" class="pitch-test-launch-button" type="button" aria-label="Toggle sing test" aria-pressed="false">Sing</button>
+            <span class="pitch-test-dock-hint">Sing the sheet against the chart</span>
+        </div>
+        <section id="staffSingPanel" hidden></section>
+    </aside>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vexflow/3.0.9/vexflow-min.js"></script>
     <script src="dev-error-monitor.js?v=311"></script>
@@ -246,11 +254,15 @@
     <script src="pattern-practice-core.js?v=311"></script>
     <script src="piano-core.js?v=311"></script>
     <script src="pitch-detect-core.js?v=311"></script>
+    <script src="pitch-score.js?v=311"></script>
+    <script src="pitch-trace-view.js?v=311"></script>
     <script src="render-throttle.js?v=311"></script>
     <script src="practice-controls.js?v=311"></script>
     <script src="settings-store.js?v=311"></script>
+    <script src="progress-store.js?v=311"></script>
     <script src="media-session-core.js?v=311"></script>
     <script src="notation-spelling.js?v=311"></script>
+    <script src="pitch-test-panel.js?v=311"></script>
     <script src="staff-scroll-view.js?v=311"></script>
     <script src="staff.js?v=311"></script>
 </body>

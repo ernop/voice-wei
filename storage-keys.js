@@ -31,7 +31,8 @@ const StorageKeys = Object.freeze({
     API_OPENAI: 'voice-wei:api-key:openai',
     PANEL_SCALES_SING: 'voice-wei:panel:scales-sing',
     PANEL_INTERVALS_SING: 'voice-wei:panel:intervals-sing',
-    PANEL_PHRASES_TEST: 'voice-wei:panel:phrases-test'
+    PANEL_PHRASES_TEST: 'voice-wei:panel:phrases-test',
+    PANEL_STAFF_SING: 'voice-wei:panel:staff-sing'
 });
 
 /** @type {Readonly<Record<string, string>>} new key -> legacy key */

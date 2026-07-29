@@ -251,6 +251,7 @@
         timedEvents = sequence.nextEvents(state.measures * 4);
         streamCacheKey = '';
         view.render();
+        if (singPanel) singPanel.draw();
         setStatus(`${timedEvents.filter(event => event.type === 'note').length} notes over ${Math.ceil(totalBeats() / 4)} bars`);
     }
 
@@ -425,6 +426,7 @@
         saveSettings();
         syncAllControls();
         view.render();
+        if (singPanel) singPanel.draw();
         const when = new Date(session.createdAt).toLocaleString();
         setStatus(`Reviewing run from ${when}${traceSamples.length ? ' (sung trace shown)' : ''}`);
     }
@@ -499,6 +501,100 @@
         if (!btn) return;
         btn.classList.toggle('listening', traceSession.listening);
         btn.setAttribute('aria-pressed', String(traceSession.listening));
+    }
+
+    //-------------------------------------------------------------------
+    // Sing panel: the shared docked test chart, fed from the same
+    // projected sheet the staff draws (streamEvents), so the chart and
+    // the notation cannot disagree about notes, key, or timing.
+    //-------------------------------------------------------------------
+
+    /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
+    let singPanel = null;
+
+    /**
+     * Rails span the working range and every projected sheet note
+     * (accidental passing notes sit between rails, like on Phrases).
+     * @param {boolean} expandRange
+     */
+    function buildSingRails(expandRange) {
+        const root = rootMidi();
+        if (root === null) return [];
+        const degreesPerOctave = PatternPracticeCore.degreesPerOctave(state.scaleType);
+        const offsets = timedEvents
+            .filter(event => event.type === 'note')
+            .map(event => /** @type {number} */(event.offset));
+        const extra = expandRange ? degreesPerOctave : 0;
+        const lower = Math.floor(Math.min(state.rangeLow, ...offsets)) - extra;
+        const upper = Math.ceil(Math.max(state.rangeHigh, ...offsets)) + extra;
+        const rootInfo = midiToNoteName(root);
+        const rails = [];
+        for (let offset = lower; offset <= upper; offset++) {
+            const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
+            rails.push({
+                midi,
+                label: `${PatternPracticeCore.offsetToDegree(offset, degreesPerOctave)} `
+                    + scaleMidiToPitchString(rootInfo.name, rootInfo.octave, state.scaleType, midi),
+                emphasized: offset >= 0 && offset <= degreesPerOctave
+            });
+        }
+        return rails;
+    }
+
+    /** The test timeline is the sheet's note events at the current bpm. */
+    function buildSingTargets() {
+        return streamEvents()
+            .filter(event => event.type === 'note' && typeof event.midi === 'number')
+            .map(event => ({
+                midi: /** @type {number} */ (event.midi),
+                startMs: event.startBeat * msPerBeat(),
+                endMs: (event.startBeat + event.beats) * msPerBeat(),
+                label: event.degree || '',
+                active: true
+            }));
+    }
+
+    function singContentDurationMs() {
+        const targets = buildSingTargets();
+        if (!targets.length) return 4000;
+        return Math.max(1200, targets[targets.length - 1].endMs);
+    }
+
+    /** @param {boolean} open */
+    function syncSingButton(open) {
+        const btn = getEl('singBtn');
+        if (!btn) return;
+        btn.classList.toggle('selected', open);
+        btn.setAttribute('aria-pressed', String(open));
+        document.getElementById('staffSingDock')?.classList.toggle('open', open);
+    }
+
+    function setupSingPanel() {
+        singPanel = PitchTestPanel.create({
+            hostId: 'staffSingPanel',
+            idPrefix: 'staffSing',
+            title: 'Sing Test',
+            subtitle: 'Sing the sheet in your own time. Time starts only when your voice is detected.',
+            storageKey: StorageKeys.PANEL_STAFF_SING,
+            legendTargetLabel: 'sheet notes',
+            emptyMessage: () => (timedEvents.some(event => event.type === 'note')
+                ? null : 'Generate a sheet with Next, then press Sing.'),
+            key: keyContext,
+            rails: ({ expandRange }) => buildSingRails(expandRange),
+            targets: buildSingTargets,
+            contentDurationMs: singContentDurationMs,
+            playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
+            onOpenChange: open => syncSingButton(open),
+            progressTool: 'staff-sing'
+        });
+        getEl('singBtn')?.addEventListener('click', () => {
+            if (!singPanel) return;
+            if (singPanel.isOpen) {
+                singPanel.close();
+                return;
+            }
+            void singPanel.open();
+        });
     }
 
     //-------------------------------------------------------------------
@@ -594,15 +690,11 @@
             streamCacheKey = '';
             if (key === 'scaleType') syncAdjusterControls();
             view.render();
-            return;
-        }
-        if (REDRAW_KEYS.has(key)) {
+        } else if (REDRAW_KEYS.has(key)) {
             applyStaffWidth();
             view.render();
             view.resize();
-            return;
-        }
-        if (GENERATION_KEYS.has(key)) {
+        } else if (GENERATION_KEYS.has(key)) {
             // The running generator holds its creation options; a fresh
             // one continues from the same beat cursor with the new shape.
             if (sequence) {
@@ -610,6 +702,9 @@
                     { ...generationOptions(), startBeat: Math.ceil(totalBeats() / 4) * 4 });
             }
         }
+        // The Sing chart reads the same sheet projection; key, bpm, and
+        // range changes all move its rails or target timing.
+        if (singPanel) singPanel.draw();
     }
 
     function setAdjusterValue(key, value) {
@@ -755,6 +850,8 @@
         });
         window.addEventListener('resize', () => view.resize());
 
+        setupSingPanel();
+
         syncAllControls();
         syncTransportButtons();
         renderSessionList();
@@ -808,7 +905,10 @@
             },
             setMode,
             regenerate,
-            settings: () => ({ ...state, durationBeats: state.durationBeats.slice() })
+            settings: () => ({ ...state, durationBeats: state.durationBeats.slice() }),
+            singPanel: () => singPanel,
+            singRails: buildSingRails,
+            singTargets: buildSingTargets
         };
     }
 

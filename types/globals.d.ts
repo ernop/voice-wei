@@ -143,6 +143,9 @@ interface Window {
         setMode: (mode: 'page' | 'scroll') => void;
         regenerate: () => void;
         settings: () => any;
+        singPanel: () => any;
+        singRails: (expandRange: boolean) => RailLine[];
+        singTargets: () => TargetSpan[];
     };
 
     // Named state inspection for the test suite (phrases take plan)
