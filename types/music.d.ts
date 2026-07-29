@@ -233,6 +233,8 @@ interface StaffScrollViewConfig {
     trace: () => StaffTraceSample[];
     /** Trace line breaks across sample gaps longer than this many beats */
     traceGapBeats: () => number;
+    /** Draw each note's scale-degree label under the staff */
+    showDegrees: () => boolean;
     /** Live sung pitch for the page-mode indicator dot; null = silent */
     liveMidi: () => number | null;
 }

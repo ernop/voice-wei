@@ -27,7 +27,7 @@ const StaffScrollView = (function () {
     const DIATONIC_E4 = 4 * 7 + 2;
     // Ledger headroom above the treble staff / below the bass staff.
     const TOP_PAD = 34;
-    const SVG_HEIGHT = 176;
+    const SVG_HEIGHT = 190;
     // Treble bottom line (E4) to bass top line (A3) = 4 diatonic steps.
     const STAVE_GAP_STEPS = 4;
     const FIRST_NOTE_PAD = 14;
@@ -37,6 +37,8 @@ const StaffScrollView = (function () {
     const NOTE_CENTER_OFFSET = 7;
     const BRACE_PAD = 28;
     const DURATION_NAMES = Object.freeze({ 0.5: '8', 1: 'q', 2: 'h', 4: 'w' });
+    // Scale-degree labels sit under the bass staff, clear of low ledgers.
+    const DEGREE_LABEL_Y = 184;
 
     /** @param {StaffScrollViewConfig} config */
     function create(config) {
@@ -212,7 +214,8 @@ const StaffScrollView = (function () {
         function nowScreenX() {
             if (!viewport) return headerWidth;
             const width = viewport.clientWidth;
-            return headerWidth + (width - headerWidth) * config.nowFraction();
+            // Never tighter than a couple of beats of look-back room.
+            return headerWidth + Math.max(24, (width - headerWidth) * config.nowFraction());
         }
 
         /** Strip-pixels currently shifted out of view to the left. */
@@ -316,6 +319,8 @@ const StaffScrollView = (function () {
                 if (voices.length) VF.Accidental.applyAccidentals(voices, keySig);
             }
 
+            /** @type {Array<{ label: string, x: number }>} */
+            const degreeLabels = [];
             drawn.forEach(({ tickable, event, clef }) => {
                 const stave = staves[clef === 'treble' ? 0 : 1];
                 tickable.setStave(stave);
@@ -324,9 +329,11 @@ const StaffScrollView = (function () {
                 const tickContext = new VF.TickContext();
                 tickContext.addTickable(tickable);
                 tickContext.preFormat();
-                tickContext.setX((event.startBeat - startBeat) * pxPerBeat + FIRST_NOTE_PAD);
+                const x = (event.startBeat - startBeat) * pxPerBeat + FIRST_NOTE_PAD;
+                tickContext.setX(x);
                 tickable.setContext(context).draw();
                 if (event.type === 'note') {
+                    if (event.degree) degreeLabels.push({ label: String(event.degree), x });
                     notePositions.push({
                         beat: event.startBeat,
                         midi: /** @type {number} */ (event.midi),
@@ -336,6 +343,15 @@ const StaffScrollView = (function () {
                     });
                 }
             });
+            // One text pass after all glyph drawing, so note styling can
+            // never bleed into (or restyle) the degree row.
+            if (config.showDegrees() && degreeLabels.length) {
+                context.setFont('Arial', 11);
+                context.setFillStyle('#166534');
+                degreeLabels.forEach(({ label, x }) => {
+                    context.fillText(label, x + NOTE_CENTER_OFFSET - label.length * 3, DEGREE_LABEL_Y);
+                });
+            }
             return el;
         }
 
@@ -360,7 +376,8 @@ const StaffScrollView = (function () {
             const events = config.events();
             const { first, last } = neededChunkRange();
             const baseSignature = [
-                config.pxPerBeat(), config.key().rootMidi, config.key().scaleType, headerWidth
+                config.pxPerBeat(), config.key().rootMidi, config.key().scaleType,
+                headerWidth, config.showDegrees() ? 'deg' : ''
             ].join('|');
 
             for (const [index, cached] of [...chunkCache.entries()]) {
@@ -521,7 +538,8 @@ const StaffScrollView = (function () {
                 renderHeader();
                 const signature = [
                     events.length, config.pxPerBeat(),
-                    config.key().rootMidi, config.key().scaleType, config.mode()
+                    config.key().rootMidi, config.key().scaleType, config.mode(),
+                    config.showDegrees() ? 'deg' : ''
                 ].join('|');
                 if (signature !== renderSignature) {
                     renderSignature = signature;

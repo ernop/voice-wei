@@ -43,9 +43,10 @@
         measures: 16,
         durationBeats: [1, 2],
         pxPerBeat: 26,
-        nowFraction: 0.3,
+        nowFraction: 0.1,
         staffWidthPct: 100,
         hearTones: true,
+        showDegrees: true,
         mode: 'page'
     };
 
@@ -54,7 +55,7 @@
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo',
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
         'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats',
-        'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'mode'
+        'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees', 'mode'
     ];
 
     const ADJUSTER_VALUES = {
@@ -65,7 +66,7 @@
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32],
         pxPerBeat: [14, 18, 22, 26, 32, 40, 48],
-        nowFraction: [0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
+        nowFraction: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
         staffWidthPct: [55, 70, 85, 100]
     };
     const DEFAULT_LESSON_BY_STYLE = Object.freeze({
@@ -215,6 +216,7 @@
         clockBeat: () => clockBeat,
         trace: () => traceSamples,
         traceGapBeats: () => 320 / msPerBeat(),
+        showDegrees: () => state.showDegrees,
         liveMidi: () => {
             if (!lastAcceptedLive) return null;
             if (performance.now() - lastAcceptedLive.wall > 350) return null;
@@ -579,7 +581,7 @@
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct']);
+    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees']);
     const GENERATION_KEYS = new Set([
         'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'accidentalRate', 'minLength', 'maxLength', 'returnToInitial', 'durationBeats', 'restBeats'
@@ -701,6 +703,7 @@
         syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
+        PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         syncDurationChips();
         syncLessonControls();
         syncAdjusterControls();
@@ -727,6 +730,10 @@
         PracticeControls.wireToggle('hearTonesToggle', state.hearTones, checked => {
             state.hearTones = checked;
             onSettingChanged('hearTones');
+        });
+        PracticeControls.wireToggle('showDegreesToggle', state.showDegrees, checked => {
+            state.showDegrees = checked;
+            onSettingChanged('showDegrees');
         });
         getEl('startAnchorBtn')?.addEventListener('click', () => {
             state.startAtOne = !state.startAtOne;

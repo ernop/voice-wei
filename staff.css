@@ -22,7 +22,9 @@
 .staff-scroll-shell {
     position: relative;
     width: var(--staff-width, 100%);
-    margin: 0 auto;
+    /* Left-aligned: a narrowed staff hugs the left edge like everything
+       else on the page, it does not float in the middle. */
+    margin: 0;
     border-radius: 8px;
     background: #f8fafc;
     overflow: hidden;

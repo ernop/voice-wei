@@ -175,6 +175,9 @@ never cross a barline.
 - **Listen** starts the shared microphone pipeline (same detector, band,
   and glitch rules as Trace/Phrases); the live note/cents readout sits
   under the staff.
+- **show numbers** draws each note's scale degree (1-8, with #/b and
+  octave marks, same vocabulary as Phrases) in a row under the staff -
+  training wheels for reading that scroll with the notes.
 - Every real scroll run (a few beats or more) is saved on Stop as a
   **Past Run**: the generated sheet plus the sung trace. Load reopens it
   in page mode for review - the staff with your sung line drawn over it -

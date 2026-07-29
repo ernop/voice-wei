@@ -190,9 +190,10 @@ generates ahead of the now-line - never the sheet already drawn.
 | measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
 | bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
 | pxPerBeat | 26 | 14..48 px list | redraw |
-| nowFraction | 30% | 15..50% of the visible staff | redraw |
-| staffWidthPct | 100 | 55, 70, 85, 100% of the page | redraw |
+| nowFraction | 10% | 5..50% of the visible staff (a small floor keeps a little look-back room) | redraw |
+| staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
 | hearTones | true | toggle - piano plays each note as it crosses the now-line | immediate |
+| showDegrees | true | toggle - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
