@@ -180,7 +180,7 @@ generates ahead of the now-line - never the sheet already drawn.
 | phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif, alto gaps, rearrange | bounds-next |
 | startAtOne | true | start at 1 / random start | bounds-next |
 | returnToInitial | true | return to 1 / no return | bounds-next |
-| rangeLow | 0 (degree 1) | one degree per step (shared endpoint rules with Phrases) | bounds-next |
+| rangeLow | 0 (degree 1) | one degree per step (shared endpoint rules with Phrases); on Staff the range GOVERNS lesson palettes (contiguous palettes fill it, gapped palettes tile their pitch classes across it) | bounds-next |
 | rangeHigh | 11 (degree 5 above) | one degree per step | bounds-next |
 | accidentalRate | 0 | 0..35% list | bounds-next |
 | minLength | 5 | 2..16 list | bounds-next |

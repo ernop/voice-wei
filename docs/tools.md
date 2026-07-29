@@ -204,12 +204,16 @@ never cross a barline.
   a conversation with an agent.
 - Hardware media keys: play/pause control the moving staff, next
   generates a new sequence.
-- The style/lesson palettes are the range authority: a lesson like
-  "staff steps" is BY DESIGN degrees 1-5 in mostly single steps
-  (~90% of moves), and the Range steppers only clamp a lesson's
-  palette, never widen it. For lines that roam the full range, use the
-  free style (arch/balanced/leapy) or wider lessons (landmarks,
-  theatre, jazz).
+- On Staff, the RANGE ENDPOINTS govern the span (owner rule, 2026-07-29:
+  a visible Range control must not be silently overridden). Lessons
+  contribute their CHARACTER, re-scoped to the range: contiguous drill
+  palettes (staff steps, pentachord, do-re) become every degree in the
+  range with the lesson's motion (steps stay steps), and gapped palettes
+  (triads, landmarks, barbershop functions) keep exactly their pitch
+  classes, tiled across every octave the range covers. Note that a pure
+  step walk still LINGERS low by nature; free arch/balanced/leapy or
+  chord lessons cover the range faster. (Phrases is unchanged: its
+  lessons own their preset range through the lock system.)
 
 Setting behaviors: root/scale **reproject** the current sheet; tempo and
 hear-tones apply **live**; spacing/now/width **redraw**; the generation

@@ -890,6 +890,33 @@ const PatternPracticeCore = (function () {
     }
 
     /**
+     * A lesson palette re-scoped so the USER'S range endpoints govern the
+     * span (the Staff page's authority rule; Phrases keeps lesson-owned
+     * ranges via its lock system). The lesson still contributes its
+     * CHARACTER: a contiguous drill palette (steps, pentachord, do-re)
+     * becomes every degree in the range, while a gapped palette (triads,
+     * landmarks, barbershop functions) keeps exactly its pitch classes,
+     * tiled across every octave the range covers.
+     * @param {number[]} values @param {number} dp
+     * @param {number} min @param {number} max
+     */
+    function rangeGovernedPalette(values, dp, min, max) {
+        const sorted = Array.from(new Set(values)).sort((a, b) => a - b);
+        const contiguous = sorted.every((value, index) => index === 0 || value - sorted[index - 1] === 1);
+        /** @type {number[]} */
+        const out = [];
+        if (contiguous) {
+            for (let offset = min; offset <= max; offset++) out.push(offset);
+            return out;
+        }
+        const classes = new Set(sorted.map(value => positiveModulo(value, dp)));
+        for (let offset = min; offset <= max; offset++) {
+            if (classes.has(positiveModulo(offset, dp))) out.push(offset);
+        }
+        return out.length ? out : [min];
+    }
+
+    /**
      * @param {number[]} allowed
      * @param {number} current
      */
@@ -935,14 +962,17 @@ const PatternPracticeCore = (function () {
      *   returnToInitial: boolean,
      *   returnToRoot: boolean,
      *   phraseStyle?: string,
-     *   phraseLesson?: string
+     *   phraseLesson?: string,
+     *   rangeGovernsLessons?: boolean
      * }} options
      * @param {number[]} allowedDegrees
      * @param {'step' | 'skip' | 'mixed' | 'chord'} motion
      */
     function generateAllowedDegreeLesson(options, allowedDegrees, motion) {
-        const { minOffset, maxOffset, length, initial } = phraseSeed(options);
-        const allowed = boundedDegreeSet(allowedDegrees, minOffset, maxOffset);
+        const { dp, minOffset, maxOffset, length, initial } = phraseSeed(options);
+        const allowed = options.rangeGovernsLessons
+            ? rangeGovernedPalette(allowedDegrees, dp, minOffset, maxOffset)
+            : boundedDegreeSet(allowedDegrees, minOffset, maxOffset);
         // 'start at 1' outranks the palette for the seed note, mirroring
         // the return-to-1 anchor at the end: the tonic bookends the
         // phrase (easier to pitch) and the lesson palette governs
@@ -1127,7 +1157,8 @@ const PatternPracticeCore = (function () {
      *   phraseAlgo?: string,
      *   phraseStyle?: string,
      *   phraseLesson?: string,
-     *   accidentalRate?: number
+     *   accidentalRate?: number,
+     *   rangeGovernsLessons?: boolean
      * }} options
      * @returns {number[]}
      */
@@ -1299,6 +1330,7 @@ const PatternPracticeCore = (function () {
      *   phraseStyle?: string,
      *   phraseLesson?: string,
      *   accidentalRate?: number,
+     *   rangeGovernsLessons?: boolean,
      *   durationBeats?: number[],
      *   restBeats?: number,
      *   startBeat?: number

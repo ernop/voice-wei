@@ -85,6 +85,67 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('mixed-duration stream never crosses a barline', !mixed.crossesBarline);
     report.check(`mixed-duration stream actually varies (${mixed.variety} values used)`, mixed.variety >= 2);
 
+    // Range governs lessons on Staff: the user's endpoints set the span;
+    // the lesson keeps its motion character. Without the flag (Phrases),
+    // lesson palettes stay lesson-owned.
+    const rangeAuthority = await tab.evaluate(() => {
+        const base = {
+            scaleType: 'major', startAtOne: true, minLength: 6, maxLength: 8,
+            returnToInitial: true, returnToRoot: false, accidentalRate: 0
+        };
+        const span = (options, runs = 120) => {
+            let min = 99, max = -99;
+            const values = new Set();
+            for (let i = 0; i < runs; i++) {
+                for (const offset of PatternPracticeCore.generatePhraseOffsets(options)) {
+                    min = Math.min(min, offset);
+                    max = Math.max(max, offset);
+                    values.add(offset);
+                }
+            }
+            return { min, max, values: [...values].sort((a, b) => a - b) };
+        };
+        // Longer walks: a pure step random walk needs room to reach the
+        // top of the range at all (the old cap froze it at degree 5).
+        const steps = span({
+            ...base, minLength: 12, maxLength: 14,
+            phraseStyle: 'staff', phraseLesson: 'staff_steps',
+            rangeLow: 0, rangeHigh: 7, rangeGovernsLessons: true
+        }, 200);
+        const pentachord = span({ ...base, phraseStyle: 'sight', phraseLesson: 'sight_pentachord', rangeLow: 0, rangeHigh: 7, rangeGovernsLessons: true });
+        const stepsMotion = (() => {
+            for (let i = 0; i < 40; i++) {
+                const offsets = PatternPracticeCore.generatePhraseOffsets({
+                    ...base, phraseStyle: 'staff', phraseLesson: 'staff_steps',
+                    rangeLow: 0, rangeHigh: 7, rangeGovernsLessons: true, returnToInitial: false
+                });
+                for (let j = 1; j < offsets.length; j++) {
+                    if (Math.abs(offsets[j] - offsets[j - 1]) !== 1) return false;
+                }
+            }
+            return true;
+        })();
+        const landmarks = span({ ...base, phraseStyle: 'staff', phraseLesson: 'staff_landmarks', rangeLow: 0, rangeHigh: 11, rangeGovernsLessons: true });
+        const landmarkClassesOk = landmarks.values.every(offset =>
+            [0, 2, 4].includes(PatternPracticeCore.positiveModulo(offset, 7)));
+        const phrasesSteps = span({ ...base, phraseStyle: 'staff', phraseLesson: 'staff_steps', rangeLow: 0, rangeHigh: 7 });
+        return {
+            stepsSpan: `${steps.min}..${steps.max}`,
+            stepsUncapped: steps.min === 0 && steps.max >= 6 && steps.max <= 7,
+            pentachordSpan: `${pentachord.min}..${pentachord.max}`,
+            pentachordFull: pentachord.min === 0 && pentachord.max === 7,
+            stepsMotion,
+            landmarksHigh: landmarks.max > 7,
+            landmarkClassesOk,
+            phrasesCapped: phrasesSteps.max <= 4
+        };
+    });
+    report.check(`range governs staff-steps span (${rangeAuthority.stepsSpan} within range 1..8, no longer capped at 5)`, rangeAuthority.stepsUncapped);
+    report.check(`range governs pentachord span (${rangeAuthority.pentachordSpan} over range 1..8)`, rangeAuthority.pentachordFull);
+    report.check('range-governed steps lesson keeps pure step motion', rangeAuthority.stepsMotion);
+    report.check('gapped lesson palettes tile their pitch classes across the range', rangeAuthority.landmarksHigh && rangeAuthority.landmarkClassesOk);
+    report.check('without the flag (Phrases), lesson palettes stay lesson-owned (max degree 5)', rangeAuthority.phrasesCapped);
+
     // --- Rendering: grand staff with a single position per note --------
     const rendering = await tab.evaluate(() => {
         const geometry = window.staffDebug.geometry();

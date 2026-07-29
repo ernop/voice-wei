@@ -135,6 +135,10 @@
             returnToInitial: state.returnToInitial,
             returnToRoot: state.returnToRoot,
             accidentalRate: state.accidentalRate,
+            // Staff authority rule: the Range endpoints govern the span;
+            // lessons contribute motion character and (for chord-style
+            // palettes) their pitch classes tiled across the range.
+            rangeGovernsLessons: true,
             durationBeats: state.durationBeats.slice(),
             restBeats: state.restBeats
         };
