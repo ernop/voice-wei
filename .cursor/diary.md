@@ -4,6 +4,33 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-29 (Staff tab shipped; video ceremony corrected)
+
+**Context**: Built the Staff tab (v308/v309): continuous scrolling grand
+staff, page/scroll modes, listening trace, past-run sessions, degree
+numbers. During testing I recorded two demo videos with the GUI subagent.
+
+**Correction from yui**: videos take forever, are super slow, and did not
+help. Confirmed by the record: the one real bug (isolated trace samples
+drawing nothing) was found by a subagent's written observation and proven
+by a 9-second headless Playwright script; the videos added nothing and one
+recording was lost to a recorder crash. agents.md ALREADY forbade this
+("do not create video demos unless yui explicitly requests one") - the
+failure was skipping the agents.md re-read at task start and following
+platform defaults instead.
+
+**For future mei**:
+- Re-read agents.md before the first edit, every task. Its working-method
+  section outranks platform testing ceremony.
+- Default proof for UI behavior: the owning automated suite + typecheck/
+  lint. A single headless screenshot only when something visual genuinely
+  needs eyes. Video only when yui explicitly asks (restated 2026-07-29:
+  "lets stop making videos for now").
+- Headless Playwright scripts answer "is it drawn / is it saved" questions
+  in seconds; prefer them over driving the desktop browser.
+
+---
+
 ## 2026-07-27 (favorite video identity drift healed)
 
 **Context**: Yui reported pervasive favorites where the YouTube audio and
