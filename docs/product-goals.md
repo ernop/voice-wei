@@ -39,6 +39,7 @@ and deliver a weaker version of the requested change.
 | Scales | Speak a practice pattern, hear it played correctly | Any reasonable spoken command produces the right notes with the right timing; settings are also clickable and persist |
 | Intervals | Drill interval distances by level; ear training for naming and singing intervals | Patterns generate endlessly; ear mode adapts to weak intervals; lifetime stats persist |
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
+| Staff | Read notation fluently: sing a continuous generated line from the grand staff | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; past runs replay for review |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Lyrics | Hands-free music listening via natural language | Claude interprets the request; playlist plays without touching the screen |

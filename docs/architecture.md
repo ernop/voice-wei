@@ -145,6 +145,9 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
 | `voice-command-core.js` | Speech recognition, auto/manual modes, spoken "submit", transcript UI | yes (webkitSpeechRecognition) |
 | `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
+| `notation-spelling.js` | Key signatures, VexFlow spellings, clef/staff-system choice | - |
+| `staff-view.js` | The Phrases snapshot staff (one phrase, formatter-spaced) | - |
+| `staff-scroll-view.js` | The Staff page's scrolling grand staff: continuous diatonic geometry, fixed clef/key header, now-line, sung-trace overlay | - |
 | `shared-header.js` | Site header, nav, version label | - |
 
 CSS: `style.css` (global shell) -> `practice-controls.css` (shared
@@ -879,7 +882,7 @@ Suites are product-scoped, extracted from the retired tab-functions
 monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 `test-player-live`, `test-player-search`, `test-player-playlist`,
 `test-player-report`, plus the standing `test-books`, `test-controls`,
-`test-playback-engine`, `test-staff-view`, `test-pages-load`,
+`test-playback-engine`, `test-staff-view`, `test-staff-page`, `test-pages-load`,
 `test-player-startup`, `test-player-lifecycle`, `test-syntax`, and
 `test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one
 suite while iterating.

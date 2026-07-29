@@ -132,6 +132,63 @@ clustered random walk, **random** samples freely, **stepwise** emphasizes
 conjunct motion, **leapy** emphasizes disjunct motion with contrary-step
 compensation, and **motif** repeats and varies a short contour cell.
 
+## Staff
+
+Continuous grand-staff sight singing: one long generated line rendered on
+a treble+bass system. Unlike Phrases (one phrase at a time, sung from
+memory), Staff produces an ongoing metered stream to be READ.
+
+The staff is always a grand staff with a fixed left header (brace, clefs,
+key signature, 4/4 meter). Notes split at middle C - below C4 on the bass
+staff, C4 and up on the treble - so a pitch is never drawn twice. The two
+staves are placed so diatonic spacing is continuous through the gap:
+middle C has one shared position, and the sung trace crosses between
+staves without a jump.
+
+Two modes:
+
+- **page**: the whole sheet is drawn on a still staff (horizontal scroll
+  to browse); read and sing at your own pace. With Listen on, a live dot
+  at the left edge shows the pitch currently being sung.
+- **scroll**: the staff moves right-to-left past a fixed red **now-line**;
+  sing each note as it reaches the line. The sequence keeps generating
+  ahead of the now-line, so a run continues until Stop. With **hear
+  tones** on, each note also sounds on the piano as it crosses. The sung
+  pitch draws as a trace trailing left of the now-line, aligned with the
+  notes it answered.
+
+Generation reuses the Phrases engine: the same style/lesson families
+(free, staff read, sight sing, barbershop, genre), algorithm modes,
+start/return anchors, range endpoints, min/max phrase length, and
+passing-note rate - applied continuously, phrase after phrase, with a
+configurable rest span between phrases. Rests render as standard glyphs
+(whole/half/quarter/eighth) on the staff the melodic line last used, and
+never cross a barline.
+
+- **Notes** chips choose which duration values the generator may use
+  (eighth, quarter, half, whole); quarters are weighted most likely. At
+  least one value stays enabled.
+- **Tempo** sets beats per minute - the rate notes pass the now-line and
+  the scroll speed. **Spacing** sets pixels per beat (horizontal zoom),
+  **Now** places the now-line across the staff, **Width** sets the
+  staff's share of the page.
+- **Listen** starts the shared microphone pipeline (same detector, band,
+  and glitch rules as Trace/Phrases); the live note/cents readout sits
+  under the staff.
+- Every real scroll run (a few beats or more) is saved on Stop as a
+  **Past Run**: the generated sheet plus the sung trace. Load reopens it
+  in page mode for review - the staff with your sung line drawn over it -
+  and Start re-runs the same sheet as a fresh take. Recent runs keep
+  their traces; older ones keep just the sheet.
+- Hardware media keys: play/pause control the moving staff, next
+  generates a new sequence.
+
+Setting behaviors: root/scale **reproject** the current sheet; tempo and
+hear-tones apply **live**; spacing/now/width **redraw**; the generation
+shape settings (style, lesson, algorithm, anchors, range, lengths, note
+values, rest span) apply from the next generated content - the next
+press of Next, or the next stretch the scroll generates.
+
 ## Trace
 
 Free singing inside a selected key while watching the pitch line. Separate

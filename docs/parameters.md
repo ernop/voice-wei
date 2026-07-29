@@ -163,6 +163,45 @@ screen and under the score). Note the physics: the microphone hears the
 speakers, so played piano appears in the trace - the chart shows what
 reaches the mic.
 
+## Staff (`staff-settings`)
+
+Continuous grand-staff sight singing. Generation shape settings are
+bounds-next in the continuous sense: they govern the NEXT generated
+content - the next press of Next, or the next stretch the scroll
+generates ahead of the now-line - never the sheet already drawn.
+
+| Setting | Default | Values | Behavior |
+|---------|---------|--------|----------|
+| root | C | C..B chromatic | reproject |
+| octave | 3 | via root stepper (shared C2-B5) | reproject |
+| scaleType | major | major, minor, chromatic, pentatonic, h minor, m minor | reproject |
+| phraseStyle | free | free, staff, sight, barbershop, genre | bounds-next |
+| phraseLesson | free_open | style-specific lesson buttons | bounds-next |
+| phraseAlgo | arch | balanced, random, stepwise, leapy, arch, motif, alto gaps, rearrange | bounds-next |
+| startAtOne | true | start at 1 / random start | bounds-next |
+| returnToInitial | true | return to 1 / no return | bounds-next |
+| rangeLow | 0 (degree 1) | one degree per step (shared endpoint rules with Phrases) | bounds-next |
+| rangeHigh | 11 (degree 5 above) | one degree per step | bounds-next |
+| accidentalRate | 0 | 0..35% list | bounds-next |
+| minLength | 5 | 2..16 list | bounds-next |
+| maxLength | 8 | 3..32 list | bounds-next |
+| durationBeats | quarter + half | multi-select of eighth, quarter, half, whole; at least one stays on | bounds-next |
+| restBeats | 2 | none, half, 1, 2, 3, 4 beats between phrases | bounds-next |
+| measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
+| bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
+| pxPerBeat | 26 | 14..48 px list | redraw |
+| nowFraction | 30% | 15..50% of the visible staff | redraw |
+| staffWidthPct | 100 | 55, 70, 85, 100% of the page | redraw |
+| hearTones | true | toggle - piano plays each note as it crosses the now-line | immediate |
+| mode | page | page / scroll | immediate (switching pauses a running scroll) |
+
+Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
+run, saves it as a Past Run when at least a bar was traversed, and
+rewinds to the lead-in), Next (new sequence), Listen (microphone on/off).
+Past Runs persist under `staff-sessions`: newest first, capped at 20,
+with sung traces kept on the 8 most recent. Load reopens a run's sheet
+and trace in page mode; Start after a load re-runs the same sheet.
+
 ## Trace (`trace-settings`)
 
 Changing any key/guide setting also resets the trace (the chart is only
