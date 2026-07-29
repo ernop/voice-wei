@@ -235,6 +235,8 @@ interface StaffScrollViewConfig {
     traceGapBeats: () => number;
     /** Draw each note's scale-degree label under the staff */
     showDegrees: () => boolean;
+    /** The pitch band's stable frame (working range; singing never rescales it) */
+    pitchRange: () => { minMidi: number; maxMidi: number };
     /** Live sung pitch for the page-mode indicator dot; null = silent */
     liveMidi: () => number | null;
 }

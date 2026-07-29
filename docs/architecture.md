@@ -147,7 +147,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
 | `notation-spelling.js` | Key signatures, VexFlow spellings, clef/staff-system choice | - |
 | `staff-view.js` | The Phrases snapshot staff (one phrase, formatter-spaced) | - |
-| `staff-scroll-view.js` | The Staff page's scrolling grand staff: continuous diatonic geometry, fixed clef/key header, now-line, sung-trace overlay | - |
+| `staff-scroll-view.js` | The Staff page's scrolling grand staff: continuous diatonic geometry, fixed clef/key header, now-line, dedicated sung-pitch band | - |
 | `shared-header.js` | Site header, nav, version label | - |
 
 CSS: `style.css` (global shell) -> `practice-controls.css` (shared

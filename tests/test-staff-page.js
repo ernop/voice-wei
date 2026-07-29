@@ -276,6 +276,147 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     });
     report.check('at least one duration always stays enabled', durationInvariant >= 1);
 
+    // --- Chunk geometry: nothing clipped, barlines honest ---------------
+    // Eighth notes land in the last half beat of measures and chunks -
+    // exactly where glyphs used to draw past their barline or vanish at
+    // the chunk seam.
+    const chunkGeometry = await tab.evaluate(() => {
+        window.staffDebug.settings(); // (no-op read; settings drive below)
+        const debug = window.staffDebug;
+        const controllerState = debug.settings();
+        // Force eighths + quarters and a long page-mode sheet.
+        const chips = document.querySelectorAll('.staff-duration-row .vf-btn');
+        chips.forEach(chip => {
+            const beats = Number(chip.getAttribute('data-duration-beats'));
+            const selected = chip.classList.contains('selected');
+            if ((beats === 0.5 || beats === 1) !== selected) /** @type {HTMLElement} */ (chip).click();
+        });
+        debug.setMode('page');
+        debug.regenerate();
+
+        /** @type {string[]} */
+        const problems = [];
+        /** @type {number[]} strip-space barline positions from the DOM */
+        const barlineXs = [];
+        let glyphCount = 0;
+        document.querySelectorAll('.staff-scroll-chunk').forEach(chunk => {
+            const svg = chunk.querySelector('svg');
+            if (!svg) return;
+            const chunkLeft = parseFloat(/** @type {HTMLElement} */(chunk).style.left);
+            const svgWidth = svg.width.baseVal.value;
+            // Vertical rects are barlines; horizontal ones are staff lines.
+            [...svg.querySelectorAll('rect')]
+                .filter(rect => rect.width.baseVal.value <= 2 && rect.height.baseVal.value > 20)
+                .forEach(rect => barlineXs.push(chunkLeft + rect.x.baseVal.value));
+            svg.querySelectorAll('.vf-stavenote').forEach(glyph => {
+                glyphCount++;
+                const box = /** @type {SVGGraphicsElement} */ (glyph).getBBox();
+                if (box.x + box.width > svgWidth) {
+                    problems.push(`glyph clipped at ${Math.round(box.x + box.width)}/${svgWidth}`);
+                }
+            });
+        });
+        // A NOTEHEAD must sit fully on its own side of every barline
+        // (stems and flags may reach past; heads may not). Barlines are
+        // read back from the DOM in order, so the k-th unique barline is
+        // the boundary after measure k+1; every head must be on the
+        // matching side. The old unpadded barline grid put a measure's
+        // final eighth PAST its barline.
+        const uniqueBarlines = [...new Set(barlineXs.map(x => Math.round(x)))].sort((a, b) => a - b);
+        const positions = debug.geometry().notePositions;
+        for (const position of positions) {
+            uniqueBarlines.forEach((barX, index) => {
+                const boundaryBeat = 4 * (index + 1);
+                const headHalf = 5;
+                if (position.beat < boundaryBeat && position.x + headHalf > barX) {
+                    problems.push(`head at beat ${position.beat} crosses barline ${boundaryBeat} (${Math.round(position.x)} vs ${barX})`);
+                }
+                if (position.beat >= boundaryBeat && position.x - headHalf < barX) {
+                    problems.push(`head at beat ${position.beat} behind barline ${boundaryBeat} (${Math.round(position.x)} vs ${barX})`);
+                }
+            });
+        }
+        return {
+            durationBeats: debug.settings().durationBeats,
+            restoredMode: controllerState.mode,
+            glyphCount,
+            barlineCount: barlineXs.length,
+            problems: problems.slice(0, 5)
+        };
+    });
+    report.check(`chunk glyphs never clipped or split across barlines (${chunkGeometry.glyphCount} glyphs, ${chunkGeometry.barlineCount} barlines: ${chunkGeometry.problems.join('; ') || 'clean'})`,
+        chunkGeometry.glyphCount > 0 && chunkGeometry.barlineCount > 0 && chunkGeometry.problems.length === 0);
+
+    // Every note of every measure is inside the strip's drawable area:
+    // the last events of a chunk used to be cut off by the SVG edge.
+    const chunkEdge = await tab.evaluate(() => {
+        const events = window.staffDebug.events().filter(event => event.type === 'note');
+        const positions = window.staffDebug.geometry().notePositions;
+        return { events: events.length, drawn: positions.length };
+    });
+    report.check(`every generated note is drawn (${chunkEdge.drawn}/${chunkEdge.events})`,
+        chunkEdge.drawn === chunkEdge.events && chunkEdge.events > 0);
+
+    // --- Pitch band: dedicated, stable, taller than the staff scale ----
+    const pitchBand = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        const geometry = debug.geometry();
+        const range = debug.pitchRange();
+        const overlay = document.querySelector('.staff-scroll-overlay');
+        const yTop = debug.zoneYForMidi(range.maxMidi);
+        const yBottom = debug.zoneYForMidi(range.minMidi);
+        const zonePxPerSemitone = (yBottom - yTop) / (range.maxMidi - range.minMidi);
+        const beforeRange = JSON.stringify(range);
+        // A wild low sample must not move the band's frame.
+        debug.recordTraceSample(1, range.minMidi - 10);
+        const afterRange = JSON.stringify(debug.pitchRange());
+        return {
+            zoneTop: geometry.pitchZoneTop,
+            zoneHeight: geometry.pitchZoneHeight,
+            overlayHeight: overlay ? /** @type {HTMLElement} */ (overlay).style.height : '',
+            insideBand: yTop >= geometry.pitchZoneTop && yBottom <= geometry.pitchZoneTop + geometry.pitchZoneHeight,
+            monotonic: debug.zoneYForMidi(60) > debug.zoneYForMidi(61),
+            zonePxPerSemitone,
+            frameStable: beforeRange === afterRange
+        };
+    });
+    report.check(`pitch band is a dedicated lane under the staff (top ${pitchBand.zoneTop}, height ${pitchBand.zoneHeight}, overlay ${pitchBand.overlayHeight})`,
+        pitchBand.zoneTop >= 190 && pitchBand.zoneHeight > 60
+        && pitchBand.overlayHeight === `${pitchBand.zoneTop + pitchBand.zoneHeight}px`);
+    report.check(`pitch band maps the working range inside itself, high notes up (${pitchBand.zonePxPerSemitone.toFixed(1)}px/semitone)`,
+        pitchBand.insideBand && pitchBand.monotonic && pitchBand.zonePxPerSemitone > 3);
+    report.check('pitch band frame never rescales from singing', pitchBand.frameStable);
+
+    // --- Stalled clock: missed notes pass silently, never as a burst ---
+    const burst = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        debug.stopRun(); // reset the clock and firing cursor
+        const firedBefore = debug.firedNoteCount();
+        const soundedBefore = debug.soundedNoteCount();
+        // One giant clock jump = returning to a long-hidden tab.
+        debug.setClockBeat(12);
+        return {
+            firedDelta: debug.firedNoteCount() - firedBefore,
+            soundedDelta: debug.soundedNoteCount() - soundedBefore
+        };
+    });
+    report.check(`a stalled clock fires missed notes silently (${burst.firedDelta} fired, ${burst.soundedDelta} sounded)`,
+        burst.firedDelta >= 4 && burst.soundedDelta <= 2);
+
+    // --- Hidden tab pauses the run instead of piling up the clock ------
+    await tab.evaluate(() => window.staffDebug.startRun());
+    await tab.waitForFunction(() => navigator.mediaSession.playbackState === 'playing', null, { timeout: 10000 });
+    const hiddenPause = await tab.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        const status = document.getElementById('statusReadout')?.textContent || '';
+        const state = navigator.mediaSession.playbackState;
+        Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+        return { status, state };
+    });
+    report.check(`hiding the tab pauses the run ("${hiddenPause.status}", ${hiddenPause.state})`,
+        hiddenPause.state === 'paused' && hiddenPause.status.includes('hidden'));
+
     // --- Sing panel: the shared docked test chart on the staff page ----
     const singModel = await tab.evaluate(() => {
         window.staffDebug.regenerate();

@@ -128,12 +128,17 @@ interface Window {
             nowScreenX: number;
             scrollOffset: number;
             chunkCount: number;
-            notePositions: Array<{ beat: number; midi: number; clef: 'treble' | 'bass'; x: number; y: number }>;
+            notePositions: Array<{ beat: number; beats: number; midi: number; clef: 'treble' | 'bass'; x: number; y: number }>;
+            pitchZoneTop: number;
+            pitchZoneHeight: number;
         };
         yForMidi: (midi: number) => number;
+        zoneYForMidi: (midi: number) => number;
+        pitchRange: () => { minMidi: number; maxMidi: number };
         clockBeat: () => number;
         setClockBeat: (beat: number) => void;
         firedNoteCount: () => number;
+        soundedNoteCount: () => number;
         startRun: () => Promise<void>;
         stopRun: () => void;
         recordTraceSample: (beat: number, midi: number) => void;

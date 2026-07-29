@@ -95,6 +95,7 @@
     let lastFrameWall = 0;
     let firedIndex = 0;
     let firedNoteCount = 0;
+    let soundedNoteCount = 0;
     /** @type {number | null} */
     let animationId = null;
     let lastTracePushWall = 0;
@@ -206,6 +207,24 @@
         frameCallbackIntervalMs: 40
     });
 
+    /**
+     * The pitch band's frame: the working range endpoints plus whatever
+     * the current sheet actually holds (a loaded session may exceed the
+     * live range settings). Extensions generate inside the range, so the
+     * frame is stable for a whole run - singing never rescales it.
+     */
+    function tracePitchRange() {
+        const root = rootMidi() ?? 60;
+        let min = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, state.rangeLow);
+        let max = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, state.rangeHigh);
+        for (const event of streamEvents()) {
+            if (event.type !== 'note' || typeof event.midi !== 'number') continue;
+            if (event.midi < min) min = event.midi;
+            if (event.midi > max) max = event.midi;
+        }
+        return { minMidi: Math.floor(min) - 2, maxMidi: Math.ceil(max) + 2 };
+    }
+
     const view = StaffScrollView.create({
         hostId: 'staffHost',
         key: keyContext,
@@ -217,6 +236,7 @@
         trace: () => traceSamples,
         traceGapBeats: () => 320 / msPerBeat(),
         showDegrees: () => state.showDegrees,
+        pitchRange: tracePitchRange,
         liveMidi: () => {
             if (!lastAcceptedLive) return null;
             if (performance.now() - lastAcceptedLive.wall > 350) return null;
@@ -339,6 +359,11 @@
         }
     }
 
+    // A stalled frame clock (hidden tab, long GC pause) jumps forward on
+    // the next frame. Every passed note is still FIRED (bookkeeping stays
+    // exact) but a note only SOUNDS if it would still be ringing now -
+    // resuming a stalled run must never dump every missed note in one
+    // burst.
     function fireDueNotes() {
         const events = streamEvents();
         while (firedIndex < events.length && events[firedIndex].startBeat <= clockBeat) {
@@ -346,6 +371,8 @@
             firedIndex++;
             if (event.type !== 'note' || typeof event.midi !== 'number') continue;
             firedNoteCount++;
+            if (clockBeat >= event.startBeat + event.beats) continue;
+            soundedNoteCount++;
             if (state.hearTones && piano) {
                 piano.playMidi(event.midi, (event.beats * msPerBeat() / 1000) * 0.92);
             }
@@ -900,6 +927,14 @@
             renderSessionList();
         });
         window.addEventListener('resize', () => view.resize());
+        // A hidden tab gets no animation frames, so the run cannot
+        // advance honestly; pause instead of letting the clock pile up.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && running) {
+                pauseRun();
+                setStatus('Paused (tab hidden)');
+            }
+        });
 
         setupSingPanel();
 
@@ -942,6 +977,9 @@
                 view.frame();
             },
             firedNoteCount: () => firedNoteCount,
+            soundedNoteCount: () => soundedNoteCount,
+            zoneYForMidi: (midi) => view.zoneYForMidi(midi),
+            pitchRange: tracePitchRange,
             startRun,
             stopRun: () => stopRun({ save: true }),
             recordTraceSample: (beat, midi) => {

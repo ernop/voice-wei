@@ -149,13 +149,21 @@ Two modes:
 
 - **page**: the whole sheet is drawn on a still staff (horizontal scroll
   to browse); read and sing at your own pace. With Listen on, a live dot
-  at the left edge shows the pitch currently being sung.
+  at the left edge of the pitch band shows the pitch currently being sung.
 - **scroll**: the staff moves right-to-left past a fixed red **now-line**;
   sing each note as it reaches the line. The sequence keeps generating
   ahead of the now-line, so a run continues until Stop. With **hear
-  tones** on, each note also sounds on the piano as it crosses. The sung
-  pitch draws as a trace trailing left of the now-line, aligned with the
-  notes it answered.
+  tones** on, each note also sounds on the piano as it crosses. Hiding
+  the tab pauses the run (no animation frames = no honest clock), and a
+  stalled clock never dumps missed notes as a burst - a passed note only
+  sounds if it would still be ringing.
+
+Under the staff sits the dedicated **pitch band**: the sung trace draws
+there, on the same beat timeline but at its own taller pitch scale, with
+a gray reference segment marking each sheet note's pitch and span - so
+singing detail is readable without anything drawing over the notation.
+The band's frame is the working range (plus the sheet's notes) and stays
+fixed for the run; out-of-range pitch is clipped, never rescales it.
 
 Generation reuses the Phrases engine: the same style/lesson families
 (free, staff read, sight sing, barbershop, genre), algorithm modes,
@@ -181,9 +189,9 @@ never cross a barline.
   the Phrases degree row (`.degree-token` + PatternPracticeCore labels).
 - Every real scroll run (a few beats or more) is saved on Stop as a
   **Past Run**: the generated sheet plus the sung trace. Load reopens it
-  in page mode for review - the staff with your sung line drawn over it -
-  and Start re-runs the same sheet as a fresh take. Recent runs keep
-  their traces; older ones keep just the sheet.
+  in page mode for review - the staff with your sung line in the pitch
+  band beneath it - and Start re-runs the same sheet as a fresh take.
+  Recent runs keep their traces; older ones keep just the sheet.
 - **Sing** (bottom dock) opens the shared pitch test panel against the
   current sheet: targets are the sheet's notes at their metered timing
   (current bpm), rails span the working range plus every sheet note, and

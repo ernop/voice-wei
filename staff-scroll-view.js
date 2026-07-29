@@ -46,6 +46,14 @@ const StaffScrollView = (function () {
     // Scale-degree tokens sit under the bass staff, clear of low ledgers.
     const DEGREE_LABEL_Y = 172;
 
+    // The dedicated pitch band under the staff: the sung trace lives
+    // here, at its own (taller) pitch scale, so singing detail is
+    // readable without drawing over the notation.
+    const PITCH_ZONE_TOP = SVG_HEIGHT;
+    const PITCH_ZONE_HEIGHT = 108;
+    const PITCH_ZONE_PAD = 10;
+    const TOTAL_HEIGHT = PITCH_ZONE_TOP + PITCH_ZONE_HEIGHT;
+
     /** @param {StaffScrollViewConfig} config */
     function create(config) {
         /** @type {HTMLElement | null} */
@@ -68,7 +76,7 @@ const StaffScrollView = (function () {
         let headerSignature = '';
         /** @type {Map<number, { el: HTMLElement, signature: string }>} */
         const chunkCache = new Map();
-        /** @type {Array<{ beat: number, midi: number, clef: 'treble' | 'bass', x: number, y: number }>} */
+        /** @type {Array<{ beat: number, beats: number, midi: number, clef: 'treble' | 'bass', x: number, y: number }>} */
         let notePositions = [];
         /** @type {Array<'treble' | 'bass'>} clef per event index (rests follow the melodic line) */
         let eventClefs = [];
@@ -130,6 +138,19 @@ const StaffScrollView = (function () {
             const dLow = diatonicIndex(lower);
             const d = frac > 0 ? dLow + (diatonicIndex(lower + 1) - dLow) * frac : dLow;
             return trebleBottomLineY - (d - DIATONIC_E4) * HALF_SPACE;
+        }
+
+        /**
+         * Y inside the dedicated pitch band. The frame is the page's
+         * working pitch range (stable for a run - singing never rescales
+         * it); pitch outside the frame is clipped, like every chart.
+         * @param {number} midiFloat
+         */
+        function zoneYForMidi(midiFloat) {
+            const range = config.pitchRange();
+            const span = Math.max(range.maxMidi - range.minMidi, 1);
+            const inner = PITCH_ZONE_HEIGHT - PITCH_ZONE_PAD * 2;
+            return PITCH_ZONE_TOP + PITCH_ZONE_PAD + (range.maxMidi - midiFloat) / span * inner;
         }
 
         /**
@@ -252,18 +273,28 @@ const StaffScrollView = (function () {
             el.style.left = `${headerWidth + startBeat * pxPerBeat}px`;
             el.style.width = `${chunkWidth}px`;
 
+            // The SVG is wider than the chunk's beat span so glyphs of
+            // notes near the right edge are drawn whole, never clipped
+            // (they used to vanish entirely at chunk seams). The STAVES
+            // keep the nominal width: the next chunk draws the seam's
+            // staff lines, so nothing is double-drawn.
             const renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
             renderer.resize(chunkWidth + RIGHT_BLEED, SVG_HEIGHT);
             const context = renderer.getContext();
             const staves = [trebleY, bassY].map(y => {
-                const stave = new VF.Stave(0, y, chunkWidth + RIGHT_BLEED);
+                const stave = new VF.Stave(0, y, chunkWidth);
                 stave.setBegBarType(VF.Barline.type.NONE);
                 stave.setEndBarType(VF.Barline.type.NONE);
                 stave.setContext(context).draw();
                 return stave;
             });
+            // Barlines live on the PADDED beat grid, in the slot between
+            // the previous measure's last notehead and the next measure's
+            // note pad. The old unpadded grid put barlines a full note
+            // pad early, so any note in the last half beat of a measure
+            // rendered past its barline - the "overlapping measure ends".
             for (let measure = 1; measure <= CHUNK_MEASURES; measure++) {
-                const x = measure * BEATS_PER_MEASURE * pxPerBeat - 1;
+                const x = measure * BEATS_PER_MEASURE * pxPerBeat + FIRST_NOTE_PAD - 1;
                 staves.forEach(stave => stave.drawVerticalBarFixed(x, false));
             }
 
@@ -342,6 +373,7 @@ const StaffScrollView = (function () {
                     if (event.degree) degreeLabels.push({ label: String(event.degree), x });
                     notePositions.push({
                         beat: event.startBeat,
+                        beats: event.beats,
                         midi: /** @type {number} */ (event.midi),
                         clef,
                         x: stripX(event.startBeat) + NOTE_CENTER_OFFSET,
@@ -428,7 +460,9 @@ const StaffScrollView = (function () {
             const isScroll = config.mode() === 'scroll';
             viewport.classList.toggle('staff-scroll-viewport-page', !isScroll);
             strip.style.width = `${stripX(totalBeats()) + 160}px`;
-            strip.style.height = `${SVG_HEIGHT}px`;
+            // The strip reserves the pitch band's height too, so the
+            // shell (and its background) covers both bands.
+            strip.style.height = `${TOTAL_HEIGHT}px`;
             if (isScroll) {
                 viewport.scrollLeft = 0;
                 strip.style.transform = `translateX(${-scrollOffset()}px)`;
@@ -441,11 +475,11 @@ const StaffScrollView = (function () {
             if (!overlay || !viewport) return;
             const width = viewport.clientWidth;
             const ratio = window.devicePixelRatio || 1;
-            if (overlay.width !== Math.round(width * ratio) || overlay.height !== Math.round(SVG_HEIGHT * ratio)) {
+            if (overlay.width !== Math.round(width * ratio) || overlay.height !== Math.round(TOTAL_HEIGHT * ratio)) {
                 overlay.width = Math.round(width * ratio);
-                overlay.height = Math.round(SVG_HEIGHT * ratio);
+                overlay.height = Math.round(TOTAL_HEIGHT * ratio);
                 overlay.style.width = `${width}px`;
-                overlay.style.height = `${SVG_HEIGHT}px`;
+                overlay.style.height = `${TOTAL_HEIGHT}px`;
             }
         }
 
@@ -457,9 +491,44 @@ const StaffScrollView = (function () {
             const ratio = window.devicePixelRatio || 1;
             context.setTransform(ratio, 0, 0, ratio, 0, 0);
             const width = viewport.clientWidth;
-            context.clearRect(0, 0, width, SVG_HEIGHT);
+            context.clearRect(0, 0, width, TOTAL_HEIGHT);
             const isScroll = config.mode() === 'scroll';
             const offset = scrollOffset();
+            const range = config.pitchRange();
+
+            // The pitch band: a quiet tinted lane under the staff with
+            // its own (taller) pitch scale. Reference segments mark each
+            // sheet note's pitch and span; the sung trace draws against
+            // them, never over the notation.
+            context.fillStyle = 'rgba(15, 23, 42, 0.045)';
+            context.fillRect(0, PITCH_ZONE_TOP, width, PITCH_ZONE_HEIGHT);
+            context.strokeStyle = 'rgba(15, 23, 42, 0.16)';
+            context.lineWidth = 1;
+            context.beginPath();
+            context.moveTo(0, PITCH_ZONE_TOP + 0.5);
+            context.lineTo(width, PITCH_ZONE_TOP + 0.5);
+            context.stroke();
+            context.fillStyle = 'rgba(71, 85, 105, 0.75)';
+            context.font = '10px system-ui';
+            context.textAlign = 'left';
+            context.textBaseline = 'top';
+            context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
+
+            const pxPerBeat = config.pxPerBeat();
+            context.strokeStyle = 'rgba(100, 116, 139, 0.55)';
+            context.lineWidth = 3;
+            context.lineCap = 'round';
+            for (const position of notePositions) {
+                const x1 = position.x - offset;
+                const x2 = x1 + Math.max(position.beats * pxPerBeat - 4, 4);
+                if (x2 < headerWidth + 2 || x1 > width) continue;
+                if (position.midi < range.minMidi || position.midi > range.maxMidi) continue;
+                const y = zoneYForMidi(position.midi);
+                context.beginPath();
+                context.moveTo(Math.max(x1, headerWidth + 2), y);
+                context.lineTo(Math.min(x2, width), y);
+                context.stroke();
+            }
 
             if (isScroll) {
                 const nowX = nowScreenX();
@@ -467,7 +536,7 @@ const StaffScrollView = (function () {
                 context.lineWidth = 2;
                 context.beginPath();
                 context.moveTo(nowX, 6);
-                context.lineTo(nowX, SVG_HEIGHT - 6);
+                context.lineTo(nowX, TOTAL_HEIGHT - 6);
                 context.stroke();
                 context.fillStyle = 'rgba(220, 38, 38, 0.85)';
                 context.beginPath();
@@ -506,21 +575,25 @@ const StaffScrollView = (function () {
                 let previousBeat = null;
                 for (const sample of trace) {
                     const x = stripX(sample.beat) + NOTE_CENTER_OFFSET - offset;
-                    if (x < headerWidth + 2 || x > width + 20) {
+                    // Out-of-frame pitch is clipped, never rescales the
+                    // band (the frame is stable for the run).
+                    if (x < headerWidth + 2 || x > width + 20
+                        || sample.midi < range.minMidi || sample.midi > range.maxMidi) {
                         flushSegment();
                         previousBeat = null;
                         continue;
                     }
                     if (previousBeat !== null && sample.beat - previousBeat > gapBeats) flushSegment();
-                    segment.push({ x, y: yForMidi(sample.midi) });
+                    segment.push({ x, y: zoneYForMidi(sample.midi) });
                     previousBeat = sample.beat;
                 }
                 flushSegment();
             }
 
             const liveMidi = config.liveMidi();
-            if (!isScroll && liveMidi !== null) {
-                const y = yForMidi(liveMidi);
+            if (!isScroll && liveMidi !== null
+                && liveMidi >= range.minMidi && liveMidi <= range.maxMidi) {
+                const y = zoneYForMidi(liveMidi);
                 const x = headerWidth + 16;
                 context.fillStyle = 'rgba(37, 99, 235, 0.9)';
                 context.beginPath();
@@ -593,6 +666,7 @@ const StaffScrollView = (function () {
             },
 
             yForMidi,
+            zoneYForMidi,
 
             /** Named state inspection for the test suite. */
             geometry() {
@@ -601,7 +675,9 @@ const StaffScrollView = (function () {
                     nowScreenX: nowScreenX(),
                     scrollOffset: scrollOffset(),
                     chunkCount: chunkCache.size,
-                    notePositions: notePositions.slice()
+                    notePositions: notePositions.slice(),
+                    pitchZoneTop: PITCH_ZONE_TOP,
+                    pitchZoneHeight: PITCH_ZONE_HEIGHT
                 };
             }
         };
