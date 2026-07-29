@@ -455,23 +455,40 @@ const StaffScrollView = (function () {
             if (trace.length) {
                 const gapBeats = config.traceGapBeats();
                 context.strokeStyle = 'rgba(37, 99, 235, 0.9)';
+                context.fillStyle = 'rgba(37, 99, 235, 0.9)';
                 context.lineWidth = 2.4;
                 context.lineJoin = 'round';
                 context.lineCap = 'round';
-                context.beginPath();
-                let previous = null;
+                /** @type {Array<{ x: number, y: number }>} */
+                let segment = [];
+                const flushSegment = () => {
+                    if (segment.length === 1) {
+                        // A lone detection still happened; a path with one
+                        // point strokes nothing, so it draws as a dot.
+                        context.beginPath();
+                        context.arc(segment[0].x, segment[0].y, 2.4, 0, Math.PI * 2);
+                        context.fill();
+                    } else if (segment.length > 1) {
+                        context.beginPath();
+                        context.moveTo(segment[0].x, segment[0].y);
+                        for (let i = 1; i < segment.length; i++) context.lineTo(segment[i].x, segment[i].y);
+                        context.stroke();
+                    }
+                    segment = [];
+                };
+                let previousBeat = null;
                 for (const sample of trace) {
                     const x = stripX(sample.beat) + NOTE_CENTER_OFFSET - offset;
-                    if (x < headerWidth + 2 || x > width + 20) { previous = null; continue; }
-                    const y = yForMidi(sample.midi);
-                    if (previous === null || sample.beat - previous > gapBeats) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
+                    if (x < headerWidth + 2 || x > width + 20) {
+                        flushSegment();
+                        previousBeat = null;
+                        continue;
                     }
-                    previous = sample.beat;
+                    if (previousBeat !== null && sample.beat - previousBeat > gapBeats) flushSegment();
+                    segment.push({ x, y: yForMidi(sample.midi) });
+                    previousBeat = sample.beat;
                 }
-                context.stroke();
+                flushSegment();
             }
 
             const liveMidi = config.liveMidi();
