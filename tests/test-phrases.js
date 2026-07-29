@@ -1219,6 +1219,16 @@ async function nextPhrase(tab) {
         });
         report.check(`phrases test dock stays fixed at bottom when scrolled (open=${pinned.dockOpen})`,
             pinned.ok && pinned.dockOpen && pinned.dockAtBottom && pinned.actionsVisible);
+
+        // The docked sheet floats over live page content; a translucent
+        // sheet let the staff/history bleed through the chart and read
+        // as overlapping text at the top of the test area.
+        const sheetBackground = await tab.evaluate(() => {
+            const panel = document.getElementById('phraseTestPanel');
+            return panel ? getComputedStyle(panel).backgroundColor : '';
+        });
+        report.check(`phrases docked test sheet is opaque (${sheetBackground})`,
+            /^rgb\(\d+, \d+, \d+\)$/.test(sheetBackground));
         await tab.close();
     }
     await browser.close();

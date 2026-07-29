@@ -438,6 +438,11 @@
     margin: 0;
     border-radius: 14px 14px 0 0;
     border-bottom: none;
+    /* The sheet floats over live page content (piano, staff, history).
+       The base panel background is translucent, which let that content
+       bleed through the chart and readouts and read as overlapping
+       text - docked sheets are opaque. */
+    background: rgb(7, 26, 16);
     max-height: calc(min(72vh, 680px) - 64px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
