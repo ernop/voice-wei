@@ -105,6 +105,33 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         };
     });
     report.check(`chunk SVGs rendered (${rendering.chunkSvgs} chunks)`, rendering.chunkSvgs > 0 && rendering.chunkCount === rendering.chunkSvgs);
+
+    // Chunk-seam clipping: a note in a chunk's last beat must draw fully
+    // inside its SVG (the number-without-a-note bug at 8-bar seams).
+    // Gapless quarters guarantee notes land on every chunk's last beat.
+    const clipping = await tab.evaluate(() => {
+        window.staffDebug.applySettings({
+            restBeats: 0, durationBeats: [1], phraseAlgo: 'stepwise', measures: 32
+        });
+        window.staffDebug.regenerate();
+        const lastBeatNotes = window.staffDebug.timedEvents()
+            .filter(event => event.type === 'note' && event.startBeat % 32 === 31).length;
+        let worst = -999;
+        let glyphs = 0;
+        document.querySelectorAll('.staff-scroll-chunk').forEach(chunk => {
+            const svg = chunk.querySelector('svg');
+            const svgRect = svg.getBoundingClientRect();
+            const svgWidth = Number(svg.getAttribute('width'));
+            chunk.querySelectorAll('.vf-stavenote').forEach(group => {
+                glyphs++;
+                worst = Math.max(worst, group.getBoundingClientRect().right - svgRect.left - svgWidth);
+            });
+        });
+        return { worst: Math.round(worst), glyphs, lastBeatNotes };
+    });
+    report.check(`seam-exercising sequence has last-beat notes (${clipping.lastBeatNotes})`, clipping.lastBeatNotes > 0);
+    report.check(`no glyph clipped at a chunk seam (worst overhang ${clipping.worst}px over ${clipping.glyphs} glyphs)`,
+        clipping.worst <= 0);
     report.check('fixed header (clefs + key signature) rendered', rendering.headerSvg && rendering.headerWidth > 40);
     report.check(`every note drawn exactly once (${rendering.drawn}/${rendering.noteCount})`, rendering.drawn === rendering.noteCount);
     report.check('C3-based line uses both staves', rendering.spansBothStaves);

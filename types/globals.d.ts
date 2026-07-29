@@ -146,6 +146,7 @@ interface Window {
         singPanel: () => any;
         singRails: (expandRange: boolean) => RailLine[];
         singTargets: () => TargetSpan[];
+        applySettings: (partial: Record<string, unknown>) => void;
     };
 
     // Named state inspection for the test suite (phrases take plan)

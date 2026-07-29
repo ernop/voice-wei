@@ -31,6 +31,12 @@ const StaffScrollView = (function () {
     // Treble bottom line (E4) to bass top line (A3) = 4 diatonic steps.
     const STAVE_GAP_STEPS = 4;
     const FIRST_NOTE_PAD = 14;
+    // Glyphs in a chunk's last beat extend past its logical tile width
+    // (tick x + notehead + stem reach ~17px over). Each chunk SVG is
+    // rendered this much wider so seam notes are never clipped; the
+    // neighboring chunk draws the same staff geometry, so the overlap
+    // is invisible.
+    const RIGHT_BLEED = 48;
     // Tick-context x names the note's left edge; the head center sits
     // about half a notehead to the right. The trace shares this so sung
     // pitch aligns with the notation.
@@ -247,10 +253,10 @@ const StaffScrollView = (function () {
             el.style.width = `${chunkWidth}px`;
 
             const renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
-            renderer.resize(chunkWidth, SVG_HEIGHT);
+            renderer.resize(chunkWidth + RIGHT_BLEED, SVG_HEIGHT);
             const context = renderer.getContext();
             const staves = [trebleY, bassY].map(y => {
-                const stave = new VF.Stave(0, y, chunkWidth);
+                const stave = new VF.Stave(0, y, chunkWidth + RIGHT_BLEED);
                 stave.setBegBarType(VF.Barline.type.NONE);
                 stave.setEndBarType(VF.Barline.type.NONE);
                 stave.setContext(context).draw();

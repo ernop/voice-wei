@@ -908,7 +908,11 @@
             settings: () => ({ ...state, durationBeats: state.durationBeats.slice() }),
             singPanel: () => singPanel,
             singRails: buildSingRails,
-            singTargets: buildSingTargets
+            singTargets: buildSingTargets,
+            applySettings: (partial) => {
+                Object.assign(state, partial);
+                syncAllControls();
+            }
         };
     }
 
