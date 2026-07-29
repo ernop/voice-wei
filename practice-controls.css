@@ -471,6 +471,20 @@ body:has(.pitch-test-dock) {
    transport buttons, option rows, history list)
    ============================================ */
 
+/* Scale-degree number token: the one look for "numbers above/under the
+   notes" surfaces (Phrases degree row, Staff degree row). Structural
+   only - containers set color and size, pages add interaction. */
+.degree-token {
+    padding: 0 1px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
 .display-toggle {
     display: flex;
     align-items: center;

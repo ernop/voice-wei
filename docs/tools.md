@@ -176,8 +176,9 @@ never cross a barline.
   and glitch rules as Trace/Phrases); the live note/cents readout sits
   under the staff.
 - **show numbers** draws each note's scale degree (1-8, with #/b and
-  octave marks, same vocabulary as Phrases) in a row under the staff -
-  training wheels for reading that scroll with the notes.
+  octave marks) in a row under the staff - training wheels for reading
+  that scroll with the notes. Same shared token and label vocabulary as
+  the Phrases degree row (`.degree-token` + PatternPracticeCore labels).
 - Every real scroll run (a few beats or more) is saved on Stop as a
   **Past Run**: the generated sheet plus the sung trace. Load reopens it
   in page mode for review - the staff with your sung line drawn over it -

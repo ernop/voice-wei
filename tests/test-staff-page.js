@@ -109,21 +109,22 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
     report.check('C3-based line uses both staves', rendering.spansBothStaves);
     report.check('notes split at middle C: below on bass, C4 and up on treble', rendering.clefsCorrect);
 
-    // Degree labels: one per note under the staff, toggleable.
+    // Degree labels: the shared .degree-token (same as the Phrases degree
+    // row), one per note under the staff, toggleable.
     const degrees = await tab.evaluate(() => {
         const noteCount = window.staffDebug.events().filter(event => event.type === 'note').length;
-        const labels = [...document.querySelectorAll('.staff-scroll-chunk svg text')]
-            .map(el => el.textContent || '');
+        const tokens = [...document.querySelectorAll('.staff-scroll-chunk .degree-token')];
+        const labels = tokens.map(el => el.textContent || '');
         const valid = labels.every(label => /^\d+[#b\u2191\u2193]*$/.test(label));
         const toggle = document.getElementById('showDegreesToggle');
         toggle.click();
-        const afterOff = document.querySelectorAll('.staff-scroll-chunk svg text').length;
+        const afterOff = document.querySelectorAll('.staff-scroll-chunk .degree-token').length;
         toggle.click();
         return { noteCount, labelCount: labels.length, valid, afterOff };
     });
-    report.check(`show numbers draws one degree label per note (${degrees.labelCount}/${degrees.noteCount})`,
+    report.check(`show numbers draws one shared degree token per note (${degrees.labelCount}/${degrees.noteCount})`,
         degrees.labelCount === degrees.noteCount && degrees.valid);
-    report.check('turning show numbers off removes the labels', degrees.afterOff === 0);
+    report.check('turning show numbers off removes the tokens', degrees.afterOff === 0);
 
     // --- Trace geometry: continuous through the staff gap --------------
     const traceGeometry = await tab.evaluate(() => {

@@ -134,18 +134,12 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     grid-template-rows: 1.05em;
 }
 
+/* Structure/typography comes from the shared .degree-token
+   (practice-controls.css); this adds the phrases-only interaction. */
 .phrase-degree-token {
     width: auto;
     min-width: 0;
-    padding: 0 1px;
-    border: 0;
     border-radius: 8px;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
     cursor: pointer;
     user-select: none;
     touch-action: none;

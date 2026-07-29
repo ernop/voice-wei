@@ -37,8 +37,8 @@ const StaffScrollView = (function () {
     const NOTE_CENTER_OFFSET = 7;
     const BRACE_PAD = 28;
     const DURATION_NAMES = Object.freeze({ 0.5: '8', 1: 'q', 2: 'h', 4: 'w' });
-    // Scale-degree labels sit under the bass staff, clear of low ledgers.
-    const DEGREE_LABEL_Y = 184;
+    // Scale-degree tokens sit under the bass staff, clear of low ledgers.
+    const DEGREE_LABEL_Y = 172;
 
     /** @param {StaffScrollViewConfig} config */
     function create(config) {
@@ -343,13 +343,17 @@ const StaffScrollView = (function () {
                     });
                 }
             });
-            // One text pass after all glyph drawing, so note styling can
-            // never bleed into (or restyle) the degree row.
+            // The number row is the SAME shared token the Phrases degree
+            // row uses (.degree-token), positioned on the beat grid so it
+            // scrolls with the notes it names.
             if (config.showDegrees() && degreeLabels.length) {
-                context.setFont('Arial', 11);
-                context.setFillStyle('#166534');
                 degreeLabels.forEach(({ label, x }) => {
-                    context.fillText(label, x + NOTE_CENTER_OFFSET - label.length * 3, DEGREE_LABEL_Y);
+                    const token = document.createElement('span');
+                    token.className = 'degree-token staff-degree-token';
+                    token.textContent = label;
+                    token.style.left = `${x + NOTE_CENTER_OFFSET}px`;
+                    token.style.top = `${DEGREE_LABEL_Y}px`;
+                    el.appendChild(token);
                 });
             }
             return el;

@@ -58,6 +58,18 @@
     max-width: none;
 }
 
+/* The shared degree token on the white staff band: dark ink, centered on
+   its notehead, purely informational (never a click target here). */
+.staff-scroll-chunk .staff-degree-token {
+    position: absolute;
+    transform: translateX(-50%);
+    color: #166534;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.72rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
 .staff-scroll-header {
     position: absolute;
     top: 0;

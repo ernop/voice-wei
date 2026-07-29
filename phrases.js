@@ -352,7 +352,7 @@
             if (state.showNumbers) {
                 const token = document.createElement('button');
                 token.type = 'button';
-                token.className = 'phrase-degree-token';
+                token.className = 'degree-token phrase-degree-token';
                 token.dataset.index = String(note.index);
                 token.textContent = note.degree;
                 token.title = `${note.enabled ? 'Mute' : 'Unmute'} ${note.degree} ${note.noteName}`;

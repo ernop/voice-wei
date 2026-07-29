@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, '..');
 // Shared classes defined in style.css that pages also must not redefine
 const STYLE_CSS_SHARED = ['listen-button', 'submit-button-large', 'button-text', 'button-icon'];
 
-const PAGE_SHEETS = ['scales.css', 'intervals.css', 'phrases.css', 'trace.css', 'pitch-meter.css', 'ebook.css'];
+const PAGE_SHEETS = ['scales.css', 'intervals.css', 'phrases.css', 'staff.css', 'trace.css', 'pitch-meter.css', 'ebook.css'];
 
 /** Strip comments, then return every selector list in the sheet (media blocks included). */
 function extractSelectors(css) {
