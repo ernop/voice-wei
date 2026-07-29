@@ -316,8 +316,25 @@ class ScalesController {
     /** @param {boolean} expandRange */
     buildSingRails(expandRange) {
         const { min, max } = this.getSectionRange(this.settings.sectionLength || '1o');
-        const lower = expandRange ? min - 12 : min;
-        const upper = expandRange ? max + 12 : max;
+        // Rails must cover every planned note, not just the section
+        // range: chords movement stacks thirds and fifths up to a
+        // twelfth above the root, and exercises can leave the section
+        // too. Uncovered targets used to draw clipped at the top of the
+        // chart with no rails behind them.
+        let lower = min;
+        let upper = max;
+        const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
+        const plan = this.buildSingPlan();
+        if (rootMidi !== null && plan) {
+            for (const midi of plan.notes) {
+                lower = Math.min(lower, Math.floor(midi - rootMidi));
+                upper = Math.max(upper, Math.ceil(midi - rootMidi));
+            }
+        }
+        if (expandRange) {
+            lower -= 12;
+            upper += 12;
+        }
         return scaleDegreeNotesInRange(this.settings.root, this.settings.octave, this.settings.scaleType, lower, upper)
             .map(note => ({
                 midi: note.midi,
