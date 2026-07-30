@@ -4,6 +4,35 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-30 (lyrics migration overloaded the provider)
+
+**Context**: After v323 began revalidating the 900-favorite library, yui's log
+showed dozens of alternating Firefox `NetworkError` and 12-second timeout
+failures while YouTube playback remained healthy. Runtime requests confirmed
+LRCLIB was returning 504 without CORS headers, so the browser hid the actual
+HTTP failure. Two queued songs also fanned out into up to six simultaneous
+candidate requests.
+
+**Fix (v324)**: lyrics now use a fixed-provider, keyless, same-origin
+`proxy.php` endpoint; candidates run serially inside the two-video queue and
+stop after an exact strong timed match. More importantly, an older timed lyric
+that passes the new title/artist gates is promoted locally through the
+save-before-activate path. The 900-valid-favorite migration therefore performs
+900 IndexedDB promotions and zero provider requests; only invalid, missing, or
+simple-upgrade cases reach LRCLIB.
+
+**For future mei**:
+- A search-version migration must separate checks answerable from stored data
+  from work that genuinely requires a provider. Never turn a local schema or
+  identity validation into a library-wide network migration.
+- Count concurrency at the network boundary, not the outer item queue. Inner
+  `Promise.all` fan-out silently invalidates the advertised bound.
+- A browser `NetworkError` on a cross-origin API can be an upstream HTTP error
+  hidden by missing CORS headers. Reproduce outside the browser before blaming
+  connectivity or suspension.
+
+---
+
 ## 2026-07-30 (900-favorite filter and lyric coordination)
 
 **Context**: Yui reported wrong lyrics plus missing and unrelated filter
