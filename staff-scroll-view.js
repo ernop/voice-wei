@@ -37,12 +37,9 @@ const StaffScrollView = (function () {
     // neighboring chunk draws the same staff geometry, so the overlap
     // is invisible.
     const RIGHT_BLEED = 48;
-    // Tick-context x names the note's left edge; the head center sits
-    // about half a notehead to the right. The trace shares this so sung
-    // pitch aligns with the notation.
-    const NOTE_CENTER_OFFSET = 7;
     const BRACE_PAD = 28;
     const DURATION_NAMES = Object.freeze({ 0.5: '8', 1: 'q', 2: 'h', 4: 'w' });
+    const SHORTEST_DURATION_BEATS = Math.min(...Object.keys(DURATION_NAMES).map(Number));
     // Scale-degree tokens sit under the bass staff, clear of low ledgers.
     const DEGREE_LABEL_Y = 172;
 
@@ -226,8 +223,8 @@ const StaffScrollView = (function () {
             });
         }
 
-        /** X of a beat inside the full strip (transform-independent). */
-        function stripX(beat) {
+        /** Canonical onset x for a beat in the full strip. */
+        function onsetX(beat) {
             return headerWidth + FIRST_NOTE_PAD + beat * config.pxPerBeat();
         }
 
@@ -248,7 +245,7 @@ const StaffScrollView = (function () {
         /** Strip-pixels currently shifted out of view to the left. */
         function scrollOffset() {
             if (config.mode() === 'scroll') {
-                return stripX(config.clockBeat()) + NOTE_CENTER_OFFSET - nowScreenX();
+                return onsetX(config.clockBeat()) - nowScreenX();
             }
             return viewport ? viewport.scrollLeft : 0;
         }
@@ -288,13 +285,13 @@ const StaffScrollView = (function () {
                 stave.setContext(context).draw();
                 return stave;
             });
-            // Barlines live on the PADDED beat grid, in the slot between
-            // the previous measure's last notehead and the next measure's
-            // note pad. The old unpadded grid put barlines a full note
-            // pad early, so any note in the last half beat of a measure
-            // rendered past its barline - the "overlapping measure ends".
+            // A barline occupies the midpoint between the latest legal
+            // onset before the boundary and the onset on the boundary.
+            // Both positions therefore come from the same beat grid.
             for (let measure = 1; measure <= CHUNK_MEASURES; measure++) {
-                const x = measure * BEATS_PER_MEASURE * pxPerBeat + FIRST_NOTE_PAD - 1;
+                const boundaryBeat = measure * BEATS_PER_MEASURE;
+                const x = boundaryBeat * pxPerBeat + FIRST_NOTE_PAD
+                    - SHORTEST_DURATION_BEATS * pxPerBeat / 2;
                 staves.forEach(stave => stave.drawVerticalBarFixed(x, false));
             }
 
@@ -366,8 +363,13 @@ const StaffScrollView = (function () {
                 const tickContext = new VF.TickContext();
                 tickContext.addTickable(tickable);
                 tickContext.preFormat();
-                const x = (event.startBeat - startBeat) * pxPerBeat + FIRST_NOTE_PAD;
+                const x = onsetX(event.startBeat) - headerWidth - startBeat * pxPerBeat;
+                // TickContext.setX() does not place the notehead at that x:
+                // VexFlow adds stave and glyph offsets. Measure those owned
+                // offsets, then place the rendered head on the timeline.
                 tickContext.setX(x);
+                const renderedHeadCenter = (tickable.getNoteHeadBeginX() + tickable.getNoteHeadEndX()) / 2;
+                tickContext.setX(x - (renderedHeadCenter - x));
                 tickable.setContext(context).draw();
                 if (event.type === 'note') {
                     if (event.degree) degreeLabels.push({ label: String(event.degree), x });
@@ -376,7 +378,7 @@ const StaffScrollView = (function () {
                         beats: event.beats,
                         midi: /** @type {number} */ (event.midi),
                         clef,
-                        x: stripX(event.startBeat) + NOTE_CENTER_OFFSET,
+                        x: onsetX(event.startBeat),
                         y: yForMidi(/** @type {number} */(event.midi))
                     });
                 }
@@ -389,7 +391,7 @@ const StaffScrollView = (function () {
                     const token = document.createElement('span');
                     token.className = 'degree-token staff-degree-token';
                     token.textContent = label;
-                    token.style.left = `${x + NOTE_CENTER_OFFSET}px`;
+                    token.style.left = `${x}px`;
                     token.style.top = `${DEGREE_LABEL_Y}px`;
                     el.appendChild(token);
                 });
@@ -459,7 +461,7 @@ const StaffScrollView = (function () {
             if (!strip || !viewport) return;
             const isScroll = config.mode() === 'scroll';
             viewport.classList.toggle('staff-scroll-viewport-page', !isScroll);
-            strip.style.width = `${stripX(totalBeats()) + 160}px`;
+            strip.style.width = `${onsetX(totalBeats()) + 160}px`;
             // The strip reserves the pitch band's height too, so the
             // shell (and its background) covers both bands.
             strip.style.height = `${TOTAL_HEIGHT}px`;
@@ -579,7 +581,7 @@ const StaffScrollView = (function () {
                 };
                 let previousBeat = null;
                 for (const sample of trace) {
-                    const x = stripX(sample.beat) + NOTE_CENTER_OFFSET - offset;
+                    const x = onsetX(sample.beat) - offset;
                     // Out-of-frame pitch is clipped, never rescales the
                     // band (the frame is stable for the run).
                     if (x < headerWidth + 2 || x > width + 20

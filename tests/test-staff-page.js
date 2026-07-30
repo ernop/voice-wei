@@ -215,6 +215,34 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         degrees.labelCount === degrees.noteCount && degrees.valid);
     report.check('turning show numbers off removes the tokens', degrees.afterOff === 0);
 
+    const horizontalGeometry = await tab.evaluate(() => {
+        const geometry = window.staffDebug.geometry();
+        const strip = document.querySelector('.staff-scroll-strip');
+        const stripLeft = strip.getBoundingClientRect().left;
+        const headCenters = [...document.querySelectorAll('.staff-scroll-chunk .vf-notehead')].map(head => {
+            const rect = head.getBoundingClientRect();
+            return rect.left + rect.width / 2 - stripLeft;
+        });
+        const tokenCenters = [...document.querySelectorAll('.staff-scroll-chunk .staff-degree-token')].map(token => {
+            const rect = token.getBoundingClientRect();
+            return rect.left + rect.width / 2 - stripLeft;
+        });
+        const maxDelta = (actual, expected) => Math.max(
+            ...expected.map((x, index) => Math.abs((actual[index] ?? Infinity) - x)));
+        const onsetXs = geometry.notePositions.map(position => position.x);
+        return {
+            noteCount: onsetXs.length,
+            headCount: headCenters.length,
+            tokenCount: tokenCenters.length,
+            maxHeadDelta: maxDelta(headCenters, onsetXs),
+            maxTokenDelta: maxDelta(tokenCenters, onsetXs)
+        };
+    });
+    report.check(`rendered noteheads consume canonical onset x (max delta ${horizontalGeometry.maxHeadDelta.toFixed(3)}px)`,
+        horizontalGeometry.headCount === horizontalGeometry.noteCount && horizontalGeometry.maxHeadDelta < 0.01);
+    report.check(`degree labels consume canonical onset x (max delta ${horizontalGeometry.maxTokenDelta.toFixed(3)}px)`,
+        horizontalGeometry.tokenCount === horizontalGeometry.noteCount && horizontalGeometry.maxTokenDelta < 0.01);
+
     // --- Trace geometry: continuous through the staff gap --------------
     const traceGeometry = await tab.evaluate(() => {
         const y = (midi) => window.staffDebug.yForMidi(midi);
@@ -242,11 +270,22 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         window.staffDebug.setMode('scroll');
         const before = window.staffDebug.geometry().scrollOffset;
         window.staffDebug.setClockBeat(8);
-        const after = window.staffDebug.geometry().scrollOffset;
-        return { before, after, fired: window.staffDebug.firedNoteCount() };
+        const geometry = window.staffDebug.geometry();
+        const after = geometry.scrollOffset;
+        const position = geometry.notePositions.find(item => item.beat === 8);
+        return {
+            before,
+            after,
+            nowScreenX: geometry.nowScreenX,
+            clockStripAnchor: after + geometry.nowScreenX,
+            eventStripAnchor: position ? position.x : null,
+            fired: window.staffDebug.firedNoteCount()
+        };
     });
     report.check(`scroll mode moves the strip (offset ${Math.round(scroll.before)} -> ${Math.round(scroll.after)})`, scroll.after > scroll.before);
     report.check(`notes fire as they pass the now-line (${scroll.fired} fired)`, scroll.fired > 0);
+    report.check('now-line consumes the canonical onset x',
+        scroll.eventStripAnchor !== null && Math.abs(scroll.clockStripAnchor - scroll.eventStripAnchor) < 0.01);
 
     const extension = await tab.evaluate(() => {
         const beatsBefore = (() => {
