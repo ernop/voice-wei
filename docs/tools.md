@@ -405,9 +405,13 @@ once for fresh candidates before giving up.
 Lyrics come in two kinds, named everywhere in the UI: **timed lyrics**
 (line-synced; the ✓ marker, the highlight, and the title relay) and
 **simple lyrics** (text only; the ~ marker). The search prefers timed
-lyrics: among plausible LRCLIB matches a timed record beats a simple-only
-one, and a song stored with only simple lyrics gets one serious re-search
-for timed ones (keeping the simple text if nothing better exists).
+lyrics only among LRCLIB records that independently match the requested title
+and known artist; a matching duration cannot make a different song or artist
+eligible. Lookup uses title and artist without requiring the album, so album
+editions and compilation metadata do not hide valid lyrics. When these
+identity rules change, older stored results (including timed lyrics) are
+revalidated once; a still-valid stored lyric is not discarded when that
+recheck finds nothing better.
 LRCLIB lookup renders in the panel and overlay, and (on by default, in
 settings) the current timed lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show. The
@@ -565,7 +569,9 @@ Other surfaces on the page:
   felt jump with no shift line points at a scripted scroll instead.
 - **Song Library** toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
-  browser, and plays their melodies on the shared piano. Public-domain
+  browser, and plays their melodies on the shared piano. Its search requires
+  every typed word to match somewhere across title, source filename/type, or
+  imported lyric text, so words may occur in different fields. Public-domain
   corpora to import are listed in
   [public-domain-song-sources.md](public-domain-song-sources.md).
   Hidden by default.

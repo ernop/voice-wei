@@ -139,20 +139,30 @@ const PlayerSongs = (function () {
     }
 
     /**
-     * The one matcher behind every song search surface (playlist filter,
-     * Known Songs search): every whitespace-separated word of the query
-     * must appear somewhere in the song's descriptive fields.
+     * Canonical song-search semantics: every query word may match anywhere
+     * across the fields appropriate to the calling surface.
+     * @param {unknown[]} fields
+     * @param {string} query normalized via normalizeSearchQuery
+     */
+    function songFieldsMatchQuery(fields, query) {
+        if (!query) return true;
+        const haystack = fields.join(' ').toLowerCase();
+        return query.split(/\s+/).every(word => haystack.includes(word));
+    }
+
+    /**
+     * Song-shaped search surfaces use the canonical matcher over their
+     * descriptive fields.
      * @param {Record<string, any>} song song-shaped input
      * @param {string} query normalized via normalizeSearchQuery
      */
     function songMatchesQuery(song, query) {
         if (!query) return true;
         if (!song) return false;
-        const haystack = [
+        return songFieldsMatchQuery([
             song.name, song.artist, song.year, song.album,
             song.comment, song.title, song.channelTitle, song.searchTerm
-        ].join(' ').toLowerCase();
-        return query.split(/\s+/).every(word => haystack.includes(word));
+        ], query);
     }
 
     /**
@@ -182,6 +192,7 @@ const PlayerSongs = (function () {
         createFavorite,
         historySongRecord,
         normalizeSearchQuery,
+        songFieldsMatchQuery,
         songMatchesQuery
     };
 })();

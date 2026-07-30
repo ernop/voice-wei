@@ -444,6 +444,184 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricsIntegrityChecks.firstPassLookups === 2
             && lyricsIntegrityChecks.secondPassLookups === 1);
 
+        const lyricProviderIdentityEvidence = await tab.evaluate(async () => {
+            const makeHarness = () => {
+                const harness = {
+                    lyricsLookupCache: new Map(),
+                    addMessage() {}
+                };
+                PlayerLyrics.install(harness);
+                return harness;
+            };
+            const item = {
+                name: 'Sun', artist: 'Right Artist', album: 'Right Album',
+                title: '', channelTitle: '', duration: '3:00', durationSeconds: 180
+            };
+            const record = (trackName, artistName, synced = true) => ({
+                trackName, artistName, albumName: 'Right Album', duration: 180,
+                plainLyrics: 'words',
+                syncedLyrics: synced ? '[00:01.00]words' : null
+            });
+
+            const wrongArtist = makeHarness();
+            wrongArtist.searchLyricsProvider = async () => [record('Sun', 'Different Artist')];
+            const wrongArtistPick = await wrongArtist.lookupLyrics(item);
+
+            const wrongTitle = makeHarness();
+            wrongTitle.searchLyricsProvider = async () => [record('Sun It Rises', 'Right Artist')];
+            const wrongTitlePick = await wrongTitle.lookupLyrics(item);
+
+            const timedPreference = makeHarness();
+            timedPreference.searchLyricsProvider = async () => [
+                record('Sun', 'Right Artist', false),
+                record('Sun', 'Different Artist', true)
+            ];
+            const timedPreferencePick = await timedPreference.lookupLyrics(item);
+
+            const albumConstrained = makeHarness();
+            const albumCalls = [];
+            albumConstrained.searchLyricsProvider = async (title, artist, album) => {
+                albumCalls.push({ title, artist, album });
+                return album ? [] : [record('Sun', 'Right Artist')];
+            };
+            const albumConstrainedPick = await albumConstrained.lookupLyrics(item);
+
+            return {
+                wrongArtistRejected: wrongArtistPick === null,
+                wrongTitleRejected: wrongTitlePick === null,
+                validSimplePreferredOverWrongTimed:
+                    timedPreferencePick?.artistName === 'Right Artist'
+                    && timedPreferencePick.syncedLines.length === 0,
+                albumIndependentFound: albumConstrainedPick?.artistName === 'Right Artist',
+                albumCalls
+            };
+        });
+        report.check('player lyric matching rejects title and known-artist mismatches independently',
+            lyricProviderIdentityEvidence.wrongArtistRejected
+            && lyricProviderIdentityEvidence.wrongTitleRejected);
+        report.check('player timed-lyrics preference cannot cross song identity',
+            lyricProviderIdentityEvidence.validSimplePreferredOverWrongTimed);
+        report.check('player lyric provider search does not constrain results by album',
+            lyricProviderIdentityEvidence.albumIndependentFound
+            && lyricProviderIdentityEvidence.albumCalls.length === 1
+            && lyricProviderIdentityEvidence.albumCalls.every(call => call.album === undefined));
+
+        const staleTimedLyricUpgrade = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeItem = (kind) => ({
+                id: kind === 'wrong' ? 9401 : 9402,
+                videoId: `lyric-v3-${kind}-${run}`,
+                name: 'Sun',
+                artist: 'Right Artist',
+                album: 'Right Album',
+                title: '',
+                channelTitle: '',
+                duration: '3:00',
+                durationSeconds: 180,
+                lyricsStatus: 'idle',
+                lyricsData: null,
+                lyricOffsetSeconds: 0
+            });
+            const lyricRecord = (artistName, words) => ({
+                provider: 'LRCLIB',
+                trackName: 'Sun',
+                artistName,
+                albumName: 'Right Album',
+                duration: 180,
+                instrumental: false,
+                plainLyrics: words,
+                syncedLyrics: `[00:01.00]${words}`,
+                syncedLines: [{ time: 1, text: words }]
+            });
+            const wrong = makeItem('wrong');
+            const valid = makeItem('valid');
+            await PlayerHistoryDB.putLyricState({
+                videoId: wrong.videoId,
+                status: 'found',
+                checkedAt: Date.now(),
+                searchVersion: 2,
+                lyricOffsetSeconds: 1.5,
+                lyrics: lyricRecord('Different Artist', 'wrong words')
+            });
+            await PlayerHistoryDB.putLyricState({
+                videoId: valid.videoId,
+                status: 'found',
+                checkedAt: Date.now(),
+                searchVersion: 2,
+                lyrics: lyricRecord('Right Artist', 'valid stored words')
+            });
+
+            const harness = {
+                playlist: [wrong, valid],
+                lyricsLookupCache: new Map(),
+                lyricsLookupsInFlight: new Map(),
+                currentLyricsItemId: null,
+                currentPlayingId: null,
+                lookupNames: [],
+                refreshLyricsRowButton() {},
+                renderLyricsStateForItem() {},
+                updateLyricOffsetControls() {},
+                resyncProgressClock() {},
+                addMessage() {},
+                describePlaylistItem(item) { return item.name; }
+            };
+            PlayerLyrics.install(harness);
+            harness.lookupLyrics = async (item) => {
+                harness.lookupNames.push(item.name + ':' + item.videoId);
+                return item.videoId === wrong.videoId
+                    ? lyricRecord('Right Artist', 'correct replacement')
+                    : null;
+            };
+
+            const realPut = PlayerHistoryDB.putLyricState;
+            const statusAtSave = {};
+            PlayerHistoryDB.putLyricState = async (record) => {
+                const item = record.videoId === wrong.videoId ? wrong : valid;
+                statusAtSave[record.videoId] = item.lyricsStatus;
+                return realPut(record);
+            };
+            await harness.ensureLyricsForItem(wrong);
+            await harness.ensureLyricsForItem(valid);
+            PlayerHistoryDB.putLyricState = realPut;
+
+            const wrongStored = await PlayerHistoryDB.getLyricState(wrong.videoId);
+            const validStored = await PlayerHistoryDB.getLyricState(valid.videoId);
+            return {
+                lookupCount: harness.lookupNames.length,
+                wrong: {
+                    videoId: wrongStored?.videoId,
+                    searchVersion: wrongStored?.searchVersion,
+                    artist: wrongStored?.lyrics?.artistName,
+                    words: wrongStored?.lyrics?.plainLyrics,
+                    offset: wrongStored?.lyricOffsetSeconds,
+                    liveWords: wrong.lyricsData?.plainLyrics,
+                    statusAtSave: statusAtSave[wrong.videoId]
+                },
+                valid: {
+                    videoId: validStored?.videoId,
+                    searchVersion: validStored?.searchVersion,
+                    words: validStored?.lyrics?.plainLyrics,
+                    liveWords: valid.lyricsData?.plainLyrics,
+                    statusAtSave: statusAtSave[valid.videoId]
+                }
+            };
+        });
+        report.check('player stale timed lyrics revalidate identity under search v3',
+            staleTimedLyricUpgrade.lookupCount === 2
+            && staleTimedLyricUpgrade.wrong.videoId.startsWith('lyric-v3-wrong-')
+            && staleTimedLyricUpgrade.wrong.searchVersion === 3
+            && staleTimedLyricUpgrade.wrong.artist === 'Right Artist'
+            && staleTimedLyricUpgrade.wrong.words === 'correct replacement'
+            && staleTimedLyricUpgrade.wrong.liveWords === 'correct replacement'
+            && staleTimedLyricUpgrade.wrong.offset === 1.5);
+        report.check('player stale valid timed lyrics survive empty revalidation and remain save-then-activate',
+            staleTimedLyricUpgrade.valid.videoId.startsWith('lyric-v3-valid-')
+            && staleTimedLyricUpgrade.valid.searchVersion === 3
+            && staleTimedLyricUpgrade.valid.words === 'valid stored words'
+            && staleTimedLyricUpgrade.valid.liveWords === 'valid stored words'
+            && staleTimedLyricUpgrade.wrong.statusAtSave === 'loading'
+            && staleTimedLyricUpgrade.valid.statusAtSave === 'loading');
+
         // Live playlist filter: as-you-type hides non-matching rows, the
         // status line names the query and counts, Cancel restores all.
         // Timed only hides rows without synced lyrics. Song notes are a
@@ -501,6 +679,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.setPlaylistFilter('1984');
             const yearFiltered = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
 
+            harness.setPlaylistFilter('evening sunset');
+            const distributedAnd = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
+
             harness.clearPlaylistFilter();
             harness.settings.playlistTimedOnly = true;
             harness.applyPlaylistFilter();
@@ -530,7 +711,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
             body.innerHTML = '';
             container.style.display = savedDisplay;
-            return { filtered, yearFiltered, timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
+            return { filtered, yearFiltered, distributedAnd, timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
         });
         report.check(`player playlist filter live-hides rows ("${playlistFilterAndNotes.filtered.statusText}")`,
             playlistFilterAndNotes.filtered.sunsetShown
@@ -539,7 +720,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && playlistFilterAndNotes.filtered.statusText.includes('"sunset"')
             && playlistFilterAndNotes.filtered.statusText.includes('1 of 2')
             && playlistFilterAndNotes.yearFiltered.sunsetShown
-            && playlistFilterAndNotes.yearFiltered.morningHidden);
+            && playlistFilterAndNotes.yearFiltered.morningHidden
+            && playlistFilterAndNotes.distributedAnd.sunsetShown
+            && playlistFilterAndNotes.distributedAnd.morningHidden);
         report.check(`player timed-only filter hides non-timed rows ("${playlistFilterAndNotes.timedOnly.statusText}")`,
             playlistFilterAndNotes.timedOnly.sunsetShown
             && playlistFilterAndNotes.timedOnly.morningHidden
@@ -553,6 +736,43 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             playlistFilterAndNotes.hiddenByDefault
             && playlistFilterAndNotes.shownWhenOn
             && playlistFilterAndNotes.hiddenWhenOff);
+
+        const importedLibraryFilter = await tab.evaluate(() => {
+            const harness = {
+                songLibrary: {
+                    songs: [{
+                        id: 'library-sunset',
+                        title: 'Sunset Drive',
+                        sourceType: 'midi',
+                        sourceName: 'Evening Band.mid',
+                        importedAt: Date.now(),
+                        favorite: false,
+                        tempoBpm: 120,
+                        durationMs: 180000,
+                        noteCount: 1,
+                        lyricsText: '',
+                        lyricLines: [],
+                        notes: [{ midi: 60, startMs: 0, endMs: 1000 }]
+                    }]
+                },
+                escapeHtml(value) { return String(value || ''); }
+            };
+            PlayerSongLibrary.install(harness);
+            const input = document.getElementById('songLibrarySearch');
+            const list = document.getElementById('songLibraryList');
+            input.value = 'evening sunset';
+            harness.renderSongLibrary();
+            const result = {
+                query: input.value,
+                shownCards: list.querySelectorAll('.song-library-card').length,
+                text: list.textContent.trim()
+            };
+            input.value = '';
+            list.innerHTML = '';
+            return result;
+        });
+        report.check('player imported-library filter applies AND semantics across fields',
+            importedLibraryFilter.shownCards === 1);
 
         const lyricOffsetNudge = await tab.evaluate(async () => {
             const videoId = `offset-nudge-${Date.now()}`;

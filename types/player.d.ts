@@ -515,6 +515,8 @@ interface VoiceMusicController {
     getRenderableLyricsLines(lyricsData: LyricsResult): string[];
     renderLyricsLines(lines: string[]): void;
     buildLyricsLookupCandidates(item: PlaylistItem): Array<{ artist: string; title: string }>;
+    lyricsRecordMatchesIdentity(record: LyricsResult, artist: string, title: string): boolean;
+    lyricsMatchItemIdentity(lyrics: LyricsResult, item: PlaylistItem): boolean;
     addLyricsCandidate(candidates: Array<{ artist: string; title: string }>, artist: string, title: string): void;
     extractArtistTitleFromVideoTitle(title: string): { artist: string; title: string };
     cleanSongTitle(text: string): string;
@@ -546,7 +548,7 @@ interface VoiceMusicController {
     applyLyricStateToItem(item: PlaylistItem, state: LyricStateRecord): void;
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
-    searchLyricsProvider(title: string, artist: string, album: string): Promise<LyricsResult[]>;
+    searchLyricsProvider(title: string, artist: string): Promise<LyricsResult[]>;
     lyricsFetchQueue: PlaylistItem[];
     lyricsFetchActive: number;
     lyricsLookupsInFlight: Map<string, Promise<LyricStateRecord>>;

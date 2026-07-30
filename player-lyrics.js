@@ -46,11 +46,13 @@ const PlayerLyrics = (function () {
     // in 'loading'.
     const LYRICS_PROVIDER_TIMEOUT_MS = 12000;
 
-    // Bumped whenever the lyric search gets smarter. Stored records from an
-    // older search that did NOT land timed lyrics (simple-only or none) get
-    // exactly one re-search under the new algorithm; records that already
-    // hold timed lyrics are final. v2: timed-lyrics-first record selection.
-    const LYRICS_SEARCH_VERSION = 2;
+    // Bumped whenever lyric identity rules change. Every older result,
+    // including timed lyrics, gets one revalidation so an answer accepted by
+    // weaker rules cannot remain final forever. v3: title/artist identity
+    // gates and album-independent provider lookup.
+    const LYRICS_SEARCH_VERSION = 3;
+    const MIN_LYRIC_TITLE_IDENTITY_SCORE = 0.6;
+    const MIN_LYRIC_ARTIST_IDENTITY_SCORE = 0.6;
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
@@ -467,15 +469,14 @@ const PlayerLyrics = (function () {
              * Resolve a song's lyric state with the permanent store
              * (IndexedDB `lyricStates`, keyed by videoId) as the single
              * source of truth:
-             * 1. A stored record with TIMED lyrics is final - zero network.
-             * 2. A stored simple-only or "none" record settles from the
-             *    store while it is fresh AND was produced by the current
-             *    search algorithm; otherwise it gets one serious re-search
-             *    aimed at timed lyrics.
+             * 1. A stored record from the current search algorithm settles
+             *    from the store (timed lyrics are final; simple/none also
+             *    obey the freshness TTL).
+             * 2. Every older record gets one re-search under current identity
+             *    rules, including timed records accepted by weaker rules.
              * 3. The provider answer is saved FIRST (awaited), then
-             *    returned for activation. An upgrade attempt that finds
-             *    nothing better keeps the existing simple lyrics - a
-             *    re-search can never downgrade what we already have.
+             *    returned for activation. A valid stored result is never
+             *    downgraded when its re-search finds nothing better.
              *    Failures throw without saving anything.
              * @param {PlaylistItem} item
              * @param {boolean} forceLookup ignore a stored "none" (user retry)
@@ -486,16 +487,18 @@ const PlayerLyrics = (function () {
                 const saved = await window.PlayerHistoryDB.getLyricState(lookupVideoId);
                 const savedHasTimed = !!saved && saved.status === 'found' && !!saved.lyrics
                     && Array.isArray(saved.lyrics.syncedLines) && saved.lyrics.syncedLines.length > 0;
-                if (savedHasTimed) {
+                const savedCurrentSearch = !!saved && saved.searchVersion === LYRICS_SEARCH_VERSION;
+                if (!forceLookup && savedHasTimed && savedCurrentSearch) {
                     return saved;
                 }
                 const savedFresh = !!saved && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS;
-                const savedCurrentSearch = !!saved && saved.searchVersion === LYRICS_SEARCH_VERSION;
                 if (!forceLookup && saved && savedFresh && savedCurrentSearch) {
                     return saved;
                 }
 
                 const lyrics = await this.lookupLyrics(item);
+                const savedMatchesIdentity = !!saved && saved.status === 'found' && !!saved.lyrics
+                    && this.lyricsMatchItemIdentity(saved.lyrics, item);
                 // A user-tuned offset outlives re-searches; only absent when
                 // the song has never been adjusted.
                 const preservedOffset = saved && typeof saved.lyricOffsetSeconds === 'number'
@@ -505,17 +508,15 @@ const PlayerLyrics = (function () {
                 let state;
                 if (lyrics) {
                     const foundTimed = lyrics.syncedLines.length > 0;
-                    const keepExistingSimple = !foundTimed
-                        && !!saved && saved.status === 'found' && !!saved.lyrics;
-                    state = keepExistingSimple
-                        ? { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION }
+                    const keepExistingValid = !foundTimed && savedMatchesIdentity;
+                    state = keepExistingValid
+                        ? { ...saved, videoId: lookupVideoId, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION }
                         : { videoId: lookupVideoId, status: 'found', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION, lyrics };
                     if (foundTimed && saved && !savedHasTimed) {
                         this.addMessage('claude', 'Timed lyrics found', `Upgraded from simple lyrics: ${this.describePlaylistItem(item)}`);
                     }
-                } else if (saved && saved.status === 'found' && saved.lyrics) {
-                    // Upgrade attempt answered empty: keep the simple lyrics.
-                    state = { ...saved, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
+                } else if (savedMatchesIdentity) {
+                    state = { ...saved, videoId: lookupVideoId, checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
                 } else {
                     state = { videoId: lookupVideoId, status: 'none', checkedAt: Date.now(), searchVersion: LYRICS_SEARCH_VERSION };
                 }
@@ -636,7 +637,7 @@ const PlayerLyrics = (function () {
                 // distinct from genuine empty answers.
                 const searches = await Promise.all(
                     candidates.map(candidate =>
-                        this.searchLyricsProvider(candidate.title, candidate.artist, item.album || '')
+                        this.searchLyricsProvider(candidate.title, candidate.artist)
                             .then(results => ({ candidate, results: results || [], error: /** @type {Error | null} */ (null) }))
                             .catch(error => ({
                                 candidate,
@@ -664,6 +665,9 @@ const PlayerLyrics = (function () {
                 let bestTimedMatch = null;
                 for (const { candidate, results } of answered) {
                     for (const record of results) {
+                        if (!this.lyricsRecordMatchesIdentity(record, candidate.artist, candidate.title)) {
+                            continue;
+                        }
                         const score = this.scoreLyricsCandidate(record, candidate.artist, candidate.title, expectedDuration);
                         if (!bestMatch || score > bestMatch.score) {
                             bestMatch = { score, record };
@@ -694,8 +698,8 @@ const PlayerLyrics = (function () {
                 };
             },
 
-            async searchLyricsProvider(title, artist, album) {
-                const key = `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}|${this.normalizeComparisonText(album)}`;
+            async searchLyricsProvider(title, artist) {
+                const key = `${this.normalizeComparisonText(artist)}|${this.normalizeComparisonText(title)}`;
                 if (this.lyricsLookupCache.has(key)) {
                     return this.lyricsLookupCache.get(key) || [];
                 }
@@ -703,9 +707,8 @@ const PlayerLyrics = (function () {
                 const params = new URLSearchParams();
                 if (title) params.set('track_name', title);
                 if (artist) params.set('artist_name', artist);
-                if (album) params.set('album_name', album);
                 if (!title) {
-                    params.set('q', [artist, album].filter(Boolean).join(' '));
+                    params.set('q', artist);
                 }
 
                 const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
@@ -742,6 +745,21 @@ const PlayerLyrics = (function () {
                 }
 
                 return candidates;
+            },
+
+            /** @param {any} record @param {string} artist @param {string} title */
+            lyricsRecordMatchesIdentity(record, artist, title) {
+                const titleScore = this.tokenSimilarity(record.trackName || record.name || '', title);
+                if (titleScore < MIN_LYRIC_TITLE_IDENTITY_SCORE) return false;
+                if (!artist) return true;
+                const artistScore = this.tokenSimilarity(record.artistName || '', artist);
+                return artistScore >= MIN_LYRIC_ARTIST_IDENTITY_SCORE;
+            },
+
+            /** @param {LyricsResult} lyrics @param {PlaylistItem} item */
+            lyricsMatchItemIdentity(lyrics, item) {
+                return this.buildLyricsLookupCandidates(item).some(candidate =>
+                    this.lyricsRecordMatchesIdentity(lyrics, candidate.artist, candidate.title));
             },
 
             addLyricsCandidate(candidates, artist, title) {
@@ -805,7 +823,6 @@ const PlayerLyrics = (function () {
                 const normalizedB = this.normalizeComparisonText(b);
                 if (!normalizedA || !normalizedB) return 0;
                 if (normalizedA === normalizedB) return 1;
-                if (normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA)) return 0.9;
 
                 const tokensA = new Set(normalizedA.split(' ').filter(Boolean));
                 const tokensB = new Set(normalizedB.split(' ').filter(Boolean));

@@ -595,6 +595,12 @@ nothing: every song is recorded to the known-songs catalog when it is
 added, so the working playlist is a matter of convenience over durable
 data.
 
+`PlayerSongs.songFieldsMatchQuery` owns text-search semantics across the
+playlist, Known Songs, and Local Song Library: each whitespace-separated query
+word must occur somewhere in the fields that surface exposes. The local
+library supplies title, source filename/type, and imported lyric text; it does
+not duplicate the matching algorithm.
+
 **Video identity changes have one owner.** `transitionVideoIdentity` is the
 only operation allowed to replace a Song's `videoId`. It updates every live
 playlist row on an equivalent recording; favorite repair updates only rows
@@ -665,11 +671,14 @@ interrupted or failed recheck resumes on the next open by construction.
 **Timed lyrics first.** The two lyric kinds are named in every
 user-facing surface: timed (line-synced) and simple (text only). The
 LRCLIB record selection prefers a timed record over a simple-only one
-among plausible matches; a stored record holding timed lyrics is final,
-while simple-only and "none" records carry the `searchVersion` that
-produced them and get exactly one re-search when the algorithm improves
-(plus the normal TTL recheck), never downgrading - an upgrade attempt
-that finds nothing better keeps the simple lyrics it has.
+only after title identity and, when known, artist identity pass independent
+minimums; duration can rank matching records but cannot compensate for a
+different song or artist. Provider lookup uses artist + title without album,
+because edition and compilation album metadata must not hide a valid lyric
+record. Every stored result carries the `searchVersion`; when identity rules
+change, older timed, simple, and `none` records each get one revalidation.
+A valid stored result survives an empty revalidation, while an invalid stale
+result cannot become final under the new version.
 
 ### Music player durable history (`voice-wei-music`)
 

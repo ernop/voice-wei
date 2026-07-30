@@ -103,7 +103,7 @@ const PlayerSongLibrary = (function () {
                 const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('songLibrarySearch'));
                 if (!list) return;
 
-                const query = normalizeSearch(searchInput ? searchInput.value : '');
+                const query = PlayerSongs.normalizeSearchQuery(searchInput ? searchInput.value : '');
                 const songs = this.songLibrary.songs.filter(song => matchesSongQuery(song, query));
                 if (count) count.textContent = `${this.songLibrary.songs.length} saved`;
 
@@ -585,20 +585,14 @@ const PlayerSongLibrary = (function () {
         return fileName.replace(/\.[^.]+$/, '');
     }
 
-    /** @param {string} value */
-    function normalizeSearch(value) {
-        return value.trim().toLowerCase();
-    }
-
     /** @param {SongLibrarySong} song @param {string} query */
     function matchesSongQuery(song, query) {
-        if (!query) return true;
-        return [
+        return PlayerSongs.songFieldsMatchQuery([
             song.title,
             song.sourceName,
             song.sourceType,
             song.lyricsText
-        ].join(' ').toLowerCase().includes(query);
+        ], query);
     }
 
     /** @param {string} value @param {number} count */
