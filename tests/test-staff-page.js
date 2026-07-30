@@ -487,9 +487,11 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         pitchBand.insideBand && pitchBand.monotonic && pitchBand.zonePxPerSemitone > 3);
     report.check('pitch band frame never rescales from singing', pitchBand.frameStable);
 
-    // The gray note guides in the band are toggleable ("note guides").
-    const guideToggle = await tab.evaluate(() => {
-        const countGuidePixels = () => {
+    // The band's contents are independently toggleable: "note guides"
+    // (the gray right-answer segments) and "sung line" (the recorded
+    // blue trace) - sing blind, then toggle back on to compare.
+    const bandToggles = await tab.evaluate(() => {
+        const countBandPixels = () => {
             const overlay = /** @type {HTMLCanvasElement} */ (document.querySelector('.staff-scroll-overlay'));
             const geometry = window.staffDebug.geometry();
             const top = geometry.pitchZoneTop + 16;
@@ -497,26 +499,45 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             const left = Math.round(geometry.headerWidth) + 40;
             const width = overlay.width - left - 2;
             const pixels = overlay.getContext('2d').getImageData(left, top, width, height).data;
-            let count = 0;
+            let guides = 0;
+            let trace = 0;
             for (let i = 0; i < pixels.length; i += 4) {
                 const [r, , b, a] = [pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]];
-                // Muted slate (guides), not the strong blue of the trace.
-                if (a > 60 && b > r && b - r < 60) count++;
+                if (a <= 60 || b <= r) continue;
+                // Muted slate = guides; strong blue = the sung trace.
+                if (b - r < 60) guides++;
+                else if (b - r > 150) trace++;
             }
-            return count;
+            return { guides, trace };
         };
-        const withGuides = countGuidePixels();
+        // Recorded singing so the trace is on screen in this window.
+        window.staffDebug.recordTraceSample(2.0, 50);
+        window.staffDebug.recordTraceSample(2.5, 51);
+        window.staffDebug.recordTraceSample(3.0, 52);
+        const bothOn = countBandPixels();
         document.getElementById('pitchGuidesToggle').click();
-        const withoutGuides = countGuidePixels();
+        const guidesOff = countBandPixels();
         document.getElementById('pitchGuidesToggle').click();
+        document.getElementById('sungLineToggle').click();
+        const traceOff = countBandPixels();
+        document.getElementById('sungLineToggle').click();
+        const stored = SettingsStore.peekData(StorageKeys.STAFF_SETTINGS) || {};
         return {
-            withGuides,
-            withoutGuides,
-            persisted: SettingsStore.peekData(StorageKeys.STAFF_SETTINGS)?.showPitchGuides
+            bothOn,
+            guidesOff,
+            traceOff,
+            persisted: stored.showPitchGuides === true && stored.showSungLine === true,
+            inStageMeta: Boolean(document.querySelector('.staff-stage-meta #pitchGuidesToggle'))
+                && Boolean(document.querySelector('.staff-stage-meta #sungLineToggle'))
         };
     });
-    report.check(`note guides toggle clears the band's guide segments (${guideToggle.withGuides} -> ${guideToggle.withoutGuides} px, persisted=${guideToggle.persisted})`,
-        guideToggle.withGuides > 50 && guideToggle.withoutGuides === 0 && guideToggle.persisted === true);
+    report.check(`note guides toggle clears only the guides (${bandToggles.bothOn.guides}/${bandToggles.bothOn.trace} -> ${bandToggles.guidesOff.guides}/${bandToggles.guidesOff.trace})`,
+        bandToggles.bothOn.guides > 50 && bandToggles.bothOn.trace > 10
+        && bandToggles.guidesOff.guides === 0 && bandToggles.guidesOff.trace > 10);
+    report.check(`sung line toggle clears only the trace (${bandToggles.traceOff.guides}/${bandToggles.traceOff.trace})`,
+        bandToggles.traceOff.guides > 50 && bandToggles.traceOff.trace === 0);
+    report.check('band toggles persist and sit in the stage row under the band',
+        bandToggles.persisted && bandToggles.inStageMeta);
 
     // --- Stalled clock: missed notes pass silently, never as a burst ---
     const burst = await tab.evaluate(() => {

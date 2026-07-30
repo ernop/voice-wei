@@ -549,7 +549,10 @@ const StaffScrollView = (function () {
                 context.fill();
             }
 
-            const trace = config.trace();
+            // The recorded line is toggleable (sing without watching
+            // yourself, review later); the page-mode live dot below
+            // stays - it is live feedback, not the take's results.
+            const trace = config.showSungLine() ? config.trace() : [];
             if (trace.length) {
                 const gapBeats = config.traceGapBeats();
                 context.strokeStyle = 'rgba(37, 99, 235, 0.9)';

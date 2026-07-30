@@ -194,7 +194,8 @@ generates ahead of the now-line - never the sheet already drawn.
 | staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
 | hearTones | true | toggle - piano plays each note as it crosses the now-line | immediate |
 | showDegrees | true | toggle - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
-| showPitchGuides | true | toggle - gray per-note pitch guides in the sung-pitch band | redraw |
+| showPitchGuides | true | toggle (under the band) - gray per-note pitch guides in the sung-pitch band | redraw |
+| showSungLine | true | toggle (under the band) - the recorded blue sung line in the pitch band (the page-mode live dot stays) | redraw |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the

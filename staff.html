@@ -45,6 +45,14 @@
                 </div>
                 <div class="staff-stage-host staff-scroll-empty" id="staffHost" aria-label="Scrolling staff notation"></div>
                 <div class="staff-stage-meta">
+                    <label class="display-toggle" title="Show the gray 'right answer' pitch guides in the sung-pitch band. Hide them to sing blind, then toggle back on to compare.">
+                        <input type="checkbox" id="pitchGuidesToggle" checked>
+                        <span>note guides</span>
+                    </label>
+                    <label class="display-toggle" title="Show your sung blue line in the pitch band. Hide it to sing without watching yourself, then toggle back on to review.">
+                        <input type="checkbox" id="sungLineToggle" checked>
+                        <span>sung line</span>
+                    </label>
                     <span class="staff-pitch-readout" id="pitchReadout">Pitch: --</span>
                     <span class="staff-status-readout" id="statusReadout"></span>
                     <button id="copyStateBtn" class="vf-btn" type="button"
@@ -135,10 +143,6 @@
                         <label class="display-toggle" title="Show each note's scale degree (1-8) under the staff">
                             <input type="checkbox" id="showDegreesToggle" checked>
                             <span>show numbers</span>
-                        </label>
-                        <label class="display-toggle" title="Show each sheet note's gray pitch guide in the sung-pitch band">
-                            <input type="checkbox" id="pitchGuidesToggle" checked>
-                            <span>note guides</span>
                         </label>
                     </div>
                 </section>
