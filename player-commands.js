@@ -208,6 +208,23 @@ const PlayerCommands = (function () {
             },
 
             /**
+             * The selected provider has no key saved at all. Same
+             * ApiKeyError name as key-level provider failures so every
+             * catch surfaces it, plus a missingKey flag so the UI opens
+             * the key entry overlay instead of only naming the problem.
+             * @param {'claude' | 'openai'} provider
+             * @returns {Error & { provider?: string, missingKey?: boolean }}
+             */
+            missingApiKeyError(provider) {
+                /** @type {Error & { provider?: string, missingKey?: boolean }} */
+                const error = new Error(`No ${provider === 'openai' ? 'OpenAI' : 'Claude'} API key saved`);
+                error.name = 'ApiKeyError';
+                error.provider = provider;
+                error.missingKey = true;
+                return error;
+            },
+
+            /**
              * Provider errors that mean "your key/account, not this
              * request": invalid key, spend or rate limits, billing. These
              * get a distinguishable name so the UI can show a persistent,
@@ -242,7 +259,7 @@ const PlayerCommands = (function () {
                 const provider = this.settings.aiProvider;
                 if (provider === 'openai') {
                     if (!this.config?.openaiApiKey) {
-                        throw new Error('OpenAI API key not configured');
+                        throw this.missingApiKeyError('openai');
                     }
                     const model = this.settings.openaiModel;
                     // Default reasoning effort: the report demands careful
@@ -279,7 +296,7 @@ const PlayerCommands = (function () {
                 }
 
                 if (!this.config?.claudeApiKey) {
-                    throw new Error('Claude API key not configured');
+                    throw this.missingApiKeyError('claude');
                 }
                 const model = this.settings.claudeModel;
                 const requestBody = {
@@ -330,7 +347,7 @@ const PlayerCommands = (function () {
 
             async processCommandWithClaude(transcript) {
                 if (!this.config || !this.config.claudeApiKey) {
-                    throw new Error('Claude API key not configured');
+                    throw this.missingApiKeyError('claude');
                 }
 
                 const request = await this.prepareMusicSearchRequest(transcript);
@@ -397,7 +414,7 @@ const PlayerCommands = (function () {
 
             async processCommandWithOpenAI(transcript) {
                 if (!this.config || !this.config.openaiApiKey) {
-                    throw new Error('OpenAI API key not configured');
+                    throw this.missingApiKeyError('openai');
                 }
 
                 const request = await this.prepareMusicSearchRequest(transcript);

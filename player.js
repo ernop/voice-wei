@@ -627,6 +627,7 @@ class VoiceMusicController {
         this.addMessage('claude', `${provider === 'claude' ? 'Claude' : 'OpenAI'} API Key`, `Saved (${keyPreview})`);
         this.updateStatus('Ready');
         this.hideApiKeyOverlay();
+        this.hideApiKeyProblem();
         this.updateApiKeyUIForProvider(provider, true);
 
         // Set this provider as active if it wasn't already
@@ -713,6 +714,13 @@ class VoiceMusicController {
                     claudeOverlayInput.value = '';
                 }
             });
+        }
+
+        // The overlay opens whenever a request needs a key that is not
+        // saved; Close lets the reader decline (the request stays failed).
+        const closeOverlayBtn = document.getElementById('closeApiKeyOverlayBtn');
+        if (closeOverlayBtn) {
+            closeOverlayBtn.addEventListener('click', () => this.hideApiKeyOverlay());
         }
 
         const openaiOverlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyOverlayInput'));
@@ -1331,8 +1339,10 @@ class VoiceMusicController {
      * A key-level provider failure (invalid key, spend/rate limit,
      * billing) must be unmissable: the status line scrolls away and log
      * lines are easy to miss, so this shows a persistent banner naming
-     * the provider, the exact error, and where to fix it.
-     * @param {Error & { provider?: string, status?: number }} error
+     * the provider, the exact error, and where to fix it. When the key
+     * is simply missing, the fix is to enter one, so the key entry
+     * overlay opens right away instead of only naming the problem.
+     * @param {Error & { provider?: string, status?: number, missingKey?: boolean }} error
      */
     showApiKeyProblem(error) {
         const banner = document.getElementById('apiKeyProblemBanner');
@@ -1340,6 +1350,15 @@ class VoiceMusicController {
         if (!banner || !text) return;
         const provider = error.provider === 'openai' ? 'OpenAI' : 'Claude';
         const consoleUrl = error.provider === 'openai' ? 'platform.openai.com' : 'console.anthropic.com';
+        if (error.missingKey) {
+            text.textContent = `No ${provider} API key saved - enter one to run this request (keys come from ${consoleUrl})`;
+            banner.style.display = 'flex';
+            this.showApiKeyOverlay();
+            if (this.settings.readClaudeResponse) {
+                this.speakText(`No ${provider} API key is saved. Enter one to continue.`);
+            }
+            return;
+        }
         text.textContent = `${provider} API key problem${error.status ? ` (HTTP ${error.status})` : ''}: ${error.message} - check limits/billing at ${consoleUrl}`;
         banner.style.display = 'flex';
         if (this.settings.readClaudeResponse) {

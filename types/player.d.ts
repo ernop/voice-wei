@@ -348,6 +348,7 @@ interface VoiceMusicController {
     extractAIJson(responseText: string): string;
     normalizeAISongList(parsed: any): any[];
     normalizeAISongItem(item: any): any;
+    missingApiKeyError(provider: 'claude' | 'openai'): Error & { provider?: string; missingKey?: boolean };
     classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
     requestSongReportResearch(prompt: string): Promise<{ text: string; provider: 'claude' | 'openai'; model: string }>;
 

@@ -690,6 +690,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }, { name: 'One' });
             const quotaError = harness.classifyProviderError('claude', 429, { error: { type: 'rate_limit_error', message: 'Your credit balance is too low' } });
             const plainError = harness.classifyProviderError('openai', 500, { error: { message: 'server exploded' } });
+            const missingError = harness.missingApiKeyError('claude');
             return {
                 normalFirst: normal[0],
                 normalLiveLast: normal.indexOf('live-1') > normal.indexOf('studio-1') && normal.indexOf('cover-1') > normal.indexOf('video-1'),
@@ -706,7 +707,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 partialWordMismatchRejected,
                 quotaName: quotaError.name,
                 quotaProvider: quotaError.provider,
-                plainName: plainError.name
+                plainName: plainError.name,
+                missingName: missingError.name,
+                missingProvider: missingError.provider,
+                missingFlag: missingError.missingKey === true
             };
         });
         report.check(`player ranks studio versions first (${versionRanking.normalFirst}, name-collision pick ${versionRanking.nameCollisionFirst}, wrong-artist pick ${versionRanking.wrongArtistFirst}) and classifies key-level errors`,
@@ -718,7 +722,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && versionRanking.wrongArtistFirst === 'plain-1'
             && versionRanking.quotaName === 'ApiKeyError'
             && versionRanking.quotaProvider === 'claude'
-            && versionRanking.plainName === 'Error');
+            && versionRanking.plainName === 'Error'
+            && versionRanking.missingName === 'ApiKeyError'
+            && versionRanking.missingProvider === 'claude'
+            && versionRanking.missingFlag);
         report.check(`player never picks the artist's official upload of a different song (${versionRanking.wrongSongFirst}), beats renamed live re-recordings (${versionRanking.renamedLiveFirst}) and date-stamped concert uploads (${versionRanking.dateStampedFirst})`,
             versionRanking.wrongSongFirst === 'lorelai-1'
             && versionRanking.renamedLiveFirst === 'hb-album'
@@ -728,6 +735,42 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && versionRanking.plainUploadAlternateScore >= 0
             && versionRanking.titleMismatchRejected
             && versionRanking.partialWordMismatchRejected);
+
+        // A search with no key saved for the selected provider must open
+        // the key entry overlay (so a key can be entered on the spot) and
+        // name the problem in the persistent banner; the overlay's Close
+        // button dismisses it without saving anything.
+        const missingKeyFlow = await tab.evaluate(async () => {
+            const controller = window.musicController;
+            const savedKey = controller.config.claudeApiKey;
+            const savedProvider = controller.settings.aiProvider;
+            const savedRead = controller.settings.readClaudeResponse;
+            controller.settings.aiProvider = 'claude';
+            controller.settings.readClaudeResponse = false;
+            delete controller.config.claudeApiKey;
+            const overlay = document.getElementById('apiKeyOverlay');
+            const banner = document.getElementById('apiKeyProblemBanner');
+            overlay.style.display = 'none';
+            banner.style.display = 'none';
+            await controller.processMusicSearch('the one that goes we all live in a yellow submarine');
+            const overlayShown = overlay.style.display === 'flex';
+            const bannerShown = banner.style.display === 'flex';
+            const bannerText = document.getElementById('apiKeyProblemText').textContent;
+            const status = document.getElementById('status')?.textContent || '';
+            document.getElementById('closeApiKeyOverlayBtn').click();
+            const overlayClosed = overlay.style.display === 'none';
+            controller.config.claudeApiKey = savedKey;
+            controller.settings.aiProvider = savedProvider;
+            controller.settings.readClaudeResponse = savedRead;
+            banner.style.display = 'none';
+            return { overlayShown, bannerShown, bannerText, status, overlayClosed };
+        });
+        report.check(`player missing-key search opens the key entry overlay and Close dismisses it (banner: ${missingKeyFlow.bannerText})`,
+            missingKeyFlow.overlayShown
+            && missingKeyFlow.bannerShown
+            && missingKeyFlow.bannerText.includes('No Claude API key saved')
+            && missingKeyFlow.status.includes('No Claude API key saved')
+            && missingKeyFlow.overlayClosed);
 
         const singlePlayerCreation = await tab.evaluate(async () => {
             const harness = {

@@ -328,7 +328,10 @@ playlist.**
 
 Claude or OpenAI interprets the request; the same-origin PHP endpoint then
 queries Piped/Invidious to find videos without a YouTube API key. Music
-requires one AI-provider key stored in localStorage. Settings cover keys,
+requires one AI-provider key stored in localStorage. A search made while
+the selected provider has no key saved opens the key entry overlay on the
+spot (with a Close button to decline) alongside the persistent problem
+banner. Settings cover keys,
 auto-submit vs manual voice mode, model selection, and spoken responses.
 The page records `Startup: Ready in ...` in its Log after controls, stored
 settings, the local song library, and the restored playlist are usable. The

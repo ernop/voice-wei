@@ -363,6 +363,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player manual mode + spoken submit ("${manualStatus}", request logged: ${logged})`,
             manualStatus.includes('say "submit"') && logged);
 
+        // The submit ran with the owner-chosen provider (openai) holding
+        // no saved key: the key entry overlay must open so a key can be
+        // entered on the spot, and Close must dismiss it.
+        const overlayAfterSubmit = await tab.evaluate(() =>
+            document.getElementById('apiKeyOverlay').style.display);
+        await tab.click('#closeApiKeyOverlayBtn');
+        const overlayAfterClose = await tab.evaluate(() =>
+            document.getElementById('apiKeyOverlay').style.display);
+        report.check('player missing-key submit opens the key entry overlay and Close dismisses it',
+            overlayAfterSubmit === 'flex' && overlayAfterClose === 'none');
+
         // Android-style cumulative re-delivery (same index re-sent with
         // grown text, marked final each time) must not duplicate anything
         await tab.click('#listenBtn');
@@ -380,6 +391,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             document.getElementById('logContent').textContent.includes('there was a guy I think'));
         report.check(`player cumulative re-delivery stays deduped ("${liveText}")`,
             liveText === 'there was a guy I think' && cumulativeLogged);
+        // This submit also ran keyless; clear the overlay it opened.
+        await tab.click('#closeApiKeyOverlayBtn');
 
         // Cross-index cumulative finals (the other Android variant) collapse
         const collapsed = await tab.evaluate(() => {
