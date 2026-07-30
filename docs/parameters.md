@@ -320,11 +320,14 @@ pickers and the query pills always mirror each other.
 The playlist filter box and the Known Songs search box are live view
 filters, not settings: they are never persisted and reset to "show all"
 on reload. Both use the one matcher in `player-songs.js`
-(`songMatchesQuery`: every query word must appear in the song's name,
-artist, year, album, comment, title, channel, or search term). The
-playlist filter only hides rows - the playlist array, playback order,
+(`songMatchesQuery`: punctuation/apostrophe and diacritic differences are
+normalized, then every query word must appear in the visible name, artist,
+year, or album). Hidden notes, search terms, and raw YouTube metadata do not
+match. The playlist filter only hides rows - the playlist array, playback order,
 and next/previous are untouched - and an active filter always shows a
 status line ("Filtering for "x" - 3 of 12 shown") with a Cancel button.
+When Timed only is active, that line also counts text-matching rows still
+waiting for lyric resolution; Timed only remains an AND constraint.
 
 Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 (re-render of the open overlay):

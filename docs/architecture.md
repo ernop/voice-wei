@@ -581,8 +581,8 @@ one constructor in that module:
 
 | Shape | Constructor | Adds to Song |
 |-------|-------------|--------------|
-| `PlaylistItem` (working playlist) | `createPlaylistItem` | list id, source kind/label, runtime lyric state |
-| Persisted playlist entry | `persistedPlaylistEntry` | list id + source, **no lyric runtime** |
+| `PlaylistItem` (working playlist) | `createPlaylistItem` | monotonic runtime list id, source kind/label, runtime lyric state |
+| Persisted playlist entry | `persistedPlaylistEntry` | source, **no runtime id or lyric runtime** |
 | `FavoriteData` | `createFavorite` | `favoritedAt` |
 | Known-song history record (IndexedDB) | `historySongRecord` | `firstSeenAt`/`lastSeenAt`, sourceKind |
 
@@ -593,13 +593,19 @@ lookup); a new AI search **replaces** the working playlist
 (favorites, history lookups, known songs) append. Replacement loses
 nothing: every song is recorded to the known-songs catalog when it is
 added, so the working playlist is a matter of convenience over durable
-data.
+data. Runtime row ids come from one monotonic allocator in `PlayerSongs`;
+reload regenerates them, including for older saved entries that still carry
+the retired `id` field.
 
 `PlayerSongs.songFieldsMatchQuery` owns text-search semantics across the
 playlist, Known Songs, and Local Song Library: each whitespace-separated query
-word must occur somewhere in the fields that surface exposes. The local
-library supplies title, source filename/type, and imported lyric text; it does
-not duplicate the matching algorithm.
+word must occur somewhere in the fields that surface exposes. Text is
+Unicode-normalized and case/diacritic-insensitive; apostrophe variants are
+ignored and other punctuation becomes canonical word boundaries. Playlist and
+Known Songs expose name, artist, year, and album to search; provenance fields
+(`comment`, `searchTerm`, raw YouTube title/channel) cannot create invisible
+matches. The local library supplies its visible title, source filename/type,
+and imported lyric text; it does not duplicate the matching algorithm.
 
 **Video identity changes have one owner.** `transitionVideoIdentity` is the
 only operation allowed to replace a Song's `videoId`. It updates every live
@@ -624,7 +630,9 @@ is searched again through the existing keyless path; valid favorites perform
 no YouTube request. A successful repair uses the same identity transition, so
 a restored playlist and favorite move together. Mismatched favorites skip
 lyric reconciliation until repair, preventing wrong-video lyric state from
-being created.
+being created. When search confirms the existing video key, the transition
+still refreshes stale raw title/channel metadata and schedules that now-valid
+key for lyrics.
 
 **Lyric state has one permanent owner: IndexedDB `lyricStates`, keyed by
 videoId.** Each record is either `found` (carrying the LyricsResult) or
@@ -653,14 +661,14 @@ exceeded the localStorage quota at ~100 songs.)
 **Every interaction verifies against the store.** Adding a song (search,
 favorites, history, restore-at-load) queues its resolution; playing a
 song or tapping its row chip resolves it immediately. Resolution runs as
-one shared in-flight promise per videoId - duplicate rows, the queue,
-and a direct play all await the same flight - and every provider fetch
-is bounded by a 12s timeout, so a lookup interrupted by a page
-suspension always settles and can never wedge a song in 'loading'.
-Background resolution goes through one bounded queue (2 songs at a
-time), so a 100-song add never fires 100 requests at once. Tapping the
-chip on a stored `none` forces a fresh provider recheck; a stored `none`
-also expires after 7 days.
+one queued/in-flight job per videoId - duplicate rows, background
+reconciliation, and direct play share that job. Store success or retryable
+failure broadcasts to every current playlist row with the captured videoId;
+an identity transition cannot receive the old completion. Every provider fetch
+is bounded by a 12s timeout, so a lookup interrupted by a page suspension
+always settles and can never wedge a song in 'loading'. Background resolution
+keeps provider concurrency at two videos. Tapping the chip on a stored `none`
+forces a fresh provider recheck; a stored `none` also expires after 7 days.
 
 **Library reconciliation is per song, on every load.**
 `reconcileLibraryLyrics` queues every favorite for resolution before the

@@ -198,8 +198,10 @@ class VoiceMusicController {
         this.songLibrary = { songs: [] };
         /** @type {Map<string, LyricsResult[] | null>} */
         this.lyricsLookupCache = new Map();
-        /** @type {PlaylistItem[]} Items awaiting a background lyric lookup */
+        /** @type {LyricsFetchQueueEntry[]} One pending background lyric job per video */
         this.lyricsFetchQueue = [];
+        /** @type {Set<string>} Captured video IDs represented in lyricsFetchQueue */
+        this.lyricsQueuedVideoIds = new Set();
         /** @type {number} Lyric lookups currently in flight (bounded) */
         this.lyricsFetchActive = 0;
         /** @type {Map<string, Promise<LyricStateRecord>>} One shared resolution flight per videoId */

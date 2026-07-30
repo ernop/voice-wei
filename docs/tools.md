@@ -524,14 +524,16 @@ the page like everything else.
 Other surfaces on the page:
 
 - **Playlist filter**: type in the filter box above the playlist to
-  live-filter the loaded songs by name, artist, year, album, comment, or
-  search term. **Timed only** (playlist header toggle) further hides
-  rows that do not yet hold timed (synced) lyrics. Text and Timed only
+  live-filter the loaded songs by visible name, artist, year, or album;
+  Unicode punctuation and diacritic differences do not matter, and every
+  entered word is required. **Timed only** (playlist header toggle) further
+  hides rows that do not yet hold timed (synced) lyrics. Text and Timed only
   combine. An active filter shows a status line ("Filtering for timed
   lyrics only + \"sunset\" - 3 of 12 shown") with a Cancel button that
   restores the full list (clears the text query and turns Timed only
-  off). Filtering is a view: playback order and next/previous still use
-  the whole playlist.
+  off). While Timed only is active, the status also counts text matches still
+  waiting for lyric resolution. Filtering is a view: playback order and
+  next/previous still use the whole playlist.
 - **Notes toggle** (playlist header): shows or hides every song's comment
   line instantly. Off by default; rows stay compact until you want the
   AI's per-song notes.
@@ -550,14 +552,16 @@ Other surfaces on the page:
   lines labeled **Prebuffer probe**; they report player readiness, cold start,
   buffered seconds, warm-resume latency, and any YouTube errors. The probe is
   diagnostic only and is completely absent without the query parameter.
-- **Load Favorites** appends the favorited tracks to the playlist.
+- **Load Favorites** appends every not-already-loaded favorite in one list
+  update. A favorite whose saved video contradicts its named song waits for
+  video identity repair before lyrics are resolved.
 - **History / Cache** toggles a panel with past lookups, the known-songs
   catalog, and the YouTube search cache (all from the `voice-wei-music`
   IndexedDB); selected lookups or songs can be loaded back into the
-  playlist. Hidden by default. The Known Songs card has the same live
-  search as the playlist filter, with per-row Load buttons and a "Load
-  All Shown" button that loads every matching song into the working
-  playlist.
+  playlist. Hidden by default. The Known Songs card has the same
+  punctuation/diacritic-insensitive live identity search as the playlist
+  filter (name, artist, year, album), with per-row Load buttons and a "Load
+  All Shown" button that loads every matching song into the working playlist.
 - **Log** opens with only lines from the current page session, and **Copy
   All** copies only those visible session lines. **Load Old Logs** explicitly
   prepends every earlier-session line still retained by the 5,000-line

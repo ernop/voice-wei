@@ -71,9 +71,14 @@ interface PlaylistItem extends Song {
     lyricOffsetSeconds: number;
 }
 
+interface LyricsFetchQueueEntry {
+    /** Captured identity: remains stable if the representative item is rekeyed. */
+    videoId: string;
+    item: PlaylistItem;
+}
+
 /** What the playlist persists per entry: the Song + membership, no lyric runtime. */
 interface PersistedPlaylistEntry extends Song {
-    id: number;
     sourceKind: PlaylistSourceKind;
     sourceLabel: string;
     sourceSearchTerm: string;
@@ -112,9 +117,8 @@ interface LyricStateRecord {
     videoId: string;
     status: 'found' | 'none';
     checkedAt: number;
-    /** LYRICS_SEARCH_VERSION that produced this record. Simple-only or
-     *  "none" records from an older search get one re-search under the
-     *  current algorithm; timed-lyrics records are final. */
+    /** LYRICS_SEARCH_VERSION that produced this record. Every older record,
+     *  including timed lyrics, gets one identity revalidation. */
     searchVersion?: number;
     lyrics?: LyricsResult;
     /**
@@ -323,7 +327,6 @@ interface VoiceMusicController {
     activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
-
     parseControlCommand(transcript: string): string | null;
     executeControlCommand(command: string): void;
     showHelp(): void;
@@ -375,6 +378,7 @@ interface VoiceMusicController {
     simplifyVideoText(value: string): string;
     videoMatchesRequestedSong(video: YouTubeVideoCandidate, context: { name?: string }): boolean;
     songMatchesIntendedIdentity(song: Song, intendedSong: Song): boolean;
+    itemAwaitsFavoriteVideoIdentityRepair(item: PlaylistItem): boolean;
     neutralTitleWords(): Set<string>;
     countExtraneousTitleWords(simplifiedTitle: string, songName: string, artist: string, requested: string): number;
     scoreVideoCandidate(video: YouTubeVideoCandidate, context: { searchTerm?: string; artist?: string; name?: string }): number;
@@ -550,12 +554,16 @@ interface VoiceMusicController {
     showLyricsForItem(item: PlaylistItem): Promise<void>;
     lookupLyrics(item: PlaylistItem): Promise<LyricsResult | null>;
     searchLyricsProvider(title: string, artist: string): Promise<LyricsResult[]>;
-    lyricsFetchQueue: PlaylistItem[];
+    lyricsFetchQueue: LyricsFetchQueueEntry[];
+    lyricsQueuedVideoIds: Set<string>;
     lyricsFetchActive: number;
     lyricsLookupsInFlight: Map<string, Promise<LyricStateRecord>>;
     queueLyricsLookup(item: PlaylistItem): void;
     pumpLyricsQueue(): void;
+    dropPlaylistLyricsQueueEntries(): void;
     reconcileLibraryLyrics(): void;
+    lyricItemsForVideo(videoId: string, detachedItem: PlaylistItem): PlaylistItem[];
+    refreshActivatedLyricsItem(item: PlaylistItem): void;
     refreshLyricsRowButton(item: PlaylistItem): void;
 
     songReports: Map<string, SongReportRecord>;

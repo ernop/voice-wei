@@ -4,6 +4,41 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-07-30 (900-favorite filter and lyric coordination)
+
+**Context**: Yui reported wrong lyrics plus missing and unrelated filter
+results "within lyrics." Mei initially investigated the imported MIDI/MusicXML
+Song Library; yui clarified that "my personal library" meant roughly 900
+YouTube Favorites loaded into the working playlist.
+
+**Root causes (v323)**: `PlaylistItem.id` used `Date.now() + Math.random()`.
+At epoch-sized numbers, floating-point precision collapses the random fraction
+to only a few thousand representable values; a 900-row burst therefore
+produced repeated ids. DOM filter updates selected the first row for a repeated
+id and left unrelated twins visible. Search also matched invisible provenance
+(`comment`, raw YouTube title/channel, and `searchTerm`) and did not fold
+punctuation/diacritics. Separately, startup reconciliation and Load Favorites
+queued duplicate item objects for the same video, so the detached backfill
+could resolve while the visible row stayed idle.
+
+**Fix**: monotonic runtime-only row ids; one 883-row Favorites append
+transaction; visible identity-only, Unicode-folded, all-words-required search;
+and one lyric queue/in-flight coordinator per captured `videoId` that broadcasts
+the persisted result to every live row. Favorites whose video identity needs
+repair cannot enter lyric lookup first. The 900-favorite reproduction is now a
+permanent browser regression.
+
+**For future mei**:
+- "Song Library," "Known Songs," and "Favorites" are three different stores
+  and surfaces. When yui says personal library in Music, establish which one
+  from the described scale and interaction before changing code.
+- Never make an identifier by adding a sub-unit random fraction to an
+  epoch-sized JavaScript number; IEEE-754 precision discards most entropy.
+- Per-video durable state needs a per-video runtime coordinator. A shared
+  promise without shared activation still leaves duplicate consumers stale.
+
+---
+
 ## 2026-07-29 (Staff tab shipped; video ceremony corrected)
 
 **Context**: Built the Staff tab (v308/v309): continuous scrolling grand

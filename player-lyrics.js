@@ -56,6 +56,11 @@ const PlayerLyrics = (function () {
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
+        controller.lyricsFetchQueue = controller.lyricsFetchQueue || [];
+        controller.lyricsQueuedVideoIds = new Set(
+            controller.lyricsFetchQueue.map(entry => entry.videoId)
+        );
+
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
             currentLyricsItem() {
                 if (this.currentLyricsItemId == null) {
@@ -323,18 +328,24 @@ const PlayerLyrics = (function () {
              */
             queueLyricsLookup(item) {
                 if (item.lyricsStatus !== 'idle') return;
-                if (this.lyricsFetchQueue.includes(item)) return;
-                this.lyricsFetchQueue.push(item);
+                if (this.itemAwaitsFavoriteVideoIdentityRepair?.(item)) return;
+                if (this.lyricsQueuedVideoIds.has(item.videoId)
+                    || this.lyricsLookupsInFlight.has(item.videoId)) return;
+                this.lyricsFetchQueue.push({ videoId: item.videoId, item });
+                this.lyricsQueuedVideoIds.add(item.videoId);
                 this.pumpLyricsQueue();
             },
 
             pumpLyricsQueue() {
                 while (this.lyricsFetchActive < LYRICS_QUEUE_CONCURRENCY && this.lyricsFetchQueue.length > 0) {
-                    const item = this.lyricsFetchQueue.shift();
+                    const entry = this.lyricsFetchQueue.shift();
+                    if (!entry) continue;
+                    const { item, videoId } = entry;
+                    this.lyricsQueuedVideoIds.delete(videoId);
                     // Re-check at dequeue: the song may have resolved via a
-                    // direct play, and a playlist row may have been removed.
-                    // Backfill items are detached from the playlist by design
-                    // and always run.
+                    // direct play or changed identity, and a playlist row may
+                    // have been removed. Backfills are detached by design.
+                    if (item.videoId !== videoId) continue;
                     if (item.lyricsStatus !== 'idle') continue;
                     if (item.sourceKind !== 'backfill' && !this.playlist.some(entry => entry.id === item.id)) continue;
                     this.lyricsFetchActive++;
@@ -343,6 +354,15 @@ const PlayerLyrics = (function () {
                         this.pumpLyricsQueue();
                     });
                 }
+            },
+
+            /** Clear playlist-bound jobs while preserving detached library reconciliation. */
+            dropPlaylistLyricsQueueEntries() {
+                this.lyricsFetchQueue = this.lyricsFetchQueue.filter(entry =>
+                    entry.item.sourceKind === 'backfill');
+                this.lyricsQueuedVideoIds = new Set(
+                    this.lyricsFetchQueue.map(entry => entry.videoId)
+                );
             },
 
             /**
@@ -394,17 +414,41 @@ const PlayerLyrics = (function () {
              * @param {{ forceLookup?: boolean }} [options]
              */
             async ensureLyricsForItem(item, { forceLookup = false } = {}) {
-                // Timed lyrics in hand settle the session. Simple-only
-                // lyrics stay upgrade-eligible: fall through to resolution,
-                // which is one cheap store read when the record is current
-                // and only re-searches when an upgrade attempt is due.
-                const hasTimedLyrics = item.lyricsStatus === 'ready' && !!item.lyricsData
-                    && item.lyricsData.syncedLines.length > 0;
-                if (!forceLookup && hasTimedLyrics) {
-                    if (this.currentLyricsItemId === item.id) {
-                        this.renderLyricsStateForItem(item);
-                    }
+                if (this.itemAwaitsFavoriteVideoIdentityRepair?.(item)) {
                     return item.lyricsData;
+                }
+
+                const initialTargets = this.lyricItemsForVideo(item.videoId, item);
+                const trustedTimed = initialTargets.find(target =>
+                    target.lyricsStatus === 'ready'
+                    && !!target.lyricsData
+                    && target.lyricsData.syncedLines.length > 0);
+                if (!forceLookup && trustedTimed) {
+                    for (const target of initialTargets) {
+                        if (target !== trustedTimed) {
+                            target.lyricsStatus = trustedTimed.lyricsStatus;
+                            target.lyricsData = trustedTimed.lyricsData;
+                            target.lyricOffsetSeconds = trustedTimed.lyricOffsetSeconds;
+                        }
+                        this.refreshActivatedLyricsItem(target);
+                    }
+                    return trustedTimed.lyricsData;
+                }
+
+                // A trusted simple result is the shared baseline while its
+                // timed-lyrics upgrade runs. Every duplicate keeps that
+                // baseline if the upgrade fails.
+                const trustedSimple = initialTargets.find(target =>
+                    target.lyricsStatus === 'ready' && !!target.lyricsData);
+                if (trustedSimple) {
+                    for (const target of initialTargets) {
+                        if (!(target.lyricsStatus === 'ready' && !!target.lyricsData)) {
+                            target.lyricsStatus = trustedSimple.lyricsStatus;
+                            target.lyricsData = trustedSimple.lyricsData;
+                            target.lyricOffsetSeconds = trustedSimple.lyricOffsetSeconds;
+                            this.refreshActivatedLyricsItem(target);
+                        }
+                    }
                 }
 
                 const lookupVideoId = item.videoId;
@@ -415,33 +459,36 @@ const PlayerLyrics = (function () {
                     this.lyricsLookupsInFlight.set(lookupVideoId, flight);
                 }
 
-                // A simple-lyrics upgrade check keeps showing what it has;
-                // only a song with nothing yet enters the visible loading
-                // state.
-                const upgradingSimple = item.lyricsStatus === 'ready' && !!item.lyricsData;
-                if (!upgradingSimple) {
-                    item.lyricsStatus = 'loading';
-                    item.lyricsData = null;
-                    this.refreshLyricsRowButton(item);
-                    if (this.currentLyricsItemId === item.id) {
-                        this.renderLyricsStateForItem(item);
+                // A simple-lyrics upgrade keeps showing what it has. Every
+                // other live row for this video joins the same loading state.
+                for (const target of this.lyricItemsForVideo(lookupVideoId, item)) {
+                    if (!(target.lyricsStatus === 'ready' && !!target.lyricsData)) {
+                        target.lyricsStatus = 'loading';
+                        target.lyricsData = null;
+                        this.refreshLyricsRowButton(target);
+                        if (this.currentLyricsItemId === target.id) {
+                            this.renderLyricsStateForItem(target);
+                        }
                     }
                 }
 
                 try {
                     const state = await flight;
-                    if (item.videoId !== lookupVideoId) return item.lyricsData;
-                    this.applyLyricStateToItem(item, state);
+                    for (const target of this.lyricItemsForVideo(lookupVideoId, item)) {
+                        this.applyLyricStateToItem(target, state);
+                        this.refreshActivatedLyricsItem(target);
+                    }
                 } catch (error) {
-                    if (item.videoId !== lookupVideoId) return item.lyricsData;
                     // Expected, handled external failure (provider or DB):
-                    // nothing was saved. A song with simple lyrics keeps
-                    // them (the upgrade just did not happen); a song with
-                    // nothing stays unresolved and retries on next use.
-                    if (!upgradingSimple) {
-                        this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
-                        item.lyricsData = null;
-                        item.lyricsStatus = 'error';
+                    // nothing was saved. Simple lyrics remain visible; every
+                    // unresolved live row receives the retryable error state.
+                    this.addMessage('error', 'Lyrics lookup failed', `${this.describePlaylistItem(item)}: ${error instanceof Error ? error.message : String(error)} (retries on next use)`);
+                    for (const target of this.lyricItemsForVideo(lookupVideoId, item)) {
+                        if (!(target.lyricsStatus === 'ready' && !!target.lyricsData)) {
+                            target.lyricsData = null;
+                            target.lyricsStatus = 'error';
+                        }
+                        this.refreshActivatedLyricsItem(target);
                     }
                 } finally {
                     if (this.lyricsLookupsInFlight.get(lookupVideoId) === flight) {
@@ -449,20 +496,28 @@ const PlayerLyrics = (function () {
                     }
                 }
 
-                if (item.videoId !== lookupVideoId) return item.lyricsData;
-                this.refreshLyricsRowButton(item);
+                return item.lyricsData;
+            },
 
+            /** Every current consumer of one video state, plus a detached backfill representative. */
+            lyricItemsForVideo(videoId, detachedItem) {
+                const items = this.playlist.filter(entry => entry.videoId === videoId);
+                if (detachedItem.videoId === videoId && !items.includes(detachedItem)) {
+                    items.push(detachedItem);
+                }
+                return items;
+            },
+
+            /** Refresh all UI derived from one item after shared lyric activation or failure. */
+            refreshActivatedLyricsItem(item) {
+                this.refreshLyricsRowButton(item);
                 if (this.currentLyricsItemId === item.id) {
                     this.currentLyricsLineIndex = -1;
                     this.renderLyricsStateForItem(item);
                 }
-                // Car/title relay follows the sounding track. Re-arm even
-                // when the lyrics panel is focused on a different row.
                 if (this.currentPlayingId === item.id) {
                     this.resyncProgressClock();
                 }
-
-                return item.lyricsData;
             },
 
             /**

@@ -90,24 +90,26 @@ const PlayerPlaylist = (function () {
 
                 this.showPlaylistSurfaces();
 
-                let addedCount = 0;
+                const existingVideoIds = new Set(this.playlist.map(item => item.videoId));
+                const addedItems = [];
                 for (const favData of favoritesList) {
-                    if (this.playlist.some(item => item.videoId === favData.videoId)) continue;
+                    if (existingVideoIds.has(favData.videoId)) continue;
 
                     const playlistItem = PlayerSongs.createPlaylistItem(favData, {
                         sourceKind: 'favorite',
                         sourceLabel: 'Loaded favorites'
                     });
                     if (!playlistItem) continue;
+                    existingVideoIds.add(playlistItem.videoId);
+                    addedItems.push(playlistItem);
                     if (window.PlayerHistoryDB) {
                         window.PlayerHistoryDB.recordSong(playlistItem, 'favorite-load');
                     }
-
-                    this.appendPlaylistItem(playlistItem);
-                    addedCount++;
                 }
+                this.appendPlaylistItems(addedItems);
 
                 this.updatePlaylistLabel();
+                const addedCount = addedItems.length;
                 this.updateStatus(`Loaded ${addedCount} favorite${addedCount !== 1 ? 's' : ''}`);
                 this.addMessage('user', 'Favorites', `Loaded ${addedCount} favorite songs`);
                 this.persistPlaylist();
@@ -375,11 +377,16 @@ const PlayerPlaylist = (function () {
                 const query = this.playlistFilterQuery || '';
                 const timedOnly = !!this.settings.playlistTimedOnly;
                 let shownCount = 0;
+                let waitingForLyricsCount = 0;
                 for (const item of this.playlist) {
                     const row = /** @type {HTMLElement | null} */ (document.querySelector(`.playlist-row[data-item-id="${item.id}"]`));
                     if (!row) continue;
                     const matchesQuery = PlayerSongs.songMatchesQuery(item, query);
                     const matchesTimed = !timedOnly || this.itemHasTimedLyrics(item);
+                    if (timedOnly && matchesQuery
+                        && (item.lyricsStatus === 'idle' || item.lyricsStatus === 'loading')) {
+                        waitingForLyricsCount++;
+                    }
                     const matches = matchesQuery && matchesTimed;
                     row.hidden = !matches;
                     if (matches) shownCount++;
@@ -393,7 +400,10 @@ const PlayerPlaylist = (function () {
                     const parts = [];
                     if (timedOnly) parts.push('timed lyrics only');
                     if (query) parts.push(`"${query}"`);
-                    statusText.textContent = `Filtering for ${parts.join(' + ')} - ${shownCount} of ${this.playlist.length} shown`;
+                    const waiting = waitingForLyricsCount > 0
+                        ? `; ${waitingForLyricsCount} text-matching ${waitingForLyricsCount === 1 ? 'row is' : 'rows are'} still waiting for lyric resolution`
+                        : '';
+                    statusText.textContent = `Filtering for ${parts.join(' + ')} - ${shownCount} of ${this.playlist.length} shown${waiting}`;
                 }
             },
 
@@ -466,6 +476,14 @@ const PlayerPlaylist = (function () {
                 }
                 return !intendedArtist
                     || this.simplifyVideoText(song.artist || '') === intendedArtist;
+            },
+
+            /** A favorite with contradictory video metadata must repair before lyrics use that video key. */
+            itemAwaitsFavoriteVideoIdentityRepair(item) {
+                const favorite = this.favorites?.[item.videoId];
+                return !!favorite
+                    && this.favoriteNeedsVideoIdentityRepair(favorite)
+                    && this.songMatchesIntendedIdentity(item, favorite);
             },
 
             /**
@@ -981,7 +999,12 @@ const PlayerPlaylist = (function () {
                 if (transition.relation === 'favorite-repair' && !transition.intendedSong) {
                     throw new Error('Favorite repair requires an intended song');
                 }
-                if (oldVideoId === videoData.videoId) return [];
+                // Equivalent-recording retries with the same key are no-ops.
+                // Favorite repair may intentionally return the same video:
+                // its stored raw metadata was stale, so refresh and unblock
+                // lyric reconciliation even though the media key is unchanged.
+                if (oldVideoId === videoData.videoId
+                    && transition.relation === 'equivalent-recording') return [];
 
                 const sharedIdentityItems = this.playlist.filter(item => item.videoId === oldVideoId);
                 const affectedItems = sharedIdentityItems.filter(item =>
@@ -1694,7 +1717,7 @@ const PlayerPlaylist = (function () {
                 this.alternateVideoSearchAttempts.clear();
                 // Drop queued lookups for the discarded rows; detached
                 // backfill items are not playlist-bound and keep going.
-                this.lyricsFetchQueue = this.lyricsFetchQueue.filter(item => item.sourceKind === 'backfill');
+                this.dropPlaylistLyricsQueueEntries();
                 this.playback.reset();
                 this.nowPlayingShowsText = false;
                 this.clearSongReportPlayback();

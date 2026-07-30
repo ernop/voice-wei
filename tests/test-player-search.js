@@ -178,7 +178,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 musicHistoryLookups: [],
                 musicHistorySongs: [
                     { videoId: 'v-sunset', name: 'Sunset Boulevard', artist: 'Evening Band', year: '1984', title: 'Sunset Boulevard', channelTitle: 'Evening Band', duration: '3:00', searchTerm: 'Evening Band Sunset Boulevard', sourceKind: 'search', lastSeenAt: '2026-01-02' },
-                    { videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', searchTerm: 'Dawn Crew Morning Run', sourceKind: 'search', lastSeenAt: '2026-01-03' }
+                    { videoId: 'v-morning', name: 'Morning Run', artist: 'Dawn Crew', year: '2001', title: 'Morning Run', channelTitle: 'Dawn Crew', duration: '2:30', searchTerm: 'Dawn Crew Morning Run', sourceKind: 'search', lastSeenAt: '2026-01-03' },
+                    { videoId: 'v-unicode', name: 'Don’t Stop', artist: 'Beyoncé', year: '2004', album: 'Déjà Vu', title: 'raw hidden title', channelTitle: 'raw hidden channel', duration: '3:30', searchTerm: '', sourceKind: 'search', lastSeenAt: '2026-01-04' },
+                    { videoId: 'v-hidden', name: 'Unrelated Song', artist: 'Other Artist', year: '', album: '', comment: 'needle', title: 'needle upload', channelTitle: 'harbor channel', duration: '3:30', searchTerm: 'harbor', sourceKind: 'search', lastSeenAt: '2026-01-05' }
                 ],
                 musicHistorySearches: [],
                 playlist: [],
@@ -210,19 +212,34 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             await harness.loadShownKnownSongs();
             const loadedIds = harness.playlist.map(item => item.videoId).join('|');
 
+            harness.knownSongsQuery = "don't stop beyonce deja";
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const unicodeRows = host.querySelectorAll('.music-history-item').length;
+            const unicodeText = host.textContent;
+
+            harness.knownSongsQuery = 'needle harbor';
+            harness.renderKnownSongsHistory(harness.musicHistorySongs);
+            const hiddenMetadataRows = host.querySelectorAll('.music-history-item').length;
+
             harness.knownSongsQuery = 'no such song anywhere';
             harness.renderKnownSongsHistory(harness.musicHistorySongs);
             const emptyMessage = host.textContent;
 
             host.innerHTML = '';
-            return { unfilteredRows, filteredRows, filteredText, loadedIds, emptyMessage };
+            return {
+                unfilteredRows, filteredRows, filteredText, loadedIds,
+                unicodeRows, unicodeText, hiddenMetadataRows, emptyMessage
+            };
         });
         report.check(`player known songs search filters and loads shown (loaded: ${knownSongsSearch.loadedIds})`,
-            knownSongsSearch.unfilteredRows === 2
+            knownSongsSearch.unfilteredRows === 4
             && knownSongsSearch.filteredRows === 1
             && knownSongsSearch.filteredText.includes('Sunset Boulevard')
             && !knownSongsSearch.filteredText.includes('Morning Run')
             && knownSongsSearch.loadedIds === 'v-sunset'
+            && knownSongsSearch.unicodeRows === 1
+            && knownSongsSearch.unicodeText.includes('Don’t Stop')
+            && knownSongsSearch.hiddenMetadataRows === 0
             && knownSongsSearch.emptyMessage.includes('No known songs match'));
 
         const musicHistoryRefreshOverride = await tab.evaluate(async () => {
@@ -1121,6 +1138,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const validVideoId = `valid-${Date.now()}`;
             const wrongVideoId = `wrong-${Date.now()}`;
             const repairedVideoId = `repaired-${Date.now()}`;
+            const sameKeyVideoId = `same-key-${Date.now()}`;
             const valid = {
                 videoId: validVideoId,
                 name: 'Valid Song',
@@ -1143,6 +1161,17 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 searchTerm: 'Intended Artist Intended Song',
                 favoritedAt: 200
             };
+            const sameKeyWrongMetadata = {
+                videoId: sameKeyVideoId,
+                name: 'Same Key Song',
+                artist: 'Same Key Artist',
+                title: 'Stale Unrelated Title',
+                channelTitle: 'Stale Channel',
+                duration: '3:10',
+                durationSeconds: 190,
+                searchTerm: 'Same Key Artist Same Key Song',
+                favoritedAt: 300
+            };
             const item = PlayerSongs.createPlaylistItem(wrong, {
                 sourceKind: 'restored',
                 sourceLabel: 'Favorite repair test'
@@ -1155,6 +1184,10 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             }, {
                 sourceKind: 'restored',
                 sourceLabel: 'Shared corrupt key test'
+            });
+            const sameKeyItem = PlayerSongs.createPlaylistItem(sameKeyWrongMetadata, {
+                sourceKind: 'restored',
+                sourceLabel: 'Same-key metadata repair test'
             });
             item.lyricsStatus = 'ready';
             item.lyricsData = {
@@ -1169,8 +1202,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             unrelatedRow.innerHTML = `<button class="favorite-btn favorited" data-video-id="${wrongVideoId}">\u2605</button>`;
             document.getElementById('playlistBody').appendChild(unrelatedRow);
             const harness = {
-                playlist: [item, unrelatedItem],
-                favorites: { [validVideoId]: valid, [wrongVideoId]: wrong },
+                playlist: [item, unrelatedItem, sameKeyItem],
+                favorites: {
+                    [validVideoId]: valid,
+                    [wrongVideoId]: wrong,
+                    [sameKeyVideoId]: sameKeyWrongMetadata
+                },
                 settings: { playlistTimedOnly: false },
                 searched: [],
                 queued: [],
@@ -1190,19 +1227,24 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 recordedHistory.push({ videoId: song.videoId, sourceKind });
             };
             harness.searchSongsWithConcurrency = function (validSongs, { onResult }) {
-                    this.searched.push(...validSongs.map(entry => entry.song.videoId));
+                this.searched.push(...validSongs.map(entry => entry.song.videoId));
+                for (const entry of validSongs) {
+                    const sameKey = entry.song.videoId === sameKeyVideoId;
                     onResult({
-                        index: validSongs[0].index,
+                        index: entry.index,
                         error: null,
                         videoData: {
-                            videoId: repairedVideoId,
-                            title: 'Intended Artist - Intended Song (Official Audio)',
-                            channelTitle: 'Intended Artist',
-                            duration: '3:30',
-                            durationSeconds: 210
+                            videoId: sameKey ? sameKeyVideoId : repairedVideoId,
+                            title: sameKey
+                                ? 'Same Key Artist - Same Key Song (Official Audio)'
+                                : 'Intended Artist - Intended Song (Official Audio)',
+                            channelTitle: sameKey ? 'Same Key Artist' : 'Intended Artist',
+                            duration: sameKey ? '3:10' : '3:30',
+                            durationSeconds: sameKey ? 190 : 210
                         }
                     });
-                    return Promise.resolve([]);
+                }
+                return Promise.resolve([]);
             };
             const scheduled = harness.healSavedFavoriteVideoIdentities();
             PlayerHistoryDB.recordSong = realRecordSong;
@@ -1217,17 +1259,22 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 unrelatedFavoriteStarred: unrelatedRow.querySelector('.favorite-btn')?.classList.contains('favorited') || false,
                 lyricsStatus: item.lyricsStatus,
                 hasLyrics: !!item.lyricsData,
+                sameKeyFavoriteTitle: harness.favorites[sameKeyVideoId]?.title || '',
+                sameKeyItemVideoId: sameKeyItem.videoId,
+                sameKeyItemStatus: sameKeyItem.lyricsStatus,
                 queued: harness.queued,
                 recordedHistory
             };
         });
         report.check('saved favorite healing moves only intended-song rows, refreshes stars, and records the repaired key',
-            savedFavoriteRepair.scheduled === 1
-            && savedFavoriteRepair.searched.length === 1
+            savedFavoriteRepair.scheduled === 2
+            && savedFavoriteRepair.searched.length === 2
             && savedFavoriteRepair.searched[0].startsWith('wrong-')
-            && savedFavoriteRepair.favoriteKeys.length === 2
+            && savedFavoriteRepair.searched[1].startsWith('same-key-')
+            && savedFavoriteRepair.favoriteKeys.length === 3
             && savedFavoriteRepair.favoriteKeys.some(key => key.startsWith('valid-'))
             && savedFavoriteRepair.favoriteKeys.some(key => key.startsWith('repaired-'))
+            && savedFavoriteRepair.favoriteKeys.some(key => key.startsWith('same-key-'))
             && savedFavoriteRepair.repairedFavoritedAt === 200
             && savedFavoriteRepair.playlistVideoId.startsWith('repaired-')
             && savedFavoriteRepair.unrelatedVideoId.startsWith('wrong-')
@@ -1235,10 +1282,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && !savedFavoriteRepair.unrelatedFavoriteStarred
             && savedFavoriteRepair.lyricsStatus === 'idle'
             && !savedFavoriteRepair.hasLyrics
-            && savedFavoriteRepair.queued.length === 1
-            && savedFavoriteRepair.recordedHistory.length === 1
-            && savedFavoriteRepair.recordedHistory[0].videoId.startsWith('repaired-')
-            && savedFavoriteRepair.recordedHistory[0].sourceKind === 'identity-favorite-repair');
+            && savedFavoriteRepair.sameKeyFavoriteTitle.includes('Same Key Song')
+            && savedFavoriteRepair.sameKeyItemVideoId.startsWith('same-key-')
+            && savedFavoriteRepair.sameKeyItemStatus === 'idle'
+            && savedFavoriteRepair.queued.length === 2
+            && savedFavoriteRepair.queued.some(videoId => videoId.startsWith('repaired-'))
+            && savedFavoriteRepair.queued.some(videoId => videoId.startsWith('same-key-'))
+            && savedFavoriteRepair.recordedHistory.length === 2
+            && savedFavoriteRepair.recordedHistory.every(record =>
+                record.sourceKind === 'identity-favorite-repair'));
 
         const nonVideoSpecificNoRetry = await tab.evaluate(async () => {
             const harness = {

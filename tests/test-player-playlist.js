@@ -444,6 +444,209 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricsIntegrityChecks.firstPassLookups === 2
             && lyricsIntegrityChecks.secondPassLookups === 1);
 
+        const sharedVideoLyricJob = await tab.evaluate(async () => {
+            const run = Date.now();
+            const makeItem = (videoId, sourceKind) => PlayerSongs.createPlaylistItem({
+                videoId,
+                name: 'Shared Song',
+                artist: 'Shared Artist',
+                title: 'Shared Artist - Shared Song',
+                channelTitle: 'Shared Artist',
+                duration: '2:00',
+                durationSeconds: 120
+            }, { sourceKind, sourceLabel: 'Shared lyric test' });
+            const harness = {
+                playlist: [],
+                settings: { playlistTimedOnly: false },
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
+                currentLyricsItemId: null,
+                currentPlayingId: null,
+                itemAwaitsFavoriteVideoIdentityRepair() { return false; },
+                refreshLyricsRowButton() {},
+                renderLyricsStateForItem() {},
+                updateLyricOffsetControls() {},
+                resyncProgressClock() {},
+                addMessage() {},
+                describePlaylistItem(item) { return item.name; }
+            };
+            PlayerLyrics.install(harness);
+            const drain = async () => {
+                for (let index = 0; index < 200; index++) {
+                    if (harness.lyricsFetchActive === 0
+                        && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0) return;
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+                throw new Error('Shared lyric job did not settle');
+            };
+
+            const videoId = `shared-success-${run}`;
+            const live = makeItem(videoId, 'favorite');
+            const backfill = makeItem(videoId, 'backfill');
+            harness.playlist = [live];
+            let successLookups = 0;
+            harness.lookupLyrics = async item => {
+                successLookups++;
+                await new Promise(resolve => setTimeout(resolve, 20));
+                return {
+                    provider: 'LRCLIB',
+                    trackName: item.name,
+                    artistName: item.artist,
+                    albumName: '',
+                    duration: 120,
+                    instrumental: false,
+                    plainLyrics: 'shared',
+                    syncedLyrics: '[00:01.00]shared',
+                    syncedLines: [{ time: 1, text: 'shared' }]
+                };
+            };
+            harness.queueLyricsLookup(backfill);
+            harness.queueLyricsLookup(live);
+            await drain();
+
+            const failedVideoId = `shared-failure-${run}`;
+            const failedA = makeItem(failedVideoId, 'favorite');
+            const failedB = makeItem(failedVideoId, 'history');
+            harness.playlist = [failedA, failedB];
+            let failedLookups = 0;
+            harness.lookupLyrics = async () => {
+                failedLookups++;
+                await new Promise(resolve => setTimeout(resolve, 20));
+                throw new Error('provider unavailable');
+            };
+            harness.queueLyricsLookup(failedA);
+            harness.queueLyricsLookup(failedB);
+            await drain();
+
+            const simpleVideoId = `shared-simple-${run}`;
+            const simpleA = makeItem(simpleVideoId, 'favorite');
+            const simpleB = makeItem(simpleVideoId, 'history');
+            const simpleLyrics = {
+                provider: 'LRCLIB',
+                trackName: 'Shared Song',
+                artistName: 'Shared Artist',
+                albumName: '',
+                duration: 120,
+                instrumental: false,
+                plainLyrics: 'simple baseline',
+                syncedLyrics: null,
+                syncedLines: []
+            };
+            simpleA.lyricsStatus = 'ready';
+            simpleA.lyricsData = simpleLyrics;
+            harness.playlist = [simpleA, simpleB];
+            let simpleUpgradeLookups = 0;
+            harness.lookupLyrics = async () => {
+                simpleUpgradeLookups++;
+                throw new Error('upgrade unavailable');
+            };
+            await harness.ensureLyricsForItem(simpleA);
+
+            const directVideoId = `shared-direct-${run}`;
+            const direct = makeItem(directVideoId, 'favorite');
+            harness.playlist = [direct];
+            await PlayerHistoryDB.putLyricState({
+                videoId: directVideoId,
+                status: 'none',
+                checkedAt: Date.now(),
+                searchVersion: 3
+            });
+            const realPump = harness.pumpLyricsQueue;
+            harness.pumpLyricsQueue = () => {};
+            harness.queueLyricsLookup(direct);
+            const directQueuedBefore = harness.lyricsQueuedVideoIds.has(directVideoId);
+            let directForceLookups = 0;
+            harness.lookupLyrics = async item => {
+                directForceLookups++;
+                return {
+                    ...simpleLyrics,
+                    trackName: item.name,
+                    artistName: item.artist,
+                    syncedLyrics: '[00:01.00]forced',
+                    syncedLines: [{ time: 1, text: 'forced' }]
+                };
+            };
+            await harness.ensureLyricsForItem(direct, { forceLookup: true });
+            harness.pumpLyricsQueue = realPump;
+            harness.pumpLyricsQueue();
+            await drain();
+
+            const stale = makeItem(`shared-stale-old-${run}`, 'favorite');
+            harness.playlist = [stale];
+            harness.pumpLyricsQueue = () => {};
+            harness.queueLyricsLookup(stale);
+            const staleOldVideoId = stale.videoId;
+            stale.videoId = `shared-stale-new-${run}`;
+            harness.queueLyricsLookup(stale);
+            const staleCapturedIds = harness.lyricsFetchQueue.map(entry => entry.videoId);
+            let staleLookups = 0;
+            harness.lookupLyrics = async item => {
+                staleLookups++;
+                return { ...simpleLyrics, trackName: item.name, artistName: item.artist };
+            };
+            harness.pumpLyricsQueue = realPump;
+            harness.pumpLyricsQueue();
+            await drain();
+
+            const keptBackfill = makeItem(`shared-clear-backfill-${run}`, 'backfill');
+            const droppedPlaylist = makeItem(`shared-clear-playlist-${run}`, 'favorite');
+            harness.lyricsFetchQueue = [
+                { videoId: keptBackfill.videoId, item: keptBackfill },
+                { videoId: droppedPlaylist.videoId, item: droppedPlaylist }
+            ];
+            harness.lyricsQueuedVideoIds = new Set([keptBackfill.videoId, droppedPlaylist.videoId]);
+            harness.dropPlaylistLyricsQueueEntries();
+
+            return {
+                successLookups,
+                liveStatus: live.lyricsStatus,
+                backfillStatus: backfill.lyricsStatus,
+                sameLyrics: live.lyricsData === backfill.lyricsData,
+                failedLookups,
+                failedStatuses: [failedA.lyricsStatus, failedB.lyricsStatus],
+                simpleUpgradeLookups,
+                simpleStatuses: [simpleA.lyricsStatus, simpleB.lyricsStatus],
+                simpleShared: simpleA.lyricsData === simpleB.lyricsData,
+                directQueuedBefore,
+                directForceLookups,
+                directStatus: direct.lyricsStatus,
+                directQueueCleared: !harness.lyricsQueuedVideoIds.has(directVideoId),
+                staleOldVideoId,
+                staleCapturedIds,
+                staleLookups,
+                staleStatus: stale.lyricsStatus,
+                clearQueueIds: harness.lyricsFetchQueue.map(entry => entry.videoId),
+                clearSetIds: [...harness.lyricsQueuedVideoIds]
+            };
+        });
+        report.check('player lyric queue coordinates one job and broadcasts success per video',
+            sharedVideoLyricJob.successLookups === 1
+            && sharedVideoLyricJob.liveStatus === 'ready'
+            && sharedVideoLyricJob.backfillStatus === 'ready'
+            && sharedVideoLyricJob.sameLyrics);
+        report.check('player lyric queue broadcasts one retryable failure to every live row',
+            sharedVideoLyricJob.failedLookups === 1
+            && sharedVideoLyricJob.failedStatuses.every(status => status === 'error'));
+        report.check('player simple-lyrics upgrade failure preserves one shared simple baseline',
+            sharedVideoLyricJob.simpleUpgradeLookups === 1
+            && sharedVideoLyricJob.simpleStatuses.every(status => status === 'ready')
+            && sharedVideoLyricJob.simpleShared);
+        report.check('player direct force lookup consumes its queued job without duplicate work',
+            sharedVideoLyricJob.directQueuedBefore
+            && sharedVideoLyricJob.directForceLookups === 1
+            && sharedVideoLyricJob.directStatus === 'ready'
+            && sharedVideoLyricJob.directQueueCleared);
+        report.check('player lyric queue skips captured stale video identity and resolves replacement once',
+            sharedVideoLyricJob.staleCapturedIds.length === 2
+            && sharedVideoLyricJob.staleCapturedIds[0] === sharedVideoLyricJob.staleOldVideoId
+            && sharedVideoLyricJob.staleLookups === 1
+            && sharedVideoLyricJob.staleStatus === 'ready');
+        report.check('player playlist clear keeps queue and queued-ID Set aligned for backfills',
+            sharedVideoLyricJob.clearQueueIds.length === 1
+            && sharedVideoLyricJob.clearQueueIds[0] === sharedVideoLyricJob.clearSetIds[0]);
+
         const lyricProviderIdentityEvidence = await tab.evaluate(async () => {
             const makeHarness = () => {
                 const harness = {
@@ -622,6 +825,107 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && staleTimedLyricUpgrade.wrong.statusAtSave === 'loading'
             && staleTimedLyricUpgrade.valid.statusAtSave === 'loading');
 
+        const favoritesScaleContract = await tab.evaluate(() => {
+            const favoriteCount = 900;
+            const alreadyLoaded = 17;
+            const favorites = Object.fromEntries(Array.from({ length: favoriteCount }, (_, index) => {
+                const videoId = `scale-favorite-${index}`;
+                const favorite = PlayerSongs.createFavorite({
+                    videoId,
+                    name: `Scale Song ${index}`,
+                    artist: `Scale Artist ${index}`,
+                    year: String(1980 + (index % 40)),
+                    album: `Scale Album ${index % 12}`,
+                    title: index === favoriteCount - 1
+                        ? 'Unrelated Artist - Wrong Recording'
+                        : `Scale Artist ${index} - Scale Song ${index}`,
+                    channelTitle: `Scale Artist ${index}`,
+                    duration: '3:00',
+                    durationSeconds: 180,
+                    searchTerm: `Scale Artist ${index} Scale Song ${index}`
+                });
+                return [videoId, favorite];
+            }));
+            const harness = {
+                favorites,
+                playlist: [],
+                settings: { showSongNotes: false, playlistTimedOnly: false },
+                playlistFilterQuery: '',
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
+                youtubeAlternateResults: new Map(),
+                isFavorite(videoId) { return !!this.favorites[videoId]; },
+                escapeHtml(value) { return String(value || ''); },
+                showLyricsForItem() {},
+                lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
+                updateStatus() {},
+                addMessage() {},
+                persistPlaylist() {},
+                updatePlaylistLabel() {},
+                showPlaylistSurfaces() {},
+                saveSettings() {}
+            };
+            PlayerPlaylist.install(harness);
+            PlayerLyrics.install(harness);
+            harness.pumpLyricsQueue = () => {};
+            const body = document.getElementById('playlistBody');
+            body.innerHTML = '';
+            for (let index = 0; index < alreadyLoaded; index++) {
+                harness.playlist.push(PlayerSongs.createPlaylistItem(favorites[`scale-favorite-${index}`], {
+                    sourceKind: 'favorite',
+                    sourceLabel: 'Already loaded'
+                }));
+            }
+            harness.addPlaylistItemsToDOM(harness.playlist);
+            harness.reconcileLibraryLyrics();
+
+            const realAdd = harness.addPlaylistItemsToDOM;
+            const batchSizes = [];
+            harness.addPlaylistItemsToDOM = items => {
+                batchSizes.push(items.length);
+                realAdd.call(harness, items);
+            };
+            const realRecordSong = PlayerHistoryDB.recordSong;
+            PlayerHistoryDB.recordSong = () => {};
+            harness.loadFavoritesToPlaylist();
+            PlayerHistoryDB.recordSong = realRecordSong;
+
+            const ids = harness.playlist.map(item => item.id);
+            const persisted = PlayerSongs.persistedPlaylistEntry(harness.playlist[0]);
+            const migrated = PlayerSongs.createPlaylistItem({
+                ...persisted,
+                id: 987654321
+            }, {
+                sourceKind: 'restored',
+                sourceLabel: 'Legacy persisted ID'
+            });
+            const queuedVideoIds = harness.lyricsFetchQueue.map(entry => entry.videoId);
+            body.innerHTML = '';
+            return {
+                playlistCount: harness.playlist.length,
+                uniqueIds: new Set(ids).size,
+                batchSizes,
+                queuedCount: queuedVideoIds.length,
+                queuedUnique: new Set(queuedVideoIds).size,
+                wrongIdentityQueued: queuedVideoIds.includes(`scale-favorite-${favoriteCount - 1}`),
+                persistedHasId: Object.hasOwn(persisted, 'id'),
+                migratedReusedLegacyId: migrated.id === 987654321
+            };
+        });
+        report.check('900-favorite load uses unique runtime IDs and one 883-row transaction',
+            favoritesScaleContract.playlistCount === 900
+            && favoritesScaleContract.uniqueIds === 900
+            && favoritesScaleContract.batchSizes.length === 1
+            && favoritesScaleContract.batchSizes[0] === 883);
+        report.check('playlist persistence drops disposable IDs and migrates old entries by regeneration',
+            !favoritesScaleContract.persistedHasId
+            && !favoritesScaleContract.migratedReusedLegacyId);
+        report.check('favorite lyrics queue has one job per valid video and gates identity repair',
+            favoritesScaleContract.queuedCount === 899
+            && favoritesScaleContract.queuedUnique === 899
+            && !favoritesScaleContract.wrongIdentityQueued);
+
         // Live playlist filter: as-you-type hides non-matching rows, the
         // status line names the query and counts, Cancel restores all.
         // Timed only hides rows without synced lyrics. Song notes are a
@@ -657,6 +961,20 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     searchTerm: 'Dawn Crew Morning Run',
                     lyricsStatus: 'ready',
                     lyricsData: { syncedLines: [], plainLyrics: 'simple only' }
+                },
+                {
+                    id: 603, videoId: 'v-unicode', name: 'Don’t Stop', artist: 'Beyoncé', year: '2004', album: 'Déjà Vu',
+                    title: 'Hidden raw title', channelTitle: 'Hidden channel', duration: '3:30', comment: '',
+                    searchTerm: '',
+                    lyricsStatus: 'idle',
+                    lyricsData: null
+                },
+                {
+                    id: 604, videoId: 'v-hidden', name: 'Unrelated Song', artist: 'Other Artist', year: '', album: '',
+                    title: 'needle upload', channelTitle: 'harbor channel', duration: '3:30', comment: 'needle',
+                    searchTerm: 'harbor',
+                    lyricsStatus: 'idle',
+                    lyricsData: null
                 }
             ];
             for (const item of items) {
@@ -682,14 +1000,30 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.setPlaylistFilter('evening sunset');
             const distributedAnd = { sunsetShown: !rowHidden(601), morningHidden: rowHidden(602) };
 
+            harness.setPlaylistFilter('sunset absentword');
+            const strictAnd = { sunsetHidden: rowHidden(601) };
+
+            harness.setPlaylistFilter("don't stop beyonce deja");
+            const unicodeFolded = {
+                unicodeShown: !rowHidden(603),
+                sunsetHidden: rowHidden(601),
+                hiddenMetadataRowHidden: rowHidden(604)
+            };
+
+            harness.setPlaylistFilter('needle harbor');
+            const hiddenMetadataExcluded = rowHidden(604);
+
             harness.clearPlaylistFilter();
+            items[1].lyricsStatus = 'idle';
+            items[1].lyricsData = null;
             harness.settings.playlistTimedOnly = true;
             harness.applyPlaylistFilter();
             const timedOnly = {
                 sunsetShown: !rowHidden(601),
                 morningHidden: rowHidden(602),
                 statusVisible: status.style.display !== 'none',
-                statusText: statusText.textContent
+                statusText: statusText.textContent,
+                waitingReported: statusText.textContent.includes('3 text-matching rows are still waiting for lyric resolution')
             };
 
             harness.clearPlaylistFilter();
@@ -711,23 +1045,32 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 
             body.innerHTML = '';
             container.style.display = savedDisplay;
-            return { filtered, yearFiltered, distributedAnd, timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff };
+            return {
+                filtered, yearFiltered, distributedAnd, strictAnd, unicodeFolded, hiddenMetadataExcluded,
+                timedOnly, cancelled, hiddenByDefault, shownWhenOn, hiddenWhenOff
+            };
         });
         report.check(`player playlist filter live-hides rows ("${playlistFilterAndNotes.filtered.statusText}")`,
             playlistFilterAndNotes.filtered.sunsetShown
             && playlistFilterAndNotes.filtered.morningHidden
             && playlistFilterAndNotes.filtered.statusVisible
             && playlistFilterAndNotes.filtered.statusText.includes('"sunset"')
-            && playlistFilterAndNotes.filtered.statusText.includes('1 of 2')
+            && playlistFilterAndNotes.filtered.statusText.includes('1 of 4')
             && playlistFilterAndNotes.yearFiltered.sunsetShown
             && playlistFilterAndNotes.yearFiltered.morningHidden
             && playlistFilterAndNotes.distributedAnd.sunsetShown
-            && playlistFilterAndNotes.distributedAnd.morningHidden);
+            && playlistFilterAndNotes.distributedAnd.morningHidden
+            && playlistFilterAndNotes.strictAnd.sunsetHidden
+            && playlistFilterAndNotes.unicodeFolded.unicodeShown
+            && playlistFilterAndNotes.unicodeFolded.sunsetHidden
+            && playlistFilterAndNotes.unicodeFolded.hiddenMetadataRowHidden
+            && playlistFilterAndNotes.hiddenMetadataExcluded);
         report.check(`player timed-only filter hides non-timed rows ("${playlistFilterAndNotes.timedOnly.statusText}")`,
             playlistFilterAndNotes.timedOnly.sunsetShown
             && playlistFilterAndNotes.timedOnly.morningHidden
             && playlistFilterAndNotes.timedOnly.statusVisible
-            && playlistFilterAndNotes.timedOnly.statusText.includes('timed lyrics only'));
+            && playlistFilterAndNotes.timedOnly.statusText.includes('timed lyrics only')
+            && playlistFilterAndNotes.timedOnly.waitingReported);
         report.check('player playlist filter cancel restores the full list',
             playlistFilterAndNotes.cancelled.bothShown
             && playlistFilterAndNotes.cancelled.statusHidden
@@ -753,6 +1096,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                         lyricsText: '',
                         lyricLines: [],
                         notes: [{ midi: 60, startMs: 0, endMs: 1000 }]
+                    }, {
+                        id: 'library-unicode',
+                        title: 'Don’t Stop — Beyoncé',
+                        sourceType: 'musicxml',
+                        sourceName: 'Déjà Vu.musicxml',
+                        importedAt: Date.now(),
+                        favorite: false,
+                        tempoBpm: 110,
+                        durationMs: 200000,
+                        noteCount: 1,
+                        lyricsText: '',
+                        lyricLines: [],
+                        notes: [{ midi: 62, startMs: 0, endMs: 1000 }]
                     }]
                 },
                 escapeHtml(value) { return String(value || ''); }
@@ -767,12 +1123,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 shownCards: list.querySelectorAll('.song-library-card').length,
                 text: list.textContent.trim()
             };
+            input.value = "don't stop beyonce deja";
+            harness.renderSongLibrary();
+            const unicodeShownCards = list.querySelectorAll('.song-library-card').length;
+            const unicodeText = list.textContent.trim();
             input.value = '';
             list.innerHTML = '';
-            return result;
+            return { ...result, unicodeShownCards, unicodeText };
         });
         report.check('player imported-library filter applies AND semantics across fields',
-            importedLibraryFilter.shownCards === 1);
+            importedLibraryFilter.shownCards === 1
+            && importedLibraryFilter.unicodeShownCards === 1
+            && importedLibraryFilter.unicodeText.includes('Don’t Stop'));
 
         const lyricOffsetNudge = await tab.evaluate(async () => {
             const videoId = `offset-nudge-${Date.now()}`;

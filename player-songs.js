@@ -22,6 +22,8 @@
 const PlayerSongs = (function () {
     'use strict';
 
+    let nextPlaylistItemId = 1;
+
     /** The complete Song field list - one definition, everywhere. */
     const SONG_FIELDS = Object.freeze([
         'videoId',
@@ -91,7 +93,7 @@ const PlayerSongs = (function () {
         if (!song) return null;
         return {
             ...song,
-            id: Date.now() + Math.random(),
+            id: nextPlaylistItemId++,
             sourceKind: source.sourceKind,
             sourceLabel: source.sourceLabel,
             sourceSearchTerm: source.sourceSearchTerm || song.searchTerm,
@@ -115,7 +117,6 @@ const PlayerSongs = (function () {
         const song = /** @type {Song} */ (songFrom(item));
         return {
             ...song,
-            id: item.id,
             sourceKind: item.sourceKind,
             sourceLabel: item.sourceLabel,
             sourceSearchTerm: item.sourceSearchTerm
@@ -133,9 +134,25 @@ const PlayerSongs = (function () {
         return { ...song, favoritedAt: Date.now() };
     }
 
-    /** Canonical live-search normalization: trimmed, lowercased. @param {string} value */
+    /**
+     * Canonical search text: case/diacritic insensitive, with apostrophe
+     * variants ignored and other punctuation treated as word boundaries.
+     * @param {unknown} value
+     */
+    function normalizeSearchText(value) {
+        return String(value || '')
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/['\u2018\u2019\u02bc]/g, '')
+            .replace(/[^\p{L}\p{N}]+/gu, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+    }
+
+    /** Canonical live-search query. @param {string} value */
     function normalizeSearchQuery(value) {
-        return String(value || '').trim().toLowerCase();
+        return normalizeSearchText(value);
     }
 
     /**
@@ -146,8 +163,9 @@ const PlayerSongs = (function () {
      */
     function songFieldsMatchQuery(fields, query) {
         if (!query) return true;
-        const haystack = fields.join(' ').toLowerCase();
-        return query.split(/\s+/).every(word => haystack.includes(word));
+        const haystack = normalizeSearchText(fields.join(' '));
+        const tokens = normalizeSearchText(query).split(' ').filter(Boolean);
+        return tokens.every(token => haystack.includes(token));
     }
 
     /**
@@ -160,8 +178,7 @@ const PlayerSongs = (function () {
         if (!query) return true;
         if (!song) return false;
         return songFieldsMatchQuery([
-            song.name, song.artist, song.year, song.album,
-            song.comment, song.title, song.channelTitle, song.searchTerm
+            song.name, song.artist, song.year, song.album
         ], query);
     }
 
@@ -191,6 +208,7 @@ const PlayerSongs = (function () {
         persistedPlaylistEntry,
         createFavorite,
         historySongRecord,
+        normalizeSearchText,
         normalizeSearchQuery,
         songFieldsMatchQuery,
         songMatchesQuery
