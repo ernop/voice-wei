@@ -689,6 +689,36 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             const albumConstrainedPick = await albumConstrained.lookupLyrics(item);
 
+            const multiIdentityItem = {
+                name: 'Canonical Song',
+                artist: 'Primary Artist',
+                title: 'Parsed Artist - Parsed Song',
+                channelTitle: 'Channel Artist',
+                duration: '3:00',
+                durationSeconds: 180
+            };
+            const exactStrong = makeHarness();
+            const exactCalls = [];
+            exactStrong.searchLyricsProvider = async (title, artist) => {
+                exactCalls.push({ title, artist });
+                return [{
+                    ...record(title, artist),
+                    duration: 180
+                }];
+            };
+            const exactStrongPick = await exactStrong.lookupLyrics(multiIdentityItem);
+
+            const weakThenStrong = makeHarness();
+            const weakThenStrongCalls = [];
+            weakThenStrong.searchLyricsProvider = async (title, artist) => {
+                weakThenStrongCalls.push({ title, artist });
+                return [{
+                    ...record(title, artist),
+                    duration: title === 'Canonical Song' ? 170 : 180
+                }];
+            };
+            const weakThenStrongPick = await weakThenStrong.lookupLyrics(multiIdentityItem);
+
             return {
                 wrongArtistRejected: wrongArtistPick === null,
                 wrongTitleRejected: wrongTitlePick === null,
@@ -696,7 +726,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     timedPreferencePick?.artistName === 'Right Artist'
                     && timedPreferencePick.syncedLines.length === 0,
                 albumIndependentFound: albumConstrainedPick?.artistName === 'Right Artist',
-                albumCalls
+                albumCalls,
+                exactStrongCalls: exactCalls,
+                exactStrongPick,
+                weakThenStrongCalls,
+                weakThenStrongPick
             };
         });
         report.check('player lyric matching rejects title and known-artist mismatches independently',
@@ -708,6 +742,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             lyricProviderIdentityEvidence.albumIndependentFound
             && lyricProviderIdentityEvidence.albumCalls.length === 1
             && lyricProviderIdentityEvidence.albumCalls.every(call => call.album === undefined));
+        report.check('player stops alternate lyric searches only after an exact strong timed match',
+            lyricProviderIdentityEvidence.exactStrongCalls.length === 1
+            && lyricProviderIdentityEvidence.exactStrongPick?.trackName === 'Canonical Song'
+            && lyricProviderIdentityEvidence.weakThenStrongCalls.length === 2
+            && lyricProviderIdentityEvidence.weakThenStrongPick?.trackName === 'Parsed Song'
+            && lyricProviderIdentityEvidence.weakThenStrongPick?.artistName === 'Parsed Artist');
 
         const lyricProviderTransport = await tab.evaluate(async () => {
             const harness = { lyricsLookupCache: new Map(), addMessage() {} };
@@ -778,12 +818,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check('player keeps proxied provider failures retryable',
             lyricProviderTransport.errorMessage === 'Lyrics search failed: HTTP 504');
 
-        const staleTimedLyricUpgrade = await tab.evaluate(async () => {
+        const staleLyricMigration = await tab.evaluate(async () => {
             const run = Date.now();
-            const makeItem = (kind) => ({
-                id: kind === 'wrong' ? 9401 : 9402,
+            const makeItem = (kind, name) => ({
+                id: 9400 + kind.length,
                 videoId: `lyric-v3-${kind}-${run}`,
-                name: 'Sun',
+                name,
                 artist: 'Right Artist',
                 album: 'Right Album',
                 title: '',
@@ -794,42 +834,68 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 lyricsData: null,
                 lyricOffsetSeconds: 0
             });
-            const lyricRecord = (artistName, words) => ({
+            const lyricRecord = (trackName, artistName, words, timed = true) => ({
                 provider: 'LRCLIB',
-                trackName: 'Sun',
+                trackName,
                 artistName,
                 albumName: 'Right Album',
                 duration: 180,
                 instrumental: false,
                 plainLyrics: words,
-                syncedLyrics: `[00:01.00]${words}`,
-                syncedLines: [{ time: 1, text: words }]
+                syncedLyrics: timed ? `[00:01.00]${words}` : null,
+                syncedLines: timed ? [{ time: 1, text: words }] : []
             });
-            const wrong = makeItem('wrong');
-            const valid = makeItem('valid');
+            const invalid = makeItem('invalid', 'Invalid Song');
+            const invalidEmpty = makeItem('invalid-empty', 'Invalid Empty');
+            const validTimed = makeItem('timed', 'Valid Timed');
+            const validSimple = makeItem('simple', 'Valid Simple');
+            const oldNone = makeItem('none', 'Missing Song');
+            const oldCheckedAt = Date.now() - 123456;
             await PlayerHistoryDB.putLyricState({
-                videoId: wrong.videoId,
+                videoId: invalid.videoId,
                 status: 'found',
-                checkedAt: Date.now(),
+                checkedAt: oldCheckedAt,
                 searchVersion: 2,
                 lyricOffsetSeconds: 1.5,
-                lyrics: lyricRecord('Different Artist', 'wrong words')
+                lyrics: lyricRecord('Invalid Song', 'Different Artist', 'wrong words')
             });
             await PlayerHistoryDB.putLyricState({
-                videoId: valid.videoId,
+                videoId: invalidEmpty.videoId,
                 status: 'found',
-                checkedAt: Date.now(),
+                checkedAt: oldCheckedAt,
                 searchVersion: 2,
-                lyrics: lyricRecord('Right Artist', 'valid stored words')
+                lyrics: lyricRecord('Invalid Empty', 'Different Artist', 'wrong empty words')
+            });
+            await PlayerHistoryDB.putLyricState({
+                videoId: validTimed.videoId,
+                status: 'found',
+                checkedAt: oldCheckedAt,
+                searchVersion: 2,
+                lyricOffsetSeconds: -0.5,
+                lyrics: lyricRecord('Valid Timed', 'Right Artist', 'valid timed words')
+            });
+            await PlayerHistoryDB.putLyricState({
+                videoId: validSimple.videoId,
+                status: 'found',
+                checkedAt: oldCheckedAt,
+                searchVersion: 2,
+                lyrics: lyricRecord('Valid Simple', 'Right Artist', 'valid simple words', false)
+            });
+            await PlayerHistoryDB.putLyricState({
+                videoId: oldNone.videoId,
+                status: 'none',
+                checkedAt: oldCheckedAt,
+                searchVersion: 2
             });
 
             const harness = {
-                playlist: [wrong, valid],
+                playlist: [invalid, invalidEmpty, validTimed, validSimple, oldNone],
+                settings: { playlistTimedOnly: false },
                 lyricsLookupCache: new Map(),
                 lyricsLookupsInFlight: new Map(),
                 currentLyricsItemId: null,
                 currentPlayingId: null,
-                lookupNames: [],
+                parseDurationToSeconds() { return 180; },
                 refreshLyricsRowButton() {},
                 renderLyricsStateForItem() {},
                 updateLyricOffsetControls() {},
@@ -838,61 +904,246 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 describePlaylistItem(item) { return item.name; }
             };
             PlayerLyrics.install(harness);
-            harness.lookupLyrics = async (item) => {
-                harness.lookupNames.push(item.name + ':' + item.videoId);
-                return item.videoId === wrong.videoId
-                    ? lyricRecord('Right Artist', 'correct replacement')
-                    : null;
-            };
 
+            const realFetch = window.fetch;
             const realPut = PlayerHistoryDB.putLyricState;
             const statusAtSave = {};
+            const proxyUrls = [];
+            window.fetch = async url => {
+                const parsed = new URL(String(url), location.href);
+                proxyUrls.push(parsed.href);
+                const trackName = parsed.searchParams.get('track_name') || '';
+                const records = trackName === 'Invalid Song'
+                    ? [{
+                        trackName,
+                        artistName: 'Right Artist',
+                        albumName: 'Right Album',
+                        duration: 180,
+                        instrumental: false,
+                        plainLyrics: 'correct replacement',
+                        syncedLyrics: '[00:01.00]correct replacement'
+                    }]
+                    : [];
+                return new Response(JSON.stringify(records), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            };
             PlayerHistoryDB.putLyricState = async (record) => {
-                const item = record.videoId === wrong.videoId ? wrong : valid;
+                const item = harness.playlist.find(candidate => candidate.videoId === record.videoId);
                 statusAtSave[record.videoId] = item.lyricsStatus;
                 return realPut(record);
             };
-            await harness.ensureLyricsForItem(wrong);
-            await harness.ensureLyricsForItem(valid);
-            PlayerHistoryDB.putLyricState = realPut;
+            let callsAfterSimpleUpgrade = 0;
+            try {
+                await harness.ensureLyricsForItem(invalid);
+                await harness.ensureLyricsForItem(validTimed);
+                await harness.ensureLyricsForItem(validSimple);
+                callsAfterSimpleUpgrade = proxyUrls.length;
+                await harness.ensureLyricsForItem(validSimple);
+                await harness.ensureLyricsForItem(invalidEmpty);
+                await harness.ensureLyricsForItem(oldNone);
+            } finally {
+                PlayerHistoryDB.putLyricState = realPut;
+                window.fetch = realFetch;
+            }
 
-            const wrongStored = await PlayerHistoryDB.getLyricState(wrong.videoId);
-            const validStored = await PlayerHistoryDB.getLyricState(valid.videoId);
+            const invalidStored = await PlayerHistoryDB.getLyricState(invalid.videoId);
+            const invalidEmptyStored = await PlayerHistoryDB.getLyricState(invalidEmpty.videoId);
+            const timedStored = await PlayerHistoryDB.getLyricState(validTimed.videoId);
+            const simpleStored = await PlayerHistoryDB.getLyricState(validSimple.videoId);
+            const noneStored = await PlayerHistoryDB.getLyricState(oldNone.videoId);
             return {
-                lookupCount: harness.lookupNames.length,
-                wrong: {
-                    videoId: wrongStored?.videoId,
-                    searchVersion: wrongStored?.searchVersion,
-                    artist: wrongStored?.lyrics?.artistName,
-                    words: wrongStored?.lyrics?.plainLyrics,
-                    offset: wrongStored?.lyricOffsetSeconds,
-                    liveWords: wrong.lyricsData?.plainLyrics,
-                    statusAtSave: statusAtSave[wrong.videoId]
+                proxyTracks: proxyUrls.map(url => new URL(url).searchParams.get('track_name')),
+                allSameOriginProxy: proxyUrls.every(url => {
+                    const parsed = new URL(url);
+                    return parsed.origin === location.origin
+                        && parsed.pathname.endsWith('/proxy.php')
+                        && parsed.searchParams.get('lyrics') === 'search';
+                }),
+                callsAfterSimpleUpgrade,
+                invalid: {
+                    searchVersion: invalidStored?.searchVersion,
+                    artist: invalidStored?.lyrics?.artistName,
+                    words: invalidStored?.lyrics?.plainLyrics,
+                    offset: invalidStored?.lyricOffsetSeconds,
+                    liveWords: invalid.lyricsData?.plainLyrics,
+                    statusAtSave: statusAtSave[invalid.videoId]
                 },
-                valid: {
-                    videoId: validStored?.videoId,
-                    searchVersion: validStored?.searchVersion,
-                    words: validStored?.lyrics?.plainLyrics,
-                    liveWords: valid.lyricsData?.plainLyrics,
-                    statusAtSave: statusAtSave[valid.videoId]
+                invalidEmpty: {
+                    searchVersion: invalidEmptyStored?.searchVersion,
+                    status: invalidEmptyStored?.status,
+                    statusAtSave: statusAtSave[invalidEmpty.videoId]
+                },
+                timed: {
+                    searchVersion: timedStored?.searchVersion,
+                    checkedAt: timedStored?.checkedAt,
+                    words: timedStored?.lyrics?.plainLyrics,
+                    offset: timedStored?.lyricOffsetSeconds,
+                    liveWords: validTimed.lyricsData?.plainLyrics,
+                    statusAtSave: statusAtSave[validTimed.videoId]
+                },
+                simple: {
+                    searchVersion: simpleStored?.searchVersion,
+                    checkedAt: simpleStored?.checkedAt,
+                    words: simpleStored?.lyrics?.plainLyrics,
+                    timedLines: simpleStored?.lyrics?.syncedLines.length,
+                    statusAtSave: statusAtSave[validSimple.videoId]
+                },
+                none: {
+                    searchVersion: noneStored?.searchVersion,
+                    status: noneStored?.status,
+                    statusAtSave: statusAtSave[oldNone.videoId]
                 }
             };
         });
-        report.check('player stale timed lyrics revalidate identity under search v3',
-            staleTimedLyricUpgrade.lookupCount === 2
-            && staleTimedLyricUpgrade.wrong.videoId.startsWith('lyric-v3-wrong-')
-            && staleTimedLyricUpgrade.wrong.searchVersion === 3
-            && staleTimedLyricUpgrade.wrong.artist === 'Right Artist'
-            && staleTimedLyricUpgrade.wrong.words === 'correct replacement'
-            && staleTimedLyricUpgrade.wrong.liveWords === 'correct replacement'
-            && staleTimedLyricUpgrade.wrong.offset === 1.5);
-        report.check('player stale valid timed lyrics survive empty revalidation and remain save-then-activate',
-            staleTimedLyricUpgrade.valid.videoId.startsWith('lyric-v3-valid-')
-            && staleTimedLyricUpgrade.valid.searchVersion === 3
-            && staleTimedLyricUpgrade.valid.words === 'valid stored words'
-            && staleTimedLyricUpgrade.valid.liveWords === 'valid stored words'
-            && staleTimedLyricUpgrade.wrong.statusAtSave === 'loading'
-            && staleTimedLyricUpgrade.valid.statusAtSave === 'loading');
+        report.check('player promotes valid v2 timed lyrics locally with save-before-activate',
+            staleLyricMigration.timed.searchVersion === 3
+            && staleLyricMigration.timed.checkedAt < Date.now() - 1000
+            && staleLyricMigration.timed.words === 'valid timed words'
+            && staleLyricMigration.timed.liveWords === 'valid timed words'
+            && staleLyricMigration.timed.offset === -0.5
+            && staleLyricMigration.timed.statusAtSave === 'loading'
+            && !staleLyricMigration.proxyTracks.includes('Valid Timed'));
+        report.check('player keeps valid v2 simple lyrics on the timed-upgrade path and applies the v3 TTL',
+            staleLyricMigration.simple.searchVersion === 3
+            && staleLyricMigration.simple.words === 'valid simple words'
+            && staleLyricMigration.simple.timedLines === 0
+            && staleLyricMigration.simple.checkedAt > Date.now() - 5000
+            && staleLyricMigration.callsAfterSimpleUpgrade === 2
+            && staleLyricMigration.proxyTracks.filter(track => track === 'Valid Simple').length === 1);
+        report.check('player invalid v2 found and old none records still recheck through the proxy',
+            staleLyricMigration.allSameOriginProxy
+            && staleLyricMigration.proxyTracks.join('|') === 'Invalid Song|Valid Simple|Invalid Empty|Missing Song'
+            && staleLyricMigration.invalid.searchVersion === 3
+            && staleLyricMigration.invalid.artist === 'Right Artist'
+            && staleLyricMigration.invalid.words === 'correct replacement'
+            && staleLyricMigration.invalid.liveWords === 'correct replacement'
+            && staleLyricMigration.invalid.offset === 1.5
+            && staleLyricMigration.invalid.statusAtSave === 'loading'
+            && staleLyricMigration.invalidEmpty.searchVersion === 3
+            && staleLyricMigration.invalidEmpty.status === 'none'
+            && staleLyricMigration.invalidEmpty.statusAtSave === 'loading'
+            && staleLyricMigration.none.searchVersion === 3
+            && staleLyricMigration.none.status === 'none'
+            && staleLyricMigration.none.statusAtSave === 'loading');
+
+        const largeTimedMigration = await tab.evaluate(async () => {
+            const run = Date.now();
+            const favoriteCount = 900;
+            const oldCheckedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            const favorites = {};
+            const seeded = [];
+            for (let index = 0; index < favoriteCount; index++) {
+                const videoId = `v2-timed-${run}-${index}`;
+                const name = `Migration Song ${index}`;
+                const artist = `Migration Artist ${index}`;
+                favorites[videoId] = {
+                    videoId,
+                    name,
+                    artist,
+                    title: `${artist} - ${name}`,
+                    channelTitle: artist,
+                    duration: '3:00',
+                    durationSeconds: 180,
+                    searchTerm: `${artist} ${name}`,
+                    favoritedAt: run + index
+                };
+                seeded.push(PlayerHistoryDB.putLyricState({
+                    videoId,
+                    status: 'found',
+                    checkedAt: oldCheckedAt,
+                    searchVersion: 2,
+                    lyricOffsetSeconds: index % 2 ? 0.5 : 0,
+                    lyrics: {
+                        provider: 'LRCLIB',
+                        trackName: name,
+                        artistName: artist,
+                        albumName: '',
+                        duration: 180,
+                        instrumental: false,
+                        plainLyrics: `words ${index}`,
+                        syncedLyrics: `[00:01.00]words ${index}`,
+                        syncedLines: [{ time: 1, text: `words ${index}` }]
+                    }
+                }));
+            }
+            await Promise.all(seeded);
+
+            const harness = {
+                favorites,
+                playlist: [],
+                settings: { playlistTimedOnly: false },
+                lyricsFetchQueue: [],
+                lyricsFetchActive: 0,
+                lyricsLookupsInFlight: new Map(),
+                currentLyricsItemId: null,
+                currentPlayingId: null,
+                providerCalls: 0,
+                favoriteNeedsVideoIdentityRepair() { return false; },
+                lookupLyrics() {
+                    this.providerCalls++;
+                    throw new Error('Valid timed migration must not call the provider');
+                },
+                refreshLyricsRowButton() {},
+                renderLyricsStateForItem() {},
+                updateLyricOffsetControls() {},
+                resyncProgressClock() {},
+                addMessage() {},
+                describePlaylistItem(item) { return item.name; }
+            };
+            PlayerLyrics.install(harness);
+
+            const realPut = PlayerHistoryDB.putLyricState;
+            const promotedVideoIds = new Set();
+            PlayerHistoryDB.putLyricState = async record => {
+                if (record.videoId.startsWith(`v2-timed-${run}-`)
+                    && record.searchVersion === 3) {
+                    promotedVideoIds.add(record.videoId);
+                }
+                return realPut(record);
+            };
+            let settled = false;
+            try {
+                harness.reconcileLibraryLyrics();
+                const deadline = Date.now() + 20000;
+                while (Date.now() < deadline) {
+                    if (harness.lyricsFetchActive === 0
+                        && harness.lyricsFetchQueue.length === 0
+                        && harness.lyricsLookupsInFlight.size === 0) {
+                        settled = true;
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 5));
+                }
+            } finally {
+                PlayerHistoryDB.putLyricState = realPut;
+            }
+
+            const sampleIndexes = [0, Math.floor(favoriteCount / 2), favoriteCount - 1];
+            const samples = await Promise.all(sampleIndexes.map(index =>
+                PlayerHistoryDB.getLyricState(`v2-timed-${run}-${index}`)));
+            return {
+                settled,
+                providerCalls: harness.providerCalls,
+                promotedCount: promotedVideoIds.size,
+                samples: samples.map(record => ({
+                    searchVersion: record?.searchVersion,
+                    checkedAt: record?.checkedAt,
+                    status: record?.status,
+                    hasTimed: (record?.lyrics?.syncedLines.length || 0) > 0
+                }))
+            };
+        });
+        report.check('900 valid v2 timed favorites promote and persist with zero provider calls',
+            largeTimedMigration.settled
+            && largeTimedMigration.providerCalls === 0
+            && largeTimedMigration.promotedCount === 900
+            && largeTimedMigration.samples.every(sample =>
+                sample.searchVersion === 3
+                && sample.status === 'found'
+                && sample.hasTimed
+                && sample.checkedAt < Date.now() - (29 * 24 * 60 * 60 * 1000)));
 
         const favoritesScaleContract = await tab.evaluate(() => {
             const favoriteCount = 900;

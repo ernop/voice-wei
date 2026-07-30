@@ -521,6 +521,7 @@ interface VoiceMusicController {
     renderLyricsLines(lines: string[]): void;
     buildLyricsLookupCandidates(item: PlaylistItem): Array<{ artist: string; title: string }>;
     lyricsRecordMatchesIdentity(record: LyricsResult, artist: string, title: string): boolean;
+    isExactStrongTimedLyricsMatch(record: LyricsResult, artist: string, title: string, expectedDuration: number): boolean;
     lyricsMatchItemIdentity(lyrics: LyricsResult, item: PlaylistItem): boolean;
     addLyricsCandidate(candidates: Array<{ artist: string; title: string }>, artist: string, title: string): void;
     extractArtistTitleFromVideoTitle(title: string): { artist: string; title: string };

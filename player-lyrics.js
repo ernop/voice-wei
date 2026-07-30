@@ -53,6 +53,7 @@ const PlayerLyrics = (function () {
     const LYRICS_SEARCH_VERSION = 3;
     const MIN_LYRIC_TITLE_IDENTITY_SCORE = 0.6;
     const MIN_LYRIC_ARTIST_IDENTITY_SCORE = 0.6;
+    const EXACT_TIMED_LYRIC_EARLY_STOP_SCORE = 0.98;
 
     /** @param {VoiceMusicController} controller */
     function install(controller) {
@@ -527,9 +528,12 @@ const PlayerLyrics = (function () {
              * 1. A stored record from the current search algorithm settles
              *    from the store (timed lyrics are final; simple/none also
              *    obey the freshness TTL).
-             * 2. Every older record gets one re-search under current identity
-             *    rules, including timed records accepted by weaker rules.
-             * 3. The provider answer is saved FIRST (awaited), then
+             * 2. An older timed record that passes the current local identity
+             *    gates is promoted in the store without provider traffic.
+             *    Older simple and none records still get one provider search
+             *    so simple lyrics retain their timed-upgrade path.
+             * 3. The promoted record or provider answer is saved FIRST
+             *    (awaited), then
              *    returned for activation. A valid stored result is never
              *    downgraded when its re-search finds nothing better.
              *    Failures throw without saving anything.
@@ -546,14 +550,23 @@ const PlayerLyrics = (function () {
                 if (!forceLookup && savedHasTimed && savedCurrentSearch) {
                     return saved;
                 }
+                const savedMatchesIdentity = !!saved && saved.status === 'found' && !!saved.lyrics
+                    && this.lyricsMatchItemIdentity(saved.lyrics, item);
+                if (!forceLookup && savedHasTimed && savedMatchesIdentity) {
+                    const promoted = {
+                        ...saved,
+                        videoId: lookupVideoId,
+                        searchVersion: LYRICS_SEARCH_VERSION
+                    };
+                    await window.PlayerHistoryDB.putLyricState(promoted);
+                    return promoted;
+                }
                 const savedFresh = !!saved && (Date.now() - saved.checkedAt) < LYRICS_NONE_RECHECK_TTL_MS;
                 if (!forceLookup && saved && savedFresh && savedCurrentSearch) {
                     return saved;
                 }
 
                 const lyrics = await this.lookupLyrics(item);
-                const savedMatchesIdentity = !!saved && saved.status === 'found' && !!saved.lyrics
-                    && this.lyricsMatchItemIdentity(saved.lyrics, item);
                 // A user-tuned offset outlives re-searches; only absent when
                 // the song has never been adjusted.
                 const preservedOffset = saved && typeof saved.lyricOffsetSeconds === 'number'
@@ -701,6 +714,15 @@ const PlayerLyrics = (function () {
                             results: results || [],
                             error: /** @type {Error | null} */ (null)
                         });
+                        if ((results || []).some(record =>
+                            this.isExactStrongTimedLyricsMatch(
+                                record,
+                                candidate.artist,
+                                candidate.title,
+                                expectedDuration
+                            ))) {
+                            break;
+                        }
                     } catch (error) {
                         searches.push({
                             candidate,
@@ -818,6 +840,25 @@ const PlayerLyrics = (function () {
                 if (!artist) return true;
                 const artistScore = this.tokenSimilarity(record.artistName || '', artist);
                 return artistScore >= MIN_LYRIC_ARTIST_IDENTITY_SCORE;
+            },
+
+            /**
+             * A complete provider answer containing exact normalized
+             * title/artist identity, timed text, and near-exact duration is
+             * already the strongest useful result. No noisier alternate
+             * YouTube identity can improve recall for that song.
+             * @param {any} record @param {string} artist @param {string} title
+             * @param {number} expectedDuration
+             */
+            isExactStrongTimedLyricsMatch(record, artist, title, expectedDuration) {
+                if (!artist || expectedDuration <= 0) return false;
+                if (!(typeof record.syncedLyrics === 'string' && record.syncedLyrics.trim())) return false;
+                if (this.normalizeComparisonText(record.trackName || record.name || '')
+                    !== this.normalizeComparisonText(title)) return false;
+                if (this.normalizeComparisonText(record.artistName || '')
+                    !== this.normalizeComparisonText(artist)) return false;
+                return this.scoreLyricsCandidate(record, artist, title, expectedDuration)
+                    >= EXACT_TIMED_LYRIC_EARLY_STOP_SCORE;
             },
 
             /** @param {LyricsResult} lyrics @param {PlaylistItem} item */

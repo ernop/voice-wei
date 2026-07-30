@@ -681,6 +681,12 @@ Tapping the chip on a stored `none` forces a fresh provider recheck; a stored
 playlist restore; songs already resolved in the store settle from one
 IndexedDB read with zero network, so the pass is idempotent and an
 interrupted or failed recheck resumes on the next open by construction.
+When identity rules advance, an older timed record that already passes the
+new local title/artist gates is promoted to the current `searchVersion` by an
+awaited store write, also with zero provider traffic. Older valid simple
+records still make their one timed-upgrade request; the resulting current
+simple record then obeys the seven-day TTL. Invalid old records and old `none`
+records recheck through the provider.
 
 **Timed lyrics first.** The two lyric kinds are named in every
 user-facing surface: timed (line-synced) and simple (text only). The
@@ -689,8 +695,11 @@ only after title identity and, when known, artist identity pass independent
 minimums; duration can rank matching records but cannot compensate for a
 different song or artist. Provider lookup uses artist + title without album,
 because edition and compilation album metadata must not hide a valid lyric
-record. Every stored result carries the `searchVersion`; when identity rules
-change, older timed, simple, and `none` records each get one revalidation.
+record. Candidate identities are searched serially to preserve the real
+two-request network bound. Search stops early only when one complete provider
+answer contains timed lyrics with exact normalized title/artist identity and a
+combined identity/duration score of at least 0.98; otherwise every candidate is
+searched, preserving recall. Every stored result carries the `searchVersion`.
 A valid stored result survives an empty revalidation, while an invalid stale
 result cannot become final under the new version.
 
