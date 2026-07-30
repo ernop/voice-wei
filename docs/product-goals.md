@@ -67,8 +67,8 @@ and deliver a weaker version of the requested change.
 - **Defined parameters**: every setting picks a change behavior from the
   fixed vocabulary in docs/parameters.md and persists per tab.
 - **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step.
-  The only backend is `proxy.php`: keyless Piped/Invidious music search plus
-  remote webpage/PDF imports for Books and linked-page requests.
+  The only backend is `proxy.php`: keyless Piped/Invidious and LRCLIB search
+  plus remote webpage/PDF imports for Books and linked-page requests.
 - **Agent change → live → yui knows**: the car-loop ship contract is only
   “the fix is on the phone,” “yui gets a trustworthy signal,” and “it’s in
   git.” The header version is one signal, not the goal — see

@@ -31,6 +31,7 @@ const PARALLEL_SUITES = [
     'test-player-search.js',
     'test-player-report.js',
     'test-player-lifecycle.js',
+    'test-proxy.js',
     'test-syntax.js',
     'test-css-ownership.js'
 ];

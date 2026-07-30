@@ -688,19 +688,27 @@ const PlayerLyrics = (function () {
                 /** @type {{ score: number, record: any } | null} */
                 let bestMatch = null;
 
-                // Search all candidates in parallel, keeping failures
-                // distinct from genuine empty answers.
-                const searches = await Promise.all(
-                    candidates.map(candidate =>
-                        this.searchLyricsProvider(candidate.title, candidate.artist)
-                            .then(results => ({ candidate, results: results || [], error: /** @type {Error | null} */ (null) }))
-                            .catch(error => ({
-                                candidate,
-                                results: /** @type {any[]} */ ([]),
-                                error: error instanceof Error ? error : new Error(String(error))
-                            }))
-                    )
-                );
+                // Search each song's identity candidates in order. The outer
+                // queue already runs two songs concurrently; serial candidates
+                // keep that promise true at the network/PHP-worker boundary
+                // instead of multiplying it into as many as six requests.
+                const searches = [];
+                for (const candidate of candidates) {
+                    try {
+                        const results = await this.searchLyricsProvider(candidate.title, candidate.artist);
+                        searches.push({
+                            candidate,
+                            results: results || [],
+                            error: /** @type {Error | null} */ (null)
+                        });
+                    } catch (error) {
+                        searches.push({
+                            candidate,
+                            results: /** @type {any[]} */ ([]),
+                            error: error instanceof Error ? error : new Error(String(error))
+                        });
+                    }
+                }
 
                 // A provider failure (rate limit, network) is NOT "no lyrics
                 // exist". Only searches that actually answered may conclude
@@ -766,7 +774,8 @@ const PlayerLyrics = (function () {
                     params.set('q', artist);
                 }
 
-                const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
+                params.set('lyrics', 'search');
+                const response = await fetch(`proxy.php?${params.toString()}`, {
                     signal: AbortSignal.timeout(LYRICS_PROVIDER_TIMEOUT_MS)
                 });
                 if (!response.ok) {

@@ -30,7 +30,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
             `
         });
     });
-    await tab.route('https://lrclib.net/**', route => route.fulfill({
+    await tab.route(/\/proxy\.php\?.*lyrics=search/, route => route.fulfill({
         contentType: 'application/json',
         body: '[]'
     }));

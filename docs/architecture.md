@@ -9,8 +9,8 @@ How the system is built. Product intent lives in
 Static site, no build step. Each tab is an `.html` + `.js` (+ `.css`) trio
 loading shared libraries via script tags. Cache busting via `?v=NN`
 (see Version System in the README). `proxy.php` is the only server-side piece:
-it provides keyless Piped/Invidious music search plus same-origin webpage/PDF
-imports for Books and linked-page requests.
+it provides keyless Piped/Invidious music search, fixed-provider LRCLIB
+search, and same-origin webpage/PDF imports for Books and linked-page requests.
 
 ```
 index.html               # Home: cards for every tool
@@ -105,7 +105,10 @@ and nonstandard ports, revalidates every redirect, verifies TLS, caps response
 sizes, and limits binary passthrough to PDFs. Production nginx rate-limits the
 endpoint and executes no other PHP file. A dedicated on-demand PHP-FPM pool
 runs as `voicewei`, has no shell/process execution functions, and can access
-only the application root and `/tmp`.
+only the application root and `/tmp`. Lyrics search uses the same outbound
+request boundary but accepts only `track_name` and `artist_name`; the server
+fixes the destination to LRCLIB, caps JSON at 2 MB, and retains the 12-second
+provider timeout. It is not a general URL proxy.
 
 ## Change stance: owner direction before continuity
 
@@ -667,8 +670,11 @@ failure broadcasts to every current playlist row with the captured videoId;
 an identity transition cannot receive the old completion. Every provider fetch
 is bounded by a 12s timeout, so a lookup interrupted by a page suspension
 always settles and can never wedge a song in 'loading'. Background resolution
-keeps provider concurrency at two videos. Tapping the chip on a stored `none`
-forces a fresh provider recheck; a stored `none` also expires after 7 days.
+keeps provider concurrency at two videos. LRCLIB requests use the keyless
+same-origin `proxy.php` boundary; each video's alternate identity candidates
+run serially so the two-video queue is also the real network/PHP-worker bound.
+Tapping the chip on a stored `none` forces a fresh provider recheck; a stored
+`none` also expires after 7 days.
 
 **Library reconciliation is per song, on every load.**
 `reconcileLibraryLyrics` queues every favorite for resolution before the

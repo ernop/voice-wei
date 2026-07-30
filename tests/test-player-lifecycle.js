@@ -41,7 +41,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         contentType: 'application/javascript',
         body: 'queueMicrotask(() => window.onYouTubeIframeAPIReady?.());'
     }));
-    await tab.route('https://lrclib.net/**', route => route.fulfill({
+    await tab.route(/\/proxy\.php\?.*lyrics=search/, route => route.fulfill({
         contentType: 'application/json',
         body: '[]'
     }));
@@ -172,7 +172,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         contentType: 'application/javascript',
         body: 'queueMicrotask(() => window.onYouTubeIframeAPIReady?.());'
     }));
-    await experimentTab.route('https://lrclib.net/**', route => route.fulfill({
+    await experimentTab.route(/\/proxy\.php\?.*lyrics=search/, route => route.fulfill({
         contentType: 'application/json',
         body: '[]'
     }));

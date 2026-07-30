@@ -424,6 +424,71 @@ if (isset($_GET['assetUrl'])) {
     exit;
 }
 
+// Fixed-provider lyrics search: proxy.php?lyrics=search&track_name=...&artist_name=...
+// The browser supplies only identity fields; it cannot choose the outbound
+// host, so this path adds no general-purpose SSRF surface.
+if (isset($_GET['lyrics'])) {
+    if ($_GET['lyrics'] !== 'search') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Unknown lyrics operation']);
+        exit;
+    }
+
+    $trackParam = $_GET['track_name'] ?? '';
+    $artistParam = $_GET['artist_name'] ?? '';
+    if (!is_string($trackParam) || !is_string($artistParam)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Lyrics search identity must be text']);
+        exit;
+    }
+    $trackName = trim($trackParam);
+    $artistName = trim($artistParam);
+    if ($trackName === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Lyrics search requires track_name']);
+        exit;
+    }
+    if (strlen($trackName) > 300 || strlen($artistName) > 300) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Lyrics search identity is too long']);
+        exit;
+    }
+
+    $query = ['track_name' => $trackName];
+    if ($artistName !== '') {
+        $query['artist_name'] = $artistName;
+    }
+    $url = 'https://lrclib.net/api/search?' . http_build_query(
+        $query,
+        '',
+        '&',
+        PHP_QUERY_RFC3986
+    );
+    $result = requestPublicUrl($url, 'application/json', 2000000, 12);
+    $httpCode = $result['httpCode'];
+    $body = $result['response'];
+    if ($httpCode < 200 || $httpCode >= 300 || $body === false) {
+        $timedOut = $httpCode === 504 || stripos($result['error'], 'timed out') !== false;
+        http_response_code($timedOut ? 504 : 502);
+        echo json_encode([
+            'error' => $timedOut
+                ? 'Lyrics provider timed out'
+                : ($result['error'] ?: "Lyrics provider returned HTTP {$httpCode}")
+        ]);
+        exit;
+    }
+
+    $data = json_decode($body, true);
+    if (!is_array($data)) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Lyrics provider returned invalid JSON']);
+        exit;
+    }
+
+    echo json_encode($data);
+    exit;
+}
+
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([
@@ -539,4 +604,4 @@ if ($query !== '') {
 }
 
 http_response_code(400);
-echo json_encode(['error' => 'Use q for music search, readUrl for webpages, or assetUrl for PDFs']);
+echo json_encode(['error' => 'Use q for music search, lyrics for lyrics search, readUrl for webpages, or assetUrl for PDFs']);

@@ -709,6 +709,75 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && lyricProviderIdentityEvidence.albumCalls.length === 1
             && lyricProviderIdentityEvidence.albumCalls.every(call => call.album === undefined));
 
+        const lyricProviderTransport = await tab.evaluate(async () => {
+            const harness = { lyricsLookupCache: new Map(), addMessage() {} };
+            PlayerLyrics.install(harness);
+            const realFetch = window.fetch;
+            const calls = [];
+            let active = 0;
+            let maxActive = 0;
+            window.fetch = async (url, options = {}) => {
+                const href = String(url);
+                if (!href.includes('lyrics=search')) return realFetch(url, options);
+                active++;
+                maxActive = Math.max(maxActive, active);
+                calls.push({ href, hasSignal: options.signal instanceof AbortSignal });
+                await new Promise(resolve => setTimeout(resolve, 15));
+                active--;
+                const status = href.includes('HTTP+Failure') ? 504 : 200;
+                return new Response(status === 200 ? '[]' : '{"error":"Lyrics provider timed out"}', {
+                    status,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            };
+
+            try {
+                await harness.searchLyricsProvider('Song + One', 'AC/DC & Friend');
+                const items = [1, 2].map(index => ({
+                    name: `Canonical ${index}`,
+                    artist: `Primary ${index}`,
+                    title: `Parsed ${index} - Upload ${index}`,
+                    channelTitle: `Channel ${index}`,
+                    duration: '3:00',
+                    durationSeconds: 180
+                }));
+                const candidateCounts = items.map(item => harness.buildLyricsLookupCandidates(item).length);
+                await Promise.all(items.map(item => harness.lookupLyrics(item)));
+
+                let errorMessage = '';
+                try {
+                    await harness.searchLyricsProvider('HTTP Failure', 'Error Artist');
+                } catch (error) {
+                    errorMessage = error instanceof Error ? error.message : String(error);
+                }
+
+                const urls = calls.map(call => new URL(call.href, location.href));
+                return {
+                    firstTrack: urls[0]?.searchParams.get('track_name') || '',
+                    firstArtist: urls[0]?.searchParams.get('artist_name') || '',
+                    allSameOrigin: urls.every(url => url.origin === location.origin),
+                    noDirectProvider: calls.every(call => !call.href.includes('lrclib.net')),
+                    allTimed: calls.every(call => call.hasSignal),
+                    candidateCounts,
+                    maxActive,
+                    errorMessage
+                };
+            } finally {
+                window.fetch = realFetch;
+            }
+        });
+        report.check('player sends lyric identity through the same-origin keyless proxy',
+            lyricProviderTransport.firstTrack === 'Song + One'
+            && lyricProviderTransport.firstArtist === 'AC/DC & Friend'
+            && lyricProviderTransport.allSameOrigin
+            && lyricProviderTransport.noDirectProvider
+            && lyricProviderTransport.allTimed);
+        report.check(`player lyric candidate fan-out stays within the two-song network bound (max ${lyricProviderTransport.maxActive})`,
+            lyricProviderTransport.candidateCounts.every(count => count === 3)
+            && lyricProviderTransport.maxActive <= 2);
+        report.check('player keeps proxied provider failures retryable',
+            lyricProviderTransport.errorMessage === 'Lyrics search failed: HTTP 504');
+
         const staleTimedLyricUpgrade = await tab.evaluate(async () => {
             const run = Date.now();
             const makeItem = (kind) => ({
