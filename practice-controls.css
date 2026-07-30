@@ -10,7 +10,7 @@
     padding: 5px 7px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     white-space: nowrap;
@@ -32,23 +32,21 @@
     box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
-/* Stepper field: label, minus, value, plus */
+/* Stepper field: one bounded unit holding its own label, minus, value,
+   plus. The label lives INSIDE the shell so it can never wrap away from
+   the control it explains. Everything sizes to content - no fixed
+   column widths, no per-breakpoint stretching. (.step-field-bare is the
+   same unit without a label; legacy pages still carry the class.) */
 .step-field {
-    display: grid;
-    grid-template-columns: 58px 34px 46px 34px;
+    display: flex;
     align-items: center;
     gap: 3px;
     width: fit-content;
     max-width: 100%;
     padding: 3px;
     border: 1px solid rgba(134, 239, 172, 0.38);
-    border-radius: 999px;
+    border-radius: var(--radius-group);
     background: rgba(0, 0, 0, 0.3);
-}
-
-/* Stepper without an internal label (the row provides one) */
-.step-field-bare {
-    grid-template-columns: 38px 54px 38px;
 }
 
 .step-label {
@@ -65,7 +63,7 @@
     width: 38px;
     height: 32px;
     border: 1px solid rgba(74, 222, 128, 0.32);
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     background: rgba(8, 47, 31, 0.9);
     color: #e8f5e9;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
@@ -95,17 +93,21 @@
     outline-offset: 2px;
 }
 
+/* The value readout never wraps and never truncates: it sizes to its
+   text with a small floor so short values still read as a button-sized
+   pad ("60" and "2 beats" get equal treatment). */
 .step-value {
-    width: 54px;
+    min-width: 44px;
     box-sizing: border-box;
     padding: 5px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     background: rgba(74, 222, 128, 0.18);
     color: #d9f99d;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.85rem;
     font-weight: 900;
     text-align: center;
+    white-space: nowrap;
 }
 
 /* Segmented row: mutually exclusive vf-btn options in a pill shell */
@@ -120,37 +122,20 @@
     padding: 3px;
     gap: 3px;
     border: 1px solid rgba(134, 239, 172, 0.38);
-    border-radius: 12px;
+    border-radius: var(--radius-group);
     background: rgba(0, 0, 0, 0.3);
 }
 
 .segment-row .vf-btn {
     min-width: 82px;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     text-align: center;
 }
 
-@media (max-width: 640px) {
-    .step-field {
-        width: auto;
-        grid-template-columns: 54px 36px 54px 36px;
-        justify-content: space-between;
-    }
-
-    .step-value {
-        width: 54px;
-    }
-
-    .segment-row {
-        width: auto;
-    }
-
-    .segment-row .vf-btn {
-        flex: 0 0 auto;
-        min-width: 74px;
-        padding-left: 5px;
-        padding-right: 5px;
-    }
+/* A group shell (segment row) may carry its own label the same way a
+   stepper does: as the first child, inside the border. */
+.segment-row .step-label {
+    padding-right: 2px;
 }
 
 /* Compact density: put .vf-compact on a settings container to get the
@@ -159,7 +144,7 @@
    it stays on screen - the car-glance layout. */
 .vf-compact .vf-btn {
     padding: 1px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     font-size: 0.7rem;
     line-height: 12px;
 }
@@ -180,11 +165,7 @@
 
 .vf-compact .step-field {
     padding: 2px;
-    grid-template-columns: 52px 30px 44px 30px;
-}
-
-.vf-compact .step-field-bare {
-    grid-template-columns: 30px 44px 30px;
+    gap: 2px;
 }
 
 .vf-compact .step-btn {
@@ -194,6 +175,7 @@
 }
 
 .vf-compact .step-value {
+    min-width: 38px;
     padding: 2px 6px;
     font-size: 0.78rem;
 }
@@ -216,7 +198,7 @@
     padding: 16px;
     background: rgba(0, 0, 0, 0.34);
     border: 1px solid rgba(14, 165, 233, 0.36);
-    border-radius: 14px;
+    border-radius: var(--radius-card);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
 }
 
@@ -253,14 +235,14 @@
     z-index: 30;
     background: rgba(7, 26, 16, 0.92);
     backdrop-filter: blur(6px);
-    border-radius: 10px;
+    border-radius: var(--radius-card);
     padding: 6px;
 }
 
 .pitch-test-btn {
     padding: 7px 12px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    border-radius: var(--radius-group);
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
     font-weight: 700;
@@ -308,7 +290,7 @@
 .pitch-test-canvas-wrap {
     width: 100%;
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: var(--radius-card);
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(0, 0, 0, 0.4);
 }
@@ -334,7 +316,7 @@
     width: 18px;
     height: 4px;
     margin-right: 6px;
-    border-radius: 999px;
+    border-radius: 2px;
     vertical-align: middle;
 }
 
@@ -383,7 +365,7 @@
     background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
     color: #fff !important;
     border: none;
-    border-radius: 10px;
+    border-radius: var(--radius-card);
     min-height: 48px;
     min-width: 100px;
     padding: 10px 18px;
@@ -436,7 +418,7 @@
 .pitch-test-dock .pitch-test-panel,
 .pitch-test-dock > [id$="Panel"].pitch-test-panel {
     margin: 0;
-    border-radius: 14px 14px 0 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
     border-bottom: none;
     /* The sheet floats over live page content (piano, staff, history).
        The base panel background is translucent, which let that content
@@ -501,7 +483,7 @@ body:has(.pitch-test-dock) {
     padding: 5px 7px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     white-space: nowrap;
 }
 
@@ -545,7 +527,7 @@ body:has(.pitch-test-dock) {
     min-width: 80px;
     color: white;
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-card);
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
@@ -716,7 +698,7 @@ body:has(.pitch-test-dock) {
     margin-top: 20px;
     padding: 16px;
     background: rgba(0, 0, 0, 0.25);
-    border-radius: 12px;
+    border-radius: var(--radius-card);
 }
 
 .history-header {
@@ -736,7 +718,7 @@ body:has(.pitch-test-dock) {
    (width, font-size, resize) but never re-skin them. */
 .text-input {
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--radius-group);
     border: 1px solid rgba(74, 222, 128, 0.3);
     background: rgba(0, 0, 0, 0.3);
     color: #e8f5e9;
@@ -760,7 +742,7 @@ body:has(.pitch-test-dock) {
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     font-size: 0.75rem;
     cursor: pointer;
 }
@@ -787,7 +769,7 @@ body:has(.pitch-test-dock) {
     padding: 8px 16px;
     background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-group);
     color: #06240f;
     font-size: 0.9rem;
     font-weight: 700;
@@ -815,7 +797,7 @@ body:has(.pitch-test-dock) {
     padding: 8px 16px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    border-radius: var(--radius-group);
     color: rgba(255, 255, 255, 0.8);
     font-size: 0.85rem;
     cursor: pointer;
@@ -857,7 +839,7 @@ body:has(.pitch-test-dock) {
     gap: 10px;
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
+    border-radius: var(--radius-group);
 }
 
 .history-item:hover {
@@ -906,7 +888,7 @@ body:has(.pitch-test-dock) {
     margin: 8px 0;
     padding: 8px 10px;
     background: rgba(0, 0, 0, 0.25);
-    border-radius: 10px;
+    border-radius: var(--radius-card);
 }
 
 .vf-row {
@@ -917,6 +899,10 @@ body:has(.pitch-test-dock) {
     flex-wrap: wrap;
 }
 
+/* Row labels hug the control they introduce: no reserved column width.
+   Steppers and labeled groups should prefer an internal .step-label;
+   this external form remains for rows that label a free-standing
+   control (text inputs, toggle clusters). */
 .vf-row .vf-label {
     font-size: 0.65rem;
     font-weight: 600;
@@ -925,12 +911,12 @@ body:has(.pitch-test-dock) {
     letter-spacing: 0.3px;
     margin-bottom: 0;
     text-align: left;
-    min-width: 85px;
     flex-shrink: 0;
 }
 
+/* The gap sits BEFORE an inline label, separating it from the previous
+   unit while it stays tight against its own control. */
 .vf-row .vf-label-inline {
-    min-width: auto;
     margin-left: 12px;
 }
 

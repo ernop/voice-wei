@@ -173,8 +173,13 @@ control language.
 
 ## Stepper and Key labeling
 
-Numeric steppers use an external `vf-label` (or row label) plus
-`step-field-bare` — the label is never boxed inside the green pill.
+Numeric steppers carry their label INSIDE the pill shell as a
+`step-label` first child (architecture.md, Grouping rule 4), so label
+and control can never separate at a wrap point. A labeled segment row
+does the same. `step-field-bare` (external `vf-label` + unlabeled pill)
+is the retiring dialect: Staff is converted; trace/intervals/pitch-meter
+already used internal labels; phrases/scales/intervals rows convert on
+their next pass.
 The user-facing name for the root-pitch chooser is **Key** on every
 practice page (state keys may still say `root` / `rootPitch`).
 Trace's **Low** and **High** controls use the same semitone pitch-stepper

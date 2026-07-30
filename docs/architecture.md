@@ -1026,6 +1026,23 @@ Controls must be identifiable as groups at a glance:
 3. **Shells are tight.** Group containers use minimal padding; the
    boundary comes from the border, not from whitespace. Don't spend
    vertical or horizontal space to imply grouping.
+4. **Labels live inside the shell of the control they explain.** A
+   stepper or labeled segment row carries a `step-label` as its first
+   child, inside the border, so the label can never wrap away from its
+   control. External `vf-label`s remain only for rows that introduce a
+   free-standing control (text inputs, toggle clusters) and reserve no
+   column width. Staff is converted; other pages convert on their next
+   pass.
+5. **Controls size to their content at every viewport width.** No fixed
+   column widths inside steppers, no reserved label columns, no
+   per-breakpoint stretch-to-fill rules. Rows are flex-wrap containers
+   with a uniform gap; a narrow screen wraps units, it never reshapes
+   them.
+6. **Corner radii come from the three-token scale** in style.css
+   (`--radius-control` 4px for chips/buttons/values/toggles,
+   `--radius-group` 6px for bounded shells and inputs, `--radius-card`
+   10px for cards/panels/docks). No pill (999px) corners and no per-
+   control radius choices.
 
 ## Canonical control surfaces
 

@@ -85,7 +85,7 @@
 .reader-panel {
     background: rgba(0, 0, 0, 0.24);
     border: 1px solid rgba(74, 222, 128, 0.16);
-    border-radius: 12px;
+    border-radius: var(--radius-card);
 }
 
 .books-library-panel {
@@ -146,7 +146,7 @@
 .url-import-overlay-content {
     background: linear-gradient(145deg, #1a3a2e 0%, #0d2818 100%);
     border: 1px solid rgba(74, 222, 128, 0.3);
-    border-radius: 16px;
+    border-radius: var(--radius-card);
     padding: 22px;
     max-width: 720px;
     width: 100%;
@@ -1163,7 +1163,7 @@
 .ai-research-card {
     order: 1;
     padding: 14px;
-    border-radius: 12px;
+    border-radius: var(--radius-card);
     border: 1px solid rgba(96, 165, 250, 0.42);
     background:
         linear-gradient(145deg, rgba(30, 58, 138, 0.22), rgba(15, 23, 42, 0.82)),

@@ -27,7 +27,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     background: rgba(13, 40, 24, 0.93);
     backdrop-filter: blur(6px);
     border: 1px solid rgba(134, 239, 172, 0.24);
-    border-radius: 14px;
+    border-radius: var(--radius-card);
     position: sticky;
     top: 48px;
     z-index: 40;
@@ -315,7 +315,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     right: 4px;
     top: -7px;
     padding: 0 4px;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     background: rgba(14, 116, 144, 0.92);
     color: #cffafe;
     font-size: 9px;
@@ -328,7 +328,6 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 }
 
 .phrase-toggle-btn {
-    border-radius: 999px;
     min-width: auto;
 }
 
@@ -347,22 +346,14 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
-.phrase-length-step-field {
-    grid-template-columns: 34px 30px 34px 30px;
-}
-
 .phrase-length-step-field .step-btn {
     width: 30px;
 }
 
 .phrase-length-step-field .step-value {
-    width: 34px;
+    min-width: 30px;
     padding-left: 4px;
     padding-right: 4px;
-}
-
-.phrase-accidental-step-field {
-    grid-template-columns: 66px 30px 46px 30px;
 }
 
 .phrase-accidental-step-field .step-btn {
@@ -393,7 +384,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
     min-height: 0;
     padding: 0 9px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
     font-size: 0.7rem;

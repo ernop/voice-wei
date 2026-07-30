@@ -1,3 +1,14 @@
+/* Corner-radius scale: exactly three radii, chosen by box size, never
+   per control. Small interactive pieces (chips, stepper buttons, value
+   readouts, toggles) use --radius-control; bounded groups and inputs
+   (pill shells, segment rows, text fields) use --radius-group; cards,
+   panels, and docks use --radius-card. No pill/oval (999px) corners. */
+:root {
+    --radius-control: 4px;
+    --radius-group: 6px;
+    --radius-card: 10px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -208,7 +219,7 @@ header {
     color: rgba(232, 245, 233, 0.9);
     font-weight: 700;
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-group);
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -266,7 +277,7 @@ header {
     padding: 8px 13px;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid rgba(167, 243, 208, 0.26);
-    border-radius: 999px;
+    border-radius: var(--radius-group);
     font-size: 0.85rem;
     font-weight: 750;
     white-space: nowrap;
