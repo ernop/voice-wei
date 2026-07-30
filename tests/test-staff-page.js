@@ -304,8 +304,9 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     const stateText = await tab.evaluate(() => {
         const text = window.staffDebug.stateText();
         const events = window.staffDebug.events();
-        const noteTokens = (text.match(/(^|\s)[0-9][0-9#b\u2191\u2193]*\.[qhw8]/g) || []).length;
-        const restTokens = (text.match(/(^|\s)r\.[qhw8]/g) || []).length;
+        const sequencePart = text.split(/\nlog \(/)[0];
+        const noteTokens = (sequencePart.match(/(^|\s)[0-9][0-9#b\u2191\u2193]*\.[qhw8]/g) || []).length;
+        const restTokens = (sequencePart.match(/(^|\s)r\.[qhw8]/g) || []).length;
         return {
             hasHeader: text.includes('Voice-Wei Staff state'),
             hasKey: /key: .+ major|minor|chromatic|pentatonic/.test(text),
@@ -315,13 +316,22 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             noteCount: events.filter(event => event.type === 'note').length,
             restCount: events.filter(event => event.type === 'rest').length,
             hasNames: text.includes('note names: '),
-            buttonExists: Boolean(document.getElementById('copyStateBtn'))
+            hasLogHeader: /\nlog \(\d+ lines, \d+ frontend errors\):/.test(text),
+            logLines: window.staffDebug.statusLog().length,
+            logInText: /\n\[\d{2}:\d{2}:\d{2}\] /.test(text),
+            buttonExists: Boolean(document.getElementById('copyStateBtn')),
+            buttonInUtilityRow: Boolean(document.querySelector('.staff-utility-row #copyStateBtn')),
+            buttonInStageMeta: Boolean(document.querySelector('.staff-stage-meta #copyStateBtn'))
         };
     });
     report.check('Copy Text has header, key, and settings lines',
         stateText.hasHeader && stateText.hasKey && stateText.hasSettings && stateText.buttonExists);
     report.check(`Copy Text sequence tokens match the events (${stateText.noteTokens}/${stateText.noteCount} notes, ${stateText.restTokens}/${stateText.restCount} rests)`,
         stateText.noteTokens === stateText.noteCount && stateText.restTokens === stateText.restCount && stateText.hasNames);
+    report.check(`Copy Text carries the session log lines (${stateText.logLines} recorded)`,
+        stateText.hasLogHeader && stateText.logLines > 0 && stateText.logInText);
+    report.check('Copy Text button sits in the utility row above Past Runs, not the stage row',
+        stateText.buttonInUtilityRow && !stateText.buttonInStageMeta);
 
     // Palette line: names the exact degrees in force, from the same core
     // resolution the generator uses, live with the controls.
@@ -539,6 +549,33 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('band toggles persist and sit in the stage row under the band',
         bandToggles.persisted && bandToggles.inStageMeta);
 
+    // The stage row owns every display-affecting toggle: note guides,
+    // sung line, hear tones, show numbers, and pitch info. The pitch
+    // readout itself hides with its toggle and the choice persists.
+    const stageToggles = await tab.evaluate(() => {
+        const inMeta = id => Boolean(document.querySelector(`.staff-stage-meta #${id}`));
+        const readout = document.getElementById('pitchReadout');
+        const toggle = document.getElementById('pitchReadoutToggle');
+        toggle.click();
+        const hiddenAfterOff = readout.hidden;
+        const stored = SettingsStore.peekData(StorageKeys.STAFF_SETTINGS) || {};
+        const persistedOff = stored.showPitchReadout === false;
+        toggle.click();
+        return {
+            tonesInMeta: inMeta('hearTonesToggle'),
+            degreesInMeta: inMeta('showDegreesToggle'),
+            pitchToggleInMeta: inMeta('pitchReadoutToggle'),
+            hiddenAfterOff,
+            persistedOff,
+            shownAfterOn: !readout.hidden
+        };
+    });
+    report.check('hear tones and show numbers live in the stage row',
+        stageToggles.tonesInMeta && stageToggles.degreesInMeta);
+    report.check('pitch info toggle hides the readout, persists, and restores it',
+        stageToggles.pitchToggleInMeta && stageToggles.hiddenAfterOff
+        && stageToggles.persistedOff && stageToggles.shownAfterOn);
+
     // --- Stalled clock: missed notes pass silently, never as a burst ---
     const burst = await tab.evaluate(() => {
         const debug = window.staffDebug;
@@ -663,6 +700,51 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`stopping the run hands the clock back and starts a fresh take (clock ${clockSync.clockAfterStop}, ${clockSync.historyAfterStop} samples)`,
         clockSync.clockAfterStop === null && clockSync.historyAfterStop === 0);
     await tab.evaluate(() => { window.staffDebug.singPanel().close(); });
+
+    // --- Narrow-width layout: controls obey the sizing rules ------------
+    // Every control unit sizes to its content (no stretched pills), no
+    // unit overlaps another or overflows the grid, every stepper carries
+    // its label inside its own shell, and value readouts never wrap.
+    const narrowCtx = await browser.newContext({ viewport: { width: 460, height: 900 } });
+    const narrowTab = await narrowCtx.newPage();
+    collectErrors(narrowTab, 'staff-narrow', report.errors);
+    await narrowTab.goto(`${BASE_URL}/staff.html`, { waitUntil: 'domcontentloaded' });
+    await narrowTab.waitForFunction(() => Boolean(window.staffDebug && window.staffDebug.events().length), null, { timeout: 20000 });
+    const narrow = await narrowTab.evaluate(() => {
+        const grid = document.querySelector('.staff-control-grid').getBoundingClientRect();
+        const units = Array.from(document.querySelectorAll(
+            '.staff-control-grid .step-field, .staff-control-grid .segment-row, .staff-control-grid .display-toggle'))
+            .filter(el => el.getClientRects().length > 0);
+        const rects = units.map(el => el.getBoundingClientRect());
+        let overlaps = 0;
+        let overflow = 0;
+        for (let i = 0; i < rects.length; i++) {
+            const rect = rects[i];
+            if (rect.left < grid.left - 1 || rect.right > grid.right + 1) overflow++;
+            for (let j = i + 1; j < rects.length; j++) {
+                const x = Math.min(rects[i].right, rects[j].right) - Math.max(rects[i].left, rects[j].left);
+                const y = Math.min(rects[i].bottom, rects[j].bottom) - Math.max(rects[i].top, rects[j].top);
+                if (x > 1 && y > 1) overlaps++;
+            }
+        }
+        const steppers = Array.from(document.querySelectorAll('.staff-control-grid .step-field'));
+        const unlabeled = steppers.filter(field => !field.querySelector('.step-label')).length;
+        const wrappedValues = Array.from(document.querySelectorAll('.step-value'))
+            .filter(el => el.getBoundingClientRect().height > 26).length;
+        // Steppers size to content; a stepper spanning most of the grid
+        // means the stretch-to-fill special case crept back. (Segment
+        // rows may wrap and legitimately fill the row.)
+        const stretched = steppers.filter(field =>
+            field.getBoundingClientRect().width > grid.width * 0.9).length;
+        return { unitCount: units.length, overlaps, overflow, unlabeled, wrappedValues, stretched };
+    });
+    report.check(`narrow layout: ${narrow.unitCount} control units, no overlap or overflow (${narrow.overlaps}/${narrow.overflow})`,
+        narrow.unitCount > 10 && narrow.overlaps === 0 && narrow.overflow === 0);
+    report.check(`narrow layout: every stepper carries its label inside its shell (${narrow.unlabeled} unlabeled)`,
+        narrow.unlabeled === 0);
+    report.check(`narrow layout: value readouts stay on one line, pills never stretch (${narrow.wrappedValues} wrapped, ${narrow.stretched} stretched)`,
+        narrow.wrappedValues === 0 && narrow.stretched === 0);
+    await narrowCtx.close();
 
     await browser.close();
     report.finish();

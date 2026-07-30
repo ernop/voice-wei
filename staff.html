@@ -53,55 +53,64 @@
                         <input type="checkbox" id="sungLineToggle" checked>
                         <span>sung line</span>
                     </label>
+                    <label class="display-toggle" title="Play each note on the piano as it crosses the now-line">
+                        <input type="checkbox" id="hearTonesToggle" checked>
+                        <span>hear tones</span>
+                    </label>
+                    <label class="display-toggle" title="Show each note's scale degree (1-8) under the staff">
+                        <input type="checkbox" id="showDegreesToggle" checked>
+                        <span>show numbers</span>
+                    </label>
+                    <label class="display-toggle" title="Show the live sung-pitch readout (note, frequency, cents)">
+                        <input type="checkbox" id="pitchReadoutToggle" checked>
+                        <span>pitch info</span>
+                    </label>
                     <span class="staff-pitch-readout" id="pitchReadout">Pitch: --</span>
                     <span class="staff-status-readout" id="statusReadout"></span>
-                    <button id="copyStateBtn" class="vf-btn" type="button"
-                        title="Copy every setting plus the generated sequence as plain text, ready to paste to an agent">Copy Text</button>
                 </div>
             </section>
 
             <div class="voice-first-ui vf-compact staff-control-grid">
                 <section class="staff-control-card">
                     <div class="vf-row">
-                        <span class="vf-label" title="Beats per minute: how fast notes pass the now-line">Tempo</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Beats per minute: how fast notes pass the now-line">
+                            <span class="step-label">Tempo</span>
                             <button class="step-btn" type="button" data-step-key="bpm" data-step-delta="-1" aria-label="Slower tempo">-</button>
                             <span class="step-value" id="bpmValue">60</span>
                             <button class="step-btn" type="button" data-step-key="bpm" data-step-delta="1" aria-label="Faster tempo">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Rest between generated phrases, in beats">Rest</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Rest between generated phrases, in beats">
+                            <span class="step-label">Rest</span>
                             <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="-1" aria-label="Shorter rest between phrases">-</button>
                             <span class="step-value" id="restBeatsValue">2 beats</span>
                             <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="1" aria-label="Longer rest between phrases">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Sequence length in 4/4 measures (scroll mode keeps generating past this)">Bars</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Sequence length in 4/4 measures (scroll mode keeps generating past this)">
+                            <span class="step-label">Bars</span>
                             <button class="step-btn" type="button" data-step-key="measures" data-step-delta="-1" aria-label="Fewer measures">-</button>
                             <span class="step-value" id="measuresValue">16</span>
                             <button class="step-btn" type="button" data-step-key="measures" data-step-delta="1" aria-label="More measures">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Key</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Key</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                             <span class="step-value" id="rootPitchValue">C3</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Min</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Shortest phrase the generator may produce, in notes">
+                            <span class="step-label">Min</span>
                             <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="-1" aria-label="Shorter minimum phrase length">-</button>
                             <span class="step-value" id="minLengthValue">5</span>
                             <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="1" aria-label="Longer minimum phrase length">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Max</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Longest phrase the generator may produce, in notes">
+                            <span class="step-label">Max</span>
                             <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="-1" aria-label="Shorter maximum phrase length">-</button>
                             <span class="step-value" id="maxLengthValue">8</span>
                             <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="1" aria-label="Longer maximum phrase length">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline"
-                            title="Chance of choosing a chromatic passing note between adjacent scale degrees">Pass</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Chance of choosing a chromatic passing note between adjacent scale degrees">
+                            <span class="step-label">Pass</span>
                             <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="-1" aria-label="Lower passing-note rate">-</button>
                             <span class="step-value" id="accidentalRateValue">0%</span>
                             <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="1" aria-label="Higher passing-note rate">+</button>
@@ -111,39 +120,31 @@
 
                 <section class="staff-control-card">
                     <div class="vf-row">
-                        <span class="vf-label" title="Which note values the generator may use">Notes</span>
-                        <div class="segment-row staff-duration-row">
+                        <div class="segment-row staff-duration-row" title="Which note values the generator may use">
+                            <span class="step-label">Notes</span>
                             <button class="vf-btn" data-duration-beats="0.5" title="Eighth notes">eighth</button>
                             <button class="vf-btn" data-duration-beats="1" title="Quarter notes">quarter</button>
                             <button class="vf-btn" data-duration-beats="2" title="Half notes">half</button>
                             <button class="vf-btn" data-duration-beats="4" title="Whole notes">whole</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Horizontal room per beat">Spacing</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Horizontal room per beat">
+                            <span class="step-label">Spacing</span>
                             <button class="step-btn" type="button" data-step-key="pxPerBeat" data-step-delta="-1" aria-label="Tighter note spacing">-</button>
                             <span class="step-value" id="pxPerBeatValue">26px</span>
                             <button class="step-btn" type="button" data-step-key="pxPerBeat" data-step-delta="1" aria-label="Wider note spacing">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Where the now-line sits across the staff">Now</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Where the now-line sits across the staff">
+                            <span class="step-label">Now</span>
                             <button class="step-btn" type="button" data-step-key="nowFraction" data-step-delta="-1" aria-label="Now-line further left">-</button>
                             <span class="step-value" id="nowFractionValue">30%</span>
                             <button class="step-btn" type="button" data-step-key="nowFraction" data-step-delta="1" aria-label="Now-line further right">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Staff width as a share of the page">Width</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Staff width as a share of the page">
+                            <span class="step-label">Width</span>
                             <button class="step-btn" type="button" data-step-key="staffWidthPct" data-step-delta="-1" aria-label="Narrower staff">-</button>
                             <span class="step-value" id="staffWidthPctValue">100%</span>
                             <button class="step-btn" type="button" data-step-key="staffWidthPct" data-step-delta="1" aria-label="Wider staff">+</button>
                         </div>
-                        <label class="display-toggle" title="Play each note on the piano as it crosses the now-line">
-                            <input type="checkbox" id="hearTonesToggle" checked>
-                            <span>hear tones</span>
-                        </label>
-                        <label class="display-toggle" title="Show each note's scale degree (1-8) under the staff">
-                            <input type="checkbox" id="showDegreesToggle" checked>
-                            <span>show numbers</span>
-                        </label>
                     </div>
                 </section>
 
@@ -194,14 +195,14 @@
                             title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
                     </div>
                     <div class="vf-row staff-range-row">
-                        <span class="vf-label" title="Lowest degree phrases may use. Below 1 reaches under the unison.">Range Low</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Lowest degree phrases may use. Below 1 reaches under the unison.">
+                            <span class="step-label">Range Low</span>
                             <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="-1" aria-label="Lower range endpoint down one degree">-</button>
                             <span class="step-value" id="rangeLowValue">1</span>
                             <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="1" aria-label="Raise range endpoint up one degree">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Highest degree phrases may use.">Range High</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Highest degree phrases may use.">
+                            <span class="step-label">Range High</span>
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="-1" aria-label="Lower top endpoint down one degree">-</button>
                             <span class="step-value" id="rangeHighValue">5&#8593;</span>
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="1" aria-label="Raise top endpoint up one degree">+</button>
@@ -229,6 +230,11 @@
                         <button class="vf-btn" data-scale="melodic_minor">m minor</button>
                     </div>
                 </section>
+
+                <div class="staff-utility-row">
+                    <button id="copyStateBtn" class="vf-btn" type="button"
+                        title="Copy every setting, the generated sequence, and this session's log lines as plain text, ready to paste to an agent">Copy Text</button>
+                </div>
             </div>
 
             <div class="command-history">

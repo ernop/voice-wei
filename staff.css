@@ -7,7 +7,7 @@
     margin: 6px 0 2px;
     padding: 8px 8px 6px;
     border: 1px solid rgba(134, 239, 172, 0.18);
-    border-radius: 12px;
+    border-radius: var(--radius-card);
     background: rgba(13, 40, 24, 0.93);
 }
 
@@ -25,7 +25,7 @@
     /* Left-aligned: a narrowed staff hugs the left edge like everything
        else on the page, it does not float in the middle. */
     margin: 0;
-    border-radius: 8px;
+    border-radius: var(--radius-group);
     background: #f8fafc;
     overflow: hidden;
 }
@@ -128,8 +128,17 @@
 .staff-control-card {
     padding: 6px 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
+    border-radius: var(--radius-card);
     background: rgba(0, 0, 0, 0.18);
+}
+
+/* Bottom row of the control area: page-level utility actions (Copy
+   Text), left aligned, just above the Past Runs history. */
+.staff-utility-row {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 6px;
 }
 
 .staff-listen-button.listening {

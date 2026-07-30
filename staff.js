@@ -49,6 +49,7 @@
         showDegrees: true,
         showPitchGuides: true,
         showSungLine: true,
+        showPitchReadout: true,
         mode: 'page'
     };
 
@@ -58,7 +59,7 @@
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
         'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
-        'showPitchGuides', 'showSungLine', 'mode'
+        'showPitchGuides', 'showSungLine', 'showPitchReadout', 'mode'
     ];
 
     const ADJUSTER_VALUES = {
@@ -263,9 +264,21 @@
         textDiff.text('pitchReadout', getEl('pitchReadout'), 'Pitch: --');
     }
 
+    // Every status line the page shows is also kept for Copy Text, so a
+    // pasted state includes what actually happened this session.
+    const STATUS_LOG_CAP = 200;
+    /** @type {string[]} */
+    const statusLog = [];
+
     /** @param {string} message */
     function setStatus(message) {
         textDiff.text('statusReadout', getEl('statusReadout'), message);
+        if (!message) return;
+        const timestamp = new Date().toLocaleTimeString('en-US', {
+            hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        statusLog.push(`[${timestamp}] ${message}`);
+        if (statusLog.length > STATUS_LOG_CAP) statusLog.shift();
     }
 
     //-------------------------------------------------------------------
@@ -305,6 +318,12 @@
         }
         lines.push(tokens.join(' '));
         lines.push(`note names: ${notes.map(note => note.noteName).join(' ')}`);
+        const pageErrors = window.__voiceWeiErrors || [];
+        lines.push(`log (${statusLog.length} lines, ${pageErrors.length} frontend errors):`);
+        for (const entry of statusLog) lines.push(entry);
+        for (const error of pageErrors) {
+            lines.push(`[error] ${error.type}: ${error.message}${error.source ? ` (${error.source})` : ''}`);
+        }
         return lines.join('\n');
     }
 
@@ -312,7 +331,7 @@
         const text = buildStateText();
         try {
             await navigator.clipboard.writeText(text);
-            setStatus('Settings + sequence copied as text');
+            setStatus('Settings + sequence + log copied as text');
         } catch (err) {
             setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -777,6 +796,11 @@
         if (host) host.style.setProperty('--staff-width', `${state.staffWidthPct}%`);
     }
 
+    function applyPitchReadoutVisibility() {
+        const readout = getEl('pitchReadout');
+        if (readout) readout.hidden = !state.showPitchReadout;
+    }
+
     function normalizeLengthBounds(key) {
         if (state.minLength > state.maxLength) {
             if (key === 'maxLength') state.minLength = state.maxLength;
@@ -954,10 +978,12 @@
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
         PracticeControls.syncToggle('sungLineToggle', state.showSungLine);
+        PracticeControls.syncToggle('pitchReadoutToggle', state.showPitchReadout);
         syncDurationChips();
         syncLessonControls();
         syncAdjusterControls();
         applyStaffWidth();
+        applyPitchReadoutVisibility();
     }
 
     function wireSetting(attr, stateKey, parse) {
@@ -992,6 +1018,11 @@
         PracticeControls.wireToggle('sungLineToggle', state.showSungLine, checked => {
             state.showSungLine = checked;
             onSettingChanged('showSungLine');
+        });
+        PracticeControls.wireToggle('pitchReadoutToggle', state.showPitchReadout, checked => {
+            state.showPitchReadout = checked;
+            applyPitchReadoutVisibility();
+            onSettingChanged('showPitchReadout');
         });
         getEl('startAnchorBtn')?.addEventListener('click', () => {
             state.startAtOne = !state.startAtOne;
@@ -1082,6 +1113,7 @@
             regenerate,
             settings: () => ({ ...state, durationBeats: state.durationBeats.slice() }),
             stateText: buildStateText,
+            statusLog: () => statusLog.slice(),
             singPanel: () => singPanel,
             singRails: buildSingRails,
             singTargets: buildSingTargets,

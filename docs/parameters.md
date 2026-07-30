@@ -192,17 +192,23 @@ generates ahead of the now-line - never the sheet already drawn.
 | pxPerBeat | 26 | 14..48 px list | redraw |
 | nowFraction | 10% | 5..50% of the visible staff (a small floor keeps a little look-back room) | redraw |
 | staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
-| hearTones | true | toggle - piano plays each note as it crosses the now-line | immediate |
-| showDegrees | true | toggle - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
-| showPitchGuides | true | toggle (under the band) - gray per-note pitch guides in the sung-pitch band | redraw |
-| showSungLine | true | toggle (under the band) - the recorded blue sung line in the pitch band (the page-mode live dot stays) | redraw |
+| hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line | immediate |
+| showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
+| showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band | redraw |
+| showSungLine | true | toggle (stage row) - the recorded blue sung line in the pitch band (the page-mode live dot stays) | redraw |
+| showPitchReadout | true | toggle (stage row, "pitch info") - the live sung-pitch readout (note, Hz, cents) | immediate |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
+
+Every display-affecting toggle sits in the stage row directly under the
+staff, next to what it changes.
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
 run, saves it as a Past Run when at least a bar was traversed, and
 rewinds to the lead-in), Next (new sequence), Listen (microphone on/off),
-Copy Text (clipboard: every setting plus the generated sequence as
-degree.duration tokens and note names, for pasting to an agent).
+Copy Text (bottom of the control area, above Past Runs; clipboard: every
+setting, the generated sequence as degree.duration tokens and note
+names, plus this session's timestamped status-log lines and any frontend
+errors, for pasting to an agent).
 Past Runs persist under `staff-sessions`: newest first, capped at 20,
 with sung traces kept on the 8 most recent. Load reopens a run's sheet
 and trace in page mode; Start after a load re-runs the same sheet.
