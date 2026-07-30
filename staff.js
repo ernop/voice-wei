@@ -47,6 +47,7 @@
         staffWidthPct: 100,
         hearTones: true,
         showDegrees: true,
+        showPitchGuides: true,
         mode: 'page'
     };
 
@@ -55,7 +56,8 @@
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo',
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
         'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats',
-        'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees', 'mode'
+        'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
+        'showPitchGuides', 'mode'
     ];
 
     const ADJUSTER_VALUES = {
@@ -240,6 +242,7 @@
         trace: () => traceSamples,
         traceGapBeats: () => 320 / msPerBeat(),
         showDegrees: () => state.showDegrees,
+        showPitchGuides: () => state.showPitchGuides,
         pitchRange: tracePitchRange,
         liveMidi: () => {
             if (!lastAcceptedLive) return null;
@@ -784,7 +787,7 @@
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees']);
+    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides']);
     const GENERATION_KEYS = new Set([
         'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'accidentalRate', 'minLength', 'maxLength', 'returnToInitial', 'durationBeats', 'restBeats'
@@ -947,6 +950,7 @@
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
+        PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
         syncDurationChips();
         syncLessonControls();
         syncAdjusterControls();
@@ -977,6 +981,10 @@
         PracticeControls.wireToggle('showDegreesToggle', state.showDegrees, checked => {
             state.showDegrees = checked;
             onSettingChanged('showDegrees');
+        });
+        PracticeControls.wireToggle('pitchGuidesToggle', state.showPitchGuides, checked => {
+            state.showPitchGuides = checked;
+            onSettingChanged('showPitchGuides');
         });
         getEl('startAnchorBtn')?.addEventListener('click', () => {
             state.startAtOne = !state.startAtOne;

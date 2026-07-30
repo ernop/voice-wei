@@ -487,6 +487,37 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         pitchBand.insideBand && pitchBand.monotonic && pitchBand.zonePxPerSemitone > 3);
     report.check('pitch band frame never rescales from singing', pitchBand.frameStable);
 
+    // The gray note guides in the band are toggleable ("note guides").
+    const guideToggle = await tab.evaluate(() => {
+        const countGuidePixels = () => {
+            const overlay = /** @type {HTMLCanvasElement} */ (document.querySelector('.staff-scroll-overlay'));
+            const geometry = window.staffDebug.geometry();
+            const top = geometry.pitchZoneTop + 16;
+            const height = geometry.pitchZoneHeight - 18;
+            const left = Math.round(geometry.headerWidth) + 40;
+            const width = overlay.width - left - 2;
+            const pixels = overlay.getContext('2d').getImageData(left, top, width, height).data;
+            let count = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                const [r, , b, a] = [pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]];
+                // Muted slate (guides), not the strong blue of the trace.
+                if (a > 60 && b > r && b - r < 60) count++;
+            }
+            return count;
+        };
+        const withGuides = countGuidePixels();
+        document.getElementById('pitchGuidesToggle').click();
+        const withoutGuides = countGuidePixels();
+        document.getElementById('pitchGuidesToggle').click();
+        return {
+            withGuides,
+            withoutGuides,
+            persisted: SettingsStore.peekData(StorageKeys.STAFF_SETTINGS)?.showPitchGuides
+        };
+    });
+    report.check(`note guides toggle clears the band's guide segments (${guideToggle.withGuides} -> ${guideToggle.withoutGuides} px, persisted=${guideToggle.persisted})`,
+        guideToggle.withGuides > 50 && guideToggle.withoutGuides === 0 && guideToggle.persisted === true);
+
     // --- Stalled clock: missed notes pass silently, never as a burst ---
     const burst = await tab.evaluate(() => {
         const debug = window.staffDebug;

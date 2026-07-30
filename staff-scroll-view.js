@@ -514,20 +514,22 @@ const StaffScrollView = (function () {
             context.textBaseline = 'top';
             context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
 
-            const pxPerBeat = config.pxPerBeat();
-            context.strokeStyle = 'rgba(100, 116, 139, 0.55)';
-            context.lineWidth = 3;
-            context.lineCap = 'round';
-            for (const position of notePositions) {
-                const x1 = position.x - offset;
-                const x2 = x1 + Math.max(position.beats * pxPerBeat - 4, 4);
-                if (x2 < headerWidth + 2 || x1 > width) continue;
-                if (position.midi < range.minMidi || position.midi > range.maxMidi) continue;
-                const y = zoneYForMidi(position.midi);
-                context.beginPath();
-                context.moveTo(Math.max(x1, headerWidth + 2), y);
-                context.lineTo(Math.min(x2, width), y);
-                context.stroke();
+            if (config.showPitchGuides()) {
+                const pxPerBeat = config.pxPerBeat();
+                context.strokeStyle = 'rgba(100, 116, 139, 0.55)';
+                context.lineWidth = 3;
+                context.lineCap = 'round';
+                for (const position of notePositions) {
+                    const x1 = position.x - offset;
+                    const x2 = x1 + Math.max(position.beats * pxPerBeat - 4, 4);
+                    if (x2 < headerWidth + 2 || x1 > width) continue;
+                    if (position.midi < range.minMidi || position.midi > range.maxMidi) continue;
+                    const y = zoneYForMidi(position.midi);
+                    context.beginPath();
+                    context.moveTo(Math.max(x1, headerWidth + 2), y);
+                    context.lineTo(Math.min(x2, width), y);
+                    context.stroke();
+                }
             }
 
             if (isScroll) {

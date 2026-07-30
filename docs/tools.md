@@ -160,8 +160,9 @@ Two modes:
 
 Under the staff sits the dedicated **pitch band**: the sung trace draws
 there, on the same beat timeline but at its own taller pitch scale, with
-a gray reference segment marking each sheet note's pitch and span - so
-singing detail is readable without anything drawing over the notation.
+a gray reference segment marking each sheet note's pitch and span (the
+**note guides** toggle hides them) - so singing detail is readable
+without anything drawing over the notation.
 The band's frame is the working range (plus the sheet's notes) and stays
 fixed for the run; out-of-range pitch is clipped, never rescales it.
 
