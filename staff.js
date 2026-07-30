@@ -793,6 +793,7 @@
     /** @param {string} key */
     function onSettingChanged(key) {
         saveSettings();
+        syncPaletteLine();
         if (REPROJECT_KEYS.has(key)) {
             streamCacheKey = '';
             if (key === 'scaleType') syncAdjusterControls();
@@ -881,6 +882,46 @@
             const row = /** @type {HTMLElement} */ (el);
             row.hidden = row.dataset.lessonFamily !== state.phraseStyle;
         });
+        syncPaletteLine();
+    }
+
+    const MOTION_TEXT = Object.freeze({
+        step: 'single-step motion',
+        skip: 'skip (third) motion',
+        mixed: 'steps and small skips',
+        chord: 'leaps between chord tones'
+    });
+
+    /**
+     * Name the palette in force - the exact degrees the generator may
+     * draw from and how it moves. Reads the same core resolution the
+     * generator uses, so this line can never disagree with the music.
+     */
+    function paletteLineText() {
+        const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
+        if (state.phraseStyle === 'free') {
+            return `every degree ${rangeEndpointLabel(state.rangeLow)}..${rangeEndpointLabel(state.rangeHigh)} (your range) - ${state.phraseAlgo.replace(/_/g, ' ')} contour`;
+        }
+        const palette = PatternPracticeCore.lessonPalette(generationOptions());
+        if (!palette) return '';
+        if (palette.pattern) {
+            return 'fixed melodic shapes anchored on 1 - the range clamps their reach';
+        }
+        const labels = palette.degrees
+            .map(offset => PatternPracticeCore.offsetToDegree(offset, palette.dp))
+            .join(' ');
+        return `${labels} - ${MOTION_TEXT[palette.motion] || palette.motion} (range sets the span)`;
+    }
+
+    function syncPaletteLine() {
+        const line = getEl('paletteLine');
+        if (!line) return;
+        line.textContent = '';
+        const label = document.createElement('span');
+        label.className = 'staff-palette-label';
+        label.textContent = 'palette';
+        line.appendChild(label);
+        line.appendChild(document.createTextNode(paletteLineText()));
     }
 
     /** @param {string} style */

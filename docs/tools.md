@@ -208,6 +208,12 @@ never cross a barline.
   a conversation with an agent.
 - Hardware media keys: play/pause control the moving staff, next
   generates a new sequence.
+- A **palette line** under the style/lesson chips names, live, the exact
+  degrees the generator may draw from and its motion character (e.g.
+  "1 2 3 4 5 6 7 8 - steps and small skips (range sets the span)"). It
+  reads the same core resolution the generator uses
+  (`PatternPracticeCore.lessonPalette`), so it cannot disagree with the
+  music. Only the selected style's lesson row is shown.
 - On Staff, the RANGE ENDPOINTS govern the span (owner rule, 2026-07-29:
   a visible Range control must not be silently overridden). Lessons
   contribute their CHARACTER, re-scoped to the range: contiguous drill

@@ -988,6 +988,90 @@ const PatternPracticeCore = (function () {
         return addPhraseAnchors(offsets, options);
     }
 
+    // The one palette table: which degrees an allowed-degree lesson may
+    // use and how it moves between them. Both the generators AND the
+    // pages' palette displays read this, so what the UI names as the
+    // palette is by construction what the generator draws from.
+    // Pattern-based lessons (fixed melodic shapes) are not palette
+    // lessons and are listed in PATTERN_LESSONS instead.
+    /** @type {Record<string, { degrees: number[], motion: 'step' | 'skip' | 'mixed' | 'chord', scaleTypeOverride?: string }>} */
+    const LESSON_PALETTES = Object.freeze({
+        staff_steps: { degrees: [0, 1, 2, 3, 4], motion: 'step' },
+        staff_skips: { degrees: [0, 2, 4, 6], motion: 'skip' },
+        staff_mixed: { degrees: [0, 1, 2, 3, 4, 5], motion: 'mixed' },
+        staff_landmarks: { degrees: [0, 2, 4, 7], motion: 'mixed' },
+        sight_do_re: { degrees: [0, 1], motion: 'step' },
+        sight_pentachord: { degrees: [0, 1, 2, 3, 4], motion: 'mixed' },
+        sight_triad: { degrees: [0, 2, 4, 7], motion: 'chord' },
+        sight_minor: { degrees: [0, 1, 2, 3, 4, 5], motion: 'mixed', scaleTypeOverride: 'minor' },
+        sight_altered: { degrees: [0, 1, 2, 3, 4, 5, 6], motion: 'step' },
+        barber_tonic: { degrees: [0, 2, 4, 7], motion: 'chord' },
+        barber_dominant: { degrees: [4, 6, 1, 3], motion: 'chord' },
+        barber_subdominant: { degrees: [3, 5, 0], motion: 'chord' },
+        barber_thirds: { degrees: [0, 2, 4, 2, 3, 2], motion: 'mixed' },
+        barber_sevenths: { degrees: [4, 6, 1, 3, 6], motion: 'chord' },
+        genre_folk_hymn: { degrees: [0, 1, 2, 3, 4, 5, 6, 7], motion: 'mixed' },
+        genre_pop_hook: { degrees: [0, 1, 2, 4, 5], motion: 'mixed' },
+        genre_theatre: { degrees: [0, 1, 2, 3, 4, 5, 6, 7], motion: 'mixed' },
+        genre_jazz: { degrees: [0, 1, 2, 4, 5, 6], motion: 'chord' },
+        genre_gospel: { degrees: [0, 2, 3, 4, 5, 6], motion: 'mixed' },
+        genre_calypso: { degrees: [0, 2, 4, 5, 7], motion: 'mixed' },
+        genre_norteno: { degrees: [0, 1, 2, 3, 4], motion: 'skip' },
+        genre_cantopop: { degrees: [0, 1, 2, 4, 5], motion: 'step' },
+        genre_klezmer: { degrees: [0, 1, 2, 3, 4, 5, 6], motion: 'mixed' },
+        genre_modal: { degrees: [0, 1, 2, 3, 4, 5, 6], motion: 'mixed' }
+    });
+    const PATTERN_LESSONS = Object.freeze(new Set([
+        'sight_cadence', 'genre_classical', 'genre_blackbird_folk',
+        'genre_hello_pop', 'genre_simon_folk', 'genre_scarborough_modal'
+    ]));
+    /** @type {Record<string, string>} */
+    const STYLE_DEFAULT_LESSON = Object.freeze({
+        staff: 'staff_steps',
+        sight: 'sight_pentachord',
+        barbershop: 'barber_tonic',
+        genre: 'genre_folk_hymn'
+    });
+
+    /** @param {string} style @param {string | undefined} lesson */
+    function paletteSpecFor(style, lesson) {
+        if (lesson && LESSON_PALETTES[lesson]) return LESSON_PALETTES[lesson];
+        return LESSON_PALETTES[STYLE_DEFAULT_LESSON[style]] || null;
+    }
+
+    /**
+     * The palette actually in force for the current options - the same
+     * resolution the generator applies, exposed for palette displays.
+     * Returns null for the free style; { pattern: true } for fixed-shape
+     * lessons; otherwise the resolved degree offsets and motion.
+     * @param {{
+     *   scaleType: string,
+     *   phraseStyle?: string,
+     *   phraseLesson?: string,
+     *   rangeLow?: number,
+     *   rangeHigh?: number,
+     *   rangeGovernsLessons?: boolean
+     * }} options
+     * @returns {{ pattern: boolean, degrees: number[], motion: string, dp: number } | null}
+     */
+    function lessonPalette(options) {
+        const style = options.phraseStyle;
+        if (!style || style === 'free') return null;
+        const lesson = options.phraseLesson || STYLE_DEFAULT_LESSON[style];
+        const dp = degreesPerOctave(options.scaleType);
+        if (PATTERN_LESSONS.has(lesson)) {
+            return { pattern: true, degrees: [], motion: 'pattern', dp };
+        }
+        const spec = paletteSpecFor(style, lesson);
+        if (!spec) return null;
+        const effectiveDp = degreesPerOctave(spec.scaleTypeOverride || options.scaleType);
+        const { min, max } = rangeBounds({ ...options, scaleType: spec.scaleTypeOverride || options.scaleType }, effectiveDp);
+        const degrees = options.rangeGovernsLessons
+            ? rangeGovernedPalette(spec.degrees, effectiveDp, min, max)
+            : boundedDegreeSet(spec.degrees, min, max);
+        return { pattern: false, degrees, motion: spec.motion, dp: effectiveDp };
+    }
+
     /** @param {number[]} pattern @param {number} length */
     function repeatPattern(pattern, length) {
         const out = [];
@@ -1017,11 +1101,8 @@ const PatternPracticeCore = (function () {
      * }} options
      */
     function generateStaffReadingOffsets(options) {
-        const lesson = options.phraseLesson || 'staff_steps';
-        if (lesson === 'staff_skips') return generateAllowedDegreeLesson(options, [0, 2, 4, 6], 'skip');
-        if (lesson === 'staff_mixed') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5], 'mixed');
-        if (lesson === 'staff_landmarks') return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'mixed');
-        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'step');
+        const spec = paletteSpecFor('staff', options.phraseLesson);
+        return generateAllowedDegreeLesson(options, spec.degrees, spec.motion);
     }
 
     /**
@@ -1038,10 +1119,7 @@ const PatternPracticeCore = (function () {
      * }} options
      */
     function generateSightSingingOffsets(options) {
-        const lesson = options.phraseLesson || 'sight_pentachord';
-        if (lesson === 'sight_do_re') return generateAllowedDegreeLesson(options, [0, 1], 'step');
-        if (lesson === 'sight_triad') return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'chord');
-        if (lesson === 'sight_cadence') {
+        if (options.phraseLesson === 'sight_cadence') {
             const length = requestedLength(options);
             return addPhraseAnchors(repeatPattern(randomChoice([
                 [0, 1, 2, 3, 4, 3, 2, 1],
@@ -1050,9 +1128,11 @@ const PatternPracticeCore = (function () {
                 [0, 3, 4, 2, 1]
             ]), length), options);
         }
-        if (lesson === 'sight_minor') return generateAllowedDegreeLesson({ ...options, scaleType: 'minor' }, [0, 1, 2, 3, 4, 5], 'mixed');
-        if (lesson === 'sight_altered') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'step');
-        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'mixed');
+        const spec = paletteSpecFor('sight', options.phraseLesson);
+        const effective = spec.scaleTypeOverride
+            ? { ...options, scaleType: spec.scaleTypeOverride }
+            : options;
+        return generateAllowedDegreeLesson(effective, spec.degrees, spec.motion);
     }
 
     /**
@@ -1069,12 +1149,8 @@ const PatternPracticeCore = (function () {
      * }} options
      */
     function generateBarbershopOffsets(options) {
-        const lesson = options.phraseLesson || 'barber_tonic';
-        if (lesson === 'barber_dominant') return generateAllowedDegreeLesson(options, [4, 6, 1, 3], 'chord');
-        if (lesson === 'barber_subdominant') return generateAllowedDegreeLesson(options, [3, 5, 0], 'chord');
-        if (lesson === 'barber_thirds') return generateAllowedDegreeLesson(options, [0, 2, 4, 2, 3, 2], 'mixed');
-        if (lesson === 'barber_sevenths') return generateAllowedDegreeLesson(options, [4, 6, 1, 3, 6], 'chord');
-        return generateAllowedDegreeLesson(options, [0, 2, 4, 7], 'chord');
+        const spec = paletteSpecFor('barbershop', options.phraseLesson);
+        return generateAllowedDegreeLesson(options, spec.degrees, spec.motion);
     }
 
     /**
@@ -1092,10 +1168,6 @@ const PatternPracticeCore = (function () {
      */
     function generateGenreOffsets(options) {
         const lesson = options.phraseLesson || 'genre_folk_hymn';
-        if (lesson === 'genre_pop_hook') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5], 'mixed');
-        if (lesson === 'genre_theatre') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6, 7], 'mixed');
-        if (lesson === 'genre_jazz') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5, 6], 'chord');
-        if (lesson === 'genre_gospel') return generateAllowedDegreeLesson(options, [0, 2, 3, 4, 5, 6], 'mixed');
         if (lesson === 'genre_classical') {
             const length = requestedLength(options);
             return addPhraseAnchors(repeatPattern(randomChoice([
@@ -1136,12 +1208,8 @@ const PatternPracticeCore = (function () {
                 [0, 3, 4, 3, 1, 0, 1, 0]
             ]), length), options);
         }
-        if (lesson === 'genre_calypso') return generateAllowedDegreeLesson(options, [0, 2, 4, 5, 7], 'mixed');
-        if (lesson === 'genre_norteno') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4], 'skip');
-        if (lesson === 'genre_cantopop') return generateAllowedDegreeLesson(options, [0, 1, 2, 4, 5], 'step');
-        if (lesson === 'genre_klezmer') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'mixed');
-        if (lesson === 'genre_modal') return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6], 'mixed');
-        return generateAllowedDegreeLesson(options, [0, 1, 2, 3, 4, 5, 6, 7], 'mixed');
+        const spec = paletteSpecFor('genre', lesson);
+        return generateAllowedDegreeLesson(options, spec.degrees, spec.motion);
     }
 
     /**
@@ -1459,6 +1527,7 @@ const PatternPracticeCore = (function () {
         melodicWildness,
         createUniqueSubsequenceIterator,
         reflectOffsets,
+        lessonPalette,
         createContinuousSequence,
         generatePhrase,
         phraseFromOffsets

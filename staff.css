@@ -139,6 +139,29 @@
     box-shadow: 0 4px 18px rgba(245, 158, 11, 0.32);
 }
 
+/* Only the selected style's lesson row shows (.segment-row's display
+   would otherwise beat the hidden attribute). */
+.staff-lesson-row[hidden] {
+    display: none;
+}
+
+.staff-palette-line {
+    margin: 4px 2px 2px;
+    color: #86efac;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: help;
+}
+
+.staff-palette-line .staff-palette-label {
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    margin-right: 6px;
+}
+
 .staff-session-line {
     display: flex;
     align-items: baseline;

@@ -323,6 +323,45 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`Copy Text sequence tokens match the events (${stateText.noteTokens}/${stateText.noteCount} notes, ${stateText.restTokens}/${stateText.restCount} rests)`,
         stateText.noteTokens === stateText.noteCount && stateText.restTokens === stateText.restCount && stateText.hasNames);
 
+    // Palette line: names the exact degrees in force, from the same core
+    // resolution the generator uses, live with the controls.
+    const paletteLine = await tab.evaluate(() => {
+        const read = () => document.getElementById('paletteLine').textContent || '';
+        const freeText = (() => {
+            document.querySelector('[data-phrase-style="free"]').click();
+            return read();
+        })();
+        document.querySelector('[data-phrase-style="staff"]').click();
+        const stepsText = read();
+        const palette = PatternPracticeCore.lessonPalette({
+            scaleType: 'major', phraseStyle: 'staff', phraseLesson: 'staff_steps',
+            rangeLow: window.staffDebug.settings().rangeLow,
+            rangeHigh: window.staffDebug.settings().rangeHigh,
+            rangeGovernsLessons: true
+        });
+        const labels = palette.degrees.map(offset =>
+            PatternPracticeCore.offsetToDegree(offset, palette.dp)).join(' ');
+        document.querySelector('[data-phrase-style="free"]').click();
+        return {
+            freeText,
+            stepsText,
+            stepsMatchesCore: stepsText.includes(labels) && stepsText.includes('single-step motion'),
+            freeNamesRange: freeText.includes('your range') && freeText.includes('contour')
+        };
+    });
+    report.check(`palette line names the lesson degrees from the core (\u201c${paletteLine.stepsText}\u201d)`, paletteLine.stepsMatchesCore);
+    report.check(`palette line explains the free style (\u201c${paletteLine.freeText}\u201d)`, paletteLine.freeNamesRange);
+
+    const lessonRows = await tab.evaluate(() => {
+        document.querySelector('[data-phrase-style="sight"]').click();
+        const rows = [...document.querySelectorAll('.staff-lesson-row')]
+            .map(row => ({ family: row.dataset.lessonFamily, visible: row.offsetParent !== null }));
+        document.querySelector('[data-phrase-style="free"]').click();
+        return rows;
+    });
+    report.check('only the selected style\'s lesson row is visible',
+        lessonRows.every(row => row.visible === (row.family === 'sight')));
+
     // --- Controls: mode buttons and duration invariant ------------------
     await tab.click('[data-staff-mode="scroll"]');
     const afterModeClick = await tab.evaluate(() => window.staffDebug.settings().mode);
