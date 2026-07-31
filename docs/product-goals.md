@@ -157,6 +157,11 @@ checked against this list, and new standing intent gets added here.
    tempo/key/chord work needs its own confidence-gated spectral pipeline and
    actual phone/car Bluetooth routing must pass before it becomes a product
    promise.
+11. **A shared song is playable without setup.** The Lyrics page opens without
+   demanding an API key. A song share link carries the exact recording and
+   metadata needed to populate the playlist, play by `videoId`, and fetch
+   lyrics through the keyless provider path. API keys remain optional until a
+   visitor explicitly makes an AI music request or asks for a Song Report.
 
 ## Current priorities (deduplicated from the idea pool)
 

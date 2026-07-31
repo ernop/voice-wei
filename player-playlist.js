@@ -1405,6 +1405,9 @@ const PlayerPlaylist = (function () {
                 const titleEl = document.getElementById('playerSongTitle');
                 const artistEl = document.getElementById('playerSongArtist');
                 const transportInfo = document.getElementById('transportBarInfo');
+                const shareSongBtn = /** @type {HTMLButtonElement | null} */ (
+                    document.getElementById('shareSongBtn')
+                );
 
                 if (item) {
                     const songTitle = item.name || item.title || '';
@@ -1419,6 +1422,7 @@ const PlayerPlaylist = (function () {
                     artistEl.textContent = '';
                     if (transportInfo) transportInfo.textContent = 'No song playing';
                 }
+                if (shareSongBtn) shareSongBtn.disabled = !item;
                 // Song change or clear: the bar lyric belongs to the previous
                 // song until this song's synced position writes its own.
                 this.resetTransportBarText();
@@ -1816,6 +1820,34 @@ const PlayerPlaylist = (function () {
                 return this.playlist[this.currentPlaylistIndex];
             },
 
+            /** The selected exact recording encoded into a self-contained player URL. */
+            shareLinkForItem(item) {
+                const url = new URL(window.location.href);
+                url.hash = '';
+                url.search = '';
+                url.searchParams.set('song', PlayerSongs.shareParameter(item));
+                return url.toString();
+            },
+
+            async copyCurrentSongShareLink() {
+                const item = this.playingPlaylistItem()
+                    || this.currentLyricsItem()
+                    || this.currentPlaylistItem();
+                if (!item) {
+                    this.updateStatus('Select a song to share');
+                    return;
+                }
+                const link = this.shareLinkForItem(item);
+                try {
+                    await navigator.clipboard.writeText(link);
+                    this.updateStatus(`Share link copied for ${item.artist} - ${item.name}`);
+                    this.addMessage('user', 'Share Song', link);
+                } catch (error) {
+                    this.updateStatus('Could not copy the share link');
+                    this.logError('Share Link Copy Error', error);
+                }
+            },
+
             showTransportBar() {
                 const bar = document.getElementById('playlistTransportBar');
                 if (bar) bar.style.display = 'flex';
@@ -2056,8 +2088,45 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            loadDemoSongIfRequested() {
+            loadLinkedSongIfRequested() {
                 const params = new URLSearchParams(window.location.search);
+                const sharedParameter = params.get('song');
+                if (sharedParameter !== null) {
+                    const sharedSong = PlayerSongs.songFromShareParameter(sharedParameter);
+                    if (!sharedSong) {
+                        this.updateStatus('This song share link is invalid');
+                        this.addMessage('error', 'Shared song', 'The link did not contain a valid song');
+                        return;
+                    }
+
+                    let sharedIndex = this.playlist.findIndex(item => item.videoId === sharedSong.videoId);
+                    let sharedItem = this.playlist[sharedIndex] || null;
+                    if (!sharedItem) {
+                        sharedItem = PlayerSongs.createPlaylistItem(sharedSong, {
+                            sourceKind: 'share',
+                            sourceLabel: 'Shared song'
+                        });
+                        if (!sharedItem) return;
+                        this.appendPlaylistItem(sharedItem);
+                        sharedIndex = this.playlist.length - 1;
+                        this.persistPlaylist();
+                        if (window.PlayerHistoryDB) {
+                            window.PlayerHistoryDB.recordSong(sharedItem, 'share-link');
+                        }
+                    }
+
+                    this.showPlaylistSurfaces();
+                    this.currentPlaylistIndex = sharedIndex;
+                    this.currentLyricsItemId = sharedItem.id;
+                    this.updateCentralPlayer(sharedItem);
+                    this.updatePlaylistLabel();
+                    this.setLyricsPanelVisible(true);
+                    this.renderLyricsStateForItem(sharedItem);
+                    void this.ensureLyricsForItem(sharedItem);
+                    this.updateStatus('Shared song ready - tap the song or Play to start');
+                    return;
+                }
+
                 if (params.get('demoLyrics') !== '1' || this.playlist.length > 0) {
                     return;
                 }

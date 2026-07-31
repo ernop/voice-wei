@@ -31,8 +31,9 @@ after controller construction, UI wiring, IndexedDB song-library hydration,
 favorite reconciliation scheduling, saved-playlist restoration, and one
 animation frame. `window.__voiceWeiStartup` exposes the same result for
 inspection and tests. Its wall-clock budget is 1000ms from navigation start.
-The initial status says `Initializing...`; `Ready` or `API key required` is
-only authoritative after the readiness event.
+The initial status says `Initializing...`; `Ready` (including the no-key
+`Ready - API key optional` state) is only authoritative after the readiness
+event. Missing keys open the entry surface only at an AI action boundary.
 
 Every load writes a `Startup` line to the in-page Log and a detailed report to
 the browser console. The report separates costs that overlap and therefore
@@ -52,8 +53,9 @@ must not be added together:
 The named phases are controller construction/stored settings, configuration
 and key state, UI/voice wiring, lyrics-view settings, YouTube readiness
 wiring, local-library hydration, favorite-lyrics scheduling, playlist
-restoration, favorite-video repair scheduling, and demo setup. `application
-initialization` contains those phases and is intentionally nested.
+restoration, favorite-video repair scheduling, and linked-song setup.
+`application initialization` contains those phases and is intentionally
+nested.
 
 External work that does not gate interaction is outside this readiness
 boundary. The YouTube IFrame API starts in parallel and playback awaits its
@@ -588,6 +590,7 @@ one constructor in that module:
 | Persisted playlist entry | `persistedPlaylistEntry` | source, **no runtime id or lyric runtime** |
 | `FavoriteData` | `createFavorite` | `favoritedAt` |
 | Known-song history record (IndexedDB) | `historySongRecord` | `firstSeenAt`/`lastSeenAt`, sourceKind |
+| Versioned share parameter | `shareParameter` / `songFromShareParameter` | format version around one complete Song |
 
 No player code hand-builds song-shaped objects. Songs enter the playlist
 only through `appendPlaylistItem` (append at the end, render, lyric
@@ -599,6 +602,13 @@ added, so the working playlist is a matter of convenience over durable
 data. Runtime row ids come from one monotonic allocator in `PlayerSongs`;
 reload regenerates them, including for older saved entries that still carry
 the retired `id` field.
+
+A song share URL embeds that versioned Song directly in its `song` query
+parameter. Opening it never searches for the recording: the exact `videoId`
+enters through `createPlaylistItem` with source kind `share`, while lyrics use
+the ordinary keyless LRCLIB path. Invalid or unknown-version payloads create
+no partial song. A shared song appends when the receiving browser already has
+a playlist and becomes the selected item without forcing autoplay.
 
 `PlayerSongs.songFieldsMatchQuery` owns text-search semantics across the
 playlist, Known Songs, and Local Song Library: each whitespace-separated query

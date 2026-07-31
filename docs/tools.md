@@ -327,10 +327,11 @@ playlist.**
 - "That Beatles song with the submarine" - Claude figures it out
 
 Claude or OpenAI interprets the request; the same-origin PHP endpoint then
-queries Piped/Invidious to find videos without a YouTube API key. Music
-requires one AI-provider key stored in localStorage. A search made while
-the selected provider has no key saved opens the key entry overlay on the
-spot (with a Close button to decline) alongside the persistent problem
+queries Piped/Invidious to find videos without a YouTube API key. Opening and
+using the page does not require an API key. AI music requests and Song Reports
+need one Claude or OpenAI key stored in localStorage; invoking either action
+without its selected provider's key opens the optional key entry overlay on
+the spot (with a Close button to decline) alongside the persistent problem
 banner. Settings cover keys,
 auto-submit vs manual voice mode, model selection, and spoken responses.
 The page records `Startup: Ready in ...` in its Log after controls, stored
@@ -368,6 +369,13 @@ untouched), results appear one by one as their YouTube searches
 complete, and a song that is already playing carries over as entry 1
 and keeps playing with the new songs queued behind it. The raw AI
 request and response JSON are logged to the Log panel for every batch.
+
+**Share Song** copies a self-contained Lyrics URL for the selected or sounding
+song. The URL carries the exact YouTube `videoId` and song metadata, so a new
+visitor receives a ready playlist row and can play it directly without an API
+key or an AI/YouTube lookup. LRCLIB lyrics then resolve through the normal
+keyless proxy. A shared song appends to an existing browser playlist rather
+than deleting it.
 
 Searches target the original studio recording unless you ask otherwise:
 the AI is told never to add "live" to search terms, and YouTube results

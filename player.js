@@ -296,8 +296,8 @@ class VoiceMusicController {
             const favoriteVideoRepairs = this.healSavedFavoriteVideoIdentities();
             endPhase({ candidates: favoriteVideoRepairs });
 
-            endPhase = PlayerStartup.begin('demo request');
-            this.loadDemoSongIfRequested();
+            endPhase = PlayerStartup.begin('linked song request');
+            this.loadLinkedSongIfRequested();
             endPhase();
             endInitialization();
 
@@ -542,9 +542,13 @@ class VoiceMusicController {
                 this.settings.aiProvider = 'openai';
             }
         } else {
-            this.addMessage('claude', 'API Keys', 'Not configured - please enter an API key');
-            this.updateStatus('API key required');
-            this.showApiKeyOverlay();
+            this.addMessage(
+                'claude',
+                'API Keys',
+                'Optional - shared songs, playback, and lyrics work without one; add a key for AI music requests and Song Reports'
+            );
+            this.updateStatus('Ready - API key optional');
+            this.hideApiKeyOverlay();
         }
 
         this.updateAllApiKeyUI();
@@ -834,9 +838,10 @@ class VoiceMusicController {
         this.voiceCore.init();
         this.transcript = this.voiceCore.transcript;
 
-        // The core's init sets status to Ready; keep the key-gate message
+        // The core's init sets status to Ready. Missing keys are only relevant
+        // when the visitor invokes an AI music request or Song Report.
         if (!(this.config?.claudeApiKey || this.config?.openaiApiKey)) {
-            this.updateStatus('API key required');
+            this.updateStatus('Ready - API key optional');
         }
     }
 
@@ -1144,6 +1149,12 @@ class VoiceMusicController {
         if (requestSongReportBtn) {
             requestSongReportBtn.addEventListener('click', () => {
                 void this.requestSongReport();
+            });
+        }
+        const shareSongBtn = document.getElementById('shareSongBtn');
+        if (shareSongBtn) {
+            shareSongBtn.addEventListener('click', () => {
+                void this.copyCurrentSongShareLink();
             });
         }
         const songReportTextBtn = document.getElementById('songReportTextBtn');

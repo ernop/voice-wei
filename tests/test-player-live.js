@@ -552,7 +552,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
-    // ============ PLAYER: API key gating + settings panel ============
+    // ============ PLAYER: optional API keys + settings panel ============
     {
         const ctx = await browser.newContext();
         const tab = await ctx.newPage();
@@ -563,7 +563,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const overlay = document.getElementById('apiKeyOverlay');
             return overlay && getComputedStyle(overlay).display !== 'none';
         });
-        report.check('player gates on missing API key', overlayShown === true);
+        const noKeyStatus = await tab.textContent('#status');
+        report.check('player opens normally without an API key',
+            overlayShown === false && noKeyStatus === 'Ready - API key optional');
 
         await tab.evaluate(() => localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890'));
         await tab.reload({ waitUntil: 'domcontentloaded' });

@@ -55,7 +55,7 @@ interface Song {
     durationSeconds: number;
 }
 
-type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'demo' | 'backfill';
+type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'share' | 'demo' | 'backfill';
 
 type PlaylistSortKey = 'artist' | 'year';
 
@@ -457,6 +457,8 @@ interface VoiceMusicController {
     escapeHtml(text: string): string;
     decodeHtml(text: string): string;
     currentPlaylistItem(): PlaylistItem | null;
+    shareLinkForItem(item: PlaylistItem): string;
+    copyCurrentSongShareLink(): Promise<void>;
     showTransportBar(): void;
     hideTransportBar(): void;
     setupProgressBar(): void;
@@ -472,7 +474,7 @@ interface VoiceMusicController {
     formatTime(seconds: number): string;
     setupYouTubeAPI(): void;
     playerReady(): void;
-    loadDemoSongIfRequested(): void;
+    loadLinkedSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
     searchAndAddToPlaylist(songList: any[], options?: { replaceExisting?: boolean }): Promise<PlaylistSearchResult>;
     musicHistoryLookups: any[];

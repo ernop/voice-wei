@@ -49,7 +49,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
         'favorite lyrics reconciliation scheduling',
         'saved playlist restoration',
         'favorite video identity repair scheduling',
-        'demo request',
+        'linked song request',
         'application initialization'
     ];
     report.check(`cold player is ready within ${STARTUP_BUDGET_MS}ms (${cold.readyAtMs}ms)`,
@@ -62,6 +62,59 @@ const RESTORED_PLAYLIST_SIZE = 883;
     report.check('Tone.js is absent from the startup path',
         !cold.resources.some(resource => resource.name.includes('Tone.js')) && toneRequests === 0);
     report.check('startup timing is written to the in-app log', cold.hasStartupLog);
+    report.check('fresh Lyrics page is usable without an API key',
+        cold.status === 'Ready - API key optional' && !cold.apiKeyOverlayVisible);
+
+    const sharedSongParameter = await tab.evaluate(() => PlayerSongs.shareParameter({
+        videoId: 'dQw4w9WgXcQ',
+        name: 'Never Gonna Give You Up',
+        artist: 'Rick Astley',
+        year: '1987',
+        album: 'Whenever You Need Somebody',
+        title: 'Rick Astley - Never Gonna Give You Up',
+        channelTitle: 'Rick Astley',
+        duration: '3:34',
+        durationSeconds: 214,
+        comment: '',
+        searchTerm: 'Rick Astley Never Gonna Give You Up'
+    }));
+    await tab.goto(`${BASE_URL}/player.html?song=${encodeURIComponent(sharedSongParameter)}`, {
+        waitUntil: 'domcontentloaded'
+    });
+    await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+    const shared = await tab.evaluate(() => {
+        const controller = window.musicController;
+        const item = controller?.playlist[0] || null;
+        const generatedLink = item ? controller.shareLinkForItem(item) : '';
+        const generatedParameter = new URL(generatedLink).searchParams.get('song') || '';
+        return {
+            playlistSize: controller?.playlist.length || 0,
+            sourceKind: item?.sourceKind || '',
+            videoId: item?.videoId || '',
+            songName: item?.name || '',
+            status: document.getElementById('status')?.textContent || '',
+            panelVisible: getComputedStyle(document.getElementById('lyricsPanel')).display !== 'none',
+            overlayVisible: getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none',
+            shareButtonEnabled: !document.getElementById('shareSongBtn').disabled,
+            generatedRoundTripVideoId: PlayerSongs.songFromShareParameter(generatedParameter)?.videoId || '',
+            malformedRejected: PlayerSongs.songFromShareParameter('not-json') === null
+        };
+    });
+    report.check('shared song link carries an exact playable recording without an API key',
+        shared.playlistSize === 1
+        && shared.sourceKind === 'share'
+        && shared.videoId === 'dQw4w9WgXcQ'
+        && shared.songName === 'Never Gonna Give You Up'
+        && shared.status.startsWith('Shared song ready')
+        && shared.panelVisible
+        && !shared.overlayVisible
+        && shared.shareButtonEnabled
+        && shared.generatedRoundTripVideoId === 'dQw4w9WgXcQ'
+        && shared.malformedRejected);
+
+    // Return to a canonical URL before the large restored-playlist measurement.
+    await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
 
     await tab.evaluate((count) => {
         const entries = Array.from({ length: count }, (_, index) => {
@@ -126,6 +179,8 @@ async function startupSnapshot(tab) {
             ...startup.report,
             phaseNames: startup.report.phases.map(phase => phase.name),
             playlistSize: window.musicController?.playlist.length || 0,
+            status: document.getElementById('status')?.textContent || '',
+            apiKeyOverlayVisible: getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none',
             hasStartupLog: Array.from(document.querySelectorAll('#logContent .log-line'))
                 .some(line => line.textContent?.includes('Startup: Ready in'))
         };

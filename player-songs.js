@@ -82,6 +82,38 @@ const PlayerSongs = (function () {
     }
 
     /**
+     * A share URL carries one complete Song, so opening it can play the exact
+     * YouTube video and resolve lyrics without first asking an AI to identify
+     * or search for the track.
+     * @param {Record<string, any>} raw
+     */
+    function shareParameter(raw) {
+        const song = songFrom(raw);
+        if (!song) throw new Error('A shared song requires a videoId');
+        return JSON.stringify({ version: 1, song });
+    }
+
+    /**
+     * Parse the one versioned song representation accepted from share URLs.
+     * External links can be truncated or hand-edited, so invalid input is
+     * reported as null rather than becoming a partial Song.
+     * @param {string} value
+     * @returns {Song | null}
+     */
+    function songFromShareParameter(value) {
+        if (!value) return null;
+        try {
+            const payload = JSON.parse(value);
+            if (payload?.version !== 1 || !payload.song) return null;
+            const song = songFrom(payload.song);
+            if (!song || !/^[A-Za-z0-9_-]{11}$/.test(song.videoId)) return null;
+            return song;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
      * The only PlaylistItem constructor: Song + list membership + runtime
      * lyric state (always starting idle; callers hydrate from cache).
      * @param {Record<string, any>} raw song-shaped input
@@ -204,6 +236,8 @@ const PlayerSongs = (function () {
         SONG_FIELDS,
         parseDurationToSeconds,
         songFrom,
+        shareParameter,
+        songFromShareParameter,
         createPlaylistItem,
         persistedPlaylistEntry,
         createFavorite,
