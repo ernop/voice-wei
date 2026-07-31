@@ -320,16 +320,20 @@ plays a new one.
 
 ## Music
 
-AI voice music player: **one large button, speak naturally, get a
-playlist.**
+Keyless voice music player: **say or type artist/song terms, get a playlist.**
 
-- "Play some jazz" - five tracks with comments explaining each match
-- "That Beatles song with the submarine" - Claude figures it out
+- "The Beatles" - up to ten direct YouTube results, no API key
+- "Miles Davis Kind of Blue" - direct artist/title search, no API key
+- "That Beatles song with the submarine" - use **Ask AI** for interpretation
 
-Claude or OpenAI interprets the request; the same-origin PHP endpoint then
-queries Piped/Invidious to find videos without a YouTube API key. Opening and
-using the page does not require an API key. AI music requests and Song Reports
-need one Claude or OpenAI key stored in localStorage; invoking either action
+The normal Search button, Enter key, and voice fallback send the words directly
+to the same-origin PHP endpoint, which queries Piped/Invidious without a YouTube
+API key. Its top ten video results become playlist rows; common
+`Artist - Track` titles are split locally for lyric identity, with channel/title
+used when that shape is absent. **Ask AI** is the explicit alternative for a
+fuzzy or curated request: Claude or OpenAI interprets it into named songs before
+the same keyless YouTube search runs. Ask AI and Song Reports need one provider
+key stored in localStorage; invoking either action
 without its selected provider's key opens the optional key entry overlay on
 the spot (with a Close button to decline) alongside the persistent problem
 banner. Settings cover keys,
@@ -354,21 +358,20 @@ Transport voice commands:
 | "what's playing" | Announce current song |
 | "submit" | Send pending command (manual mode) |
 
-Music pauses while you speak, resumes while waiting for Claude, and pauses
-again while the response is read aloud.
+Music pauses while you speak and resumes while the search runs.
 
-Requests can also be typed (the "Type a music request" box) when speaking
-is not an option.
+The typed box defaults to **Search**. **Ask AI** beside it uses the model pills
+shown below the box.
 
-The playlist is the **working list for the current search**: a new AI
+The playlist is the **working list for the current search**: a new direct or AI
 request replaces it (the previous songs stay reloadable from History),
 while explicit loads - favorites, past lookups, known songs - append to
-it. The replacement is gentle: nothing is dropped until the first found
-song is actually added (a search that finds nothing leaves the list
-untouched), results appear one by one as their YouTube searches
-complete, and a song that is already playing carries over as entry 1
-and keeps playing with the new songs queued behind it. The raw AI
-request and response JSON are logged to the Log panel for every batch.
+it. The replacement is gentle: a search that finds nothing leaves the list
+untouched, and a song that is already playing carries over as entry 1 and keeps
+playing with the new songs queued behind it. Direct results arrive as one
+ordered set; AI-selected songs appear one by one as their individual YouTube
+searches complete. The raw AI request and response JSON are logged for every
+Ask AI batch.
 
 **Share Song** copies a self-contained Lyrics URL for the selected or sounding
 song. The URL carries the exact YouTube `videoId` and song metadata, so a new
@@ -377,9 +380,10 @@ key or an AI/YouTube lookup. LRCLIB lyrics then resolve through the normal
 keyless proxy. A shared song appends to an existing browser playlist rather
 than deleting it.
 
-Searches target the original studio recording unless you ask otherwise:
-the AI is told never to add "live" to search terms, and YouTube results
-are re-ranked before the first is taken. A result whose title does not
+Searches prefer the original studio recording unless the raw terms or Ask AI
+request specify otherwise. Direct results preserve proxy relevance order after
+studio/format signals re-rank them. Ask AI is told never to add "live" to
+search terms. For each AI-selected song, a result whose title does not
 contain the requested song's name is treated as the wrong song outright
 (an artist's official upload of a different track can never win);
 YouTube's auto-generated album tracks ("Provided to YouTube by" /
@@ -390,8 +394,8 @@ artist + song + format labels (concert dates, venues, "(Solstice
 Version)"-style renames) score down too. The remembered alternates used
 when a video refuses to embed keep only candidates that pass the same
 same-recording bar, so a retry never silently swaps in a live take or a
-different song. The per-query Model pills under
-the request box pick the exact AI model (Claude or OpenAI) for the next
+different song. The **Ask AI model** pills under
+the request box pick the exact provider/model for the next Ask AI
 request, and the status line names it ("Processing with
 claude-opus-4-8..."). Key-level provider failures - invalid key, spend
 or rate limits, billing - show a persistent red banner naming the

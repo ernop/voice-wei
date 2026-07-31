@@ -6,6 +6,104 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
 (async () => {
     const report = createReporter('player search and requests');
     const browser = await launchWithMic();
+
+    // ============ PRIMARY SEARCH: raw terms are keyless; AI is explicit ============
+    {
+        const ctx = await browser.newContext();
+        const directErrors = [];
+        const candidates = [
+            {
+                videoId: 'direct00001',
+                title: 'The Beatles - Hey Jude',
+                channelTitle: 'The Beatles',
+                duration: 431,
+                isAlbumTrack: true
+            },
+            {
+                videoId: 'direct00002',
+                title: 'The Beatles - Come Together',
+                channelTitle: 'The Beatles',
+                duration: 259,
+                isAlbumTrack: true
+            },
+            {
+                videoId: 'direct00003',
+                title: 'The Beatles - Something',
+                channelTitle: 'The Beatles',
+                duration: 182,
+                isAlbumTrack: true
+            }
+        ];
+        await ctx.route('**/proxy.php?*', route => {
+            const url = new URL(route.request().url());
+            if (url.searchParams.has('q')) {
+                return route.fulfill({
+                    contentType: 'application/json',
+                    body: JSON.stringify({ results: candidates, source: 'test-proxy' })
+                });
+            }
+            return route.fulfill({ contentType: 'application/json', body: '[]' });
+        });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'player-direct-search', directErrors);
+        await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
+        await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+        await tab.evaluate(() => {
+            const controller = window.musicController;
+            controller.__directTestAiCalls = 0;
+            const original = controller.processCommandWithLLM.bind(controller);
+            controller.processCommandWithLLM = async (...args) => {
+                controller.__directTestAiCalls++;
+                return original(...args);
+            };
+            // Search behavior, rather than YouTube iframe behavior, owns this test.
+            controller.playPlaylist = () => { controller.__directTestPlayed = true; };
+        });
+        await tab.fill('#typedCommandInput', 'The Beatles');
+        await tab.press('#typedCommandInput', 'Enter');
+        await tab.waitForFunction(() => window.musicController?.isProcessingCommand === false
+            && window.musicController?.playlist.length === 3);
+        const direct = await tab.evaluate(() => {
+            const controller = window.musicController;
+            return {
+                aiCalls: controller.__directTestAiCalls,
+                played: controller.__directTestPlayed === true,
+                status: document.getElementById('status')?.textContent || '',
+                searchLabel: document.getElementById('typedCommandSubmitBtn')?.textContent || '',
+                aiLabel: document.getElementById('typedCommandAiSubmitBtn')?.textContent || '',
+                overlayVisible: getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none',
+                songs: controller.playlist.map(item => ({
+                    videoId: item.videoId,
+                    name: item.name,
+                    artist: item.artist,
+                    sourceLabel: item.sourceLabel
+                }))
+            };
+        });
+        report.check('raw artist terms are the primary keyless multi-result search',
+            direct.aiCalls === 0
+            && direct.played
+            && direct.status === 'Playing 3 keyless results'
+            && direct.searchLabel === 'Search'
+            && direct.aiLabel === 'Ask AI'
+            && !direct.overlayVisible
+            && direct.songs.length === 3
+            && direct.songs[0].videoId === 'direct00001'
+            && direct.songs[0].name === 'Hey Jude'
+            && direct.songs[0].artist === 'The Beatles'
+            && direct.songs.every(song => song.sourceLabel === 'Direct search: The Beatles'));
+
+        await tab.fill('#typedCommandInput', 'that song with the submarine');
+        await tab.click('#typedCommandAiSubmitBtn');
+        await tab.waitForFunction(() =>
+            getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none');
+        report.check('Ask AI remains explicit and requests a key only when invoked',
+            await tab.evaluate(() => window.musicController?.__directTestAiCalls === 1));
+
+        directErrors.forEach(error => report.errors.push(error));
+        await ctx.close();
+    }
+
     // ============ PLAYER VOICE: shared core drives commands and music requests ============
     {
         const ctx = await browser.newContext();

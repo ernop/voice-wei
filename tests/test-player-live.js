@@ -14,6 +14,19 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             contentType: 'image/png',
             body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
         }));
+        await ctx.route(/\/proxy\.php\?.*\bq=/, route => route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({
+                source: 'test-proxy',
+                results: [{
+                    videoId: 'voice000001',
+                    title: 'Test Artist - Voice Search Song',
+                    channelTitle: 'Test Artist',
+                    duration: 180,
+                    isAlbumTrack: true
+                }]
+            })
+        }));
         // Fake key (long enough to pass the gate) and a controllable fake
         // SpeechRecognition, installed before page scripts run.
         await ctx.addInitScript(() => {
@@ -61,8 +74,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
         });
         const tab = await ctx.newPage();
-        // The manual-mode request intentionally fails at the stubbed Claude
-        // fetch; those logged errors are expected.
         /** @type {string[]} */
         const playerVoiceErrors = [];
         collectErrors(tab, 'player-voice', playerVoiceErrors);
@@ -347,7 +358,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player voice control ("${listeningStatus}" -> "${afterClear}")`,
             listeningStatus === 'Listening...' && afterClear === 'Playlist is already empty');
 
-        // Manual mode: segments accumulate, spoken "submit" sends to Claude path
+        // The following assertions own voice/search routing, not YouTube's
+        // external embed policy for the synthetic test video.
+        await tab.evaluate(() => {
+            window.musicController.playPlaylist = () => {};
+        });
+
+        // Manual mode: segments accumulate, spoken "submit" starts keyless search
         await tab.click('#settingsBtn');
         await tab.evaluate(() => document.getElementById('autoSubmitMode').click());
         await tab.click('#closeSettingsBtn');
@@ -363,16 +380,13 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         report.check(`player manual mode + spoken submit ("${manualStatus}", request logged: ${logged})`,
             manualStatus.includes('say "submit"') && logged);
 
-        // The submit ran with the owner-chosen provider (openai) holding
-        // no saved key: the key entry overlay must open so a key can be
-        // entered on the spot, and Close must dismiss it.
+        // Spoken requests use the primary keyless path even when the selected
+        // AI provider has no key.
         const overlayAfterSubmit = await tab.evaluate(() =>
             document.getElementById('apiKeyOverlay').style.display);
-        await tab.click('#closeApiKeyOverlayBtn');
-        const overlayAfterClose = await tab.evaluate(() =>
-            document.getElementById('apiKeyOverlay').style.display);
-        report.check('player missing-key submit opens the key entry overlay and Close dismisses it',
-            overlayAfterSubmit === 'flex' && overlayAfterClose === 'none');
+        const voiceSearchRows = await tab.evaluate(() => window.musicController.playlist.length);
+        report.check('player spoken requests default to keyless YouTube search',
+            overlayAfterSubmit === 'none' && voiceSearchRows === 1);
 
         // Android-style cumulative re-delivery (same index re-sent with
         // grown text, marked final each time) must not duplicate anything
@@ -391,9 +405,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             document.getElementById('logContent').textContent.includes('there was a guy I think'));
         report.check(`player cumulative re-delivery stays deduped ("${liveText}")`,
             liveText === 'there was a guy I think' && cumulativeLogged);
-        // This submit also ran keyless; clear the overlay it opened.
-        await tab.click('#closeApiKeyOverlayBtn');
-
         // Cross-index cumulative finals (the other Android variant) collapse
         const collapsed = await tab.evaluate(() => {
             const tm = new window.TranscriptManager();
@@ -565,7 +576,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         });
         const noKeyStatus = await tab.textContent('#status');
         report.check('player opens normally without an API key',
-            overlayShown === false && noKeyStatus === 'Ready - API key optional');
+            overlayShown === false && noKeyStatus === 'Ready - keyless search');
 
         await tab.evaluate(() => localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890'));
         await tab.reload({ waitUntil: 'domcontentloaded' });

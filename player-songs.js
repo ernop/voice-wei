@@ -82,6 +82,40 @@ const PlayerSongs = (function () {
     }
 
     /**
+     * Turn one standardized YouTube candidate into the Song vocabulary
+     * without AI. Common "Artist - Track" titles provide both lyric identity
+     * fields; other uploads use the channel as artist and full title as name.
+     * @param {Record<string, any>} candidate
+     * @param {string} searchTerm
+     * @returns {Song | null}
+     */
+    function songFromYouTubeCandidate(candidate, searchTerm) {
+        const title = String(candidate?.title || '').trim();
+        const channelTitle = String(candidate?.channelTitle || '').trim();
+        let name = title;
+        let artist = channelTitle.replace(/\s+-\s+Topic$/i, '').trim();
+        for (const separator of [' - ', ' \u2013 ', ' \u2014 ']) {
+            const separatorIndex = title.indexOf(separator);
+            if (separatorIndex <= 0) continue;
+            const titleArtist = title.slice(0, separatorIndex).trim();
+            const titleName = title.slice(separatorIndex + separator.length).trim();
+            if (titleArtist && titleName) {
+                artist = titleArtist;
+                name = titleName;
+            }
+            break;
+        }
+        return songFrom({
+            ...candidate,
+            name,
+            artist,
+            searchTerm,
+            title,
+            channelTitle
+        });
+    }
+
+    /**
      * A share URL carries one complete Song, so opening it can play the exact
      * YouTube video and resolve lyrics without first asking an AI to identify
      * or search for the track.
@@ -236,6 +270,7 @@ const PlayerSongs = (function () {
         SONG_FIELDS,
         parseDurationToSeconds,
         songFrom,
+        songFromYouTubeCandidate,
         shareParameter,
         songFromShareParameter,
         createPlaylistItem,

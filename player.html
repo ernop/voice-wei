@@ -9,8 +9,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Lyrics - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=328">
-    <link rel="stylesheet" href="practice-controls.css?v=328">
+    <link rel="stylesheet" href="style.css?v=329">
+    <link rel="stylesheet" href="practice-controls.css?v=329">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -107,8 +107,8 @@
         <div class="api-key-overlay" id="apiKeyOverlay" style="display: none;">
             <div class="api-key-overlay-content">
                 <h2>Optional AI API Key</h2>
-                <p>Shared songs, playback, and lyrics work without an API key. Add one only to make new AI music
-                    requests or Song Reports.</p>
+                <p>Music search, shared songs, playback, and lyrics work without an API key. Add one only to use
+                    Ask AI or make Song Reports.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
                         class="text-input api-key-input" />
@@ -236,15 +236,17 @@
             </div>
 
             <div class="typed-command-panel">
-                <label class="typed-command-label" for="typedCommandInput">Type a music request</label>
+                <label class="typed-command-label" for="typedCommandInput">Search music (no API key needed)</label>
                 <div class="typed-command-row">
                     <textarea id="typedCommandInput" class="text-input typed-command-input" rows="2"
-                        placeholder='Type something like "play mellow Bill Evans for dinner"' aria-label="Type a music request"></textarea>
+                        placeholder='Artist, song, or YouTube search terms' aria-label="Search music"></textarea>
                     <button id="typedCommandSubmitBtn" class="typed-command-submit-btn"
-                        aria-label="Send typed request">Send</button>
+                        aria-label="Search YouTube">Search</button>
+                    <button id="typedCommandAiSubmitBtn" class="secondary-btn typed-command-ai-btn"
+                        aria-label="Ask AI to interpret this request">Ask AI</button>
                 </div>
                 <div class="query-model-row">
-                    <span class="query-model-label">Model</span>
+                    <span class="query-model-label">Ask AI model</span>
                     <div class="vf-options">
                         <button class="vf-btn" type="button" data-query-model="claude|claude-fable-5">Fable 5</button>
                         <button class="vf-btn" type="button" data-query-model="claude|claude-opus-4-8">Opus 4.8</button>
@@ -424,33 +426,33 @@
     </div>
 
     <script async src="https://www.youtube.com/iframe_api"></script>
-    <script src="dev-error-monitor.js?v=328"></script>
-    <script src="app-version.js?v=328"></script>
-    <script src="storage-keys.js?v=328"></script>
-    <script src="shared-header.js?v=328"></script>
-    <script src="settings-store.js?v=328"></script>
-    <script src="music-constants.js?v=328"></script>
-    <script src="piano-core.js?v=328"></script>
-    <script src="api-keys-store.js?v=328"></script>
-    <script src="render-throttle.js?v=328"></script>
-    <script src="practice-controls.js?v=328"></script>
-    <script src="voice-output.js?v=328"></script>
-    <script src="voice-command-core.js?v=328"></script>
-    <script src="media-session-core.js?v=328"></script>
-    <script src="player-songs.js?v=328"></script>
-    <script src="player-storage.js?v=328"></script>
-    <script src="player-playback-state.js?v=328"></script>
-    <script src="player-lifecycle.js?v=328"></script>
-    <script src="player-history-db.js?v=328"></script>
-    <script src="player-api-keys.js?v=328"></script>
-    <script src="player-commands.js?v=328"></script>
-    <script src="player-playlist.js?v=328"></script>
-    <script src="player-prebuffer-probe.js?v=328"></script>
-    <script src="player-lyrics.js?v=328"></script>
-    <script src="player-song-report.js?v=328"></script>
-    <script src="player-song-library.js?v=328"></script>
-    <script src="player-history-ui.js?v=328"></script>
-    <script src="player.js?v=328"></script>
+    <script src="dev-error-monitor.js?v=329"></script>
+    <script src="app-version.js?v=329"></script>
+    <script src="storage-keys.js?v=329"></script>
+    <script src="shared-header.js?v=329"></script>
+    <script src="settings-store.js?v=329"></script>
+    <script src="music-constants.js?v=329"></script>
+    <script src="piano-core.js?v=329"></script>
+    <script src="api-keys-store.js?v=329"></script>
+    <script src="render-throttle.js?v=329"></script>
+    <script src="practice-controls.js?v=329"></script>
+    <script src="voice-output.js?v=329"></script>
+    <script src="voice-command-core.js?v=329"></script>
+    <script src="media-session-core.js?v=329"></script>
+    <script src="player-songs.js?v=329"></script>
+    <script src="player-storage.js?v=329"></script>
+    <script src="player-playback-state.js?v=329"></script>
+    <script src="player-lifecycle.js?v=329"></script>
+    <script src="player-history-db.js?v=329"></script>
+    <script src="player-api-keys.js?v=329"></script>
+    <script src="player-commands.js?v=329"></script>
+    <script src="player-playlist.js?v=329"></script>
+    <script src="player-prebuffer-probe.js?v=329"></script>
+    <script src="player-lyrics.js?v=329"></script>
+    <script src="player-song-report.js?v=329"></script>
+    <script src="player-song-library.js?v=329"></script>
+    <script src="player-history-ui.js?v=329"></script>
+    <script src="player.js?v=329"></script>
 </body>
 
 </html>

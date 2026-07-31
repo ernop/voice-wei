@@ -32,8 +32,9 @@ favorite reconciliation scheduling, saved-playlist restoration, and one
 animation frame. `window.__voiceWeiStartup` exposes the same result for
 inspection and tests. Its wall-clock budget is 1000ms from navigation start.
 The initial status says `Initializing...`; `Ready` (including the no-key
-`Ready - API key optional` state) is only authoritative after the readiness
-event. Missing keys open the entry surface only at an AI action boundary.
+`Ready - keyless search` state) is only authoritative after the readiness
+event. Missing keys open the entry surface only at an Ask AI or Song Report
+boundary.
 
 Every load writes a `Startup` line to the in-page Log and a detailed report to
 the browser console. The report separates costs that overlap and therefore
@@ -592,16 +593,26 @@ one constructor in that module:
 | Known-song history record (IndexedDB) | `historySongRecord` | `firstSeenAt`/`lastSeenAt`, sourceKind |
 | Versioned share parameter | `shareParameter` / `songFromShareParameter` | format version around one complete Song |
 
-No player code hand-builds song-shaped objects. Songs enter the playlist
-only through `appendPlaylistItem` (append at the end, render, lyric
-lookup); a new AI search **replaces** the working playlist
-(`searchAndAddToPlaylist` with `replaceExisting`), while explicit loads
-(favorites, history lookups, known songs) append. Replacement loses
+No player code hand-builds song-shaped objects. Direct YouTube candidates
+become Songs through `songFromYouTubeCandidate`, which locally splits common
+`Artist - Track` titles and otherwise uses channel/title. Songs enter the
+playlist only through `appendPlaylistItem` / `appendPlaylistItems` (append,
+render, lyric lookup). A new direct search (`searchDirectAndAddToPlaylist`) or
+AI search (`searchAndAddToPlaylist` with `replaceExisting`) **replaces** the
+working playlist, while explicit loads (favorites, history lookups, known
+songs) append. Replacement loses
 nothing: every song is recorded to the known-songs catalog when it is
 added, so the working playlist is a matter of convenience over durable
 data. Runtime row ids come from one monotonic allocator in `PlayerSongs`;
 reload regenerates them, including for older saved entries that still carry
 the retired `id` field.
+
+The default request boundary is keyless: voice fallback, Enter, and Search pass
+one raw term to `searchYouTubeCandidates`, then turn up to ten ranked proxy
+results directly into playlist rows. `searchYouTube` is the one-result wrapper
+used when an AI-selected named song or identity repair needs a single recording
+plus same-song alternates. Ask AI alone calls `processMusicSearch`; missing
+provider keys therefore cannot block or alter ordinary search.
 
 A song share URL embeds that versioned Song directly in its `song` query
 parameter. Opening it never searches for the recording: the exact `videoId`

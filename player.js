@@ -545,9 +545,9 @@ class VoiceMusicController {
             this.addMessage(
                 'claude',
                 'API Keys',
-                'Optional - shared songs, playback, and lyrics work without one; add a key for AI music requests and Song Reports'
+                'Optional - music search, shared songs, playback, and lyrics work without one; add a key for Ask AI and Song Reports'
             );
-            this.updateStatus('Ready - API key optional');
+            this.updateStatus('Ready - keyless search');
             this.hideApiKeyOverlay();
         }
 
@@ -807,8 +807,7 @@ class VoiceMusicController {
             settings: { autoSubmitMode: this.settings.autoSubmitMode },
             onBeforeListen: () => {
                 // Pause playback while listening - music interferes with
-                // recognition accuracy. Resumes during the Claude wait
-                // (processMusicSearch), pauses again when the response lands.
+                // recognition accuracy. Resumes while the search runs.
                 this.wasPlayingBeforeListening = this.isPlaying && !this.isPaused;
                 if (this.wasPlayingBeforeListening) {
                     this.pausePlayback();
@@ -830,9 +829,10 @@ class VoiceMusicController {
             }
         });
 
-        // Everything else is a music request for Claude
+        // Raw YouTube search is the primary/default voice path. AI
+        // interpretation remains an explicit typed action.
         this.voiceCore.setFallbackHandler(async (/** @type {string} */ transcript) => {
-            await this.processMusicSearch(transcript);
+            await this.processDirectMusicSearch(transcript);
         });
 
         this.voiceCore.init();
@@ -841,7 +841,7 @@ class VoiceMusicController {
         // The core's init sets status to Ready. Missing keys are only relevant
         // when the visitor invokes an AI music request or Song Report.
         if (!(this.config?.claudeApiKey || this.config?.openaiApiKey)) {
-            this.updateStatus('Ready - API key optional');
+            this.updateStatus('Ready - keyless search');
         }
     }
 
@@ -949,6 +949,12 @@ class VoiceMusicController {
         if (typedCommandSubmitBtn) {
             typedCommandSubmitBtn.addEventListener('click', () => {
                 this.submitTypedCommand();
+            });
+        }
+        const typedCommandAiSubmitBtn = document.getElementById('typedCommandAiSubmitBtn');
+        if (typedCommandAiSubmitBtn) {
+            typedCommandAiSubmitBtn.addEventListener('click', () => {
+                this.submitTypedCommand({ useAi: true });
             });
         }
         if (typedCommandInput) {
@@ -1410,7 +1416,7 @@ class VoiceMusicController {
         }
     }
 
-    async submitTypedCommand() {
+    async submitTypedCommand({ useAi = false } = {}) {
         if (this.isProcessingCommand) {
             return;
         }
@@ -1429,13 +1435,60 @@ class VoiceMusicController {
 
         // No refocus after the search returns: grabbing the text box would
         // pop the keyboard / steal focus mid-listen on the results.
-        await this.processMusicSearch(textToSubmit);
+        if (useAi) {
+            await this.processMusicSearch(textToSubmit);
+        } else {
+            await this.processDirectMusicSearch(textToSubmit);
+        }
     }
 
     updateStatus(message) {
         const statusEl = document.getElementById('status');
         if (statusEl) {
             statusEl.textContent = message;
+        }
+    }
+
+    async processDirectMusicSearch(transcript) {
+        const query = transcript.trim();
+        if (!query) {
+            this.updateStatus('Enter search terms first');
+            return;
+        }
+
+        this.hideClaudeResponse();
+        this.hidePrompt();
+        this.logUserMessage(query);
+        this.transcript.show(query);
+        if (this.wasPlayingBeforeListening) {
+            this.playPlaylist();
+        }
+
+        this.isProcessingCommand = true;
+        this.updateSubmitButton(true);
+        this.updateTypedCommandUI(true);
+        this.updateStatus(`Searching YouTube for ${this.truncateForStatus(query)}...`);
+
+        try {
+            const result = await this.searchDirectAndAddToPlaylist(query);
+            this.wasPlayingBeforeListening = false;
+            if (result.addedCount === 0) {
+                this.updateStatus(`No YouTube matches for: ${this.truncateForStatus(query)}`);
+                return;
+            }
+            if (!this.isPlaying) {
+                this.playPlaylist();
+            }
+            this.updateStatus(`Playing ${result.addedCount} keyless result${result.addedCount === 1 ? '' : 's'}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logError('Direct Music Search Error', error);
+            this.updateStatus(`YouTube search failed: ${message}`);
+        } finally {
+            this.wasPlayingBeforeListening = false;
+            this.isProcessingCommand = false;
+            this.updateSubmitButton(false);
+            this.updateTypedCommandUI(false);
         }
     }
 
@@ -1573,12 +1626,17 @@ class VoiceMusicController {
     updateTypedCommandUI(busy) {
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
         const typedCommandSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandSubmitBtn'));
+        const typedCommandAiSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandAiSubmitBtn'));
         if (typedCommandInput) {
             typedCommandInput.disabled = busy;
         }
         if (typedCommandSubmitBtn) {
             typedCommandSubmitBtn.disabled = busy;
-            typedCommandSubmitBtn.textContent = busy ? 'Sending...' : 'Send';
+            typedCommandSubmitBtn.textContent = busy ? 'Working...' : 'Search';
+        }
+        if (typedCommandAiSubmitBtn) {
+            typedCommandAiSubmitBtn.disabled = busy;
+            typedCommandAiSubmitBtn.textContent = busy ? 'Working...' : 'Ask AI';
         }
     }
 

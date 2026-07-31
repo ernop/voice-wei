@@ -624,6 +624,11 @@ h1 {
     cursor: wait;
 }
 
+.typed-command-ai-btn {
+    width: 110px;
+    flex-shrink: 0;
+}
+
 @keyframes pulse-live {
 
     0%,
@@ -2203,7 +2208,8 @@ body[data-page="music"] .voice-controls-row {
         flex-direction: column;
     }
 
-    .typed-command-submit-btn {
+    .typed-command-submit-btn,
+    .typed-command-ai-btn {
         width: 100%;
         min-height: 48px;
     }

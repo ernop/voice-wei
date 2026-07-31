@@ -373,6 +373,7 @@ interface VoiceMusicController {
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
     formatYouTubeResult(video: any): YouTubeVideoCandidate;
+    searchYouTubeCandidates(query: string, context?: { artist?: string; name?: string }): Promise<YouTubeVideoCandidate[]>;
     searchYouTube(query: string, context?: { artist?: string; name?: string }): Promise<any>;
     unwantedVersionMarkers(): RegExp[];
     simplifyVideoText(value: string): string;
@@ -477,6 +478,7 @@ interface VoiceMusicController {
     loadLinkedSongIfRequested(): void;
     parseDurationToSeconds(value: string): number;
     searchAndAddToPlaylist(songList: any[], options?: { replaceExisting?: boolean }): Promise<PlaylistSearchResult>;
+    searchDirectAndAddToPlaylist(query: string): Promise<{ addedCount: number; resultCount: number }>;
     musicHistoryLookups: any[];
     musicHistorySongs: any[];
     musicHistorySearches: any[];

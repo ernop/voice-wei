@@ -68,11 +68,15 @@ available whenever a song is selected: it activates a saved report or requests
 one when none is stored, and its label carries request wait/result state. The
 Log header uses `panel-action-btn`; **Show Previous** is a separate explicit
 history action and opening the panel itself shows only current-session lines.
+The request row makes keyless Search the primary `typed-command-submit-btn`;
+Enter triggers the same action. Ask AI is a separate `secondary-btn`, and the
+model segment beneath it is labeled `Ask AI model` so provider choices cannot
+be mistaken for part of ordinary search.
 The player also carries these dialects, all defined in style.css:
 
 | Dialect class | Job today | Resolution |
 |---------------|-----------|------------|
-| `typed-command-submit-btn` | Send the typed request | Retire -> `secondary-btn` (or `submit-button-large` if it should carry primary weight) |
+| `typed-command-submit-btn` | Primary keyless YouTube search | Retire -> `primary-btn` after its row sizing is separated from its look |
 | `close-settings-btn` | Close the settings panel | Retire -> `panel-action-btn` (shared with Books) |
 | `save-api-key-btn` | Save an API key | Retire -> `panel-action-btn` (shared with Books) |
 | `api-key-action-btn` (+ `.danger`) | Show/Change/Remove key | Retire -> `panel-action-btn` (shared with Books) |

@@ -63,7 +63,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
         !cold.resources.some(resource => resource.name.includes('Tone.js')) && toneRequests === 0);
     report.check('startup timing is written to the in-app log', cold.hasStartupLog);
     report.check('fresh Lyrics page is usable without an API key',
-        cold.status === 'Ready - API key optional' && !cold.apiKeyOverlayVisible);
+        cold.status === 'Ready - keyless search' && !cold.apiKeyOverlayVisible);
 
     const sharedSongParameter = await tab.evaluate(() => PlayerSongs.shareParameter({
         videoId: 'dQw4w9WgXcQ',

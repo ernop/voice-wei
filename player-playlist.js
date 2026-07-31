@@ -8,6 +8,7 @@ const DOM_SETTLE_DELAY_MS = 50;
 const YOUTUBE_API_TIMEOUT_MS = 10000;
 const PLAYER_READY_TIMEOUT_MS = 8000;
 const YOUTUBE_SEARCH_CONCURRENCY = 4;
+const DIRECT_SEARCH_RESULT_LIMIT = 10;
 
 const PlayerPlaylist = (function () {
     'use strict';
@@ -265,6 +266,70 @@ const PlayerPlaylist = (function () {
 
                 this.persistPlaylist();
                 return { addedCount, skippedCount, requestedCount: songList.length, attemptedTerms, skippedTerms };
+            },
+
+            /**
+             * Primary keyless search: one raw term goes to the YouTube proxy,
+             * and the provider's top candidates become playable playlist rows.
+             * No AI interpretation or API key participates.
+             * @param {string} query
+             */
+            async searchDirectAndAddToPlaylist(query) {
+                const candidates = (await this.searchYouTubeCandidates(query))
+                    .slice(0, DIRECT_SEARCH_RESULT_LIMIT);
+                if (candidates.length === 0) {
+                    return { addedCount: 0, resultCount: 0 };
+                }
+
+                const current = this.playlist.find(entry => entry.id === this.currentPlayingId);
+                const keepVideoId = current && (this.isPlaying || this.isPaused)
+                    ? current.videoId
+                    : '';
+                const seenVideoIds = new Set(keepVideoId ? [keepVideoId] : []);
+                const items = [];
+                for (const candidate of candidates) {
+                    if (seenVideoIds.has(candidate.videoId)) continue;
+                    const decodedCandidate = {
+                        ...candidate,
+                        title: this.decodeHtml(candidate.title),
+                        channelTitle: this.decodeHtml(candidate.channelTitle)
+                    };
+                    const song = PlayerSongs.songFromYouTubeCandidate(decodedCandidate, query);
+                    if (!song) continue;
+                    const item = PlayerSongs.createPlaylistItem(song, {
+                        sourceKind: 'search',
+                        sourceLabel: `Direct search: ${query}`,
+                        sourceSearchTerm: query
+                    });
+                    if (!item) continue;
+                    seenVideoIds.add(item.videoId);
+                    items.push(item);
+                }
+                if (items.length === 0) {
+                    return { addedCount: 0, resultCount: candidates.length };
+                }
+
+                const previousCount = this.playlist.length;
+                const keptCurrent = this.replacePlaylistItemsKeepingCurrent();
+                const droppedCount = previousCount - (keptCurrent ? 1 : 0);
+                if (previousCount > 0) {
+                    this.addMessage(
+                        'claude',
+                        'New direct search',
+                        `Replaced the working playlist (${droppedCount} song${droppedCount === 1 ? '' : 's'} stay in Known Songs history${keptCurrent ? '; current song keeps playing' : ''})`
+                    );
+                }
+                this.showPlaylistSurfaces();
+                this.appendPlaylistItems(items);
+                for (const item of items) {
+                    if (window.PlayerHistoryDB) {
+                        window.PlayerHistoryDB.recordSong(item, 'direct-search');
+                    }
+                }
+                this.updatePlaylistLabel();
+                this.persistPlaylist();
+                this.addMessage('claude', 'Direct search', `Added ${items.length} keyless result${items.length === 1 ? '' : 's'} for: ${query}`);
+                return { addedCount: items.length, resultCount: candidates.length };
             },
 
             /**
@@ -610,7 +675,7 @@ const PlayerPlaylist = (function () {
                     .map(entry => entry.video);
             },
 
-            async searchYouTube(query, context = {}) {
+            async searchYouTubeCandidates(query, context = {}) {
                 // Use server-side proxy (proxy.php) which calls Piped/Invidious directly
                 // Server-side avoids CORS issues and doesn't need third-party CORS proxies
                 const proxyUrl = `proxy.php?q=${encodeURIComponent(query)}`;
@@ -661,22 +726,27 @@ const PlayerPlaylist = (function () {
                         .map(result => this.formatYouTubeResult(result)),
                     searchContext
                 );
-                if (videos.length > 0) {
-                    // Every candidate already passed song identity. Ranking
-                    // chooses the preferred recording; the retry chain then
-                    // excludes unrequested versions and other poor matches.
-                    const [firstVideo, ...rankedRest] = videos;
-                    const alternateVideos = rankedRest.filter(video =>
-                        this.scoreVideoCandidate(video, searchContext) >= 0);
-                    this.addMessage('claude', 'Found', `${firstVideo.title} (via ${data.source || 'proxy'})`);
-                    return {
-                        ...firstVideo,
-                        alternateVideos
-                    };
+                if (videos.length === 0) {
+                    this.addMessage('claude', 'No Results', `No videos found for: ${query}`);
                 }
+                return videos;
+            },
 
-                this.addMessage('claude', 'No Results', `No videos found for: ${query}`);
-                return null;
+            async searchYouTube(query, context = {}) {
+                const searchContext = { searchTerm: query, ...context };
+                const videos = await this.searchYouTubeCandidates(query, context);
+                if (videos.length === 0) return null;
+                // Every candidate already passed song identity. Ranking
+                // chooses the preferred recording; the retry chain then
+                // excludes unrequested versions and other poor matches.
+                const [firstVideo, ...rankedRest] = videos;
+                const alternateVideos = rankedRest.filter(video =>
+                    this.scoreVideoCandidate(video, searchContext) >= 0);
+                this.addMessage('claude', 'Found', firstVideo.title);
+                return {
+                    ...firstVideo,
+                    alternateVideos
+                };
             },
 
             formatYouTubeResult(video) {
