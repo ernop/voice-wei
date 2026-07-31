@@ -69,49 +69,47 @@
                     <div class="phrase-series-error" id="seriesError" hidden></div>
                 </section>
 
-                <!-- Timing + Key + length: labels outside the stepper pill (shared pattern) -->
+                <!-- Timing + Key + length: labeled stepper pills (shared pattern) -->
                 <section class="phrase-control-card phrase-control-card-numbers">
                     <div class="vf-row">
-                        <span class="vf-label">Note Len</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Note Len</span>
                             <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
                             <span class="step-value" id="noteLengthValue">0.3s</span>
                             <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Gap</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Gap</span>
                             <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Shorter gap">-</button>
                             <span class="step-value" id="gapValue">0s</span>
                             <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Longer gap">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline"
-                            title="Pause between sections: repeat loops, breakdown passes, and powerset combos">Sect</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Pause between sections: repeat loops, breakdown passes, and powerset combos">
+                            <span class="step-label">Sect</span>
                             <button class="step-btn" type="button" data-step-key="sectionPauseMs" data-step-delta="-1" aria-label="Shorter section pause">-</button>
                             <span class="step-value" id="sectionPauseValue">1s</span>
                             <button class="step-btn" type="button" data-step-key="sectionPauseMs" data-step-delta="1" aria-label="Longer section pause">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Key</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Key</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                             <span class="step-value" id="rootPitchValue">D#3</span>
                             <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Min</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Shortest phrase the generator may produce, in notes">
+                            <span class="step-label">Min</span>
                             <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="-1" aria-label="Shorter minimum phrase length">-</button>
                             <span class="step-value" id="minLengthValue">5</span>
                             <button class="step-btn" type="button" data-step-key="minLength" data-step-delta="1" aria-label="Longer minimum phrase length">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline">Max</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Longest phrase the generator may produce, in notes">
+                            <span class="step-label">Max</span>
                             <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="-1" aria-label="Shorter maximum phrase length">-</button>
                             <span class="step-value" id="maxLengthValue">8</span>
                             <button class="step-btn" type="button" data-step-key="maxLength" data-step-delta="1" aria-label="Longer maximum phrase length">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline"
-                            title="Chance of choosing a chromatic passing note between adjacent scale degrees">Pass</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Chance of choosing a chromatic passing note between adjacent scale degrees">
+                            <span class="step-label">Pass</span>
                             <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="-1" aria-label="Lower passing-note rate">-</button>
                             <span class="step-value" id="accidentalRateValue">0%</span>
                             <button class="step-btn" type="button" data-step-key="accidentalRate" data-step-delta="1" aria-label="Higher passing-note rate">+</button>
@@ -171,14 +169,14 @@
                             title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
                     </div>
                     <div class="vf-row phrase-range-row">
-                        <span class="vf-label" title="Lowest degree phrases may use. Below 1 reaches under the unison.">Range Low</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Lowest degree phrases may use. Below 1 reaches under the unison.">
+                            <span class="step-label">Range Low</span>
                             <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="-1" aria-label="Lower range endpoint down one degree">-</button>
                             <span class="step-value" id="rangeLowValue">1</span>
                             <button class="step-btn" type="button" data-step-key="rangeLow" data-step-delta="1" aria-label="Raise range endpoint up one degree">+</button>
                         </div>
-                        <span class="vf-label vf-label-inline" title="Highest degree phrases may use.">Range High</span>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field" title="Highest degree phrases may use.">
+                            <span class="step-label">Range High</span>
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="-1" aria-label="Lower top endpoint down one degree">-</button>
                             <span class="step-value" id="rangeHighValue">8</span>
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="1" aria-label="Raise top endpoint up one degree">+</button>

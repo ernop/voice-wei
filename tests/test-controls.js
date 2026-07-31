@@ -66,6 +66,8 @@ async function sectionCanonicalControls(browser, errors) {
         '.vf-reset-btn', '.test-voice-btn', '.reset-stats-btn', '.sing-control-btn',
         '.select-all-btn', '.log-toggle-btn', '.clear-log-btn', '.model-selector', '.provider-tab',
         '.display-toggles', '.echo-toggle',
+        // External-label stepper dialect: labels now live inside the pill
+        '.step-field-bare',
         // Books dialects retired into the shared vocabulary
         '.small-action-btn', '.primary-action-btn', '.danger-action-btn', '.upload-button',
         '.speed-step-btn', '.speed-control', '.voice-sample-btn', '.back-library-btn',

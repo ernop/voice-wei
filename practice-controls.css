@@ -35,8 +35,8 @@
 /* Stepper field: one bounded unit holding its own label, minus, value,
    plus. The label lives INSIDE the shell so it can never wrap away from
    the control it explains. Everything sizes to content - no fixed
-   column widths, no per-breakpoint stretching. (.step-field-bare is the
-   same unit without a label; legacy pages still carry the class.) */
+   column widths, no per-breakpoint stretching. (The old .step-field-bare
+   external-label dialect is retired; tests block its return.) */
 .step-field {
     display: flex;
     align-items: center;

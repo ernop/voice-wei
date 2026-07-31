@@ -76,29 +76,23 @@
 
                 <!-- Timing + Root steppers share one row (same cluster as Phrases). -->
                 <div class="vf-row">
-                    <span class="vf-label" data-full="Note Length" data-abbr="Len">Note Length</span>
-                    <div class="vf-options">
-                        <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
-                            <span class="step-value" id="noteLengthValue">0.3s</span>
-                            <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
-                        </div>
+                    <div class="step-field">
+                        <span class="step-label" data-full="Note Length" data-abbr="Len">Note Length</span>
+                        <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
+                        <span class="step-value" id="noteLengthValue">0.3s</span>
+                        <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
                     </div>
-                    <span class="vf-label vf-label-inline" data-full="Note Gap" data-abbr="Gap">Note Gap</span>
-                    <div class="vf-options">
-                        <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
-                            <span class="step-value" id="gapValue">0s</span>
-                            <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
-                        </div>
+                    <div class="step-field">
+                        <span class="step-label" data-full="Note Gap" data-abbr="Gap">Note Gap</span>
+                        <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
+                        <span class="step-value" id="gapValue">0s</span>
+                        <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
                     </div>
-                    <span class="vf-label vf-label-inline" data-full="Key" data-abbr="Key">Key</span>
-                    <div class="vf-options">
-                        <div class="step-field step-field-bare">
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
-                            <span class="step-value" id="rootPitchValue">C4</span>
-                            <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
-                        </div>
+                    <div class="step-field">
+                        <span class="step-label" data-full="Key" data-abbr="Key">Key</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
+                        <span class="step-value" id="rootPitchValue">C4</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
                     </div>
                 </div>
 
@@ -335,16 +329,16 @@
                         </select>
                     </div>
                     <div class="setting-group">
-                        <label>Speed:</label>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Speed</span>
                             <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="-1" aria-label="Slower voice">-</button>
                             <span class="step-value" id="voiceRateValue">1x</span>
                             <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="1" aria-label="Faster voice">+</button>
                         </div>
                     </div>
                     <div class="setting-group">
-                        <label>Pitch:</label>
-                        <div class="step-field step-field-bare">
+                        <div class="step-field">
+                            <span class="step-label">Pitch</span>
                             <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="-1" aria-label="Lower voice pitch">-</button>
                             <span class="step-value" id="voicePitchValue">1.0</span>
                             <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="1" aria-label="Higher voice pitch">+</button>

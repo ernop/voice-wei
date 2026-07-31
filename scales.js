@@ -1419,8 +1419,8 @@ class ScalesController {
             const btn = /** @type {HTMLElement} */ (el);
             btn.textContent = useAbbr ? btn.dataset.abbr : btn.dataset.full;
         });
-        // Toggle section labels
-        document.querySelectorAll('.vf-label[data-abbr][data-full]').forEach(el => {
+        // Toggle section labels (row labels and in-pill stepper labels)
+        document.querySelectorAll('.vf-label[data-abbr][data-full], .step-label[data-abbr][data-full]').forEach(el => {
             const label = /** @type {HTMLElement} */ (el);
             label.textContent = useAbbr ? label.dataset.abbr : label.dataset.full;
         });

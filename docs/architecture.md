@@ -1041,8 +1041,8 @@ Controls must be identifiable as groups at a glance:
    child, inside the border, so the label can never wrap away from its
    control. External `vf-label`s remain only for rows that introduce a
    free-standing control (text inputs, toggle clusters) and reserve no
-   column width. Staff is converted; other pages convert on their next
-   pass.
+   column width. Every page is converted; the external-label stepper
+   dialect (`step-field-bare`) is retired and test-blocked.
 5. **Controls size to their content at every viewport width.** No fixed
    column widths inside steppers, no reserved label columns, no
    per-breakpoint stretch-to-fill rules. Rows are flex-wrap containers

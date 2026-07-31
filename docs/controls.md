@@ -18,7 +18,7 @@ surfaces" in architecture.md with its reasoning.
 | Role | Canonical class | Owner sheet |
 |------|-----------------|-------------|
 | Option chip (pick one of N) | `vf-btn` (+ `.selected`), in a `segment-row` or `vf-row` | practice-controls.css |
-| Numeric stepper | `step-field` / `step-field-bare` + `step-btn` | practice-controls.css |
+| Numeric stepper | `step-field` (with internal `step-label`) + `step-btn` / `step-value` | practice-controls.css |
 | Small action chip (Copy, Clear, Save, Apply...) | `panel-action-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size neutral action | `secondary-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size primary action (Import, Generate, Play) | `primary-btn` | practice-controls.css |
@@ -107,7 +107,7 @@ that was executed:
 | `small-action-btn` (+ `.danger`) | `panel-action-btn` (+ `.danger`); `transport-step-btn` survives as a layout modifier |
 | `primary-action-btn`, `upload-button` | `primary-btn` |
 | `danger-action-btn` | `secondary-btn danger` |
-| `speed-step-btn` + `speed-control` | `step-field step-field-bare` + `step-btn` / `step-value` |
+| `speed-step-btn` + `speed-control` | `step-field` + `step-btn` / `step-value` |
 | `voice-sample-btn` (+ `.selected`, `.playing`) | `vf-btn` (+ `.selected`); `.playing` styled as a scoped state in ebook.css |
 | `back-library-btn` | `secondary-btn` |
 | `save-api-key-btn`, `api-key-action-btn`, `close-settings-btn`, `clear-log-btn` (Books markup only) | `panel-action-btn` (+ `.danger`) |
@@ -179,9 +179,9 @@ Numeric steppers carry their label INSIDE the pill shell as a
 `step-label` first child (architecture.md, Grouping rule 4), so label
 and control can never separate at a wrap point. A labeled segment row
 does the same. `step-field-bare` (external `vf-label` + unlabeled pill)
-is the retiring dialect: Staff is converted; trace/intervals/pitch-meter
-already used internal labels; phrases/scales/intervals rows convert on
-their next pass.
+is RETIRED: every page is converted and `tests/test-controls.js` blocks
+the class from reappearing. Scales' abbreviation toggle covers in-pill
+labels via `.step-label[data-abbr][data-full]`.
 The user-facing name for the root-pitch chooser is **Key** on every
 practice page (state keys may still say `root` / `rootPitch`).
 Trace's **Low** and **High** controls use the same semitone pitch-stepper
