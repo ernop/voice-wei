@@ -223,6 +223,32 @@
                     </div>
                 </div>
 
+                <!-- Ladder: overlapping rungs shifting one degree at a time
+                     (1-2-3, 2-3-4, ...). Reverse leads each rung with the
+                     new note (3-2-1, 4-3-2, ...). -->
+                <div class="vf-row">
+                    <span class="vf-label" data-full="Ladder" data-abbr="Lad">Ladder</span>
+                    <div class="vf-options">
+                        <div class="segment-row">
+                        <button class="vf-btn" data-ladder="off" data-full="off" data-abbr="off">off</button>
+                        <button class="vf-btn" data-ladder="on" data-full="on" data-abbr="on">on</button>
+                        <button class="vf-btn" data-ladder="reverse" data-full="reverse" data-abbr="rev">reverse</button>
+                        </div>
+                    </div>
+                    <div class="step-field">
+                        <span class="step-label" data-full="Rung Notes" data-abbr="Nts">Rung Notes</span>
+                        <button class="step-btn" type="button" data-step-key="ladderSize" data-step-delta="-1" aria-label="Fewer notes per rung">-</button>
+                        <span class="step-value" id="ladderSizeValue">3</span>
+                        <button class="step-btn" type="button" data-step-key="ladderSize" data-step-delta="1" aria-label="More notes per rung">+</button>
+                    </div>
+                    <div class="step-field">
+                        <span class="step-label" data-full="Rung Gap" data-abbr="RGap">Rung Gap</span>
+                        <button class="step-btn" type="button" data-step-key="ladderGapMs" data-step-delta="-1" aria-label="Shorter gap between rungs">-</button>
+                        <span class="step-value" id="ladderGapValue">0.5s</span>
+                        <button class="step-btn" type="button" data-step-key="ladderGapMs" data-step-delta="1" aria-label="Longer gap between rungs">+</button>
+                    </div>
+                </div>
+
                 <div class="vf-row">
                     <span class="vf-label" data-full="Display" data-abbr="Dsp">Display</span>
                     <div class="vf-options">

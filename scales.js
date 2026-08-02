@@ -38,12 +38,20 @@ const INTERVAL_MOVEMENTS = {
     seventh_down: { scaleSteps: 6, direction: -1 }
 };
 
+// Ladder rung sizes offered by the stepper (notes per rung)
+const SCALES_LADDER_SIZE_VALUES = [2, 3, 4, 5, 6, 7, 8];
+
+// Spoken rung sizes ("ladder of four", "three note ladder")
+/** @type {Record<string, number>} */
+const LADDER_COUNT_WORDS = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 };
+
 const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
 const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
     'repeatGapMs', 'risingSemitones', 'movementStyle', 'scaleType', 'root',
     'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps',
-    'chopHead', 'showSequence', 'useAbbrev', 'instructionDismissed',
+    'chopHead', 'ladder', 'ladderSize', 'ladderGapMs',
+    'showSequence', 'useAbbrev', 'instructionDismissed',
     'voiceRate', 'voicePitch', 'voiceName', 'echoCommands'
 ];
 
@@ -67,6 +75,9 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {string} exercise
  * @property {number} shiftingSteps
  * @property {number} chopHead
+ * @property {string} ladder
+ * @property {number} ladderSize
+ * @property {number} ladderGapMs
  */
 
 /**
@@ -83,6 +94,9 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {string | null} [exercise]
  * @property {number | null} [shiftingSteps]
  * @property {number | null} [chopHead]
+ * @property {string | null} [ladder]
+ * @property {number | null} [ladderSize]
+ * @property {number | null} [ladderGapMs]
  */
 
 /**
@@ -164,6 +178,12 @@ class ScalesController {
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
             shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
             chopHead: 0,       // 0=off, 1=each pass drops the first note (12345678, 2345678, ...)
+            // Ladder: overlapping fixed-size rungs shifting one degree at a
+            // time (123, 234, 345, ...). 'reverse' plays each rung toward
+            // the new note first (321, 432, 543, ...).
+            ladder: 'off',     // 'off', 'on', 'reverse'
+            ladderSize: 3,     // notes per rung
+            ladderGapMs: 500,  // pause between rungs; 0 plays straight through
             showSequence: false,
             useAbbrev: false,
             instructionDismissed: false,
@@ -191,6 +211,9 @@ class ScalesController {
             exercise: 'none',
             shiftingSteps: 0,
             chopHead: 0,
+            ladder: 'off',
+            ladderSize: 3,
+            ladderGapMs: 500,
             showSequence: false,
             useAbbrev: false,
             instructionDismissed: false,
@@ -359,7 +382,9 @@ class ScalesController {
             scaleType: this.settings.scaleType,
             direction: this.settings.direction,
             movementStyle: this.settings.movementStyle,
-            sectionLength: this.settings.sectionLength
+            sectionLength: this.settings.sectionLength,
+            ladder: this.settings.ladder,
+            ladderSize: this.settings.ladderSize
         });
     }
 
@@ -511,6 +536,12 @@ class ScalesController {
             if (key === 'voicePitch') {
                 return PracticeControls.stepDisabled(SCALES_VOICE_PITCH_VALUES, this.voiceCore.settings.voicePitch, delta);
             }
+            if (key === 'ladderSize') {
+                return PracticeControls.stepDisabled(SCALES_LADDER_SIZE_VALUES, this.settings.ladderSize, delta);
+            }
+            if (key === 'ladderGapMs') {
+                return PracticeControls.stepDisabled(PracticeControls.TIME_VALUES_MS, this.settings.ladderGapMs, delta);
+            }
             return PracticeControls.stepDisabled(PracticeControls.GAP_VALUES, this.settings.gapMs, delta);
         });
     }
@@ -555,6 +586,14 @@ class ScalesController {
             const next = PracticeControls.stepValue(PracticeControls.GAP_VALUES, this.settings.gapMs, delta);
             if (next === null) return;
             this.settings.gapMs = next;
+        } else if (key === 'ladderSize') {
+            const next = PracticeControls.stepValue(SCALES_LADDER_SIZE_VALUES, this.settings.ladderSize, delta);
+            if (next === null) return;
+            this.settings.ladderSize = next;
+        } else if (key === 'ladderGapMs') {
+            const next = PracticeControls.stepValue(PracticeControls.TIME_VALUES_MS, this.settings.ladderGapMs, delta);
+            if (next === null) return;
+            this.settings.ladderGapMs = next;
         } else {
             return;
         }
@@ -591,9 +630,10 @@ class ScalesController {
     setExercise(exercise, enableShifting = false) {
         this.settings.exercise = exercise;
         if (exercise !== 'none') {
-            // Exercises play through their own pattern engine; chop head only
-            // applies to the plain scale sequence.
+            // Exercises play through their own pattern engine; chop head and
+            // ladder only apply to the plain scale sequence.
             this.settings.chopHead = 0;
+            this.settings.ladder = 'off';
         }
         if (enableShifting && exercise !== 'none') {
             this.setShiftingSteps(1); // Default to shifting by 1 scale degree
@@ -606,6 +646,22 @@ class ScalesController {
         this.settings.chopHead = on ? 1 : 0;
         if (on) {
             this.settings.risingSemitones = 0;
+            this.settings.shiftingSteps = 0;
+            this.settings.exercise = 'none';
+            this.settings.movementStyle = 'normal';
+            this.settings.ladder = 'off';
+        }
+    }
+
+    // Ladder: overlapping fixed-size rungs walking the scale one degree at a
+    // time. It owns sequence generation, so enabling it clears the other
+    // generators (exercise, movement, chop head). Rising still composes:
+    // each full ladder cycle transposes up like any other repeated sequence.
+    /** @param {string} mode - 'off', 'on', or 'reverse' */
+    setLadder(mode) {
+        this.settings.ladder = mode;
+        if (mode !== 'off') {
+            this.settings.chopHead = 0;
             this.settings.shiftingSteps = 0;
             this.settings.exercise = 'none';
             this.settings.movementStyle = 'normal';
@@ -718,7 +774,10 @@ class ScalesController {
             sectionLength: s.sectionLength,
             exercise: s.exercise,
             shiftingSteps: s.shiftingSteps,
-            chopHead: s.chopHead
+            chopHead: s.chopHead,
+            ladder: s.ladder,
+            ladderSize: s.ladderSize,
+            ladderGapMs: s.ladderGapMs
         };
     }
 
@@ -757,6 +816,7 @@ class ScalesController {
         if (c.exercise && c.exercise !== 'none') parts.push(this.getExerciseLabel(c.exercise));
         if (c.shiftingSteps && c.shiftingSteps > 0) parts.push('shifting');
         if (c.chopHead) parts.push('chop head');
+        if (c.ladder && c.ladder !== 'off') parts.push(this.getLadderLabel(c.ladder, c.ladderSize));
         if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
         if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
         if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
@@ -800,6 +860,10 @@ class ScalesController {
         this.settings.exercise = c.exercise ?? 'none';
         this.settings.shiftingSteps = c.shiftingSteps ?? 0;
         if (c.chopHead) this.setChopHead(1);
+        this.settings.ladderSize = c.ladderSize ?? 3;
+        this.settings.ladderGapMs = c.ladderGapMs ?? 500;
+        if (c.ladder && c.ladder !== 'off') this.setLadder(c.ladder);
+        else this.settings.ladder = 'off';
 
         this.updatePianoKeyOctaves?.();
         this.onSettingChanged();
@@ -948,6 +1012,11 @@ class ScalesController {
         const chopHead = mods.chopHead ?? s.chopHead;
         if (chopHead) badges.push('chop head');
 
+        const ladder = mods.ladder ?? s.ladder;
+        if (ladder && ladder !== 'off') {
+            badges.push(this.getLadderLabel(ladder, mods.ladderSize ?? s.ladderSize));
+        }
+
         const octaveSpan = mods.octaveSpan ?? s.octaveSpan;
         if (octaveSpan && octaveSpan !== d.octaveSpan) badges.push(`${octaveSpan} oct`);
 
@@ -1083,6 +1152,14 @@ class ScalesController {
             btn.classList.toggle('selected', on === this.settings.chopHead);
         });
 
+        // Ladder buttons + steppers
+        document.querySelectorAll('[data-ladder]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.classList.toggle('selected', btn.dataset.ladder === this.settings.ladder);
+        });
+        PracticeControls.setValueText('ladderSizeValue', String(this.settings.ladderSize));
+        PracticeControls.setValueText('ladderGapValue', PracticeControls.formatSeconds(this.settings.ladderGapMs));
+
         // Movement buttons
         document.querySelectorAll('[data-movement]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1163,7 +1240,10 @@ class ScalesController {
             repeatGapMs: this.settings.repeatGapMs,
             exercise: this.settings.exercise,
             shiftingSteps: this.settings.shiftingSteps,
-            chopHead: this.settings.chopHead
+            chopHead: this.settings.chopHead,
+            ladder: this.settings.ladder,
+            ladderSize: this.settings.ladderSize,
+            ladderGapMs: this.settings.ladderGapMs
         };
     }
 
@@ -1196,6 +1276,9 @@ class ScalesController {
         }
         if (s.chopHead) {
             parts.push('chop head');
+        }
+        if (s.ladder !== 'off') {
+            parts.push(this.getLadderLabel(s.ladder, s.ladderSize));
         }
         if (s.octave !== d.octave) {
             parts.push(`oct ${s.octave}`);
@@ -1305,14 +1388,24 @@ class ScalesController {
             });
         });
 
+        // Ladder buttons
+        document.querySelectorAll('[data-ladder]').forEach(el => {
+            const btn = /** @type {HTMLElement} */ (el);
+            btn.addEventListener('click', () => {
+                this.setLadder(btn.dataset.ladder || 'off');
+                this.onSettingChanged();
+            });
+        });
+
         // Movement buttons
         document.querySelectorAll('[data-movement]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.addEventListener('click', () => {
                 this.settings.movementStyle = btn.dataset.movement || 'normal';
                 if (this.settings.movementStyle !== 'normal') {
-                    // Grouped movement playback bypasses chop head
+                    // Grouped movement playback bypasses chop head and ladder
                     this.settings.chopHead = 0;
+                    this.settings.ladder = 'off';
                 }
                 this.onSettingChanged();
             });
@@ -1694,6 +1787,22 @@ class ScalesController {
             text = text.replace(/\bchop(ped)?\s*(head|ahead)\b/, '');
         }
 
+        // Ladder modifier (overlapping rungs shifting one degree at a time).
+        // The rung size can lead ("four note ladder") or trail ("ladder of four").
+        if (text.match(/\b(no|without)\s+ladder\b/) || text.match(/\bladder\s+off\b/)) {
+            modifiers.ladder = 'off';
+            text = text.replace(/\b(no|without)\s+ladder\b/, '').replace(/\bladder\s+off\b/, '');
+        } else {
+            const ladderRe = /\b(?:(two|three|four|five|six|seven|eight|[2-8])[\s-]*note\s+)?(reversed?\s+)?ladder(?:\s+(?:of\s+)?(two|three|four|five|six|seven|eight|[2-8]))?\b/;
+            const ladderMatch = text.match(ladderRe);
+            if (ladderMatch) {
+                modifiers.ladder = ladderMatch[2] ? 'reverse' : 'on';
+                const sizeToken = ladderMatch[1] || ladderMatch[3];
+                if (sizeToken) modifiers.ladderSize = this.parseLadderCount(sizeToken);
+                text = text.replace(ladderRe, '');
+            }
+        }
+
         // Tempo modifiers (check longer phrases first)
         if (text.match(/\bsuper\s+slow(ly)?\b/) || text.match(/\bsuper\s+long\b/)) {
             modifiers.tempo = 'super slow';
@@ -1972,6 +2081,37 @@ class ScalesController {
             this.setChopHead(0);
             this.syncUIToSettings();
             return { type: 'setting', setting: 'chopHead', value: 0 };
+        }
+
+        // Standalone ladder commands
+        if (originalLower.match(/^(no\s+ladder|without\s+ladder|ladder\s+off)$/)) {
+            this.setLadder('off');
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'ladder', value: 'off' };
+        }
+        const ladderGapStandalone = originalLower.match(/^ladder\s+(?:no\s+gap|(?:gap|pause)\s+(none|zero|no\s+gap|half(?:\s+a)?\s+second|\d+(?:\.\d+)?(?:\s*seconds?)?))$/);
+        if (ladderGapStandalone) {
+            const token = ladderGapStandalone[1] || 'no gap';
+            let gapMs;
+            if (token === 'none' || token === 'zero' || token === 'no gap') {
+                gapMs = 0;
+            } else if (token.startsWith('half')) {
+                gapMs = 500;
+            } else {
+                gapMs = Math.round(parseFloat(token) * 1000);
+            }
+            this.settings.ladderGapMs = gapMs;
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'ladderGapMs', value: gapMs };
+        }
+        const ladderStandalone = originalLower.match(/^(?:(two|three|four|five|six|seven|eight|[2-8])[\s-]*note\s+)?(reversed?\s+)?ladder(?:\s+(?:of\s+)?(two|three|four|five|six|seven|eight|[2-8]))?(?:\s+(?:on|mode))?$/);
+        if (ladderStandalone) {
+            const sizeToken = ladderStandalone[1] || ladderStandalone[3];
+            if (sizeToken) this.settings.ladderSize = this.parseLadderCount(sizeToken);
+            const mode = ladderStandalone[2] ? 'reverse' : 'on';
+            this.setLadder(mode);
+            this.syncUIToSettings();
+            return { type: 'setting', setting: 'ladder', value: mode };
         }
 
         // Single note: "play C", "note D", "C sharp", "B flat"
@@ -2464,6 +2604,12 @@ class ScalesController {
                 if (command.modifiers.chopHead !== null && command.modifiers.chopHead !== undefined) {
                     this.setChopHead(command.modifiers.chopHead);
                 }
+                if (command.modifiers.ladderSize !== null && command.modifiers.ladderSize !== undefined) {
+                    this.settings.ladderSize = command.modifiers.ladderSize;
+                }
+                if (command.modifiers.ladder !== null && command.modifiers.ladder !== undefined) {
+                    this.setLadder(command.modifiers.ladder);
+                }
                 if (command.modifiers.rangeExpansion !== null) this.settings.rangeExpansion = command.modifiers.rangeExpansion;
                 if (command.modifiers.octaveSpan !== null) this.settings.octaveSpan = command.modifiers.octaveSpan;
                 // Apply tempo modifier to noteLengthMs
@@ -2567,6 +2713,12 @@ class ScalesController {
         // Chop head
         const chopHead = mods.chopHead ?? this.settings.chopHead;
         if (chopHead) parts.push('chop head');
+
+        // Ladder
+        const ladder = mods.ladder ?? this.settings.ladder;
+        if (ladder && ladder !== 'off') {
+            parts.push(this.getLadderLabel(ladder, mods.ladderSize ?? this.settings.ladderSize));
+        }
 
         switch (command.type) {
             case 'scale':
@@ -2687,6 +2839,14 @@ class ScalesController {
             parts.push('chop head');
         }
 
+        // Ladder
+        if (mods.ladder && mods.ladder !== 'off') {
+            if (mods.ladder === 'reverse') parts.push('reverse');
+            parts.push('ladder');
+            const size = mods.ladderSize ?? this.settings.ladderSize;
+            parts.push(`of ${size}`);
+        }
+
         // Gap
         if (mods.gap) {
             parts.push('with');
@@ -2781,6 +2941,65 @@ class ScalesController {
             thirds: 'thirds'
         };
         return map[exercise] || exercise;
+    }
+
+    /** @param {string} ladder @param {number} [size] */
+    getLadderLabel(ladder, size) {
+        if (!ladder || ladder === 'off') return 'off';
+        const base = ladder === 'reverse' ? 'reverse ladder' : 'ladder';
+        return size ? `${base} of ${size}` : base;
+    }
+
+    /** @param {string} token - spoken rung size ("four" or "4") */
+    parseLadderCount(token) {
+        return LADDER_COUNT_WORDS[token] ?? parseInt(token);
+    }
+
+    /**
+     * Build ladder rungs: overlapping windows of `size` consecutive scale
+     * degrees, shifting one degree per rung (123, 234, 345, ...). Travel
+     * follows `direction`; at the top the rungs mirror back down (678, 876,
+     * 765, ...). Normal rungs play toward the direction of travel; reverse
+     * rungs play against it, so each rung leads with the one note that has
+     * not been heard yet (321, 432, 543, ...).
+     * @param {Object} params
+     * @param {number[]} params.degreesAscAll - Ascending section degrees (MIDI)
+     * @param {string} params.direction - ascending, descending, both, down_and_up
+     * @param {number} params.size - Notes per rung (clamped to the section)
+     * @param {boolean} params.reverse - Lead each rung with the new note
+     * @returns {{ groups: Array<{notes: number[], sectionIndex: number, isChord: boolean}>, notes: number[] }}
+     */
+    buildLadderGroups({ degreesAscAll, direction, size, reverse }) {
+        const asc = degreesAscAll;
+        const rungSize = Math.max(2, Math.min(size, asc.length));
+        const lastStart = asc.length - rungSize;
+
+        /** @type {number[][]} */
+        const upPhase = [];
+        for (let start = 0; start <= lastStart; start++) {
+            const window = asc.slice(start, start + rungSize);
+            upPhase.push(reverse ? [...window].reverse() : window);
+        }
+        /** @type {number[][]} */
+        const downPhase = [];
+        for (let start = lastStart; start >= 0; start--) {
+            const window = asc.slice(start, start + rungSize);
+            downPhase.push(reverse ? window : [...window].reverse());
+        }
+
+        let rungs;
+        if (direction === 'descending') {
+            rungs = downPhase;
+        } else if (direction === 'both') {
+            rungs = [...upPhase, ...downPhase];
+        } else if (direction === 'down_and_up') {
+            rungs = [...downPhase, ...upPhase];
+        } else {
+            rungs = upPhase;
+        }
+
+        const groups = rungs.map(notes => ({ notes, sectionIndex: 0, isChord: false }));
+        return { groups, notes: groups.flatMap(g => g.notes) };
     }
 
     /**
@@ -3258,6 +3477,29 @@ class ScalesController {
         }
 
         const direction = modifiers.direction || this.settings.direction;
+
+        const ladder = modifiers.ladder ?? this.settings.ladder;
+        if (ladder && ladder !== 'off') {
+            const ladderSize = modifiers.ladderSize ?? this.settings.ladderSize;
+            const ladderGapMs = modifiers.ladderGapMs ?? this.settings.ladderGapMs;
+            const { groups } = this.buildLadderGroups({
+                degreesAscAll,
+                direction,
+                size: ladderSize,
+                reverse: ladder === 'reverse'
+            });
+            const ladderContext = {
+                type: 'scale',
+                root,
+                scaleType,
+                pattern: fullPattern,
+                rootMidi,
+                movementStyle: 'normal'
+            };
+            await this.playGroupSequence(groups, modifiers, ladderContext, { groupGapMs: ladderGapMs });
+            return;
+        }
+
         const ascending = degreesAscAll;
         const descending = [...degreesAscAll].reverse();
 
@@ -3314,14 +3556,21 @@ class ScalesController {
     }
 
     /**
-     * Play a sequence organized into groups (phrases) with gaps between them.
+     * Play a sequence organized into groups (phrases).
+     * Movement styles flow group-to-group with no extra gap; the ladder
+     * passes its configurable rung gap through options.groupGapMs.
      * All note arrays are MIDI integers.
+     * @param {Array<{notes: number[], sectionIndex: number, isChord: boolean}>} groups
+     * @param {ScaleModifiers} [modifiers]
+     * @param {Object} [context]
+     * @param {{ groupGapMs?: number }} [options]
      */
-    async playGroupSequence(groups, modifiers = {}, context = {}) {
+    async playGroupSequence(groups, modifiers = {}, context = {}, options = {}) {
         this.clearScalePreview();
         this.clearActuallyPlayed();
         this.updatePatternPreview(0);
 
+        const groupGapMs = options.groupGapMs || 0;
         let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
         const isInfinite = playTimes === Infinity;
@@ -3370,7 +3619,13 @@ class ScalesController {
                         }
                     }
 
-                    // Movement styles flow note-to-note with no extra gap between groups
+                    // Movement styles flow note-to-note with no extra gap
+                    // between groups; the ladder rung gap is the one
+                    // configurable exception (0 plays straight through).
+                    const isLastGroup = (g === groups.length - 1);
+                    if (groupGapMs > 0 && !isLastGroup && this.audio.isPlaybackValid(playId)) {
+                        await this.audio.sleep(groupGapMs);
+                    }
                 }
 
                 r++;
@@ -3746,7 +4001,10 @@ class ScalesController {
                 repeatGapMs: this.settings.repeatGapMs,
                 exercise: this.settings.exercise,
                 shiftingSteps: this.settings.shiftingSteps,
-                chopHead: this.settings.chopHead
+                chopHead: this.settings.chopHead,
+                ladder: this.settings.ladder,
+                ladderSize: this.settings.ladderSize,
+                ladderGapMs: this.settings.ladderGapMs
             }
         };
 
@@ -4110,7 +4368,7 @@ class ScalesController {
      * Build a complete playback plan as MIDI arrays.
      * @returns {{ segments: Array, notes: number[], rootMidi: number, pattern: number[] } | null}
      */
-    buildScalePlaybackPlan({ root, scaleType, direction, movementStyle, sectionLength }) {
+    buildScalePlaybackPlan({ root, scaleType, direction, movementStyle, sectionLength, ladder, ladderSize }) {
         const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, sectionLength });
         if (!degreesModel) return null;
 
@@ -4142,6 +4400,23 @@ class ScalesController {
             sectionNotes = ascending;
             directionLabel = 'up';
             startsAscending = true;
+        }
+
+        // The ladder owns sequence generation: rungs replace section-note
+        // traversal and movement styles entirely.
+        if (ladder && ladder !== 'off') {
+            const ladderResult = this.buildLadderGroups({
+                degreesAscAll,
+                direction,
+                size: ladderSize || 3,
+                reverse: ladder === 'reverse'
+            });
+            return {
+                segments: [{ label: `${directionLabel} ladder`, groups: ladderResult.groups }],
+                notes: ladderResult.notes,
+                rootMidi,
+                pattern
+            };
         }
 
         const rootIndexInSection = sectionNotes.indexOf(rootMidi);
@@ -4183,14 +4458,16 @@ class ScalesController {
         const el = document.getElementById('noteSequence');
         if (!el) return;
 
-        const { root, scaleType, direction, movementStyle, sectionLength } = this.settings;
+        const { root, scaleType, direction, movementStyle, sectionLength, ladder, ladderSize } = this.settings;
 
         const plan = this.buildScalePlaybackPlan({
             root,
             scaleType,
             direction,
             movementStyle,
-            sectionLength
+            sectionLength,
+            ladder,
+            ladderSize
         });
 
         if (!plan || !plan.segments || !plan.segments[0]) {

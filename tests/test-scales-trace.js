@@ -287,6 +287,102 @@ function waitForScalesReady(tab) {
             chordsSing.railMin <= chordsSing.targetMin
             && chordsSing.railMax >= chordsSing.targetMax
             && chordsSing.everyTargetOnRail);
+
+        // Ladder: overlapping rungs shifting one degree per rung.
+        const ladder = await tab.evaluate(async () => {
+            const c = window.scalesController;
+            c.stopPlayback();
+            const cMajor = [60, 62, 64, 65, 67, 69, 71, 72];
+            const rungString = result => result.groups.map(g => g.notes.join(',')).join(' | ');
+
+            const both = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false
+            });
+            const reverseUp = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'ascending', size: 3, reverse: true
+            });
+            const clamped = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'ascending', size: 12, reverse: false
+            });
+
+            // Voice grammar: standalone and inline forms.
+            const standalone = c.parseScaleCommand('reverse ladder of four');
+            const standaloneState = { ladder: c.settings.ladder, size: c.settings.ladderSize };
+            const gapCmd = c.parseScaleCommand('ladder gap 2 seconds');
+            const gapMsAfter = c.settings.ladderGapMs;
+            const offCmd = c.parseScaleCommand('ladder off');
+            const offState = c.settings.ladder;
+            const inline = c.parseScaleCommand('c major three note ladder');
+
+            // Mutual exclusion with the other sequence generators.
+            c.setChopHead(1);
+            c.setLadder('on');
+            const chopClearedByLadder = c.settings.chopHead === 0 && c.settings.ladder === 'on';
+            c.setExercise('five_note', true);
+            const ladderClearedByExercise = c.settings.ladder === 'off';
+            c.setLadder('on');
+            const exerciseClearedByLadder = c.settings.exercise === 'none' && c.settings.shiftingSteps === 0;
+
+            // Playback: rung gap sleeps between rungs, none inside a rung.
+            c.settings.root = 'C';
+            c.settings.octave = 4;
+            c.settings.scaleType = 'major';
+            c.settings.sectionLength = '1o';
+            c.settings.direction = 'ascending';
+            c.settings.repeatCount = 1;
+            c.settings.risingSemitones = 0;
+            c.settings.noteLengthMs = 10;
+            c.settings.gapMs = 0;
+            c.setLadder('on');
+            c.settings.ladderSize = 3;
+            c.settings.ladderGapMs = 123;
+
+            const played = [];
+            const sleeps = [];
+            const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
+            const realSleep = c.audio.sleep.bind(c.audio);
+            c.audio.piano.playMidi = midi => { played.push(midi); };
+            c.audio.sleep = async ms => { sleeps.push(ms); };
+            await c.playScale('C', 'major', c.buildModifiersFromSettings());
+            c.audio.piano.playMidi = realPlayMidi;
+            c.audio.sleep = realSleep;
+            c.setLadder('off');
+            c.settings.ladderGapMs = 500;
+
+            return {
+                both: rungString(both),
+                reverseUp: rungString(reverseUp),
+                reverseFirsts: reverseUp.groups.map(g => g.notes[0]).join(','),
+                clampedCount: clamped.groups.length,
+                clampedNotes: rungString(clamped),
+                standaloneOk: standalone && standalone.type === 'setting' && standalone.setting === 'ladder'
+                    && standalone.value === 'reverse' && standaloneState.ladder === 'reverse' && standaloneState.size === 4,
+                gapOk: gapCmd && gapCmd.type === 'setting' && gapCmd.setting === 'ladderGapMs' && gapMsAfter === 2000,
+                offOk: offCmd && offCmd.value === 'off' && offState === 'off',
+                inlineOk: inline && inline.type === 'scale' && inline.root === 'C'
+                    && inline.modifiers.ladder === 'on' && inline.modifiers.ladderSize === 3,
+                chopClearedByLadder,
+                ladderClearedByExercise,
+                exerciseClearedByLadder,
+                played: played.join(','),
+                rungGapSleeps: sleeps.filter(ms => ms === 123).length
+            };
+        });
+        report.check(`scales ladder up+down mirrors at the top (${ladder.both})`,
+            ladder.both === '60,62,64 | 62,64,65 | 64,65,67 | 65,67,69 | 67,69,71 | 69,71,72'
+            + ' | 72,71,69 | 71,69,67 | 69,67,65 | 67,65,64 | 65,64,62 | 64,62,60');
+        report.check(`scales reverse ladder leads every rung with a new note (${ladder.reverseUp} firsts ${ladder.reverseFirsts})`,
+            ladder.reverseUp === '64,62,60 | 65,64,62 | 67,65,64 | 69,67,65 | 71,69,67 | 72,71,69'
+            && ladder.reverseFirsts === '64,65,67,69,71,72');
+        report.check(`scales ladder rung size clamps to the section (${ladder.clampedCount} rung: ${ladder.clampedNotes})`,
+            ladder.clampedCount === 1 && ladder.clampedNotes === '60,62,64,65,67,69,71,72');
+        report.check('scales ladder voice grammar (standalone, gap, off, inline)',
+            ladder.standaloneOk && ladder.gapOk && ladder.offOk && ladder.inlineOk);
+        report.check('scales ladder excludes chop head and exercises both ways',
+            ladder.chopClearedByLadder && ladder.ladderClearedByExercise && ladder.exerciseClearedByLadder);
+        report.check(`scales ladder playback shifts one degree per rung with the configured rung gap (${ladder.played}; ${ladder.rungGapSleeps} rung gaps)`,
+            ladder.played === '60,62,64,62,64,65,64,65,67,65,67,69,67,69,71,69,71,72'
+            && ladder.rungGapSleeps === 5);
         await tab.close();
     }
 
