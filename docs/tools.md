@@ -194,6 +194,11 @@ never cross a barline.
   the scroll speed. **Spacing** sets pixels per beat (horizontal zoom),
   **Now** places the now-line across the staff, **Width** sets the
   staff's share of the page.
+- While a run moves, the now-playing title (car Bluetooth display, lock
+  screen, page header) is the current phrase's degree-number sequence,
+  with the key on the second line. During each rest - and the lead-in -
+  it flips ahead to the UPCOMING phrase's numbers, so they are readable
+  as the phrase starts. Stop restores the page title.
 - **Listen** starts the shared microphone pipeline (same detector, band,
   and glitch rules as Trace/Phrases); the live note/cents readout sits
   under the staff.
