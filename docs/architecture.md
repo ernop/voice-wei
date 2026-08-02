@@ -176,6 +176,15 @@ fade at their musical end. Playback loops are cancelled via monotonic
 tokens (`playToken` / `playbackId`); a superseded loop checks its token and
 exits.
 
+Timing has two dialects. `playMidi()` starts at Tone's safety lookAhead
+(~100ms after the call) - fine for sleep-driven loops where nothing
+visual races the sound. A transport with a visual clock (the Staff
+scroll's now-line) must instead hand notes over early and schedule the
+exact audible onset with `playMidiAudibleIn()`, which subtracts the
+reported device latency (`audibleLatencySeconds()`: baseLatency +
+outputLatency - the latter is large on Bluetooth). Firing at the visual
+moment itself puts every attack audibly late against the display.
+
 ## Pitch pipeline
 
 The singing listen-and-draw system, end to end:

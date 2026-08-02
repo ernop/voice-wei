@@ -155,7 +155,10 @@ Two modes:
 - **scroll**: the staff moves right-to-left past a fixed red **now-line**;
   sing each note as it reaches the line. The sequence keeps generating
   ahead of the now-line, so a run continues until Stop. With **hear
-  tones** on, each note also sounds on the piano as it crosses. Hiding
+  tones** on, each note also sounds on the piano as it crosses: notes
+  are handed to the audio layer slightly early with an exact scheduled
+  onset (compensating the reported device latency), so the AUDIBLE
+  attack lands on the crossing rather than trailing it. Hiding
   the tab pauses the run (no animation frames = no honest clock), and a
   stalled clock never dumps missed notes as a burst - a passed note only
   sounds if it would still be ringing.
