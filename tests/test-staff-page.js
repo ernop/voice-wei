@@ -631,6 +631,50 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`a stalled clock fires missed notes silently (${burst.firedDelta} fired, ${burst.soundedDelta} sounded)`,
         burst.firedDelta >= 4 && burst.soundedDelta <= 2);
 
+    // --- Audible-onset scheduling: sound lands ON the now-line ---------
+    // Notes are handed to the audio layer ahead of their beat with an
+    // exact scheduled onset; firing at the crossing itself put Tone's
+    // lookAhead plus device latency after the visual moment.
+    await tab.waitForFunction(() => Boolean(window.staffDebug.piano()), null, { timeout: 30000 });
+    const audible = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        const piano = debug.piano();
+
+        // Direct scheduling probe: an onset requested 0.4s out must sit
+        // in the registry with a future start, not "started now".
+        const before = performance.now();
+        piano.playMidiAudibleIn(60, 0.1, 0.4);
+        const probe = piano.activeVoices().find(voice => voice.midi === 60);
+        const probeLeadMs = probe ? probe.startedAtMs - before : null;
+        piano.stopAll();
+
+        // Transport lead window: a note fires only once the clock is
+        // within audioLeadMs of its beat, and its voice is scheduled
+        // ahead of the wall clock.
+        debug.stopRun();
+        const noteEvents = debug.events().filter(event => event.type === 'note');
+        const first = noteEvents[0];
+        const msPerBeat = 60000 / debug.settings().bpm;
+        const leadBeats = debug.audioLeadMs() / msPerBeat;
+        const firedBefore = debug.firedNoteCount();
+        debug.setClockBeat(first.startBeat - leadBeats - 0.05);
+        const firedOutsideWindow = debug.firedNoteCount() - firedBefore;
+        debug.setClockBeat(first.startBeat - leadBeats / 2);
+        const firedInsideWindow = debug.firedNoteCount() - firedBefore;
+        const scheduled = piano.activeVoices().find(voice => voice.midi === first.midi);
+        const scheduledLeadMs = scheduled ? scheduled.startedAtMs - performance.now() : null;
+        piano.stopAll();
+        debug.stopRun();
+        return { probeLeadMs, firedOutsideWindow, firedInsideWindow, scheduledLeadMs };
+    });
+    report.check(`piano schedules audible onsets at the requested time (probe ${Math.round(audible.probeLeadMs ?? -1)}ms out)`,
+        audible.probeLeadMs !== null && audible.probeLeadMs > 200 && audible.probeLeadMs <= 410);
+    report.check(`staff fires notes inside the audio lead window with a scheduled onset (${audible.firedOutsideWindow} early, ${audible.firedInsideWindow} in window, onset +${Math.round(audible.scheduledLeadMs ?? -1)}ms)`,
+        audible.firedOutsideWindow === 0 && audible.firedInsideWindow >= 1
+        // The onset sits at (or just past) the wall clock once the
+        // reported device latency is subtracted; allow measurement slop.
+        && audible.scheduledLeadMs !== null && audible.scheduledLeadMs > -10 && audible.scheduledLeadMs < 200);
+
     // --- Hidden tab pauses the run instead of piling up the clock ------
     await tab.evaluate(() => window.staffDebug.startRun());
     await tab.waitForFunction(() => navigator.mediaSession.playbackState === 'playing', null, { timeout: 10000 });

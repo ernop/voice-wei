@@ -139,6 +139,8 @@ interface Window {
         setClockBeat: (beat: number) => void;
         firedNoteCount: () => number;
         soundedNoteCount: () => number;
+        piano: () => any;
+        audioLeadMs: () => number;
         startRun: () => Promise<void>;
         stopRun: () => void;
         recordTraceSample: (beat: number, midi: number) => void;

@@ -98,8 +98,11 @@ const PianoCore = (function () {
         /**
          * @param {number} midi
          * @param {number} durationSeconds
+         * @param {number} [startAtSeconds] - Absolute AudioContext time to
+         *   start the source; defaults to Tone.now() (which includes the
+         *   scheduling-safety lookAhead).
          */
-        function startVoice(midi, durationSeconds) {
+        function startVoice(midi, durationSeconds, startAtSeconds) {
             const sample = nearestSample(midi);
             const gain = new Tone.Gain(1).connect(output);
             const source = new Tone.ToneBufferSource({
@@ -107,11 +110,14 @@ const PianoCore = (function () {
                 playbackRate: Math.pow(2, (midi - sample.midi) / 12)
             }).connect(gain);
 
-            const now = Tone.now();
+            const startAt = startAtSeconds ?? Tone.now();
+            // Registry bookkeeping is wall-clock; a scheduled-ahead voice
+            // counts from its scheduled start, not from this call.
+            const leadMs = Math.max(0, (startAt - Tone.context.currentTime) * 1000);
             const voice = {
                 midi,
-                startedAtMs: performance.now(),
-                endsAtMs: performance.now() + (durationSeconds + DAMPER_SECONDS) * 1000,
+                startedAtMs: performance.now() + leadMs,
+                endsAtMs: performance.now() + leadMs + (durationSeconds + DAMPER_SECONDS) * 1000,
                 source,
                 gain
             };
@@ -121,11 +127,11 @@ const PianoCore = (function () {
                 gain.dispose();
             };
 
-            source.start(now);
+            source.start(startAt);
             // Hold full level until the musical end, then damper to silence.
-            gain.gain.setValueAtTime(1, now + durationSeconds);
-            gain.gain.linearRampToValueAtTime(0, now + durationSeconds + DAMPER_SECONDS);
-            source.stop(now + durationSeconds + DAMPER_SECONDS + 0.01);
+            gain.gain.setValueAtTime(1, startAt + durationSeconds);
+            gain.gain.linearRampToValueAtTime(0, startAt + durationSeconds + DAMPER_SECONDS);
+            source.stop(startAt + durationSeconds + DAMPER_SECONDS + 0.01);
 
             voices.add(voice);
         }
@@ -133,6 +139,19 @@ const PianoCore = (function () {
         /** @param {ToneDuration} duration */
         function toSeconds(duration) {
             return Tone.Time(duration).toSeconds();
+        }
+
+        /**
+         * Seconds between an AudioContext start time and audible sound,
+         * best effort: graph latency (baseLatency) plus device output
+         * latency where the browser reports it (large on Bluetooth).
+         */
+        function audibleLatencySeconds() {
+            // Offline contexts (and older browsers) lack the latency fields.
+            const raw = /** @type {AudioContext} */ (Tone.context.rawContext);
+            const base = typeof raw.baseLatency === 'number' ? raw.baseLatency : 0;
+            const out = typeof raw.outputLatency === 'number' ? raw.outputLatency : 0;
+            return base + out;
         }
 
         // Pitch is MIDI-only at this boundary (the representation law):
@@ -145,6 +164,24 @@ const PianoCore = (function () {
             playMidi(midi, duration) {
                 startVoice(midi, toSeconds(duration));
             },
+            /**
+             * Schedule a note so its AUDIBLE onset lands `inSeconds` from
+             * now, compensating device output latency. Transport-driven
+             * pages (the Staff scroll) hand notes over slightly early with
+             * an exact onset so the sound lands on the now-line; plain
+             * playMidi keeps Tone's default safety lookAhead and therefore
+             * sounds ~100ms after the call.
+             * @param {number} midi
+             * @param {ToneDuration} duration
+             * @param {number} inSeconds
+             */
+            playMidiAudibleIn(midi, duration, inSeconds) {
+                const startAt = Math.max(
+                    Tone.context.currentTime + 0.005,
+                    Tone.context.currentTime + inSeconds - audibleLatencySeconds());
+                startVoice(midi, toSeconds(duration), startAt);
+            },
+            audibleLatencySeconds,
             /**
              * @param {number[]} midis - Notes played simultaneously
              * @param {ToneDuration} duration

@@ -387,6 +387,19 @@
         }
     }
 
+    // Notes are handed to the audio layer slightly BEFORE their beat, with
+    // an exact audible-onset time, so the sound lands when the notehead
+    // crosses the now-line. Calling playMidi at the crossing itself made
+    // every note audibly late: Tone's scheduling lookAhead (~100ms) plus
+    // the device's output latency all landed after the visual moment,
+    // while the sung trace stayed on the beat clock - the sheet looked
+    // early against what the ear heard.
+    const AUDIO_SCHEDULE_MARGIN_MS = 90; // > frame spacing + scheduling jitter
+
+    function audioLeadMs() {
+        return AUDIO_SCHEDULE_MARGIN_MS + (piano ? piano.audibleLatencySeconds() * 1000 : 0);
+    }
+
     // A stalled frame clock (hidden tab, long GC pause) jumps forward on
     // the next frame. Every passed note is still FIRED (bookkeeping stays
     // exact) but a note only SOUNDS if it would still be ringing now -
@@ -394,7 +407,8 @@
     // burst.
     function fireDueNotes() {
         const events = streamEvents();
-        while (firedIndex < events.length && events[firedIndex].startBeat <= clockBeat) {
+        const leadBeats = audioLeadMs() / msPerBeat();
+        while (firedIndex < events.length && events[firedIndex].startBeat <= clockBeat + leadBeats) {
             const event = events[firedIndex];
             firedIndex++;
             if (event.type !== 'note' || typeof event.midi !== 'number') continue;
@@ -402,7 +416,8 @@
             if (clockBeat >= event.startBeat + event.beats) continue;
             soundedNoteCount++;
             if (state.hearTones && piano) {
-                piano.playMidi(event.midi, (event.beats * msPerBeat() / 1000) * 0.92);
+                const inSeconds = Math.max(0, (event.startBeat - clockBeat) * msPerBeat() / 1000);
+                piano.playMidiAudibleIn(event.midi, (event.beats * msPerBeat() / 1000) * 0.92, inSeconds);
             }
         }
     }
@@ -1095,6 +1110,8 @@
             },
             firedNoteCount: () => firedNoteCount,
             soundedNoteCount: () => soundedNoteCount,
+            piano: () => piano,
+            audioLeadMs,
             zoneYForMidi: (midi) => view.zoneYForMidi(midi),
             pitchRange: tracePitchRange,
             startRun,
