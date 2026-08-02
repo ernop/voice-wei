@@ -158,7 +158,9 @@ Two modes:
   tones** on, each note also sounds on the piano as it crosses: notes
   are handed to the audio layer slightly early with an exact scheduled
   onset (compensating the reported device latency), so the AUDIBLE
-  attack lands on the crossing rather than trailing it. Hiding
+  attack lands on the crossing rather than trailing it. If a device
+  under-reports its latency (some Bluetooth), the **Audio Lead** stepper
+  trims further: + sounds notes earlier, - later. Hiding
   the tab pauses the run (no animation frames = no honest clock), and a
   stalled clock never dumps missed notes as a burst - a passed note only
   sounds if it would still be ringing.

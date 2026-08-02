@@ -189,6 +189,7 @@ generates ahead of the now-line - never the sheet already drawn.
 | restBeats | 2 | none, half, 1, 2, 3, 4 beats between phrases | bounds-next |
 | measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
 | bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
+| audioOffsetMs | 0 ("Audio Lead") | -300..+500ms list; manual audible-onset trim on top of the reported device latency - + sounds notes earlier against the now-line, - later (for devices that under-report output latency, e.g. some Bluetooth) | immediate |
 | pxPerBeat | 26 | 14..48 px list | redraw |
 | nowFraction | 10% | 5..50% of the visible staff (a small floor keeps a little look-back room) | redraw |
 | staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
