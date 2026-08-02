@@ -439,7 +439,9 @@ Vital rules that have caused bugs before:
 - **Extras may exceed the section range** (degree 9, 10...) but the final
   note of a round trip gets no extras - the ear expects clean resolution.
 - **No movement style may add extra gaps**; the 1s section divider exists
-  only between repeats when looping forever.
+  only between repeats when looping forever. The ladder's rung gap is the
+  one configurable exception: it is an explicit setting (`ladderGapMs`,
+  0 = straight through), never a hard-coded pause.
 - Movement groups are explicit objects `{ notes, sectionIndex, isChord }` -
   playback and display read these properties, never special-case by name.
 - `getNotesAbove/Below` use modular arithmetic over the scale pattern, not
@@ -449,6 +451,12 @@ Vital rules that have caused bugs before:
   one more leading note each pass (12345678, 2345678, ...). Mutually
   exclusive; rising and shifting imply repeat-forever, while chop head
   plays one shrinking cycle per repeat.
+- **Ladder** replaces section-note traversal with overlapping fixed-size
+  rungs shifting one degree per rung (123, 234, ...; mirrored back down
+  when direction includes both ways); **reverse** plays each rung against
+  the travel so its first note is always new (321, 432, ...). The ladder
+  owns sequence generation, so it excludes chop head, exercises, and
+  movement styles (both directions), but composes with rising.
 - Voice commands reset settings to defaults before applying modifiers.
 
 Exercise patterns are degree-offset templates with `'O'` as the

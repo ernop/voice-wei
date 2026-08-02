@@ -25,7 +25,9 @@ Voice commands reset settings to defaults then apply your modifiers, so
 "D minor" always sounds the same regardless of previous UI state. Clicked
 settings persist per tab and restart playback live when something is playing.
 
-Features: direction / repeat / rising / shifting / chop head / movement styles /
+Features: direction / repeat / rising / shifting / chop head / ladder
+(overlapping rungs with rung-size and rung-gap steppers, plus a reverse
+variant that leads each rung with the new note) / movement styles /
 exercises / section width controls; note length and gap steppers (gap goes
 negative for overlap); piano keyboard preview; presets; command history;
 hardware media keys (play/pause); **Sing** is a bottom-dock toggle that

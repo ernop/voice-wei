@@ -200,18 +200,29 @@ to shifting mode:
 | arp return | `arpeggio return`, `arp return` | 1-3-5-8-5-3-1 |
 | thirds | `thirds`, `skip pattern` | 1-3-2-4-3-5-4-6... |
 
-## Rising, shifting, and chop head
+## Rising, shifting, chop head, and ladder
 
 | Mode | Voice command | Behavior |
 |------|---------------|----------|
 | Rising | `rising`, `modulating`, `transpose` | Transposes the whole scale up each repeat (C major -> D major -> ...); `rising half step` / `whole step` / `minor third` / `fourth` / `fifth` choose the step; `no rising` turns it off |
 | Shifting | `shifting`, `walking` | Moves the start within the same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major) |
 | Chop head | `chop head` | Each pass drops one more leading note (1-2-3-4-5-6-7-8, then 2-3-4-5-6-7-8, then 3-4-5-6-7-8, ... down to the last note); `no chop head` / `chop head off` turns it off |
+| Ladder | `ladder`, `ladder of four`, `three note ladder` | Overlapping rungs shifting one degree per rung: 1-2-3, 2-3-4, 3-4-5, ... up to the top of the section, then mirrored back down when the direction includes both ways; `no ladder` / `ladder off` turns it off |
+| Reverse ladder | `reverse ladder`, `reverse ladder of four` | Each rung plays against the direction of travel, so it leads with the one note not heard yet: 3-2-1, 4-3-2, 5-4-3, ... |
 
 Rising and shifting imply repeat-forever. Chop head plays one shrinking
 cycle per repeat (repeat twice = two full cycles; forever loops the cycle).
-All three modes are mutually exclusive, and chop head applies to the plain
-scale sequence, so enabling it also clears any exercise or movement style.
+
+The ladder follows the Direction and Section Width settings (a two-octave
+section gives a two-octave climb) and plays one full climb per repeat
+(forever loops it with the usual repeat gap). The rung size (2-8 notes,
+"Rung Notes") and the pause between rungs ("Rung Gap"; `ladder gap 2
+seconds`, `ladder no gap` - 0 plays straight through) are steppers on the
+Ladder row. Rising composes with the ladder: each full climb transposes up.
+
+Chop head and the ladder each own the played sequence, so enabling either
+one clears the other along with any exercise or movement style. Rising,
+shifting, and chop head remain mutually exclusive.
 
 ## Example combinations
 
@@ -225,6 +236,8 @@ scale sequence, so enabling it also clears any exercise or movement style.
 "A minor repeat forever"
 "quickly chromatic twice"
 "five note warmup rising half step"
+"C major ladder up and down forever"
+"reverse ladder of four"
 ```
 
 ## Tips
