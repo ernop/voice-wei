@@ -186,7 +186,7 @@ generates ahead of the now-line - never the sheet already drawn.
 | minLength | 5 | 2..16 list | bounds-next |
 | maxLength | 8 | 3..32 list | bounds-next |
 | durationBeats | quarter + half | multi-select of eighth, quarter, half, whole; at least one stays on | bounds-next |
-| restBeats | 2 | none, half, 1, 2, 3, 4 beats between phrases | bounds-next |
+| restBeats | 2 | none, half, 1, 2, 3, 4 beats between phrases, or end of bar (rest to the next barline so every phrase starts a measure; no filler when a phrase ends on the barline) | bounds-next |
 | measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
 | bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
 | audioOffsetMs | 0 ("Audio Lead") | -300..+500ms list; manual audible-onset trim on top of the reported device latency - + sounds notes earlier against the now-line, - later (for devices that under-report output latency, e.g. some Bluetooth) | immediate |
