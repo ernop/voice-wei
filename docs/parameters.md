@@ -196,7 +196,7 @@ generates ahead of the now-line - never the sheet already drawn.
 | hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line | immediate |
 | showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
 | showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band | redraw |
-| showSungLine | true | toggle (stage row) - the recorded blue sung line in the pitch band (the page-mode live dot stays) | redraw |
+| sungLinePlacement | band | "sung line" segment (stage row): off / staff / band - where the recorded blue sung line draws: nowhere, on the notation itself (the noteheads' own diatonic grid, clipped to the staff area), or in the pitch band (the page-mode live dot stays either way) | redraw |
 | showPitchReadout | true | toggle (stage row, "pitch info") - the live sung-pitch readout (note, Hz, cents) | immediate |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
