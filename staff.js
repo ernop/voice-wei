@@ -196,6 +196,67 @@
         return last.startBeat + last.beats;
     }
 
+    /**
+     * Contiguous note runs (the generated phrases) with their degree
+     * tokens, derived from the same projected stream the staff draws.
+     * @type {Array<{ startBeat: number, endBeat: number, degrees: string[] }>}
+     */
+    let phraseRunsCache = [];
+    /** @type {StaffStreamEvent[] | null} Projected array this cache was built from */
+    let phraseRunsSource = null;
+
+    function phraseRuns() {
+        const events = streamEvents();
+        if (events !== phraseRunsSource) {
+            phraseRunsSource = events;
+            phraseRunsCache = [];
+            /** @type {{ startBeat: number, endBeat: number, degrees: string[] } | null} */
+            let current = null;
+            for (const event of events) {
+                if (event.type !== 'note') {
+                    current = null;
+                    continue;
+                }
+                if (!current) {
+                    current = { startBeat: event.startBeat, endBeat: 0, degrees: [] };
+                    phraseRunsCache.push(current);
+                }
+                current.degrees.push(String(event.degree ?? ''));
+                current.endBeat = event.startBeat + event.beats;
+            }
+        }
+        return phraseRunsCache;
+    }
+
+    // The car display (and the page header) lead the sheet: during each
+    // rest - and the lead-in - the now-playing title becomes the UPCOMING
+    // phrase's number sequence, and it stays up while that phrase plays,
+    // so the numbers are readable as the phrase starts. The title is the
+    // display's first line (same surface the Lyrics player uses for the
+    // current lyric line); the key sits on the second line.
+    let presentedPhraseIndex = -1;
+
+    function syncPhraseMediaTitle() {
+        if (!running) return;
+        const runs = phraseRuns();
+        if (!runs.length) return;
+        let index = Math.max(presentedPhraseIndex, 0);
+        while (index < runs.length - 1 && runs[index].endBeat <= clockBeat) index++;
+        if (index === presentedPhraseIndex) return;
+        presentedPhraseIndex = index;
+        MediaSessionCore.setNowPlayingTitle(runs[index].degrees.join(','), {
+            artist: `${scaleRootPitchString(state.root, state.octave)} ${state.scaleType.replace(/_/g, ' ')}`
+        });
+    }
+
+    /** Stop/reset hands the now-playing surface back to the page default. */
+    function resetPhraseMediaTitle() {
+        if (presentedPhraseIndex === -1) return;
+        presentedPhraseIndex = -1;
+        MediaSessionCore.clearNowPlayingTitle();
+        MediaSessionCore.updateMetadata('Staff');
+    }
+
     const traceSession = PitchDetectCore.createTraceSession({
         pauseOnSilence: () => false,
         onAccepted: sample => {
@@ -392,6 +453,7 @@
             lastFrameWall = now;
             fireDueNotes();
             extendIfNeeded();
+            syncPhraseMediaTitle();
         }
         view.frame();
         if (running) {
@@ -500,6 +562,7 @@
         const ranPastStart = clockBeat > -LEAD_IN_BEATS;
         clockBeat = -LEAD_IN_BEATS;
         firedIndex = 0;
+        resetPhraseMediaTitle();
         // Stop hands the take clock back to the singer; a transport-
         // timed take cannot continue under a voice-gated clock, so an
         // open Sing panel starts fresh (its score is already recorded).
@@ -1144,6 +1207,7 @@
                 clockBeat = beat;
                 fireDueNotes();
                 extendIfNeeded();
+                syncPhraseMediaTitle();
                 view.frame();
             },
             firedNoteCount: () => firedNoteCount,

@@ -132,6 +132,65 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`rest stepper tops out at end of bar ("${restUi.label}", + disabled)`,
         restUi.label === 'end of bar' && restUi.upDisabled === true && restUi.downDisabled === false);
 
+    // --- Car display: phrase numbers lead the sheet ---------------------
+    // While a run moves, the now-playing title is the number sequence of
+    // the phrase that is playing or (during rests and the lead-in) coming
+    // up next; Stop hands the surface back to the page default.
+    const phraseMedia = await tab.evaluate(async () => {
+        const debug = window.staffDebug;
+        debug.stopRun();
+        debug.setMode('scroll');
+        await debug.startRun();
+        const events = debug.events();
+        const runs = [];
+        let current = null;
+        for (const event of events) {
+            if (event.type !== 'note') { current = null; continue; }
+            if (!current) {
+                current = { startBeat: event.startBeat, endBeat: 0, degrees: [] };
+                runs.push(current);
+            }
+            current.degrees.push(String(event.degree));
+            current.endBeat = event.startBeat + event.beats;
+        }
+        const firstRest = events.find(event => event.type === 'rest');
+
+        // Lead-in presents the first phrase before its first note plays.
+        debug.setClockBeat(-1);
+        const duringLeadIn = navigator.mediaSession.metadata?.title;
+        debug.setClockBeat(runs[0].startBeat + 0.1);
+        const duringFirstPhrase = navigator.mediaSession.metadata?.title;
+        debug.setClockBeat(firstRest.startBeat + 0.05);
+        const duringRest = navigator.mediaSession.metadata?.title;
+        const artistDuringRest = navigator.mediaSession.metadata?.artist;
+        const headerDuringRest = document.querySelector('#siteHeader h1')?.textContent;
+        // Rewind below the session-save threshold so this probe run does
+        // not add a Past Run, then restore page mode for later checks.
+        debug.setClockBeat(-4);
+        debug.stopRun();
+        const afterStop = navigator.mediaSession.metadata?.title;
+        debug.setMode('page');
+        return {
+            expectedFirst: runs[0].degrees.join(','),
+            expectedSecond: runs[1] ? runs[1].degrees.join(',') : null,
+            duringLeadIn,
+            duringFirstPhrase,
+            duringRest,
+            artistDuringRest,
+            headerDuringRest,
+            afterStop
+        };
+    });
+    report.check(`car display shows the playing phrase's numbers ("${phraseMedia.duringFirstPhrase}")`,
+        phraseMedia.duringLeadIn === phraseMedia.expectedFirst
+        && phraseMedia.duringFirstPhrase === phraseMedia.expectedFirst
+        && phraseMedia.artistDuringRest === 'C3 major');
+    report.check(`rests flip the title to the upcoming phrase ("${phraseMedia.duringRest}"), header follows, Stop restores`,
+        phraseMedia.expectedSecond !== null
+        && phraseMedia.duringRest === phraseMedia.expectedSecond
+        && phraseMedia.headerDuringRest === phraseMedia.expectedSecond
+        && phraseMedia.afterStop === 'Staff');
+
     // Range governs lessons on Staff: the user's endpoints set the span;
     // the lesson keeps its motion character. Without the flag (Phrases),
     // lesson palettes stay lesson-owned.
