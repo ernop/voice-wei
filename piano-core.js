@@ -7,8 +7,8 @@
 // so playback control is exact: stopAll() kills the actual voices (with
 // a short declick fade), never by muting the master output and hoping
 // tails die. activeVoices() reports precisely what is sounding.
-// Requires music-constants.js. Tone.js is loaded on first audio use when a
-// page has not already loaded it.
+// Requires music-constants.js and audio-volume.js. Tone.js is loaded on
+// first audio use when a page has not already loaded it.
 //-----------------------------------------------------------------------
 
 const PianoCore = (function () {
@@ -26,7 +26,7 @@ const PianoCore = (function () {
         'A6': 'A6.mp3', 'C7': 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
         'A7': 'A7.mp3', 'C8': 'C8.mp3'
     });
-    const DEFAULT_VOLUME_DB = -3;
+    const DEFAULT_VOLUME_DB = AudioVolume.PIANO_DB;
     // Damper fade applied at a note's musical end (like lifting the key).
     const DAMPER_SECONDS = 0.25;
     // Declick fade when a voice is killed by stopAll(): long enough to
@@ -242,7 +242,7 @@ const PianoCore = (function () {
      */
     function createSineSynth(options = {}) {
         const {
-            volume = -10,
+            volume = AudioVolume.SINE_DB,
             envelope = { attack: 0.015, decay: 0.08, sustain: 0.55, release: 0.12 }
         } = options;
         const synth = new Tone.Synth({

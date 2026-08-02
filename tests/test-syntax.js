@@ -55,6 +55,38 @@ function collectJsFiles(dir, out) {
         report.errors.push('staff-view.js should use plain quarter-note glyphs (no flags/beams) for the phrase staff');
     }
 
+    // Every tab defaults to the same output level: numeric volume literals
+    // live only in audio-volume.js. The media-session keep-alive is exempt
+    // because its element plays digital silence, not audible output.
+    const VOLUME_OWNERS = new Set(['audio-volume.js', 'media-session-core.js']);
+    const volumeLiteral = /\bvolume\s*[:=]\s*-?\d|setVolume\(\s*\d/;
+    const rootJs = fs.readdirSync(ROOT).filter(name => name.endsWith('.js')).sort();
+    for (const name of rootJs) {
+        if (VOLUME_OWNERS.has(name)) continue;
+        const source = fs.readFileSync(path.join(ROOT, name), 'utf8');
+        const hardcodes = volumeLiteral.test(source);
+        report.check(`${name} takes its output level from audio-volume.js`, !hardcodes);
+        if (hardcodes) {
+            report.errors.push(`${name} hardcodes a volume literal; use AudioVolume constants instead`);
+        }
+    }
+
+    // Each audio page must load audio-volume.js before any script that
+    // reads it at parse or setup time.
+    const AUDIO_PAGES = ['scales.html', 'intervals.html', 'phrases.html', 'trace.html',
+        'pitch-meter.html', 'staff.html', 'player.html', 'ebook.html'];
+    const consumerScript = /<script src="(piano-core|voice-output|ebook|player-playlist)\.js/;
+    for (const page of AUDIO_PAGES) {
+        const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+        const ownerAt = html.search(/<script src="audio-volume\.js/);
+        const consumerAt = html.search(consumerScript);
+        const ordered = ownerAt !== -1 && consumerAt !== -1 && ownerAt < consumerAt;
+        report.check(`${page} loads audio-volume.js before its audio scripts`, ordered);
+        if (!ordered) {
+            report.errors.push(`${page} must include audio-volume.js before piano-core/voice-output/page audio scripts`);
+        }
+    }
+
     const phrases = fs.readFileSync(path.join(ROOT, 'phrases.js'), 'utf8');
     const directPhrasePianoCalls = [...phrases.matchAll(/piano\.playMidi/g)].length;
     const phraseAudioBoundaryCalls = [...phrases.matchAll(/phraseAudio\.(playPhraseMidi|playGuideMidi)/g)].length;

@@ -4,6 +4,7 @@
 // Centralized text-to-speech library.
 // Single source of truth for all voice output in the application.
 //
+// Requires audio-volume.js (the shared default output levels).
 // Uses browser's native speechSynthesis API.
 // Quality depends on device's installed TTS voices.
 // On Android: Google TTS or Samsung TTS typically provide good quality.
@@ -21,7 +22,7 @@ const VoiceOutput = (function () {
     const CONFIG = {
         rate: 1.4,
         pitch: 1.0,
-        volume: 1.0
+        volume: AudioVolume.SPEECH_GAIN
     };
 
     //-------STATE-------

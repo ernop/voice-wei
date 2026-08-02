@@ -33,6 +33,14 @@ interface Window {
     VoiceCommandCore?: any;
     TranscriptManager?: any;
     VoiceOutput?: any;
+    AudioVolume?: {
+        PIANO_DB: number;
+        SINE_DB: number;
+        DRONE_DB: number;
+        MEDIA_GAIN: number;
+        MEDIA_PERCENT: number;
+        SPEECH_GAIN: number;
+    };
     PatternPracticeCore?: any;
     PianoCore?: any;
     PitchDetectCore?: any;

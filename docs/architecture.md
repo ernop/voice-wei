@@ -132,6 +132,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 
 | Library | Owns | Enforced |
 |---------|------|----------|
+| `audio-volume.js` | Every default output level (one loudness across tabs; volume literals live nowhere else) | yes (test-syntax invariant) |
 | `piano-core.js` | The piano voice engine + sine synth | yes (Salamander URL) |
 | `pitch-detect-core.js` | Mic capture, autocorrelation detector, glitch filter, voice-gated clock | yes (getUserMedia) |
 | `voice-output.js` | All TTS (always resolves; engine errors never crash callers) | yes (SpeechSynthesisUtterance) |

@@ -119,7 +119,7 @@ class EarTrainingController {
         this.droneActive = false;
         // Quieter than the piano so the sung voice stays detectable.
         this.droneSynth = PianoCore.createSineSynth({
-            volume: -12,
+            volume: AudioVolume.DRONE_DB,
             envelope: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.5 }
         });
         /** @type {number} */

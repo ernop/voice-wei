@@ -1129,6 +1129,7 @@ class BooksController {
     setupPlayerUI() {
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audio) {
+            audio.volume = AudioVolume.MEDIA_GAIN;
             audio.addEventListener('timeupdate', () => this.handleAudioTimeUpdate());
             audio.addEventListener('ended', () => this.handleAudioEnded());
             audio.addEventListener('loadedmetadata', () => this.handleAudioMetadataLoaded());
@@ -1925,6 +1926,7 @@ class BooksController {
             const audioBlob = await response.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
             this.previewAudio = new Audio(audioUrl);
+            this.previewAudio.volume = AudioVolume.MEDIA_GAIN;
             this.previewAudio.addEventListener('ended', () => {
                 previewBtn.textContent = 'Preview';
                 URL.revokeObjectURL(audioUrl);
@@ -1965,6 +1967,7 @@ class BooksController {
             const audioBlob = await response.blob();
             this.voiceSampleUrl = URL.createObjectURL(audioBlob);
             this.voiceSampleAudio = new Audio(this.voiceSampleUrl);
+            this.voiceSampleAudio.volume = AudioVolume.MEDIA_GAIN;
             this.voiceSampleVoice = voice;
             this.voiceSampleAudio.addEventListener('ended', () => {
                 if (statusEl) statusEl.textContent = `${voiceMeta.label} sample finished.`;

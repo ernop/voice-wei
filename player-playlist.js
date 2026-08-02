@@ -968,6 +968,8 @@ const PlayerPlaylist = (function () {
                             events: {
                                 onReady: (event) => {
                                     console.log('Player ready for:', item.videoId);
+                                    // Every tab defaults to the same output level.
+                                    event.target.setVolume(AudioVolume.MEDIA_PERCENT);
                                     this.playback.markPlayerReady(event.target);
                                     PlayerLifecycle.recordYouTubeReady();
                                     settleReady({ ok: true, player: event.target });
