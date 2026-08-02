@@ -82,7 +82,7 @@ const PianoCore = (function () {
         /**
          * The registry: every voice that is (or may be) sounding.
          * endsAtMs is authoritative - after it, the voice is silent.
-         * @type {Set<{ midi: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
+         * @type {Set<{ midi: number, startAtSeconds: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
          */
         const voices = new Set();
 
@@ -112,10 +112,12 @@ const PianoCore = (function () {
 
             const startAt = startAtSeconds ?? Tone.now();
             // Registry bookkeeping is wall-clock; a scheduled-ahead voice
-            // counts from its scheduled start, not from this call.
+            // counts from its scheduled start, not from this call. The
+            // exact schedule lives in startAtSeconds (AudioContext time).
             const leadMs = Math.max(0, (startAt - Tone.context.currentTime) * 1000);
             const voice = {
                 midi,
+                startAtSeconds: startAt,
                 startedAtMs: performance.now() + leadMs,
                 endsAtMs: performance.now() + leadMs + (durationSeconds + DAMPER_SECONDS) * 1000,
                 source,
@@ -204,14 +206,21 @@ const PianoCore = (function () {
                 });
             },
             /**
-             * Exactly what is sounding right now.
-             * @returns {Array<{ midi: number, startedAtMs: number, endsAtMs: number }>}
+             * Exactly what is sounding (or scheduled) right now.
+             * startAtSeconds is the exact AudioContext schedule time; the
+             * wall-clock fields are best-effort bookkeeping.
+             * @returns {Array<{ midi: number, startAtSeconds: number, startedAtMs: number, endsAtMs: number }>}
              */
             activeVoices() {
                 const nowMs = performance.now();
                 return Array.from(voices)
                     .filter(voice => voice.endsAtMs > nowMs)
-                    .map(voice => ({ midi: voice.midi, startedAtMs: voice.startedAtMs, endsAtMs: voice.endsAtMs }));
+                    .map(voice => ({
+                        midi: voice.midi,
+                        startAtSeconds: voice.startAtSeconds,
+                        startedAtMs: voice.startedAtMs,
+                        endsAtMs: voice.endsAtMs
+                    }));
             }
         };
     }

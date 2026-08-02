@@ -42,6 +42,10 @@
         restBeats: 2,
         measures: 16,
         durationBeats: [1, 2],
+        // Manual audible-onset trim on top of the reported device latency:
+        // positive sounds notes earlier against the now-line (for devices
+        // that under-report their output latency, e.g. some Bluetooth).
+        audioOffsetMs: 0,
         pxPerBeat: 26,
         nowFraction: 0.1,
         staffWidthPct: 100,
@@ -57,7 +61,7 @@
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo',
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
-        'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats',
+        'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats', 'audioOffsetMs',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
         'showPitchGuides', 'showSungLine', 'showPitchReadout', 'mode'
     ];
@@ -67,6 +71,7 @@
         restBeats: [0, 0.5, 1, 2, 3, 4],
         measures: [4, 8, 12, 16, 24, 32, 48, 64, 96, 128],
         accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
+        audioOffsetMs: [-300, -250, -200, -150, -100, -75, -50, -25, 0, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500],
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32],
         pxPerBeat: [14, 18, 22, 26, 32, 40, 48],
@@ -303,7 +308,8 @@
         lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
             + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
             + ` | width ${state.staffWidthPct}%`
-            + ` | hear tones ${state.hearTones ? 'on' : 'off'} | numbers ${state.showDegrees ? 'on' : 'off'}`);
+            + ` | hear tones ${state.hearTones ? 'on' : 'off'} | numbers ${state.showDegrees ? 'on' : 'off'}`
+            + (state.audioOffsetMs !== 0 ? ` | audio lead ${formatSignedMs(state.audioOffsetMs)}` : ''));
         const events = streamEvents();
         const notes = events.filter(event => event.type === 'note');
         lines.push(`sequence: ${Math.ceil(totalBeats() / 4)} bars, ${notes.length} notes`
@@ -397,7 +403,11 @@
     const AUDIO_SCHEDULE_MARGIN_MS = 90; // > frame spacing + scheduling jitter
 
     function audioLeadMs() {
-        return AUDIO_SCHEDULE_MARGIN_MS + (piano ? piano.audibleLatencySeconds() * 1000 : 0);
+        return AUDIO_SCHEDULE_MARGIN_MS
+            + (piano ? piano.audibleLatencySeconds() * 1000 : 0)
+            // A positive manual trim widens the hand-over window; a
+            // negative one only delays the onset, never shrinks the window.
+            + Math.max(0, state.audioOffsetMs);
     }
 
     // A stalled frame clock (hidden tab, long GC pause) jumps forward on
@@ -416,7 +426,8 @@
             if (clockBeat >= event.startBeat + event.beats) continue;
             soundedNoteCount++;
             if (state.hearTones && piano) {
-                const inSeconds = Math.max(0, (event.startBeat - clockBeat) * msPerBeat() / 1000);
+                const inSeconds = Math.max(0,
+                    ((event.startBeat - clockBeat) * msPerBeat() - state.audioOffsetMs) / 1000);
                 piano.playMidiAudibleIn(event.midi, (event.beats * msPerBeat() / 1000) * 0.92, inSeconds);
             }
         }
@@ -781,9 +792,15 @@
         return `${beats} beat${beats === 1 ? '' : 's'}`;
     }
 
+    /** @param {number} ms */
+    function formatSignedMs(ms) {
+        return `${ms > 0 ? '+' : ''}${ms}ms`;
+    }
+
     function syncAdjusterControls() {
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.root, state.octave));
         PracticeControls.setValueText('bpmValue', String(state.bpm));
+        PracticeControls.setValueText('audioOffsetMsValue', formatSignedMs(state.audioOffsetMs));
         PracticeControls.setValueText('restBeatsValue', formatRestBeats(state.restBeats));
         PracticeControls.setValueText('measuresValue', String(state.measures));
         PracticeControls.setValueText('minLengthValue', String(state.minLength));
