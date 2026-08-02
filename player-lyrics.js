@@ -24,10 +24,11 @@ const PlayerLyrics = (function () {
     // begins.
     const SONG_IDENTITY_INTRO_SECONDS = 2;
 
-    // When a song's first lyric line starts later than this, the title
-    // spots prefix the upcoming line with a per-second countdown so the
-    // singer knows when to come in.
-    const FIRST_LYRIC_COUNTDOWN_MIN_SECONDS = 5;
+    // When an upcoming lyric line's marked time is this many seconds or
+    // more past the start of the wait for it (song start, or the blank
+    // line opening an instrumental gap), the title spots prefix the line
+    // with a per-second countdown so the singer knows when to come in.
+    const LYRIC_COUNTDOWN_MIN_SECONDS = 3;
 
     // Background lyric lookups run through one bounded queue: at most this
     // many songs are being resolved at a time (each may issue a few
@@ -1213,9 +1214,9 @@ const PlayerLyrics = (function () {
              * header lyric line, sticky-bar lyric row) show at a moment:
              * - First seconds of a song: the song's identity, so the
              *   listener knows who and what it is.
-             * - Waiting for a late first lyric line (starts past the
-             *   countdown threshold): the upcoming line prefixed with the
-             *   seconds remaining, counting down.
+             * - Waiting for an upcoming line across a long-enough intro
+             *   or instrumental gap: the line prefixed with the seconds
+             *   remaining, counting down.
              * - Otherwise: the sung/upcoming lyric line.
              * @param {PlaylistItem} item
              * @param {SyncedLyricLine[]} lines
@@ -1226,15 +1227,22 @@ const PlayerLyrics = (function () {
                 if (currentTime < SONG_IDENTITY_INTRO_SECONDS) {
                     return this.describeSongIdentity(item);
                 }
-                if (!lines.length) return '';
-                const line = this.lyricTitleLineAt(lines, index);
-                if (index < 0 && line) {
-                    const firstLine = lines.find(candidate => candidate.text.trim());
+                const shownIndex = this.lyricTitleLineIndexAt(lines, index);
+                if (shownIndex < 0) return '';
+                const line = lines[shownIndex].text.trim();
+                if (shownIndex > index) {
+                    // Waiting on an upcoming line: song intro (index -1)
+                    // or an instrumental gap opened by a blank line.
                     const offset = this.lyricOffsetForItem(item);
-                    // Wall-clock moment the first line becomes the highlight.
-                    const firstAt = firstLine ? firstLine.time - offset : 0;
-                    if (firstLine && firstAt > FIRST_LYRIC_COUNTDOWN_MIN_SECONDS) {
-                        const wait = Math.ceil(firstAt - currentTime);
+                    // Wall-clock moment the line becomes the highlight.
+                    const lineAt = lines[shownIndex].time - offset;
+                    // Wall-clock moment the wait began: song start, or the
+                    // first blank line of the gap's run.
+                    let gapStart = index;
+                    while (gapStart > 0 && !lines[gapStart - 1].text.trim()) gapStart--;
+                    const waitedSince = index < 0 ? 0 : lines[gapStart].time - offset;
+                    if (lineAt - waitedSince >= LYRIC_COUNTDOWN_MIN_SECONDS) {
+                        const wait = Math.ceil(lineAt - currentTime);
                         if (wait >= 1) {
                             return `${wait} ${line}`;
                         }
@@ -1247,20 +1255,21 @@ const PlayerLyrics = (function () {
              * The singer's title line: the line at the (led) index when it
              * has text, otherwise the next upcoming line - so intros and
              * instrumental gaps show what is about to be sung. Past the
-             * last line, the last sung line stays up.
+             * last line, the last sung line stays up. Returns the chosen
+             * line's index, or -1 when no line has text.
              * @param {SyncedLyricLine[]} lines @param {number} index
              */
-            lyricTitleLineAt(lines, index) {
+            lyricTitleLineIndexAt(lines, index) {
                 if (index >= 0 && index < lines.length && lines[index].text.trim()) {
-                    return lines[index].text.trim();
+                    return index;
                 }
                 for (let i = Math.max(index + 1, 0); i < lines.length; i++) {
-                    if (lines[i].text.trim()) return lines[i].text.trim();
+                    if (lines[i].text.trim()) return i;
                 }
                 for (let i = Math.min(index, lines.length - 1); i >= 0; i--) {
-                    if (lines[i].text.trim()) return lines[i].text.trim();
+                    if (lines[i].text.trim()) return i;
                 }
-                return '';
+                return -1;
             },
 
             /**
@@ -1270,7 +1279,7 @@ const PlayerLyrics = (function () {
              * wakes exactly at lyric-line boundaries and display seconds -
              * and identical repeats are dropped by the core, so the car
              * gets one push per distinct text. Title is the sung lyric
-             * line (plus identity intro / late-first-line countdown; see
+             * line (plus identity intro / upcoming-line countdown; see
              * lyricDisplayTextAt). Artist is always year - artist - name
              * while playing, so the car's second row keeps song identity.
              * With nothing to show the surfaces clear.

@@ -545,7 +545,7 @@ interface VoiceMusicController {
     lyricsTooFast(): Promise<void>;
     lyricsTooSlow(): Promise<void>;
     syncedLyricLineIndexAt(syncedLines: SyncedLyricLine[], time: number): number;
-    lyricTitleLineAt(lines: SyncedLyricLine[], index: number): string;
+    lyricTitleLineIndexAt(lines: SyncedLyricLine[], index: number): number;
     describeSongIdentity(item: PlaylistItem): string;
     describeNowPlayingArtist(item: PlaylistItem): string;
     lyricDisplayTextAt(item: PlaylistItem, lines: SyncedLyricLine[], index: number, currentTime: number): string;

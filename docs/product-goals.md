@@ -96,8 +96,9 @@ checked against this list, and new standing intent gets added here.
    re-search, and an upgrade can never downgrade what is already held.
 3. **Sing along from any display.** The now-playing title (car
    Bluetooth, lock screen, tab, header) is the sung lyric line, with a
-   short song-identity intro at track start and a countdown before a
-   late first line. The Media Session artist line (car/lock-screen
+   short song-identity intro at track start and a countdown before any
+   line 3s or more away across an intro or instrumental gap. The Media
+   Session artist line (car/lock-screen
    second row) stays `year - artist - song` for the whole play so song
    identity remains visible under the lyric. Artwork and elapsed/total
    position stay tied to the same sounding `videoId`; a lyric change is

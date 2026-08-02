@@ -417,8 +417,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             collapsed === 'there was a guy play it');
 
         // The now-playing title (car / lock screen / tab / header line):
-        // song identity for the first seconds, a countdown prefix before
-        // a late first lyric line, then the bare lyric led ahead of the
+        // song identity for the first seconds, a countdown prefix while
+        // an upcoming lyric line is still seconds away, then the bare
+        // lyric led ahead of the
         // sung moment. Title never carries song/artist past the intro;
         // Media Session artist/artwork stay stable while the title changes.
         // Pause freezes the same track and current lyric.

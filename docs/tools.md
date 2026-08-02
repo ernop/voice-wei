@@ -437,9 +437,12 @@ settings) the current timed lyric line is relayed into the now-playing
 title that Bluetooth/car displays, lock screens, and the tab show. The
 title spots follow one sequence per song: for the first 2 seconds the
 song's identity (artist - name - year - album, so you know who and what
-it is), then -- when the first lyric line starts more than 5 seconds in
--- the upcoming line prefixed with a per-second countdown, then the bare
-sung lyric line. The Media Session artist field (car/lock-screen second
+it is), then the sung lyric line. Whenever the title is waiting on an
+upcoming line -- the song's intro, or an instrumental gap opened by a
+blank lyric line -- and that line is 3 seconds or more into the wait,
+the line carries a per-second countdown prefix until it is sung, so the
+singer knows when to come in; shorter waits show the bare upcoming
+line. The Media Session artist field (car/lock-screen second
 row) is always `year - artist - song` while playing, so identity stays
 under the lyric after the intro ends. Car / lock-screen / tab / header
 titles lead the sung line by 0.75s so Bluetooth metadata redraw lands

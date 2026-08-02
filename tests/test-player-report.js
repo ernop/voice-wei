@@ -122,8 +122,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // 0.5s: the song identity intro - who and what is playing.
             harness.updateListeningTextPosition(0.5);
             const identity = snap();
-            // 3s: first line is 9s away (>5s from song start), so the
-            // title counts down in front of the upcoming line.
+            // 3s: first line is 9s away (3s or more into the future), so
+            // the title counts down in front of the upcoming line.
             harness.updateListeningTextPosition(3);
             const countdown = snap();
             // 11.5s: line 1 (at 12s) not sung yet but inside the title
@@ -170,6 +170,37 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && titleCleanPastIntro
             && artistLineWhilePlaying
             && stableTrackFields);
+
+        // Every wait of 3s or more gets the countdown, not just a late
+        // first line: a blank line opens an instrumental gap, and the next
+        // line counts down across it. A shorter wait shows the bare
+        // upcoming line, and a sung line never carries a prefix.
+        const gapCountdown = await tab.evaluate(() => {
+            const harness = {};
+            PlayerLyrics.install(harness);
+            const item = { id: 1, videoId: 'gap', name: 'Gap Song', artist: 'Gap Artist', lyricOffsetSeconds: 0 };
+            const lines = [
+                { time: 4, text: 'verse one' },
+                { time: 20, text: '' },
+                { time: 40, text: 'verse two' },
+                { time: 45, text: '' },
+                { time: 47, text: 'verse three' }
+            ];
+            const at = t => harness.lyricDisplayTextAt(item, lines, harness.syncedLyricLineIndexAt(lines, t), t);
+            return {
+                intro: at(2.5),
+                sung: at(10),
+                gapOpen: at(25),
+                gapTail: at(39.5),
+                shortGap: at(45.5)
+            };
+        });
+        report.check(`upcoming lines 3s or more away count down in every gap ("${gapCountdown.intro}" / "${gapCountdown.gapOpen}" -> "${gapCountdown.gapTail}" / "${gapCountdown.shortGap}")`,
+            gapCountdown.intro === '2 verse one'
+            && gapCountdown.sung === 'verse one'
+            && gapCountdown.gapOpen === '15 verse two'
+            && gapCountdown.gapTail === '1 verse two'
+            && gapCountdown.shortGap === 'verse three');
 
         // The sticky bar must never change height mid-track: lyric gaps and
         // blank lines empty a row's text, but the row's box holds until a
