@@ -85,6 +85,53 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('mixed-duration stream never crosses a barline', !mixed.crossesBarline);
     report.check(`mixed-duration stream actually varies (${mixed.variety} values used)`, mixed.variety >= 2);
 
+    // Rest "til end of measure": after each phrase, rests fill to the
+    // next barline so every phrase starts on a downbeat; a phrase ending
+    // exactly on the barline gets no filler rest at all.
+    const measureRest = await tab.evaluate(() => {
+        const base = {
+            scaleType: 'major', startAtOne: true, rangeLow: 0, rangeHigh: 7,
+            returnToInitial: false, returnToRoot: false,
+            phraseAlgo: 'arch', durationBeats: [1], restBeats: 'measure'
+        };
+        const varied = PatternPracticeCore.createContinuousSequence(
+            { ...base, minLength: 3, maxLength: 6 }).nextEvents(96);
+        const phraseStartsOnBarline = varied.every((event, index) =>
+            event.type !== 'note'
+            || index === 0
+            || varied[index - 1].type === 'note'
+            || event.startBeat % 4 === 0);
+        const restCount = varied.filter(event => event.type === 'rest').length;
+
+        const exact = PatternPracticeCore.createContinuousSequence(
+            { ...base, minLength: 4, maxLength: 4 }).nextEvents(32);
+        return {
+            phraseStartsOnBarline,
+            restCount,
+            firstStart: varied[0]?.startBeat,
+            exactRests: exact.filter(event => event.type === 'rest').length,
+            exactContiguous: exact.every((event, index) =>
+                index === 0 || event.startBeat === exact[index - 1].startBeat + exact[index - 1].beats)
+        };
+    });
+    report.check(`rest til end of measure starts every phrase on a barline (${measureRest.restCount} filler rests)`,
+        measureRest.phraseStartsOnBarline && measureRest.firstStart === 0 && measureRest.restCount > 0);
+    report.check('rest til end of measure adds nothing when a phrase ends on the barline',
+        measureRest.exactRests === 0 && measureRest.exactContiguous);
+
+    const restUi = await tab.evaluate(() => {
+        window.staffDebug.applySettings({ restBeats: 'measure' });
+        const label = document.getElementById('restBeatsValue')?.textContent;
+        const up = document.querySelector('[data-step-key="restBeats"][data-step-delta="1"]');
+        const down = document.querySelector('[data-step-key="restBeats"][data-step-delta="-1"]');
+        const upDisabled = up ? up.disabled : null;
+        const downDisabled = down ? down.disabled : null;
+        window.staffDebug.applySettings({ restBeats: 2 });
+        return { label, upDisabled, downDisabled };
+    });
+    report.check(`rest stepper tops out at end of bar ("${restUi.label}", + disabled)`,
+        restUi.label === 'end of bar' && restUi.upDisabled === true && restUi.downDisabled === false);
+
     // Range governs lessons on Staff: the user's endpoints set the span;
     // the lesson keeps its motion character. Without the flag (Phrases),
     // lesson palettes stay lesson-owned.

@@ -39,7 +39,7 @@
         returnToInitial: true,
         returnToRoot: false,
         bpm: 60,
-        restBeats: 2,
+        restBeats: /** @type {number | 'measure'} */ (2),
         measures: 16,
         durationBeats: [1, 2],
         // Manual audible-onset trim on top of the reported device latency:
@@ -68,7 +68,6 @@
 
     const ADJUSTER_VALUES = {
         bpm: [20, 24, 30, 36, 42, 48, 54, 60, 66, 72, 80, 90, 100, 110, 120, 132, 144, 160, 180, 200],
-        restBeats: [0, 0.5, 1, 2, 3, 4],
         measures: [4, 8, 12, 16, 24, 32, 48, 64, 96, 128],
         accidentalRate: [0, 0.05, 0.1, 0.15, 0.25, 0.35],
         audioOffsetMs: [-300, -250, -200, -150, -100, -75, -50, -25, 0, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500],
@@ -78,6 +77,12 @@
         nowFraction: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
         staffWidthPct: [55, 70, 85, 100]
     };
+    // Rest between phrases: fixed beat spans, or 'measure' = rest to the
+    // next barline so every phrase starts on a downbeat. Mixed types keep
+    // this ladder out of the numeric ADJUSTER_VALUES steppers.
+    /** @type {ReadonlyArray<number | 'measure'>} */
+    const REST_BEATS_VALUES = Object.freeze([0, 0.5, 1, 2, 3, 4, 'measure']);
+
     const DEFAULT_LESSON_BY_STYLE = Object.freeze({
         free: 'free_open',
         staff: 'staff_steps',
@@ -304,7 +309,8 @@
             + ` | phrase length ${state.minLength}-${state.maxLength}`
             + ` | passing ${Math.round(state.accidentalRate * 100)}%`);
         lines.push(`note values: ${state.durationBeats.map(beats => DURATION_TEXT[beats] || beats).join(' ')}`
-            + ` | rest between phrases: ${state.restBeats} beats | bars: ${state.measures}`);
+            + ` | rest between phrases: ${state.restBeats === 'measure' ? 'to end of measure' : `${state.restBeats} beats`}`
+            + ` | bars: ${state.measures}`);
         lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
             + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
             + ` | width ${state.staffWidthPct}%`
@@ -786,7 +792,9 @@
         return (next > state.rangeLow && next <= highMax) ? next : null;
     }
 
+    /** @param {number | 'measure'} beats */
     function formatRestBeats(beats) {
+        if (beats === 'measure') return 'end of bar';
         if (beats === 0) return 'none';
         if (beats === 0.5) return '\u00bd beat';
         return `${beats} beat${beats === 1 ? '' : 's'}`;
@@ -815,6 +823,11 @@
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
+            }
+            if (key === 'restBeats') {
+                const index = REST_BEATS_VALUES.indexOf(state.restBeats);
+                if (index === -1) return false;
+                return delta < 0 ? index <= 0 : index >= REST_BEATS_VALUES.length - 1;
             }
             if (key === 'rangeLow' || key === 'rangeHigh') {
                 return steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */(key), delta) === null;
@@ -897,6 +910,13 @@
         if (key === 'rootPitch') {
             const midi = rootMidi();
             if (midi !== null) setRootPitchFromMidi(midi + delta);
+            return;
+        }
+        if (key === 'restBeats') {
+            const index = REST_BEATS_VALUES.indexOf(state.restBeats);
+            const nextIndex = (index === -1 ? REST_BEATS_VALUES.indexOf(2) : index) + delta;
+            if (nextIndex < 0 || nextIndex >= REST_BEATS_VALUES.length) return;
+            setAdjusterValue('restBeats', REST_BEATS_VALUES[nextIndex]);
             return;
         }
         if (key === 'rangeLow' || key === 'rangeHigh') {
@@ -1104,6 +1124,7 @@
             state.durationBeats = [1, 2];
         }
         if (state.mode !== 'page' && state.mode !== 'scroll') state.mode = 'page';
+        if (!REST_BEATS_VALUES.includes(state.restBeats)) state.restBeats = 2;
         initUI();
         regenerate();
         try {
