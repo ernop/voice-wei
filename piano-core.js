@@ -82,9 +82,13 @@ const PianoCore = (function () {
         /**
          * The registry: every voice that is (or may be) sounding.
          * endsAtMs is authoritative - after it, the voice is silent.
-         * @type {Set<{ midi: number, startAtSeconds: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
+         * id is unique per voice: two voices can share midi AND schedule
+         * time (a stalled context clock reuses currentTime), so identity
+         * never derives from their fields.
+         * @type {Set<{ id: number, midi: number, startAtSeconds: number, latencyCompensationSeconds: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
          */
         const voices = new Set();
+        let nextVoiceId = 1;
 
         /** @param {number} midi */
         function nearestSample(midi) {
@@ -101,8 +105,12 @@ const PianoCore = (function () {
          * @param {number} [startAtSeconds] - Absolute AudioContext time to
          *   start the source; defaults to Tone.now() (which includes the
          *   scheduling-safety lookAhead).
+         * @param {number} [latencyCompensationSeconds] - How much device
+         *   latency the caller subtracted when computing startAtSeconds
+         *   (registry bookkeeping; the reported latency fluctuates, so
+         *   the value actually used is recorded on the voice).
          */
-        function startVoice(midi, durationSeconds, startAtSeconds) {
+        function startVoice(midi, durationSeconds, startAtSeconds, latencyCompensationSeconds = 0) {
             const sample = nearestSample(midi);
             const gain = new Tone.Gain(1).connect(output);
             const source = new Tone.ToneBufferSource({
@@ -116,8 +124,10 @@ const PianoCore = (function () {
             // exact schedule lives in startAtSeconds (AudioContext time).
             const leadMs = Math.max(0, (startAt - Tone.context.currentTime) * 1000);
             const voice = {
+                id: nextVoiceId++,
                 midi,
                 startAtSeconds: startAt,
+                latencyCompensationSeconds,
                 startedAtMs: performance.now() + leadMs,
                 endsAtMs: performance.now() + leadMs + (durationSeconds + DAMPER_SECONDS) * 1000,
                 source,
@@ -153,7 +163,9 @@ const PianoCore = (function () {
             const raw = /** @type {AudioContext} */ (Tone.context.rawContext);
             const base = typeof raw.baseLatency === 'number' ? raw.baseLatency : 0;
             const out = typeof raw.outputLatency === 'number' ? raw.outputLatency : 0;
-            return base + out;
+            // Trust the report up to a sane Bluetooth ceiling: a garbage
+            // reading must never drag onsets seconds early.
+            return Math.min(base + out, 0.5);
         }
 
         // Pitch is MIDI-only at this boundary (the representation law):
@@ -178,10 +190,10 @@ const PianoCore = (function () {
              * @param {number} inSeconds
              */
             playMidiAudibleIn(midi, duration, inSeconds) {
-                const startAt = Math.max(
-                    Tone.context.currentTime + 0.005,
-                    Tone.context.currentTime + inSeconds - audibleLatencySeconds());
-                startVoice(midi, toSeconds(duration), startAt);
+                const latency = audibleLatencySeconds();
+                const now = Tone.context.currentTime;
+                const startAt = Math.max(now + 0.005, now + inSeconds - latency);
+                startVoice(midi, toSeconds(duration), startAt, latency);
             },
             audibleLatencySeconds,
             /**
@@ -207,17 +219,20 @@ const PianoCore = (function () {
             },
             /**
              * Exactly what is sounding (or scheduled) right now.
-             * startAtSeconds is the exact AudioContext schedule time; the
-             * wall-clock fields are best-effort bookkeeping.
-             * @returns {Array<{ midi: number, startAtSeconds: number, startedAtMs: number, endsAtMs: number }>}
+             * startAtSeconds is the exact AudioContext schedule time and
+             * latencyCompensationSeconds the device latency it subtracted;
+             * the wall-clock fields are best-effort bookkeeping.
+             * @returns {Array<{ id: number, midi: number, startAtSeconds: number, latencyCompensationSeconds: number, startedAtMs: number, endsAtMs: number }>}
              */
             activeVoices() {
                 const nowMs = performance.now();
                 return Array.from(voices)
                     .filter(voice => voice.endsAtMs > nowMs)
                     .map(voice => ({
+                        id: voice.id,
                         midi: voice.midi,
                         startAtSeconds: voice.startAtSeconds,
+                        latencyCompensationSeconds: voice.latencyCompensationSeconds,
                         startedAtMs: voice.startedAtMs,
                         endsAtMs: voice.endsAtMs
                     }));

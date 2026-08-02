@@ -646,21 +646,35 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         const piano = debug.piano();
         const ctxNow = () => Tone.context.currentTime;
         // The reported output latency fluctuates between reads in this
-        // environment, so the bound is: never in the past, never later
-        // than the uncompensated target, compensated by at most the
-        // reported latency plus slack.
-        const onsetOk = (start, ctx0, ctx1, inSec) => start !== null
-            && start >= ctx0 - 0.001
-            && start >= ctx0 + inSec - (piano.audibleLatencySeconds() + 0.08)
-            && start <= ctx1 + inSec + 0.002;
+        // environment, so each assertion uses the compensation the voice
+        // RECORDED at schedule time: onset = fire moment (bracketed by
+        // two context reads) + inSeconds - that compensation, floored at
+        // the 5ms minimum.
+        const onsetOk = (voice, ctx0, ctx1, inSec) => {
+            if (!voice) return false;
+            const expected = Math.max(0.005, inSec - voice.latencyCompensationSeconds);
+            return voice.startAtSeconds >= ctx0 + expected - 0.001
+                && voice.startAtSeconds <= ctx1 + expected + 0.001
+                && voice.latencyCompensationSeconds >= 0
+                && voice.latencyCompensationSeconds <= 0.5;
+        };
+        // Killed voices linger in the registry for the declick fade, so
+        // "the voice this fire created" is found by diffing voice ids,
+        // never by midi or schedule time (earlier steps play the same
+        // pitches, and a stalled context clock reuses schedule times).
+        const captureNewVoice = (midi, fire) => {
+            const before = new Set(piano.activeVoices().map(v => v.id));
+            const ctx0 = ctxNow();
+            fire();
+            const ctx1 = ctxNow();
+            const voice = piano.activeVoices()
+                .find(v => v.midi === midi && !before.has(v.id)) || null;
+            return { voice, ctx0, ctx1 };
+        };
 
         // Direct scheduling probe: an onset requested 0.4s out must sit
         // in the registry with the matching future start, not "now".
-        const probeCtx0 = ctxNow();
-        piano.playMidiAudibleIn(60, 0.1, 0.4);
-        const probeCtx1 = ctxNow();
-        const probe = piano.activeVoices().find(voice => voice.midi === 60);
-        const probeStart = probe ? probe.startAtSeconds : null;
+        const probeCapture = captureNewVoice(60, () => piano.playMidiAudibleIn(60, 0.1, 0.4));
         piano.stopAll();
 
         // Transport lead window: a note fires only once the clock is
@@ -675,21 +689,20 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         debug.setClockBeat(first.startBeat - leadBeats - 0.05);
         const firedOutsideWindow = debug.firedNoteCount() - firedBefore;
         const fireInSec = (leadBeats / 2) * msPerBeat / 1000;
-        const fireCtx0 = ctxNow();
-        debug.setClockBeat(first.startBeat - leadBeats / 2);
-        const fireCtx1 = ctxNow();
+        const fireCapture = captureNewVoice(first.midi,
+            () => debug.setClockBeat(first.startBeat - leadBeats / 2));
         const firedInsideWindow = debug.firedNoteCount() - firedBefore;
-        const scheduled = piano.activeVoices().find(voice => voice.midi === first.midi);
-        const scheduledStart = scheduled ? scheduled.startAtSeconds : null;
         piano.stopAll();
         debug.stopRun();
         return {
-            probeOk: onsetOk(probeStart, probeCtx0, probeCtx1, 0.4),
-            probeAheadMs: probeStart === null ? null : (probeStart - probeCtx0) * 1000,
+            probeOk: onsetOk(probeCapture.voice, probeCapture.ctx0, probeCapture.ctx1, 0.4),
+            probeAheadMs: probeCapture.voice
+                ? (probeCapture.voice.startAtSeconds - probeCapture.ctx0) * 1000 : null,
             firedOutsideWindow,
             firedInsideWindow,
-            scheduledOk: onsetOk(scheduledStart, fireCtx0, fireCtx1, fireInSec),
-            scheduledAheadMs: scheduledStart === null ? null : (scheduledStart - fireCtx0) * 1000
+            scheduledOk: onsetOk(fireCapture.voice, fireCapture.ctx0, fireCapture.ctx1, fireInSec),
+            scheduledAheadMs: fireCapture.voice
+                ? (fireCapture.voice.startAtSeconds - fireCapture.ctx0) * 1000 : null
         };
     });
     report.check(`piano schedules audible onsets at the requested time (probe +${Math.round(audible.probeAheadMs ?? -1)}ms)`,
@@ -710,37 +723,40 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
 
         // With +100ms trim, a note fires while still outside the untrimmed
         // window and its onset is pulled correspondingly earlier (the trim
-        // plus at most the reported latency and slack).
+        // plus the compensation the voice recorded at schedule time).
         debug.applySettings({ audioOffsetMs: 100 });
         debug.stopRun();
         const first = debug.events().filter(event => event.type === 'note')[0];
         const msPerBeat = 60000 / debug.settings().bpm;
         const firedBefore = debug.firedNoteCount();
         const inSec = (baseLead + 50 - 100) / 1000;
+        const before = new Set(piano.activeVoices().map(voice => voice.id));
         const ctx0 = ctxNow();
         debug.setClockBeat(first.startBeat - (baseLead + 50) / msPerBeat);
         const ctx1 = ctxNow();
         const firedInWidenedWindow = debug.firedNoteCount() - firedBefore;
-        const scheduled = piano.activeVoices().find(voice => voice.midi === first.midi);
-        const scheduledStart = scheduled ? scheduled.startAtSeconds : null;
+        const scheduled = piano.activeVoices()
+            .find(voice => voice.midi === first.midi && !before.has(voice.id)) || null;
         piano.stopAll();
         debug.stopRun();
         debug.applySettings({ audioOffsetMs: 0 });
+        const expected = scheduled
+            ? Math.max(0.005, inSec - scheduled.latencyCompensationSeconds)
+            : null;
         return {
             baseLead,
             plusLead,
             minusLead,
             firedInWidenedWindow,
-            scheduledOk: scheduledStart !== null
-                && scheduledStart >= ctx0 - 0.001
-                && scheduledStart >= ctx0 + inSec - (piano.audibleLatencySeconds() + 0.08)
-                && scheduledStart <= ctx1 + inSec + 0.002,
-            scheduledAheadMs: scheduledStart === null ? null : (scheduledStart - ctx0) * 1000
+            scheduledOk: scheduled !== null
+                && scheduled.startAtSeconds >= ctx0 + expected - 0.001
+                && scheduled.startAtSeconds <= ctx1 + expected + 0.001,
+            scheduledAheadMs: scheduled ? (scheduled.startAtSeconds - ctx0) * 1000 : null
         };
     });
     report.check(`audio lead trim widens the window only when positive (${Math.round(trim.baseLead)} -> +${Math.round(trim.plusLead)} / -${Math.round(trim.minusLead)}ms)`,
         Math.abs(trim.plusLead - trim.baseLead - 100) < 1e-6 && Math.abs(trim.minusLead - trim.baseLead) < 1e-6);
-    report.check(`audio lead trim fires notes earlier with an earlier onset (${trim.firedInWidenedWindow} fired, onset +${Math.round(trim.scheduledAheadMs ?? -1)}ms)`,
+    report.check(`audio lead trim fires notes earlier with an earlier onset (${trim.firedInWidenedWindow} fired, onset ${trim.scheduledAheadMs === null ? 'voice-missing' : `+${Math.round(trim.scheduledAheadMs)}ms`})`,
         trim.firedInWidenedWindow >= 1 && trim.scheduledOk);
 
     // --- Hidden tab pauses the run instead of piling up the clock ------
