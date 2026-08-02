@@ -289,6 +289,9 @@ function waitForScalesReady(tab) {
             && chordsSing.everyTargetOnRail);
 
         // Ladder: overlapping rungs shifting one degree per rung.
+        // Terminal ends play out (clip: 678, 78, 8); mid-cycle turnarounds
+        // reflect (678, 787, 876); forever-no-gap up+down reflects at the
+        // loop seam too.
         const ladder = await tab.evaluate(async () => {
             const c = window.scalesController;
             c.stopPlayback();
@@ -296,13 +299,22 @@ function waitForScalesReady(tab) {
             const rungString = result => result.groups.map(g => g.notes.join(',')).join(' | ');
 
             const both = c.buildLadderGroups({
-                degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false
+                degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false, seamlessLoop: false
+            });
+            const bothSeamless = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false, seamlessLoop: true
+            });
+            const downAndUp = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'down_and_up', size: 3, reverse: false, seamlessLoop: false
+            });
+            const upFive = c.buildLadderGroups({
+                degreesAscAll: cMajor, direction: 'ascending', size: 5, reverse: false, seamlessLoop: false
             });
             const reverseUp = c.buildLadderGroups({
-                degreesAscAll: cMajor, direction: 'ascending', size: 3, reverse: true
+                degreesAscAll: cMajor, direction: 'ascending', size: 3, reverse: true, seamlessLoop: false
             });
             const clamped = c.buildLadderGroups({
-                degreesAscAll: cMajor, direction: 'ascending', size: 12, reverse: false
+                degreesAscAll: cMajor, direction: 'ascending', size: 12, reverse: false, seamlessLoop: false
             });
 
             // Voice grammar: standalone and inline forms.
@@ -344,17 +356,39 @@ function waitForScalesReady(tab) {
             c.audio.piano.playMidi = midi => { played.push(midi); };
             c.audio.sleep = async ms => { sleeps.push(ms); };
             await c.playScale('C', 'major', c.buildModifiersFromSettings());
+
+            // Forever-no-gap up+down: the seam reflects and gets the rung
+            // gap, so cycle 2 continues the climb from the bottom.
+            c.settings.direction = 'both';
+            c.settings.repeatCount = Infinity;
+            c.settings.repeatGapMs = 0;
+            const loopPlayed = [];
+            const loopSleeps = [];
+            c.audio.piano.playMidi = midi => {
+                loopPlayed.push(midi);
+                if (loopPlayed.length >= 43) c.audio.stop();
+            };
+            c.audio.sleep = async ms => { loopSleeps.push(ms); };
+            await c.playScale('C', 'major', c.buildModifiersFromSettings());
+
             c.audio.piano.playMidi = realPlayMidi;
             c.audio.sleep = realSleep;
             c.setLadder('off');
             c.settings.ladderGapMs = 500;
+            c.settings.direction = 'ascending';
+            c.settings.repeatCount = 1;
+            c.settings.repeatGapMs = 1000;
 
             return {
                 both: rungString(both),
+                bothSeamless: rungString(bothSeamless),
+                downAndUp: rungString(downAndUp),
+                upFive: rungString(upFive),
                 reverseUp: rungString(reverseUp),
-                reverseFirsts: reverseUp.groups.map(g => g.notes[0]).join(','),
+                reverseFullFirsts: reverseUp.groups.slice(0, 6).map(g => g.notes[0]).join(','),
                 clampedCount: clamped.groups.length,
-                clampedNotes: rungString(clamped),
+                clampedFirst: clamped.groups[0].notes.join(','),
+                clampedLast: clamped.groups[clamped.groups.length - 1].notes.join(','),
                 standaloneOk: standalone && standalone.type === 'setting' && standalone.setting === 'ladder'
                     && standalone.value === 'reverse' && standaloneState.ladder === 'reverse' && standaloneState.size === 4,
                 gapOk: gapCmd && gapCmd.type === 'setting' && gapCmd.setting === 'ladderGapMs' && gapMsAfter === 2000,
@@ -365,24 +399,43 @@ function waitForScalesReady(tab) {
                 ladderClearedByExercise,
                 exerciseClearedByLadder,
                 played: played.join(','),
-                rungGapSleeps: sleeps.filter(ms => ms === 123).length
+                rungGapSleeps: sleeps.filter(ms => ms === 123).length,
+                loopCount: loopPlayed.length,
+                loopCycle: loopPlayed.slice(0, 42).join(','),
+                loopSeamNote: loopPlayed[42],
+                loopRungGaps: loopSleeps.filter(ms => ms === 123).length
             };
         });
-        report.check(`scales ladder up+down mirrors at the top (${ladder.both})`,
-            ladder.both === '60,62,64 | 62,64,65 | 64,65,67 | 65,67,69 | 67,69,71 | 69,71,72'
-            + ' | 72,71,69 | 71,69,67 | 69,67,65 | 67,65,64 | 65,64,62 | 64,62,60');
-        report.check(`scales reverse ladder leads every rung with a new note (${ladder.reverseUp} firsts ${ladder.reverseFirsts})`,
-            ladder.reverseUp === '64,62,60 | 65,64,62 | 67,65,64 | 69,67,65 | 71,69,67 | 72,71,69'
-            && ladder.reverseFirsts === '64,65,67,69,71,72');
-        report.check(`scales ladder rung size clamps to the section (${ladder.clampedCount} rung: ${ladder.clampedNotes})`,
-            ladder.clampedCount === 1 && ladder.clampedNotes === '60,62,64,65,67,69,71,72');
+        report.check(`scales ladder up+down reflects at the top and plays out the ending (${ladder.both})`,
+            ladder.both === '60,62,64 | 62,64,65 | 64,65,67 | 65,67,69 | 67,69,71 | 69,71,72 | 71,72,71'
+            + ' | 72,71,69 | 71,69,67 | 69,67,65 | 67,65,64 | 65,64,62 | 64,62,60 | 62,60 | 60');
+        report.check(`scales ladder forever-no-gap up+down reflects on both ends (${ladder.bothSeamless})`,
+            ladder.bothSeamless === '60,62,64 | 62,64,65 | 64,65,67 | 65,67,69 | 67,69,71 | 69,71,72 | 71,72,71'
+            + ' | 72,71,69 | 71,69,67 | 69,67,65 | 67,65,64 | 65,64,62 | 64,62,60 | 62,60,62');
+        report.check(`scales ladder down+up reflects at the bottom and plays out the top (${ladder.downAndUp})`,
+            ladder.downAndUp === '72,71,69 | 71,69,67 | 69,67,65 | 67,65,64 | 65,64,62 | 64,62,60 | 62,60,62'
+            + ' | 60,62,64 | 62,64,65 | 64,65,67 | 65,67,69 | 67,69,71 | 69,71,72 | 71,72 | 72');
+        report.check(`scales ladder plain up plays out past the last full rung (${ladder.upFive})`,
+            ladder.upFive === '60,62,64,65,67 | 62,64,65,67,69 | 64,65,67,69,71 | 65,67,69,71,72'
+            + ' | 67,69,71,72 | 69,71,72 | 71,72 | 72');
+        report.check(`scales reverse ladder leads full rungs with a new note and plays out (${ladder.reverseUp})`,
+            ladder.reverseUp === '64,62,60 | 65,64,62 | 67,65,64 | 69,67,65 | 71,69,67 | 72,71,69 | 72,71 | 72'
+            && ladder.reverseFullFirsts === '64,65,67,69,71,72');
+        report.check(`scales ladder rung size clamps to the section and plays out (${ladder.clampedCount} rungs, ${ladder.clampedFirst} ... ${ladder.clampedLast})`,
+            ladder.clampedCount === 8 && ladder.clampedFirst === '60,62,64,65,67,69,71,72' && ladder.clampedLast === '72');
         report.check('scales ladder voice grammar (standalone, gap, off, inline)',
             ladder.standaloneOk && ladder.gapOk && ladder.offOk && ladder.inlineOk);
         report.check('scales ladder excludes chop head and exercises both ways',
             ladder.chopClearedByLadder && ladder.ladderClearedByExercise && ladder.exerciseClearedByLadder);
         report.check(`scales ladder playback shifts one degree per rung with the configured rung gap (${ladder.played}; ${ladder.rungGapSleeps} rung gaps)`,
-            ladder.played === '60,62,64,62,64,65,64,65,67,65,67,69,67,69,71,69,71,72'
-            && ladder.rungGapSleeps === 5);
+            ladder.played === '60,62,64,62,64,65,64,65,67,65,67,69,67,69,71,69,71,72,71,72,72'
+            && ladder.rungGapSleeps === 7);
+        report.check(`scales ladder no-gap loop seam continues the climb with the rung gap (${ladder.loopCount} notes, seam -> ${ladder.loopSeamNote}, ${ladder.loopRungGaps} rung gaps)`,
+            ladder.loopCount === 43
+            && ladder.loopCycle === '60,62,64,62,64,65,64,65,67,65,67,69,67,69,71,69,71,72,71,72,71,'
+                + '72,71,69,71,69,67,69,67,65,67,65,64,65,64,62,64,62,60,62,60,62'
+            && ladder.loopSeamNote === 60
+            && ladder.loopRungGaps === 14);
         await tab.close();
     }
 

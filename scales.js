@@ -2957,48 +2957,83 @@ class ScalesController {
 
     /**
      * Build ladder rungs: overlapping windows of `size` consecutive scale
-     * degrees, shifting one degree per rung (123, 234, 345, ...). Travel
-     * follows `direction`; at the top the rungs mirror back down (678, 876,
-     * 765, ...). Normal rungs play toward the direction of travel; reverse
-     * rungs play against it, so each rung leads with the one note that has
-     * not been heard yet (321, 432, 543, ...).
+     * degrees, shifting one degree per rung (123, 234, 345, ...). Normal
+     * rungs play toward the direction of travel; reverse rungs play against
+     * it, so each rung leads with the one note that has not been heard yet
+     * (321, 432, 543, ...).
+     *
+     * Boundary behavior (yui, 2026-08-02):
+     * - A turnaround boundary (travel reverses there mid-cycle) REFLECTS:
+     *   windows fold over the peak (678, 787, 876, ...).
+     * - A terminal boundary (the cycle ends there) PLAYS OUT: windows clip
+     *   and shrink to the last boundary note (678, 78, 8) - never stop
+     *   while unplayed rung starts remain, and never invent notes beyond
+     *   the range.
+     * - A seamless loop (repeat forever, no repeat gap, up+down or down+up)
+     *   has no terminal end: both boundaries reflect and the cycle is one
+     *   full triangle period, so the loop seam continues the climb.
      * @param {Object} params
      * @param {number[]} params.degreesAscAll - Ascending section degrees (MIDI)
      * @param {string} params.direction - ascending, descending, both, down_and_up
      * @param {number} params.size - Notes per rung (clamped to the section)
      * @param {boolean} params.reverse - Lead each rung with the new note
+     * @param {boolean} [params.seamlessLoop] - Repeat-forever-no-gap: reflect at the seam too
      * @returns {{ groups: Array<{notes: number[], sectionIndex: number, isChord: boolean}>, notes: number[] }}
      */
-    buildLadderGroups({ degreesAscAll, direction, size, reverse }) {
+    buildLadderGroups({ degreesAscAll, direction, size, reverse, seamlessLoop = false }) {
         const asc = degreesAscAll;
+        const top = asc.length - 1;
         const rungSize = Math.max(2, Math.min(size, asc.length));
-        const lastStart = asc.length - rungSize;
+
+        /** @param {number} start */
+        const ascWindow = start => Array.from({ length: rungSize }, (_, j) => start + j);
+        /** @param {number} start */
+        const descWindow = start => Array.from({ length: rungSize }, (_, j) => start - j);
+        /** @param {number} i */
+        const reflectTop = i => (i > top ? 2 * top - i : i);
+        /** @param {number} i */
+        const reflectBottom = i => (i < 0 ? -i : i);
 
         /** @type {number[][]} */
-        const upPhase = [];
-        for (let start = 0; start <= lastStart; start++) {
-            const window = asc.slice(start, start + rungSize);
-            upPhase.push(reverse ? [...window].reverse() : window);
-        }
-        /** @type {number[][]} */
-        const downPhase = [];
-        for (let start = lastStart; start >= 0; start--) {
-            const window = asc.slice(start, start + rungSize);
-            downPhase.push(reverse ? window : [...window].reverse());
-        }
+        const rungs = [];
+        // Climb with the top reflected; the start at the peak itself is the
+        // first descending rung, so the climb stops one short of it.
+        const climbReflected = () => {
+            for (let s = 0; s < top; s++) rungs.push(ascWindow(s).map(reflectTop));
+        };
+        // Descend with the bottom reflected; stops one short of the bottom
+        // start, whose rung (123 again) belongs to the next climb - either
+        // the following climb phase or the loop seam.
+        const descendReflected = () => {
+            for (let s = top; s >= 1; s--) rungs.push(descWindow(s).map(reflectBottom));
+        };
+        // Play out toward a terminal end: rung starts keep walking and the
+        // windows clip, shrinking down to the single boundary note.
+        const climbPlayedOut = () => {
+            for (let s = 0; s <= top; s++) rungs.push(ascWindow(s).filter(i => i <= top));
+        };
+        const descendPlayedOut = () => {
+            for (let s = top; s >= 0; s--) rungs.push(descWindow(s).filter(i => i >= 0));
+        };
 
-        let rungs;
         if (direction === 'descending') {
-            rungs = downPhase;
+            descendPlayedOut();
         } else if (direction === 'both') {
-            rungs = [...upPhase, ...downPhase];
+            climbReflected();
+            if (seamlessLoop) descendReflected();
+            else descendPlayedOut();
         } else if (direction === 'down_and_up') {
-            rungs = [...downPhase, ...upPhase];
+            descendReflected();
+            if (seamlessLoop) climbReflected();
+            else climbPlayedOut();
         } else {
-            rungs = upPhase;
+            climbPlayedOut();
         }
 
-        const groups = rungs.map(notes => ({ notes, sectionIndex: 0, isChord: false }));
+        const groups = rungs.map(indices => {
+            const notes = indices.map(i => asc[i]);
+            return { notes: reverse ? notes.reverse() : notes, sectionIndex: 0, isChord: false };
+        });
         return { groups, notes: groups.flatMap(g => g.notes) };
     }
 
@@ -3482,11 +3517,14 @@ class ScalesController {
         if (ladder && ladder !== 'off') {
             const ladderSize = modifiers.ladderSize ?? this.settings.ladderSize;
             const ladderGapMs = modifiers.ladderGapMs ?? this.settings.ladderGapMs;
+            const ladderRepeat = modifiers.repeat ?? this.settings.repeatCount;
+            const ladderRepeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
             const { groups } = this.buildLadderGroups({
                 degreesAscAll,
                 direction,
                 size: ladderSize,
-                reverse: ladder === 'reverse'
+                reverse: ladder === 'reverse',
+                seamlessLoop: ladderRepeat === Infinity && ladderRepeatGapMs === 0
             });
             const ladderContext = {
                 type: 'scale',
@@ -3637,7 +3675,13 @@ class ScalesController {
                     this.updatePatternPreview(nextTranspose);
 
                     if (risingSemitones === 0) {
-                        await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
+                        // Forever-no-gap ladder cycles reflect at the seam,
+                        // so the seam is just another rung boundary and gets
+                        // the rung gap instead of a cycle divider.
+                        const seamMs = isInfinite
+                            ? (repeatGapMs > 0 ? repeatGapMs : groupGapMs)
+                            : 1500;
+                        await this.audio.sleep(seamMs);
                     }
                 }
             }
@@ -4409,7 +4453,8 @@ class ScalesController {
                 degreesAscAll,
                 direction,
                 size: ladderSize || 3,
-                reverse: ladder === 'reverse'
+                reverse: ladder === 'reverse',
+                seamlessLoop: this.settings.repeatCount === Infinity && this.settings.repeatGapMs === 0
             });
             return {
                 segments: [{ label: `${directionLabel} ladder`, groups: ladderResult.groups }],
