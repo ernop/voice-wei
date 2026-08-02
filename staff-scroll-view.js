@@ -551,11 +551,16 @@ const StaffScrollView = (function () {
                 context.fill();
             }
 
-            // The recorded line is toggleable (sing without watching
-            // yourself, review later); the page-mode live dot below
-            // stays - it is live feedback, not the take's results.
-            const trace = config.showSungLine() ? config.trace() : [];
+            // The recorded line has a placement choice: 'band' (the pitch
+            // band's taller scale), 'staff' (the notation's own diatonic
+            // grid, right against the noteheads), or 'off' (sing without
+            // watching yourself, review later). The page-mode live dot
+            // below stays - it is live feedback, not the take's results.
+            const sungLinePlacement = config.sungLinePlacement();
+            const trace = sungLinePlacement !== 'off' ? config.trace() : [];
             if (trace.length) {
+                const onStaff = sungLinePlacement === 'staff';
+                const traceY = onStaff ? yForMidi : zoneYForMidi;
                 const gapBeats = config.traceGapBeats();
                 context.strokeStyle = 'rgba(37, 99, 235, 0.9)';
                 context.fillStyle = 'rgba(37, 99, 235, 0.9)';
@@ -582,16 +587,21 @@ const StaffScrollView = (function () {
                 let previousBeat = null;
                 for (const sample of trace) {
                     const x = onsetX(sample.beat) - offset;
+                    const y = traceY(sample.midi);
                     // Out-of-frame pitch is clipped, never rescales the
-                    // band (the frame is stable for the run).
-                    if (x < headerWidth + 2 || x > width + 20
-                        || sample.midi < range.minMidi || sample.midi > range.maxMidi) {
+                    // band (the frame is stable for the run). On the
+                    // staff, pitch outside the notation area clips too -
+                    // the line never leaks into the pitch band below.
+                    const outOfLane = onStaff
+                        ? (y < 4 || y > PITCH_ZONE_TOP - 4)
+                        : (sample.midi < range.minMidi || sample.midi > range.maxMidi);
+                    if (x < headerWidth + 2 || x > width + 20 || outOfLane) {
                         flushSegment();
                         previousBeat = null;
                         continue;
                     }
                     if (previousBeat !== null && sample.beat - previousBeat > gapBeats) flushSegment();
-                    segment.push({ x, y: zoneYForMidi(sample.midi) });
+                    segment.push({ x, y });
                     previousBeat = sample.beat;
                 }
                 flushSegment();

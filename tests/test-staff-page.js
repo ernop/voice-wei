@@ -642,15 +642,14 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         pitchBand.insideBand && pitchBand.monotonic && pitchBand.zonePxPerSemitone > 3);
     report.check('pitch band frame never rescales from singing', pitchBand.frameStable);
 
-    // The band's contents are independently toggleable: "note guides"
-    // (the gray right-answer segments) and "sung line" (the recorded
-    // blue trace) - sing blind, then toggle back on to compare.
+    // The band's contents are independently controllable: "note guides"
+    // (the gray right-answer segments) toggle, and the sung blue line
+    // has a PLACEMENT - band (default), staff (drawn on the notation's
+    // own diatonic grid), or off (sing blind, then review).
     const bandToggles = await tab.evaluate(() => {
-        const countBandPixels = () => {
+        const countRegionPixels = (top, height) => {
             const overlay = /** @type {HTMLCanvasElement} */ (document.querySelector('.staff-scroll-overlay'));
             const geometry = window.staffDebug.geometry();
-            const top = geometry.pitchZoneTop + 16;
-            const height = geometry.pitchZoneHeight - 18;
             const left = Math.round(geometry.headerWidth) + 40;
             const width = overlay.width - left - 2;
             const pixels = overlay.getContext('2d').getImageData(left, top, width, height).data;
@@ -665,33 +664,54 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
             }
             return { guides, trace };
         };
+        const geometry = window.staffDebug.geometry();
+        const countBand = () => countRegionPixels(geometry.pitchZoneTop + 16, geometry.pitchZoneHeight - 18);
+        const countStaff = () => countRegionPixels(2, geometry.pitchZoneTop - 8);
+        /** @param {string} placement */
+        const setPlacement = placement => {
+            /** @type {HTMLElement} */ (
+                document.querySelector(`[data-sung-line="${placement}"]`)).click();
+        };
         // Recorded singing so the trace is on screen in this window.
         window.staffDebug.recordTraceSample(2.0, 50);
         window.staffDebug.recordTraceSample(2.5, 51);
         window.staffDebug.recordTraceSample(3.0, 52);
-        const bothOn = countBandPixels();
+        const bothOn = countBand();
+        const staffRegionDefault = countStaff();
         document.getElementById('pitchGuidesToggle').click();
-        const guidesOff = countBandPixels();
+        const guidesOff = countBand();
         document.getElementById('pitchGuidesToggle').click();
-        document.getElementById('sungLineToggle').click();
-        const traceOff = countBandPixels();
-        document.getElementById('sungLineToggle').click();
+        setPlacement('off');
+        const traceOff = countBand();
+        const staffRegionOff = countStaff();
+        setPlacement('staff');
+        const bandWithStaffPlacement = countBand();
+        const staffRegionOn = countStaff();
+        setPlacement('band');
         const stored = SettingsStore.peekData(StorageKeys.STAFF_SETTINGS) || {};
         return {
             bothOn,
+            staffRegionDefault,
             guidesOff,
             traceOff,
-            persisted: stored.showPitchGuides === true && stored.showSungLine === true,
+            staffRegionOff,
+            bandWithStaffPlacement,
+            staffRegionOn,
+            persisted: stored.showPitchGuides === true && stored.sungLinePlacement === 'band',
             inStageMeta: Boolean(document.querySelector('.staff-stage-meta #pitchGuidesToggle'))
-                && Boolean(document.querySelector('.staff-stage-meta #sungLineToggle'))
+                && Boolean(document.querySelector('.staff-stage-meta [data-sung-line]'))
         };
     });
     report.check(`note guides toggle clears only the guides (${bandToggles.bothOn.guides}/${bandToggles.bothOn.trace} -> ${bandToggles.guidesOff.guides}/${bandToggles.guidesOff.trace})`,
         bandToggles.bothOn.guides > 50 && bandToggles.bothOn.trace > 10
         && bandToggles.guidesOff.guides === 0 && bandToggles.guidesOff.trace > 10);
-    report.check(`sung line toggle clears only the trace (${bandToggles.traceOff.guides}/${bandToggles.traceOff.trace})`,
-        bandToggles.traceOff.guides > 50 && bandToggles.traceOff.trace === 0);
-    report.check('band toggles persist and sit in the stage row under the band',
+    report.check(`sung line off clears the trace everywhere (band ${bandToggles.traceOff.trace}, staff ${bandToggles.staffRegionOff.trace}, guides stay ${bandToggles.traceOff.guides})`,
+        bandToggles.traceOff.trace === 0 && bandToggles.staffRegionOff.trace === 0
+        && bandToggles.traceOff.guides > 50);
+    report.check(`sung line on the staff draws on the notation, not the band (staff ${bandToggles.staffRegionOn.trace}, band ${bandToggles.bandWithStaffPlacement.trace}; band placement kept it off the staff: ${bandToggles.staffRegionDefault.trace})`,
+        bandToggles.staffRegionOn.trace > 10 && bandToggles.bandWithStaffPlacement.trace === 0
+        && bandToggles.staffRegionDefault.trace === 0);
+    report.check('band controls persist and sit in the stage row under the band',
         bandToggles.persisted && bandToggles.inStageMeta);
 
     // The stage row owns every display-affecting toggle: note guides,

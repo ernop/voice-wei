@@ -237,8 +237,8 @@ interface StaffScrollViewConfig {
     showDegrees: () => boolean;
     /** Draw the gray per-note pitch guides in the sung-pitch band */
     showPitchGuides: () => boolean;
-    /** Draw the recorded sung line in the pitch band */
-    showSungLine: () => boolean;
+    /** Where the recorded sung line draws: on the notation, in the pitch band, or nowhere */
+    sungLinePlacement: () => 'off' | 'staff' | 'band';
     /** The pitch band's stable frame (working range; singing never rescales it) */
     pitchRange: () => { minMidi: number; maxMidi: number };
     /** Live sung pitch for the page-mode indicator dot; null = silent */

@@ -104,6 +104,18 @@
     font-size: 0.8rem;
 }
 
+.staff-sung-line-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.staff-sung-line-row .vf-btn {
+    padding: 1px 8px;
+    font-size: 0.75rem;
+    text-transform: none;
+}
+
 .staff-pitch-readout {
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     color: #86efac;

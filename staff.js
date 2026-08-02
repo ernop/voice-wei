@@ -52,7 +52,9 @@
         hearTones: true,
         showDegrees: true,
         showPitchGuides: true,
-        showSungLine: true,
+        // Where the recorded blue sung line draws: 'off' (nowhere),
+        // 'staff' (on the notation itself), or 'band' (the pitch band).
+        sungLinePlacement: 'band',
         showPitchReadout: true,
         mode: 'page'
     };
@@ -63,8 +65,10 @@
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
         'returnToInitial', 'bpm', 'restBeats', 'measures', 'durationBeats', 'audioOffsetMs',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
-        'showPitchGuides', 'showSungLine', 'showPitchReadout', 'mode'
+        'showPitchGuides', 'sungLinePlacement', 'showPitchReadout', 'mode'
     ];
+
+    const SUNG_LINE_PLACEMENTS = ['off', 'staff', 'band'];
 
     const ADJUSTER_VALUES = {
         bpm: [20, 24, 30, 36, 42, 48, 54, 60, 66, 72, 80, 90, 100, 110, 120, 132, 144, 160, 180, 200],
@@ -316,7 +320,7 @@
         traceGapBeats: () => 320 / msPerBeat(),
         showDegrees: () => state.showDegrees,
         showPitchGuides: () => state.showPitchGuides,
-        showSungLine: () => state.showSungLine,
+        sungLinePlacement: () => /** @type {'off' | 'staff' | 'band'} */ (state.sungLinePlacement),
         pitchRange: tracePitchRange,
         liveMidi: () => {
             if (!lastAcceptedLive) return null;
@@ -921,7 +925,7 @@
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides', 'showSungLine']);
+    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides', 'sungLinePlacement']);
     const GENERATION_KEYS = new Set([
         'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'accidentalRate', 'minLength', 'maxLength', 'returnToInitial', 'durationBeats', 'restBeats'
@@ -1092,7 +1096,7 @@
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
-        PracticeControls.syncToggle('sungLineToggle', state.showSungLine);
+        PracticeControls.syncSingleSelect('data-sung-line', state.sungLinePlacement);
         PracticeControls.syncToggle('pitchReadoutToggle', state.showPitchReadout);
         syncDurationChips();
         syncLessonControls();
@@ -1130,9 +1134,9 @@
             state.showPitchGuides = checked;
             onSettingChanged('showPitchGuides');
         });
-        PracticeControls.wireToggle('sungLineToggle', state.showSungLine, checked => {
-            state.showSungLine = checked;
-            onSettingChanged('showSungLine');
+        PracticeControls.wireSingleSelect('data-sung-line', String, state.sungLinePlacement, value => {
+            state.sungLinePlacement = value;
+            onSettingChanged('sungLinePlacement');
         });
         PracticeControls.wireToggle('pitchReadoutToggle', state.showPitchReadout, checked => {
             state.showPitchReadout = checked;
@@ -1188,6 +1192,11 @@
         }
         if (state.mode !== 'page' && state.mode !== 'scroll') state.mode = 'page';
         if (!REST_BEATS_VALUES.includes(state.restBeats)) state.restBeats = 2;
+        if (!SUNG_LINE_PLACEMENTS.includes(state.sungLinePlacement)) {
+            // Migrate the retired boolean: off stays off, on means band.
+            const stored = /** @type {Record<string, any>} */ (SettingsStore.peekData(STORAGE_KEY) || {});
+            state.sungLinePlacement = stored.showSungLine === false ? 'off' : 'band';
+        }
         initUI();
         regenerate();
         try {

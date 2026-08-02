@@ -49,10 +49,14 @@
                         <input type="checkbox" id="pitchGuidesToggle" checked>
                         <span>note guides</span>
                     </label>
-                    <label class="display-toggle" title="Show your sung blue line in the pitch band. Hide it to sing without watching yourself, then toggle back on to review.">
-                        <input type="checkbox" id="sungLineToggle" checked>
+                    <span class="staff-sung-line-choice" title="Where your sung blue line draws: right on the staff notation, in the pitch band below, or nowhere (sing blind, then bring it back to review)">
                         <span>sung line</span>
-                    </label>
+                        <span class="segment-row staff-sung-line-row">
+                            <button class="vf-btn" data-sung-line="off">off</button>
+                            <button class="vf-btn" data-sung-line="staff">staff</button>
+                            <button class="vf-btn" data-sung-line="band">band</button>
+                        </span>
+                    </span>
                     <label class="display-toggle" title="Play each note on the piano as it crosses the now-line">
                         <input type="checkbox" id="hearTonesToggle" checked>
                         <span>hear tones</span>
