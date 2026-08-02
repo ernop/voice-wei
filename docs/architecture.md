@@ -452,11 +452,15 @@ Vital rules that have caused bugs before:
   exclusive; rising and shifting imply repeat-forever, while chop head
   plays one shrinking cycle per repeat.
 - **Ladder** replaces section-note traversal with overlapping fixed-size
-  rungs shifting one degree per rung (123, 234, ...; mirrored back down
-  when direction includes both ways); **reverse** plays each rung against
-  the travel so its first note is always new (321, 432, ...). The ladder
-  owns sequence generation, so it excludes chop head, exercises, and
-  movement styles (both directions), but composes with rising.
+  rungs shifting one degree per rung (123, 234, ...); **reverse** plays
+  each rung against the travel so its first note is always new (321,
+  432, ...). The ladder owns sequence generation, so it excludes chop
+  head, exercises, and movement styles (both directions), but composes
+  with rising. Boundary law: rung starts always walk the full range -
+  terminal ends play out by clipping (678, 78, 8), mid-cycle turnarounds
+  reflect over the peak (678, 787, 876), and a forever-no-gap up+down or
+  down+up cycle is one seamless triangle whose loop seam reflects too
+  (the seam gets the rung gap, not a cycle divider).
 - Voice commands reset settings to defaults before applying modifiers.
 
 Exercise patterns are degree-offset templates with `'O'` as the

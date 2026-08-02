@@ -249,7 +249,7 @@ its default, then apply the spoken modifiers.
 | risingSemitones | 0 (forces forever when > 0) | live-restart |
 | shiftingSteps | 0 (forces forever when > 0; excludes rising) | live-restart |
 | chopHead | 0 (excludes rising/shifting/exercise/movement/ladder; each pass drops the leading note) | live-restart |
-| ladder | off (on / reverse; excludes chop head/shifting/exercise/movement; overlapping rungs shifting one degree per rung; reverse leads each rung with the new note) | live-restart |
+| ladder | off (on / reverse; excludes chop head/shifting/exercise/movement; overlapping rungs shifting one degree per rung; reverse leads each rung with the new note; terminal ends play out by clipping, turnarounds reflect, forever-no-gap up+down reflects at the loop seam) | live-restart |
 | ladderSize | 3 (2-8 notes per rung, clamped to the section) | live-restart |
 | ladderGapMs | 500 (shared time ladder 0-10s; pause between rungs, 0 plays straight through) | live-restart |
 | movementStyle | normal | live-restart |

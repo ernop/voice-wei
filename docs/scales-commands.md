@@ -207,7 +207,7 @@ to shifting mode:
 | Rising | `rising`, `modulating`, `transpose` | Transposes the whole scale up each repeat (C major -> D major -> ...); `rising half step` / `whole step` / `minor third` / `fourth` / `fifth` choose the step; `no rising` turns it off |
 | Shifting | `shifting`, `walking` | Moves the start within the same scale (C-D-E-F-G -> D-E-F-G-A, staying in C major) |
 | Chop head | `chop head` | Each pass drops one more leading note (1-2-3-4-5-6-7-8, then 2-3-4-5-6-7-8, then 3-4-5-6-7-8, ... down to the last note); `no chop head` / `chop head off` turns it off |
-| Ladder | `ladder`, `ladder of four`, `three note ladder` | Overlapping rungs shifting one degree per rung: 1-2-3, 2-3-4, 3-4-5, ... up to the top of the section, then mirrored back down when the direction includes both ways; `no ladder` / `ladder off` turns it off |
+| Ladder | `ladder`, `ladder of four`, `three note ladder` | Overlapping rungs shifting one degree per rung: 1-2-3, 2-3-4, 3-4-5, ...; `no ladder` / `ladder off` turns it off |
 | Reverse ladder | `reverse ladder`, `reverse ladder of four` | Each rung plays against the direction of travel, so it leads with the one note not heard yet: 3-2-1, 4-3-2, 5-4-3, ... |
 
 Rising and shifting imply repeat-forever. Chop head plays one shrinking
@@ -219,6 +219,22 @@ section gives a two-octave climb) and plays one full climb per repeat
 "Rung Notes") and the pause between rungs ("Rung Gap"; `ladder gap 2
 seconds`, `ladder no gap` - 0 plays straight through) are steppers on the
 Ladder row. Rising composes with the ladder: each full climb transposes up.
+
+At the range boundaries the ladder never stops early and never invents
+notes beyond the range:
+
+- **A terminal end plays out**: rung starts keep walking and the windows
+  clip, shrinking to the last note. Plain up with rungs of 3 ends
+  6-7-8, 7-8, 8; with rungs of 5 it ends 4-5-6-7-8, 5-6-7-8, 6-7-8,
+  7-8, 8. Plain down mirrors this at the bottom (3-2-1, 2-1, 1).
+- **A mid-cycle turnaround reflects**: windows fold over the peak, so
+  up+down runs ... 5-6-7, 6-7-8, 7-8-7, 8-7-6, 7-6-5 ... and then plays
+  out its ending at the bottom (3-2-1, 2-1, 1). Down+up reflects at the
+  bottom (... 2-1-2 ...) and plays out at the top.
+- **Forever with no gap reflects on both ends**: up+down / down+up loops
+  are one seamless triangle - the loop seam is just another rung
+  boundary (... 3-2-1, 2-1-2, 1-2-3 ...), with the rung gap between all
+  rungs. Plain up or down forever-no-gap just plays out and starts over.
 
 Chop head and the ladder each own the played sequence, so enabling either
 one clears the other along with any exercise or movement style. Rising,
