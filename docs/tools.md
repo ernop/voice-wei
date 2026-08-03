@@ -183,8 +183,10 @@ Generation reuses the Phrases engine: the same style/lesson families
 (free, staff read, sight sing, barbershop, genre), algorithm modes,
 start/return anchors, range endpoints, min/max phrase length, and
 passing-note rate - applied continuously, phrase after phrase, with a
-configurable rest span between phrases (a beat count, or **end of bar**:
-rest to the next barline so every phrase starts on a downbeat). Rests
+configurable rest span between phrases: a guaranteed beat count, plus an
+optional **then to end of bar** fill that keeps resting to the next
+barline so every phrase starts on a downbeat ("rest at least 2 beats,
+then to the bar"). Rests
 render as standard glyphs
 (whole/half/quarter/eighth) on the staff the melodic line last used, and
 never cross a barline.
