@@ -85,52 +85,102 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('mixed-duration stream never crosses a barline', !mixed.crossesBarline);
     report.check(`mixed-duration stream actually varies (${mixed.variety} values used)`, mixed.variety >= 2);
 
-    // Rest "til end of measure": after each phrase, rests fill to the
-    // next barline so every phrase starts on a downbeat; a phrase ending
-    // exactly on the barline gets no filler rest at all.
+    // Rest to the barline: restBeats is the GUARANTEED rest after each
+    // phrase; restToBarline then keeps resting to the next barline, so
+    // every phrase starts on a downbeat. With no guaranteed rest, a
+    // phrase ending exactly on the barline gets no filler at all; with
+    // one, there is always a breath.
     const measureRest = await tab.evaluate(() => {
         const base = {
             scaleType: 'major', startAtOne: true, rangeLow: 0, rangeHigh: 7,
             returnToInitial: false, returnToRoot: false,
-            phraseAlgo: 'arch', durationBeats: [1], restBeats: 'measure'
+            phraseAlgo: 'arch', durationBeats: [1], restBeats: 0, restToBarline: true
+        };
+        /** @param {any[]} events */
+        const phraseStartsOnBarline = events => events.every((event, index) =>
+            event.type !== 'note'
+            || index === 0
+            || events[index - 1].type === 'note'
+            || event.startBeat % 4 === 0);
+        /** Every rest run spans at least this many beats. @param {any[]} events */
+        const minRestRun = events => {
+            let min = Infinity;
+            let run = 0;
+            for (const event of events) {
+                if (event.type === 'rest') { run += event.beats; continue; }
+                if (run > 0) min = Math.min(min, run);
+                run = 0;
+            }
+            return min;
         };
         const varied = PatternPracticeCore.createContinuousSequence(
             { ...base, minLength: 3, maxLength: 6 }).nextEvents(96);
-        const phraseStartsOnBarline = varied.every((event, index) =>
-            event.type !== 'note'
-            || index === 0
-            || varied[index - 1].type === 'note'
-            || event.startBeat % 4 === 0);
-        const restCount = varied.filter(event => event.type === 'rest').length;
-
         const exact = PatternPracticeCore.createContinuousSequence(
             { ...base, minLength: 4, maxLength: 4 }).nextEvents(32);
+        // The complaint case: exact-bar phrases with a 2-beat guaranteed
+        // rest still breathe (2 beats, then fill to the next barline).
+        const guaranteed = PatternPracticeCore.createContinuousSequence(
+            { ...base, restBeats: 2, minLength: 4, maxLength: 4 }).nextEvents(48);
+        const guaranteedVaried = PatternPracticeCore.createContinuousSequence(
+            { ...base, restBeats: 2, minLength: 3, maxLength: 6 }).nextEvents(96);
         return {
-            phraseStartsOnBarline,
-            restCount,
+            variedOnBarline: phraseStartsOnBarline(varied),
+            variedRests: varied.filter(event => event.type === 'rest').length,
             firstStart: varied[0]?.startBeat,
             exactRests: exact.filter(event => event.type === 'rest').length,
             exactContiguous: exact.every((event, index) =>
-                index === 0 || event.startBeat === exact[index - 1].startBeat + exact[index - 1].beats)
+                index === 0 || event.startBeat === exact[index - 1].startBeat + exact[index - 1].beats),
+            guaranteedOnBarline: phraseStartsOnBarline(guaranteed),
+            guaranteedMinRest: minRestRun(guaranteed),
+            guaranteedVariedOnBarline: phraseStartsOnBarline(guaranteedVaried),
+            guaranteedVariedMinRest: minRestRun(guaranteedVaried)
         };
     });
-    report.check(`rest til end of measure starts every phrase on a barline (${measureRest.restCount} filler rests)`,
-        measureRest.phraseStartsOnBarline && measureRest.firstStart === 0 && measureRest.restCount > 0);
-    report.check('rest til end of measure adds nothing when a phrase ends on the barline',
+    report.check(`rest to barline starts every phrase on a downbeat (${measureRest.variedRests} filler rests)`,
+        measureRest.variedOnBarline && measureRest.firstStart === 0 && measureRest.variedRests > 0);
+    report.check('rest to barline with no guaranteed rest adds nothing when a phrase ends on the barline',
         measureRest.exactRests === 0 && measureRest.exactContiguous);
+    report.check(`minimum rest + to barline always breathes and stays on downbeats (bar-exact phrases rest ${measureRest.guaranteedMinRest} beats)`,
+        measureRest.guaranteedOnBarline && measureRest.guaranteedMinRest === 4
+        && measureRest.guaranteedVariedOnBarline && measureRest.guaranteedVariedMinRest >= 2);
 
     const restUi = await tab.evaluate(() => {
-        window.staffDebug.applySettings({ restBeats: 'measure' });
+        window.staffDebug.applySettings({ restBeats: 4, restToBarline: false });
         const label = document.getElementById('restBeatsValue')?.textContent;
         const up = document.querySelector('[data-step-key="restBeats"][data-step-delta="1"]');
-        const down = document.querySelector('[data-step-key="restBeats"][data-step-delta="-1"]');
         const upDisabled = up ? up.disabled : null;
-        const downDisabled = down ? down.disabled : null;
+        const pill = document.getElementById('restToBarlineBtn');
+        const pillOffText = pill?.textContent;
+        pill.click();
+        const pillOnText = pill?.textContent;
+        const stored = SettingsStore.peekData(StorageKeys.STAFF_SETTINGS) || {};
+        const persisted = stored.restToBarline === true;
+        pill.click();
         window.staffDebug.applySettings({ restBeats: 2 });
-        return { label, upDisabled, downDisabled };
+        return { label, upDisabled, pillOffText, pillOnText, persisted };
     });
-    report.check(`rest stepper tops out at end of bar ("${restUi.label}", + disabled)`,
-        restUi.label === 'end of bar' && restUi.upDisabled === true && restUi.downDisabled === false);
+    report.check(`rest stepper is the guaranteed span ("${restUi.label}" tops out) and the barline pill toggles and persists ("${restUi.pillOffText}" -> "${restUi.pillOnText}")`,
+        restUi.label === '4 beats' && restUi.upDisabled === true
+        && restUi.pillOffText === 'fixed rest' && restUi.pillOnText === 'then to end of bar'
+        && restUi.persisted);
+
+    // Yesterday's 'measure' sentinel migrates to (rest 0, to-barline on).
+    const migrateCtx = await browser.newContext();
+    const migrateTab = await migrateCtx.newPage();
+    await migrateTab.addInitScript(() => {
+        localStorage.setItem('voice-wei:staff-settings', JSON.stringify({
+            v: 'test', data: { restBeats: 'measure' }
+        }));
+    });
+    await migrateTab.goto(`${BASE_URL}/staff.html`, { waitUntil: 'domcontentloaded' });
+    await migrateTab.waitForFunction(() => Boolean(window.staffDebug && window.staffDebug.events().length), null, { timeout: 20000 });
+    const migrated = await migrateTab.evaluate(() => {
+        const settings = window.staffDebug.settings();
+        return { restBeats: settings.restBeats, restToBarline: settings.restToBarline };
+    });
+    await migrateCtx.close();
+    report.check(`stored 'measure' rest migrates to rest 0 + to barline (${migrated.restBeats}, ${migrated.restToBarline})`,
+        migrated.restBeats === 0 && migrated.restToBarline === true);
 
     // --- Car display: phrase numbers lead the sheet ---------------------
     // While a run moves, the now-playing title is the number sequence of

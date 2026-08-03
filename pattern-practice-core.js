@@ -1400,7 +1400,8 @@ const PatternPracticeCore = (function () {
      *   accidentalRate?: number,
      *   rangeGovernsLessons?: boolean,
      *   durationBeats?: number[],
-     *   restBeats?: number | 'measure',
+     *   restBeats?: number,
+     *   restToBarline?: boolean,
      *   startBeat?: number
      * }} options
      */
@@ -1409,12 +1410,11 @@ const PatternPracticeCore = (function () {
         const durations = (Array.isArray(options.durationBeats) && options.durationBeats.length
             ? options.durationBeats.slice()
             : [1]).sort((a, b) => a - b);
-        // 'measure' rests to the next barline after each phrase, so every
-        // phrase starts on a downbeat (nothing to fill when a phrase ends
-        // exactly on the barline).
-        const restBeats = options.restBeats === 'measure'
-            ? 'measure'
-            : Math.max(0, typeof options.restBeats === 'number' ? options.restBeats : 1);
+        // restBeats is the guaranteed rest after each phrase; restToBarline
+        // then extends it to the next barline, so every phrase starts on a
+        // downbeat. Both together read "rest at least N, then to the bar".
+        const restBeats = Math.max(0, typeof options.restBeats === 'number' ? options.restBeats : 1);
+        const restToBarline = options.restToBarline === true;
         let beat = Math.max(0, options.startBeat || 0);
 
         /** @param {TimedSequenceEvent[]} events @param {number} spanBeats */
@@ -1462,11 +1462,10 @@ const PatternPracticeCore = (function () {
                         events.push({ type: 'note', offset, beats, startBeat: beat });
                         beat += beats;
                     }
-                    if (restBeats === 'measure') {
+                    if (restBeats > 0) pushRests(events, restBeats);
+                    if (restToBarline) {
                         const intoMeasure = positiveModulo(beat, beatsPerMeasure);
                         if (intoMeasure > 1e-9) pushRests(events, beatsPerMeasure - intoMeasure);
-                    } else if (restBeats > 0) {
-                        pushRests(events, restBeats);
                     }
                 }
                 return events;

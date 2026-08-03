@@ -83,12 +83,14 @@
                             <span class="step-value" id="bpmValue">60</span>
                             <button class="step-btn" type="button" data-step-key="bpm" data-step-delta="1" aria-label="Faster tempo">+</button>
                         </div>
-                        <div class="step-field" title="Rest between generated phrases: a beat span, or end of bar (rest to the next barline so every phrase starts a measure)">
+                        <div class="step-field" title="Guaranteed rest after each generated phrase, in beats">
                             <span class="step-label">Rest</span>
                             <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="-1" aria-label="Shorter rest between phrases">-</button>
                             <span class="step-value" id="restBeatsValue">2 beats</span>
                             <button class="step-btn" type="button" data-step-key="restBeats" data-step-delta="1" aria-label="Longer rest between phrases">+</button>
                         </div>
+                        <button class="vf-btn phrase-toggle-btn" id="restToBarlineBtn" type="button" aria-pressed="false"
+                            title="Toggle: after the guaranteed rest, keep resting to the next barline so every phrase starts on beat 1 (a phrase ending mid-bar rests at least Rest beats, then to the bar)">fixed rest</button>
                         <div class="step-field" title="Sequence length in 4/4 measures (scroll mode keeps generating past this)">
                             <span class="step-label">Bars</span>
                             <button class="step-btn" type="button" data-step-key="measures" data-step-delta="-1" aria-label="Fewer measures">-</button>
