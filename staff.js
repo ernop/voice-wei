@@ -43,6 +43,11 @@
         // Extend each phrase's rest to the next barline AFTER the
         // guaranteed restBeats, so every phrase starts on a downbeat.
         restToBarline: false,
+        // Each phrase appears twice in a row (same melody and rhythm).
+        phraseTwice: false,
+        // With phrase-twice and hear tones: the repeat stays silent - the
+        // second time through is yours.
+        secondPassOnYourOwn: false,
         measures: 16,
         durationBeats: [1, 2],
         // Manual audible-onset trim on top of the reported device latency:
@@ -58,6 +63,9 @@
         // Where the recorded blue sung line draws: 'off' (nowhere),
         // 'staff' (on the notation itself), or 'band' (the pitch band).
         sungLinePlacement: 'band',
+        // Hold guides and the sung line back until each phrase's time is
+        // fully over, then reveal - sing blind, check as you go.
+        revealAfterPhrase: false,
         showPitchReadout: true,
         mode: 'page'
     };
@@ -66,9 +74,10 @@
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo',
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
-        'returnToInitial', 'bpm', 'restBeats', 'restToBarline', 'measures', 'durationBeats', 'audioOffsetMs',
+        'returnToInitial', 'bpm', 'restBeats', 'restToBarline', 'phraseTwice', 'secondPassOnYourOwn',
+        'measures', 'durationBeats', 'audioOffsetMs',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
-        'showPitchGuides', 'sungLinePlacement', 'showPitchReadout', 'mode'
+        'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase', 'showPitchReadout', 'mode'
     ];
 
     const SUNG_LINE_PLACEMENTS = ['off', 'staff', 'band'];
@@ -82,7 +91,9 @@
         minLength: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16],
         maxLength: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32],
         pxPerBeat: [14, 18, 22, 26, 32, 40, 48],
-        nowFraction: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
+        // Up to 75%: reveal-when-done needs look-back room behind the
+        // now-line for a whole revealed phrase.
+        nowFraction: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75],
         staffWidthPct: [55, 70, 85, 100]
     };
     const DEFAULT_LESSON_BY_STYLE = Object.freeze({
@@ -157,7 +168,8 @@
             rangeGovernsLessons: true,
             durationBeats: state.durationBeats.slice(),
             restBeats: state.restBeats,
-            restToBarline: state.restToBarline
+            restToBarline: state.restToBarline,
+            phraseTwice: state.phraseTwice
         };
     }
 
@@ -260,6 +272,20 @@
         MediaSessionCore.updateMetadata('Staff');
     }
 
+    /**
+     * Reveal-when-done boundary for the view: guides and the sung line
+     * draw only for phrases that have fully finished. null = no deferral
+     * (mode off, or no run in progress - loaded takes review in full).
+     */
+    function revealBeforeBeat() {
+        if (!state.revealAfterPhrase) return null;
+        if (!running && clockBeat <= -LEAD_IN_BEATS) return null;
+        for (const run of phraseRuns()) {
+            if (run.endBeat > clockBeat) return run.startBeat;
+        }
+        return Infinity;
+    }
+
     const traceSession = PitchDetectCore.createTraceSession({
         pauseOnSilence: () => false,
         onAccepted: sample => {
@@ -320,6 +346,7 @@
         showDegrees: () => state.showDegrees,
         showPitchGuides: () => state.showPitchGuides,
         sungLinePlacement: () => /** @type {'off' | 'staff' | 'band'} */ (state.sungLinePlacement),
+        revealBeforeBeat,
         pitchRange: tracePitchRange,
         liveMidi: () => {
             if (!lastAcceptedLive) return null;
@@ -374,7 +401,9 @@
             + ` | passing ${Math.round(state.accidentalRate * 100)}%`);
         lines.push(`note values: ${state.durationBeats.map(beats => DURATION_TEXT[beats] || beats).join(' ')}`
             + ` | rest between phrases: ${state.restBeats} beats${state.restToBarline ? ', then to end of bar' : ''}`
-            + ` | bars: ${state.measures}`);
+            + ` | bars: ${state.measures}`
+            + (state.phraseTwice ? ` | phrase x2${state.secondPassOnYourOwn ? ' (2nd pass on your own)' : ''}` : '')
+            + (state.revealAfterPhrase ? ' | reveal when done' : ''));
         lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
             + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
             + ` | width ${state.staffWidthPct}%`
@@ -496,7 +525,11 @@
             firedNoteCount++;
             if (clockBeat >= event.startBeat + event.beats) continue;
             soundedNoteCount++;
-            if (state.hearTones && piano) {
+            // "On your own": with phrase-twice, the repeat pass never
+            // sounds - hearing it once is the prompt, the second time is
+            // the singer's.
+            const silentPass = event.secondPass === true && state.secondPassOnYourOwn;
+            if (state.hearTones && piano && !silentPass) {
                 const inSeconds = Math.max(0,
                     ((event.startBeat - clockBeat) * msPerBeat() - state.audioOffsetMs) / 1000);
                 piano.playMidiAudibleIn(event.midi, (event.beats * msPerBeat() / 1000) * 0.92, inSeconds);
@@ -918,11 +951,11 @@
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides', 'sungLinePlacement']);
+    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase']);
     const GENERATION_KEYS = new Set([
         'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'accidentalRate', 'minLength', 'maxLength', 'returnToInitial', 'durationBeats',
-        'restBeats', 'restToBarline'
+        'restBeats', 'restToBarline', 'phraseTwice'
     ]);
 
     /** @param {string} key */
@@ -1081,6 +1114,9 @@
         syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
+        syncBooleanPill('phraseTwiceBtn', state.phraseTwice, 'phrase x2', 'phrase x1');
+        syncBooleanPill('secondPassBtn', state.secondPassOnYourOwn, '2nd pass: on your own', '2nd pass: with tones');
+        syncBooleanPill('revealBtn', state.revealAfterPhrase, 'reveal when done', 'reveal live');
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
@@ -1145,6 +1181,36 @@
             state.restToBarline = !state.restToBarline;
             syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
             onSettingChanged('restToBarline');
+        });
+        getEl('phraseTwiceBtn')?.addEventListener('click', () => {
+            state.phraseTwice = !state.phraseTwice;
+            syncBooleanPill('phraseTwiceBtn', state.phraseTwice, 'phrase x2', 'phrase x1');
+            onSettingChanged('phraseTwice');
+        });
+        getEl('secondPassBtn')?.addEventListener('click', () => {
+            state.secondPassOnYourOwn = !state.secondPassOnYourOwn;
+            syncBooleanPill('secondPassBtn', state.secondPassOnYourOwn, '2nd pass: on your own', '2nd pass: with tones');
+            onSettingChanged('secondPassOnYourOwn');
+        });
+        getEl('revealBtn')?.addEventListener('click', () => {
+            state.revealAfterPhrase = !state.revealAfterPhrase;
+            // Reveal needs look-back room behind the now-line for the
+            // whole revealed phrase; nudge once, then it is the user's.
+            if (state.revealAfterPhrase && state.nowFraction < 0.5) {
+                state.nowFraction = 0.5;
+                syncAdjusterControls();
+            }
+            syncBooleanPill('revealBtn', state.revealAfterPhrase, 'reveal when done', 'reveal live');
+            onSettingChanged('revealAfterPhrase');
+        });
+        getEl('hearRootBtn')?.addEventListener('click', async () => {
+            try {
+                await PianoCore.ensureStarted();
+            } catch (_err) {
+                return; // No audio context - the button just does nothing.
+            }
+            const midi = rootMidi();
+            if (midi !== null && piano) piano.playMidi(midi, 1.2);
         });
         getEl('startBtn')?.addEventListener('click', () => { startRun(); });
         getEl('stopBtn')?.addEventListener('click', () => { stopRun({ save: true }); });
@@ -1224,6 +1290,7 @@
             soundedNoteCount: () => soundedNoteCount,
             piano: () => piano,
             audioLeadMs,
+            revealBeforeBeat,
             zoneYForMidi: (midi) => view.zoneYForMidi(midi),
             pitchRange: tracePitchRange,
             startRun,

@@ -182,6 +182,154 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`stored 'measure' rest migrates to rest 0 + to barline (${migrated.restBeats}, ${migrated.restToBarline})`,
         migrated.restBeats === 0 && migrated.restToBarline === true);
 
+    // --- Phrase x2: each phrase repeats with the same melody + rhythm ---
+    const phraseTwice = await tab.evaluate(() => {
+        const events = PatternPracticeCore.createContinuousSequence({
+            scaleType: 'major', startAtOne: true, rangeLow: 0, rangeHigh: 7,
+            minLength: 3, maxLength: 6, returnToInitial: false, returnToRoot: false,
+            phraseAlgo: 'arch', durationBeats: [0.5, 1, 2], restBeats: 1,
+            restToBarline: true, phraseTwice: true
+        }).nextEvents(96);
+        /** @type {Array<Array<{ offset: number, beats: number, secondPass: boolean }>>} */
+        const runs = [];
+        let current = null;
+        for (const event of events) {
+            if (event.type !== 'note') { current = null; continue; }
+            if (!current) { current = []; runs.push(current); }
+            current.push({ offset: event.offset, beats: event.beats, secondPass: event.secondPass === true });
+        }
+        const wholePairs = Math.floor(runs.length / 2);
+        let pairsMatch = wholePairs > 0;
+        let flagsOk = true;
+        for (let pair = 0; pair < wholePairs; pair++) {
+            const first = runs[pair * 2];
+            const second = runs[pair * 2 + 1];
+            pairsMatch = pairsMatch && first.length === second.length
+                && first.every((note, i) => note.offset === second[i].offset && note.beats === second[i].beats);
+            flagsOk = flagsOk && first.every(note => !note.secondPass) && second.every(note => note.secondPass);
+        }
+        const onBarline = events.every((event, index) =>
+            event.type !== 'note' || index === 0 || events[index - 1].type === 'note'
+            || event.startBeat % 4 === 0);
+        return { runCount: runs.length, pairsMatch, flagsOk, onBarline };
+    });
+    report.check(`phrase x2 repeats each phrase with identical melody and rhythm (${phraseTwice.runCount} runs)`,
+        phraseTwice.pairsMatch && phraseTwice.flagsOk && phraseTwice.onBarline);
+
+    // --- 2nd pass on your own: the repeat never sounds -----------------
+    const silentPass = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        debug.applySettings({
+            phraseTwice: true, secondPassOnYourOwn: true, hearTones: true,
+            restBeats: 2, restToBarline: false
+        });
+        debug.regenerate();
+        debug.stopRun();
+        const events = debug.events();
+        const firstNote = events.find(event => event.type === 'note' && !event.secondPass);
+        const firstRepeat = events.find(event => event.type === 'note' && event.secondPass);
+        const piano = debug.piano();
+        const real = piano.playMidiAudibleIn;
+        let calls = [];
+        piano.playMidiAudibleIn = midi => { calls.push(midi); };
+        debug.setClockBeat(firstNote.startBeat + 0.01);
+        const firstPassCalls = calls.length;
+        calls = [];
+        debug.setClockBeat(firstRepeat.startBeat + 0.01);
+        const repeatCalls = calls.length;
+        piano.playMidiAudibleIn = real;
+        debug.setClockBeat(-4);
+        debug.stopRun();
+        debug.applySettings({ phraseTwice: false, secondPassOnYourOwn: false });
+        debug.regenerate();
+        return { firstPassCalls, repeatCalls, hasRepeatNote: Boolean(firstRepeat) };
+    });
+    report.check(`2nd pass on your own keeps the repeat silent (${silentPass.firstPassCalls} first-pass tones, ${silentPass.repeatCalls} repeat tones)`,
+        silentPass.hasRepeatNote && silentPass.firstPassCalls >= 1 && silentPass.repeatCalls === 0);
+
+    // --- Reveal when done: guides + sung line wait for the phrase ------
+    const reveal = await tab.evaluate(async () => {
+        const debug = window.staffDebug;
+        debug.applySettings({ revealAfterPhrase: true, showPitchGuides: true, sungLinePlacement: 'band' });
+        debug.setMode('scroll');
+        await debug.startRun();
+        const events = debug.events();
+        const runs = [];
+        let current = null;
+        for (const event of events) {
+            if (event.type !== 'note') { current = null; continue; }
+            if (!current) { current = { startBeat: event.startBeat, endBeat: 0 }; runs.push(current); }
+            current.endBeat = event.startBeat + event.beats;
+        }
+        const countBand = () => {
+            const overlay = /** @type {HTMLCanvasElement} */ (document.querySelector('.staff-scroll-overlay'));
+            const geometry = window.staffDebug.geometry();
+            const left = Math.round(geometry.headerWidth) + 20;
+            const pixels = overlay.getContext('2d').getImageData(
+                left, geometry.pitchZoneTop + 16, overlay.width - left - 2, geometry.pitchZoneHeight - 18).data;
+            let guides = 0;
+            let trace = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                const [r, , b, a] = [pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]];
+                if (a <= 60 || b <= r) continue;
+                if (b - r < 60) guides++;
+                else if (b - r > 150) trace++;
+            }
+            return { guides, trace };
+        };
+        // Sing near the phrase END so the revealed dot still sits inside
+        // the counted region behind the now-line at reveal time.
+        debug.recordTraceSample(runs[0].endBeat - 1, 50);
+        debug.setClockBeat(runs[0].startBeat + 0.4);
+        const boundaryDuring = debug.revealBeforeBeat();
+        const during = countBand();
+        debug.setClockBeat(runs[0].endBeat + 0.05);
+        const boundaryAfter = debug.revealBeforeBeat();
+        const after = countBand();
+        debug.setClockBeat(-4);
+        debug.stopRun();
+        const idleBoundary = debug.revealBeforeBeat();
+        debug.applySettings({ revealAfterPhrase: false });
+        debug.setMode('page');
+        return {
+            boundaryDuring, boundaryAfter, during, after, idleBoundary,
+            run0Start: runs[0].startBeat, run1Start: runs[1] ? runs[1].startBeat : null
+        };
+    });
+    report.check(`reveal when done hides guides and sung line during the phrase (${reveal.during.guides}/${reveal.during.trace}, boundary ${reveal.boundaryDuring})`,
+        reveal.during.guides === 0 && reveal.during.trace === 0
+        && reveal.boundaryDuring === reveal.run0Start);
+    report.check(`reveal when done shows the finished phrase (${reveal.after.guides} guide px, ${reveal.after.trace} trace px, boundary ${reveal.boundaryAfter}); idle reviews in full`,
+        reveal.after.guides > 0 && reveal.after.trace > 0
+        && reveal.boundaryAfter === reveal.run1Start
+        && reveal.idleBoundary === null);
+
+    // --- Reveal pill nudges the now-line; hear 1 plays the root --------
+    const stageActions = await tab.evaluate(async () => {
+        const debug = window.staffDebug;
+        debug.applySettings({ revealAfterPhrase: false, nowFraction: 0.3 });
+        /** @type {HTMLElement} */ (document.getElementById('revealBtn')).click();
+        const afterOn = { reveal: debug.settings().revealAfterPhrase, now: debug.settings().nowFraction };
+        const pillText = document.getElementById('revealBtn')?.textContent;
+        /** @type {HTMLElement} */ (document.getElementById('revealBtn')).click();
+        const afterOff = { reveal: debug.settings().revealAfterPhrase, now: debug.settings().nowFraction };
+
+        const piano = debug.piano();
+        const before = new Set(piano.activeVoices().map(voice => voice.id));
+        /** @type {HTMLElement} */ (document.getElementById('hearRootBtn')).click();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        const rootMidiValue = 48; // C3 in this suite's settings
+        const rootVoice = piano.activeVoices()
+            .find(voice => voice.midi === rootMidiValue && !before.has(voice.id)) || null;
+        piano.stopAll();
+        return { afterOn, pillText, afterOff, rootPlayed: rootVoice !== null };
+    });
+    report.check(`reveal pill nudges the now-line right once ("${stageActions.pillText}", now 30% -> ${Math.round(stageActions.afterOn.now * 100)}% -> stays ${Math.round(stageActions.afterOff.now * 100)}%)`,
+        stageActions.afterOn.reveal === true && stageActions.afterOn.now === 0.5
+        && stageActions.pillText === 'reveal when done'
+        && stageActions.afterOff.reveal === false && stageActions.afterOff.now === 0.5);
+    report.check('hear 1 button plays the key root', stageActions.rootPlayed);
+
     // --- Car display: phrase numbers lead the sheet ---------------------
     // While a run moves, the now-playing title is the number sequence of
     // the phrase that is playing or (during rests and the lead-in) coming

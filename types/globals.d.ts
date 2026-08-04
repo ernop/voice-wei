@@ -149,6 +149,7 @@ interface Window {
         soundedNoteCount: () => number;
         piano: () => any;
         audioLeadMs: () => number;
+        revealBeforeBeat: () => number | null;
         startRun: () => Promise<void>;
         stopRun: () => void;
         recordTraceSample: (beat: number, midi: number) => void;

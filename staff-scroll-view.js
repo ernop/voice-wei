@@ -516,12 +516,17 @@ const StaffScrollView = (function () {
             context.textBaseline = 'top';
             context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
 
+            // Reveal-when-done: guides and the sung line draw only for
+            // phrases already finished (before the boundary beat).
+            const revealBefore = config.revealBeforeBeat();
+
             if (config.showPitchGuides()) {
                 const pxPerBeat = config.pxPerBeat();
                 context.strokeStyle = 'rgba(100, 116, 139, 0.55)';
                 context.lineWidth = 3;
                 context.lineCap = 'round';
                 for (const position of notePositions) {
+                    if (revealBefore !== null && position.beat >= revealBefore) continue;
                     const x1 = position.x - offset;
                     const x2 = x1 + Math.max(position.beats * pxPerBeat - 4, 4);
                     if (x2 < headerWidth + 2 || x1 > width) continue;
@@ -595,7 +600,8 @@ const StaffScrollView = (function () {
                     const outOfLane = onStaff
                         ? (y < 4 || y > PITCH_ZONE_TOP - 4)
                         : (sample.midi < range.minMidi || sample.midi > range.maxMidi);
-                    if (x < headerWidth + 2 || x > width + 20 || outOfLane) {
+                    const heldBack = revealBefore !== null && sample.beat >= revealBefore;
+                    if (x < headerWidth + 2 || x > width + 20 || outOfLane || heldBack) {
                         flushSegment();
                         previousBeat = null;
                         continue;

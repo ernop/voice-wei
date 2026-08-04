@@ -65,6 +65,10 @@
                         <input type="checkbox" id="showDegreesToggle" checked>
                         <span>show numbers</span>
                     </label>
+                    <button class="vf-btn phrase-toggle-btn" id="revealBtn" type="button" aria-pressed="false"
+                        title="Hold back the note guides and your sung line until each phrase's time is fully over, then reveal them - sing blind, check yourself as you go (loaded takes always show in full)">reveal live</button>
+                    <button class="vf-btn" id="hearRootBtn" type="button"
+                        title="Play degree 1 (the key's root) as a reminder">hear 1</button>
                     <label class="display-toggle" title="Show the live sung-pitch readout (note, frequency, cents)">
                         <input type="checkbox" id="pitchReadoutToggle" checked>
                         <span>pitch info</span>
@@ -205,6 +209,10 @@
                             title="Toggle: start each phrase at degree 1, or at a random degree">start at 1</button>
                         <button class="vf-btn phrase-toggle-btn" id="returnAnchorBtn" type="button" aria-pressed="true"
                             title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
+                        <button class="vf-btn phrase-toggle-btn" id="phraseTwiceBtn" type="button" aria-pressed="false"
+                            title="Toggle: each phrase appears twice in a row (same melody, same rhythm) - meet it, then do it again">phrase x1</button>
+                        <button class="vf-btn phrase-toggle-btn" id="secondPassBtn" type="button" aria-pressed="false"
+                            title="With phrase x2 and hear tones: the repeat stays silent - the second time through is yours">2nd pass: with tones</button>
                     </div>
                     <div class="vf-row staff-range-row">
                         <div class="step-field" title="Lowest degree phrases may use. Below 1 reaches under the unison.">

@@ -110,7 +110,8 @@
     gap: 6px;
 }
 
-.staff-sung-line-row .vf-btn {
+.staff-sung-line-row .vf-btn,
+.staff-stage-meta > .vf-btn {
     padding: 1px 8px;
     font-size: 0.75rem;
     text-transform: none;

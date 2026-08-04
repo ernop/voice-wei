@@ -188,6 +188,8 @@ interface TimedSequenceEvent {
     beats: number;
     /** Absolute start position in beats from sequence start */
     startBeat: number;
+    /** Notes of a phrase's repeat pass (phrase-twice mode); notes only */
+    secondPass?: boolean;
 }
 
 /**
@@ -239,6 +241,11 @@ interface StaffScrollViewConfig {
     showPitchGuides: () => boolean;
     /** Where the recorded sung line draws: on the notation, in the pitch band, or nowhere */
     sungLinePlacement: () => 'off' | 'staff' | 'band';
+    /**
+     * Reveal-when-done boundary: guides and the sung line draw only
+     * before this beat (phrases already finished). null = no deferral.
+     */
+    revealBeforeBeat: () => number | null;
     /** The pitch band's stable frame (working range; singing never rescales it) */
     pitchRange: () => { minMidi: number; maxMidi: number };
     /** Live sung pitch for the page-mode indicator dot; null = silent */

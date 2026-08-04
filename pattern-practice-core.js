@@ -1402,6 +1402,7 @@ const PatternPracticeCore = (function () {
      *   durationBeats?: number[],
      *   restBeats?: number,
      *   restToBarline?: boolean,
+     *   phraseTwice?: boolean,
      *   startBeat?: number
      * }} options
      */
@@ -1415,6 +1416,10 @@ const PatternPracticeCore = (function () {
         // downbeat. Both together read "rest at least N, then to the bar".
         const restBeats = Math.max(0, typeof options.restBeats === 'number' ? options.restBeats : 1);
         const restToBarline = options.restToBarline === true;
+        // phraseTwice repeats each phrase as a second pass (same melody,
+        // same rhythm), separated by the normal rest span, so it can be
+        // heard once and then done again on one's own.
+        const phraseTwice = options.phraseTwice === true;
         let beat = Math.max(0, options.startBeat || 0);
 
         /** @param {TimedSequenceEvent[]} events @param {number} spanBeats */
@@ -1445,12 +1450,22 @@ const PatternPracticeCore = (function () {
             nextEvents(minBeats) {
                 /** @type {TimedSequenceEvent[]} */
                 const events = [];
+                /** @param {TimedSequenceEvent[]} into */
+                const pushPhraseRest = (into) => {
+                    if (restBeats > 0) pushRests(into, restBeats);
+                    if (restToBarline) {
+                        const intoMeasure = positiveModulo(beat, beatsPerMeasure);
+                        if (intoMeasure > 1e-9) pushRests(into, beatsPerMeasure - intoMeasure);
+                    }
+                };
                 const targetBeat = beat + Math.max(1, minBeats);
                 while (beat < targetBeat) {
                     const offsets = generatePhraseOffsets({
                         ...options,
                         accidentalRate: options.accidentalRate || 0
                     });
+                    /** @type {Array<{ offset: number, beats: number }>} */
+                    const performed = [];
                     for (const offset of offsets) {
                         const remaining = beatsPerMeasure - positiveModulo(beat, beatsPerMeasure);
                         let beats = pickDurationBeats(durations, remaining);
@@ -1460,12 +1475,24 @@ const PatternPracticeCore = (function () {
                             if (beats === null) beats = durations[0];
                         }
                         events.push({ type: 'note', offset, beats, startBeat: beat });
+                        performed.push({ offset, beats });
                         beat += beats;
                     }
-                    if (restBeats > 0) pushRests(events, restBeats);
-                    if (restToBarline) {
-                        const intoMeasure = positiveModulo(beat, beatsPerMeasure);
-                        if (intoMeasure > 1e-9) pushRests(events, beatsPerMeasure - intoMeasure);
+                    pushPhraseRest(events);
+                    if (phraseTwice) {
+                        // Replay the SAME melody and rhythm; only barline
+                        // fitting differs if this pass starts elsewhere in
+                        // the measure.
+                        for (const note of performed) {
+                            const remaining = beatsPerMeasure - positiveModulo(beat, beatsPerMeasure);
+                            if (note.beats > remaining + 1e-9) pushRests(events, remaining);
+                            events.push({
+                                type: 'note', offset: note.offset, beats: note.beats,
+                                startBeat: beat, secondPass: true
+                            });
+                            beat += note.beats;
+                        }
+                        pushPhraseRest(events);
                     }
                 }
                 return events;
