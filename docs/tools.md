@@ -176,6 +176,11 @@ draws - **band** (the pitch band's taller scale), **staff** (right on
 the notation, against the noteheads it should match, clipped to the
 staff area), or **off** (sing without watching yourself, then reveal
 to review). Both persist; the page-mode live dot stays either way.
+**reveal when done** holds guides and the sung line back until each
+phrase's time is fully over, then shows them - sing blind, check
+yourself during the rest (enabling it nudges the now-line to 50% so a
+whole revealed phrase fits behind it; idle and loaded takes always
+show in full). **hear 1** plays the key's root as a reminder anytime.
 The band's frame is the working range (plus the sheet's notes) and stays
 fixed for the run; out-of-range pitch is clipped, never rescales it.
 
@@ -186,7 +191,9 @@ passing-note rate - applied continuously, phrase after phrase, with a
 configurable rest span between phrases: a guaranteed beat count, plus an
 optional **then to end of bar** fill that keeps resting to the next
 barline so every phrase starts on a downbeat ("rest at least 2 beats,
-then to the bar"). Rests
+then to the bar"). **phrase x2** makes each phrase appear twice in a row
+(same melody, same rhythm); with **2nd pass: on your own** and hear
+tones, the repeat stays silent - hear it once, then it is yours. Rests
 render as standard glyphs
 (whole/half/quarter/eighth) on the staff the melodic line last used, and
 never cross a barline.

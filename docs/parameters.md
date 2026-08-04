@@ -188,11 +188,14 @@ generates ahead of the now-line - never the sheet already drawn.
 | durationBeats | quarter + half | multi-select of eighth, quarter, half, whole; at least one stays on | bounds-next |
 | restBeats | 2 | none, half, 1, 2, 3, 4 - the guaranteed rest after each phrase | bounds-next |
 | restToBarline | false | "then to end of bar" pill: after the guaranteed rest, keep resting to the next barline so every phrase starts on beat 1. With Rest 0 a phrase ending on the barline gets no rest at all; set Rest > 0 to always breathe | bounds-next |
+| phraseTwice | false | "phrase x2" pill: each phrase appears twice in a row with the same melody and rhythm (each pass followed by the configured rest) | bounds-next |
+| secondPassOnYourOwn | false | "2nd pass: on your own" pill: with phrase x2 and hear tones, the repeat pass stays silent - hear it once, then do it yourself | immediate |
+| revealAfterPhrase | false | "reveal when done" pill (stage row): note guides and the sung line stay hidden until each phrase's time is fully over, then appear - sing blind, check as you go. Idle/loaded review always shows in full. Enabling it once nudges Now to at least 50% for look-back room | redraw |
 | measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
 | bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
 | audioOffsetMs | 0 ("Audio Lead") | -300..+500ms list; manual audible-onset trim on top of the reported device latency - + sounds notes earlier against the now-line, - later (for devices that under-report output latency, e.g. some Bluetooth) | immediate |
 | pxPerBeat | 26 | 14..48 px list | redraw |
-| nowFraction | 10% | 5..50% of the visible staff (a small floor keeps a little look-back room) | redraw |
+| nowFraction | 10% | 5..75% of the visible staff (a small floor keeps a little look-back room; high values leave room to review revealed phrases behind the line) | redraw |
 | staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
 | hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line | immediate |
 | showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
