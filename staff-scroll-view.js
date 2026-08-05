@@ -45,11 +45,13 @@ const StaffScrollView = (function () {
 
     // The dedicated pitch band under the staff: the sung trace lives
     // here, at its own (taller) pitch scale, so singing detail is
-    // readable without drawing over the notation.
+    // readable without drawing over the notation. The band only exists
+    // while something is configured to draw in it (note guides, or the
+    // sung line placed there); otherwise the view ends at the staff and
+    // the page gets the height back.
     const PITCH_ZONE_TOP = SVG_HEIGHT;
     const PITCH_ZONE_HEIGHT = 108;
     const PITCH_ZONE_PAD = 10;
-    const TOTAL_HEIGHT = PITCH_ZONE_TOP + PITCH_ZONE_HEIGHT;
 
     /** @param {StaffScrollViewConfig} config */
     function create(config) {
@@ -78,6 +80,14 @@ const StaffScrollView = (function () {
         /** @type {Array<'treble' | 'bass'>} clef per event index (rests follow the melodic line) */
         let eventClefs = [];
         let renderSignature = '';
+
+        function bandVisible() {
+            return config.showPitchGuides() || config.sungLinePlacement() === 'band';
+        }
+
+        function totalHeight() {
+            return PITCH_ZONE_TOP + (bandVisible() ? PITCH_ZONE_HEIGHT : 0);
+        }
 
         function ensureDom() {
             host = document.getElementById(config.hostId);
@@ -462,9 +472,9 @@ const StaffScrollView = (function () {
             const isScroll = config.mode() === 'scroll';
             viewport.classList.toggle('staff-scroll-viewport-page', !isScroll);
             strip.style.width = `${onsetX(totalBeats()) + 160}px`;
-            // The strip reserves the pitch band's height too, so the
-            // shell (and its background) covers both bands.
-            strip.style.height = `${TOTAL_HEIGHT}px`;
+            // The strip reserves the pitch band's height too (when the
+            // band is in use), so the shell background covers both.
+            strip.style.height = `${totalHeight()}px`;
             if (isScroll) {
                 viewport.scrollLeft = 0;
                 strip.style.transform = `translateX(${-scrollOffset()}px)`;
@@ -476,12 +486,13 @@ const StaffScrollView = (function () {
         function syncOverlaySize() {
             if (!overlay || !viewport) return;
             const width = viewport.clientWidth;
+            const height = totalHeight();
             const ratio = window.devicePixelRatio || 1;
-            if (overlay.width !== Math.round(width * ratio) || overlay.height !== Math.round(TOTAL_HEIGHT * ratio)) {
+            if (overlay.width !== Math.round(width * ratio) || overlay.height !== Math.round(height * ratio)) {
                 overlay.width = Math.round(width * ratio);
-                overlay.height = Math.round(TOTAL_HEIGHT * ratio);
+                overlay.height = Math.round(height * ratio);
                 overlay.style.width = `${width}px`;
-                overlay.style.height = `${TOTAL_HEIGHT}px`;
+                overlay.style.height = `${height}px`;
             }
         }
 
@@ -493,28 +504,32 @@ const StaffScrollView = (function () {
             const ratio = window.devicePixelRatio || 1;
             context.setTransform(ratio, 0, 0, ratio, 0, 0);
             const width = viewport.clientWidth;
-            context.clearRect(0, 0, width, TOTAL_HEIGHT);
+            const height = totalHeight();
+            context.clearRect(0, 0, width, height);
             const isScroll = config.mode() === 'scroll';
             const offset = scrollOffset();
             const range = config.pitchRange();
+            const withBand = bandVisible();
 
             // The pitch band: a quiet tinted lane under the staff with
             // its own (taller) pitch scale. Reference segments mark each
             // sheet note's pitch and span; the sung trace draws against
             // them, never over the notation.
-            context.fillStyle = 'rgba(15, 23, 42, 0.045)';
-            context.fillRect(0, PITCH_ZONE_TOP, width, PITCH_ZONE_HEIGHT);
-            context.strokeStyle = 'rgba(15, 23, 42, 0.16)';
-            context.lineWidth = 1;
-            context.beginPath();
-            context.moveTo(0, PITCH_ZONE_TOP + 0.5);
-            context.lineTo(width, PITCH_ZONE_TOP + 0.5);
-            context.stroke();
-            context.fillStyle = 'rgba(71, 85, 105, 0.75)';
-            context.font = '10px system-ui';
-            context.textAlign = 'left';
-            context.textBaseline = 'top';
-            context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
+            if (withBand) {
+                context.fillStyle = 'rgba(15, 23, 42, 0.045)';
+                context.fillRect(0, PITCH_ZONE_TOP, width, PITCH_ZONE_HEIGHT);
+                context.strokeStyle = 'rgba(15, 23, 42, 0.16)';
+                context.lineWidth = 1;
+                context.beginPath();
+                context.moveTo(0, PITCH_ZONE_TOP + 0.5);
+                context.lineTo(width, PITCH_ZONE_TOP + 0.5);
+                context.stroke();
+                context.fillStyle = 'rgba(71, 85, 105, 0.75)';
+                context.font = '10px system-ui';
+                context.textAlign = 'left';
+                context.textBaseline = 'top';
+                context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
+            }
 
             // Reveal-when-done: guides and the sung line draw only for
             // phrases already finished (before the boundary beat).
@@ -545,7 +560,7 @@ const StaffScrollView = (function () {
                 context.lineWidth = 2;
                 context.beginPath();
                 context.moveTo(nowX, 6);
-                context.lineTo(nowX, TOTAL_HEIGHT - 6);
+                context.lineTo(nowX, height - 6);
                 context.stroke();
                 context.fillStyle = 'rgba(220, 38, 38, 0.85)';
                 context.beginPath();
@@ -613,21 +628,26 @@ const StaffScrollView = (function () {
                 flushSegment();
             }
 
+            // Page-mode live dot: with the band up it uses the band's
+            // taller scale; with the band hidden it sits on the staff's
+            // own diatonic grid (clipped to the notation area).
             const liveMidi = config.liveMidi();
             if (!isScroll && liveMidi !== null
                 && liveMidi >= range.minMidi && liveMidi <= range.maxMidi) {
-                const y = zoneYForMidi(liveMidi);
-                const x = headerWidth + 16;
-                context.fillStyle = 'rgba(37, 99, 235, 0.9)';
-                context.beginPath();
-                context.arc(x, y, 5, 0, Math.PI * 2);
-                context.fill();
-                context.strokeStyle = 'rgba(37, 99, 235, 0.35)';
-                context.lineWidth = 1.5;
-                context.beginPath();
-                context.moveTo(headerWidth + 2, y);
-                context.lineTo(width - 4, y);
-                context.stroke();
+                const y = withBand ? zoneYForMidi(liveMidi) : yForMidi(liveMidi);
+                if (withBand || (y >= 4 && y <= PITCH_ZONE_TOP - 4)) {
+                    const x = headerWidth + 16;
+                    context.fillStyle = 'rgba(37, 99, 235, 0.9)';
+                    context.beginPath();
+                    context.arc(x, y, 5, 0, Math.PI * 2);
+                    context.fill();
+                    context.strokeStyle = 'rgba(37, 99, 235, 0.35)';
+                    context.lineWidth = 1.5;
+                    context.beginPath();
+                    context.moveTo(headerWidth + 2, y);
+                    context.lineTo(width - 4, y);
+                    context.stroke();
+                }
             }
         }
 
@@ -700,7 +720,9 @@ const StaffScrollView = (function () {
                     chunkCount: chunkCache.size,
                     notePositions: notePositions.slice(),
                     pitchZoneTop: PITCH_ZONE_TOP,
-                    pitchZoneHeight: PITCH_ZONE_HEIGHT
+                    pitchZoneHeight: PITCH_ZONE_HEIGHT,
+                    pitchBandVisible: bandVisible(),
+                    totalHeight: totalHeight()
                 };
             }
         };

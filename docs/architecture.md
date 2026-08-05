@@ -293,7 +293,7 @@ a dozen rails and bands). `RateGate` throttles apply only to ANALYSIS
 (scoring, ~100ms) and TEXT readouts (~50ms), never to the pixels.
 
 **The embeddable panel** (`pitch-test-panel.js`). Phrases (Test), Scales
-(Sing), Intervals (Sing), and Staff (Sing) embed the same component; a page supplies a
+(Sing), and Intervals (Sing) embed the same component; a page supplies a
 typed `PitchTestPanelConfig` (key, rails, targets, content duration,
 `playNote`). The panel renders its own markup, owns the trace session,
 and sequences guide playback from the same target spans it draws - guide

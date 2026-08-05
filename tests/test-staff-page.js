@@ -13,7 +13,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
 
 (async () => {
     const report = createReporter('staff page');
-    // Fake mic so the Sing panel's listen start succeeds silently.
+    // Fake mic so Listen starts succeed silently.
     const browser = await launchWithMic();
     const tab = await browser.newPage();
     collectErrors(tab, 'staff', report.errors);
@@ -1097,100 +1097,121 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`hiding the tab pauses the run ("${hiddenPause.status}", ${hiddenPause.state})`,
         hiddenPause.state === 'paused' && hiddenPause.status.includes('hidden'));
 
-    // --- Sing panel: the shared docked test chart on the staff page ----
-    const singModel = await tab.evaluate(() => {
-        window.staffDebug.regenerate();
-        const rails = window.staffDebug.singRails(false);
-        const targets = window.staffDebug.singTargets();
-        const events = window.staffDebug.events().filter(event => event.type === 'note');
-        const railMidis = rails.map(rail => rail.midi);
-        const bpm = window.staffDebug.settings().bpm;
-        const msPerBeat = 60000 / bpm;
-        const timingMatches = targets.every((target, index) => {
-            const event = events[index];
-            return Math.abs(target.startMs - event.startBeat * msPerBeat) < 1e-6
-                && Math.abs(target.endMs - (event.startBeat + event.beats) * msPerBeat) < 1e-6;
-        });
-        return {
-            railCount: rails.length,
-            targetCount: targets.length,
-            noteCount: events.length,
-            midisMatch: targets.every((target, index) => target.midi === events[index].midi),
-            timingMatches,
-            targetsCovered: targets.every(target =>
-                target.midi >= Math.min(...railMidis) && target.midi <= Math.max(...railMidis)),
-            docked: Boolean(document.querySelector('#staffSingDock .pitch-test-launch-button'))
-        };
-    });
-    report.check(`staff sing targets are the sheet notes (${singModel.targetCount}/${singModel.noteCount})`,
-        singModel.targetCount === singModel.noteCount && singModel.targetCount > 0 && singModel.midisMatch);
-    report.check('staff sing target timing follows the sheet beats at the current bpm', singModel.timingMatches);
-    report.check(`staff sing rails cover every sheet note (${singModel.railCount} rails)`,
-        singModel.railCount > 0 && singModel.targetsCovered);
-    report.check('staff sing launch button lives in the bottom dock', singModel.docked);
+    // --- No Sing dock: the staff itself owns singing review ------------
+    const dockGone = await tab.evaluate(() => ({
+        dock: Boolean(document.getElementById('staffSingDock')),
+        launch: Boolean(document.querySelector('.pitch-test-launch-button'))
+    }));
+    report.check('the retired bottom Sing dock is gone from the page',
+        !dockGone.dock && !dockGone.launch);
 
-    // Open the panel, sing one note through the sample seam, and check
-    // the take scores and records like every other panel page.
-    await tab.evaluate(() => {
-        window.staffDebug.singPanel().open();
-    });
-    await tab.waitForFunction(() => {
-        const listenBtn = document.getElementById('staffSingListenBtn');
-        return listenBtn && listenBtn.textContent.includes('Listening On');
-    }, null, { timeout: 10000 });
-    const singScored = await tab.evaluate(async () => {
-        const panel = window.staffDebug.singPanel();
-        // Stop the mic (the fake device beeps forever) and feed samples
-        // through the deterministic seam instead.
-        document.getElementById('staffSingListenBtn')?.click();
-        // Wall-clock mode so unsung target windows pass deterministically.
-        document.getElementById('staffSingPauseToggle')?.click();
-        const targets = window.staffDebug.singTargets();
-        for (let k = 0; k < 5; k++) panel.recordSample(targets[0].midi, 30 + k * 50);
+    // --- Pitch band collapses when nothing draws in it -----------------
+    const bandCollapse = await tab.evaluate(() => {
+        const overlayHeight = () => /** @type {HTMLCanvasElement} */ (
+            document.querySelector('.staff-scroll-overlay')).getBoundingClientRect().height;
+        /** @param {string} placement */
+        const setPlacement = placement => {
+            /** @type {HTMLElement} */ (
+                document.querySelector(`[data-sung-line="${placement}"]`)).click();
+        };
+        /** @param {boolean} want */
+        const setGuides = want => {
+            const el = /** @type {HTMLInputElement} */ (document.getElementById('pitchGuidesToggle'));
+            if (el.checked !== want) el.click();
+        };
+        setGuides(true);
+        setPlacement('band');
+        const withBand = { height: overlayHeight(), ...window.staffDebug.geometry() };
+        // Nothing aims at the band: guides off, sung line on the staff.
+        setGuides(false);
+        setPlacement('staff');
+        const collapsed = {
+            height: overlayHeight(),
+            visible: window.staffDebug.geometry().pitchBandVisible
+        };
+        // Either user of the band brings it back on its own.
+        setPlacement('band');
+        const backViaPlacement = window.staffDebug.geometry().pitchBandVisible;
+        setPlacement('staff');
+        setGuides(true);
+        const backViaGuides = window.staffDebug.geometry().pitchBandVisible;
+        setPlacement('band');
         return {
-            open: panel.isOpen,
-            recorded: panel.history.length,
-            keyLine: document.getElementById('staffSingKey')?.textContent || ''
+            withBandHeight: withBand.height,
+            withBandVisible: withBand.pitchBandVisible,
+            zoneTop: withBand.pitchZoneTop,
+            zoneHeight: withBand.pitchZoneHeight,
+            collapsedHeight: collapsed.height,
+            collapsedVisible: collapsed.visible,
+            backViaPlacement,
+            backViaGuides
         };
     });
-    report.check(`staff sing panel opens and records samples (${singScored.recorded} samples, "${singScored.keyLine}")`,
-        singScored.open && singScored.recorded === 5 && /^Key: /.test(singScored.keyLine));
+    report.check(`pitch band collapses when nothing draws in it (${bandCollapse.withBandHeight}px -> ${bandCollapse.collapsedHeight}px)`,
+        bandCollapse.withBandVisible && !bandCollapse.collapsedVisible
+        && bandCollapse.withBandHeight === bandCollapse.zoneTop + bandCollapse.zoneHeight
+        && bandCollapse.collapsedHeight === bandCollapse.zoneTop);
+    report.check('note guides or band placement each bring the band back',
+        bandCollapse.backViaPlacement && bandCollapse.backViaGuides);
 
-    // While a run is on the move the TRANSPORT owns the take clock, so
-    // the panel and the moving sheet can never split; with no run the
-    // panel is self-paced (voice-gated).
-    const clockSync = await tab.evaluate(async () => {
-        const debug = window.staffDebug;
-        debug.stopRun();
-        const idleClock = debug.singTakeClockMs();
-        const historyBeforeStart = debug.singPanel().history.length; // 5 from above
-        await debug.startRun();
-        const bpm = debug.settings().bpm;
-        debug.setClockBeat(8);
-        const runningClock = debug.singTakeClockMs();
-        const historyAfterStart = debug.singPanel().history.length;
-        debug.stopRun();
-        const clockAfterStop = debug.singTakeClockMs();
-        const historyAfterStop = debug.singPanel().history.length;
+    // --- Fullscreen: the only mobile route past the browser bars -------
+    const fullscreenBefore = await tab.evaluate(() => {
+        const btn = document.getElementById('fullscreenBtn');
         return {
-            idleClock,
-            historyBeforeStart,
-            runningClock,
-            expectedRunningClock: 8 * (60000 / bpm),
-            historyAfterStart,
-            clockAfterStop,
-            historyAfterStop
+            present: Boolean(btn),
+            shown: btn ? !btn.hidden : false,
+            apiEnabled: document.fullscreenEnabled,
+            label: btn ? (btn.textContent || '') : '',
+            compact: document.body.classList.contains('staff-compact'),
+            inStageMeta: Boolean(document.querySelector('.staff-stage-meta #fullscreenBtn'))
         };
     });
-    report.check(`staff sing take clock is voice-gated with no run (${clockSync.idleClock})`,
-        clockSync.idleClock === null);
-    report.check(`staff sing take clock follows the transport mid-run (${clockSync.runningClock}ms at beat 8)`,
-        clockSync.runningClock === clockSync.expectedRunningClock);
-    report.check(`starting a run resets the open take so they begin together (${clockSync.historyBeforeStart} -> ${clockSync.historyAfterStart} samples)`,
-        clockSync.historyBeforeStart === 5 && clockSync.historyAfterStart === 0);
-    report.check(`stopping the run hands the clock back and starts a fresh take (clock ${clockSync.clockAfterStop}, ${clockSync.historyAfterStop} samples)`,
-        clockSync.clockAfterStop === null && clockSync.historyAfterStop === 0);
-    await tab.evaluate(() => { window.staffDebug.singPanel().close(); });
+    report.check(`fullscreen button sits in the stage row and shows where the API exists (api ${fullscreenBefore.apiEnabled}, "${fullscreenBefore.label}")`,
+        fullscreenBefore.present && fullscreenBefore.inStageMeta
+        && fullscreenBefore.shown === fullscreenBefore.apiEnabled
+        && fullscreenBefore.label === 'full screen' && !fullscreenBefore.compact);
+    await tab.click('#fullscreenBtn');
+    await tab.waitForFunction(() => Boolean(document.fullscreenElement), null, { timeout: 5000 });
+    const inFullscreen = await tab.evaluate(() => ({
+        compact: document.body.classList.contains('staff-compact'),
+        headerHidden: getComputedStyle(/** @type {HTMLElement} */ (
+            document.getElementById('siteHeader'))).display === 'none',
+        label: document.getElementById('fullscreenBtn')?.textContent || ''
+    }));
+    await tab.click('#fullscreenBtn');
+    await tab.waitForFunction(() => !document.fullscreenElement, null, { timeout: 5000 });
+    const afterExit = await tab.evaluate(() => ({
+        compact: document.body.classList.contains('staff-compact'),
+        label: document.getElementById('fullscreenBtn')?.textContent || ''
+    }));
+    report.check(`fullscreen enters the compact layout and hides the header ("${inFullscreen.label}")`,
+        inFullscreen.compact && inFullscreen.headerHidden && inFullscreen.label === 'exit full screen');
+    report.check('exiting fullscreen restores the normal layout',
+        !afterExit.compact && afterExit.label === 'full screen');
+
+    // --- Landscape phones: compact layout gives height to the staff ----
+    const landscapeCtx = await browser.newContext({ viewport: { width: 844, height: 390 } });
+    const landscapeTab = await landscapeCtx.newPage();
+    collectErrors(landscapeTab, 'staff-landscape', report.errors);
+    await landscapeTab.goto(`${BASE_URL}/staff.html`, { waitUntil: 'domcontentloaded' });
+    await landscapeTab.waitForFunction(() => Boolean(window.staffDebug && window.staffDebug.events().length), null, { timeout: 20000 });
+    const landscape = await landscapeTab.evaluate(() => {
+        const header = document.getElementById('siteHeader');
+        const stop = document.getElementById('stopBtn');
+        const stage = document.querySelector('.staff-stage');
+        return {
+            compact: document.body.classList.contains('staff-compact'),
+            headerHidden: header ? getComputedStyle(header).display === 'none' : false,
+            stopHeight: stop ? stop.getBoundingClientRect().height : 0,
+            stageTop: stage ? stage.getBoundingClientRect().top : -1
+        };
+    });
+    report.check(`landscape short viewport gets the compact layout (transport ${Math.round(landscape.stopHeight)}px tall)`,
+        landscape.compact && landscape.headerHidden
+        && landscape.stopHeight > 0 && landscape.stopHeight <= 48);
+    report.check(`landscape: the staff stage starts right under the slim transport (top ${Math.round(landscape.stageTop)}px)`,
+        landscape.stageTop > 0 && landscape.stageTop < 80);
+    await landscapeCtx.close();
 
     // --- Narrow-width layout: controls obey the sizing rules ------------
     // Every control unit sizes to its content (no stretched pills), no

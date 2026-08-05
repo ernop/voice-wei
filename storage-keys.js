@@ -32,6 +32,10 @@ const StorageKeys = Object.freeze({
     PANEL_SCALES_SING: 'voice-wei:panel:scales-sing',
     PANEL_INTERVALS_SING: 'voice-wei:panel:intervals-sing',
     PANEL_PHRASES_TEST: 'voice-wei:panel:phrases-test',
+    // Retired: the Staff page dropped its Sing dock (the sung line and
+    // pitch band on the staff itself replaced it). The key remains
+    // registered so the name stays reserved; nothing reads or writes
+    // it anymore.
     PANEL_STAFF_SING: 'voice-wei:panel:staff-sing'
 });
 

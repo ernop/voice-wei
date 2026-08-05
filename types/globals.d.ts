@@ -139,6 +139,8 @@ interface Window {
             notePositions: Array<{ beat: number; beats: number; midi: number; clef: 'treble' | 'bass'; x: number; y: number }>;
             pitchZoneTop: number;
             pitchZoneHeight: number;
+            pitchBandVisible: boolean;
+            totalHeight: number;
         };
         yForMidi: (midi: number) => number;
         zoneYForMidi: (midi: number) => number;
@@ -161,10 +163,6 @@ interface Window {
         settings: () => any;
         stateText: () => string;
         statusLog: () => string[];
-        singPanel: () => any;
-        singRails: (expandRange: boolean) => RailLine[];
-        singTargets: () => TargetSpan[];
-        singTakeClockMs: () => number | null;
         applySettings: (partial: Record<string, unknown>) => void;
     };
 

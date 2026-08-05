@@ -151,7 +151,8 @@ Two modes:
 
 - **page**: the whole sheet is drawn on a still staff (horizontal scroll
   to browse); read and sing at your own pace. With Listen on, a live dot
-  at the left edge of the pitch band shows the pitch currently being sung.
+  at the left edge shows the pitch currently being sung - in the pitch
+  band when it is up, on the staff's own grid when the band is hidden.
 - **scroll**: the staff moves right-to-left past a fixed red **now-line**;
   sing each note as it reaches the line. The sequence keeps generating
   ahead of the now-line, so a run continues until Stop. With **hear
@@ -176,6 +177,10 @@ draws - **band** (the pitch band's taller scale), **staff** (right on
 the notation, against the noteheads it should match, clipped to the
 staff area), or **off** (sing without watching yourself, then reveal
 to review). Both persist; the page-mode live dot stays either way.
+The band only exists while something is configured to draw in it
+(guides on, or the sung line placed there); with guides off and the
+sung line on the staff or off, the view ends at the staff and the page
+gets the height back.
 **reveal when done** holds guides and the sung line back until each
 phrase's time is fully over, then shows them - sing blind, check
 yourself during the rest (enabling it nudges the now-line to 50% so a
@@ -222,16 +227,17 @@ never cross a barline.
   in page mode for review - the staff with your sung line in the pitch
   band beneath it - and Start re-runs the same sheet as a fresh take.
   Recent runs keep their traces; older ones keep just the sheet.
-- **Sing** (bottom dock) opens the shared pitch test panel against the
-  current sheet: targets are the sheet's notes at their metered timing
-  (current bpm), rails span the working range plus every sheet note, and
-  the take is scored per note like Phrases Test. While a run is on the
-  move (Start), the TRANSPORT owns the take clock - trace, targets, and
-  playhead all share run time, so the panel and the moving sheet can
-  never drift apart (pause on silence does not apply then). Starting a
-  run from the top restarts an open take so they begin together; Stop
-  hands the clock back and starts a fresh self-paced take (time starts
-  with your voice, as on other pages).
+  (The former Sing bottom dock is retired: the sung line, guides, and
+  Past Runs on the staff itself replaced it.)
+- Practicing happens sideways on a phone, so vertical space is the
+  scarce resource. In landscape-short viewports - and whenever
+  fullscreen is active - the page enters a **compact layout**
+  (`body.staff-compact`): the site header gives way and the sticky
+  transport becomes a slim solid bar, so the staff gets the height.
+  **full screen** (stage row) additionally removes the browser bars via
+  the Fullscreen API - the only route to true fullscreen on mobile
+  Firefox and Chrome, neither of which has a menu item for it. The
+  button hides on browsers without element fullscreen (iOS Safari).
 - **Copy Text** (by the readout) copies the complete state as plain
   text - every setting plus the generated sequence as degree.duration
   tokens with barlines and the spelled note names - ready to paste into
@@ -752,7 +758,7 @@ OpenAI.
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing),
-Intervals (Sing), and Staff (Sing). Each page launches it from a fixed **bottom dock**
+and Intervals (Sing). Each page launches it from a fixed **bottom dock**
 (independent of the transport row): scale-degree rails, target-band
 outlines, your sung pitch as a yellow trace, and a voice-gated timeline
 (time starts when singing is detected).

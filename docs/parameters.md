@@ -200,16 +200,20 @@ generates ahead of the now-line - never the sheet already drawn.
 | hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line | immediate |
 | showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
 | showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band | redraw |
-| sungLinePlacement | band | "sung line" segment (stage row): off / staff / band - where the recorded blue sung line draws: nowhere, on the notation itself (the noteheads' own diatonic grid, clipped to the staff area), or in the pitch band (the page-mode live dot stays either way) | redraw |
+| sungLinePlacement | band | "sung line" segment (stage row): off / staff / band - where the recorded blue sung line draws: nowhere, on the notation itself (the noteheads' own diatonic grid, clipped to the staff area), or in the pitch band (the page-mode live dot stays either way, moving onto the staff grid when the band is hidden) | redraw |
 | showPitchReadout | true | toggle (stage row, "pitch info") - the live sung-pitch readout (note, Hz, cents) | immediate |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
 Every display-affecting toggle sits in the stage row directly under the
-staff, next to what it changes.
+staff, next to what it changes. The sung-pitch band under the staff only
+exists while something is configured to draw in it: guides on, or the
+sung line placed there - otherwise the view ends at the staff.
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
 run, saves it as a Past Run when at least a bar was traversed, and
 rewinds to the lead-in), Next (new sequence), Listen (microphone on/off),
+full screen (stage row; Fullscreen API toggle - also enters the compact
+landscape layout that drops the site header and shrinks the transport),
 Copy Text (bottom of the control area, above Past Runs; clipboard: every
 setting, the generated sequence as degree.duration tokens and note
 names, plus this session's timestamped status-log lines and any frontend
@@ -442,7 +446,7 @@ original/research; Delete book removes all browser-local records.
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,
-`intervals-sing-panel`, `staff-sing`).
+`intervals-sing-panel`; the Staff page's `staff-sing` panel is retired).
 
 | Option | Default | Behavior |
 |--------|---------|----------|

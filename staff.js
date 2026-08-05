@@ -8,6 +8,11 @@
 // Consumes pattern-practice-core, staff-scroll-view, piano-core,
 // pitch-detect-core, practice-controls, settings-store,
 // media-session-core.
+//
+// Practicing happens sideways on a phone, so vertical space is the
+// scarce resource: in landscape (and in fullscreen) the page drops the
+// site header and shrinks the transport row (body.staff-compact), and
+// the scroll view hides the pitch band whenever nothing draws in it.
 //-----------------------------------------------------------------------
 
 (function () {
@@ -454,7 +459,6 @@
         timedEvents = sequence.nextEvents(state.measures * 4);
         streamCacheKey = '';
         view.render();
-        if (singPanel) singPanel.draw();
         setStatus(`${timedEvents.filter(event => event.type === 'note').length} notes over ${Math.ceil(totalBeats() / 4)} bars`);
     }
 
@@ -560,11 +564,6 @@
             traceSamples = [];
             reviewingSession = false;
         }
-        // Starting from the top hands the take clock to the transport:
-        // an open Sing panel begins a fresh take aligned with the run.
-        if (clockBeat <= -LEAD_IN_BEATS && singPanel && singPanel.isOpen) {
-            void singPanel.open();
-        }
         running = true;
         lastFrameWall = performance.now();
         syncFiredIndex();
@@ -595,16 +594,9 @@
         if (options.save && traversed >= SESSION_MIN_BEATS) {
             saveSession(traversed);
         }
-        const ranPastStart = clockBeat > -LEAD_IN_BEATS;
         clockBeat = -LEAD_IN_BEATS;
         firedIndex = 0;
         resetPhraseMediaTitle();
-        // Stop hands the take clock back to the singer; a transport-
-        // timed take cannot continue under a voice-gated clock, so an
-        // open Sing panel starts fresh (its score is already recorded).
-        if (ranPastStart && singPanel && singPanel.isOpen) {
-            void singPanel.open();
-        }
         syncTransportButtons();
         MediaSessionCore.setPlaybackState('paused');
         view.frame();
@@ -674,7 +666,6 @@
         saveSettings();
         syncAllControls();
         view.render();
-        if (singPanel) singPanel.draw();
         const when = new Date(session.createdAt).toLocaleString();
         setStatus(`Reviewing run from ${when}${traceSamples.length ? ' (sung trace shown)' : ''}`);
     }
@@ -749,114 +740,6 @@
         if (!btn) return;
         btn.classList.toggle('listening', traceSession.listening);
         btn.setAttribute('aria-pressed', String(traceSession.listening));
-    }
-
-    //-------------------------------------------------------------------
-    // Sing panel: the shared docked test chart, fed from the same
-    // projected sheet the staff draws (streamEvents), so the chart and
-    // the notation cannot disagree about notes, key, or timing.
-    //-------------------------------------------------------------------
-
-    /** @type {ReturnType<typeof PitchTestPanel.create> | null} */
-    let singPanel = null;
-
-    /**
-     * Rails span the working range and every projected sheet note
-     * (accidental passing notes sit between rails, like on Phrases).
-     * @param {boolean} expandRange
-     */
-    function buildSingRails(expandRange) {
-        const root = rootMidi();
-        if (root === null) return [];
-        const degreesPerOctave = PatternPracticeCore.degreesPerOctave(state.scaleType);
-        const offsets = timedEvents
-            .filter(event => event.type === 'note')
-            .map(event => /** @type {number} */(event.offset));
-        const extra = expandRange ? degreesPerOctave : 0;
-        const lower = Math.floor(Math.min(state.rangeLow, ...offsets)) - extra;
-        const upper = Math.ceil(Math.max(state.rangeHigh, ...offsets)) + extra;
-        const rootInfo = midiToNoteName(root);
-        const rails = [];
-        for (let offset = lower; offset <= upper; offset++) {
-            const midi = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
-            rails.push({
-                midi,
-                label: `${PatternPracticeCore.offsetToDegree(offset, degreesPerOctave)} `
-                    + scaleMidiToPitchString(rootInfo.name, rootInfo.octave, state.scaleType, midi),
-                emphasized: offset >= 0 && offset <= degreesPerOctave
-            });
-        }
-        return rails;
-    }
-
-    /** The test timeline is the sheet's note events at the current bpm. */
-    function buildSingTargets() {
-        return streamEvents()
-            .filter(event => event.type === 'note' && typeof event.midi === 'number')
-            .map(event => ({
-                midi: /** @type {number} */ (event.midi),
-                startMs: event.startBeat * msPerBeat(),
-                endMs: (event.startBeat + event.beats) * msPerBeat(),
-                label: event.degree || '',
-                active: true
-            }));
-    }
-
-    // Window width from the CONFIGURED sheet length, not the generated
-    // events: scroll mode extends the sheet indefinitely, and a window
-    // that grew with every extension would keep squeezing the chart.
-    function singContentDurationMs() {
-        return Math.max(1200, state.measures * 4 * msPerBeat());
-    }
-
-    /**
-     * While a run is on the move (running, or started and merely
-     * paused), the transport owns the Sing take clock: targets, trace,
-     * and playhead all share run time, so opening the panel and pressing
-     * Start can never drift apart. With no run started, the panel is
-     * self-paced (voice-gated) as on every other page.
-     */
-    function singTakeClockMs() {
-        if (!running && clockBeat <= -LEAD_IN_BEATS) return null;
-        return clockBeat * msPerBeat();
-    }
-
-    /** @param {boolean} open */
-    function syncSingButton(open) {
-        const btn = getEl('singBtn');
-        if (!btn) return;
-        btn.classList.toggle('selected', open);
-        btn.setAttribute('aria-pressed', String(open));
-        document.getElementById('staffSingDock')?.classList.toggle('open', open);
-    }
-
-    function setupSingPanel() {
-        singPanel = PitchTestPanel.create({
-            hostId: 'staffSingPanel',
-            idPrefix: 'staffSing',
-            title: 'Sing Test',
-            subtitle: 'Press Start to sing along with the moving sheet, or sing in your own time (time then starts with your voice).',
-            storageKey: StorageKeys.PANEL_STAFF_SING,
-            legendTargetLabel: 'sheet notes',
-            emptyMessage: () => (timedEvents.some(event => event.type === 'note')
-                ? null : 'Generate a sheet with Next, then press Sing.'),
-            key: keyContext,
-            rails: ({ expandRange }) => buildSingRails(expandRange),
-            targets: buildSingTargets,
-            contentDurationMs: singContentDurationMs,
-            takeClockMs: singTakeClockMs,
-            playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
-            onOpenChange: open => syncSingButton(open),
-            progressTool: 'staff-sing'
-        });
-        getEl('singBtn')?.addEventListener('click', () => {
-            if (!singPanel) return;
-            if (singPanel.isOpen) {
-                singPanel.close();
-                return;
-            }
-            void singPanel.open();
-        });
     }
 
     //-------------------------------------------------------------------
@@ -939,6 +822,51 @@
         if (readout) readout.hidden = !state.showPitchReadout;
     }
 
+    //-------------------------------------------------------------------
+    // Compact layout and fullscreen: singing happens sideways on a
+    // phone, where height is the scarce resource. body.staff-compact
+    // (landscape-short viewports, and any fullscreen) drops the site
+    // header and shrinks the transport row; the fullscreen button
+    // additionally removes the browser bars (the only route to true
+    // fullscreen on mobile Firefox/Chrome - neither has a menu item).
+    //-------------------------------------------------------------------
+
+    const compactMedia = window.matchMedia('(orientation: landscape) and (max-height: 520px)');
+
+    function syncCompactLayout() {
+        document.body.classList.toggle('staff-compact',
+            compactMedia.matches || Boolean(document.fullscreenElement));
+        view.resize();
+    }
+
+    function syncFullscreenButton() {
+        const btn = getEl('fullscreenBtn');
+        if (!btn) return;
+        const active = Boolean(document.fullscreenElement);
+        btn.classList.toggle('selected', active);
+        btn.setAttribute('aria-pressed', String(active));
+        btn.textContent = active ? 'exit full screen' : 'full screen';
+    }
+
+    function initFullscreen() {
+        const btn = getEl('fullscreenBtn');
+        if (btn) {
+            // iOS Safari has no element fullscreen; the button only
+            // shows where the API exists (Android browsers, desktop).
+            btn.hidden = !document.fullscreenEnabled;
+            btn.addEventListener('click', () => {
+                if (document.fullscreenElement) void document.exitFullscreen();
+                else void document.documentElement.requestFullscreen();
+            });
+        }
+        document.addEventListener('fullscreenchange', () => {
+            syncFullscreenButton();
+            syncCompactLayout();
+        });
+        compactMedia.addEventListener('change', () => syncCompactLayout());
+        syncCompactLayout();
+    }
+
     function normalizeLengthBounds(key) {
         if (state.minLength > state.maxLength) {
             if (key === 'maxLength') state.minLength = state.maxLength;
@@ -978,9 +906,6 @@
                     { ...generationOptions(), startBeat: Math.ceil(totalBeats() / 4) * 4 });
             }
         }
-        // The Sing chart reads the same sheet projection; key, bpm, and
-        // range changes all move its rails or target timing.
-        if (singPanel) singPanel.draw();
     }
 
     function setAdjusterValue(key, value) {
@@ -1231,7 +1156,7 @@
             }
         });
 
-        setupSingPanel();
+        initFullscreen();
 
         syncAllControls();
         syncTransportButtons();
@@ -1310,10 +1235,6 @@
             settings: () => ({ ...state, durationBeats: state.durationBeats.slice() }),
             stateText: buildStateText,
             statusLog: () => statusLog.slice(),
-            singPanel: () => singPanel,
-            singRails: buildSingRails,
-            singTargets: buildSingTargets,
-            singTakeClockMs,
             applySettings: (partial) => {
                 Object.assign(state, partial);
                 syncAllControls();

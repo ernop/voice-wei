@@ -203,3 +203,45 @@
     font-size: 0.72rem;
     white-space: nowrap;
 }
+
+/* Compact layout: staff.js puts .staff-compact on body in landscape-
+   short viewports and whenever fullscreen is active. Singing happens
+   sideways on a phone, where height is the scarce resource: the site
+   header gives way, the sticky transport becomes a slim solid bar
+   (translucency reads badly over the white staff), and the stage
+   sheds its margins - the staff gets the height. */
+body.staff-compact #siteHeader {
+    display: none;
+}
+
+body.staff-compact main {
+    padding: 4px 8px;
+}
+
+body.staff-compact .voice-controls-row {
+    min-height: 44px;
+    margin-bottom: 6px;
+    background: rgba(7, 26, 16, 0.96);
+}
+
+body.staff-compact .voice-controls-row .stop-button,
+body.staff-compact .voice-controls-row .play-button,
+body.staff-compact .voice-controls-row .next-button,
+body.staff-compact .voice-controls-row .repeat-button {
+    height: 44px;
+    min-width: 72px;
+    padding: 4px 12px;
+}
+
+body.staff-compact .voice-controls-row .button-icon {
+    display: none;
+}
+
+body.staff-compact .voice-controls-row .button-text {
+    font-size: 1rem;
+}
+
+body.staff-compact .staff-stage {
+    margin: 0 0 4px;
+    padding: 4px 6px;
+}
