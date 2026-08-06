@@ -460,10 +460,13 @@ const CoolnessLab = (function () {
                 + `${combineSets.a.words.length} x ${combineSets.b.words.length} words`
                 + (expandBy > 0 ? ` (expanded +${expandedA.length}/+${expandedB.length})` : '')
                 + ` under ${formulaId}.`);
+            // On phones the results land below the fold; bring them into view.
+            el('combineStatus')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
             await logCombineBatch();
             await updateLogCount();
         } catch (error) {
             combineStatus(error instanceof Error ? error.message : String(error));
+            el('combineStatus')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
         }
     }
 
