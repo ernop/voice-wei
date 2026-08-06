@@ -54,6 +54,52 @@
             "name": "Zeitgeist",
             "note": "Association-led: coolness as cultural neighborhood (the vibe-coding effect). Anchor similarity dominates; edit the anchor lists to retune the era.",
             "weights": { "pronounceability": 1.0, "flow": 0.5, "energy": 1.25, "phonesthemes": 1.5, "novelty": 0.75, "anchors": 2.5, "brevity": 1.5 }
+        },
+        {
+            "id": "poet",
+            "name": "Poet",
+            "note": "Sound patterning as image (the phonestheme tradition, Firth 1930 onward): clusters that paint, contours that carry, and a lyrical anchor vocabulary.",
+            "weights": { "pronounceability": 1.0, "flow": 1.75, "energy": 0.75, "phonesthemes": 2.5, "novelty": 1.25, "anchors": 0.75, "brevity": 0.5 },
+            "anchors": {
+                "cool": ["shimmer", "lull", "velvet", "ember", "hush", "murmur", "luminous", "gossamer", "amber", "dusk", "willow", "echo", "opal", "silver", "meadow", "twilight"],
+                "uncool": ["grunt", "blunt", "clunk", "smack", "gunk", "crud", "thud", "mush"]
+            }
+        },
+        {
+            "id": "psychologist",
+            "name": "Psychologist",
+            "note": "Memory science: optimal distinctiveness - fluent enough to process easily, surprising enough to stick (processing fluency plus isolation/novelty effects).",
+            "weights": { "pronounceability": 2.0, "flow": 1.0, "energy": 1.0, "phonesthemes": 0.75, "novelty": 2.0, "anchors": 0.5, "brevity": 1.5 }
+        },
+        {
+            "id": "genalpha",
+            "name": "Gen alpha",
+            "note": "Playground field notes: short, punchy, high-energy, and cool exactly insofar as it sounds like current kid slang.",
+            "weights": { "pronounceability": 0.75, "flow": 0.25, "energy": 2.0, "phonesthemes": 0.75, "novelty": 1.25, "anchors": 2.25, "brevity": 2.0 },
+            "anchors": {
+                "cool": ["rizz", "gyat", "skibidi", "sigma", "bussin", "drip", "slay", "yeet", "bet", "sus", "goated", "fire", "lit", "cap", "aura", "mog"],
+                "uncool": ["groovy", "swell", "nifty", "snazzy", "dandy", "golly", "neato", "hip"]
+            }
+        },
+        {
+            "id": "boomer",
+            "name": "Boomer",
+            "note": "Mid-century cool: jazz-age and rock-era slang, where smooth beats sharp and the kids' words sound like noise.",
+            "weights": { "pronounceability": 1.5, "flow": 1.75, "energy": 0.75, "phonesthemes": 1.0, "novelty": 0.5, "anchors": 2.25, "brevity": 1.0 },
+            "anchors": {
+                "cool": ["groovy", "hip", "swell", "neat", "keen", "snazzy", "nifty", "mellow", "funky", "jazzy", "smooth", "boss", "ace", "dandy"],
+                "uncool": ["rizz", "gyat", "skibidi", "yeet", "bussin", "sus", "drip"]
+            }
+        },
+        {
+            "id": "streetwise",
+            "name": "Streetwise",
+            "note": "Street register, hip-hop and skate lineage: effortless, low-key, crisp; corny is the cardinal sin.",
+            "weights": { "pronounceability": 1.0, "flow": 1.0, "energy": 1.5, "phonesthemes": 1.0, "novelty": 0.75, "anchors": 2.25, "brevity": 1.5 },
+            "anchors": {
+                "cool": ["dope", "fresh", "fly", "tight", "chill", "slick", "smooth", "wavy", "drip", "ice", "lowkey", "crisp", "steez", "swag", "gnarly"],
+                "uncool": ["corny", "lame", "wack", "basic", "stale", "square"]
+            }
         }
     ],
     "themes": {

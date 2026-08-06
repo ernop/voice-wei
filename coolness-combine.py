@@ -1,32 +1,43 @@
 #!/usr/bin/env python3
-"""Theme combiner for the word-coolness scorer.
+"""Word combiner for the word-coolness scorer.
 
-Pick two different themes (config "themes" in coolness-config.json); the
-combiner randomly pairs words across them as spaced phrases ("vibe
-kernel") and fused blends ("grove" + "code" -> "grode"), scores every
-candidate through the coolness engine, and prints the batch ranked by
-score. Adjust between batches: switch formula, tweak individual weights,
-change themes, mode, or batch size.
+Two ways to feed it:
 
-Every generated batch is appended to the append-only session log
+1. Themes from the config (coolness-config.json "themes"): random batches.
+2. Your own two word sets (--words-a / --words-b): the EXHAUSTIVE cross
+   product - every A x B pair as a spaced phrase ("vibe kernel") and as a
+   fused blend ("zen" + "kernel" -> "zernel") - scored, ranked, and the
+   top slice printed (--top; everything is logged regardless).
+
+Either kind of set can be expanded with --expand N: up to N related words
+are added per set via the keyless Datamuse API (api.datamuse.com), which
+blends embeddings, thesaurus relations, and corpus co-occurrence. With
+two expanded sets the cross product runs to thousands of candidates.
+
+Scoring runs under any formula from the config (--formula, list with
+`python3 coolness.py --formulas`); persona formulas (poet, genalpha,
+boomer, streetwise) judge with their own anchor vocabularies.
+
+Every batch is appended to the append-only session log
 coolness-log.jsonl (one JSON object per line, never rewritten), so no
 output is ever lost.
 
 Usage:
-  python3 coolness-combine.py                          interactive session
+  python3 coolness-combine.py                          interactive themes session
   python3 coolness-combine.py --themes music tech --once
-  python3 coolness-combine.py --themes mood tech --formula zeitgeist \
-      --mode blend --count 12 --seed 42 --once --json
+  python3 coolness-combine.py --words-a "glow,neon,pulse" \
+      --words-b "code,pixel,byte" --expand 25 --formula genalpha --top 40
+  ... --seed 42 --once --json      deterministic one-shot, JSON out
   --log PATH    override the log destination (default coolness-log.jsonl)
 
-Interactive commands:
-  <enter> or more          next random batch
-  themes <a> <b>           switch to two different themes
-  formula <id>             switch formula (list with: formulas)
+Interactive commands (after any batch):
+  <enter> or more          themes: next random batch; word sets: re-rank
+  themes <a> <b>           switch to two different config themes
+  formula <id>             switch scoring system (list with: formulas)
   weight <metric> <value>  adjust one weight (formula becomes "custom")
   mode phrase|blend|both   what to generate
-  count <n>                batch size
-  list                     show themes    formulas   show formulas
+  count <n>                random batch size     top <n>   display slice
+  list                     show themes           formulas  show formulas
   quit                     exit
 """
 
@@ -34,12 +45,16 @@ import argparse
 import json
 import random
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 import coolness
 
 LOG_PATH = coolness.ROOT / "coolness-log.jsonl"
+DATAMUSE_URL = "https://api.datamuse.com/words"
 VOWEL_LETTERS = set("aeiou")
 
 
@@ -69,18 +84,74 @@ def blend_words(a, b):
     return blended
 
 
+def clean_word_list(raw):
+    """Comma/space separated string -> deduped list of clean words."""
+    words = []
+    for part in raw.replace(",", " ").split():
+        cleaned = "".join(ch for ch in part.lower() if "a" <= ch <= "z")
+        if cleaned and cleaned not in words:
+            words.append(cleaned)
+    return words
+
+
+def datamuse_related(word, limit):
+    query = urllib.parse.urlencode({"ml": word, "max": limit})
+    request = urllib.request.Request(
+        f"{DATAMUSE_URL}?{query}", headers={"User-Agent": "voice-wei coolness"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            rows = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError) as err:
+        raise SystemExit(
+            f"Datamuse expansion failed for '{word}': {err} "
+            "(use --expand 0 to score the sets as given)")
+    related = []
+    for row in rows:
+        candidate = row.get("word", "")
+        if len(candidate) >= 3 and candidate.isalpha() and candidate.islower():
+            related.append(candidate)
+    return related
+
+
+def expand_set(words, n):
+    """Add up to n related words, merged round-robin across the seeds so
+    every seed contributes its strongest neighbors first."""
+    if n <= 0:
+        return []
+    per_seed = [datamuse_related(word, max(10, n)) for word in words]
+    added = []
+    have = set(words)
+    rank = 0
+    while len(added) < n and any(rank < len(seed) for seed in per_seed):
+        for seed in per_seed:
+            if rank < len(seed):
+                candidate = seed[rank]
+                if candidate not in have:
+                    have.add(candidate)
+                    added.append(candidate)
+                    if len(added) >= n:
+                        break
+        rank += 1
+    return added
+
+
 class Session:
     def __init__(self, config, scorer, log_path):
         self.config = config
         self.scorer = scorer
         self.log_path = Path(log_path)
         self.themes = config["themes"]
-        self.theme_a = None
-        self.theme_b = None
+        self.set_a = None   # {label, seeds, expanded, words}
+        self.set_b = None
+        self.exhaustive = False
         self.formula_id = "balanced"
         self.weights = dict(coolness.find_formula(config, "balanced")["weights"])
+        self.anchor_context = None
         self.mode = "both"
         self.count = 15
+        self.top = 60
+
+    # ---- set selection --------------------------------------------------
 
     def set_themes(self, a, b):
         if a == b:
@@ -89,13 +160,41 @@ class Session:
             if name not in self.themes:
                 known = ", ".join(sorted(self.themes))
                 raise SystemExit(f"unknown theme '{name}' (known: {known})")
-        self.theme_a = a
-        self.theme_b = b
+        self.set_a = {"label": a, "seeds": list(self.themes[a]),
+                      "expanded": [], "words": list(self.themes[a])}
+        self.set_b = {"label": b, "seeds": list(self.themes[b]),
+                      "expanded": [], "words": list(self.themes[b])}
+        self.exhaustive = False
+
+    def set_words(self, raw_a, raw_b):
+        words_a = clean_word_list(raw_a)
+        words_b = clean_word_list(raw_b)
+        if not words_a or not words_b:
+            raise SystemExit("both --words-a and --words-b need at least one word")
+        self.set_a = {"label": "set-a", "seeds": words_a,
+                      "expanded": [], "words": list(words_a)}
+        self.set_b = {"label": "set-b", "seeds": words_b,
+                      "expanded": [], "words": list(words_b)}
+        self.exhaustive = True
+
+    def expand_sets(self, n):
+        if n <= 0:
+            return
+        for side in (self.set_a, self.set_b):
+            side["expanded"] = expand_set(side["seeds"], n)
+            side["words"] = side["seeds"] + side["expanded"]
+            print(f"[{side['label']}] +{len(side['expanded'])} related: "
+                  f"{', '.join(side['expanded'][:12])}"
+                  f"{', ...' if len(side['expanded']) > 12 else ''}")
+
+    # ---- scoring context -------------------------------------------------
 
     def set_formula(self, formula_id):
         formula = coolness.find_formula(self.config, formula_id)
         self.formula_id = formula_id
-        self.weights = dict(formula["weights"])
+        self.weights, self.anchor_context = coolness.formula_scoring(
+            self.scorer, formula)
+        self.weights = dict(self.weights)
 
     def set_weight(self, metric, value):
         if metric not in self.weights:
@@ -104,62 +203,91 @@ class Session:
         self.weights[metric] = value
         self.formula_id = "custom"
 
-    # ---- generation --------------------------------------------------
+    def score_word(self, word):
+        return self.scorer.score(word, self.weights, self.anchor_context)
 
-    def candidate(self, rng):
-        word_a = rng.choice(self.themes[self.theme_a])
-        word_b = rng.choice(self.themes[self.theme_b])
-        form = self.mode if self.mode != "both" else rng.choice(["phrase", "blend"])
-        if form == "phrase":
-            score_a = self.scorer.score(word_a, self.weights)["total"]
-            score_b = self.scorer.score(word_b, self.weights)["total"]
-            return {
+    # ---- generation --------------------------------------------------------
+
+    def pair_candidates(self, word_a, word_b):
+        rows = []
+        if self.mode in ("phrase", "both"):
+            score_a = self.score_word(word_a)["total"]
+            score_b = self.score_word(word_b)["total"]
+            rows.append({
                 "text": f"{word_a} {word_b}",
                 "form": "phrase",
                 "source": f"{word_a} + {word_b}",
                 "score": coolness.round_places((score_a + score_b) / 2, 1),
-            }
-        blended = blend_words(word_a, word_b)
-        if blended is None:
-            return None
-        return {
-            "text": blended,
-            "form": "blend",
-            "source": f"{word_a} + {word_b}",
-            "score": self.scorer.score(blended, self.weights)["total"],
-        }
+            })
+        if self.mode in ("blend", "both"):
+            blended = blend_words(word_a, word_b)
+            if blended is not None:
+                rows.append({
+                    "text": blended,
+                    "form": "blend",
+                    "source": f"{word_a} + {word_b}",
+                    "score": self.score_word(blended)["total"],
+                })
+        return rows
 
-    def batch(self, rng):
+    def exhaustive_batch(self):
+        results = []
+        seen = set()
+        for word_a in self.set_a["words"]:
+            for word_b in self.set_b["words"]:
+                for row in self.pair_candidates(word_a, word_b):
+                    if row["text"] in seen:
+                        continue
+                    seen.add(row["text"])
+                    results.append(row)
+        results.sort(key=lambda row: (-row["score"], row["text"]))
+        return results
+
+    def random_batch(self, rng):
         results = []
         seen = set()
         attempts = 0
         while len(results) < self.count and attempts < self.count * 30:
             attempts += 1
-            row = self.candidate(rng)
-            if row is None or row["text"] in seen:
-                continue
-            seen.add(row["text"])
-            results.append(row)
+            word_a = rng.choice(self.set_a["words"])
+            word_b = rng.choice(self.set_b["words"])
+            form = self.mode if self.mode != "both" \
+                else rng.choice(["phrase", "blend"])
+            keep_mode = self.mode
+            self.mode = form
+            rows = self.pair_candidates(word_a, word_b)
+            self.mode = keep_mode
+            for row in rows:
+                if row["text"] not in seen:
+                    seen.add(row["text"])
+                    results.append(row)
+                    break
         results.sort(key=lambda row: (-row["score"], row["text"]))
         return results
 
-    # ---- output ---------------------------------------------------------
+    # ---- output ---------------------------------------------------------------
 
     def print_batch(self, results):
-        print(f"\n{self.theme_a} x {self.theme_b}  |  formula {self.formula_id}"
-              f"  |  mode {self.mode}  |  {len(results)} candidates")
-        for rank, row in enumerate(results, start=1):
+        shown = results if self.top <= 0 else results[:self.top]
+        print(f"\n{self.set_a['label']} x {self.set_b['label']}"
+              f"  |  formula {self.formula_id}  |  mode {self.mode}"
+              f"  |  {len(results)} candidates"
+              + (f", top {len(shown)}" if len(shown) < len(results) else ""))
+        for rank, row in enumerate(shown, start=1):
             bar = "#" * int(round(row["score"] / 5))
             detail = f"({row['source']}, blend)" if row["form"] == "blend" \
                 else f"({row['source']})"
-            print(f"{rank:3d}  {row['score']:5.1f}  {row['text']:22s} "
-                  f"{detail:28s} {bar}")
+            print(f"{rank:4d}  {row['score']:5.1f}  {row['text']:22s} "
+                  f"{detail:32s} {bar}")
 
     def log_batch(self, results):
         entry = {
             "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "kind": "combine-batch",
-            "themes": [self.theme_a, self.theme_b],
+            "kind": "combine-exhaustive" if self.exhaustive else "combine-batch",
+            "sets": {
+                "a": self.set_a,
+                "b": self.set_b,
+            },
             "formula": self.formula_id,
             "weights": self.weights,
             "mode": self.mode,
@@ -170,7 +298,8 @@ class Session:
             handle.write(json.dumps(entry) + "\n")
 
     def run_batch(self, rng):
-        results = self.batch(rng)
+        results = self.exhaustive_batch() if self.exhaustive \
+            else self.random_batch(rng)
         self.print_batch(results)
         self.log_batch(results)
         return results
@@ -202,10 +331,6 @@ def prompt_themes(session):
 
 
 def interactive(session, rng):
-    print(__doc__.split("Usage:")[0].strip())
-    print()
-    prompt_themes(session)
-    session.run_batch(rng)
     while True:
         try:
             raw = input("\n[enter=more] > ").strip()
@@ -233,6 +358,9 @@ def interactive(session, rng):
             elif command == "count" and len(parts) == 2:
                 session.count = max(1, int(parts[1]))
                 session.run_batch(rng)
+            elif command == "top" and len(parts) == 2:
+                session.top = 0 if parts[1] == "all" else max(1, int(parts[1]))
+                session.run_batch(rng)
             elif command == "list":
                 for name in sorted(session.themes):
                     print(f"  {name}: {', '.join(session.themes[name])}")
@@ -243,28 +371,44 @@ def interactive(session, rng):
             else:
                 print("Commands: more | themes A B | formula ID | "
                       "weight METRIC VALUE | mode phrase|blend|both | "
-                      "count N | list | formulas | quit")
+                      "count N | top N|all | list | formulas | quit")
         except SystemExit as err:
             print(err)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Theme combiner for the word-coolness scorer.")
+        description="Word combiner for the word-coolness scorer.")
     parser.add_argument("--themes", nargs=2, metavar=("A", "B"),
-                        help="two different theme names")
+                        help="two different config theme names (random batches)")
+    parser.add_argument("--words-a", metavar="WORDS",
+                        help="your own first set, comma/space separated "
+                             "(exhaustive cross product)")
+    parser.add_argument("--words-b", metavar="WORDS",
+                        help="your own second set")
+    parser.add_argument("--expand", type=int, default=0, metavar="N",
+                        help="add up to N related words per set via the "
+                             "keyless Datamuse API (0 = off)")
     parser.add_argument("--formula", default="balanced")
     parser.add_argument("--mode", choices=["phrase", "blend", "both"],
                         default="both")
-    parser.add_argument("--count", type=int, default=15)
+    parser.add_argument("--count", type=int, default=15,
+                        help="random batch size (theme mode)")
+    parser.add_argument("--top", type=int, default=60,
+                        help="how many ranked rows to print (0 = all)")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--once", action="store_true",
                         help="print one batch and exit (no interactive loop)")
     parser.add_argument("--json", action="store_true",
-                        help="with --once: emit the batch as JSON")
+                        help="with --once: emit the full ranked batch as JSON")
     parser.add_argument("--log", default=str(LOG_PATH),
                         help="append-only log path (default coolness-log.jsonl)")
     args = parser.parse_args()
+
+    if bool(args.words_a) != bool(args.words_b):
+        raise SystemExit("--words-a and --words-b go together")
+    if args.words_a and args.themes:
+        raise SystemExit("use either --themes or --words-a/--words-b, not both")
 
     config = coolness.load_config()
     scorer = coolness.Scorer(config)
@@ -272,15 +416,22 @@ def main():
     session.set_formula(args.formula)
     session.mode = args.mode
     session.count = args.count
+    session.top = max(0, args.top)
     rng = random.Random(args.seed)
 
-    if args.themes:
+    if args.words_a:
+        session.set_words(args.words_a, args.words_b)
+    elif args.themes:
         session.set_themes(args.themes[0], args.themes[1])
 
+    if session.set_a:
+        session.expand_sets(args.expand)
+
     if args.once:
-        if not args.themes:
-            raise SystemExit("--once requires --themes A B")
-        results = session.batch(rng)
+        if not session.set_a:
+            raise SystemExit("--once needs --themes A B or --words-a/--words-b")
+        results = session.exhaustive_batch() if session.exhaustive \
+            else session.random_batch(rng)
         session.log_batch(results)
         if args.json:
             print(json.dumps(results, indent=2))
@@ -288,6 +439,12 @@ def main():
             session.print_batch(results)
         return 0
 
+    print(__doc__.split("Usage:")[0].strip())
+    print()
+    if not session.set_a:
+        prompt_themes(session)
+        session.expand_sets(args.expand)
+    session.run_batch(rng)
     interactive(session, rng)
     return 0
 

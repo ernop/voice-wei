@@ -838,28 +838,43 @@ and commit both together; `tests/test-coolness.js` fails if the report is
 stale or the engines disagree. Weight sliders on the page persist per
 device (see [parameters.md](parameters.md)).
 
-**Formulas** are named weightings of the same seven metrics, defined in
-the config and selectable both on the page (dropdown; moving any slider
-switches to Custom) and in the CLI (`--formula`, list with `--formulas`).
-Each is modeled on a strand of the naming/phonology literature:
-Balanced (house default), Brandable (processing fluency - Alter &
-Oppenheimer 2006 - plus brand sound symbolism - Klink 2000), Wordlike
-(phonotactic probability - Vitevitch & Luce 2004; Coleman &
-Pierrehumbert 1997), Euphonic (phonaesthetics - Crystal 1995), Edge
-(improbable-nonword surprise - Westbury et al. 2016), and Zeitgeist
-(association-led, anchor similarity dominant). These are homages to the
-findings, not implementations of the papers.
+**Formulas** are eleven independent scoring systems over the same seven
+measured traits, defined in the config and selectable both on the page
+(dropdown; moving any slider switches to Custom) and in the CLI
+(`--formula`, list with `--formulas`). Six follow strands of the
+naming/phonology literature: Balanced (house default), Brandable
+(processing fluency - Alter & Oppenheimer 2006 - plus brand sound
+symbolism - Klink 2000), Wordlike (phonotactic probability - Vitevitch
+& Luce 2004; Coleman & Pierrehumbert 1997), Euphonic (phonaesthetics -
+Crystal 1995), Edge (improbable-nonword surprise - Westbury et al.
+2016), and Psychologist (optimal distinctiveness: fluency plus novelty).
+Five are register personas that carry their **own anchor vocabularies**
+(not just different weights): Zeitgeist (current-era association), Poet
+(phonestheme tradition, lyrical anchors), Gen alpha (kid slang: rizz,
+skibidi, drip...), Boomer (mid-century slang: groovy, snazzy, mellow...),
+and Streetwise (hip-hop/skate register: dope, fresh, steez...). The same
+word flips ranks across personas - "skibidi" beats "groovy" for Gen
+alpha and loses badly for Boomer. These are homages to the findings and
+registers, not implementations of papers or dialect surveys.
 
-**Theme combiner** (`python3 coolness-combine.py`): pick two *different*
-themes from the config `themes` lists (music, tech, nature, light,
-motion, space, water, energy, animals, mood) and it randomly pairs words
-across them as spaced phrases ("vibe kernel") and fused blends ("zen" +
-"kernel" -> "zernel"), scores every candidate, and prints the batch
-ranked. Between batches: press enter for more, or adjust with
-`formula <id>`, `weight <metric> <value>`, `themes <a> <b>`,
-`mode phrase|blend|both`, `count <n>`. One-shot flags for scripting:
-`--themes mood tech --count 12 --formula zeitgeist --seed 42 --once
-[--json]`. Every generated batch is appended to **`coolness-log.jsonl`**,
-the append-only session log (one JSON object per line; the tool only
-ever opens it in append mode, and the test suite proves consecutive runs
-accumulate lines), so no output is ever lost.
+**Word combiner** (`python3 coolness-combine.py`) has two feeds:
+
+- **Config themes** (music, tech, nature, light, motion, space, water,
+  energy, animals, mood): random batches; pick two different themes.
+- **Your own two word sets**: `--words-a "glow,neon,pulse" --words-b
+  "code,pixel,byte"` runs the exhaustive cross product - every A x B
+  pair as a spaced phrase ("vibe kernel") and as a fused blend ("zen" +
+  "kernel" -> "zernel") - ranked by score, top slice printed (`--top N`,
+  0 = all).
+
+Either feed expands with `--expand N`: up to N related words per set from
+the keyless Datamuse API (embeddings + thesaurus + co-occurrence
+blended), which is how two ten-word seeds become thousands of scored
+candidates. Between batches adjust live: `formula <id>`,
+`weight <metric> <value>`, `themes <a> <b>`, `mode phrase|blend|both`,
+`count <n>`, `top <n|all>`. One-shot flags for scripting: `--once
+[--json] [--seed N]`. Every generated batch - including all candidates
+beyond the printed top slice and the expansion lists - is appended to
+**`coolness-log.jsonl`**, the append-only session log (one JSON object
+per line; the tool only ever opens it in append mode, and the test suite
+proves consecutive runs accumulate lines), so no output is ever lost.

@@ -89,11 +89,16 @@ class Scorer:
         self.novelty_cfg = config["novelty"]
         self.brevity = config["brevityBySyllables"]
         self.weights = config["weights"]
-        self.cool_grams = [self._char_bigrams(self._clean(w))
-                           for w in config["anchors"]["cool"]]
-        self.uncool_grams = [self._char_bigrams(self._clean(w))
-                             for w in config["anchors"]["uncool"]]
+        self.default_anchor_context = self.anchor_context(config["anchors"])
         self._build_bigram_model(config["referenceLexicon"])
+
+    def anchor_context(self, anchors):
+        """Prebuilt bigram sets for an anchor vocabulary ({cool, uncool}).
+        Formulas may carry their own anchors (persona vocabularies)."""
+        return (
+            [self._char_bigrams(self._clean(w)) for w in anchors["cool"]],
+            [self._char_bigrams(self._clean(w)) for w in anchors["uncool"]],
+        )
 
     # ---- tokenizer ----------------------------------------------------
 
@@ -307,10 +312,11 @@ class Scorer:
             total += max(0.0, 1.0 - abs(rarity - peak) / width)
         return total / (len(tokens) - 1)
 
-    def _metric_anchors(self, letters):
+    def _metric_anchors(self, letters, anchor_context):
+        cool_grams, uncool_grams = anchor_context
         grams = self._char_bigrams(letters)
-        cool = max((self._dice(grams, g) for g in self.cool_grams), default=0.0)
-        uncool = max((self._dice(grams, g) for g in self.uncool_grams), default=0.0)
+        cool = max((self._dice(grams, g) for g in cool_grams), default=0.0)
+        uncool = max((self._dice(grams, g) for g in uncool_grams), default=0.0)
         return max(0.0, min(1.0, 0.5 + 0.5 * (cool - uncool)))
 
     def _metric_brevity(self, syllable_count):
@@ -319,7 +325,7 @@ class Scorer:
 
     # ---- scoring -----------------------------------------------------------
 
-    def score(self, word, weights=None):
+    def score(self, word, weights=None, anchor_context=None):
         letters = self._clean(word)
         tokens = self._tokenize(letters)
         syllables = self._syllabify(tokens)
@@ -332,7 +338,8 @@ class Scorer:
             "energy": self._metric_energy(tokens),
             "phonesthemes": self._metric_phonesthemes(letters),
             "novelty": self._metric_novelty(tokens),
-            "anchors": self._metric_anchors(letters),
+            "anchors": self._metric_anchors(
+                letters, anchor_context or self.default_anchor_context),
             "brevity": self._metric_brevity(syllable_count),
         }
         metrics = {name: round_places(value, 4) for name, value in metrics.items()}
@@ -381,17 +388,24 @@ def find_formula(config, formula_id):
     raise SystemExit(f"unknown formula '{formula_id}' (known: {known})")
 
 
+def formula_scoring(scorer, formula):
+    """(weights, anchor_context) for scoring under a formula. Persona
+    formulas carry their own anchor vocabulary; others use the global one."""
+    anchors = formula.get("anchors")
+    context = scorer.anchor_context(anchors) if anchors else None
+    return formula["weights"], context
+
+
 def config_digest():
     return hashlib.sha256(CONFIG_PATH.read_bytes()).hexdigest()
 
 
-def print_pretty(result, scorer):
+def print_pretty(result, weights):
     print(f"\n{result['word']}  ->  {result['total']}/100")
     print(f"  tokens: {'-'.join(result['tokens'])}   syllables: {result['syllables']}")
     for name, value in result["metrics"].items():
-        weight = scorer.weights[name]
         bar = "#" * int(round(value * 20))
-        print(f"  {name:17s} {value:6.4f}  w={weight:<5g} {bar}")
+        print(f"  {name:17s} {value:6.4f}  w={weights[name]:<5g} {bar}")
 
 
 def write_report(scorer, config):
@@ -442,6 +456,8 @@ def main(argv):
     if "--formulas" in flags:
         print_formulas(config)
         return 0
+    weights = scorer.weights
+    anchor_context = None
     if "--formula" in flags:
         # --formula consumes the next positional value as the formula id.
         position = argv.index("--formula")
@@ -449,17 +465,18 @@ def main(argv):
             raise SystemExit("--formula requires an id (see --formulas)")
         formula_id = argv[position + 1]
         args = [a for a in args if a != formula_id]
-        scorer.weights = find_formula(config, formula_id)["weights"]
+        weights, anchor_context = formula_scoring(
+            scorer, find_formula(config, formula_id))
     if not args:
         print(__doc__)
         return 1
 
-    results = [scorer.score(word) for word in args]
+    results = [scorer.score(word, weights, anchor_context) for word in args]
     if "--json" in flags:
         print(json.dumps(results, indent=2))
     else:
         for result in results:
-            print_pretty(result, scorer)
+            print_pretty(result, weights)
     return 0
 
 

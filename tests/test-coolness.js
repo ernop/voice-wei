@@ -96,8 +96,10 @@ function loadBrowserEngine() {
     report.check('unseen word scores without throwing',
         typeof scorer.score('squanchamora').total === 'number');
 
-    // 4. Formula presets.
+    // 4. Formula presets (independent scoring systems).
     const formulaIds = config.formulas.map(f => f.id);
+    report.check(`at least ten scoring systems ship (${formulaIds.length})`,
+        formulaIds.length >= 10);
     report.check('formula ids are unique and include balanced',
         new Set(formulaIds).size === formulaIds.length
         && formulaIds.includes('balanced'));
@@ -105,10 +107,36 @@ function loadBrowserEngine() {
     report.check('every formula weights exactly the 7 metrics',
         config.formulas.every(f =>
             JSON.stringify(Object.keys(f.weights).sort()) === metricKey));
+    report.check('persona anchor vocabularies are well-formed',
+        config.formulas.every(f => !f.anchors
+            || (Array.isArray(f.anchors.cool) && f.anchors.cool.length > 0
+                && Array.isArray(f.anchors.uncool) && f.anchors.uncool.length > 0)));
     const edge = config.formulas.find(f => f.id === 'edge');
     report.check('formulas rerank: vibe total differs between balanced and edge',
         scorer.totalFromMetrics(vibe.metrics, edge.weights)
         !== scorer.totalFromMetrics(vibe.metrics, config.weights));
+
+    // Cross-engine parity under a persona formula (own anchor vocabulary).
+    const genalpha = config.formulas.find(f => f.id === 'genalpha');
+    const personaWords = ['vibe', 'skibidi', 'groovy', 'zorvane'];
+    const pythonPersona = spawnSync('python3',
+        ['coolness.py', '--json', '--formula', 'genalpha', ...personaWords],
+        { cwd: ROOT, encoding: 'utf8' });
+    report.check('python scores under a persona formula', pythonPersona.status === 0);
+    const personaRows = JSON.parse(pythonPersona.stdout || '[]');
+    const personaContext = scorer.anchorContext(genalpha.anchors);
+    const personaMismatch = personaRows.some(row => {
+        const live = scorer.score(row.word,
+            { weights: genalpha.weights, anchorContext: personaContext });
+        return Math.abs(live.total - row.total) > 0.1
+            || METRICS.some(name =>
+                Math.abs(live.metrics[name] - row.metrics[name]) > 1e-4);
+    });
+    report.check('engines agree under persona anchors (genalpha)', !personaMismatch);
+    const genalphaSkibidi = personaRows.find(row => row.word === 'skibidi');
+    const genalphaGroovy = personaRows.find(row => row.word === 'groovy');
+    report.check('genalpha rates skibidi over groovy',
+        genalphaSkibidi.total > genalphaGroovy.total);
 
     // 5. Theme combiner and its append-only log.
     const logPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coolness-')), 'log.jsonl');
@@ -133,6 +161,27 @@ function loadBrowserEngine() {
         { cwd: ROOT, encoding: 'utf8' });
     report.check('combiner rejects picking the same theme twice',
         sameTheme.status !== 0);
+
+    // Custom word sets: exhaustive cross product (phrases + blends).
+    const exhaustive = spawnSync('python3',
+        ['coolness-combine.py', '--words-a', 'glow,neon', '--words-b', 'code,pixel',
+            '--once', '--json', '--top', '0', '--log', logPath],
+        { cwd: ROOT, encoding: 'utf8' });
+    report.check('custom word sets run exhaustively', exhaustive.status === 0);
+    /** @type {Array<{ text: string, form: string, score: number }>} */
+    const cross = JSON.parse(exhaustive.stdout || '[]');
+    report.check('cross product covers every pair as phrase and blend (8 rows)',
+        cross.length === 8
+        && cross.filter(r => r.form === 'phrase').length === 4
+        && cross.filter(r => r.form === 'blend').length === 4);
+    report.check('exhaustive batch is sorted by score descending',
+        cross.every((row, i) => i === 0 || cross[i - 1].score >= row.score));
+    const lastLog = JSON.parse(
+        fs.readFileSync(logPath, 'utf8').trim().split('\n').pop() || '{}');
+    report.check('exhaustive run logs the sets and full results',
+        lastLog.kind === 'combine-exhaustive'
+        && lastLog.sets.a.seeds.join(',') === 'glow,neon'
+        && lastLog.results.length === 8);
 
     // 6. Word lab UI on deploys.html.
     const browser = await launch();
@@ -205,6 +254,24 @@ function loadBrowserEngine() {
     });
     report.check('moving a slider switches the formula to Custom',
         customAfterNudge === 'custom');
+
+    // Persona anchors change the anchors column, not just the weighting.
+    const anchorColumn = () => tab.evaluate(() => {
+        /** @type {Record<string, string>} */
+        const byWord = {};
+        document.querySelectorAll('#wordLabTableBody tr').forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            byWord[cells[1].textContent || ''] = cells[8].textContent || '';
+        });
+        return byWord;
+    });
+    await tab.selectOption('#wordLabFormula', 'balanced');
+    const balancedAnchors = await anchorColumn();
+    await tab.selectOption('#wordLabFormula', 'genalpha');
+    const genalphaAnchors = await anchorColumn();
+    report.check('persona formula rescoring changes anchor metric values',
+        Object.keys(balancedAnchors).some(word =>
+            word in genalphaAnchors && balancedAnchors[word] !== genalphaAnchors[word]));
 
     report.check('deploys.html stays free of console errors', pageErrors.length === 0);
     pageErrors.forEach(e => report.errors.push(e));

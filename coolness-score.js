@@ -227,8 +227,20 @@ const CoolnessScore = (function () {
             return 2 * shared / (a.size + b.size);
         }
 
-        const coolGrams = config.anchors.cool.map(w => charBigrams(clean(w)));
-        const uncoolGrams = config.anchors.uncool.map(w => charBigrams(clean(w)));
+        /**
+         * Prebuilt bigram sets for an anchor vocabulary ({cool, uncool}).
+         * Persona formulas carry their own anchors; mirrors coolness.py
+         * anchor_context().
+         * @param {{ cool: string[], uncool: string[] }} anchors
+         */
+        function anchorContext(anchors) {
+            return {
+                cool: anchors.cool.map(w => charBigrams(clean(w))),
+                uncool: anchors.uncool.map(w => charBigrams(clean(w)))
+            };
+        }
+
+        const defaultAnchorContext = anchorContext(config.anchors);
 
         // ---- metrics -------------------------------------------------------
 
@@ -303,13 +315,16 @@ const CoolnessScore = (function () {
             return total / (tokens.length - 1);
         }
 
-        /** @param {string} letters */
-        function metricAnchors(letters) {
+        /**
+         * @param {string} letters
+         * @param {{ cool: Set<string>[], uncool: Set<string>[] }} context
+         */
+        function metricAnchors(letters, context) {
             const grams = charBigrams(letters);
             let cool = 0;
-            for (const g of coolGrams) cool = Math.max(cool, dice(grams, g));
+            for (const g of context.cool) cool = Math.max(cool, dice(grams, g));
             let uncool = 0;
-            for (const g of uncoolGrams) uncool = Math.max(uncool, dice(grams, g));
+            for (const g of context.uncool) uncool = Math.max(uncool, dice(grams, g));
             return Math.max(0, Math.min(1, 0.5 + 0.5 * (cool - uncool)));
         }
 
@@ -322,8 +337,11 @@ const CoolnessScore = (function () {
 
         // ---- scoring ---------------------------------------------------------
 
-        /** @param {string} word */
-        function score(word) {
+        /**
+         * @param {string} word
+         * @param {{ weights?: Record<string, number>, anchorContext?: { cool: Set<string>[], uncool: Set<string>[] } }} [opts]
+         */
+        function score(word, opts) {
             const letters = clean(word);
             const tokens = tokenize(letters);
             const syllables = syllabify(tokens);
@@ -337,7 +355,8 @@ const CoolnessScore = (function () {
                 energy: metricEnergy(tokens),
                 phonesthemes: metricPhonesthemes(letters),
                 novelty: metricNovelty(tokens),
-                anchors: metricAnchors(letters),
+                anchors: metricAnchors(letters,
+                    (opts && opts.anchorContext) || defaultAnchorContext),
                 brevity: metricBrevity(syllableCount)
             };
             for (const name of Object.keys(metrics)) {
@@ -345,7 +364,7 @@ const CoolnessScore = (function () {
             }
             return {
                 word: letters,
-                total: totalFromMetrics(metrics, config.weights),
+                total: totalFromMetrics(metrics, (opts && opts.weights) || config.weights),
                 syllables: syllableCount,
                 tokens,
                 metrics
@@ -367,7 +386,7 @@ const CoolnessScore = (function () {
             return roundPlaces(100 * weighted / weightSum, 1);
         }
 
-        return { score, totalFromMetrics, clean };
+        return { score, totalFromMetrics, anchorContext, clean };
     }
 
     return { createScorer, roundPlaces };

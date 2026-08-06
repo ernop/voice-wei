@@ -191,19 +191,36 @@ const CoolnessLab = (function () {
         }
     }
 
+    // ---- scoring context --------------------------------------------------
+    // Persona formulas judge with their own anchor vocabulary, so rows are
+    // always rescored live under the current formula's context.
+
+    /** @type {Map<string, any>} */
+    const anchorContextCache = new Map();
+
+    function currentAnchorContext() {
+        const formula = findFormula(formulaId);
+        if (!formula || !formula.anchors) return undefined;
+        if (!anchorContextCache.has(formula.id)) {
+            anchorContextCache.set(formula.id, scorer.anchorContext(formula.anchors));
+        }
+        return anchorContextCache.get(formula.id);
+    }
+
+    function scoreLive(word) {
+        return scorer.score(word, { weights, anchorContext: currentAnchorContext() });
+    }
+
     // ---- leaderboard -----------------------------------------------------
 
     function allRows() {
         const sampleWords = new Set(report.words.map(row => row.word));
-        const rows = report.words.map(row => ({ ...row, tried: false }));
+        const words = report.words.map(row => ({ word: row.word, tried: false }));
         for (const word of triedWords) {
-            if (sampleWords.has(word)) continue;
-            rows.push({ ...scorer.score(word), tried: true });
+            if (!sampleWords.has(word)) words.push({ word, tried: true });
         }
-        for (const row of rows) {
-            row.liveTotal = scorer.totalFromMetrics(row.metrics, weights);
-        }
-        rows.sort((a, b) => (b.liveTotal - a.liveTotal) || (a.word < b.word ? -1 : 1));
+        const rows = words.map(({ word, tried }) => ({ ...scoreLive(word), tried }));
+        rows.sort((a, b) => (b.total - a.total) || (a.word < b.word ? -1 : 1));
         return rows;
     }
 
@@ -230,7 +247,7 @@ const CoolnessLab = (function () {
             const cells = [
                 String(index + 1),
                 row.word,
-                row.liveTotal.toFixed(1),
+                row.total.toFixed(1),
                 ...METRICS.map(m => row.metrics[m].toFixed(2))
             ];
             cells.forEach((text, cellIndex) => {
@@ -255,8 +272,7 @@ const CoolnessLab = (function () {
             host.hidden = true;
             return;
         }
-        const result = scorer.score(featuredWord);
-        const total = scorer.totalFromMetrics(result.metrics, weights);
+        const result = scoreLive(featuredWord);
         host.textContent = '';
         host.hidden = false;
 
@@ -265,7 +281,7 @@ const CoolnessLab = (function () {
         const wordSpan = document.createElement('span');
         wordSpan.textContent = result.word;
         const scoreSpan = document.createElement('span');
-        scoreSpan.textContent = `${total.toFixed(1)}/100`;
+        scoreSpan.textContent = `${result.total.toFixed(1)}/100`;
         title.appendChild(wordSpan);
         title.appendChild(scoreSpan);
         host.appendChild(title);
