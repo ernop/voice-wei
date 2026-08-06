@@ -7,7 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Deploys - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=346">
+    <link rel="stylesheet" href="style.css?v=347">
 </head>
 
 <body data-page="deploys">
@@ -83,9 +83,10 @@
                 <div class="word-lab-combine">
                     <h3>Combine two word sets</h3>
                     <p class="word-lab-combine-hint">Give two related sets; each can grow by related
-                        words (keyless Datamuse). Every cross pair is scored as a phrase and a fused
-                        blend under the formula and weights above, ranked below. Every run is saved
-                        to this device's append-only log.</p>
+                        words (keyless Datamuse). Every cross pair is blended three ways into
+                        candidate coinages; anything that is already an English word is dropped, so
+                        only NEW words are rated - under the formula and weights above. Every run is
+                        saved to this device's append-only log.</p>
                     <div class="word-lab-combine-inputs">
                         <input id="combineSetA" class="word-lab-input" type="text"
                             placeholder="Set A: vibe, aura, glow, flow, drift"
@@ -105,13 +106,6 @@
                             </select>
                             related words
                         </label>
-                        <label>Forms
-                            <select id="combineMode" class="word-lab-select">
-                                <option value="both" selected>phrases + blends</option>
-                                <option value="phrase">phrases only</option>
-                                <option value="blend">blends only</option>
-                            </select>
-                        </label>
                         <button id="combineRunBtn" class="quick-action-btn" type="button">Combine + score</button>
                         <button id="combineExportBtn" class="quick-action-btn" type="button">Export device log</button>
                     </div>
@@ -128,15 +122,15 @@
         </main>
     </div>
 
-    <script src="dev-error-monitor.js?v=346"></script>
-    <script src="app-version.js?v=346"></script>
-    <script src="storage-keys.js?v=346"></script>
-    <script src="settings-store.js?v=346"></script>
-    <script src="shared-header.js?v=346"></script>
-    <script src="deploys.js?v=346"></script>
-    <script src="coolness-score.js?v=346"></script>
-    <script src="coolness-combine.js?v=346"></script>
-    <script src="coolness-lab.js?v=346"></script>
+    <script src="dev-error-monitor.js?v=347"></script>
+    <script src="app-version.js?v=347"></script>
+    <script src="storage-keys.js?v=347"></script>
+    <script src="settings-store.js?v=347"></script>
+    <script src="shared-header.js?v=347"></script>
+    <script src="deploys.js?v=347"></script>
+    <script src="coolness-score.js?v=347"></script>
+    <script src="coolness-combine.js?v=347"></script>
+    <script src="coolness-lab.js?v=347"></script>
 </body>
 
 </html>

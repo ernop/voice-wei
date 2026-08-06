@@ -149,6 +149,12 @@ function loadBrowserCombiner() {
     const logPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coolness-')), 'log.jsonl');
     const combineArgs = ['coolness-combine.py', '--themes', 'mood', 'tech',
         '--count', '6', '--seed', '11', '--once', '--json', '--log', logPath];
+    const realWords = new Set(JSON.parse(
+        fs.readFileSync(path.join(ROOT, 'coolness-wordlist.json'), 'utf8')).words);
+    report.check('real-English wordlist is substantial and excludes inventions',
+        realWords.size > 25000 && realWords.has('muse') && realWords.has('node')
+        && !realWords.has('zorvane') && !realWords.has('dript'));
+
     const first = spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
     report.check('combiner one-shot exits cleanly', first.status === 0);
     /** @type {Array<{ text: string, form: string, score: number }>} */
@@ -156,8 +162,9 @@ function loadBrowserCombiner() {
     report.check('combiner produced the requested batch size', batch.length === 6);
     report.check('combiner batch is sorted by score descending',
         batch.every((row, i) => i === 0 || batch[i - 1].score >= row.score));
-    report.check('combiner forms are phrase or blend',
-        batch.every(row => row.form === 'phrase' || row.form === 'blend'));
+    report.check('every generated candidate is a NEW single word',
+        batch.every(row => row.form === 'blend'
+            && !row.text.includes(' ') && !realWords.has(row.text)));
     spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
     const logLines = fs.readFileSync(logPath, 'utf8').trim().split('\n');
     report.check('log is append-only: two runs leave two batch lines',
@@ -175,32 +182,38 @@ function loadBrowserCombiner() {
             '--once', '--json', '--top', '0', '--log', logPath],
         { cwd: ROOT, encoding: 'utf8' });
     report.check('custom word sets run exhaustively', exhaustive.status === 0);
-    /** @type {Array<{ text: string, form: string, score: number }>} */
+    /** @type {Array<{ text: string, form: string, strategy: string, score: number }>} */
     const cross = JSON.parse(exhaustive.stdout || '[]');
-    report.check('cross product covers every pair as phrase and blend (8 rows)',
-        cross.length === 8
-        && cross.filter(r => r.form === 'phrase').length === 4
-        && cross.filter(r => r.form === 'blend').length === 4);
+    report.check('cross product yields only new single words (6 from 2x2)',
+        cross.length === 6
+        && cross.every(r => !r.text.includes(' ') && !realWords.has(r.text)));
+    report.check('real-word collisions are dropped (node from neon+code)',
+        !cross.some(r => r.text === 'node'));
     report.check('exhaustive batch is sorted by score descending',
         cross.every((row, i) => i === 0 || cross[i - 1].score >= row.score));
     const lastLog = JSON.parse(
         fs.readFileSync(logPath, 'utf8').trim().split('\n').pop() || '{}');
-    report.check('exhaustive run logs the sets and full results',
+    report.check('exhaustive run logs the sets, drops, and full results',
         lastLog.kind === 'combine-exhaustive'
         && lastLog.sets.a.seeds.join(',') === 'glow,neon'
-        && lastLog.results.length === 8);
+        && lastLog.droppedRealWords >= 1
+        && lastLog.results.length === 6);
 
     // Browser combiner mirrors the Python cross product exactly.
     const combiner = loadBrowserCombiner();
     const jsCross = combiner.crossProduct(
-        ['glow', 'neon'], ['code', 'pixel'], 'both',
-        word => scorer.score(word), engine.roundPlaces);
+        ['glow', 'neon'], ['code', 'pixel'], realWords,
+        word => scorer.score(word));
     report.check('browser combiner matches the Python cross product',
-        JSON.stringify(jsCross.map(r => [r.text, r.score, r.form]))
-        === JSON.stringify(cross.map(r => [r.text, r.score, r.form])));
-    report.check('browser blend helper mirrors Python (zen + kernel -> zernel)',
-        combiner.blendWords('zen', 'kernel') === 'zernel'
-        && combiner.blendWords('glow', 'code') === 'glode');
+        JSON.stringify(jsCross.results.map(r => [r.text, r.score, r.strategy]))
+        === JSON.stringify(cross.map(r => [r.text, r.score, r.strategy]))
+        && jsCross.droppedReal === lastLog.droppedRealWords);
+    const zernel = combiner.blendParts('zen', 'kernel')
+        .some(([, text]) => text === 'zernel');
+    const drixel = combiner.blendParts('drift', 'pixel')
+        .some(([, text]) => text === 'drixel');
+    report.check('browser blend strategies mirror Python (zernel, drixel)',
+        zernel && drixel);
 
     // 6. Word lab UI on deploys.html.
     const browser = await launch();
@@ -299,15 +312,17 @@ function loadBrowserCombiner() {
     await tab.click('#combineRunBtn');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');
-        return status !== null && (status.textContent || '').includes('candidates');
+        return status !== null && (status.textContent || '').includes('new words');
     }, undefined, { timeout: 10000 });
     const combineState = await tab.evaluate(() => ({
         status: document.getElementById('combineStatus')?.textContent || '',
         rows: document.querySelectorAll('#combineTableBody tr').length,
-        firstRow: document.querySelector('#combineTableBody tr td:nth-child(2)')?.textContent || ''
+        words: [...document.querySelectorAll('#combineTableBody tr td:nth-child(2)')]
+            .map(td => td.textContent || '')
     }));
-    report.check('page combine builds and ranks the cross product (8 candidates)',
-        combineState.status.includes('8 candidates') && combineState.rows === 8);
+    report.check('page combine builds and ranks only new words (6 from 2x2)',
+        combineState.status.includes('6 new words') && combineState.rows === 6
+        && combineState.words.every(word => !word.includes(' ') && word !== 'node'));
     await tab.selectOption('#wordLabFormula', 'streetwise');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');

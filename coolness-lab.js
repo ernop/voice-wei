@@ -39,13 +39,16 @@ const CoolnessLab = (function () {
     let triedWords = [];
     /** @type {string | null} */
     let featuredWord = null;
-    /** @type {Array<{ text: string, form: string, source: string, score: number }>} */
+    /** @type {Array<{ text: string, form: string, strategy: string, source: string, score: number }>} */
     let combineResults = [];
     /** @type {{ a: Record<string, any>, b: Record<string, any> } | null} */
     let combineSets = null;
     let combineShown = 50;
+    let combineDroppedReal = 0;
     /** @type {number | undefined} */
     let combineRerankTimer;
+    /** @type {Set<string> | null} */
+    let realWords = null;
 
     function el(id) {
         return document.getElementById(id);
@@ -81,8 +84,7 @@ const CoolnessLab = (function () {
             const combineFields = {
                 combineA: 'combineSetA',
                 combineB: 'combineSetB',
-                combineExpand: 'combineExpand',
-                combineMode: 'combineMode'
+                combineExpand: 'combineExpand'
             };
             for (const [key, id] of Object.entries(combineFields)) {
                 if (typeof stored[key] === 'string' && stored[key]) {
@@ -104,8 +106,7 @@ const CoolnessLab = (function () {
             words: triedWords,
             combineA: field('combineSetA'),
             combineB: field('combineSetB'),
-            combineExpand: field('combineExpand'),
-            combineMode: field('combineMode')
+            combineExpand: field('combineExpand')
         });
     }
 
@@ -389,16 +390,21 @@ const CoolnessLab = (function () {
         }
     }
 
-    function combineMode() {
-        const select = /** @type {HTMLSelectElement | null} */ (el('combineMode'));
-        return /** @type {'phrase' | 'blend' | 'both'} */ (select ? select.value : 'both');
+    /** The real-English filter list, fetched once on first combine. */
+    async function ensureRealWords() {
+        if (realWords) return realWords;
+        const version = window.AppVersion ? window.AppVersion.current : '0';
+        const data = await fetchJson(`coolness-wordlist.json?v=${version}`);
+        realWords = new Set(data.words);
+        return realWords;
     }
 
     function rescoreCombine() {
-        if (!combineSets) return [];
-        return CoolnessCombine.crossProduct(
-            combineSets.a.words, combineSets.b.words, combineMode(),
-            scoreLive, CoolnessScore.roundPlaces);
+        if (!combineSets || !realWords) return [];
+        const { results, droppedReal } = CoolnessCombine.crossProduct(
+            combineSets.a.words, combineSets.b.words, realWords, scoreLive);
+        combineDroppedReal = droppedReal;
+        return results;
     }
 
     async function runCombine() {
@@ -415,6 +421,7 @@ const CoolnessLab = (function () {
         const expandBy = Number(expandSelect ? expandSelect.value : 0);
         saveState();
         try {
+            await ensureRealWords();
             let expandedA = [];
             let expandedB = [];
             if (expandBy > 0) {
@@ -431,7 +438,8 @@ const CoolnessLab = (function () {
             combineResults = rescoreCombine();
             combineShown = 50;
             renderCombine();
-            combineStatus(`${combineResults.length} candidates from `
+            combineStatus(`${combineResults.length} new words `
+                + `(${combineDroppedReal} real words dropped) from `
                 + `${combineSets.a.words.length} x ${combineSets.b.words.length} words`
                 + (expandBy > 0 ? ` (expanded +${expandedA.length}/+${expandedB.length})` : '')
                 + ` under ${formulaId}.`);
@@ -451,7 +459,7 @@ const CoolnessLab = (function () {
             sets: combineSets,
             formula: formulaId,
             weights: { ...weights },
-            mode: combineMode(),
+            droppedRealWords: combineDroppedReal,
             results: combineResults
         });
     }
@@ -464,7 +472,7 @@ const CoolnessLab = (function () {
         combineRerankTimer = window.setTimeout(() => {
             combineResults = rescoreCombine();
             renderCombine();
-            combineStatus(`${combineResults.length} candidates re-ranked under ${formulaId}.`);
+            combineStatus(`${combineResults.length} new words re-ranked under ${formulaId}.`);
             if (log) {
                 void logCombineBatch().then(updateLogCount);
             }
@@ -478,7 +486,7 @@ const CoolnessLab = (function () {
         if (!head || !body) return;
         head.textContent = '';
         const tr = document.createElement('tr');
-        for (const text of ['#', 'Candidate', 'Score', 'Form', 'From']) {
+        for (const text of ['#', 'New word', 'Score', 'Made from']) {
             const th = document.createElement('th');
             th.textContent = text;
             tr.appendChild(th);
@@ -488,11 +496,14 @@ const CoolnessLab = (function () {
         body.textContent = '';
         combineResults.slice(0, combineShown).forEach((row, index) => {
             const line = document.createElement('tr');
-            const cells = [String(index + 1), row.text, row.score.toFixed(1), row.form, row.source];
+            const cells = [String(index + 1), row.text, row.score.toFixed(1), row.source];
             cells.forEach((text, cellIndex) => {
                 const td = document.createElement('td');
                 td.textContent = text;
-                if (cellIndex === 1) td.className = 'word-lab-word-cell';
+                if (cellIndex === 1) {
+                    td.className = 'word-lab-word-cell';
+                    td.title = row.strategy;
+                }
                 line.appendChild(td);
             });
             body.appendChild(line);

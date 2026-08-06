@@ -857,33 +857,40 @@ word flips ranks across personas - "skibidi" beats "groovy" for Gen
 alpha and loses badly for Boomer. These are homages to the findings and
 registers, not implementations of papers or dialect surveys.
 
-**Word combiner** runs in two places. On the deploys page, the "Combine
-two word sets" panel at the bottom of the Word lab does the whole flow
-in the browser: type two sets, pick how many related words to add per
-set (keyless Datamuse), press Combine + score, and the exhaustive
-phrase+blend cross product ranks under whatever formula and weights are
-selected above (changing them re-ranks the same candidates live). Every
-run and every formula re-rank is appended to a per-device IndexedDB log
-(`voice-wei-coolness`, owned by `coolness-combine.js`) and exportable as
-.jsonl with "Export device log". The CLI
-(`python3 coolness-combine.py`) has two feeds:
+**Word combiner** makes NEW words only: every candidate is a fused blend
+that does not already exist in English. Each A x B pair is blended three
+ways (onset+rime: zen+kernel -> zernel; head+rime: vibe+script -> vipt;
+head+tail: drift+pixel -> drixel), and any result found in
+`coolness-wordlist.json` (30k frequency-ranked English words - the
+google-10000-english and high-frequency-vocabulary lists - merged with
+the config vocabulary) or in the input sets is dropped before rating.
+Phrases of existing words are never generated; the status line reports
+how many real-word collisions were dropped.
+
+It runs in two places. On the deploys page, the "Combine two word sets"
+panel at the bottom of the Word lab does the whole flow in the browser:
+type two sets, pick how many related words to add per set (keyless
+Datamuse), press Combine + score, and the new-word cross product ranks
+under whatever formula and weights are selected above (changing them
+re-ranks the same candidates live). Every run and every formula re-rank
+is appended to a per-device IndexedDB log (`voice-wei-coolness`, owned
+by `coolness-combine.js`) and exportable as .jsonl with "Export device
+log". The CLI (`python3 coolness-combine.py`) has two feeds:
 
 - **Config themes** (music, tech, nature, light, motion, space, water,
   energy, animals, mood): random batches; pick two different themes.
 - **Your own two word sets**: `--words-a "glow,neon,pulse" --words-b
-  "code,pixel,byte"` runs the exhaustive cross product - every A x B
-  pair as a spaced phrase ("vibe kernel") and as a fused blend ("zen" +
-  "kernel" -> "zernel") - ranked by score, top slice printed (`--top N`,
-  0 = all).
+  "code,pixel,byte"` runs the exhaustive cross product, ranked by
+  score, top slice printed (`--top N`, 0 = all).
 
 Either feed expands with `--expand N`: up to N related words per set from
 the keyless Datamuse API (embeddings + thesaurus + co-occurrence
 blended), which is how two ten-word seeds become thousands of scored
-candidates. Between batches adjust live: `formula <id>`,
-`weight <metric> <value>`, `themes <a> <b>`, `mode phrase|blend|both`,
-`count <n>`, `top <n|all>`. One-shot flags for scripting: `--once
-[--json] [--seed N]`. Every generated batch - including all candidates
-beyond the printed top slice and the expansion lists - is appended to
-**`coolness-log.jsonl`**, the append-only session log (one JSON object
-per line; the tool only ever opens it in append mode, and the test suite
-proves consecutive runs accumulate lines), so no output is ever lost.
+coinages. Between batches adjust live: `formula <id>`,
+`weight <metric> <value>`, `themes <a> <b>`, `count <n>`, `top <n|all>`.
+One-shot flags for scripting: `--once [--json] [--seed N]`. Every
+generated batch - including all candidates beyond the printed top slice
+and the expansion lists - is appended to **`coolness-log.jsonl`**, the
+append-only session log (one JSON object per line; the tool only ever
+opens it in append mode, and the test suite proves consecutive runs
+accumulate lines), so no output is ever lost.

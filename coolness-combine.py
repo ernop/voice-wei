@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Word combiner for the word-coolness scorer.
+"""Word combiner for the word-coolness scorer. NEW words only.
+
+Every candidate is a fused blend that does not already exist in English:
+each A x B pair is blended three ways (onset+rime "zen"+"kernel" ->
+"zernel"; head+rime "vibe"+"script" -> "vipt"; head+tail "drift"+"pixel"
+-> "drixel"), and any result found in coolness-wordlist.json (30k
+frequency-ranked English words plus the config vocabulary) or in the
+input sets is dropped before rating. Phrases of existing words are never
+generated.
 
 Two ways to feed it:
 
 1. Themes from the config (coolness-config.json "themes"): random batches.
 2. Your own two word sets (--words-a / --words-b): the EXHAUSTIVE cross
-   product - every A x B pair as a spaced phrase ("vibe kernel") and as a
-   fused blend ("zen" + "kernel" -> "zernel") - scored, ranked, and the
-   top slice printed (--top; everything is logged regardless).
+   product, ranked, top slice printed (--top; everything is logged).
 
 Either kind of set can be expanded with --expand N: up to N related words
 are added per set via the keyless Datamuse API (api.datamuse.com), which
@@ -35,7 +41,6 @@ Interactive commands (after any batch):
   themes <a> <b>           switch to two different config themes
   formula <id>             switch scoring system (list with: formulas)
   weight <metric> <value>  adjust one weight (formula becomes "custom")
-  mode phrase|blend|both   what to generate
   count <n>                random batch size     top <n>   display slice
   list                     show themes           formulas  show formulas
   quit                     exit
@@ -54,6 +59,7 @@ from pathlib import Path
 import coolness
 
 LOG_PATH = coolness.ROOT / "coolness-log.jsonl"
+WORDLIST_PATH = coolness.ROOT / "coolness-wordlist.json"
 DATAMUSE_URL = "https://api.datamuse.com/words"
 VOWEL_LETTERS = set("aeiou")
 
@@ -70,18 +76,52 @@ def first_vowel_run(letters):
     return None if start is None else (start, len(letters))
 
 
-def blend_words(a, b):
-    """Classic blend: A's onset + B from its first vowel run (br+unch).
-    Vowel-initial A contributes through the end of its first vowel run."""
+def last_vowel_run(letters):
+    """(start, end) of the last vowel-letter run, or None."""
+    run = None
+    start = None
+    for i, ch in enumerate(letters):
+        if ch in VOWEL_LETTERS:
+            if start is None:
+                start = i
+        elif start is not None:
+            run = (start, i)
+            start = None
+    if start is not None:
+        run = (start, len(letters))
+    return run
+
+
+def blend_parts(a, b):
+    """All blend strategies for a pair, in deterministic order:
+    onset-rime  zen|kernel  -> z + ernel  = zernel-style
+    head-rime   vibe|script -> vi + pt    = vipt-style
+    head-tail   drift|pixel -> dri + xel  = drixel-style
+    Returns [(strategy, text), ...]; callers filter real words."""
     run_a = first_vowel_run(a)
     run_b = first_vowel_run(b)
     if run_a is None or run_b is None:
-        return None
-    prefix = a[:run_a[0]] if run_a[0] > 0 else a[:run_a[1]]
-    blended = prefix + b[run_b[0]:]
-    if len(blended) < 3 or blended in (a, b):
-        return None
-    return blended
+        return []
+    onset = a[:run_a[0]] if run_a[0] > 0 else a[:run_a[1]]
+    head = a[:run_a[1]]
+    parts = [
+        ("onset-rime", onset + b[run_b[0]:]),
+        ("head-rime", head + b[run_b[1]:]),
+    ]
+    tail_run = last_vowel_run(b)
+    if tail_run is not None:
+        k = tail_run[0]
+        while k > 0 and b[k - 1] not in VOWEL_LETTERS:
+            k -= 1
+        # k == 0 would just append the whole of B - not a blend.
+        if k > 0:
+            parts.append(("head-tail", head + b[k:]))
+    return parts
+
+
+def load_real_words():
+    data = json.loads(WORDLIST_PATH.read_text(encoding="utf-8"))
+    return set(data["words"])
 
 
 def clean_word_list(raw):
@@ -141,15 +181,16 @@ class Session:
         self.scorer = scorer
         self.log_path = Path(log_path)
         self.themes = config["themes"]
+        self.real_words = load_real_words()
         self.set_a = None   # {label, seeds, expanded, words}
         self.set_b = None
         self.exhaustive = False
         self.formula_id = "balanced"
         self.weights = dict(coolness.find_formula(config, "balanced")["weights"])
         self.anchor_context = None
-        self.mode = "both"
         self.count = 15
         self.top = 60
+        self.dropped_real = 0
 
     # ---- set selection --------------------------------------------------
 
@@ -207,61 +248,57 @@ class Session:
         return self.scorer.score(word, self.weights, self.anchor_context)
 
     # ---- generation --------------------------------------------------------
+    # NEW words only: a blend is kept when it exists nowhere - not in the
+    # real-English wordlist, not in either input set.
 
-    def pair_candidates(self, word_a, word_b):
+    def _is_new_word(self, text, word_a, word_b):
+        # Length floor of 4: shorter blends are mostly fragments, and the
+        # frequency wordlist misses rare short real words (auk, vat).
+        return (len(text) >= 4
+                and text not in (word_a, word_b)
+                and text not in self.real_words
+                and text not in self.set_a["words"]
+                and text not in self.set_b["words"])
+
+    def pair_candidates(self, word_a, word_b, seen):
         rows = []
-        if self.mode in ("phrase", "both"):
-            score_a = self.score_word(word_a)["total"]
-            score_b = self.score_word(word_b)["total"]
+        for strategy, text in blend_parts(word_a, word_b):
+            if text in seen:
+                continue
+            if not self._is_new_word(text, word_a, word_b):
+                self.dropped_real += text in self.real_words
+                continue
+            seen.add(text)
             rows.append({
-                "text": f"{word_a} {word_b}",
-                "form": "phrase",
+                "text": text,
+                "form": "blend",
+                "strategy": strategy,
                 "source": f"{word_a} + {word_b}",
-                "score": coolness.round_places((score_a + score_b) / 2, 1),
+                "score": self.score_word(text)["total"],
             })
-        if self.mode in ("blend", "both"):
-            blended = blend_words(word_a, word_b)
-            if blended is not None:
-                rows.append({
-                    "text": blended,
-                    "form": "blend",
-                    "source": f"{word_a} + {word_b}",
-                    "score": self.score_word(blended)["total"],
-                })
         return rows
 
     def exhaustive_batch(self):
         results = []
         seen = set()
+        self.dropped_real = 0
         for word_a in self.set_a["words"]:
             for word_b in self.set_b["words"]:
-                for row in self.pair_candidates(word_a, word_b):
-                    if row["text"] in seen:
-                        continue
-                    seen.add(row["text"])
-                    results.append(row)
+                results.extend(self.pair_candidates(word_a, word_b, seen))
         results.sort(key=lambda row: (-row["score"], row["text"]))
         return results
 
     def random_batch(self, rng):
         results = []
         seen = set()
+        self.dropped_real = 0
         attempts = 0
         while len(results) < self.count and attempts < self.count * 30:
             attempts += 1
             word_a = rng.choice(self.set_a["words"])
             word_b = rng.choice(self.set_b["words"])
-            form = self.mode if self.mode != "both" \
-                else rng.choice(["phrase", "blend"])
-            keep_mode = self.mode
-            self.mode = form
-            rows = self.pair_candidates(word_a, word_b)
-            self.mode = keep_mode
-            for row in rows:
-                if row["text"] not in seen:
-                    seen.add(row["text"])
-                    results.append(row)
-                    break
+            results.extend(self.pair_candidates(word_a, word_b, seen))
+        results = results[:self.count]
         results.sort(key=lambda row: (-row["score"], row["text"]))
         return results
 
@@ -270,15 +307,14 @@ class Session:
     def print_batch(self, results):
         shown = results if self.top <= 0 else results[:self.top]
         print(f"\n{self.set_a['label']} x {self.set_b['label']}"
-              f"  |  formula {self.formula_id}  |  mode {self.mode}"
-              f"  |  {len(results)} candidates"
+              f"  |  formula {self.formula_id}"
+              f"  |  {len(results)} new words"
+              f" ({self.dropped_real} real words dropped)"
               + (f", top {len(shown)}" if len(shown) < len(results) else ""))
         for rank, row in enumerate(shown, start=1):
             bar = "#" * int(round(row["score"] / 5))
-            detail = f"({row['source']}, blend)" if row["form"] == "blend" \
-                else f"({row['source']})"
             print(f"{rank:4d}  {row['score']:5.1f}  {row['text']:22s} "
-                  f"{detail:32s} {bar}")
+                  f"({row['source']:26s}) {bar}")
 
     def log_batch(self, results):
         entry = {
@@ -290,7 +326,7 @@ class Session:
             },
             "formula": self.formula_id,
             "weights": self.weights,
-            "mode": self.mode,
+            "droppedRealWords": self.dropped_real,
             "results": results,
         }
         # Append-only by contract: never opened for writing/truncation.
@@ -351,10 +387,6 @@ def interactive(session, rng):
             elif command == "weight" and len(parts) == 3:
                 session.set_weight(parts[1], float(parts[2]))
                 session.run_batch(rng)
-            elif command == "mode" and len(parts) == 2 \
-                    and parts[1] in ("phrase", "blend", "both"):
-                session.mode = parts[1]
-                session.run_batch(rng)
             elif command == "count" and len(parts) == 2:
                 session.count = max(1, int(parts[1]))
                 session.run_batch(rng)
@@ -370,8 +402,8 @@ def interactive(session, rng):
                 return
             else:
                 print("Commands: more | themes A B | formula ID | "
-                      "weight METRIC VALUE | mode phrase|blend|both | "
-                      "count N | top N|all | list | formulas | quit")
+                      "weight METRIC VALUE | count N | top N|all | "
+                      "list | formulas | quit")
         except SystemExit as err:
             print(err)
 
@@ -390,8 +422,6 @@ def main():
                         help="add up to N related words per set via the "
                              "keyless Datamuse API (0 = off)")
     parser.add_argument("--formula", default="balanced")
-    parser.add_argument("--mode", choices=["phrase", "blend", "both"],
-                        default="both")
     parser.add_argument("--count", type=int, default=15,
                         help="random batch size (theme mode)")
     parser.add_argument("--top", type=int, default=60,
@@ -414,7 +444,6 @@ def main():
     scorer = coolness.Scorer(config)
     session = Session(config, scorer, args.log)
     session.set_formula(args.formula)
-    session.mode = args.mode
     session.count = args.count
     session.top = max(0, args.top)
     rng = random.Random(args.seed)

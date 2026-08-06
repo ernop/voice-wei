@@ -1,11 +1,12 @@
 // @ts-check
 //-----------------------------------------------------------------------
-// WORD COMBINER - browser mirror
+// WORD COMBINER - browser mirror. NEW words only.
 // Exact port of the core of coolness-combine.py: clean two word sets,
 // optionally expand each with related words (keyless Datamuse API:
-// embeddings + thesaurus + co-occurrence), build the exhaustive cross
-// product (spaced phrases and fused blends), and score through the
-// coolness engine. tests/test-coolness.js keeps the cross product in
+// embeddings + thesaurus + co-occurrence), blend every cross pair three
+// ways, drop anything that already exists in English (the
+// coolness-wordlist.json filter) or in the input sets, and score through
+// the coolness engine. tests/test-coolness.js keeps the cross product in
 // lockstep with the Python combiner.
 //
 // This module also OWNS the browser session log: the IndexedDB database
@@ -49,68 +50,91 @@ const CoolnessCombine = (function () {
         return start === -1 ? null : [start, letters.length];
     }
 
-    /**
-     * Classic blend: A's onset + B from its first vowel run (br+unch).
-     * Vowel-initial A contributes through the end of its first vowel run.
-     * @param {string} a @param {string} b @returns {string | null}
-     */
-    function blendWords(a, b) {
-        const runA = firstVowelRun(a);
-        const runB = firstVowelRun(b);
-        if (runA === null || runB === null) return null;
-        const prefix = runA[0] > 0 ? a.slice(0, runA[0]) : a.slice(0, runA[1]);
-        const blended = prefix + b.slice(runB[0]);
-        if (blended.length < 3 || blended === a || blended === b) return null;
-        return blended;
+    /** (start, end) of the last vowel-letter run, or null. */
+    function lastVowelRun(letters) {
+        /** @type {[number, number] | null} */
+        let run = null;
+        let start = -1;
+        for (let i = 0; i < letters.length; i++) {
+            if (VOWELS.has(letters[i])) {
+                if (start === -1) start = i;
+            } else if (start !== -1) {
+                run = [start, i];
+                start = -1;
+            }
+        }
+        if (start !== -1) run = [start, letters.length];
+        return run;
     }
 
     /**
-     * Exhaustive cross product, same iteration and sort order as the
-     * Python combiner: every A x B pair as phrase and/or blend.
+     * All blend strategies for a pair, in the same deterministic order as
+     * coolness-combine.py blend_parts(): onset-rime (zen+kernel->zernel),
+     * head-rime (vibe+script->vipt), head-tail (drift+pixel->drixel).
+     * @param {string} a @param {string} b
+     * @returns {Array<[string, string]>}
+     */
+    function blendParts(a, b) {
+        const runA = firstVowelRun(a);
+        const runB = firstVowelRun(b);
+        if (runA === null || runB === null) return [];
+        const onset = runA[0] > 0 ? a.slice(0, runA[0]) : a.slice(0, runA[1]);
+        const head = a.slice(0, runA[1]);
+        /** @type {Array<[string, string]>} */
+        const parts = [
+            ['onset-rime', onset + b.slice(runB[0])],
+            ['head-rime', head + b.slice(runB[1])]
+        ];
+        const tailRun = lastVowelRun(b);
+        if (tailRun !== null) {
+            let k = tailRun[0];
+            while (k > 0 && !VOWELS.has(b[k - 1])) k -= 1;
+            // k === 0 would just append the whole of B - not a blend.
+            if (k > 0) parts.push(['head-tail', head + b.slice(k)]);
+        }
+        return parts;
+    }
+
+    /**
+     * Exhaustive cross product of NEW words, same iteration, filtering,
+     * and sort order as the Python combiner: every A x B pair blended
+     * three ways; anything that already exists (real-English wordlist or
+     * either input set) is dropped before rating.
      * @param {string[]} wordsA
      * @param {string[]} wordsB
-     * @param {'phrase' | 'blend' | 'both'} mode
+     * @param {Set<string>} realWords
      * @param {(word: string) => { total: number }} scoreWord
-     * @param {(value: number, places: number) => number} roundPlaces
      */
-    function crossProduct(wordsA, wordsB, mode, scoreWord, roundPlaces) {
-        /** @type {Array<{ text: string, form: string, source: string, score: number }>} */
+    function crossProduct(wordsA, wordsB, realWords, scoreWord) {
+        /** @type {Array<{ text: string, form: string, strategy: string, source: string, score: number }>} */
         const results = [];
         const seen = new Set();
-        const push = (row) => {
-            if (row && !seen.has(row.text)) {
-                seen.add(row.text);
-                results.push(row);
-            }
-        };
+        const inputs = new Set([...wordsA, ...wordsB]);
+        let droppedReal = 0;
         for (const wordA of wordsA) {
             for (const wordB of wordsB) {
-                if (mode === 'phrase' || mode === 'both') {
-                    const scoreA = scoreWord(wordA).total;
-                    const scoreB = scoreWord(wordB).total;
-                    push({
-                        text: `${wordA} ${wordB}`,
-                        form: 'phrase',
-                        source: `${wordA} + ${wordB}`,
-                        score: roundPlaces((scoreA + scoreB) / 2, 1)
-                    });
-                }
-                if (mode === 'blend' || mode === 'both') {
-                    const blended = blendWords(wordA, wordB);
-                    if (blended !== null) {
-                        push({
-                            text: blended,
-                            form: 'blend',
-                            source: `${wordA} + ${wordB}`,
-                            score: scoreWord(blended).total
-                        });
+                for (const [strategy, text] of blendParts(wordA, wordB)) {
+                    if (seen.has(text)) continue;
+                    // Length floor of 4 mirrors the Python combiner: shorter
+                    // blends are fragments or rare real words the list misses.
+                    if (text.length < 4 || inputs.has(text) || realWords.has(text)) {
+                        droppedReal += realWords.has(text) ? 1 : 0;
+                        continue;
                     }
+                    seen.add(text);
+                    results.push({
+                        text,
+                        form: 'blend',
+                        strategy,
+                        source: `${wordA} + ${wordB}`,
+                        score: scoreWord(text).total
+                    });
                 }
             }
         }
         results.sort((a, b) => (b.score - a.score)
             || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
-        return results;
+        return { results, droppedReal };
     }
 
     // ---- expansion (keyless Datamuse) ------------------------------------
@@ -220,7 +244,7 @@ const CoolnessCombine = (function () {
 
     return {
         cleanWordList,
-        blendWords,
+        blendParts,
         crossProduct,
         expandSet,
         logBatch,
