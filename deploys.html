@@ -7,7 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Deploys - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=342">
+    <link rel="stylesheet" href="style.css?v=343">
 </head>
 
 <body data-page="deploys">
@@ -43,14 +43,48 @@
                     </table>
                 </div>
             </section>
+
+            <section class="deploy-panel word-lab" id="wordLabPanel">
+                <div class="deploy-header">
+                    <div>
+                        <h2>Word lab: how cool does a word sound?</h2>
+                        <p>Phonotactic coolness scoring for real and invented words.
+                            Type anything; tune the metric weights (they persist on this device).</p>
+                    </div>
+                    <button id="wordLabResetBtn" class="quick-action-btn" type="button">Reset weights</button>
+                </div>
+
+                <div class="word-lab-try">
+                    <input id="wordLabInput" class="word-lab-input" type="text"
+                        placeholder="Type a word or several: zorvane, glimber, squanch..."
+                        autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button id="wordLabScoreBtn" class="quick-action-btn" type="button">Score</button>
+                    <button id="wordLabClearBtn" class="quick-action-btn" type="button">Clear my words</button>
+                </div>
+
+                <div class="word-lab-result" id="wordLabResult" hidden></div>
+
+                <div class="word-lab-weights" id="wordLabWeights"></div>
+
+                <div class="deploy-summary" id="wordLabStatus">Loading word lab...</div>
+                <div class="deploy-table-wrap">
+                    <table class="deploy-table word-lab-table">
+                        <thead id="wordLabTableHead"></thead>
+                        <tbody id="wordLabTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
         </main>
     </div>
 
-    <script src="dev-error-monitor.js?v=342"></script>
-    <script src="app-version.js?v=342"></script>
-    <script src="storage-keys.js?v=342"></script>
-    <script src="shared-header.js?v=342"></script>
-    <script src="deploys.js?v=342"></script>
+    <script src="dev-error-monitor.js?v=343"></script>
+    <script src="app-version.js?v=343"></script>
+    <script src="storage-keys.js?v=343"></script>
+    <script src="settings-store.js?v=343"></script>
+    <script src="shared-header.js?v=343"></script>
+    <script src="deploys.js?v=343"></script>
+    <script src="coolness-score.js?v=343"></script>
+    <script src="coolness-lab.js?v=343"></script>
 </body>
 
 </html>

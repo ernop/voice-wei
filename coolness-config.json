@@ -1,0 +1,184 @@
+{
+    "description": "Model data for the word-coolness scorer. Single representation shared by coolness.py (canonical engine, generates coolness-report.json) and coolness-score.js (browser mirror on deploys.html). tests/test-coolness.js keeps the two engines in lockstep. Edit values here, run `python3 coolness.py --report`, and commit both files together.",
+    "weights": {
+        "pronounceability": 1.5,
+        "flow": 1.0,
+        "energy": 1.0,
+        "phonesthemes": 1.25,
+        "novelty": 1.0,
+        "anchors": 1.5,
+        "brevity": 0.75
+    },
+    "weightLabels": {
+        "pronounceability": "Pronounceability: every onset and coda cluster is a legal English one",
+        "flow": "Flow: sonority rises into each vowel and falls after it",
+        "energy": "Energy: bright, punchy sounds (v, z, k, front vowels) over mushy ones",
+        "phonesthemes": "Phonesthemes: sound-symbolic prefixes and endings (gl- light, sn- nose, -ibe vibe)",
+        "novelty": "Novelty: sound pairs in the fresh zone - neither boringly common nor unpronounceably rare",
+        "anchors": "Anchors: sounds like the cool-word list, unlike the uncool-word list",
+        "brevity": "Brevity: one or two syllables land hardest"
+    },
+    "tokenizer": {
+        "digraphs": {
+            "ch": ["ch"],
+            "sh": ["sh"],
+            "th": ["th"],
+            "ph": ["f"],
+            "wh": ["w"],
+            "ng": ["ng"],
+            "qu": ["k", "w"],
+            "ck": ["k"],
+            "dg": ["j"]
+        },
+        "singles": {
+            "x": ["k", "s"],
+            "q": ["k"]
+        },
+        "softCTriggers": ["e", "i", "y"]
+    },
+    "vowels": ["a", "e", "i", "o", "u"],
+    "sonorityClasses": {
+        "plosives": ["b", "d", "g", "k", "p", "t"],
+        "affricates": ["ch", "j"],
+        "fricatives": ["f", "h", "s", "sh", "th", "v", "z"],
+        "nasals": ["m", "n", "ng"],
+        "liquids": ["l", "r"],
+        "glides": ["w", "y"]
+    },
+    "legalOnsets": [
+        "bl", "br", "dr", "dw", "fl", "fr", "gl", "gr", "kl", "kr", "kw",
+        "pl", "pr", "sf", "sk", "skr", "skw", "sl", "sm", "sn", "sp", "spl",
+        "spr", "st", "str", "sw", "shr", "thr", "tr", "tw"
+    ],
+    "illegalSingleOnsets": ["ng"],
+    "legalCodas": [
+        "bz", "dz", "ft", "gz", "ks", "kst", "kt", "lb", "lch", "ld", "lf",
+        "lj", "lk", "lm", "lp", "ls", "lt", "lts", "lv", "lz", "mp", "mps",
+        "mz", "nch", "nd", "nds", "ngs", "nj", "nk", "nks", "ns", "nt",
+        "nts", "nz", "ps", "pt", "rb", "rch", "rd", "rf", "rg", "rj", "rk",
+        "rl", "rld", "rm", "rn", "rp", "rs", "rst", "rt", "rts", "rv", "rz",
+        "sk", "sks", "sp", "st", "sts", "tch", "ts", "vz", "zd"
+    ],
+    "illegalSingleCodas": ["h", "w", "y"],
+    "flowNoTransitionScore": 0.75,
+    "energy": {
+        "default": 0.4,
+        "values": {
+            "a": 0.5, "e": 0.55, "i": 0.7, "o": 0.45, "u": 0.35, "y": 0.6,
+            "b": 0.55, "ch": 0.6, "d": 0.45, "f": 0.5, "g": 0.55, "h": 0.25,
+            "j": 0.65, "k": 0.7, "l": 0.45, "m": 0.35, "n": 0.35, "ng": 0.3,
+            "p": 0.5, "r": 0.45, "s": 0.5, "sh": 0.55, "t": 0.45, "th": 0.3,
+            "v": 0.9, "w": 0.4, "z": 0.95
+        }
+    },
+    "phonesthemes": [
+        { "pattern": "gl", "position": "start", "value": 0.35, "gloss": "light and shine: glow, gleam, glint, glide" },
+        { "pattern": "sw", "position": "start", "value": 0.2, "gloss": "smooth motion: swift, sweep, swoosh" },
+        { "pattern": "fl", "position": "start", "value": 0.2, "gloss": "quick movement: flow, fly, flick, flux" },
+        { "pattern": "dr", "position": "start", "value": 0.1, "gloss": "steady motion: drift, drive, dream" },
+        { "pattern": "sl", "position": "start", "value": 0.1, "gloss": "slippery, two-faced: sleek and slick, but also slime and slop" },
+        { "pattern": "z", "position": "start", "value": 0.3, "gloss": "electric energy: zoom, zap, zen, zest" },
+        { "pattern": "v", "position": "start", "value": 0.25, "gloss": "vigor: vibe, volt, vivid, velocity" },
+        { "pattern": "sn", "position": "start", "value": -0.35, "gloss": "nose and contempt: sneer, snide, snot, snoop" },
+        { "pattern": "sm", "position": "start", "value": -0.2, "gloss": "smear cluster: smudge, smog, smut" },
+        { "pattern": "gr", "position": "start", "value": -0.1, "gloss": "low and rough: grim, grime, grunt (groove escapes)" },
+        { "pattern": "squ", "position": "start", "value": -0.2, "gloss": "wet compression: squelch, squish, squirm" },
+        { "pattern": "ibe", "position": "end", "value": 0.3, "gloss": "the vibe/tribe family" },
+        { "pattern": "oom", "position": "end", "value": 0.2, "gloss": "resonant power: boom, zoom, vroom" },
+        { "pattern": "ux", "position": "end", "value": 0.25, "gloss": "the flux/lux/crux family" },
+        { "pattern": "olt", "position": "end", "value": 0.2, "gloss": "sudden force: bolt, volt, jolt" },
+        { "pattern": "eon", "position": "end", "value": 0.2, "gloss": "the neon/eon glow" },
+        { "pattern": "ash", "position": "end", "value": 0.15, "gloss": "sudden impact: flash, splash, dash" },
+        { "pattern": "ide", "position": "end", "value": 0.15, "gloss": "long smooth arcs: glide, ride, stride" },
+        { "pattern": "ave", "position": "end", "value": 0.15, "gloss": "the wave/rave family" },
+        { "pattern": "ift", "position": "end", "value": 0.15, "gloss": "light quickness: swift, drift, lift" },
+        { "pattern": "urge", "position": "end", "value": 0.15, "gloss": "building force: surge, urge" },
+        { "pattern": "ush", "position": "end", "value": 0.1, "gloss": "breathy motion: rush, hush, lush" },
+        { "pattern": "unk", "position": "end", "value": -0.25, "gloss": "dull thud: gunk, junk, clunk" },
+        { "pattern": "udge", "position": "end", "value": -0.3, "gloss": "sticky drag: sludge, smudge, drudge" },
+        { "pattern": "egm", "position": "end", "value": -0.5, "gloss": "the phlegm problem" },
+        { "pattern": "oist", "position": "end", "value": -0.25, "gloss": "the moist effect" }
+    ],
+    "novelty": {
+        "peakRarity": 6.8,
+        "width": 2.6,
+        "shortWordScore": 0.5
+    },
+    "anchors": {
+        "cool": [
+            "vibe", "aura", "flow", "wave", "neon", "zen", "flux", "blaze",
+            "glow", "spark", "drift", "pulse", "surge", "nova", "echo",
+            "slick", "sleek", "swift", "bolt", "rush", "groove", "jazz",
+            "laser", "turbo", "cosmic", "lux", "volt", "zoom", "vortex",
+            "prism"
+        ],
+        "uncool": [
+            "moist", "phlegm", "gunk", "sludge", "mucus", "smear", "pus",
+            "grime", "mold", "drab", "dud", "curd", "scab", "damp", "blob",
+            "gripe"
+        ]
+    },
+    "brevityBySyllables": [0.85, 1.0, 0.6, 0.35, 0.15],
+    "sampleWords": [
+        "vibe", "sleek", "blaze", "glide", "neon", "flux", "zen", "nova",
+        "echo", "drift", "spark", "groove",
+        "cabbage", "admin", "porridge", "mundane", "carpet", "oatmeal",
+        "phlegm", "moist", "smudge", "gunk", "sludge",
+        "zorvane", "vyx", "zephra", "glimber", "quorix", "brivo",
+        "fnorpt", "sglurb", "pfimf", "snurdge"
+    ],
+    "referenceLexicon": [
+        "the", "be", "to", "of", "and", "a", "in", "that", "have", "it",
+        "for", "not", "on", "with", "he", "as", "you", "do", "at", "this",
+        "but", "his", "by", "from", "they", "we", "say", "her", "she", "or",
+        "an", "will", "my", "one", "all", "would", "there", "their", "what",
+        "so", "up", "out", "if", "about", "who", "get", "which", "go", "me",
+        "when", "make", "can", "like", "time", "no", "just", "him", "know",
+        "take", "people", "into", "year", "your", "good", "some", "could",
+        "them", "see", "other", "than", "then", "now", "look", "only",
+        "come", "its", "over", "think", "also", "back", "after", "use",
+        "two", "how", "our", "work", "first", "well", "way", "even", "new",
+        "want", "because", "any", "these", "give", "day", "most", "us",
+        "water", "house", "light", "night", "hand", "world", "life",
+        "school", "street", "spring", "strong", "splash", "screen",
+        "square", "throw", "three", "shrink", "twelve", "quick", "quiet",
+        "black", "bring", "clean", "cloud", "crash", "cream", "drink",
+        "dream", "flat", "floor", "front", "fresh", "glass", "grass",
+        "great", "green", "plant", "place", "pride", "press", "skin",
+        "sky", "small", "smile", "snake", "snow", "speak", "sport",
+        "stand", "star", "still", "stop", "swim", "switch", "track",
+        "train", "tree", "trip", "twin", "milk", "film", "help", "self",
+        "gold", "cold", "wild", "salt", "belt", "silk", "calm", "arm",
+        "bird", "card", "dark", "farm", "fork", "form", "girl", "hard",
+        "heart", "horn", "hurt", "march", "north", "park", "part",
+        "sharp", "short", "sort", "start", "storm", "turn", "warm",
+        "word", "band", "bend", "find", "fund", "kind", "land", "lend",
+        "mind", "pond", "round", "sand", "send", "sound", "wind", "bank",
+        "junk", "link", "pink", "rank", "sink", "tank", "thank", "camp",
+        "jump", "lamp", "stamp", "bump", "lunch", "bench", "branch",
+        "best", "cost", "fast", "ghost", "last", "list", "must", "nest",
+        "past", "rest", "test", "west", "desk", "risk", "task", "mask",
+        "box", "six", "fix", "mix", "tax", "above", "again", "along",
+        "animal", "answer", "apple", "baby", "basic", "better", "body",
+        "bottle", "bottom", "button", "candle", "carry", "center",
+        "circle", "city", "color", "corner", "cover", "daily", "danger",
+        "dinner", "doctor", "double", "early", "empty", "enter",
+        "evening", "every", "family", "father", "finger", "finish",
+        "follow", "forest", "garden", "gather", "gentle", "happen",
+        "happy", "heavy", "hello", "hidden", "hollow", "honey", "hunger",
+        "island", "jacket", "kitchen", "ladder", "letter", "level",
+        "little", "lucky", "magic", "many", "matter", "meadow", "medal",
+        "member", "metal", "middle", "minute", "mirror", "moment",
+        "money", "monkey", "morning", "mother", "mountain", "movie",
+        "music", "narrow", "nation", "nature", "never", "number",
+        "ocean", "offer", "open", "orange", "order", "paper", "party",
+        "pattern", "pencil", "pepper", "picture", "pillow", "planet",
+        "pocket", "power", "pretty", "purple", "rabbit", "reason",
+        "river", "robot", "rocket", "second", "secret", "seven",
+        "shadow", "silver", "simple", "sister", "spider", "story",
+        "sudden", "sugar", "summer", "sunny", "table", "tiger", "today",
+        "together", "travel", "trouble", "under", "until", "valley",
+        "very", "village", "visit", "wagon", "weather", "window",
+        "winter", "wonder", "yellow", "zero"
+    ]
+}

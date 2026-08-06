@@ -1,0 +1,706 @@
+{
+  "generatedBy": "coolness.py",
+  "generatedAt": "2026-08-06T03:31:33Z",
+  "configDigest": "2904dd732ee5c8aa84d4bd09703da85291e0f384ddc9bf07f6abc14d1ec3312d",
+  "weights": {
+    "pronounceability": 1.5,
+    "flow": 1.0,
+    "energy": 1.0,
+    "phonesthemes": 1.25,
+    "novelty": 1.0,
+    "anchors": 1.5,
+    "brevity": 0.75
+  },
+  "words": [
+    {
+      "word": "vibe",
+      "total": 85.2,
+      "syllables": 1,
+      "tokens": [
+        "v",
+        "i",
+        "b"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.7167,
+        "phonesthemes": 0.775,
+        "novelty": 0.6258,
+        "anchors": 0.9091,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "echo",
+      "total": 82.9,
+      "syllables": 2,
+      "tokens": [
+        "e",
+        "ch",
+        "o"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5333,
+        "phonesthemes": 0.5,
+        "novelty": 0.724,
+        "anchors": 1.0,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "nova",
+      "total": 82.7,
+      "syllables": 2,
+      "tokens": [
+        "n",
+        "o",
+        "v",
+        "a"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.5,
+        "novelty": 0.6927,
+        "anchors": 1.0,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "zen",
+      "total": 81.8,
+      "syllables": 1,
+      "tokens": [
+        "z",
+        "e",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6167,
+        "phonesthemes": 0.65,
+        "novelty": 0.4792,
+        "anchors": 1.0,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "flux",
+      "total": 81.0,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "l",
+        "u",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 0.75,
+        "energy": 0.5,
+        "phonesthemes": 0.725,
+        "novelty": 0.8092,
+        "anchors": 0.9167,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "drift",
+      "total": 80.3,
+      "syllables": 1,
+      "tokens": [
+        "d",
+        "r",
+        "i",
+        "f",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.51,
+        "phonesthemes": 0.625,
+        "novelty": 0.7673,
+        "anchors": 0.8182,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "neon",
+      "total": 79.0,
+      "syllables": 1,
+      "tokens": [
+        "n",
+        "e",
+        "o",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.425,
+        "phonesthemes": 0.6,
+        "novelty": 0.5083,
+        "anchors": 1.0,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "sleek",
+      "total": 77.7,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "l",
+        "e",
+        "e",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.55,
+        "novelty": 0.5683,
+        "anchors": 0.8462,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "zephra",
+      "total": 77.3,
+      "syllables": 2,
+      "tokens": [
+        "z",
+        "e",
+        "f",
+        "r",
+        "a"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.59,
+        "phonesthemes": 0.65,
+        "novelty": 0.6354,
+        "anchors": 0.5985,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "glide",
+      "total": 76.0,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "l",
+        "i",
+        "d"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5375,
+        "phonesthemes": 0.75,
+        "novelty": 0.6927,
+        "anchors": 0.5152,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "blaze",
+      "total": 75.8,
+      "syllables": 1,
+      "tokens": [
+        "b",
+        "l",
+        "a",
+        "z"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6125,
+        "phonesthemes": 0.5,
+        "novelty": 0.4582,
+        "anchors": 0.8182,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "groove",
+      "total": 74.9,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "r",
+        "o",
+        "o",
+        "v"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.56,
+        "phonesthemes": 0.45,
+        "novelty": 0.5761,
+        "anchors": 0.7692,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "vyx",
+      "total": 74.4,
+      "syllables": 1,
+      "tokens": [
+        "v",
+        "y",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 0.6667,
+        "energy": 0.675,
+        "phonesthemes": 0.625,
+        "novelty": 0.671,
+        "anchors": 0.6818,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "zorvane",
+      "total": 74.1,
+      "syllables": 2,
+      "tokens": [
+        "z",
+        "o",
+        "r",
+        "v",
+        "a",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6,
+        "phonesthemes": 0.65,
+        "novelty": 0.3934,
+        "anchors": 0.5824,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "glimber",
+      "total": 73.9,
+      "syllables": 2,
+      "tokens": [
+        "g",
+        "l",
+        "i",
+        "m",
+        "b",
+        "e",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5143,
+        "phonesthemes": 0.675,
+        "novelty": 0.5373,
+        "anchors": 0.511,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "brivo",
+      "total": 73.7,
+      "syllables": 2,
+      "tokens": [
+        "b",
+        "r",
+        "i",
+        "v",
+        "o"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.61,
+        "phonesthemes": 0.5,
+        "novelty": 0.6617,
+        "anchors": 0.5,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "cabbage",
+      "total": 71.5,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "a",
+        "b",
+        "a",
+        "g"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.56,
+        "phonesthemes": 0.5,
+        "novelty": 0.5544,
+        "anchors": 0.489,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "spark",
+      "total": 71.4,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "p",
+        "a",
+        "r",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 0.75,
+        "energy": 0.53,
+        "phonesthemes": 0.5,
+        "novelty": 0.4178,
+        "anchors": 0.8333,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "admin",
+      "total": 70.8,
+      "syllables": 2,
+      "tokens": [
+        "a",
+        "d",
+        "m",
+        "i",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.47,
+        "phonesthemes": 0.5,
+        "novelty": 0.4181,
+        "anchors": 0.6,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "carpet",
+      "total": 69.4,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "a",
+        "r",
+        "p",
+        "e",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.525,
+        "phonesthemes": 0.5,
+        "novelty": 0.4003,
+        "anchors": 0.5,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "quorix",
+      "total": 68.7,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "w",
+        "o",
+        "r",
+        "i",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 0.8,
+        "energy": 0.5571,
+        "phonesthemes": 0.5,
+        "novelty": 0.418,
+        "anchors": 0.5659,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "porridge",
+      "total": 68.5,
+      "syllables": 2,
+      "tokens": [
+        "p",
+        "o",
+        "r",
+        "i",
+        "j"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.5,
+        "novelty": 0.3897,
+        "anchors": 0.4458,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "snurdge",
+      "total": 68.2,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "n",
+        "u",
+        "r",
+        "j"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.46,
+        "phonesthemes": 0.325,
+        "novelty": 0.6737,
+        "anchors": 0.519,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "mundane",
+      "total": 65.8,
+      "syllables": 2,
+      "tokens": [
+        "m",
+        "u",
+        "n",
+        "d",
+        "a",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.3917,
+        "phonesthemes": 0.5,
+        "novelty": 0.346,
+        "anchors": 0.4341,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "oatmeal",
+      "total": 65.8,
+      "syllables": 2,
+      "tokens": [
+        "o",
+        "a",
+        "t",
+        "m",
+        "e",
+        "a",
+        "l"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4643,
+        "phonesthemes": 0.5,
+        "novelty": 0.3872,
+        "anchors": 0.3571,
+        "brevity": 1.0
+      }
+    },
+    {
+      "word": "sludge",
+      "total": 65.5,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "l",
+        "u",
+        "j"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4875,
+        "phonesthemes": 0.4,
+        "novelty": 0.7721,
+        "anchors": 0.2308,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "smudge",
+      "total": 65.3,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "m",
+        "u",
+        "j"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4625,
+        "phonesthemes": 0.25,
+        "novelty": 0.7497,
+        "anchors": 0.3736,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "sglurb",
+      "total": 58.4,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "g",
+        "l",
+        "u",
+        "r",
+        "b"
+      ],
+      "metrics": {
+        "pronounceability": 0.5,
+        "flow": 0.8,
+        "energy": 0.475,
+        "phonesthemes": 0.5,
+        "novelty": 0.6549,
+        "anchors": 0.4872,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "gunk",
+      "total": 57.7,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "u",
+        "n",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4875,
+        "phonesthemes": 0.375,
+        "novelty": 0.3722,
+        "anchors": 0.1,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "moist",
+      "total": 57.1,
+      "syllables": 1,
+      "tokens": [
+        "m",
+        "o",
+        "i",
+        "s",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.49,
+        "phonesthemes": 0.375,
+        "novelty": 0.339,
+        "anchors": 0.0909,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "fnorpt",
+      "total": 50.5,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "n",
+        "o",
+        "r",
+        "p",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 0.0,
+        "flow": 1.0,
+        "energy": 0.45,
+        "phonesthemes": 0.5,
+        "novelty": 0.5647,
+        "anchors": 0.5064,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "pfimf",
+      "total": 50.3,
+      "syllables": 1,
+      "tokens": [
+        "p",
+        "f",
+        "i",
+        "m",
+        "f"
+      ],
+      "metrics": {
+        "pronounceability": 0.0,
+        "flow": 1.0,
+        "energy": 0.51,
+        "phonesthemes": 0.5,
+        "novelty": 0.5228,
+        "anchors": 0.4833,
+        "brevity": 0.85
+      }
+    },
+    {
+      "word": "phlegm",
+      "total": 45.7,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "l",
+        "e",
+        "g",
+        "m"
+      ],
+      "metrics": {
+        "pronounceability": 0.5,
+        "flow": 0.75,
+        "energy": 0.48,
+        "phonesthemes": 0.25,
+        "novelty": 0.498,
+        "anchors": 0.1538,
+        "brevity": 0.85
+      }
+    }
+  ]
+}

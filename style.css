@@ -856,6 +856,115 @@ h1 {
     color: #fecaca;
 }
 
+.word-lab-try {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 10px;
+}
+
+.word-lab-input {
+    flex: 1;
+    min-width: 220px;
+    padding: 8px 12px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+    font-size: 0.95rem;
+}
+
+.word-lab-input:focus {
+    outline: none;
+    border-color: rgba(74, 222, 128, 0.6);
+}
+
+.word-lab-result {
+    margin: 10px 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(74, 222, 128, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.word-lab-result-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: #bbf7d0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.word-lab-result-detail {
+    color: rgba(232, 245, 233, 0.6);
+    font-size: 0.8rem;
+    margin: 2px 0 10px;
+}
+
+.word-lab-metric {
+    display: grid;
+    grid-template-columns: 92px 1fr 48px;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0;
+    color: rgba(232, 245, 233, 0.8);
+    font-size: 0.8rem;
+}
+
+.word-lab-metric-value {
+    text-align: right;
+}
+
+.word-lab-bar-track {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+.word-lab-bar {
+    height: 100%;
+    border-radius: 4px;
+    background: #4ade80;
+}
+
+.word-lab-weights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 6px 18px;
+    margin: 12px 0;
+}
+
+.word-lab-weight-head {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(232, 245, 233, 0.8);
+    font-size: 0.8rem;
+}
+
+.word-lab-weight-value {
+    color: #86efac;
+}
+
+.word-lab-weight input[type="range"] {
+    width: 100%;
+    accent-color: #4ade80;
+}
+
+.word-lab-table {
+    min-width: 860px;
+}
+
+.word-lab-word-cell {
+    font-weight: 600;
+}
+
+.word-lab-row-user td {
+    background: rgba(74, 222, 128, 0.08);
+    color: #bbf7d0;
+}
+
 .playlist-header {
     display: flex;
     justify-content: space-between;

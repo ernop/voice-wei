@@ -809,3 +809,31 @@ or leaning 15c+).
 Options per page: targets on/off, pause on silence, 20s window, expand
 range. The guide never auto-plays; "Play Guide" is an explicit button in
 the pinned action row.
+
+## Word lab (bottom of the Deploys page)
+
+Scores how cool a word *sounds* - real or invented - from English
+phonotactics (which sound sequences the language permits) plus sound
+symbolism. Type a word (or several, comma-separated) into the box on
+`deploys.html` and it joins the leaderboard, highlighted, with a
+per-metric breakdown of the first word typed. Seven metrics, each 0-1,
+combine as a weighted mean scaled to 0-100:
+
+- **Pronounceability**: every syllable onset/coda is a legal English cluster
+- **Flow**: sonority rises into each vowel and falls after it
+- **Energy**: bright, punchy sounds (v, z, k, front vowels) over mushy ones
+- **Phonesthemes**: sound-symbolic prefixes/endings (gl- light, sn- nose, -ibe vibe)
+- **Novelty**: sound pairs in the fresh zone between boring-common and unpronounceably rare
+- **Anchors**: n-gram similarity to a cool-word list minus an uncool-word list
+- **Brevity**: one or two syllables land hardest
+
+The canonical engine is `coolness.py` (CLI: `python3 coolness.py vibe
+zorvane`, breakdowns per word); the page runs its exact browser mirror
+(`coolness-score.js`) live. All model data - weights, cluster inventories,
+phonestheme table, anchor lists, the reference lexicon behind the bigram
+model, sample words - lives in `coolness-config.json`. After editing the
+config, run `python3 coolness.py --report` to regenerate
+`coolness-report.json` (the shipped leaderboard and the parity fixture)
+and commit both together; `tests/test-coolness.js` fails if the report is
+stale or the engines disagree. Weight sliders on the page persist per
+device (see [parameters.md](parameters.md)).

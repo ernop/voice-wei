@@ -29,6 +29,7 @@ const StorageKeys = Object.freeze({
     PRACTICE_PROGRESS: 'voice-wei:practice-progress',
     API_CLAUDE: 'voice-wei:api-key:claude',
     API_OPENAI: 'voice-wei:api-key:openai',
+    COOLNESS_LAB: 'voice-wei:coolness-lab',
     PANEL_SCALES_SING: 'voice-wei:panel:scales-sing',
     PANEL_INTERVALS_SING: 'voice-wei:panel:intervals-sing',
     PANEL_PHRASES_TEST: 'voice-wei:panel:phrases-test',

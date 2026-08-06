@@ -51,6 +51,7 @@ interface Window {
     PitchScore?: typeof PitchScore;
     SettingsStore?: any;
     StorageKeys?: any;
+    CoolnessScore?: any;
     LegacyStorageKeys?: any;
     ApiKeysStore?: any;
     PlayerApiKeys?: any;
