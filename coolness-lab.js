@@ -39,6 +39,13 @@ const CoolnessLab = (function () {
     let triedWords = [];
     /** @type {string | null} */
     let featuredWord = null;
+    /** @type {Array<{ text: string, form: string, source: string, score: number }>} */
+    let combineResults = [];
+    /** @type {{ a: Record<string, any>, b: Record<string, any> } | null} */
+    let combineSets = null;
+    let combineShown = 50;
+    /** @type {number | undefined} */
+    let combineRerankTimer;
 
     function el(id) {
         return document.getElementById(id);
@@ -71,14 +78,34 @@ const CoolnessLab = (function () {
             if (typeof stored.formulaId === 'string' && stored.formulaId) {
                 formulaId = stored.formulaId;
             }
+            const combineFields = {
+                combineA: 'combineSetA',
+                combineB: 'combineSetB',
+                combineExpand: 'combineExpand',
+                combineMode: 'combineMode'
+            };
+            for (const [key, id] of Object.entries(combineFields)) {
+                if (typeof stored[key] === 'string' && stored[key]) {
+                    const input = /** @type {HTMLInputElement | HTMLSelectElement | null} */ (el(id));
+                    if (input) input.value = stored[key];
+                }
+            }
         }
     }
 
     function saveState() {
+        const field = (id) => {
+            const input = /** @type {HTMLInputElement | HTMLSelectElement | null} */ (el(id));
+            return input ? input.value : '';
+        };
         SettingsStore.saveJson(StorageKeys.COOLNESS_LAB, {
             weights,
             formulaId,
-            words: triedWords
+            words: triedWords,
+            combineA: field('combineSetA'),
+            combineB: field('combineSetB'),
+            combineExpand: field('combineExpand'),
+            combineMode: field('combineMode')
         });
     }
 
@@ -127,6 +154,7 @@ const CoolnessLab = (function () {
                 saveState();
                 renderTable();
                 renderFeatured();
+                combineRerank(false);
             });
 
             wrap.appendChild(head);
@@ -143,6 +171,7 @@ const CoolnessLab = (function () {
         renderWeights();
         renderTable();
         renderFeatured();
+        combineRerank(true);
     }
 
     // ---- formulas ---------------------------------------------------------
@@ -175,6 +204,7 @@ const CoolnessLab = (function () {
             renderWeights();
             renderTable();
             renderFeatured();
+            combineRerank(true);
         });
         syncFormulaUI();
     }
@@ -344,6 +374,145 @@ const CoolnessLab = (function () {
         renderFeatured();
     }
 
+    // ---- combine two word sets --------------------------------------------
+
+    function combineStatus(text) {
+        const status = el('combineStatus');
+        if (status) status.textContent = text;
+    }
+
+    async function updateLogCount() {
+        const count = await CoolnessCombine.batchCount();
+        const status = el('combineStatus');
+        if (status && status.textContent) {
+            status.textContent += ` Device log: ${count} batch${count === 1 ? '' : 'es'}.`;
+        }
+    }
+
+    function combineMode() {
+        const select = /** @type {HTMLSelectElement | null} */ (el('combineMode'));
+        return /** @type {'phrase' | 'blend' | 'both'} */ (select ? select.value : 'both');
+    }
+
+    function rescoreCombine() {
+        if (!combineSets) return [];
+        return CoolnessCombine.crossProduct(
+            combineSets.a.words, combineSets.b.words, combineMode(),
+            scoreLive, CoolnessScore.roundPlaces);
+    }
+
+    async function runCombine() {
+        const inputA = /** @type {HTMLInputElement | null} */ (el('combineSetA'));
+        const inputB = /** @type {HTMLInputElement | null} */ (el('combineSetB'));
+        const expandSelect = /** @type {HTMLSelectElement | null} */ (el('combineExpand'));
+        if (!inputA || !inputB) return;
+        const seedsA = CoolnessCombine.cleanWordList(inputA.value);
+        const seedsB = CoolnessCombine.cleanWordList(inputB.value);
+        if (!seedsA.length || !seedsB.length) {
+            combineStatus('Both sets need at least one word.');
+            return;
+        }
+        const expandBy = Number(expandSelect ? expandSelect.value : 0);
+        saveState();
+        try {
+            let expandedA = [];
+            let expandedB = [];
+            if (expandBy > 0) {
+                combineStatus(`Expanding both sets by up to ${expandBy} related words...`);
+                [expandedA, expandedB] = await Promise.all([
+                    CoolnessCombine.expandSet(seedsA, expandBy),
+                    CoolnessCombine.expandSet(seedsB, expandBy)
+                ]);
+            }
+            combineSets = {
+                a: { label: 'set-a', seeds: seedsA, expanded: expandedA, words: seedsA.concat(expandedA) },
+                b: { label: 'set-b', seeds: seedsB, expanded: expandedB, words: seedsB.concat(expandedB) }
+            };
+            combineResults = rescoreCombine();
+            combineShown = 50;
+            renderCombine();
+            combineStatus(`${combineResults.length} candidates from `
+                + `${combineSets.a.words.length} x ${combineSets.b.words.length} words`
+                + (expandBy > 0 ? ` (expanded +${expandedA.length}/+${expandedB.length})` : '')
+                + ` under ${formulaId}.`);
+            await logCombineBatch();
+            await updateLogCount();
+        } catch (error) {
+            combineStatus(error instanceof Error ? error.message : String(error));
+        }
+    }
+
+    async function logCombineBatch() {
+        if (!combineSets) return;
+        await CoolnessCombine.logBatch({
+            at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
+            kind: 'combine-exhaustive',
+            surface: 'browser',
+            sets: combineSets,
+            formula: formulaId,
+            weights: { ...weights },
+            mode: combineMode(),
+            results: combineResults
+        });
+    }
+
+    /** Rerank the existing cross product under the current formula/weights.
+     * Discrete changes (formula switch) are logged; slider drags are not. */
+    function combineRerank(log) {
+        if (!combineSets) return;
+        window.clearTimeout(combineRerankTimer);
+        combineRerankTimer = window.setTimeout(() => {
+            combineResults = rescoreCombine();
+            renderCombine();
+            combineStatus(`${combineResults.length} candidates re-ranked under ${formulaId}.`);
+            if (log) {
+                void logCombineBatch().then(updateLogCount);
+            }
+        }, log ? 0 : 150);
+    }
+
+    function renderCombine() {
+        const head = el('combineTableHead');
+        const body = el('combineTableBody');
+        const moreBtn = el('combineMoreBtn');
+        if (!head || !body) return;
+        head.textContent = '';
+        const tr = document.createElement('tr');
+        for (const text of ['#', 'Candidate', 'Score', 'Form', 'From']) {
+            const th = document.createElement('th');
+            th.textContent = text;
+            tr.appendChild(th);
+        }
+        head.appendChild(tr);
+
+        body.textContent = '';
+        combineResults.slice(0, combineShown).forEach((row, index) => {
+            const line = document.createElement('tr');
+            const cells = [String(index + 1), row.text, row.score.toFixed(1), row.form, row.source];
+            cells.forEach((text, cellIndex) => {
+                const td = document.createElement('td');
+                td.textContent = text;
+                if (cellIndex === 1) td.className = 'word-lab-word-cell';
+                line.appendChild(td);
+            });
+            body.appendChild(line);
+        });
+        if (moreBtn) {
+            moreBtn.hidden = combineResults.length <= combineShown;
+            moreBtn.textContent = `Show 100 more (${combineResults.length - Math.min(combineShown, combineResults.length)} hidden)`;
+        }
+    }
+
+    async function exportDeviceLog() {
+        const text = await CoolnessCombine.exportJsonl();
+        const blob = new Blob([text], { type: 'application/jsonl' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'coolness-device-log.jsonl';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
     // ---- status line ----------------------------------------------------------
 
     function renderStatus() {
@@ -392,6 +561,17 @@ const CoolnessLab = (function () {
         });
         el('wordLabClearBtn')?.addEventListener('click', clearTriedWords);
         el('wordLabResetBtn')?.addEventListener('click', resetWeights);
+        el('combineRunBtn')?.addEventListener('click', () => void runCombine());
+        el('combineExportBtn')?.addEventListener('click', () => void exportDeviceLog());
+        el('combineMoreBtn')?.addEventListener('click', () => {
+            combineShown += 100;
+            renderCombine();
+        });
+        for (const id of ['combineSetA', 'combineSetB']) {
+            el(id)?.addEventListener('keydown', event => {
+                if (event.key === 'Enter') void runCombine();
+            });
+        }
 
         renderFormulaSelect();
         renderWeights();

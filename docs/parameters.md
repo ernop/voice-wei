@@ -465,9 +465,12 @@ at the very top of the panel, above the titles.
 
 | Option | Default | Behavior |
 |--------|---------|----------|
-| formula (dropdown) | balanced | applies that formula's weights to all sliders + re-rank |
+| formula (dropdown) | balanced | applies that formula's weights to all sliders + re-rank (persona formulas also swap the anchor vocabulary) |
 | weights (7 sliders, 0-3) | from `coolness-config.json` | recompute totals + re-rank immediately; switches formula to Custom |
 | words (typed words) | empty | each scored word joins the leaderboard until Clear my words |
+| combine set A / set B (text) | empty | Combine + score builds the exhaustive phrase+blend cross product |
+| combine expand (0-50) | 20 | related words added per set via keyless Datamuse before combining |
+| combine forms | phrases + blends | which candidate forms to generate |
 
 Reset weights restores the config defaults (the Balanced formula).
 Sliders re-weight the stored per-metric values client-side; the metric

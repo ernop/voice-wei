@@ -857,7 +857,16 @@ word flips ranks across personas - "skibidi" beats "groovy" for Gen
 alpha and loses badly for Boomer. These are homages to the findings and
 registers, not implementations of papers or dialect surveys.
 
-**Word combiner** (`python3 coolness-combine.py`) has two feeds:
+**Word combiner** runs in two places. On the deploys page, the "Combine
+two word sets" panel at the bottom of the Word lab does the whole flow
+in the browser: type two sets, pick how many related words to add per
+set (keyless Datamuse), press Combine + score, and the exhaustive
+phrase+blend cross product ranks under whatever formula and weights are
+selected above (changing them re-ranks the same candidates live). Every
+run and every formula re-rank is appended to a per-device IndexedDB log
+(`voice-wei-coolness`, owned by `coolness-combine.js`) and exportable as
+.jsonl with "Export device log". The CLI
+(`python3 coolness-combine.py`) has two feeds:
 
 - **Config themes** (music, tech, nature, light, motion, space, water,
   energy, animals, mood): random batches; pick two different themes.

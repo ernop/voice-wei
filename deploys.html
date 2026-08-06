@@ -7,7 +7,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Deploys - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=345">
+    <link rel="stylesheet" href="style.css?v=346">
 </head>
 
 <body data-page="deploys">
@@ -79,18 +79,64 @@
                         <tbody id="wordLabTableBody"></tbody>
                     </table>
                 </div>
+
+                <div class="word-lab-combine">
+                    <h3>Combine two word sets</h3>
+                    <p class="word-lab-combine-hint">Give two related sets; each can grow by related
+                        words (keyless Datamuse). Every cross pair is scored as a phrase and a fused
+                        blend under the formula and weights above, ranked below. Every run is saved
+                        to this device's append-only log.</p>
+                    <div class="word-lab-combine-inputs">
+                        <input id="combineSetA" class="word-lab-input" type="text"
+                            placeholder="Set A: vibe, aura, glow, flow, drift"
+                            autocomplete="off" autocapitalize="off" spellcheck="false">
+                        <input id="combineSetB" class="word-lab-input" type="text"
+                            placeholder="Set B: code, script, pixel, stack, byte"
+                            autocomplete="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    <div class="word-lab-combine-controls">
+                        <label>Expand each set by
+                            <select id="combineExpand" class="word-lab-select">
+                                <option value="0">0</option>
+                                <option value="10">10</option>
+                                <option value="20" selected>20</option>
+                                <option value="30">30</option>
+                                <option value="50">50</option>
+                            </select>
+                            related words
+                        </label>
+                        <label>Forms
+                            <select id="combineMode" class="word-lab-select">
+                                <option value="both" selected>phrases + blends</option>
+                                <option value="phrase">phrases only</option>
+                                <option value="blend">blends only</option>
+                            </select>
+                        </label>
+                        <button id="combineRunBtn" class="quick-action-btn" type="button">Combine + score</button>
+                        <button id="combineExportBtn" class="quick-action-btn" type="button">Export device log</button>
+                    </div>
+                    <div class="deploy-summary" id="combineStatus"></div>
+                    <div class="deploy-table-wrap">
+                        <table class="deploy-table word-lab-combine-table">
+                            <thead id="combineTableHead"></thead>
+                            <tbody id="combineTableBody"></tbody>
+                        </table>
+                    </div>
+                    <button id="combineMoreBtn" class="quick-action-btn word-lab-more-btn" type="button" hidden>Show 100 more</button>
+                </div>
             </section>
         </main>
     </div>
 
-    <script src="dev-error-monitor.js?v=345"></script>
-    <script src="app-version.js?v=345"></script>
-    <script src="storage-keys.js?v=345"></script>
-    <script src="settings-store.js?v=345"></script>
-    <script src="shared-header.js?v=345"></script>
-    <script src="deploys.js?v=345"></script>
-    <script src="coolness-score.js?v=345"></script>
-    <script src="coolness-lab.js?v=345"></script>
+    <script src="dev-error-monitor.js?v=346"></script>
+    <script src="app-version.js?v=346"></script>
+    <script src="storage-keys.js?v=346"></script>
+    <script src="settings-store.js?v=346"></script>
+    <script src="shared-header.js?v=346"></script>
+    <script src="deploys.js?v=346"></script>
+    <script src="coolness-score.js?v=346"></script>
+    <script src="coolness-combine.js?v=346"></script>
+    <script src="coolness-lab.js?v=346"></script>
 </body>
 
 </html>

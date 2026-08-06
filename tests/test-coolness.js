@@ -32,6 +32,13 @@ function loadBrowserEngine() {
     return sandbox.window.CoolnessScore;
 }
 
+function loadBrowserCombiner() {
+    const source = fs.readFileSync(path.join(ROOT, 'coolness-combine.js'), 'utf8');
+    const sandbox = { window: {} };
+    vm.runInNewContext(source, sandbox);
+    return sandbox.window.CoolnessCombine;
+}
+
 (async () => {
     const report = createReporter('coolness');
 
@@ -183,6 +190,18 @@ function loadBrowserEngine() {
         && lastLog.sets.a.seeds.join(',') === 'glow,neon'
         && lastLog.results.length === 8);
 
+    // Browser combiner mirrors the Python cross product exactly.
+    const combiner = loadBrowserCombiner();
+    const jsCross = combiner.crossProduct(
+        ['glow', 'neon'], ['code', 'pixel'], 'both',
+        word => scorer.score(word), engine.roundPlaces);
+    report.check('browser combiner matches the Python cross product',
+        JSON.stringify(jsCross.map(r => [r.text, r.score, r.form]))
+        === JSON.stringify(cross.map(r => [r.text, r.score, r.form])));
+    report.check('browser blend helper mirrors Python (zen + kernel -> zernel)',
+        combiner.blendWords('zen', 'kernel') === 'zernel'
+        && combiner.blendWords('glow', 'code') === 'glode');
+
     // 6. Word lab UI on deploys.html.
     const browser = await launch();
     const tab = await browser.newPage();
@@ -272,6 +291,33 @@ function loadBrowserEngine() {
     report.check('persona formula rescoring changes anchor metric values',
         Object.keys(balancedAnchors).some(word =>
             word in genalphaAnchors && balancedAnchors[word] !== genalphaAnchors[word]));
+
+    // On-page combine flow (expansion off so the gate stays offline).
+    await tab.fill('#combineSetA', 'glow, neon');
+    await tab.fill('#combineSetB', 'code, pixel');
+    await tab.selectOption('#combineExpand', '0');
+    await tab.click('#combineRunBtn');
+    await tab.waitForFunction(() => {
+        const status = document.getElementById('combineStatus');
+        return status !== null && (status.textContent || '').includes('candidates');
+    }, undefined, { timeout: 10000 });
+    const combineState = await tab.evaluate(() => ({
+        status: document.getElementById('combineStatus')?.textContent || '',
+        rows: document.querySelectorAll('#combineTableBody tr').length,
+        firstRow: document.querySelector('#combineTableBody tr td:nth-child(2)')?.textContent || ''
+    }));
+    report.check('page combine builds and ranks the cross product (8 candidates)',
+        combineState.status.includes('8 candidates') && combineState.rows === 8);
+    await tab.selectOption('#wordLabFormula', 'streetwise');
+    await tab.waitForFunction(() => {
+        const status = document.getElementById('combineStatus');
+        return status !== null && (status.textContent || '').includes('re-ranked under streetwise');
+    }, undefined, { timeout: 10000 });
+    const deviceLogCount = await tab.evaluate(() => window.CoolnessCombine.batchCount());
+    report.check('combine batches persist to the device log (IndexedDB)',
+        deviceLogCount >= 2);
+    report.check('export button for the device log is present',
+        await tab.evaluate(() => document.getElementById('combineExportBtn') !== null));
 
     report.check('deploys.html stays free of console errors', pageErrors.length === 0);
     pageErrors.forEach(e => report.errors.push(e));

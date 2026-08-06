@@ -991,6 +991,53 @@ h1 {
     color: #bbf7d0;
 }
 
+.word-lab-combine {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(74, 222, 128, 0.18);
+}
+
+.word-lab-combine h3 {
+    margin: 0 0 4px;
+    color: #bbf7d0;
+    font-size: 1.05rem;
+}
+
+.word-lab-combine-hint {
+    margin: 0 0 10px;
+    color: rgba(232, 245, 233, 0.65);
+    font-size: 0.82rem;
+}
+
+.word-lab-combine-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.word-lab-combine-inputs .word-lab-input {
+    min-width: 240px;
+}
+
+.word-lab-combine-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    color: rgba(232, 245, 233, 0.8);
+    font-size: 0.85rem;
+}
+
+.word-lab-combine-table {
+    min-width: 640px;
+}
+
+.word-lab-more-btn {
+    margin-top: 8px;
+}
+
 .playlist-header {
     display: flex;
     justify-content: space-between;

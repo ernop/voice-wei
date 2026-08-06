@@ -52,6 +52,7 @@ interface Window {
     SettingsStore?: any;
     StorageKeys?: any;
     CoolnessScore?: any;
+    CoolnessCombine?: any;
     LegacyStorageKeys?: any;
     ApiKeysStore?: any;
     PlayerApiKeys?: any;
