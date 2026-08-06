@@ -339,10 +339,30 @@ function loadBrowserCombiner() {
         words: [...document.querySelectorAll('#combineTableBody tr td:nth-child(2)')]
             .map(td => td.textContent || '')
     }));
-    report.check('page combine builds and ranks only new words (24 from 2x2 + inflections)',
-        combineState.status.includes('24 new words') && combineState.rows === 24
-        && combineState.words.every(word => !word.includes(' '))
-        && combineState.words.includes('glowcode'));
+    const distinctSources = new Set(cross.map(r => r.source)).size;
+    report.check(`page groups best-per-pair by default (${distinctSources} pairs from 24 words)`,
+        combineState.status.includes('24 new words')
+        && combineState.rows === distinctSources
+        && combineState.words.every(word => !word.includes(' ')));
+    await tab.setChecked('#combineGroupBest', false);
+    const ungroupedRows = await tab.evaluate(
+        () => document.querySelectorAll('#combineTableBody tr').length);
+    report.check('all variants show when grouping is off (24 rows)',
+        ungroupedRows === 24);
+
+    // Tapping a ranked word features its metric breakdown.
+    const tappedWord = await tab.evaluate(() => {
+        const row = /** @type {HTMLElement} */ (
+            document.querySelector('#combineTableBody tr'));
+        row.click();
+        return {
+            word: row.querySelector('td:nth-child(2)')?.textContent || '',
+            featured: document.getElementById('wordLabResult')?.textContent || '',
+            hidden: document.getElementById('wordLabResult')?.hidden
+        };
+    });
+    report.check('tapping a coined word shows its breakdown',
+        tappedWord.hidden === false && tappedWord.featured.includes(tappedWord.word));
     await tab.selectOption('#wordLabFormula', 'streetwise');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');

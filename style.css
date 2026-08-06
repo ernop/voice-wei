@@ -1034,6 +1034,26 @@ h1 {
     min-width: 640px;
 }
 
+.word-lab-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.word-lab-check input[type="checkbox"] {
+    accent-color: #4ade80;
+}
+
+.word-lab-table tbody tr,
+.word-lab-combine-table tbody tr {
+    cursor: pointer;
+}
+
+.word-lab-table tbody tr:hover td,
+.word-lab-combine-table tbody tr:hover td {
+    background: rgba(74, 222, 128, 0.12);
+}
+
 .word-lab-more-btn {
     margin-top: 8px;
 }

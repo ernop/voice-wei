@@ -470,6 +470,7 @@ at the very top of the panel, above the titles.
 | words (typed words) | empty | each scored word joins the leaderboard until Clear my words |
 | combine set A / set B (text) | empty | Combine + score joins every cross pair compound-first (plus light seam/clip trims and -ing forms); existing English words are dropped so only NEW words are rated |
 | combine expand (0-50) | 20 | related words added per set via keyless Datamuse before combining |
+| best per pair | on | one best variant represents each A+B pair (others fold into a count); off shows every variant |
 
 Reset weights restores the config defaults (the Balanced formula).
 Sliders re-weight the stored per-metric values client-side; the metric

@@ -1047,3 +1047,47 @@ sibling. Deleted `msToTempoName` entirely.
 
 ---
 
+
+---
+
+## 2026-08-06 — The Wording tool (coolness scorer, combiner, personas)
+
+**Session context**: Yui asked what phonotactics are and whether a Python
+program could score how cool words sound; over six follow-ups this grew
+into the Wording tab: a scorer with eleven formulas, a compound-first
+word combiner over user sets with Datamuse expansion and inflections, a
+new-words-only filter, and append-only logs on both surfaces (v343-v349).
+
+**Design decisions worth keeping**:
+- The deploy pipeline shaped the architecture: rsync excludes `*.py` and
+  serves `.json`, so Python is the canonical engine, JSON is the
+  interchange, and the browser runs a mirror. The mirror is kept honest
+  by parity tests replaying the Python-generated report (which carries a
+  sha256 digest of the config - a stale report fails the gate). Full
+  contract: "Wording subsystem" in docs/architecture.md.
+- "Independent scoring systems" landed as formulas = weights + own
+  anchor vocabularies. Vocabulary swaps (genalpha vs boomer) change the
+  measured anchors trait itself, not just the mix - that is what makes
+  skibidi/groovy flip between personas.
+- The bigram novelty model is built from a reference lexicon in the
+  config rather than an embedded frequency table: one representation,
+  both engines derive identical counts, and rarity calibration became a
+  --calibrate print instead of magic numbers.
+
+**Learned**:
+- Yui's direction arrived incrementally (phrases -> NEW words only ->
+  compound-first with light trims + -ing inflections). Each turn
+  replaced generation strategy wholesale; keeping generation data-free
+  (strategies in code, vocabulary in config/wordlist) made each pivot a
+  small diff with the parity tests carrying the regression risk.
+- A frequency wordlist is a cutoff, not a dictionary: 10k missed "muse",
+  30k still misses "auk". The 4-letter floor plus the merged 30k list is
+  the honest compromise; documented rather than papered over.
+- Wei's cost profile favors exhaustive determinism over sampling: the
+  full cross product with first-wins dedupe is reproducible across both
+  engines, which made exact-equality parity tests possible. Random modes
+  survive only for the theme browser in the CLI.
+- Committed pyc almost shipped: `__pycache__` was not gitignored because
+  the repo had no Python imports until coolness-combine imported
+  coolness. When adding the first import of a local module, check
+  .gitignore in the same commit.

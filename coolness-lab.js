@@ -92,6 +92,10 @@ const CoolnessLab = (function () {
                     if (input) input.value = stored[key];
                 }
             }
+            if (typeof stored.combineGroupBest === 'boolean') {
+                const check = /** @type {HTMLInputElement | null} */ (el('combineGroupBest'));
+                if (check) check.checked = stored.combineGroupBest;
+            }
         }
     }
 
@@ -100,13 +104,15 @@ const CoolnessLab = (function () {
             const input = /** @type {HTMLInputElement | HTMLSelectElement | null} */ (el(id));
             return input ? input.value : '';
         };
+        const groupCheck = /** @type {HTMLInputElement | null} */ (el('combineGroupBest'));
         SettingsStore.saveJson(StorageKeys.COOLNESS_LAB, {
             weights,
             formulaId,
             words: triedWords,
             combineA: field('combineSetA'),
             combineB: field('combineSetB'),
-            combineExpand: field('combineExpand')
+            combineExpand: field('combineExpand'),
+            combineGroupBest: groupCheck ? groupCheck.checked : true
         });
     }
 
@@ -290,6 +296,7 @@ const CoolnessLab = (function () {
                 }
                 tr.appendChild(td);
             });
+            tr.addEventListener('click', () => featureWord(row.word));
             body.appendChild(tr);
         });
     }
@@ -489,6 +496,27 @@ const CoolnessLab = (function () {
         }, log ? 0 : 150);
     }
 
+    /**
+     * Rows for display. With "Best per pair" on, the first (= best,
+     * results are sorted) variant of each source pair represents it and
+     * the rest fold into a variants count. The full list is always what
+     * gets logged.
+     */
+    function combineDisplayRows() {
+        const group = /** @type {HTMLInputElement | null} */ (el('combineGroupBest'));
+        if (!group || !group.checked) {
+            return combineResults.map(row => ({ row, variants: 0 }));
+        }
+        /** @type {Map<string, { row: typeof combineResults[0], variants: number }>} */
+        const bySource = new Map();
+        for (const row of combineResults) {
+            const kept = bySource.get(row.source);
+            if (kept) kept.variants += 1;
+            else bySource.set(row.source, { row, variants: 0 });
+        }
+        return [...bySource.values()];
+    }
+
     function renderCombine() {
         const head = el('combineTableHead');
         const body = el('combineTableBody');
@@ -503,10 +531,14 @@ const CoolnessLab = (function () {
         }
         head.appendChild(tr);
 
+        const rows = combineDisplayRows();
         body.textContent = '';
-        combineResults.slice(0, combineShown).forEach((row, index) => {
+        rows.slice(0, combineShown).forEach(({ row, variants }, index) => {
             const line = document.createElement('tr');
-            const cells = [String(index + 1), row.text, row.score.toFixed(1), row.source];
+            const from = variants > 0
+                ? `${row.source} (+${variants} variant${variants === 1 ? '' : 's'})`
+                : row.source;
+            const cells = [String(index + 1), row.text, row.score.toFixed(1), from];
             cells.forEach((text, cellIndex) => {
                 const td = document.createElement('td');
                 td.textContent = text;
@@ -516,12 +548,20 @@ const CoolnessLab = (function () {
                 }
                 line.appendChild(td);
             });
+            line.addEventListener('click', () => featureWord(row.text));
             body.appendChild(line);
         });
         if (moreBtn) {
-            moreBtn.hidden = combineResults.length <= combineShown;
-            moreBtn.textContent = `Show 100 more (${combineResults.length - Math.min(combineShown, combineResults.length)} hidden)`;
+            moreBtn.hidden = rows.length <= combineShown;
+            moreBtn.textContent = `Show 100 more (${Math.max(0, rows.length - combineShown)} hidden)`;
         }
+    }
+
+    /** Tap any ranked word to see its full metric breakdown up top. */
+    function featureWord(word) {
+        featuredWord = word;
+        renderFeatured();
+        el('wordLabResult')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     async function exportDeviceLog() {
@@ -586,6 +626,11 @@ const CoolnessLab = (function () {
         el('combineExportBtn')?.addEventListener('click', () => void exportDeviceLog());
         el('combineMoreBtn')?.addEventListener('click', () => {
             combineShown += 100;
+            renderCombine();
+        });
+        el('combineGroupBest')?.addEventListener('change', () => {
+            combineShown = 50;
+            saveState();
             renderCombine();
         });
         for (const id of ['combineSetA', 'combineSetB']) {

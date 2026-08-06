@@ -871,6 +871,12 @@ merged with the config vocabulary) or in the input sets is dropped
 before rating. Phrases of existing words are never generated; the
 status line reports how many real-word collisions were dropped.
 
+Every ranked word - leaderboard or coined - is tappable: tapping shows
+its full metric breakdown in the card at the top. The combine table
+shows the best variant per A+B pair by default (the rest fold into a
+"+N variants" note; the "Best per pair" checkbox reveals them all, and
+the log always keeps everything).
+
 It runs in two places. On the Wording tab, the "Combine two word sets"
 panel below the Word lab does the whole flow in the browser:
 type two sets, pick how many related words to add per set (keyless
