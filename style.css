@@ -929,6 +929,32 @@ h1 {
     background: #4ade80;
 }
 
+.word-lab-formula-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 12px 0 4px;
+    color: rgba(232, 245, 233, 0.8);
+    font-size: 0.85rem;
+}
+
+.word-lab-select {
+    padding: 6px 10px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #e8f5e9;
+    font-size: 0.85rem;
+}
+
+.word-lab-formula-note {
+    color: rgba(232, 245, 233, 0.55);
+    font-size: 0.78rem;
+    flex: 1;
+    min-width: 200px;
+}
+
 .word-lab-weights {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

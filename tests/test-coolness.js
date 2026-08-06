@@ -5,13 +5,18 @@
 // 2. The browser engine (coolness-score.js) reproduces the Python
 //    engine's report exactly - the two implementations stay in lockstep.
 // 3. Scoring sanity: cool words beat junk, metrics stay in [0, 1].
-// 4. The Word lab on deploys.html loads, scores a typed word, and
-//    renders the leaderboard without errors.
+// 4. Formulas are well-formed weight presets over exactly the 7 metrics.
+// 5. The theme combiner produces ranked batches, appends every batch to
+//    its append-only log, and rejects a same-theme pair.
+// 6. The Word lab on deploys.html loads, scores a typed word, applies a
+//    formula preset, and renders the leaderboard without errors.
 
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
+const { spawnSync } = require('child_process');
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 const ROOT = path.join(__dirname, '..');
@@ -91,7 +96,45 @@ function loadBrowserEngine() {
     report.check('unseen word scores without throwing',
         typeof scorer.score('squanchamora').total === 'number');
 
-    // 4. Word lab UI on deploys.html.
+    // 4. Formula presets.
+    const formulaIds = config.formulas.map(f => f.id);
+    report.check('formula ids are unique and include balanced',
+        new Set(formulaIds).size === formulaIds.length
+        && formulaIds.includes('balanced'));
+    const metricKey = JSON.stringify([...METRICS].sort());
+    report.check('every formula weights exactly the 7 metrics',
+        config.formulas.every(f =>
+            JSON.stringify(Object.keys(f.weights).sort()) === metricKey));
+    const edge = config.formulas.find(f => f.id === 'edge');
+    report.check('formulas rerank: vibe total differs between balanced and edge',
+        scorer.totalFromMetrics(vibe.metrics, edge.weights)
+        !== scorer.totalFromMetrics(vibe.metrics, config.weights));
+
+    // 5. Theme combiner and its append-only log.
+    const logPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coolness-')), 'log.jsonl');
+    const combineArgs = ['coolness-combine.py', '--themes', 'mood', 'tech',
+        '--count', '6', '--seed', '11', '--once', '--json', '--log', logPath];
+    const first = spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
+    report.check('combiner one-shot exits cleanly', first.status === 0);
+    /** @type {Array<{ text: string, form: string, score: number }>} */
+    const batch = JSON.parse(first.stdout || '[]');
+    report.check('combiner produced the requested batch size', batch.length === 6);
+    report.check('combiner batch is sorted by score descending',
+        batch.every((row, i) => i === 0 || batch[i - 1].score >= row.score));
+    report.check('combiner forms are phrase or blend',
+        batch.every(row => row.form === 'phrase' || row.form === 'blend'));
+    spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
+    const logLines = fs.readFileSync(logPath, 'utf8').trim().split('\n');
+    report.check('log is append-only: two runs leave two batch lines',
+        logLines.length === 2
+        && logLines.every(line => JSON.parse(line).kind === 'combine-batch'));
+    const sameTheme = spawnSync('python3',
+        ['coolness-combine.py', '--themes', 'tech', 'tech', '--once', '--log', logPath],
+        { cwd: ROOT, encoding: 'utf8' });
+    report.check('combiner rejects picking the same theme twice',
+        sameTheme.status !== 0);
+
+    // 6. Word lab UI on deploys.html.
     const browser = await launch();
     const tab = await browser.newPage();
     /** @type {string[]} */
@@ -133,6 +176,35 @@ function loadBrowserEngine() {
     const clearedRows = await tab.evaluate(
         () => document.querySelectorAll('.word-lab-row-user').length);
     report.check('clear removes tried words', clearedRows === 0);
+
+    const optionCount = await tab.evaluate(
+        () => document.querySelectorAll('#wordLabFormula option').length);
+    report.check('formula dropdown lists every formula plus Custom',
+        optionCount === config.formulas.length + 1);
+    await tab.selectOption('#wordLabFormula', 'edge');
+    const afterFormula = await tab.evaluate(() => {
+        const sliders = [...document.querySelectorAll('#wordLabWeights input[type="range"]')];
+        return {
+            values: sliders.map(s => /** @type {HTMLInputElement} */(s).value),
+            note: document.getElementById('wordLabFormulaNote')?.textContent || ''
+        };
+    });
+    const edgeExpected = METRICS.map(name => String(edge.weights[name]));
+    report.check('selecting the edge formula applies its weights to the sliders',
+        JSON.stringify(afterFormula.values) === JSON.stringify(edgeExpected));
+    report.check('formula note explains the selected formula',
+        afterFormula.note.includes('Westbury'));
+    const customAfterNudge = await tab.evaluate(() => {
+        const slider = /** @type {HTMLInputElement} */ (
+            document.querySelector('#wordLabWeights input[type="range"]'));
+        slider.value = '0.4';
+        slider.dispatchEvent(new Event('input'));
+        const select = /** @type {HTMLSelectElement} */ (
+            document.getElementById('wordLabFormula'));
+        return select.value;
+    });
+    report.check('moving a slider switches the formula to Custom',
+        customAfterNudge === 'custom');
 
     report.check('deploys.html stays free of console errors', pageErrors.length === 0);
     pageErrors.forEach(e => report.errors.push(e));

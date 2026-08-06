@@ -33,6 +33,8 @@ const CoolnessLab = (function () {
     let scorer = null;
     /** @type {Record<string, number>} */
     let weights = {};
+    /** @type {string} */
+    let formulaId = 'balanced';
     /** @type {string[]} */
     let triedWords = [];
     /** @type {string | null} */
@@ -66,12 +68,16 @@ const CoolnessLab = (function () {
             if (Array.isArray(stored.words)) {
                 triedWords = stored.words.filter(w => typeof w === 'string' && w);
             }
+            if (typeof stored.formulaId === 'string' && stored.formulaId) {
+                formulaId = stored.formulaId;
+            }
         }
     }
 
     function saveState() {
         SettingsStore.saveJson(StorageKeys.COOLNESS_LAB, {
             weights,
+            formulaId,
             words: triedWords
         });
     }
@@ -116,6 +122,8 @@ const CoolnessLab = (function () {
             slider.addEventListener('input', () => {
                 weights[name] = Number(slider.value);
                 value.textContent = String(weights[name]);
+                formulaId = 'custom';
+                syncFormulaUI();
                 saveState();
                 renderTable();
                 renderFeatured();
@@ -129,10 +137,58 @@ const CoolnessLab = (function () {
 
     function resetWeights() {
         weights = { ...config.weights };
+        formulaId = 'balanced';
+        syncFormulaUI();
         saveState();
         renderWeights();
         renderTable();
         renderFeatured();
+    }
+
+    // ---- formulas ---------------------------------------------------------
+
+    function findFormula(id) {
+        return config.formulas.find(f => f.id === id) || null;
+    }
+
+    function renderFormulaSelect() {
+        const select = /** @type {HTMLSelectElement | null} */ (el('wordLabFormula'));
+        if (!select) return;
+        select.textContent = '';
+        for (const formula of config.formulas) {
+            const option = document.createElement('option');
+            option.value = formula.id;
+            option.textContent = formula.name;
+            select.appendChild(option);
+        }
+        const custom = document.createElement('option');
+        custom.value = 'custom';
+        custom.textContent = 'Custom';
+        select.appendChild(custom);
+        select.addEventListener('change', () => {
+            const formula = findFormula(select.value);
+            if (!formula) return;
+            formulaId = formula.id;
+            weights = { ...formula.weights };
+            syncFormulaUI();
+            saveState();
+            renderWeights();
+            renderTable();
+            renderFeatured();
+        });
+        syncFormulaUI();
+    }
+
+    function syncFormulaUI() {
+        const select = /** @type {HTMLSelectElement | null} */ (el('wordLabFormula'));
+        const note = el('wordLabFormulaNote');
+        if (select) select.value = formulaId;
+        if (note) {
+            const formula = findFormula(formulaId);
+            note.textContent = formula
+                ? formula.note
+                : 'Custom weights - move sliders freely, or pick a formula.';
+        }
     }
 
     // ---- leaderboard -----------------------------------------------------
@@ -321,6 +377,7 @@ const CoolnessLab = (function () {
         el('wordLabClearBtn')?.addEventListener('click', clearTriedWords);
         el('wordLabResetBtn')?.addEventListener('click', resetWeights);
 
+        renderFormulaSelect();
         renderWeights();
         renderTableHead();
         renderTable();

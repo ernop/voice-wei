@@ -465,10 +465,11 @@ at the very top of the panel, above the titles.
 
 | Option | Default | Behavior |
 |--------|---------|----------|
-| weights (7 sliders, 0-3) | from `coolness-config.json` | recompute totals + re-rank immediately |
+| formula (dropdown) | balanced | applies that formula's weights to all sliders + re-rank |
+| weights (7 sliders, 0-3) | from `coolness-config.json` | recompute totals + re-rank immediately; switches formula to Custom |
 | words (typed words) | empty | each scored word joins the leaderboard until Clear my words |
 
-Reset weights restores the config defaults. Sliders re-weight the stored
-per-metric values client-side; the metric values themselves only change
-when `coolness-config.json` changes and the report is regenerated (see
-"Word lab" in [tools.md](tools.md)).
+Reset weights restores the config defaults (the Balanced formula).
+Sliders re-weight the stored per-metric values client-side; the metric
+values themselves only change when `coolness-config.json` changes and
+the report is regenerated (see "Word lab" in [tools.md](tools.md)).

@@ -1,7 +1,7 @@
 {
   "generatedBy": "coolness.py",
-  "generatedAt": "2026-08-06T03:31:33Z",
-  "configDigest": "2904dd732ee5c8aa84d4bd09703da85291e0f384ddc9bf07f6abc14d1ec3312d",
+  "generatedAt": "2026-08-06T03:47:16Z",
+  "configDigest": "60764c2ba5b60eef04e18ee611ef1e255140d33df3dd67be4b6691b5cffb108f",
   "weights": {
     "pronounceability": 1.5,
     "flow": 1.0,

@@ -18,6 +18,56 @@
         "anchors": "Anchors: sounds like the cool-word list, unlike the uncool-word list",
         "brevity": "Brevity: one or two syllables land hardest"
     },
+    "formulas": [
+        {
+            "id": "balanced",
+            "name": "Balanced",
+            "note": "House default: every metric counts, association and legality lead.",
+            "weights": { "pronounceability": 1.5, "flow": 1.0, "energy": 1.0, "phonesthemes": 1.25, "novelty": 1.0, "anchors": 1.5, "brevity": 0.75 }
+        },
+        {
+            "id": "brandable",
+            "name": "Brandable",
+            "note": "Naming research: processing fluency (easy-to-pronounce names are preferred; Alter & Oppenheimer 2006) plus sound symbolism in brand names (Klink 2000) - short, legal, bright.",
+            "weights": { "pronounceability": 2.5, "flow": 1.0, "energy": 1.5, "phonesthemes": 1.0, "novelty": 0.75, "anchors": 0.5, "brevity": 2.0 }
+        },
+        {
+            "id": "wordlike",
+            "name": "Wordlike",
+            "note": "Phonotactic probability and wordlikeness (Vitevitch & Luce 2004; Coleman & Pierrehumbert 1997): could this pass as native English? Novelty barely counts.",
+            "weights": { "pronounceability": 2.5, "flow": 2.0, "energy": 0.5, "phonesthemes": 0.5, "novelty": 0.25, "anchors": 0.75, "brevity": 0.75 }
+        },
+        {
+            "id": "euphonic",
+            "name": "Euphonic",
+            "note": "Phonaesthetics (Crystal 1995, the 'tremulous' tradition): smooth sonority contours and clean syllables outrank punch and fashion.",
+            "weights": { "pronounceability": 2.0, "flow": 2.5, "energy": 0.5, "phonesthemes": 1.25, "novelty": 0.5, "anchors": 0.5, "brevity": 0.25 }
+        },
+        {
+            "id": "edge",
+            "name": "Edge",
+            "note": "Nonword surprise (Westbury et al. 2016: improbable nonwords amuse): maximize the fresh zone and energy, tolerate weak association.",
+            "weights": { "pronounceability": 0.75, "flow": 0.5, "energy": 1.75, "phonesthemes": 1.0, "novelty": 2.5, "anchors": 0.25, "brevity": 1.0 }
+        },
+        {
+            "id": "zeitgeist",
+            "name": "Zeitgeist",
+            "note": "Association-led: coolness as cultural neighborhood (the vibe-coding effect). Anchor similarity dominates; edit the anchor lists to retune the era.",
+            "weights": { "pronounceability": 1.0, "flow": 0.5, "energy": 1.25, "phonesthemes": 1.5, "novelty": 0.75, "anchors": 2.5, "brevity": 1.5 }
+        }
+    ],
+    "themes": {
+        "music": ["groove", "riff", "tempo", "chord", "echo", "chorus", "drum", "bass", "treble", "pitch", "tone", "melody", "rhythm", "jam", "solo", "vinyl", "remix", "hook"],
+        "tech": ["code", "pixel", "byte", "cloud", "stack", "script", "kernel", "cache", "server", "cipher", "data", "net", "bot", "chip", "sync", "patch", "loop", "query"],
+        "nature": ["moss", "fern", "grove", "cliff", "dune", "glade", "reef", "vine", "thorn", "petal", "bark", "root", "meadow", "brook", "stone", "leaf"],
+        "light": ["glow", "gleam", "flare", "beam", "shimmer", "spark", "blaze", "dawn", "dusk", "neon", "ember", "flash", "halo", "prism", "ray", "glint"],
+        "motion": ["drift", "glide", "dash", "swoop", "spin", "surge", "sprint", "whirl", "flick", "bounce", "slide", "swing", "dive", "leap", "roll", "zoom"],
+        "space": ["nova", "orbit", "comet", "nebula", "quasar", "lunar", "solar", "astro", "cosmos", "void", "star", "galaxy", "meteor", "eclipse", "zenith", "apex"],
+        "water": ["wave", "tide", "splash", "ripple", "mist", "foam", "cascade", "current", "delta", "rain", "frost", "ice", "stream", "brine", "spray", "swell"],
+        "energy": ["volt", "watt", "spark", "pulse", "charge", "flux", "surge", "arc", "ion", "plasma", "laser", "magnet", "fuse", "bolt", "amp", "turbo"],
+        "animals": ["fox", "wolf", "hawk", "lynx", "otter", "raven", "cobra", "mantis", "gecko", "falcon", "panther", "orca", "bison", "crane", "moth", "viper"],
+        "mood": ["vibe", "zen", "bliss", "hype", "chill", "mellow", "fierce", "bold", "calm", "dread", "gloom", "cozy", "eerie", "giddy", "slick", "keen"]
+    },
     "tokenizer": {
         "digraphs": {
             "ch": ["ch"],

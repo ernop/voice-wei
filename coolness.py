@@ -18,12 +18,22 @@ The seven metrics, each 0..1, combined as a weighted mean scaled to 0-100:
 - anchors: n-gram similarity to a cool-word list minus an uncool-word list
 - brevity: one or two syllables land hardest
 
+Named formulas (config "formulas") are alternative weightings of the same
+seven metrics, each modeled on a strand of the naming/phonology literature
+(processing fluency, phonotactic probability, phonaesthetics, nonword
+surprise, association). Select one with --formula.
+
 Usage:
   python3 coolness.py vibe zorvane phlegm     pretty breakdown per word
   python3 coolness.py --json vibe zorvane     JSON to stdout
+  python3 coolness.py --formula edge vibe     score under a named formula
+  python3 coolness.py --formulas              list the formulas
   python3 coolness.py --report                rewrite coolness-report.json
                                               from config sampleWords
   python3 coolness.py --calibrate             bigram rarity stats (tuning aid)
+
+The theme combiner (coolness-combine.py) builds candidate coinages from
+two theme word lists and scores them through this engine.
 """
 
 import hashlib
@@ -309,7 +319,7 @@ class Scorer:
 
     # ---- scoring -----------------------------------------------------------
 
-    def score(self, word):
+    def score(self, word, weights=None):
         letters = self._clean(word)
         tokens = self._tokenize(letters)
         syllables = self._syllabify(tokens)
@@ -328,7 +338,7 @@ class Scorer:
         metrics = {name: round_places(value, 4) for name, value in metrics.items()}
         return {
             "word": letters,
-            "total": self.total_from_metrics(metrics, self.weights),
+            "total": self.total_from_metrics(metrics, weights or self.weights),
             "syllables": syllable_count,
             "tokens": tokens,
             "metrics": metrics,
@@ -344,7 +354,31 @@ class Scorer:
 
 
 def load_config():
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    validate_formulas(config)
+    return config
+
+
+def validate_formulas(config):
+    """Every formula must weight exactly the seven metrics; ids unique."""
+    metric_names = set(config["weights"])
+    seen_ids = set()
+    for formula in config["formulas"]:
+        if formula["id"] in seen_ids:
+            raise ValueError(f"duplicate formula id: {formula['id']}")
+        seen_ids.add(formula["id"])
+        if set(formula["weights"]) != metric_names:
+            raise ValueError(
+                f"formula {formula['id']} weights do not match the metrics: "
+                f"{sorted(formula['weights'])} vs {sorted(metric_names)}")
+
+
+def find_formula(config, formula_id):
+    for formula in config["formulas"]:
+        if formula["id"] == formula_id:
+            return formula
+    known = ", ".join(f["id"] for f in config["formulas"])
+    raise SystemExit(f"unknown formula '{formula_id}' (known: {known})")
 
 
 def config_digest():
@@ -385,6 +419,14 @@ def print_calibration(scorer, config):
         print(f"  {word:12s} {'-'.join(tokens):18s} rarities: {shown}")
 
 
+def print_formulas(config):
+    for formula in config["formulas"]:
+        weights = " ".join(f"{name}={value:g}"
+                           for name, value in formula["weights"].items())
+        print(f"{formula['id']:10s} {formula['name']}: {formula['note']}")
+        print(f"{'':10s}   {weights}")
+
+
 def main(argv):
     config = load_config()
     scorer = Scorer(config)
@@ -397,6 +439,17 @@ def main(argv):
     if "--calibrate" in flags:
         print_calibration(scorer, config)
         return 0
+    if "--formulas" in flags:
+        print_formulas(config)
+        return 0
+    if "--formula" in flags:
+        # --formula consumes the next positional value as the formula id.
+        position = argv.index("--formula")
+        if position + 1 >= len(argv):
+            raise SystemExit("--formula requires an id (see --formulas)")
+        formula_id = argv[position + 1]
+        args = [a for a in args if a != formula_id]
+        scorer.weights = find_formula(config, formula_id)["weights"]
     if not args:
         print(__doc__)
         return 1
