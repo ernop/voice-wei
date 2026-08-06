@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>Wording - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=348">
+</head>
+
+<body data-page="wording">
+    <div class="container">
+        <header id="siteHeader"></header>
+
+        <main>
+            <section class="deploy-panel word-lab" id="wordLabPanel">
+                <div class="deploy-header">
+                    <div>
+                        <h2>Word lab: how cool does a word sound?</h2>
+                        <p>Phonotactic coolness scoring for real and invented words.
+                            Type anything; tune the metric weights (they persist on this device).</p>
+                    </div>
+                    <button id="wordLabResetBtn" class="quick-action-btn" type="button">Reset weights</button>
+                </div>
+
+                <div class="word-lab-try">
+                    <input id="wordLabInput" class="word-lab-input" type="text"
+                        placeholder="Type a word or several: zorvane, glimber, squanch..."
+                        autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button id="wordLabScoreBtn" class="quick-action-btn" type="button">Score</button>
+                    <button id="wordLabClearBtn" class="quick-action-btn" type="button">Clear my words</button>
+                </div>
+
+                <div class="word-lab-result" id="wordLabResult" hidden></div>
+
+                <div class="word-lab-formula-row">
+                    <label for="wordLabFormula">Formula</label>
+                    <select id="wordLabFormula" class="word-lab-select"></select>
+                    <span class="word-lab-formula-note" id="wordLabFormulaNote"></span>
+                </div>
+
+                <div class="word-lab-weights" id="wordLabWeights"></div>
+
+                <div class="deploy-summary" id="wordLabStatus">Loading word lab...</div>
+                <div class="deploy-table-wrap">
+                    <table class="deploy-table word-lab-table">
+                        <thead id="wordLabTableHead"></thead>
+                        <tbody id="wordLabTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="word-lab-combine">
+                    <h3>Combine two word sets</h3>
+                    <p class="word-lab-combine-hint">Give two related sets; each can grow by related
+                        words (keyless Datamuse) and by -ing forms (run also tries running). Every
+                        cross pair is joined compound-first - straight joins plus lightly trimmed
+                        ones; anything that is already an English word is dropped, so only NEW words
+                        are rated - under the formula and weights above. Every run is saved to this
+                        device's append-only log.</p>
+                    <div class="word-lab-combine-inputs">
+                        <input id="combineSetA" class="word-lab-input" type="text"
+                            placeholder="Set A: vibe, aura, glow, flow, drift"
+                            autocomplete="off" autocapitalize="off" spellcheck="false">
+                        <input id="combineSetB" class="word-lab-input" type="text"
+                            placeholder="Set B: code, script, pixel, stack, byte"
+                            autocomplete="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    <div class="word-lab-combine-controls">
+                        <label>Expand each set by
+                            <select id="combineExpand" class="word-lab-select">
+                                <option value="0">0</option>
+                                <option value="10">10</option>
+                                <option value="20" selected>20</option>
+                                <option value="30">30</option>
+                                <option value="50">50</option>
+                            </select>
+                            related words
+                        </label>
+                        <button id="combineRunBtn" class="quick-action-btn" type="button">Combine + score</button>
+                        <button id="combineExportBtn" class="quick-action-btn" type="button">Export device log</button>
+                    </div>
+                    <div class="deploy-summary" id="combineStatus"></div>
+                    <div class="deploy-table-wrap">
+                        <table class="deploy-table word-lab-combine-table">
+                            <thead id="combineTableHead"></thead>
+                            <tbody id="combineTableBody"></tbody>
+                        </table>
+                    </div>
+                    <button id="combineMoreBtn" class="quick-action-btn word-lab-more-btn" type="button" hidden>Show 100 more</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="dev-error-monitor.js?v=348"></script>
+    <script src="app-version.js?v=348"></script>
+    <script src="storage-keys.js?v=348"></script>
+    <script src="settings-store.js?v=348"></script>
+    <script src="shared-header.js?v=348"></script>
+    <script src="coolness-score.js?v=348"></script>
+    <script src="coolness-combine.js?v=348"></script>
+    <script src="coolness-lab.js?v=348"></script>
+</body>
+
+</html>

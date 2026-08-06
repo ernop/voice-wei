@@ -114,6 +114,7 @@
         "animals": ["fox", "wolf", "hawk", "lynx", "otter", "raven", "cobra", "mantis", "gecko", "falcon", "panther", "orca", "bison", "crane", "moth", "viper"],
         "mood": ["vibe", "zen", "bliss", "hype", "chill", "mellow", "fierce", "bold", "calm", "dread", "gloom", "cozy", "eerie", "giddy", "slick", "keen"]
     },
+    "inflections": ["ing"],
     "tokenizer": {
         "digraphs": {
             "ch": ["ch"],

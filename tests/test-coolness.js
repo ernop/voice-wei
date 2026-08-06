@@ -157,13 +157,13 @@ function loadBrowserCombiner() {
 
     const first = spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
     report.check('combiner one-shot exits cleanly', first.status === 0);
-    /** @type {Array<{ text: string, form: string, score: number }>} */
+    /** @type {Array<{ text: string, strategy: string, score: number }>} */
     const batch = JSON.parse(first.stdout || '[]');
     report.check('combiner produced the requested batch size', batch.length === 6);
     report.check('combiner batch is sorted by score descending',
         batch.every((row, i) => i === 0 || batch[i - 1].score >= row.score));
     report.check('every generated candidate is a NEW single word',
-        batch.every(row => row.form === 'blend'
+        batch.every(row => typeof row.strategy === 'string'
             && !row.text.includes(' ') && !realWords.has(row.text)));
     spawnSync('python3', combineArgs, { cwd: ROOT, encoding: 'utf8' });
     const logLines = fs.readFileSync(logPath, 'utf8').trim().split('\n');
@@ -182,46 +182,65 @@ function loadBrowserCombiner() {
             '--once', '--json', '--top', '0', '--log', logPath],
         { cwd: ROOT, encoding: 'utf8' });
     report.check('custom word sets run exhaustively', exhaustive.status === 0);
-    /** @type {Array<{ text: string, form: string, strategy: string, score: number }>} */
+    /** @type {Array<{ text: string, strategy: string, score: number }>} */
     const cross = JSON.parse(exhaustive.stdout || '[]');
-    report.check('cross product yields only new single words (6 from 2x2)',
-        cross.length === 6
+    report.check('cross product yields only new single words (24 from 2x2 seeds + inflections)',
+        cross.length === 24
         && cross.every(r => !r.text.includes(' ') && !realWords.has(r.text)));
-    report.check('real-word collisions are dropped (node from neon+code)',
-        !cross.some(r => r.text === 'node'));
+    report.check('compounds lead: straight joins like glowcode are generated',
+        cross.some(r => r.text === 'glowcode' && r.strategy === 'compound'));
+    report.check('inflected forms join the sets (glowing + coding compounds)',
+        cross.some(r => r.text === 'glowingcoding'));
     report.check('exhaustive batch is sorted by score descending',
         cross.every((row, i) => i === 0 || cross[i - 1].score >= row.score));
     const lastLog = JSON.parse(
         fs.readFileSync(logPath, 'utf8').trim().split('\n').pop() || '{}');
-    report.check('exhaustive run logs the sets, drops, and full results',
+    report.check('exhaustive run logs seeds, inflections, and full results',
         lastLog.kind === 'combine-exhaustive'
         && lastLog.sets.a.seeds.join(',') === 'glow,neon'
-        && lastLog.droppedRealWords >= 1
-        && lastLog.results.length === 6);
+        && lastLog.sets.a.inflected.includes('glowing')
+        && lastLog.results.length === 24);
 
-    // Browser combiner mirrors the Python cross product exactly.
+    // Real-word collisions are dropped (run + way would be "runway").
+    const runway = spawnSync('python3',
+        ['coolness-combine.py', '--words-a', 'run', '--words-b', 'way',
+            '--once', '--json', '--top', '0', '--log', logPath],
+        { cwd: ROOT, encoding: 'utf8' });
+    /** @type {Array<{ text: string }>} */
+    const runwayRows = JSON.parse(runway.stdout || '[]');
+    const runwayLog = JSON.parse(
+        fs.readFileSync(logPath, 'utf8').trim().split('\n').pop() || '{}');
+    report.check('real-word collisions are dropped (runway from run+way)',
+        runway.status === 0
+        && !runwayRows.some(r => r.text === 'runway')
+        && runwayLog.droppedRealWords >= 1);
+
+    // Browser combiner mirrors the Python cross product exactly (same
+    // full word lists, inflections included, from the logged sets).
     const combiner = loadBrowserCombiner();
     const jsCross = combiner.crossProduct(
-        ['glow', 'neon'], ['code', 'pixel'], realWords,
+        lastLog.sets.a.words, lastLog.sets.b.words, realWords,
         word => scorer.score(word));
     report.check('browser combiner matches the Python cross product',
         JSON.stringify(jsCross.results.map(r => [r.text, r.score, r.strategy]))
         === JSON.stringify(cross.map(r => [r.text, r.score, r.strategy]))
         && jsCross.droppedReal === lastLog.droppedRealWords);
-    const zernel = combiner.blendParts('zen', 'kernel')
-        .some(([, text]) => text === 'zernel');
-    const drixel = combiner.blendParts('drift', 'pixel')
-        .some(([, text]) => text === 'drixel');
-    report.check('browser blend strategies mirror Python (zernel, drixel)',
-        zernel && drixel);
+    report.check('browser strategies and inflection mirror Python',
+        JSON.stringify(combiner.combineParts('vibe', 'code'))
+        === JSON.stringify([['compound', 'vibecode'], ['seam', 'vibcode'], ['clip', 'vicode']])
+        && combiner.inflect('run', 'ing') === 'running'
+        && combiner.inflect('code', 'ing') === 'coding'
+        && combiner.inflect('glow', 'ing') === 'glowing'
+        && JSON.stringify(combiner.inflectSet(['run', 'code'], ['ing']))
+        === JSON.stringify(['running', 'coding']));
 
-    // 6. Word lab UI on deploys.html.
+    // 6. Word lab UI on its own Wording tab (wording.html).
     const browser = await launch();
     const tab = await browser.newPage();
     /** @type {string[]} */
     const pageErrors = [];
-    collectErrors(tab, 'deploys.html', pageErrors);
-    await tab.goto(`${BASE_URL}/deploys.html`, { waitUntil: 'networkidle', timeout: 30000 });
+    collectErrors(tab, 'wording.html', pageErrors);
+    await tab.goto(`${BASE_URL}/wording.html`, { waitUntil: 'networkidle', timeout: 30000 });
     await tab.waitForFunction(() => {
         const status = document.getElementById('wordLabStatus');
         return status !== null && status.textContent !== null
@@ -320,9 +339,10 @@ function loadBrowserCombiner() {
         words: [...document.querySelectorAll('#combineTableBody tr td:nth-child(2)')]
             .map(td => td.textContent || '')
     }));
-    report.check('page combine builds and ranks only new words (6 from 2x2)',
-        combineState.status.includes('6 new words') && combineState.rows === 6
-        && combineState.words.every(word => !word.includes(' ') && word !== 'node'));
+    report.check('page combine builds and ranks only new words (24 from 2x2 + inflections)',
+        combineState.status.includes('24 new words') && combineState.rows === 24
+        && combineState.words.every(word => !word.includes(' '))
+        && combineState.words.includes('glowcode'));
     await tab.selectOption('#wordLabFormula', 'streetwise');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');
@@ -334,7 +354,7 @@ function loadBrowserCombiner() {
     report.check('export button for the device log is present',
         await tab.evaluate(() => document.getElementById('combineExportBtn') !== null));
 
-    report.check('deploys.html stays free of console errors', pageErrors.length === 0);
+    report.check('wording.html stays free of console errors', pageErrors.length === 0);
     pageErrors.forEach(e => report.errors.push(e));
 
     await browser.close();

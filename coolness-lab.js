@@ -1,6 +1,6 @@
 // @ts-check
 //-----------------------------------------------------------------------
-// WORD LAB (deploys.html)
+// WORD LAB (wording.html)
 // UI glue for the word-coolness scorer. Loads coolness-config.json and
 // the Python-generated coolness-report.json, scores typed words live
 // with the browser engine (coolness-score.js), and lets the metric
@@ -39,7 +39,7 @@ const CoolnessLab = (function () {
     let triedWords = [];
     /** @type {string | null} */
     let featuredWord = null;
-    /** @type {Array<{ text: string, form: string, strategy: string, source: string, score: number }>} */
+    /** @type {Array<{ text: string, strategy: string, source: string, score: number }>} */
     let combineResults = [];
     /** @type {{ a: Record<string, any>, b: Record<string, any> } | null} */
     let combineSets = null;
@@ -431,9 +431,19 @@ const CoolnessLab = (function () {
                     CoolnessCombine.expandSet(seedsB, expandBy)
                 ]);
             }
+            // Same set construction as the Python combiner: seeds, their
+            // inflected forms (run -> running), then Datamuse expansion.
+            const inflectedA = CoolnessCombine.inflectSet(seedsA, config.inflections);
+            const inflectedB = CoolnessCombine.inflectSet(seedsB, config.inflections);
             combineSets = {
-                a: { label: 'set-a', seeds: seedsA, expanded: expandedA, words: seedsA.concat(expandedA) },
-                b: { label: 'set-b', seeds: seedsB, expanded: expandedB, words: seedsB.concat(expandedB) }
+                a: {
+                    label: 'set-a', seeds: seedsA, inflected: inflectedA,
+                    expanded: expandedA, words: seedsA.concat(inflectedA, expandedA)
+                },
+                b: {
+                    label: 'set-b', seeds: seedsB, inflected: inflectedB,
+                    expanded: expandedB, words: seedsB.concat(inflectedB, expandedB)
+                }
             };
             combineResults = rescoreCombine();
             combineShown = 50;

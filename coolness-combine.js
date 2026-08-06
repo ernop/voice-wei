@@ -1,13 +1,14 @@
 // @ts-check
 //-----------------------------------------------------------------------
-// WORD COMBINER - browser mirror. NEW words only.
+// WORD COMBINER - browser mirror. NEW words only, compound-first.
 // Exact port of the core of coolness-combine.py: clean two word sets,
-// optionally expand each with related words (keyless Datamuse API:
-// embeddings + thesaurus + co-occurrence), blend every cross pair three
-// ways, drop anything that already exists in English (the
-// coolness-wordlist.json filter) or in the input sets, and score through
-// the coolness engine. tests/test-coolness.js keeps the cross product in
-// lockstep with the Python combiner.
+// grow them with inflected forms (run -> running) and optionally with
+// related words (keyless Datamuse API: embeddings + thesaurus +
+// co-occurrence), join every cross pair compound-first (straight joins
+// plus lightly trimmed ones), drop anything that already exists in
+// English (the coolness-wordlist.json filter) or in the input sets, and
+// score through the coolness engine. tests/test-coolness.js keeps the
+// cross product in lockstep with the Python combiner.
 //
 // This module also OWNS the browser session log: the IndexedDB database
 // `voice-wei-coolness` (store `batches`, autoincrement). Batches are only
@@ -50,73 +51,93 @@ const CoolnessCombine = (function () {
         return start === -1 ? null : [start, letters.length];
     }
 
-    /** (start, end) of the last vowel-letter run, or null. */
-    function lastVowelRun(letters) {
-        /** @type {[number, number] | null} */
-        let run = null;
-        let start = -1;
-        for (let i = 0; i < letters.length; i++) {
-            if (VOWELS.has(letters[i])) {
-                if (start === -1) start = i;
-            } else if (start !== -1) {
-                run = [start, i];
-                start = -1;
-            }
-        }
-        if (start !== -1) run = [start, letters.length];
-        return run;
-    }
-
     /**
-     * All blend strategies for a pair, in the same deterministic order as
-     * coolness-combine.py blend_parts(): onset-rime (zen+kernel->zernel),
-     * head-rime (vibe+script->vipt), head-tail (drift+pixel->drixel).
+     * All combination strategies for a pair, compound-first, in the same
+     * deterministic order as coolness-combine.py combine_parts():
+     * compound (glow+code -> glowcode), seam (vibe+code -> vibcode,
+     * stack+kernel -> stackernel), clip (drift+code -> dricode).
      * @param {string} a @param {string} b
      * @returns {Array<[string, string]>}
      */
-    function blendParts(a, b) {
-        const runA = firstVowelRun(a);
-        const runB = firstVowelRun(b);
-        if (runA === null || runB === null) return [];
-        const onset = runA[0] > 0 ? a.slice(0, runA[0]) : a.slice(0, runA[1]);
-        const head = a.slice(0, runA[1]);
+    function combineParts(a, b) {
         /** @type {Array<[string, string]>} */
-        const parts = [
-            ['onset-rime', onset + b.slice(runB[0])],
-            ['head-rime', head + b.slice(runB[1])]
-        ];
-        const tailRun = lastVowelRun(b);
-        if (tailRun !== null) {
-            let k = tailRun[0];
-            while (k > 0 && !VOWELS.has(b[k - 1])) k -= 1;
-            // k === 0 would just append the whole of B - not a blend.
-            if (k > 0) parts.push(['head-tail', head + b.slice(k)]);
+        const parts = [['compound', a + b]];
+        if (a[a.length - 1] === b[0]) {
+            parts.push(['seam', a + b.slice(1)]);
+        } else if (a[a.length - 1] === 'e') {
+            parts.push(['seam', a.slice(0, -1) + b]);
+        }
+        const runA = firstVowelRun(a);
+        if (runA !== null && runA[1] < a.length) {
+            parts.push(['clip', a.slice(0, runA[1]) + b]);
         }
         return parts;
     }
 
     /**
+     * Rough English suffixing, same rules as coolness-combine.py inflect():
+     * code+ing -> coding (silent-e drop), run+ing -> running (short-word
+     * final-consonant doubling), glow+ing -> glowing.
+     * @param {string} word @param {string} suffix
+     */
+    function inflect(word, suffix) {
+        if (word.length < 2) return word + suffix;
+        const last = word[word.length - 1];
+        const prev = word[word.length - 2];
+        let base = word;
+        if (last === 'e' && !VOWELS.has(prev)) {
+            base = word.slice(0, -1);
+        } else if (word.length <= 4
+            && !VOWELS.has(last) && !'wxy'.includes(last)
+            && VOWELS.has(prev)
+            && !VOWELS.has(word[word.length - 3])) {
+            base = word + last;
+        }
+        return base + suffix;
+    }
+
+    /**
+     * Inflected forms of a seed list under the config suffixes, deduped
+     * against the seeds (mirrors Session._make_set in the Python combiner).
+     * @param {string[]} seeds @param {string[]} suffixes
+     * @returns {string[]}
+     */
+    function inflectSet(seeds, suffixes) {
+        /** @type {string[]} */
+        const inflected = [];
+        for (const word of seeds) {
+            for (const suffix of suffixes) {
+                const form = inflect(word, suffix);
+                if (!seeds.includes(form) && !inflected.includes(form)) {
+                    inflected.push(form);
+                }
+            }
+        }
+        return inflected;
+    }
+
+    /**
      * Exhaustive cross product of NEW words, same iteration, filtering,
-     * and sort order as the Python combiner: every A x B pair blended
-     * three ways; anything that already exists (real-English wordlist or
-     * either input set) is dropped before rating.
+     * and sort order as the Python combiner: every A x B pair joined
+     * compound-first; anything that already exists (real-English wordlist
+     * or either input set) is dropped before rating.
      * @param {string[]} wordsA
      * @param {string[]} wordsB
      * @param {Set<string>} realWords
      * @param {(word: string) => { total: number }} scoreWord
      */
     function crossProduct(wordsA, wordsB, realWords, scoreWord) {
-        /** @type {Array<{ text: string, form: string, strategy: string, source: string, score: number }>} */
+        /** @type {Array<{ text: string, strategy: string, source: string, score: number }>} */
         const results = [];
         const seen = new Set();
         const inputs = new Set([...wordsA, ...wordsB]);
         let droppedReal = 0;
         for (const wordA of wordsA) {
             for (const wordB of wordsB) {
-                for (const [strategy, text] of blendParts(wordA, wordB)) {
+                for (const [strategy, text] of combineParts(wordA, wordB)) {
                     if (seen.has(text)) continue;
                     // Length floor of 4 mirrors the Python combiner: shorter
-                    // blends are fragments or rare real words the list misses.
+                    // joins are fragments or rare real words the list misses.
                     if (text.length < 4 || inputs.has(text) || realWords.has(text)) {
                         droppedReal += realWords.has(text) ? 1 : 0;
                         continue;
@@ -124,7 +145,6 @@ const CoolnessCombine = (function () {
                     seen.add(text);
                     results.push({
                         text,
-                        form: 'blend',
                         strategy,
                         source: `${wordA} + ${wordB}`,
                         score: scoreWord(text).total
@@ -244,7 +264,9 @@ const CoolnessCombine = (function () {
 
     return {
         cleanWordList,
-        blendParts,
+        combineParts,
+        inflect,
+        inflectSet,
         crossProduct,
         expandSet,
         logBatch,

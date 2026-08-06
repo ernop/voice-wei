@@ -810,13 +810,13 @@ Options per page: targets on/off, pause on silence, 20s window, expand
 range. The guide never auto-plays; "Play Guide" is an explicit button in
 the pinned action row.
 
-## Word lab (bottom of the Deploys page)
+## Wording (word lab)
 
 Scores how cool a word *sounds* - real or invented - from English
 phonotactics (which sound sequences the language permits) plus sound
-symbolism. Type a word (or several, comma-separated) into the box on
-`deploys.html` and it joins the leaderboard, highlighted, with a
-per-metric breakdown of the first word typed. Seven metrics, each 0-1,
+symbolism. Lives on its own tab, `wording.html`. Type a word (or
+several, comma-separated) and it joins the leaderboard, highlighted,
+with a per-metric breakdown of the first word typed. Seven metrics, each 0-1,
 combine as a weighted mean scaled to 0-100:
 
 - **Pronounceability**: every syllable onset/coda is a legal English cluster
@@ -857,18 +857,22 @@ word flips ranks across personas - "skibidi" beats "groovy" for Gen
 alpha and loses badly for Boomer. These are homages to the findings and
 registers, not implementations of papers or dialect surveys.
 
-**Word combiner** makes NEW words only: every candidate is a fused blend
-that does not already exist in English. Each A x B pair is blended three
-ways (onset+rime: zen+kernel -> zernel; head+rime: vibe+script -> vipt;
-head+tail: drift+pixel -> drixel), and any result found in
-`coolness-wordlist.json` (30k frequency-ranked English words - the
-google-10000-english and high-frequency-vocabulary lists - merged with
-the config vocabulary) or in the input sets is dropped before rating.
-Phrases of existing words are never generated; the status line reports
-how many real-word collisions were dropped.
+**Word combiner** makes NEW words only, compound-first: every candidate
+is a single coined word that does not already exist in English. Each A x
+B pair is joined three ways, straight joins before trims: compound
+(glow+code -> glowcode), seam - one letter absorbed at the joint
+(vibe+code -> vibcode, stack+kernel -> stackernel), and clip - A cut to
+its first syllable, then compounded (drift+code -> dricode). Input sets
+also grow by inflected forms (config `inflections`, default -ing: run
+also tries running, which is how vibe+code yields "vibecoding"). Any
+result found in `coolness-wordlist.json` (30k frequency-ranked English
+words - the google-10000-english and high-frequency-vocabulary lists -
+merged with the config vocabulary) or in the input sets is dropped
+before rating. Phrases of existing words are never generated; the
+status line reports how many real-word collisions were dropped.
 
-It runs in two places. On the deploys page, the "Combine two word sets"
-panel at the bottom of the Word lab does the whole flow in the browser:
+It runs in two places. On the Wording tab, the "Combine two word sets"
+panel below the Word lab does the whole flow in the browser:
 type two sets, pick how many related words to add per set (keyless
 Datamuse), press Combine + score, and the new-word cross product ranks
 under whatever formula and weights are selected above (changing them

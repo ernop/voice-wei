@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Word combiner for the word-coolness scorer. NEW words only.
+"""Word combiner for the word-coolness scorer. NEW words only,
+compound-first.
 
-Every candidate is a fused blend that does not already exist in English:
-each A x B pair is blended three ways (onset+rime "zen"+"kernel" ->
-"zernel"; head+rime "vibe"+"script" -> "vipt"; head+tail "drift"+"pixel"
--> "drixel"), and any result found in coolness-wordlist.json (30k
+Each A x B pair is joined three ways, straight joins before trims:
+compound "glow"+"code" -> "glowcode"; seam (one letter absorbed at the
+joint) "vibe"+"code" -> "vibcode", "stack"+"kernel" -> "stackernel";
+clip (A cut to its first syllable, then compounded) "drift"+"code" ->
+"dricode". Input sets also grow by inflected forms (config
+"inflections", default -ing: run also tries running, so vibe+coding ->
+"vibecoding"). Any result found in coolness-wordlist.json (30k
 frequency-ranked English words plus the config vocabulary) or in the
-input sets is dropped before rating. Phrases of existing words are never
-generated.
+input sets is dropped before rating. Phrases of existing words are
+never generated.
 
 Two ways to feed it:
 
@@ -76,47 +80,42 @@ def first_vowel_run(letters):
     return None if start is None else (start, len(letters))
 
 
-def last_vowel_run(letters):
-    """(start, end) of the last vowel-letter run, or None."""
-    run = None
-    start = None
-    for i, ch in enumerate(letters):
-        if ch in VOWEL_LETTERS:
-            if start is None:
-                start = i
-        elif start is not None:
-            run = (start, i)
-            start = None
-    if start is not None:
-        run = (start, len(letters))
-    return run
-
-
-def blend_parts(a, b):
-    """All blend strategies for a pair, in deterministic order:
-    onset-rime  zen|kernel  -> z + ernel  = zernel-style
-    head-rime   vibe|script -> vi + pt    = vipt-style
-    head-tail   drift|pixel -> dri + xel  = drixel-style
+def combine_parts(a, b):
+    """All combination strategies for a pair, compound-first, in
+    deterministic order:
+    compound  glow|code    -> glowcode      (straight join)
+    seam      vibe|code    -> vibcode       (one letter absorbed at the
+              stack|kernel -> stackernel     joint: silent e or a doubled
+                                             seam letter)
+    clip      drift|code   -> dricode       (A cut to its first syllable,
+                                             then compounded)
     Returns [(strategy, text), ...]; callers filter real words."""
+    parts = [("compound", a + b)]
+    if a[-1] == b[0]:
+        parts.append(("seam", a + b[1:]))
+    elif a[-1] == "e":
+        parts.append(("seam", a[:-1] + b))
     run_a = first_vowel_run(a)
-    run_b = first_vowel_run(b)
-    if run_a is None or run_b is None:
-        return []
-    onset = a[:run_a[0]] if run_a[0] > 0 else a[:run_a[1]]
-    head = a[:run_a[1]]
-    parts = [
-        ("onset-rime", onset + b[run_b[0]:]),
-        ("head-rime", head + b[run_b[1]:]),
-    ]
-    tail_run = last_vowel_run(b)
-    if tail_run is not None:
-        k = tail_run[0]
-        while k > 0 and b[k - 1] not in VOWEL_LETTERS:
-            k -= 1
-        # k == 0 would just append the whole of B - not a blend.
-        if k > 0:
-            parts.append(("head-tail", head + b[k:]))
+    if run_a is not None and run_a[1] < len(a):
+        parts.append(("clip", a[:run_a[1]] + b))
     return parts
+
+
+def inflect(word, suffix):
+    """Rough English suffixing: code+ing -> coding (silent-e drop),
+    run+ing -> running (short-word final-consonant doubling),
+    glow+ing -> glowing. Same rules in the browser mirror."""
+    if len(word) < 2:
+        return word + suffix
+    base = word
+    if word[-1] == "e" and word[-2] not in VOWEL_LETTERS:
+        base = word[:-1]
+    elif (len(word) <= 4
+          and word[-1] not in VOWEL_LETTERS and word[-1] not in "wxy"
+          and word[-2] in VOWEL_LETTERS
+          and word[-3] not in VOWEL_LETTERS):
+        base = word + word[-1]
+    return base + suffix
 
 
 def load_real_words():
@@ -194,6 +193,18 @@ class Session:
 
     # ---- set selection --------------------------------------------------
 
+    def _make_set(self, label, seeds):
+        """A set is its seeds plus their inflected forms (run -> running);
+        Datamuse expansion is added separately by expand_sets."""
+        inflected = []
+        for word in seeds:
+            for suffix in self.config["inflections"]:
+                form = inflect(word, suffix)
+                if form not in seeds and form not in inflected:
+                    inflected.append(form)
+        return {"label": label, "seeds": seeds, "inflected": inflected,
+                "expanded": [], "words": seeds + inflected}
+
     def set_themes(self, a, b):
         if a == b:
             raise SystemExit("pick two DIFFERENT themes")
@@ -201,10 +212,8 @@ class Session:
             if name not in self.themes:
                 known = ", ".join(sorted(self.themes))
                 raise SystemExit(f"unknown theme '{name}' (known: {known})")
-        self.set_a = {"label": a, "seeds": list(self.themes[a]),
-                      "expanded": [], "words": list(self.themes[a])}
-        self.set_b = {"label": b, "seeds": list(self.themes[b]),
-                      "expanded": [], "words": list(self.themes[b])}
+        self.set_a = self._make_set(a, list(self.themes[a]))
+        self.set_b = self._make_set(b, list(self.themes[b]))
         self.exhaustive = False
 
     def set_words(self, raw_a, raw_b):
@@ -212,10 +221,8 @@ class Session:
         words_b = clean_word_list(raw_b)
         if not words_a or not words_b:
             raise SystemExit("both --words-a and --words-b need at least one word")
-        self.set_a = {"label": "set-a", "seeds": words_a,
-                      "expanded": [], "words": list(words_a)}
-        self.set_b = {"label": "set-b", "seeds": words_b,
-                      "expanded": [], "words": list(words_b)}
+        self.set_a = self._make_set("set-a", words_a)
+        self.set_b = self._make_set("set-b", words_b)
         self.exhaustive = True
 
     def expand_sets(self, n):
@@ -223,7 +230,7 @@ class Session:
             return
         for side in (self.set_a, self.set_b):
             side["expanded"] = expand_set(side["seeds"], n)
-            side["words"] = side["seeds"] + side["expanded"]
+            side["words"] = side["seeds"] + side["inflected"] + side["expanded"]
             print(f"[{side['label']}] +{len(side['expanded'])} related: "
                   f"{', '.join(side['expanded'][:12])}"
                   f"{', ...' if len(side['expanded']) > 12 else ''}")
@@ -262,7 +269,7 @@ class Session:
 
     def pair_candidates(self, word_a, word_b, seen):
         rows = []
-        for strategy, text in blend_parts(word_a, word_b):
+        for strategy, text in combine_parts(word_a, word_b):
             if text in seen:
                 continue
             if not self._is_new_word(text, word_a, word_b):
@@ -271,7 +278,6 @@ class Session:
             seen.add(text)
             rows.append({
                 "text": text,
-                "form": "blend",
                 "strategy": strategy,
                 "source": f"{word_a} + {word_b}",
                 "score": self.score_word(text)["total"],

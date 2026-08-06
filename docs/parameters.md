@@ -461,14 +461,14 @@ opening or restarting it only resets the trace and starts listening.
 that plays the enabled targets in the current key. The action row sits
 at the very top of the panel, above the titles.
 
-## Word lab (`voice-wei:coolness-lab`, on the Deploys page)
+## Wording (`voice-wei:coolness-lab`, wording.html)
 
 | Option | Default | Behavior |
 |--------|---------|----------|
 | formula (dropdown) | balanced | applies that formula's weights to all sliders + re-rank (persona formulas also swap the anchor vocabulary) |
 | weights (7 sliders, 0-3) | from `coolness-config.json` | recompute totals + re-rank immediately; switches formula to Custom |
 | words (typed words) | empty | each scored word joins the leaderboard until Clear my words |
-| combine set A / set B (text) | empty | Combine + score blends every cross pair three ways; existing English words are dropped so only NEW words are rated |
+| combine set A / set B (text) | empty | Combine + score joins every cross pair compound-first (plus light seam/clip trims and -ing forms); existing English words are dropped so only NEW words are rated |
 | combine expand (0-50) | 20 | related words added per set via keyless Datamuse before combining |
 
 Reset weights restores the config defaults (the Balanced formula).
