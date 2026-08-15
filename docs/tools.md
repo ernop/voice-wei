@@ -755,6 +755,36 @@ OpenAI.
   Log panel is page-local and can be cleared; the local history panel is
   browser-local and exists to support user navigation/progress.
 
+## Articles
+
+Dictate blog-post drafts straight into the fuseki.net editor database, for
+finishing later at a computer. The page is a thin client of the Fuseki
+editor's voice-draft JSON API; nothing article-related is stored in this
+browser beyond the connection settings.
+
+Setup (once per browser): enter the private Fuseki editor prefix in the
+connection card (kept in localStorage, like API keys - never in this repo)
+and be signed into the editor in the same browser. The card links to the
+editor sign-in page when the session is missing. Sessions use rolling
+two-week expiry, so regular use stays signed in.
+
+Dictation: tap **Listen** and speak freely - recognition is continuous and
+survives pauses, with the live transcript shown. Say "submit" or tap
+**Send** to add everything said as a new paragraph of the current draft.
+Repeat as often as wanted; each chunk appends as its own paragraph. The
+first paragraph automatically creates a draft (titled like "Voice draft
+2026-08-15 16:45", unpublished) if none is selected. Saying "new article",
+"new draft", or "create new draft article" as a complete utterance starts a
+fresh draft, as does the **New draft** button. A text field adds typed
+paragraphs the same way, and short spoken confirmations ("Added.") support
+eyes-free use.
+
+The current draft's full body is always visible, and the recent-drafts list
+(any unpublished article, newest first) switches or resumes drafts; the
+selection persists across visits. Appending to published articles is
+refused by the server - finalizing, titling, tagging, and publishing happen
+in the Fuseki editor.
+
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing),

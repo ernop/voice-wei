@@ -26,6 +26,7 @@ const StorageKeys = Object.freeze({
     PLAYER_LYRICS_CACHE: 'voice-wei:player-lyrics-cache',
     PLAYER_LYRICS_VIEW: 'voice-wei:player-lyrics-view',
     EBOOK_SETTINGS: 'voice-wei:ebook-settings',
+    ARTICLES_SETTINGS: 'voice-wei:articles-settings',
     PRACTICE_PROGRESS: 'voice-wei:practice-progress',
     API_CLAUDE: 'voice-wei:api-key:claude',
     API_OPENAI: 'voice-wei:api-key:openai',

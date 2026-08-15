@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>Articles - Voice-Wei</title>
+    <link rel="stylesheet" href="style.css?v=351">
+    <link rel="stylesheet" href="practice-controls.css?v=351">
+    <link rel="stylesheet" href="articles.css?v=351">
+</head>
+
+<body data-page="articles">
+    <div class="container">
+        <header id="siteHeader"></header>
+
+        <main>
+            <div class="voice-controls-row">
+                <button id="listenBtn" class="listen-button" aria-label="Start dictating">
+                    <span class="button-text">Listen</span>
+                    <span class="button-icon">&#9835;</span>
+                </button>
+                <button id="submitBtn" class="submit-button-large" style="display: none;"
+                    aria-label="Send to draft">Send</button>
+            </div>
+            <p class="articles-hint">Dictate freely; say &ldquo;submit&rdquo; or tap Send to add the text to the
+                current draft as a new paragraph. Say &ldquo;new article&rdquo; to start a fresh draft.</p>
+
+            <div class="transcript-container" id="transcriptContainer" style="display: none;">
+                <p class="transcript-label">You said:</p>
+                <p class="transcript" id="transcript"></p>
+            </div>
+
+            <section class="articles-status-row" aria-live="polite">
+                <span id="status">Ready</span>
+            </section>
+
+            <section class="articles-card" aria-label="Current draft">
+                <div class="articles-card-head">
+                    <h2 id="draftTitle">No draft yet</h2>
+                    <span id="draftMeta" class="articles-meta"></span>
+                    <button id="newDraftBtn" class="panel-action-btn" type="button">New draft</button>
+                </div>
+                <pre id="draftBody" class="articles-body">Dictation will create a draft automatically.</pre>
+                <div class="articles-input-row">
+                    <input id="typeInput" class="text-input" type="text" autocomplete="off"
+                        placeholder="Or type a paragraph...">
+                    <button id="typeAddBtn" class="panel-action-btn" type="button">Add</button>
+                </div>
+            </section>
+
+            <section class="articles-card" aria-label="Recent drafts">
+                <h2 class="articles-card-title">Recent drafts</h2>
+                <div id="draftsList" class="articles-drafts"></div>
+            </section>
+
+            <section class="articles-card" aria-label="Editor connection">
+                <h2 class="articles-card-title">Fuseki editor connection</h2>
+                <p class="articles-help">Enter the private editor prefix (for example <code>/prefix</code>). It is
+                    kept only in this browser's localStorage. You must also be signed into the editor in this
+                    browser; drafts save straight into the Fuseki article database.</p>
+                <div class="articles-input-row">
+                    <input id="editorBaseInput" class="text-input" type="text" autocomplete="off"
+                        placeholder="/editor-prefix">
+                    <button id="connectBtn" class="panel-action-btn" type="button">Connect</button>
+                </div>
+                <p id="connectionStatus" class="articles-connection">Not configured.</p>
+                <p id="signInRow" class="articles-connection" style="display: none;">
+                    <a id="signInLink" href="#" target="_blank" rel="noopener">Open the editor sign-in page</a>,
+                    sign in, then tap Connect again.
+                </p>
+            </section>
+
+            <footer class="page-footer">
+                <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
+                <a href="https://github.com/ernop/voice-wei" target="_blank" class="footer-link">GitHub</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="dev-error-monitor.js?v=351"></script>
+    <script src="app-version.js?v=351"></script>
+    <script src="storage-keys.js?v=351"></script>
+    <script src="shared-header.js?v=351"></script>
+    <script src="settings-store.js?v=351"></script>
+    <script src="audio-volume.js?v=351"></script>
+    <script src="voice-output.js?v=351"></script>
+    <script src="voice-command-core.js?v=351"></script>
+    <script src="articles.js?v=351"></script>
+</body>
+
+</html>

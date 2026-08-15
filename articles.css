@@ -1,0 +1,94 @@
+/* Articles page layout. Shared control looks live in style.css and
+   practice-controls.css; this file only places and sizes them. */
+
+.articles-hint {
+    margin: 6px 0 10px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+}
+
+.articles-status-row {
+    margin: 8px 0;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.95rem;
+}
+
+.articles-card {
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid rgba(134, 239, 172, 0.24);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.28);
+}
+
+.articles-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.articles-card-head h2,
+.articles-card-title {
+    margin: 0;
+    color: #a7f3d0;
+    font-size: 1.05rem;
+}
+
+.articles-meta {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+    margin-right: auto;
+}
+
+.articles-body {
+    margin: 10px 0 0;
+    padding: 10px;
+    max-height: 40vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.85);
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.articles-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.articles-input-row .text-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.articles-drafts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.articles-draft-btn {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+.articles-help {
+    margin: 8px 0 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.88rem;
+}
+
+.articles-connection {
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.9rem;
+}

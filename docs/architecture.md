@@ -22,6 +22,7 @@ pitch-meter.html/js/css  # Scored pitch practice
 ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html + player.js  # AI music player
 ebook.html/js/css        # Ebook to audiobook
+articles.html/js/css     # Dictate blog drafts into the Fuseki editor
 ```
 
 ### Lyrics startup contract
@@ -112,6 +113,32 @@ only the application root and `/tmp`. Lyrics search uses the same outbound
 request boundary but accepts only `track_name` and `artist_name`; the server
 fixes the destination to LRCLIB, caps JSON at 2 MB, and retains the 12-second
 provider timeout. It is not a general URL proxy.
+
+## Articles: Fuseki editor client
+
+The Articles tab writes to a system this repo does not own: the Fuseki
+editor's voice-draft JSON API (`/articles/api/voice/state|create|append`
+under the private editor prefix, defined in the fuseki4_ai repository).
+The boundary rules:
+
+- **The prefix is owner-entered data, never code.** It lives in
+  `ARTICLES_SETTINGS` in the owner's browser localStorage, exactly like
+  API keys. It must never appear in this repo or its deployed files -
+  keeping the prefix out of Voice-Wei's code is part of fuseki.net's
+  same-origin security posture.
+- **Authentication is the owner's editor session.** Requests are
+  same-origin fetches with `credentials: 'same-origin'`; the editor's
+  path-scoped session cookie rides along because the request URL is under
+  the prefix. This page cannot read the path-scoped CSRF cookie, so the
+  state endpoint returns the CSRF token and POSTs echo it in
+  `X-CSRFToken`; one refresh-and-retry handles a stale token. A non-JSON
+  response means the login redirect was followed - the page shows the
+  sign-in link instead of parsing HTML.
+- **No article text is stored client-side.** The Fuseki database is the
+  only owner of draft content; the page holds it as transient render
+  state. Speech recognition goes through `voice-command-core.js` (manual
+  continuous mode; a "new article/draft/post" utterance is a command,
+  everything else appends as a paragraph).
 
 ## Change stance: owner direction before continuity
 
@@ -523,6 +550,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
+| `ARTICLES_SETTINGS` | Articles editor prefix + selected draft id (no article text) |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
 | `API_CLAUDE` / `API_OPENAI` | API keys (plain strings via `api-keys-store.js`) |
 | `PANEL_*` | Pitch test panel options per page |

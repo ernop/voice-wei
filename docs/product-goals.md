@@ -44,6 +44,7 @@ and deliver a weaker version of the requested change.
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw voice/typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
 | Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
+| Articles | Dictate blog-post drafts into the fuseki.net editor from a phone | Each spoken chunk lands as a new paragraph of a draft article in the Fuseki database; the first chunk creates the draft; finalizing happens later in the editor |
 
 ## System invariants
 
@@ -67,8 +68,11 @@ and deliver a weaker version of the requested change.
 - **Defined parameters**: every setting picks a change behavior from the
   fixed vocabulary in docs/parameters.md and persists per tab.
 - **Runs on a phone in a car**: Chrome/Edge/Safari, HTTPS, no build step.
-  The only backend is `proxy.php`: keyless Piped/Invidious and LRCLIB search
-  plus remote webpage/PDF imports for Books and linked-page requests.
+  This repo's only backend is `proxy.php`: keyless Piped/Invidious and LRCLIB
+  search plus remote webpage/PDF imports for Books and linked-page requests.
+  The Articles tab is additionally a client of the separately deployed
+  Fuseki editor API (see "Articles: Fuseki editor client" in
+  docs/architecture.md).
 - **Agent change → live → yui knows**: the car-loop ship contract is only
   “the fix is on the phone,” “yui gets a trustworthy signal,” and “it’s in
   git.” The header version is one signal, not the goal — see

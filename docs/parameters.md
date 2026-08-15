@@ -443,6 +443,18 @@ Download original / current chapter audio / generated book audio are primary;
 individual part files live under Advanced. Delete all audio preserves the
 original/research; Delete book removes all browser-local records.
 
+## Articles (`articles-settings`)
+
+Article text is never persisted in this browser; drafts live in the Fuseki
+editor database (see "Articles: Fuseki editor client" in
+[architecture.md](architecture.md)). Only the connection and selection
+state persist.
+
+| Setting | Default | Values | Behavior |
+|---------|---------|--------|----------|
+| editorBase | empty | private editor prefix (`/prefix`) or full URL | applied on Connect; kept only in this browser's localStorage |
+| currentDraftId | 0 (none) | draft article id | updated by New draft / draft selection / first append; cleared automatically if the draft was published or deleted server-side |
+
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,
