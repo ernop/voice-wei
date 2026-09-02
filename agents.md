@@ -97,6 +97,7 @@ existing doc or deleted - never left dangling.
 | [docs/parameters.md](docs/parameters.md) | Every setting on every page: values, defaults, change behavior |
 | [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
 | [docs/setup.md](docs/setup.md) | Environment setup, CI deploy pipeline, secrets, version management |
+| [docs/hosting-contract.md](docs/hosting-contract.md) | fuseki.net owns the domain/server; voice-wei is a host-agnostic tenant — requirements both ways |
 
 **Research and source material (feeds the backlog)**
 

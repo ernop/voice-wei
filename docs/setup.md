@@ -71,6 +71,9 @@ deploy by pushing `master` (or merging a PR into `master`).
   execution functions
 - `rsync --delete` is scoped to the dedicated document root and cannot touch
   Fuseki's generated site
+- Ownership boundary with the fuseki.net project (who owns the domain,
+  headers, PHP runtime; what voice-wei may assume):
+  [hosting-contract.md](hosting-contract.md)
 
 ## GitHub Actions workflow
 
