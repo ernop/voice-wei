@@ -23,6 +23,13 @@ const MediaSessionCore = (function () {
     const SILENCE_SECONDS = 10;
     const SAMPLE_RATE = 8000;
 
+    // Receivers (lock screen, car head unit) run their own progress clock
+    // from the last position sample while state is 'playing'. Rewriting
+    // setPositionState on every render makes some receivers redraw or
+    // restart that bar, so a new sample goes out only when the receiver's
+    // own clock would be off by at least this many seconds.
+    const POSITION_DRIFT_TOLERANCE_SECONDS = 0.5;
+
     // Necessity experiment: ?keepAlive=0 runs the complete Media Session
     // surface (metadata, position, handlers, playback state) WITHOUT the
     // silent ownership loop. If car/lock-screen displays still follow the
@@ -73,8 +80,14 @@ const MediaSessionCore = (function () {
     let writtenTrackId = null;
     /** @type {PositionState | null} */
     let positionState = null;
-    /** @type {string | null} */
-    let writtenPositionKey = null;
+    /**
+     * The last sample actually written to setPositionState, with the wall
+     * clock of the write and whether the receiver extrapolates from it
+     * (state was 'playing'). This models the receiver's own progress
+     * clock so publishPosition can skip writes the receiver does not need.
+     * @type {(PositionState & { atMs: number, extrapolating: boolean }) | null}
+     */
+    let writtenPositionSample = null;
 
     function createSilentWavUrl() {
         const sampleCount = SAMPLE_RATE * SILENCE_SECONDS;
@@ -112,7 +125,7 @@ const MediaSessionCore = (function () {
             // Publish the full surface anyway - the experiment measures
             // whether these writes reach the OS without audible ownership.
             writtenMetadataKey = null;
-            writtenPositionKey = null;
+            writtenPositionSample = null;
             publishMetadata();
             publishPosition();
             if ('mediaSession' in navigator) {
@@ -133,11 +146,13 @@ const MediaSessionCore = (function () {
         try {
             await audioEl.play();
             // Reclaiming the element means the OS may have been showing
-            // another frame's session (YouTube). Force the complete stable
-            // identity, lyric line, and real song position through again.
+            // another frame's session (YouTube). Push the current lines and
+            // real song position through again - by mutating the installed
+            // track object, never by replacing it: a replacement makes
+            // receivers discard their progress timer, and a reclaim can
+            // happen on any lyric push.
             writtenMetadataKey = null;
-            writtenTrackId = null;
-            writtenPositionKey = null;
+            writtenPositionSample = null;
             publishMetadata();
             publishPosition();
             // The silent loop would otherwise be computed as 'playing';
@@ -174,6 +189,11 @@ const MediaSessionCore = (function () {
         // OS paused the silent loop out from under a standing claim.
         if (state === 'playing' && (changed || !audioEl || audioEl.paused)) void activate();
         if (!changed || !('mediaSession' in navigator)) return;
+        // The receiver's progress clock freezes on pause and resumes on
+        // play. Move the written-sample bookkeeping to where that clock now
+        // stands so drift comparisons keep matching it - the boundary
+        // itself needs no position rewrite.
+        rebaseWrittenPositionSample(state === 'playing');
         try {
             navigator.mediaSession.playbackState = state;
         } catch (err) {
@@ -352,28 +372,65 @@ const MediaSessionCore = (function () {
     function publishPosition(force = false) {
         if (!positionState || !('mediaSession' in navigator)
             || typeof navigator.mediaSession.setPositionState !== 'function') return;
-        // The receiver extrapolates between samples. Whole-second dedupe keeps
-        // lyric-deadline renders from producing extra position traffic.
-        const key = [
-            positionState.duration,
-            positionState.position.toFixed(1),
-            positionState.playbackRate
-        ].join('|');
-        if (!force && key === writtenPositionKey) return;
+        // Whole-second renders and lyric-deadline renders re-sample the
+        // player constantly; a sample the receiver's own clock already
+        // matches must cost nothing, or the bar redraws on every lyric.
+        if (!force && receiverClockMatches(positionState)) return;
         try {
             navigator.mediaSession.setPositionState(positionState);
-            writtenPositionKey = key;
+            writtenPositionSample = {
+                duration: positionState.duration,
+                position: positionState.position,
+                playbackRate: positionState.playbackRate,
+                atMs: Date.now(),
+                extrapolating: explicitState === 'playing'
+            };
         } catch (err) {
             // Optional surface; invalid browser/device implementations must
             // not interrupt playback.
         }
     }
 
+    /**
+     * Whether the receiver's own extrapolated progress clock already shows
+     * this sample within tolerance, making a rewrite pure churn.
+     * @param {PositionState} state
+     */
+    function receiverClockMatches(state) {
+        if (!writtenPositionSample) return false;
+        if (writtenPositionSample.duration !== state.duration
+            || writtenPositionSample.playbackRate !== state.playbackRate) return false;
+        const elapsed = writtenPositionSample.extrapolating
+            ? ((Date.now() - writtenPositionSample.atMs) / 1000) * writtenPositionSample.playbackRate
+            : 0;
+        const expected = Math.min(writtenPositionSample.position + elapsed, state.duration);
+        return Math.abs(state.position - expected) < POSITION_DRIFT_TOLERANCE_SECONDS;
+    }
+
+    /**
+     * Freeze or resume the written-sample clock at a playback-state
+     * boundary, mirroring what the receiver does with its displayed bar.
+     * @param {boolean} extrapolating
+     */
+    function rebaseWrittenPositionSample(extrapolating) {
+        if (!writtenPositionSample) return;
+        const now = Date.now();
+        const elapsed = writtenPositionSample.extrapolating
+            ? ((now - writtenPositionSample.atMs) / 1000) * writtenPositionSample.playbackRate
+            : 0;
+        writtenPositionSample.position = Math.min(
+            writtenPositionSample.position + elapsed,
+            writtenPositionSample.duration
+        );
+        writtenPositionSample.atMs = now;
+        writtenPositionSample.extrapolating = extrapolating;
+    }
+
     /** @param {boolean} [force] */
     function clearPosition(force = true) {
-        const hadPosition = positionState !== null || writtenPositionKey !== null;
+        const hadPosition = positionState !== null || writtenPositionSample !== null;
         positionState = null;
-        writtenPositionKey = null;
+        writtenPositionSample = null;
         if (!force && !hadPosition) return;
         if (!('mediaSession' in navigator)
             || typeof navigator.mediaSession.setPositionState !== 'function') return;

@@ -69,6 +69,13 @@ changes only the presented artist line; Identity mode restores the stable
 Media Session position state, so the receiver's time remaining stays
 continuous.
 
+Session reclaim (the silent keep-alive re-arming after the OS paused it,
+which can happen on any lyric push) republishes the current lines and
+position the same way: by mutating the installed object and reasserting
+position state. It never replaces the `MediaMetadata` object, because a
+replacement makes receivers discard their progress timer, and reclaims
+recur throughout a song.
+
 The Web Media Session API has no stable track-ID field and no transient lyric
 field. A browser or Bluetooth head unit may interpret a title metadata change
 as a track change even when the other fields and playback position stay
@@ -131,14 +138,23 @@ they do not need song position or artwork.
 The core wraps `navigator.mediaSession.setPositionState()`.
 
 The player feeds it from the same YouTube time sample used by
-`renderPlaybackPosition()`, never from listening-text relay callbacks. It publishes
-at:
+`renderPlaybackPosition()`, never from listening-text relay callbacks. Every
+render offers the fresh sample, but the core models the receiver's own
+progress clock (last written sample, wall clock, playback rate, and whether
+the state was `playing`) and writes `setPositionState()` only when that
+clock would be off by at least half a second. Receivers extrapolate between
+samples themselves, and some redraw or restart their bar on every position
+write, so a matching sample must cost nothing. In practice this means one
+write at:
 
 - song start, once duration is readable;
-- seek;
-- pause and resume;
-- periodic correction from the whole-second progress clock; and
-- real track change.
+- seek (the sample jumps past the drift tolerance);
+- buffering stalls and rate changes, as real drift accumulates; and
+- session reclaim and real track change (forced reasserts).
+
+Pause and resume rewrite nothing: the core rebases its written-sample
+bookkeeping at the state boundary, mirroring the receiver's bar freezing
+and resuming on `playbackState` alone.
 
 Clear position on stop or playlist teardown. Clamp values to the API's valid
 range because duration may appear before a stable position.

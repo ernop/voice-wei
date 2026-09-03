@@ -986,6 +986,60 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && mediaSessionChannels.cleared.state === 'none'
             && mediaSessionChannels.cleared.lastPosition === null);
 
+        // The receiver runs its own progress clock between position samples,
+        // and it discards that clock when the installed metadata object is
+        // replaced. So: renders that match the receiver's extrapolation must
+        // not rewrite position state, a real seek must, and a session
+        // reclaim (activate fires on any lyric push after the OS pauses the
+        // silent keep-alive) must republish through the installed object,
+        // never replace it.
+        const progressStability = await tab.evaluate(async () => {
+            const realSetPositionState = navigator.mediaSession.setPositionState.bind(navigator.mediaSession);
+            const positionWrites = [];
+            navigator.mediaSession.setPositionState = state => {
+                positionWrites.push(state ? { ...state } : null);
+                return realSetPositionState(state);
+            };
+            MediaSessionCore.setTrackIdentity({
+                id: 'steady-video',
+                title: 'Steady Song',
+                artist: '2010 - Steady Artist - Steady Song',
+                album: '',
+                artwork: []
+            });
+            MediaSessionCore.setPlaybackState('playing');
+            MediaSessionCore.setPosition({ duration: 200, position: 50, playbackRate: 1 });
+            const installed = navigator.mediaSession.metadata;
+            const writesAfterBase = positionWrites.filter(Boolean).length;
+            // Whole-second and lyric-deadline renders re-sample the player;
+            // samples the receiver's clock already shows must cost nothing.
+            MediaSessionCore.setPosition({ duration: 200, position: 50.2, playbackRate: 1 });
+            MediaSessionCore.setDisplayLines('steady lyric one', 'steady report');
+            MediaSessionCore.setPosition({ duration: 200, position: 50.4, playbackRate: 1 });
+            const writesWithinTolerance = positionWrites.filter(Boolean).length - writesAfterBase;
+            // A real seek drifts past tolerance and must publish.
+            MediaSessionCore.setPosition({ duration: 200, position: 65, playbackRate: 1 });
+            const writesAfterSeek = positionWrites.filter(Boolean).length - writesAfterBase;
+            const writesBeforeReclaim = positionWrites.filter(Boolean).length;
+            await MediaSessionCore.activate();
+            const reclaim = {
+                sameObject: navigator.mediaSession.metadata === installed,
+                title: navigator.mediaSession.metadata?.title || '',
+                republishedWrites: positionWrites.filter(Boolean).length - writesBeforeReclaim,
+                lastPosition: positionWrites.filter(Boolean).at(-1) || null
+            };
+            MediaSessionCore.clearTrack();
+            navigator.mediaSession.setPositionState = realSetPositionState;
+            return { writesWithinTolerance, writesAfterSeek, reclaim };
+        });
+        report.check(`Media Session position rewrites only on real drift and reclaim keeps the installed track object (${progressStability.writesWithinTolerance} tolerance writes, ${progressStability.writesAfterSeek} after seek, ${progressStability.reclaim.republishedWrites} on reclaim)`,
+            progressStability.writesWithinTolerance === 0
+            && progressStability.writesAfterSeek === 1
+            && progressStability.reclaim.sameObject
+            && progressStability.reclaim.title === 'steady lyric one'
+            && progressStability.reclaim.republishedWrites >= 1
+            && progressStability.reclaim.lastPosition?.position === 65);
+
         // Minimal display communication: identical repeat writes to the
         // now-playing surfaces are dropped at the core - one metadata
         // construction per distinct title, none for repeats.
