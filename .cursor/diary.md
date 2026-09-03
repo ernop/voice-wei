@@ -1091,3 +1091,34 @@ new-words-only filter, and append-only logs on both surfaces (v343-v349).
   the repo had no Python imports until coolness-combine imported
   coolness. When adding the first import of a local module, check
   .gitignore in the same commit.
+
+## 2026-09-03 - Lyrics mode flashing the receiver's progress bar (v352)
+
+**Report from yui**: lyrics mode "repeatedly and unnecessarily messing up
+the progress bar" - it should stay right or untouched, never flash.
+
+**Diagnosis** (both defects in media-session-core.js, the single Media
+Session writer):
+1. Session reclaim (`activate()`, reachable from EVERY lyric push via
+   `ensurePlayingSession()` whenever the OS paused the silent keep-alive)
+   nulled `writtenTrackId`, so the next publish installed a brand-new
+   `MediaMetadata` object. The code's own comments already said receivers
+   discard their progress timer on object replacement - the reclaim path
+   just didn't honor that rule.
+2. `publishPosition` claimed "whole-second dedupe" but keyed on
+   `position.toFixed(1)`, so effectively every whole-second render AND
+   every lyric-deadline render rewrote `setPositionState`. Receivers
+   extrapolate position themselves; some redraw the bar on every write.
+
+**Fix shape**: model the receiver's clock (last written sample + wall
+time + rate + was-playing) and write position only when that clock would
+be >= 0.5s wrong. Pause/resume rebase the bookkeeping instead of writing,
+mirroring the receiver's bar freezing on playbackState alone. Reclaim
+republishes through the installed object, never replacing it.
+
+**Lesson**: when a comment states a receiver-behavior rule ("a new
+installed object can make a receiver discard its timer"), grep for every
+path that violates it - the rule was written after one path was fixed
+while the reclaim path kept violating it. Also: a dedupe key must match
+its stated granularity; toFixed(1) under a "whole-second" comment was the
+entire position-churn bug.
