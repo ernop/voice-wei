@@ -196,9 +196,13 @@ passing-note rate - applied continuously, phrase after phrase, with a
 configurable rest span between phrases: a guaranteed beat count, plus an
 optional **then to end of bar** fill that keeps resting to the next
 barline so every phrase starts on a downbeat ("rest at least 2 beats,
-then to the bar"). **phrase x2** makes each phrase appear twice in a row
-(same melody, same rhythm); with **2nd pass: on your own** and hear
-tones, the repeat stays silent - hear it once, then it is yours. Rests
+then to the bar"). **Repeat** (x1..x4) plays each phrase that many
+times: the phrase is written once, and on reaching the next phrase's
+start the staff jumps back and replays it (rest included). While Repeat
+is x2+, a **repeat pass** row under the stage toggles carries the repeat
+passes' own note guides / hear tones / show numbers - the main toggles
+govern the first pass - so the classic drill is tones+guides on the
+first pass and a bare, silent repeat that is yours alone. Rests
 render as standard glyphs
 (whole/half/quarter/eighth) on the staff the melodic line last used, and
 never cross a barline.

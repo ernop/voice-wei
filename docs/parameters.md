@@ -188,8 +188,10 @@ generates ahead of the now-line - never the sheet already drawn.
 | durationBeats | quarter + half | multi-select of eighth, quarter, half, whole; at least one stays on | bounds-next |
 | restBeats | 2 | none, half, 1, 2, 3, 4 - the guaranteed rest after each phrase | bounds-next |
 | restToBarline | false | "then to end of bar" pill: after the guaranteed rest, keep resting to the next barline so every phrase starts on beat 1. With Rest 0 a phrase ending on the barline gets no rest at all; set Rest > 0 to always breathe | bounds-next |
-| phraseTwice | false | "phrase x2" pill: each phrase appears twice in a row with the same melody and rhythm (each pass followed by the configured rest) | bounds-next |
-| secondPassOnYourOwn | false | "2nd pass: on your own" pill: with phrase x2 and hear tones, the repeat pass stays silent - hear it once, then do it yourself | immediate |
+| phraseRepeats | 1 ("Repeat") | x1..x4 stepper: how many times each phrase plays in scroll mode. The phrase is written ONCE; on reaching the next phrase's start the staff jumps back and replays it (each pass includes the configured rest). Stored `phraseTwice: true` migrates to x2 | immediate (transport-level; anchors on the phrase in progress) |
+| repeatHearTones | true | toggle ("repeat pass" stage row, visible while Repeat is x2+): piano tones during repeat passes - off means hear it once, then the repeats are yours. Stored `secondPassOnYourOwn: true` migrates to off | immediate |
+| repeatShowPitchGuides | true | toggle (repeat pass row): note guides during repeat passes | redraw (applies while a repeat pass is in progress) |
+| repeatShowDegrees | true | toggle (repeat pass row): scale-degree numbers during repeat passes | redraw (applies while a repeat pass is in progress) |
 | revealAfterPhrase | false | "reveal when done" pill (stage row): note guides and the sung line stay hidden until each phrase's time is fully over, then appear - sing blind, check as you go. Idle/loaded review always shows in full. Enabling it once nudges Now to at least 50% for look-back room | redraw |
 | measures | 16 | 4..128 list; page-mode sheet length and scroll's initial buffer | bounds-next |
 | bpm | 60 | 20..200 list | immediate (scroll speed and note firing read it live) |
@@ -197,17 +199,21 @@ generates ahead of the now-line - never the sheet already drawn.
 | pxPerBeat | 26 | 14..48 px list | redraw |
 | nowFraction | 10% | 5..75% of the visible staff (a small floor keeps a little look-back room; high values leave room to review revealed phrases behind the line) | redraw |
 | staffWidthPct | 100 | 55, 70, 85, 100% of the page; the staff stays left-aligned | redraw |
-| hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line | immediate |
-| showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff | redraw |
-| showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band | redraw |
+| hearTones | true | toggle (stage row under the band) - piano plays each note as it crosses the now-line. With Repeat x2+ this governs first passes only; repeat passes read repeatHearTones | immediate |
+| showDegrees | true | toggle (stage row) - each note's scale degree (1-8, with #/b and octave marks) under the staff. First passes only when phrases repeat | redraw |
+| showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band. First passes only when phrases repeat | redraw |
 | sungLinePlacement | band | "sung line" segment (stage row): off / staff / band - where the recorded blue sung line draws: nowhere, on the notation itself (the noteheads' own diatonic grid, clipped to the staff area), or in the pitch band (the page-mode live dot stays either way, moving onto the staff grid when the band is hidden) | redraw |
 | showPitchReadout | true | toggle (stage row, "pitch info") - the live sung-pitch readout (note, Hz, cents) | immediate |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
 Every display-affecting toggle sits in the stage row directly under the
-staff, next to what it changes. The sung-pitch band under the staff only
-exists while something is configured to draw in it: guides on, or the
-sung line placed there - otherwise the view ends at the staff.
+staff, next to what it changes; while Repeat is x2+ a second "repeat
+pass" row appears beneath it with the repeat passes' own note guides /
+hear tones / show numbers toggles. The sung-pitch band under the staff
+only exists while something is configured to draw in it: guides on for
+any pass, or the sung line placed there - otherwise the view ends at
+the staff (per-pass guide flips never collapse and re-open the lane
+mid-run).
 
 Actions (not persisted): Start/Pause (the moving staff), Stop (ends the
 run, saves it as a Past Run when at least a bar was traversed, and

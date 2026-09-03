@@ -182,70 +182,102 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`stored 'measure' rest migrates to rest 0 + to barline (${migrated.restBeats}, ${migrated.restToBarline})`,
         migrated.restBeats === 0 && migrated.restToBarline === true);
 
-    // --- Phrase x2: each phrase repeats with the same melody + rhythm ---
-    const phraseTwice = await tab.evaluate(() => {
-        const events = PatternPracticeCore.createContinuousSequence({
-            scaleType: 'major', startAtOne: true, rangeLow: 0, rangeHigh: 7,
-            minLength: 3, maxLength: 6, returnToInitial: false, returnToRoot: false,
-            phraseAlgo: 'arch', durationBeats: [0.5, 1, 2], restBeats: 1,
-            restToBarline: true, phraseTwice: true
-        }).nextEvents(96);
-        /** @type {Array<Array<{ offset: number, beats: number, secondPass: boolean }>>} */
-        const runs = [];
-        let current = null;
-        for (const event of events) {
-            if (event.type !== 'note') { current = null; continue; }
-            if (!current) { current = []; runs.push(current); }
-            current.push({ offset: event.offset, beats: event.beats, secondPass: event.secondPass === true });
-        }
-        const wholePairs = Math.floor(runs.length / 2);
-        let pairsMatch = wholePairs > 0;
-        let flagsOk = true;
-        for (let pair = 0; pair < wholePairs; pair++) {
-            const first = runs[pair * 2];
-            const second = runs[pair * 2 + 1];
-            pairsMatch = pairsMatch && first.length === second.length
-                && first.every((note, i) => note.offset === second[i].offset && note.beats === second[i].beats);
-            flagsOk = flagsOk && first.every(note => !note.secondPass) && second.every(note => note.secondPass);
-        }
-        const onBarline = events.every((event, index) =>
-            event.type !== 'note' || index === 0 || events[index - 1].type === 'note'
-            || event.startBeat % 4 === 0);
-        return { runCount: runs.length, pairsMatch, flagsOk, onBarline };
-    });
-    report.check(`phrase x2 repeats each phrase with identical melody and rhythm (${phraseTwice.runCount} runs)`,
-        phraseTwice.pairsMatch && phraseTwice.flagsOk && phraseTwice.onBarline);
-
-    // --- 2nd pass on your own: the repeat never sounds -----------------
-    const silentPass = await tab.evaluate(() => {
+    // --- Phrase repeat: the clock jumps back to replay each phrase, and
+    // repeat passes keep their own sound + display settings ------------
+    const phraseRepeat = await tab.evaluate(() => {
         const debug = window.staffDebug;
         debug.applySettings({
-            phraseTwice: true, secondPassOnYourOwn: true, hearTones: true,
+            phraseRepeats: 2, hearTones: true, showDegrees: true,
+            repeatHearTones: false, repeatShowDegrees: false, repeatShowPitchGuides: true,
             restBeats: 2, restToBarline: false
         });
         debug.regenerate();
         debug.stopRun();
         const events = debug.events();
-        const firstNote = events.find(event => event.type === 'note' && !event.secondPass);
-        const firstRepeat = events.find(event => event.type === 'note' && event.secondPass);
+        /** @type {Array<{ startBeat: number, endBeat: number, notes: any[] }>} */
+        const runs = [];
+        let current = null;
+        for (const event of events) {
+            if (event.type !== 'note') { current = null; continue; }
+            if (!current) { current = { startBeat: event.startBeat, endBeat: 0, notes: [] }; runs.push(current); }
+            current.notes.push(event);
+            current.endBeat = event.startBeat + event.beats;
+        }
+        const shell = document.querySelector('.staff-scroll-shell');
         const piano = debug.piano();
         const real = piano.playMidiAudibleIn;
-        let calls = [];
-        piano.playMidiAudibleIn = midi => { calls.push(midi); };
-        debug.setClockBeat(firstNote.startBeat + 0.01);
-        const firstPassCalls = calls.length;
-        calls = [];
-        debug.setClockBeat(firstRepeat.startBeat + 0.01);
-        const repeatCalls = calls.length;
+        let calls = 0;
+        piano.playMidiAudibleIn = () => { calls++; };
+
+        // First pass: notes sound (hear tones on) and numbers show.
+        debug.setClockBeat(runs[0].notes[0].startBeat + 0.01);
+        const firstPassCalls = calls;
+        const passDuringFirst = debug.passNumber();
+        const degreesShownOnFirst = !shell.classList.contains('staff-degrees-hidden');
+
+        // Crossing the next phrase's start jumps the clock BACK instead
+        // of moving on: same sheet, second pass.
+        calls = 0;
+        debug.setClockBeat(runs[1].startBeat + 0.01);
+        const jumpedBack = debug.clockBeat() < runs[0].endBeat;
+        const passAfterJump = debug.passNumber();
+        const degreesHiddenOnRepeat = shell.classList.contains('staff-degrees-hidden');
+
+        // The repeat pass re-fires every note of the phrase, silently
+        // (repeat hear tones off).
+        for (const note of runs[0].notes) debug.setClockBeat(note.startBeat + 0.01);
+        const repeatCalls = calls;
+
+        // Crossing the boundary again moves on: pass resets to 1 and the
+        // next phrase sounds under first-pass settings again.
+        calls = 0;
+        debug.setClockBeat(runs[1].startBeat + 0.01);
+        const movedOn = debug.clockBeat() >= runs[1].startBeat;
+        const passAfterMovingOn = debug.passNumber();
+        const nextPhraseCalls = calls;
+        const degreesBackAfterMovingOn = !shell.classList.contains('staff-degrees-hidden');
+
         piano.playMidiAudibleIn = real;
+        // Rewind before stopping so this synthetic walk never saves a
+        // Past Run (the session tests below count exact rows).
         debug.setClockBeat(-4);
         debug.stopRun();
-        debug.applySettings({ phraseTwice: false, secondPassOnYourOwn: false });
+        debug.applySettings({ phraseRepeats: 1, repeatHearTones: true, repeatShowDegrees: true });
         debug.regenerate();
-        return { firstPassCalls, repeatCalls, hasRepeatNote: Boolean(firstRepeat) };
+        return {
+            firstPassCalls, passDuringFirst, degreesShownOnFirst,
+            jumpedBack, passAfterJump, degreesHiddenOnRepeat, repeatCalls,
+            movedOn, passAfterMovingOn, nextPhraseCalls, degreesBackAfterMovingOn
+        };
     });
-    report.check(`2nd pass on your own keeps the repeat silent (${silentPass.firstPassCalls} first-pass tones, ${silentPass.repeatCalls} repeat tones)`,
-        silentPass.hasRepeatNote && silentPass.firstPassCalls >= 1 && silentPass.repeatCalls === 0);
+    report.check(`repeat x2 first pass sounds and counts as pass 1 (${phraseRepeat.firstPassCalls} tones)`,
+        phraseRepeat.firstPassCalls >= 1 && phraseRepeat.passDuringFirst === 1
+        && phraseRepeat.degreesShownOnFirst);
+    report.check('crossing the next phrase start jumps the clock back for pass 2',
+        phraseRepeat.jumpedBack && phraseRepeat.passAfterJump === 2);
+    report.check(`repeat pass honors its own settings: silent, numbers hidden (${phraseRepeat.repeatCalls} tones)`,
+        phraseRepeat.repeatCalls === 0 && phraseRepeat.degreesHiddenOnRepeat);
+    report.check(`after the final pass the run moves on under first-pass settings (${phraseRepeat.nextPhraseCalls} tones)`,
+        phraseRepeat.movedOn && phraseRepeat.passAfterMovingOn === 1
+        && phraseRepeat.nextPhraseCalls >= 1 && phraseRepeat.degreesBackAfterMovingOn);
+
+    // Stored phrase-twice settings migrate to the repeat transport.
+    const repeatMigrateCtx = await browser.newContext();
+    const repeatMigrateTab = await repeatMigrateCtx.newPage();
+    await repeatMigrateTab.addInitScript(() => {
+        localStorage.setItem('voice-wei:staff-settings', JSON.stringify({
+            v: 'test', data: { phraseTwice: true, secondPassOnYourOwn: true }
+        }));
+    });
+    await repeatMigrateTab.goto(`${BASE_URL}/staff.html`, { waitUntil: 'domcontentloaded' });
+    await repeatMigrateTab.waitForFunction(() => Boolean(window.staffDebug && window.staffDebug.events().length), null, { timeout: 20000 });
+    const repeatMigrated = await repeatMigrateTab.evaluate(() => {
+        const settings = window.staffDebug.settings();
+        return { phraseRepeats: settings.phraseRepeats, repeatHearTones: settings.repeatHearTones };
+    });
+    await repeatMigrateCtx.close();
+    report.check(`stored phrase x2 + 2nd-pass-on-your-own migrate to repeat x2 with silent repeats (x${repeatMigrated.phraseRepeats}, tones ${repeatMigrated.repeatHearTones})`,
+        repeatMigrated.phraseRepeats === 2 && repeatMigrated.repeatHearTones === false);
 
     // --- Reveal when done: guides + sung line wait for the phrase ------
     const reveal = await tab.evaluate(async () => {
@@ -503,7 +535,8 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check('notes split at middle C: below on bass, C4 and up on treble', rendering.clefsCorrect);
 
     // Degree labels: the shared .degree-token (same as the Phrases degree
-    // row), one per note under the staff, toggleable.
+    // row), one per note under the staff, toggleable. Visibility is a
+    // class flip on the shell (per-pass safe), never a chunk rebuild.
     const degrees = await tab.evaluate(() => {
         const noteCount = window.staffDebug.events().filter(event => event.type === 'note').length;
         const tokens = [...document.querySelectorAll('.staff-scroll-chunk .degree-token')];
@@ -511,13 +544,16 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         const valid = labels.every(label => /^\d+[#b\u2191\u2193]*$/.test(label));
         const toggle = document.getElementById('showDegreesToggle');
         toggle.click();
-        const afterOff = document.querySelectorAll('.staff-scroll-chunk .degree-token').length;
+        const hiddenAfterOff = getComputedStyle(tokens[0]).display === 'none';
+        const chunksIntact = document.querySelectorAll('.staff-scroll-chunk .degree-token').length === tokens.length;
         toggle.click();
-        return { noteCount, labelCount: labels.length, valid, afterOff };
+        const shownAfterOn = getComputedStyle(tokens[0]).display !== 'none';
+        return { noteCount, labelCount: labels.length, valid, hiddenAfterOff, chunksIntact, shownAfterOn };
     });
     report.check(`show numbers draws one shared degree token per note (${degrees.labelCount}/${degrees.noteCount})`,
         degrees.labelCount === degrees.noteCount && degrees.valid);
-    report.check('turning show numbers off removes the tokens', degrees.afterOff === 0);
+    report.check('turning show numbers off hides the tokens without rebuilding chunks',
+        degrees.hiddenAfterOff && degrees.chunksIntact && degrees.shownAfterOn);
 
     const horizontalGeometry = await tab.evaluate(() => {
         const geometry = window.staffDebug.geometry();

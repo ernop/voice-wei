@@ -48,11 +48,16 @@
         // Extend each phrase's rest to the next barline AFTER the
         // guaranteed restBeats, so every phrase starts on a downbeat.
         restToBarline: false,
-        // Each phrase appears twice in a row (same melody and rhythm).
-        phraseTwice: false,
-        // With phrase-twice and hear tones: the repeat stays silent - the
-        // second time through is yours.
-        secondPassOnYourOwn: false,
+        // How many times each phrase plays in scroll mode. With 2+, the
+        // staff jumps back to the phrase start after its span (notes +
+        // rest) and plays it again - the phrase is written once.
+        phraseRepeats: 1,
+        // Repeat passes (2..N) keep their own sound/display choices, so
+        // the first pass can teach (tones + guides + numbers) while the
+        // repeats are the singer's own.
+        repeatHearTones: true,
+        repeatShowPitchGuides: true,
+        repeatShowDegrees: true,
         measures: 16,
         durationBeats: [1, 2],
         // Manual audible-onset trim on top of the reported device latency:
@@ -79,7 +84,8 @@
     const PERSISTED_KEYS = [
         'root', 'octave', 'scaleType', 'phraseStyle', 'phraseLesson', 'phraseAlgo',
         'startAtOne', 'rangeLow', 'rangeHigh', 'accidentalRate', 'minLength', 'maxLength',
-        'returnToInitial', 'bpm', 'restBeats', 'restToBarline', 'phraseTwice', 'secondPassOnYourOwn',
+        'returnToInitial', 'bpm', 'restBeats', 'restToBarline',
+        'phraseRepeats', 'repeatHearTones', 'repeatShowPitchGuides', 'repeatShowDegrees',
         'measures', 'durationBeats', 'audioOffsetMs',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
         'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase', 'showPitchReadout', 'mode'
@@ -99,7 +105,8 @@
         // Up to 75%: reveal-when-done needs look-back room behind the
         // now-line for a whole revealed phrase.
         nowFraction: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75],
-        staffWidthPct: [55, 70, 85, 100]
+        staffWidthPct: [55, 70, 85, 100],
+        phraseRepeats: [1, 2, 3, 4]
     };
     const DEFAULT_LESSON_BY_STYLE = Object.freeze({
         free: 'free_open',
@@ -128,6 +135,13 @@
     let firedIndex = 0;
     let firedNoteCount = 0;
     let soundedNoteCount = 0;
+    // Phrase repeat transport: which pass of the current phrase the
+    // clock is in (1-based), and the phrase's span - startBeat to the
+    // next phrase's start (boundary). Both live on the transport, not
+    // the sheet: the phrase is written once and the clock jumps back.
+    let passNumber = 1;
+    /** @type {{ startBeat: number, boundary: number } | null} */
+    let repeatSpan = null;
     /** @type {number | null} */
     let animationId = null;
     let lastTracePushWall = 0;
@@ -173,8 +187,7 @@
             rangeGovernsLessons: true,
             durationBeats: state.durationBeats.slice(),
             restBeats: state.restBeats,
-            restToBarline: state.restToBarline,
-            phraseTwice: state.phraseTwice
+            restToBarline: state.restToBarline
         };
     }
 
@@ -246,6 +259,61 @@
             }
         }
         return phraseRunsCache;
+    }
+
+    //-------------------------------------------------------------------
+    // Phrase repeat: with Repeat x2+ the clock, on reaching the next
+    // phrase's start, jumps back to replay the current phrase - the
+    // sheet itself never changes. Each pass carries its own sound and
+    // display choices (repeat passes use the repeat set).
+    //-------------------------------------------------------------------
+
+    /** True while the clock is inside a repeat (2nd+) pass. */
+    function inRepeatPass() {
+        return passNumber > 1;
+    }
+
+    function resetRepeatCycle() {
+        passNumber = 1;
+        repeatSpan = null;
+    }
+
+    /**
+     * Span of the phrase the clock currently sits in (or approaches,
+     * during the lead-in): its start and the next phrase's start. null
+     * until the following phrase exists (scroll generates ahead, so it
+     * appears well before the boundary matters).
+     */
+    function currentPhraseSpan() {
+        const runs = phraseRuns();
+        if (!runs.length) return null;
+        let index = 0;
+        while (index < runs.length - 1 && runs[index + 1].startBeat <= clockBeat) index++;
+        if (index >= runs.length - 1) return null;
+        return { startBeat: runs[index].startBeat, boundary: runs[index + 1].startBeat };
+    }
+
+    /** Runs every frame, after the clock advances and before notes fire. */
+    function applyPhraseRepeat() {
+        if (state.phraseRepeats < 2) {
+            resetRepeatCycle();
+            return;
+        }
+        if (!repeatSpan) repeatSpan = currentPhraseSpan();
+        if (!repeatSpan || clockBeat < repeatSpan.boundary) return;
+        if (passNumber < state.phraseRepeats) {
+            passNumber++;
+            // Land one audio-lead window before the phrase so its first
+            // tone gets the same exact-onset scheduling as any note.
+            const leadBeats = audioLeadMs() / msPerBeat();
+            clockBeat = repeatSpan.startBeat - leadBeats + (clockBeat - repeatSpan.boundary);
+            syncFiredIndex();
+            // Re-present the repeating phrase's numbers on the car display.
+            presentedPhraseIndex = -1;
+        } else {
+            passNumber = 1;
+            repeatSpan = currentPhraseSpan();
+        }
     }
 
     // The car display (and the page header) lead the sheet: during each
@@ -348,8 +416,13 @@
         clockBeat: () => clockBeat,
         trace: () => traceSamples,
         traceGapBeats: () => 320 / msPerBeat(),
-        showDegrees: () => state.showDegrees,
-        showPitchGuides: () => state.showPitchGuides,
+        showDegrees: () => (inRepeatPass() ? state.repeatShowDegrees : state.showDegrees),
+        showPitchGuides: () => (inRepeatPass() ? state.repeatShowPitchGuides : state.showPitchGuides),
+        // The band lane itself never flips with the pass - only what
+        // draws inside it does - so the layout stays put across a run.
+        showPitchBand: () => state.showPitchGuides
+            || (state.phraseRepeats > 1 && state.repeatShowPitchGuides)
+            || state.sungLinePlacement === 'band',
         sungLinePlacement: () => /** @type {'off' | 'staff' | 'band'} */ (state.sungLinePlacement),
         revealBeforeBeat,
         pitchRange: tracePitchRange,
@@ -407,7 +480,10 @@
         lines.push(`note values: ${state.durationBeats.map(beats => DURATION_TEXT[beats] || beats).join(' ')}`
             + ` | rest between phrases: ${state.restBeats} beats${state.restToBarline ? ', then to end of bar' : ''}`
             + ` | bars: ${state.measures}`
-            + (state.phraseTwice ? ` | phrase x2${state.secondPassOnYourOwn ? ' (2nd pass on your own)' : ''}` : '')
+            + (state.phraseRepeats > 1
+                ? ` | repeat x${state.phraseRepeats} (repeat pass: tones ${state.repeatHearTones ? 'on' : 'off'},`
+                + ` guides ${state.repeatShowPitchGuides ? 'on' : 'off'}, numbers ${state.repeatShowDegrees ? 'on' : 'off'})`
+                : '')
             + (state.revealAfterPhrase ? ' | reveal when done' : ''));
         lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
             + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
@@ -487,6 +563,7 @@
             const now = performance.now();
             clockBeat += (now - lastFrameWall) / msPerBeat();
             lastFrameWall = now;
+            applyPhraseRepeat();
             fireDueNotes();
             extendIfNeeded();
             syncPhraseMediaTitle();
@@ -522,18 +599,26 @@
     function fireDueNotes() {
         const events = streamEvents();
         const leadBeats = audioLeadMs() / msPerBeat();
+        // While more passes of the current phrase remain, the lead window
+        // must not pre-fire the NEXT phrase - those notes belong after
+        // the jump back. On the final pass the window runs free again.
+        const fireLimit = (repeatSpan && passNumber < state.phraseRepeats)
+            ? repeatSpan.boundary : Infinity;
         while (firedIndex < events.length && events[firedIndex].startBeat <= clockBeat + leadBeats) {
             const event = events[firedIndex];
+            if (event.startBeat >= fireLimit) break;
             firedIndex++;
             if (event.type !== 'note' || typeof event.midi !== 'number') continue;
             firedNoteCount++;
             if (clockBeat >= event.startBeat + event.beats) continue;
             soundedNoteCount++;
-            // "On your own": with phrase-twice, the repeat pass never
-            // sounds - hearing it once is the prompt, the second time is
-            // the singer's.
-            const silentPass = event.secondPass === true && state.secondPassOnYourOwn;
-            if (state.hearTones && piano && !silentPass) {
+            // A note past the boundary during the final pass is the NEXT
+            // phrase's first pass; everything before it belongs to the
+            // pass the clock is in.
+            const repeatPassNote = inRepeatPass()
+                && (!repeatSpan || event.startBeat < repeatSpan.boundary);
+            const audible = repeatPassNote ? state.repeatHearTones : state.hearTones;
+            if (audible && piano) {
                 const inSeconds = Math.max(0,
                     ((event.startBeat - clockBeat) * msPerBeat() - state.audioOffsetMs) / 1000);
                 piano.playMidiAudibleIn(event.midi, (event.beats * msPerBeat() / 1000) * 0.92, inSeconds);
@@ -596,6 +681,7 @@
         }
         clockBeat = -LEAD_IN_BEATS;
         firedIndex = 0;
+        resetRepeatCycle();
         resetPhraseMediaTitle();
         syncTransportButtons();
         MediaSessionCore.setPlaybackState('paused');
@@ -800,6 +886,8 @@
         PracticeControls.setValueText('staffWidthPctValue', `${state.staffWidthPct}%`);
         PracticeControls.setValueText('rangeLowValue', rangeEndpointLabel(state.rangeLow));
         PracticeControls.setValueText('rangeHighValue', rangeEndpointLabel(state.rangeHigh));
+        PracticeControls.setValueText('phraseRepeatsValue', `x${state.phraseRepeats}`);
+        syncRepeatPassRow();
 
         PracticeControls.syncStepperDisabled((key, delta) => {
             if (key === 'rootPitch') {
@@ -820,6 +908,12 @@
     function applyPitchReadoutVisibility() {
         const readout = getEl('pitchReadout');
         if (readout) readout.hidden = !state.showPitchReadout;
+    }
+
+    /** The repeat-pass toggle row only exists while phrases repeat. */
+    function syncRepeatPassRow() {
+        const row = getEl('repeatPassRow');
+        if (row) row.hidden = state.phraseRepeats < 2;
     }
 
     //-------------------------------------------------------------------
@@ -879,11 +973,18 @@
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
     const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
-    const REDRAW_KEYS = new Set(['pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase']);
+    const REDRAW_KEYS = new Set([
+        'pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides',
+        'sungLinePlacement', 'revealAfterPhrase',
+        // Repeat display settings and the repeat count change what draws
+        // (and whether the pitch band lane exists) without touching the
+        // generated sheet.
+        'phraseRepeats', 'repeatShowPitchGuides', 'repeatShowDegrees'
+    ]);
     const GENERATION_KEYS = new Set([
         'phraseStyle', 'phraseLesson', 'phraseAlgo', 'startAtOne', 'rangeLow', 'rangeHigh',
         'accidentalRate', 'minLength', 'maxLength', 'returnToInitial', 'durationBeats',
-        'restBeats', 'restToBarline', 'phraseTwice'
+        'restBeats', 'restToBarline'
     ]);
 
     /** @param {string} key */
@@ -1039,12 +1140,13 @@
         syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
         syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
         syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
-        syncBooleanPill('phraseTwiceBtn', state.phraseTwice, 'phrase x2', 'phrase x1');
-        syncBooleanPill('secondPassBtn', state.secondPassOnYourOwn, '2nd pass: on your own', '2nd pass: with tones');
         syncBooleanPill('revealBtn', state.revealAfterPhrase, 'reveal when done', 'reveal live');
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
+        PracticeControls.syncToggle('repeatHearTonesToggle', state.repeatHearTones);
+        PracticeControls.syncToggle('repeatDegreesToggle', state.repeatShowDegrees);
+        PracticeControls.syncToggle('repeatGuidesToggle', state.repeatShowPitchGuides);
         PracticeControls.syncSingleSelect('data-sung-line', state.sungLinePlacement);
         PracticeControls.syncToggle('pitchReadoutToggle', state.showPitchReadout);
         syncDurationChips();
@@ -1083,6 +1185,18 @@
             state.showPitchGuides = checked;
             onSettingChanged('showPitchGuides');
         });
+        PracticeControls.wireToggle('repeatHearTonesToggle', state.repeatHearTones, checked => {
+            state.repeatHearTones = checked;
+            onSettingChanged('repeatHearTones');
+        });
+        PracticeControls.wireToggle('repeatDegreesToggle', state.repeatShowDegrees, checked => {
+            state.repeatShowDegrees = checked;
+            onSettingChanged('repeatShowDegrees');
+        });
+        PracticeControls.wireToggle('repeatGuidesToggle', state.repeatShowPitchGuides, checked => {
+            state.repeatShowPitchGuides = checked;
+            onSettingChanged('repeatShowPitchGuides');
+        });
         PracticeControls.wireSingleSelect('data-sung-line', String, state.sungLinePlacement, value => {
             state.sungLinePlacement = value;
             onSettingChanged('sungLinePlacement');
@@ -1106,16 +1220,6 @@
             state.restToBarline = !state.restToBarline;
             syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
             onSettingChanged('restToBarline');
-        });
-        getEl('phraseTwiceBtn')?.addEventListener('click', () => {
-            state.phraseTwice = !state.phraseTwice;
-            syncBooleanPill('phraseTwiceBtn', state.phraseTwice, 'phrase x2', 'phrase x1');
-            onSettingChanged('phraseTwice');
-        });
-        getEl('secondPassBtn')?.addEventListener('click', () => {
-            state.secondPassOnYourOwn = !state.secondPassOnYourOwn;
-            syncBooleanPill('secondPassBtn', state.secondPassOnYourOwn, '2nd pass: on your own', '2nd pass: with tones');
-            onSettingChanged('secondPassOnYourOwn');
         });
         getEl('revealBtn')?.addEventListener('click', () => {
             state.revealAfterPhrase = !state.revealAfterPhrase;
@@ -1184,6 +1288,16 @@
             state.restToBarline = true;
         }
         if (!ADJUSTER_VALUES.restBeats.includes(state.restBeats)) state.restBeats = 2;
+        // Migrate the retired phrase-twice pair: the written-out repeat
+        // became the jump-back Repeat transport, and "2nd pass on your
+        // own" became the repeat pass's own hear-tones toggle.
+        if (storedStaff.phraseTwice === true && storedStaff.phraseRepeats === undefined) {
+            state.phraseRepeats = 2;
+        }
+        if (storedStaff.secondPassOnYourOwn === true && storedStaff.repeatHearTones === undefined) {
+            state.repeatHearTones = false;
+        }
+        if (!ADJUSTER_VALUES.phraseRepeats.includes(state.phraseRepeats)) state.phraseRepeats = 1;
         if (!SUNG_LINE_PLACEMENTS.includes(state.sungLinePlacement)) {
             // Migrate the retired boolean: off stays off, on means band.
             const stored = /** @type {Record<string, any>} */ (SettingsStore.peekData(STORAGE_KEY) || {});
@@ -1206,11 +1320,14 @@
             clockBeat: () => clockBeat,
             setClockBeat: (beat) => {
                 clockBeat = beat;
+                applyPhraseRepeat();
                 fireDueNotes();
                 extendIfNeeded();
                 syncPhraseMediaTitle();
                 view.frame();
             },
+            passNumber: () => passNumber,
+            repeatSpan: () => (repeatSpan ? { ...repeatSpan } : null),
             firedNoteCount: () => firedNoteCount,
             soundedNoteCount: () => soundedNoteCount,
             piano: () => piano,

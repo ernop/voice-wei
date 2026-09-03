@@ -104,6 +104,28 @@
     font-size: 0.8rem;
 }
 
+/* Per-pass toggles for phrase repeats: this second row governs the
+   repeat passes only, so it exists only while Repeat is x2+. (.staff-
+   stage-meta's flex would beat the hidden attribute.) */
+.staff-repeat-meta[hidden] {
+    display: none;
+}
+
+.staff-repeat-meta-label {
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: help;
+}
+
+/* Show-numbers hides the degree tokens by a class flip (it changes per
+   repeat pass), never by rebuilding chunk SVGs mid-run. */
+.staff-degrees-hidden .staff-degree-token {
+    display: none;
+}
+
 .staff-sung-line-choice {
     display: inline-flex;
     align-items: center;

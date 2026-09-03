@@ -82,7 +82,7 @@ const StaffScrollView = (function () {
         let renderSignature = '';
 
         function bandVisible() {
-            return config.showPitchGuides() || config.sungLinePlacement() === 'band';
+            return config.showPitchBand();
         }
 
         function totalHeight() {
@@ -395,17 +395,17 @@ const StaffScrollView = (function () {
             });
             // The number row is the SAME shared token the Phrases degree
             // row uses (.degree-token), positioned on the beat grid so it
-            // scrolls with the notes it names.
-            if (config.showDegrees() && degreeLabels.length) {
-                degreeLabels.forEach(({ label, x }) => {
-                    const token = document.createElement('span');
-                    token.className = 'degree-token staff-degree-token';
-                    token.textContent = label;
-                    token.style.left = `${x}px`;
-                    token.style.top = `${DEGREE_LABEL_Y}px`;
-                    el.appendChild(token);
-                });
-            }
+            // scrolls with the notes it names. Tokens are always built;
+            // visibility is a CSS class on the shell (syncStripLayout),
+            // so per-pass show-numbers flips never rebuild chunks mid-run.
+            degreeLabels.forEach(({ label, x }) => {
+                const token = document.createElement('span');
+                token.className = 'degree-token staff-degree-token';
+                token.textContent = label;
+                token.style.left = `${x}px`;
+                token.style.top = `${DEGREE_LABEL_Y}px`;
+                el.appendChild(token);
+            });
             return el;
         }
 
@@ -431,7 +431,7 @@ const StaffScrollView = (function () {
             const { first, last } = neededChunkRange();
             const baseSignature = [
                 config.pxPerBeat(), config.key().rootMidi, config.key().scaleType,
-                headerWidth, config.showDegrees() ? 'deg' : ''
+                headerWidth
             ].join('|');
 
             for (const [index, cached] of [...chunkCache.entries()]) {
@@ -469,6 +469,7 @@ const StaffScrollView = (function () {
 
         function syncStripLayout() {
             if (!strip || !viewport) return;
+            if (shell) shell.classList.toggle('staff-degrees-hidden', !config.showDegrees());
             const isScroll = config.mode() === 'scroll';
             viewport.classList.toggle('staff-scroll-viewport-page', !isScroll);
             strip.style.width = `${onsetX(totalBeats()) + 160}px`;
@@ -621,7 +622,13 @@ const StaffScrollView = (function () {
                         previousBeat = null;
                         continue;
                     }
-                    if (previousBeat !== null && sample.beat - previousBeat > gapBeats) flushSegment();
+                    // A backwards beat step is a phrase-repeat jump: the
+                    // next pass draws its own line, never joined to the
+                    // previous pass's endpoint.
+                    if (previousBeat !== null
+                        && (sample.beat - previousBeat > gapBeats || sample.beat < previousBeat)) {
+                        flushSegment();
+                    }
                     segment.push({ x, y });
                     previousBeat = sample.beat;
                 }
@@ -664,8 +671,7 @@ const StaffScrollView = (function () {
                 renderHeader();
                 const signature = [
                     events.length, config.pxPerBeat(),
-                    config.key().rootMidi, config.key().scaleType, config.mode(),
-                    config.showDegrees() ? 'deg' : ''
+                    config.key().rootMidi, config.key().scaleType, config.mode()
                 ].join('|');
                 if (signature !== renderSignature) {
                     renderSignature = signature;

@@ -1092,6 +1092,39 @@ new-words-only filter, and append-only logs on both surfaces (v343-v349).
   coolness. When adding the first import of a local module, check
   .gitignore in the same commit.
 
+## 2026-09-02 — Staff phrase Repeat replaces phrase x2
+
+**Context**: Yui asked for a mode that repeats each phrase by jumping
+back visually (a Repeat count, default 1, settable to 2), with the
+sound/guide/number controls doubled so each pass is governed
+independently.
+
+**Decision**: This subsumed the old pair (`phraseTwice`, which WROTE
+the phrase twice into the sheet, and the single-purpose
+`secondPassOnYourOwn` silence hack), so both were replaced rather than
+kept alongside — two overlapping repeat mechanisms with two competing
+sound switches would have violated one-representation. The repeat is
+now a transport concept in staff.js (`passNumber` + `repeatSpan`),
+never a sheet concept: the generator no longer knows about repeats and
+the `secondPass` event flag is gone. Stored settings migrate
+(`phraseTwice: true` -> `phraseRepeats: 2`; `secondPassOnYourOwn:
+true` -> `repeatHearTones: false`).
+
+**Mechanics worth remembering**:
+- The jump lands one audio-lead window BEFORE the phrase start so the
+  repeat's first tone gets the same exact-onset scheduling as any other
+  note; firing is capped at the boundary while passes remain so the
+  next phrase never pre-fires into a repeat.
+- Per-pass display flips forced two view changes: degree tokens are now
+  always rendered and hidden by a shell CSS class (rebuilding chunk
+  SVGs per pass would hitch mid-run), and the pitch band lane reads a
+  stable `showPitchBand()` config instead of the per-pass guide getter
+  (the lane must not collapse/re-open between passes).
+- The narrow-layout suite counts `.step-field`, `.segment-row`, and
+  `.display-toggle` as non-overlapping units: a step-field nested
+  inside a segment-row reads as an overlap. Steppers belong in
+  `.vf-row` rows.
+
 ## 2026-09-03 - Lyrics mode flashing the receiver's progress bar (v352)
 
 **Report from yui**: lyrics mode "repeatedly and unnecessarily messing up

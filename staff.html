@@ -78,6 +78,22 @@
                     <span class="staff-pitch-readout" id="pitchReadout">Pitch: --</span>
                     <span class="staff-status-readout" id="statusReadout"></span>
                 </div>
+                <div class="staff-stage-meta staff-repeat-meta" id="repeatPassRow" hidden>
+                    <span class="staff-repeat-meta-label"
+                        title="With Repeat x2+, these toggles govern the repeat passes only; the toggles above govern the first pass">repeat pass</span>
+                    <label class="display-toggle" title="Show the note guides during repeat passes">
+                        <input type="checkbox" id="repeatGuidesToggle" checked>
+                        <span>note guides</span>
+                    </label>
+                    <label class="display-toggle" title="Play each note on the piano during repeat passes - off means the repeat is yours alone">
+                        <input type="checkbox" id="repeatHearTonesToggle" checked>
+                        <span>hear tones</span>
+                    </label>
+                    <label class="display-toggle" title="Show scale-degree numbers during repeat passes">
+                        <input type="checkbox" id="repeatDegreesToggle" checked>
+                        <span>show numbers</span>
+                    </label>
+                </div>
             </section>
 
             <div class="voice-first-ui vf-compact staff-control-grid">
@@ -211,10 +227,6 @@
                             title="Toggle: start each phrase at degree 1, or at a random degree">start at 1</button>
                         <button class="vf-btn phrase-toggle-btn" id="returnAnchorBtn" type="button" aria-pressed="true"
                             title="Toggle: end each phrase by returning to its starting note, or not">return to 1</button>
-                        <button class="vf-btn phrase-toggle-btn" id="phraseTwiceBtn" type="button" aria-pressed="false"
-                            title="Toggle: each phrase appears twice in a row (same melody, same rhythm) - meet it, then do it again">phrase x1</button>
-                        <button class="vf-btn phrase-toggle-btn" id="secondPassBtn" type="button" aria-pressed="false"
-                            title="With phrase x2 and hear tones: the repeat stays silent - the second time through is yours">2nd pass: with tones</button>
                     </div>
                     <div class="vf-row staff-range-row">
                         <div class="step-field" title="Lowest degree phrases may use. Below 1 reaches under the unison.">
@@ -228,6 +240,13 @@
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="-1" aria-label="Lower top endpoint down one degree">-</button>
                             <span class="step-value" id="rangeHighValue">5&#8593;</span>
                             <button class="step-btn" type="button" data-step-key="rangeHigh" data-step-delta="1" aria-label="Raise top endpoint up one degree">+</button>
+                        </div>
+                        <div class="step-field"
+                            title="How many times each phrase plays: the staff jumps back and replays the phrase (with its rest) before moving on. Repeat passes have their own sound/guide/number toggles on the stage row.">
+                            <span class="step-label">Repeat</span>
+                            <button class="step-btn" type="button" data-step-key="phraseRepeats" data-step-delta="-1" aria-label="Fewer passes per phrase">-</button>
+                            <span class="step-value" id="phraseRepeatsValue">x1</span>
+                            <button class="step-btn" type="button" data-step-key="phraseRepeats" data-step-delta="1" aria-label="More passes per phrase">+</button>
                         </div>
                     </div>
                     <div class="segment-row staff-algo-row">

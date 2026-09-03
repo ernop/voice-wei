@@ -188,8 +188,6 @@ interface TimedSequenceEvent {
     beats: number;
     /** Absolute start position in beats from sequence start */
     startBeat: number;
-    /** Notes of a phrase's repeat pass (phrase-twice mode); notes only */
-    secondPass?: boolean;
 }
 
 /**
@@ -235,10 +233,17 @@ interface StaffScrollViewConfig {
     trace: () => StaffTraceSample[];
     /** Trace line breaks across sample gaps longer than this many beats */
     traceGapBeats: () => number;
-    /** Draw each note's scale-degree label under the staff */
+    /** Show each note's scale-degree label under the staff (may flip per repeat pass) */
     showDegrees: () => boolean;
-    /** Draw the gray per-note pitch guides in the sung-pitch band */
+    /** Draw the gray per-note pitch guides in the sung-pitch band (may flip per repeat pass) */
     showPitchGuides: () => boolean;
+    /**
+     * Whether the sung-pitch band lane exists at all. Stable for a run:
+     * per-pass guide flips must not collapse and re-open the lane, so
+     * this reads the configuration (any pass draws guides, or the sung
+     * line is placed in the band), not the current pass.
+     */
+    showPitchBand: () => boolean;
     /** Where the recorded sung line draws: on the notation, in the pitch band, or nowhere */
     sungLinePlacement: () => 'off' | 'staff' | 'band';
     /**

@@ -149,6 +149,8 @@ interface Window {
         pitchRange: () => { minMidi: number; maxMidi: number };
         clockBeat: () => number;
         setClockBeat: (beat: number) => void;
+        passNumber: () => number;
+        repeatSpan: () => { startBeat: number; boundary: number } | null;
         firedNoteCount: () => number;
         soundedNoteCount: () => number;
         piano: () => any;
