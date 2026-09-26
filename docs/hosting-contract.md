@@ -89,3 +89,18 @@ belong to the fuseki.net project.
   would do. Longer transfers widen the window for mobile load failures
   (observed 2026-09-02: transient "Failed to load script ebook.js" on 5G
   while the server was verifiably healthy).
+
+
+## Independent-origin hosting review (2026-09-26)
+
+The owner requested a review of Fuseki hosting for this app, Minesweeper
+Friendly now, and Nectaris Remake later. New apps use separate HTTPS origins
+and isolated deployment identities; their Fuseki paths become entry links.
+Voice-Wei remains at its current origin for this change. Moving it requires
+explicit transfer of its known browser storage, microphone permission
+regranting, deployment URL updates, and preservation of the Articles tab's
+staff-session/CSRF-protected voice-draft integration. Do not add blanket CORS
+or shared Domain cookies to make a redirect appear sufficient. Its current
+PHP runtime/deployment shared identity and in-place rsync also remain review
+findings for the migration. The Fuseki project owns this work and its pending
+status in the [independent application hosting plan](https://github.com/ernop/fuseki4_ai/blob/master/docs/minesweeper-friendly-hosting-plan.md).
