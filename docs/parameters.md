@@ -458,7 +458,7 @@ state persist.
 
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
-| editorBase | empty | private editor prefix (`/prefix`) or full URL | applied on Connect; kept only in this browser's localStorage |
+| editorBase | empty | private editor URL (`https://edit.fuseki.net/<prefix>`) | applied on Connect; kept only in this browser's localStorage |
 | currentDraftId | 0 (none) | draft article id | updated by New draft / draft selection / first append; cleared automatically if the draft was published or deleted server-side |
 
 ## Pitch test panel (shared component)

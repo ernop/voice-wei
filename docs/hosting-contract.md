@@ -104,3 +104,12 @@ or shared Domain cookies to make a redirect appear sufficient. Its current
 PHP runtime/deployment shared identity and in-place rsync also remain review
 findings for the migration. The Fuseki project owns this work and its pending
 status in the [independent application hosting plan](https://github.com/ernop/fuseki4_ai/blob/master/docs/minesweeper-friendly-hosting-plan.md).
+
+Editor origin move (owner decision 2026-09-26): the Fuseki editor leaves
+fuseki.net for its own origin, `https://edit.fuseki.net/<prefix>`, so no
+script on fuseki.net (this app included) shares the editor's origin or
+cookies. The Articles tab calls the voice-draft API with credentialed CORS;
+the editor admits `https://fuseki.net` on those three endpoints only and
+keeps its CSRF token check. After the switch, the owner re-enters the editor
+URL in the Articles tab once. When Voice-Wei itself moves origin, the editor's
+single allowed origin (`VOICE_DRAFT_ORIGIN`) moves with it.

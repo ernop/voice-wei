@@ -766,11 +766,12 @@ finishing later at a computer. The page is a thin client of the Fuseki
 editor's voice-draft JSON API; nothing article-related is stored in this
 browser beyond the connection settings.
 
-Setup (once per browser): enter the private Fuseki editor prefix in the
-connection card (kept in localStorage, like API keys - never in this repo)
-and be signed into the editor in the same browser. The card links to the
-editor sign-in page when the session is missing. Sessions use rolling
-two-week expiry, so regular use stays signed in.
+Setup (once per browser): enter the private Fuseki editor URL
+(`https://edit.fuseki.net/<prefix>`) in the connection card (kept in
+localStorage, like API keys - never in this repo) and be signed into the
+editor in the same browser. The card links to the editor sign-in page when
+the session is missing. Sessions use rolling two-week expiry, so regular use
+stays signed in.
 
 Dictation: tap **Listen** and speak freely - recognition is continuous and
 survives pauses, with the live transcript shown. Say "submit" or tap

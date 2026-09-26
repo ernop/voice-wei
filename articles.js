@@ -2,11 +2,13 @@
 //-----------------------------------------------------------------------
 // ARTICLES
 // Dictate blog-post drafts straight into the Fuseki editor database.
-// The page calls the Fuseki JSON API under the private editor prefix
+// The page calls the Fuseki JSON API at the private editor URL
 // (owner-entered, kept in localStorage, never in this repo) using the
-// signed-in editor session. This page cannot read the editor's
-// path-scoped CSRF cookie, so the state endpoint hands the CSRF token
-// over and every POST echoes it back in X-CSRFToken.
+// signed-in editor session. The editor has its own origin, so requests
+// are credentialed CORS calls the editor admits for this origin on the
+// voice-draft endpoints only. This page cannot read the editor's CSRF
+// cookie, so the state endpoint hands the CSRF token over and every POST
+// echoes it back in X-CSRFToken.
 //-----------------------------------------------------------------------
 
 const NEW_DRAFT_COMMAND =
@@ -40,7 +42,7 @@ class ArticlesController {
         if (this.settings.editorBase) {
             this.connect();
         } else {
-            this.setConnection('Not configured. Enter the editor prefix to connect.');
+            this.setConnection('Not configured. Enter the editor URL to connect.');
         }
     }
 
@@ -229,11 +231,17 @@ class ArticlesController {
      * @returns {Promise<any>}
      */
     async readJson(response) {
+        if (response.status === 401) {
+            // The editor answers voice-draft requests without a staff session
+            // with a CORS-readable 401.
+            throw new Error('not-signed-in');
+        }
         const contentType = response.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
-            // The staff middleware answers unauthenticated requests with a
-            // redirect to the HTML login page, which fetch follows.
-            throw new Error('not-signed-in');
+            throw new Error(
+                `Editor request failed: HTTP ${response.status} returned `
+                + `${contentType || 'no content type'} instead of JSON.`
+            );
         }
         return response.json();
     }
@@ -243,7 +251,7 @@ class ArticlesController {
             ? `?draft=${this.settings.currentDraftId}` : '';
         const response = await fetch(
             `${this.apiBase()}/articles/api/voice/state/${params}`,
-            { credentials: 'same-origin' }
+            { credentials: 'include' }
         );
         const data = await this.readJson(response);
         this.csrfToken = data.csrfToken;
@@ -268,7 +276,7 @@ class ArticlesController {
     async post(path, payload, retried = false) {
         const response = await fetch(`${this.apiBase()}${path}`, {
             method: 'POST',
-            credentials: 'same-origin',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': this.csrfToken
@@ -291,7 +299,7 @@ class ArticlesController {
 
     async connect() {
         if (!this.apiBase()) {
-            this.setConnection('Not configured. Enter the editor prefix to connect.');
+            this.setConnection('Not configured. Enter the editor URL to connect.');
             return;
         }
         this.setConnection('Connecting...');

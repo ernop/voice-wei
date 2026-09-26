@@ -118,22 +118,23 @@ provider timeout. It is not a general URL proxy.
 
 The Articles tab writes to a system this repo does not own: the Fuseki
 editor's voice-draft JSON API (`/articles/api/voice/state|create|append`
-under the private editor prefix, defined in the fuseki4_ai repository).
-The boundary rules:
+under the private editor URL, defined in the fuseki4_ai repository).
+The editor has its own origin (`https://edit.fuseki.net/<prefix>`), separate
+from fuseki.net where this page runs. The boundary rules:
 
-- **The prefix is owner-entered data, never code.** It lives in
+- **The editor URL is owner-entered data, never code.** It lives in
   `ARTICLES_SETTINGS` in the owner's browser localStorage, exactly like
-  API keys. It must never appear in this repo or its deployed files -
-  keeping the prefix out of Voice-Wei's code is part of fuseki.net's
-  same-origin security posture.
+  API keys. Its secret prefix must never appear in this repo or its
+  deployed files.
 - **Authentication is the owner's editor session.** Requests are
-  same-origin fetches with `credentials: 'same-origin'`; the editor's
-  path-scoped session cookie rides along because the request URL is under
-  the prefix. This page cannot read the path-scoped CSRF cookie, so the
-  state endpoint returns the CSRF token and POSTs echo it in
-  `X-CSRFToken`; one refresh-and-retry handles a stale token. A non-JSON
-  response means the login redirect was followed - the page shows the
-  sign-in link instead of parsing HTML.
+  credentialed CORS fetches (`credentials: 'include'`); the editor admits
+  this page's origin on the three voice-draft endpoints only and rejects it
+  everywhere else. The editor's host-only session cookie rides along
+  because fuseki.net and edit.fuseki.net are the same site. This page cannot
+  read the editor's CSRF cookie, so the state endpoint returns the CSRF
+  token and POSTs echo it in `X-CSRFToken`; one refresh-and-retry handles a
+  stale token. A signed-out editor answers 401 - the page shows the sign-in
+  link. Any other non-JSON answer is reported with its HTTP status.
 - **No article text is stored client-side.** The Fuseki database is the
   only owner of draft content; the page holds it as transient render
   state. Speech recognition goes through `voice-command-core.js` (manual
@@ -550,7 +551,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
-| `ARTICLES_SETTINGS` | Articles editor prefix + selected draft id (no article text) |
+| `ARTICLES_SETTINGS` | Articles editor URL + selected draft id (no article text) |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
 | `API_CLAUDE` / `API_OPENAI` | API keys (plain strings via `api-keys-store.js`) |
 | `PANEL_*` | Pitch test panel options per page |

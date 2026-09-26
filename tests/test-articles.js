@@ -1,7 +1,9 @@
 // @ts-check
 // Articles tab workflow against a stubbed Fuseki API: connect with a stored
-// editor prefix, auto-create a draft on the first paragraph, append as new
-// paragraphs, start fresh drafts, and parse the new-draft voice command.
+// editor URL on the editor's own origin, send every request with
+// credentials, auto-create a draft on the first paragraph, append as new
+// paragraphs, start fresh drafts, parse the new-draft voice command, and
+// turn a signed-out 401 into the sign-in prompt.
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 (async () => {
@@ -13,18 +15,26 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
     collectErrors(tab, 'articles.html', pageErrors);
 
     await tab.addInitScript(() => {
-        localStorage.setItem('voice-wei:articles-settings',
-            JSON.stringify({ v: '0', data: { editorBase: '/secret-prefix', currentDraftId: 0 } }));
+        localStorage.setItem('voice-wei:articles-settings', JSON.stringify({
+            v: '0', data: { editorBase: 'https://edit.fuseki.net/secret-prefix', currentDraftId: 0 }
+        }));
         const drafts = [];
         let nextId = 1;
-        const jsonResponse = (payload) => new Response(JSON.stringify(payload), {
-            status: 200, headers: { 'Content-Type': 'application/json' }
+        const stub = { signedOut: false, credentials: /** @type {string[]} */ ([]) };
+        // @ts-ignore
+        window.voiceStub = stub;
+        const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payload), {
+            status, headers: { 'Content-Type': 'application/json' }
         });
         // @ts-ignore
         window.fetch = async (url, options = {}) => {
             const path = String(url);
-            if (!path.startsWith('/secret-prefix/articles/api/voice/')) {
+            if (!path.startsWith('https://edit.fuseki.net/secret-prefix/articles/api/voice/')) {
                 throw new Error(`Unexpected fetch: ${path}`);
+            }
+            stub.credentials.push(String(options.credentials));
+            if (stub.signedOut) {
+                return jsonResponse({ success: false, error: 'staff-session-required' }, 401);
             }
             if (path.includes('/state/')) {
                 return jsonResponse({ success: true, csrfToken: 'tok', drafts: [...drafts], current: null });
@@ -55,7 +65,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
     await tab.waitForTimeout(400);
 
     const connection = await tab.textContent('#connectionStatus');
-    report.check(`auto-connects with stored prefix ("${connection}")`,
+    report.check(`auto-connects with the stored editor URL ("${connection}")`,
         Boolean(connection && connection.startsWith('Connected')));
 
     // Typed paragraph with no current draft auto-creates one.
@@ -94,6 +104,29 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         return yes && no;
     });
     report.check('new-draft voice command parses; prose does not', parses);
+
+    const credentials = await tab.evaluate(() => {
+        // @ts-ignore
+        return window.voiceStub.credentials;
+    });
+    report.check(`every editor request carries credentials (${credentials.length} requests)`,
+        credentials.length >= 4 && credentials.every(mode => mode === 'include'));
+
+    // A signed-out editor answers 401; the card offers the editor sign-in page.
+    await tab.evaluate(() => {
+        // @ts-ignore
+        window.voiceStub.signedOut = true;
+    });
+    await tab.click('#connectBtn');
+    await tab.waitForTimeout(300);
+    const signedOut = await tab.evaluate(() => ({
+        status: document.getElementById('connectionStatus')?.textContent,
+        rowVisible: document.getElementById('signInRow')?.style.display !== 'none',
+        href: document.getElementById('signInLink')?.getAttribute('href')
+    }));
+    report.check(`signed-out 401 shows the editor sign-in link (${signedOut.status}, ${signedOut.href})`,
+        signedOut.status === 'Not signed in.' && signedOut.rowVisible
+        && signedOut.href === 'https://edit.fuseki.net/secret-prefix/admin/');
 
     pageErrors.forEach(e => report.errors.push(e));
     report.check('no page errors', pageErrors.length === 0);
