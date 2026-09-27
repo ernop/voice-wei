@@ -213,35 +213,52 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const secondaryRow = document.getElementById('transportBarSecondary');
             harness.resetTransportBarText();
 
+            // The rows live in the (hidden) now-playing card; show it so
+            // their reserved boxes can be measured.
+            const card = document.getElementById('playlistTransportBar');
+            const cardWasHidden = card.hidden;
+            card.hidden = false;
+            const rowState = row => ({
+                shown: !row.hidden,
+                text: row.textContent,
+                height: Math.round(row.getBoundingClientRect().height)
+            });
             harness.updateTransportBarLyric('sung line');
-            const shown = { display: lyricRow.style.display, text: lyricRow.textContent };
+            const shown = rowState(lyricRow);
             harness.updateTransportBarLyric('');
-            const gap = { display: lyricRow.style.display, text: lyricRow.textContent };
+            const gap = rowState(lyricRow);
+            harness.updateTransportBarLyric('a much longer sung line that wraps across both of the reserved lines of the row');
+            const long = { ...rowState(lyricRow), isLong: lyricRow.classList.contains('is-long') };
             harness.updateTransportBarLyric('next line');
-            const resumed = { display: lyricRow.style.display, text: lyricRow.textContent };
+            const resumed = { ...rowState(lyricRow), isLong: lyricRow.classList.contains('is-long') };
 
             // A row that never showed text this track must not appear.
             harness.updateTransportBarSecondary('');
-            const neverShown = { display: secondaryRow.style.display, text: secondaryRow.textContent };
+            const neverShown = rowState(secondaryRow);
 
             harness.resetTransportBarText();
             const afterBoundary = {
-                lyricDisplay: lyricRow.style.display,
-                lyricText: lyricRow.textContent,
+                ...rowState(lyricRow),
                 holdReleased: lyricRow.dataset.holdsSpace === undefined
             };
-            return { shown, gap, resumed, neverShown, afterBoundary };
+            card.hidden = cardWasHidden;
+            return { shown, gap, long, resumed, neverShown, afterBoundary };
         });
-        report.check('sticky bar rows hold their box through lyric gaps and collapse only at track boundaries',
-            stickyBarStability.shown.display === 'block'
+        report.check(`sticky bar rows hold one reserved height through lyric gaps and long lines, collapsing only at track boundaries (${stickyBarStability.shown.height}px / ${stickyBarStability.gap.height}px / ${stickyBarStability.long.height}px)`,
+            stickyBarStability.shown.shown
             && stickyBarStability.shown.text === 'sung line'
-            && stickyBarStability.gap.display === 'block'
+            && stickyBarStability.shown.height > 0
+            && stickyBarStability.gap.shown
             && stickyBarStability.gap.text === '\u00A0'
+            && stickyBarStability.gap.height === stickyBarStability.shown.height
+            && stickyBarStability.long.isLong
+            && stickyBarStability.long.height === stickyBarStability.shown.height
             && stickyBarStability.resumed.text === 'next line'
-            && stickyBarStability.neverShown.display === 'none'
+            && !stickyBarStability.resumed.isLong
+            && !stickyBarStability.neverShown.shown
             && stickyBarStability.neverShown.text === ''
-            && stickyBarStability.afterBoundary.lyricDisplay === 'none'
-            && stickyBarStability.afterBoundary.lyricText === ''
+            && !stickyBarStability.afterBoundary.shown
+            && stickyBarStability.afterBoundary.text === ''
             && stickyBarStability.afterBoundary.holdReleased);
 
         // A reader scrolling the lyric panel owns its position: the
@@ -443,7 +460,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const beforeNotes = snap(3);
             const atAnchoredNote = snap(60);
             const blankBetweenNotes = snap(120.1);
-            const blankRowOpen = document.getElementById('transportBarSecondary')?.style.display || '';
+            const blankRowOpen = document.getElementById('transportBarSecondary')?.hidden === false;
             const atGeneralNote = snap(121);
             const deadlines = {
                 toAnchored: harness.nextSongReportDeadline(0),
@@ -488,7 +505,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             controller.playlist.push(item);
             controller.currentPlaylistIndex = controller.playlist.length - 1;
             controller.songReports.set(item.videoId, record);
-            controller.updateCentralPlayer(item);
+            controller.updateNowPlaying(item);
             controller.updateSongReportControls();
             document.getElementById('songDisplayReportBtn')?.click();
             document.getElementById('songReportIntervalUpBtn')?.click();
@@ -527,7 +544,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             controller.settings.songDisplayMode = originalMode;
             controller.settings.songReportIntervalSeconds = originalInterval;
             controller.saveSettings();
-            controller.updateCentralPlayer(controller.currentPlaylistItem());
+            controller.updateNowPlaying(controller.currentPlaylistItem());
             controller.updateSongReportControls();
 
             const requestItem = {
@@ -739,7 +756,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             // the row keeps its line box so the sticky bar's height never
             // changes mid-track.
             songReport.blankBetweenNotes.barSecondary === '\u00A0'
-            && songReport.blankRowOpen === 'block'
+            && songReport.blankRowOpen === true
             && songReport.blankBetweenNotes.artist === 'The vocals and rhythm were recorded live.');
         report.check(`legacy line-based reports migrate to untimed notes and advance at 0.5s`,
             songReport.migratedEntries.length === 2

@@ -221,8 +221,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     addMessage() {},
                     updateStatus() {},
                     persistPlaylist() {},
-                    updatePlaylistLabel() {},
-                    showPlaylistSurfaces() {}
+                    updatePlaylistLabel() {}
                 };
                 PlayerPlaylist.install(harness);
                 PlayerSongReport.install(harness);
@@ -342,8 +341,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     addMessage() {},
                     updateStatus() {},
                     persistPlaylist() {},
-                    updatePlaylistLabel() {},
-                    showPlaylistSurfaces() {}
+                    updatePlaylistLabel() {}
                 };
                 PlayerPlaylist.install(harness);
                 PlayerSongReport.install(harness);
@@ -1183,7 +1181,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 addMessage() {},
                 persistPlaylist() {},
                 updatePlaylistLabel() {},
-                showPlaylistSurfaces() {},
                 saveSettings() {}
             };
             PlayerPlaylist.install(harness);
@@ -1456,6 +1453,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && importedLibraryFilter.unicodeShownCards === 1
             && importedLibraryFilter.unicodeText.includes('Don’t Stop'));
 
+        await tab.setViewportSize({ width: 400, height: 800 });
         const lyricOffsetNudge = await tab.evaluate(async () => {
             const videoId = `offset-nudge-${Date.now()}`;
             const item = {
@@ -1528,36 +1526,36 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             harness.applyLyricStateToItem(reloaded, stored);
             item.lyricOffsetSeconds = 0;
             harness.updateLyricOffsetControls();
-            const initialDisplay = document.getElementById('transportLyricOffset')?.textContent || '';
+            const initialDisplay = document.getElementById('lyricsOffset')?.textContent || '';
             await harness.lyricsTooSlow();
             const tooSlowDisplay = {
-                normal: document.getElementById('transportLyricOffset')?.textContent || '',
+                normal: document.getElementById('lyricsOffset')?.textContent || '',
                 overlay: document.getElementById('lyricsOverlayOffset')?.textContent || '',
                 offset: item.lyricOffsetSeconds
             };
             await harness.lyricsTooFast();
             await harness.lyricsTooFast();
             const tooFastDisplay = {
-                normal: document.getElementById('transportLyricOffset')?.textContent || '',
+                normal: document.getElementById('lyricsOffset')?.textContent || '',
                 overlay: document.getElementById('lyricsOverlayOffset')?.textContent || '',
                 offset: item.lyricOffsetSeconds
             };
             const semanticStored = await window.PlayerHistoryDB.getLyricState(videoId);
-            const inViewport = (ids) => ids.every(id => {
-                const rect = document.getElementById(id)?.getBoundingClientRect();
-                return !!rect && rect.width > 0 && rect.height > 0
+            // The three controls share one row that fits a 400px phone.
+            const fitsOneRow = (ids) => {
+                document.getElementById(ids[0])?.scrollIntoView({ block: 'center' });
+                const rects = ids.map(id => document.getElementById(id)?.getBoundingClientRect());
+                return rects.every(rect => !!rect && rect.width > 0 && rect.height > 0
                     && rect.left >= 0 && rect.right <= window.innerWidth
-                    && rect.top >= 0 && rect.bottom <= window.innerHeight;
-            });
-            document.getElementById('playlistTransportBar').style.display = 'block';
+                    && rect.top >= 0 && rect.bottom <= window.innerHeight)
+                    && rects.every(rect => Math.abs(rect.top - rects[0].top) < rects[0].height);
+            };
+            harness.setLyricsPanelVisible(true);
             harness.updateLyricOffsetControls();
-            const normalMobileFits = inViewport([
-                'transportLyricsTooFastBtn', 'transportLyricOffset', 'transportLyricsTooSlowBtn'
-            ]);
+            const normalMobileFits = fitsOneRow(['lyricsTooFastBtn', 'lyricsOffset', 'lyricsTooSlowBtn']);
+            harness.setLyricsPanelVisible(false);
             harness.openLyricsOverlay();
-            const overlayMobileFits = inViewport([
-                'lyricsOverlayTooFastBtn', 'lyricsOverlayOffset', 'lyricsOverlayTooSlowBtn'
-            ]);
+            const overlayMobileFits = fitsOneRow(['lyricsOverlayTooFastBtn', 'lyricsOverlayOffset', 'lyricsOverlayTooSlowBtn']);
             harness.closeLyricsOverlay();
             return {
                 before, afterFf, afterRew,
@@ -1571,8 +1569,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 normalMobileFits,
                 overlayMobileFits,
                 buttonLabels: [
-                    document.getElementById('transportLyricsTooFastBtn')?.textContent || '',
-                    document.getElementById('transportLyricsTooSlowBtn')?.textContent || '',
+                    document.getElementById('lyricsTooFastBtn')?.textContent || '',
+                    document.getElementById('lyricsTooSlowBtn')?.textContent || '',
                     document.getElementById('lyricsOverlayTooFastBtn')?.textContent || '',
                     document.getElementById('lyricsOverlayTooSlowBtn')?.textContent || ''
                 ]

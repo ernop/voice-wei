@@ -71,6 +71,12 @@ async function sectionCanonicalControls(browser, errors) {
         // Books dialects retired into the shared vocabulary
         '.small-action-btn', '.primary-action-btn', '.danger-action-btn', '.upload-button',
         '.speed-step-btn', '.speed-control', '.voice-sample-btn', '.back-library-btn',
+        // Lyrics page dialects retired into media-btn and the shared vocabulary
+        '.control-btn', '.control-btn-large', '.control-btn-small', '.transport-bar-btn',
+        '.transport-bar-playpause', '.big-lyrics-btn', '.lyrics-control-btn',
+        '.lyrics-overlay-transport-btn', '.lyrics-overlay-control-btn', '.lyrics-overlay-action-btn',
+        '.lyrics-panel-hide-btn', '.typed-command-submit-btn', '.close-settings-btn',
+        '.save-api-key-btn', '.api-key-action-btn', '.song-library-fav',
     ].join(', ');
     /** @type {Array<{ page: keyof typeof READY_PROBES, steppers: string[], forbidden: string }>} */
     const expectations = [

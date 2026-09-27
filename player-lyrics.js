@@ -19,6 +19,10 @@ const PlayerLyrics = (function () {
     // while remaining easy to count through repeated taps.
     const LYRIC_OFFSET_STEP_SECONDS = 0.5;
 
+    // The now-playing lyric row reserves two lines at its large size; a
+    // line longer than this drops to the smaller size so it still fits.
+    const LONG_BAR_LINE_CHARS = 44;
+
     // For the first moments of every song the title spots show WHO and
     // WHAT is playing (artist - song - year - album) before lyric duty
     // begins.
@@ -90,12 +94,13 @@ const PlayerLyrics = (function () {
                 }
             },
 
+            /** The Lyrics card is always on the page; this opens or folds its body. */
             setLyricsPanelVisible(visible) {
                 this.lyricsPanelVisible = visible;
                 this.lyricsPanelDismissed = !visible;
-                const lyricsPanel = document.getElementById('lyricsPanel');
-                if (lyricsPanel) {
-                    lyricsPanel.style.display = visible ? 'block' : 'none';
+                const body = document.getElementById('lyricsPanelBody');
+                if (body) {
+                    body.style.display = visible ? '' : 'none';
                 }
                 this.updateLyricsButtonLabels();
             },
@@ -146,9 +151,10 @@ const PlayerLyrics = (function () {
             },
 
             updateLyricsButtonLabels() {
-                const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
-                if (lyricsPanelBtn) {
-                    lyricsPanelBtn.textContent = this.lyricsPanelVisible ? 'Hide Lyrics' : 'Lyrics';
+                const toggle = document.getElementById('lyricsPanelToggleBtn');
+                if (toggle) {
+                    toggle.textContent = this.lyricsPanelVisible ? 'Hide' : 'Show';
+                    toggle.setAttribute('aria-expanded', String(this.lyricsPanelVisible));
                 }
             },
 
@@ -160,21 +166,21 @@ const PlayerLyrics = (function () {
                 btn.classList.remove('lyrics-available', 'lyrics-unavailable', 'lyrics-loading');
                 if (!currentItem) {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = 'Big';
-                    btn.title = 'Big Lyrics overlay';
+                    btn.textContent = 'Big lyrics';
+                    btn.title = 'Big Lyrics';
                 } else if (currentItem.lyricsStatus === 'loading') {
                     btn.classList.add('lyrics-loading');
-                    btn.textContent = 'Big ...';
+                    btn.textContent = 'Finding lyrics';
                     btn.title = 'Looking up lyrics';
                 } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
                     btn.classList.add('lyrics-available');
                     const timed = currentItem.lyricsData.syncedLines && currentItem.lyricsData.syncedLines.length > 0;
-                    btn.textContent = timed ? 'Big (timed)' : 'Big (simple)';
-                    btn.title = timed ? 'Big Lyrics overlay - timed lyrics' : 'Big Lyrics overlay - simple lyrics';
+                    btn.textContent = timed ? 'Big \u00b7 timed' : 'Big \u00b7 simple';
+                    btn.title = timed ? 'Big Lyrics - timed lyrics' : 'Big Lyrics - simple lyrics';
                 } else {
                     btn.classList.add('lyrics-unavailable');
-                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No lyrics' : 'Big';
-                    btn.title = currentItem.lyricsStatus === 'not_found' ? 'No lyrics found' : 'Big Lyrics overlay';
+                    btn.textContent = currentItem.lyricsStatus === 'not_found' ? 'No lyrics' : 'Big lyrics';
+                    btn.title = currentItem.lyricsStatus === 'not_found' ? 'No lyrics found' : 'Big Lyrics';
                 }
                 this.updateFirstLyricButton();
             },
@@ -189,8 +195,7 @@ const PlayerLyrics = (function () {
                 const overlay = document.getElementById('lyricsOverlay');
                 if (overlay) {
                     const fontRem = (2.2 * this.lyricsViewSettings.fontScale).toFixed(2);
-                    const maxVw = this.lyricsViewSettings.widthMode === 'wide' ? '96vw' : '74vw';
-                    const maxPx = this.lyricsViewSettings.widthMode === 'wide' ? '1200px' : '760px';
+                    const width = this.lyricsViewSettings.widthMode === 'wide' ? '96%' : '74%';
                     const textAlign = this.lyricsViewSettings.align === 'left' ? 'left' : 'center';
                     const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.05' : '1.15';
                     const backdrop = this.lyricsViewSettings.backdrop === 'blackout'
@@ -198,20 +203,17 @@ const PlayerLyrics = (function () {
                         : 'rgba(3, 8, 6, 0.96)';
 
                     overlay.style.setProperty('--lyrics-overlay-font-size', `clamp(${fontRem}rem, ${fontRem}rem + 2vw, ${(3.8 * this.lyricsViewSettings.fontScale).toFixed(2)}rem)`);
-                    overlay.style.setProperty('--lyrics-overlay-max-width', `min(${maxVw}, ${maxPx})`);
+                    overlay.style.setProperty('--lyrics-overlay-width', width);
                     overlay.style.setProperty('--lyrics-overlay-text-align', textAlign);
                     overlay.style.setProperty('--lyrics-overlay-line-height', lineHeight);
                     overlay.style.setProperty('--lyrics-overlay-bg', backdrop);
                 }
 
-                const widthBtn = document.getElementById('lyricsWidthToggleBtn');
-                if (widthBtn) widthBtn.textContent = this.lyricsViewSettings.widthMode === 'wide' ? 'Wide' : 'Focus';
-                const alignBtn = document.getElementById('lyricsAlignToggleBtn');
-                if (alignBtn) alignBtn.textContent = this.lyricsViewSettings.align === 'center' ? 'Center' : 'Left';
-                const spacingBtn = document.getElementById('lyricsSpacingToggleBtn');
-                if (spacingBtn) spacingBtn.textContent = this.lyricsViewSettings.spacing === 'roomy' ? 'Roomy' : 'Tight';
-                const backdropBtn = document.getElementById('lyricsBackdropToggleBtn');
-                if (backdropBtn) backdropBtn.textContent = this.lyricsViewSettings.backdrop === 'dim' ? 'Dim' : 'Black';
+                PracticeControls.setValueText('lyricsFontValue', `${Math.round(this.lyricsViewSettings.fontScale * 100)}%`);
+                PracticeControls.syncSingleSelect('data-lyrics-width', this.lyricsViewSettings.widthMode);
+                PracticeControls.syncSingleSelect('data-lyrics-align', this.lyricsViewSettings.align);
+                PracticeControls.syncSingleSelect('data-lyrics-spacing', this.lyricsViewSettings.spacing);
+                PracticeControls.syncSingleSelect('data-lyrics-backdrop', this.lyricsViewSettings.backdrop);
 
                 PlayerStorage.saveLyricsViewSettings(this.lyricsViewSettings);
             },
@@ -632,12 +634,12 @@ const PlayerLyrics = (function () {
             updateLyricOffsetControls() {
                 const item = this.playingPlaylistItem();
                 const show = !!item && this.itemHasTimedLyrics(item);
-                for (const id of ['transportLyricsSyncControls', 'lyricsOverlaySyncControls']) {
+                for (const id of ['lyricsSyncControls', 'lyricsOverlaySyncControls']) {
                     const controls = document.getElementById(id);
                     if (controls) controls.style.display = show ? '' : 'none';
                 }
                 const text = `Offset ${this.formatLyricOffset(this.lyricOffsetForItem(item))}`;
-                for (const id of ['transportLyricOffset', 'lyricsOverlayOffset']) {
+                for (const id of ['lyricsOffset', 'lyricsOverlayOffset']) {
                     const output = document.getElementById(id);
                     if (output) output.textContent = text;
                 }
@@ -1068,8 +1070,11 @@ const PlayerLyrics = (function () {
                 const line = raw.trim();
                 if (line) {
                     if (el.textContent !== line) el.textContent = line;
+                    // A long line drops to the smaller size so it still fits
+                    // the row's two reserved lines.
+                    el.classList.toggle('is-long', line.length > LONG_BAR_LINE_CHARS);
                     el.dataset.holdsSpace = '1';
-                    el.style.display = 'block';
+                    el.hidden = false;
                     return;
                 }
                 // Whitespace-only text (the between-note blank) opens and
@@ -1079,11 +1084,11 @@ const PlayerLyrics = (function () {
                 if (raw || el.dataset.holdsSpace === '1') {
                     el.dataset.holdsSpace = '1';
                     if (el.textContent !== '\u00A0') el.textContent = '\u00A0';
-                    el.style.display = 'block';
+                    el.hidden = false;
                     return;
                 }
                 if (el.textContent !== '') el.textContent = '';
-                el.style.display = 'none';
+                el.hidden = true;
             },
 
             /** Track boundary: release both rows' held space and collapse. */
@@ -1093,7 +1098,8 @@ const PlayerLyrics = (function () {
                     if (!el) continue;
                     delete el.dataset.holdsSpace;
                     el.textContent = '';
-                    el.style.display = 'none';
+                    el.classList.remove('is-long');
+                    el.hidden = true;
                 }
             },
 

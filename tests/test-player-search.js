@@ -503,8 +503,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 async runMusicSearch(request) { this.rerunScopedRequest = request; },
                 appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
-                persistPlaylist() {},
-                showPlaylistSurfaces() {}
+                persistPlaylist() {}
             };
             PlayerHistoryUI.install(harness);
             harness.refreshMusicHistoryPanel = async () => {};
@@ -566,8 +565,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 hydrateItemLyricsFromCache() {},
                 appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
-                persistPlaylist() {},
-                showPlaylistSurfaces() {}
+                persistPlaylist() {}
             };
             PlayerHistoryUI.install(harness);
             harness.refreshMusicHistoryPanel = async () => {};
@@ -903,7 +901,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 messages: [],
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus() {},
-                showTransportBar() {},
                 decodeHtml(value) { return value; },
                 addPlaylistItemToDOM() {},
                 addPlaylistItemsToDOM() {},
@@ -912,7 +909,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 speakText() {}
             };
             PlayerPlaylist.install(harness);
-            harness.showTransportBar = () => {};
             harness.addPlaylistItemToDOM = () => {};
             harness.addPlaylistItemsToDOM = () => {};
             harness.updatePlaylistLabel = () => {};
@@ -975,7 +971,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             Object.assign(harness, {
                 addMessage() {},
                 updateStatus() {},
-                showPlaylistSurfaces() {},
                 decodeHtml(value) { return value; },
                 addPlaylistItemsToDOM() {},
                 updatePlaylistLabel() {},
@@ -1029,7 +1024,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 Object.assign(harness, {
                     addMessage() {},
                     updateStatus() {},
-                    showPlaylistSurfaces() {},
                     decodeHtml(value) { return value; },
                     addPlaylistItemToDOM() {},
                     addPlaylistItemsToDOM() {},

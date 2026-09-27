@@ -82,6 +82,27 @@ const PlayerCommands = (function () {
                     return 'rewind';
                 }
 
+                // Favorites and list curation (the playlist card's controls)
+                if (lower.match(/^(load|add|play)\s+(my\s+)?(favorites|favourites|faves|favs|starred(\s+songs)?)$/)) {
+                    return 'loadfavorites';
+                }
+                if (lower.match(/^(star|favorite|favourite|like)\s+(this|it|this\s+song|the\s+song)$/)) {
+                    return 'star';
+                }
+                if (lower.match(/^(unstar|unfavorite|unfavourite|unlike)\s+(this|it|this\s+song|the\s+song)$/)) {
+                    return 'unstar';
+                }
+                if (lower.match(/^(show\s+)?(favorites|favourites|faves|favs|starred)(\s+songs)?\s+only$/)
+                    || lower.match(/^(show\s+)?only\s+(favorites|favourites|faves|favs|starred)(\s+songs)?$/)) {
+                    return 'favoritesonly';
+                }
+                if (lower.match(/^show\s+(all|everything)(\s+songs)?$/)) {
+                    return 'showall';
+                }
+                if (lower.match(/^(unload|remove|drop)\s+(the\s+)?(unstarred|non[\s-]?favorites|non[\s-]?favourites)(\s+songs)?$/)) {
+                    return 'unloadunstarred';
+                }
+
                 return null;
             },
 
@@ -138,16 +159,14 @@ const PlayerCommands = (function () {
                     case 'next':
                         if (this.playlist.length === 0) {
                             this.updateStatus('Playlist is empty');
-                        } else {
-                            this.playNext();
+                        } else if (this.playNext()) {
                             this.updateStatus('Next song');
                         }
                         break;
                     case 'previous':
                         if (this.playlist.length === 0) {
                             this.updateStatus('Playlist is empty');
-                        } else {
-                            this.playPrevious();
+                        } else if (this.playPrevious()) {
                             this.updateStatus('Previous song');
                         }
                         break;
@@ -167,15 +186,48 @@ const PlayerCommands = (function () {
                             this.updateStatus('Rewound 5 seconds');
                         }
                         break;
+                    case 'loadfavorites': {
+                        const added = this.loadFavoritesToPlaylist();
+                        this.speakText(added > 0 ? `Loaded ${added} favorite${added === 1 ? '' : 's'}` : 'No new favorites to load');
+                        break;
+                    }
+                    case 'star':
+                    case 'unstar': {
+                        const item = this.nowPlayingItem();
+                        if (!item) {
+                            this.updateStatus('Nothing is playing');
+                            this.speakText('Nothing is playing');
+                            break;
+                        }
+                        this.setSongFavorite(item, command === 'star');
+                        this.speakText(command === 'star' ? 'Starred' : 'Unstarred');
+                        break;
+                    }
+                    case 'favoritesonly':
+                        this.setPlaylistFavoritesOnly(true);
+                        this.updateStatus('Showing favorites only');
+                        this.speakText('Showing favorites only');
+                        break;
+                    case 'showall':
+                        this.clearPlaylistFilter();
+                        this.updateStatus('Showing all songs');
+                        this.speakText('Showing all songs');
+                        break;
+                    case 'unloadunstarred': {
+                        const removed = this.unloadUnstarredSongs();
+                        this.speakText(removed > 0 ? `Unloaded ${removed} unstarred song${removed === 1 ? '' : 's'}` : 'No unstarred songs to unload');
+                        break;
+                    }
                 }
             },
 
             showHelp() {
-                const helpText = `Voice Commands: play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, what's playing`;
+                const commands = 'play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, what\'s playing, '
+                    + 'load favorites, star this, unstar this, favorites only, show all, unload unstarred';
 
-                this.updateStatus(helpText);
-                this.addMessage('user', 'Help:', 'play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, what\'s playing');
-                this.speakText('Voice commands: play, pause, stop, next, previous, fast forward, rewind, shuffle, clear, and what\'s playing.');
+                this.updateStatus(`Voice Commands: ${commands}`);
+                this.addMessage('user', 'Help:', commands);
+                this.speakText(`Voice commands: ${commands}.`);
             },
 
             announceCurrentSong() {

@@ -2,6 +2,11 @@
 // Playlist DOM, YouTube search/playback, and transport controls.
 
 const SEEK_JUMP_SECONDS = 5;
+/** Seek-scale notch intervals, smallest first; a song gets at most SEEK_SCALE_MAX_STEPS. */
+const SEEK_SCALE_STEPS_SECONDS = Object.freeze([10, 15, 30, 60, 120, 300, 600, 900, 1800]);
+const SEEK_SCALE_MAX_STEPS = 6;
+/** A notch label within this fraction of a step before the end label would collide with it. */
+const SEEK_SCALE_END_LABEL_CLEARANCE = 0.6;
 /** Seconds before the first timed lyric line that "1st" jumps to. */
 const FIRST_LYRIC_LEAD_SECONDS = 1;
 const DOM_SETTLE_DELAY_MS = 50;
@@ -50,12 +55,14 @@ const PlayerPlaylist = (function () {
         });
 
         Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
-            showPlaylistSurfaces() {
-                document.getElementById('playlistContainer').style.display = 'block';
-                // Sticky transport is the now-playing surface. The older
-                // central player duplicated song/seek controls above it.
-                document.getElementById('centralPlayer').style.display = 'none';
-                this.showTransportBar();
+            /**
+             * The now-playing card shows exactly while the working playlist
+             * has songs; the playlist card itself is always on the page so
+             * Load favorites stays reachable from an empty list.
+             */
+            syncPlaylistSurfaces() {
+                const bar = document.getElementById('playlistTransportBar');
+                if (bar) bar.hidden = this.playlist.length === 0;
             },
 
             /**
@@ -76,20 +83,19 @@ const PlayerPlaylist = (function () {
                 if (items.length === 0) return;
                 this.playlist.push(...items);
                 this.addPlaylistItemsToDOM(items);
-                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
+                if (this.isPlaylistViewFiltered()) this.applyPlaylistFilter();
                 for (const item of items) {
                     this.queueLyricsLookup(item);
                 }
             },
 
+            /** @returns {number} favorites added */
             loadFavoritesToPlaylist() {
                 const favoritesList = Object.values(this.favorites);
                 if (favoritesList.length === 0) {
-                    this.updateStatus('No favorites saved');
-                    return;
+                    this.updateStatus('No favorites saved - star songs to collect them');
+                    return 0;
                 }
-
-                this.showPlaylistSurfaces();
 
                 const existingVideoIds = new Set(this.playlist.map(item => item.videoId));
                 const addedItems = [];
@@ -111,9 +117,63 @@ const PlayerPlaylist = (function () {
 
                 this.updatePlaylistLabel();
                 const addedCount = addedItems.length;
-                this.updateStatus(`Loaded ${addedCount} favorite${addedCount !== 1 ? 's' : ''}`);
+                this.updateStatus(addedCount > 0
+                    ? `Loaded ${addedCount} favorite${addedCount !== 1 ? 's' : ''}`
+                    : `All ${favoritesList.length} favorites are already in the playlist`);
                 this.addMessage('user', 'Favorites', `Loaded ${addedCount} favorite songs`);
                 this.persistPlaylist();
+                return addedCount;
+            },
+
+            /**
+             * Drop every unstarred song from the working playlist in one
+             * step (the songs stay in Known Songs history). The song that is
+             * playing or paused is kept even when unstarred: list upkeep
+             * never cuts off the music.
+             * @returns {number} songs removed
+             */
+            unloadUnstarredSongs() {
+                const current = this.playlist.find(entry => entry.id === this.currentPlayingId);
+                const keep = current && (this.isPlaying || this.isPaused) ? current : null;
+                const removed = this.playlist.filter(item => item !== keep && !this.isFavorite(item.videoId));
+                if (removed.length === 0) {
+                    this.updateStatus('No unstarred songs to unload');
+                    return 0;
+                }
+                if (removed.length === this.playlist.length) {
+                    this.clearPlaylist();
+                    this.updateStatus(`Unloaded all ${removed.length} songs - none were starred`);
+                    this.addMessage('user', 'Unload unstarred', `Removed ${removed.length} unstarred songs; playlist is now empty`);
+                    return removed.length;
+                }
+
+                const removedIds = new Set(removed.map(item => item.id));
+                const selected = this.currentPlaylistItem();
+                for (const item of removed) {
+                    this.youtubeAlternateResults.delete(item.id);
+                    document.querySelector(`.playlist-row[data-item-id="${item.id}"]`)?.remove();
+                }
+                this.playlist = this.playlist.filter(item => !removedIds.has(item.id));
+                if (selected && !removedIds.has(selected.id)) {
+                    this.currentPlaylistIndex = this.playlist.indexOf(selected);
+                } else if (selected) {
+                    this.currentPlaylistIndex = -1;
+                    this.updateNowPlaying(null);
+                }
+                if (this.currentLyricsItemId !== null && removedIds.has(this.currentLyricsItemId)) {
+                    const playing = this.playlist.find(entry => entry.id === this.currentPlayingId) || null;
+                    this.currentLyricsItemId = playing ? playing.id : null;
+                    this.renderLyricsStateForItem(playing);
+                }
+
+                this.updatePlaylistLabel();
+                this.applyPlaylistFilter();
+                this.persistPlaylist();
+                const keptUnstarred = !!keep && !this.isFavorite(keep.videoId);
+                this.updateStatus(`Unloaded ${removed.length} unstarred song${removed.length === 1 ? '' : 's'}`
+                    + (keptUnstarred ? '; the playing song stays until you skip it' : ''));
+                this.addMessage('user', 'Unload unstarred', `Removed ${removed.length} unstarred songs; ${this.playlist.length} remain`);
+                return removed.length;
             },
 
             /** Re-draw every playlist row from the array, preserving the playing highlight. */
@@ -121,14 +181,14 @@ const PlayerPlaylist = (function () {
                 const playlistBody = document.getElementById('playlistBody');
                 playlistBody.innerHTML = '';
                 this.addPlaylistItemsToDOM(this.playlist);
-                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
+                if (this.isPlaylistViewFiltered()) this.applyPlaylistFilter();
 
                 // Rebind current index to the currently playing item after reorder
                 if (this.currentPlayingId != null) {
                     this.currentPlaylistIndex = this.playlist.findIndex(item => item.id === this.currentPlayingId);
                     const currentItem = this.playlist[this.currentPlaylistIndex];
                     if (currentItem) {
-                        this.updateCentralPlayer(currentItem);
+                        this.updateNowPlaying(currentItem);
                         const row = document.querySelector(`[data-item-id="${currentItem.id}"]`);
                         if (row) row.classList.add('playing');
                     }
@@ -178,8 +238,6 @@ const PlayerPlaylist = (function () {
                 // playing; when it ends, playback advances into the new
                 // songs. Replaced songs stay reloadable from history.
                 let replacePending = options.replaceExisting === true && this.playlist.length > 0 && songList.length > 0;
-
-                this.showPlaylistSurfaces();
 
                 this.addMessage('claude', 'Processing', `Searching ${songList.length} songs (${YOUTUBE_SEARCH_CONCURRENCY} at a time)...`);
 
@@ -333,7 +391,6 @@ const PlayerPlaylist = (function () {
                         `Replaced the working playlist (${droppedCount} song${droppedCount === 1 ? '' : 's'} stay in Known Songs history${keptCurrent ? '; current song keeps playing' : ''})`
                     );
                 }
-                this.showPlaylistSurfaces();
                 this.appendPlaylistItems(items);
                 for (const item of items) {
                     if (window.PlayerHistoryDB) {
@@ -407,21 +464,34 @@ const PlayerPlaylist = (function () {
                 return results;
             },
 
+            /**
+             * The list changed (songs added, removed, starred): refresh the
+             * header counts, the Load favorites count, the empty state, and
+             * whether the now-playing card shows.
+             */
             updatePlaylistLabel() {
-                const label = document.getElementById('playlistLabel');
-                if (label) {
-                    const count = this.playlist.length;
-                    label.textContent = `Playlist (${count})`;
-                }
+                const count = this.playlist.length;
+                const starred = this.playlist.filter(item => this.isFavorite(item.videoId)).length;
+                const loadedVideoIds = new Set(this.playlist.map(item => item.videoId));
+                const unloadedFavorites = Object.keys(this.favorites)
+                    .filter(videoId => !loadedVideoIds.has(videoId)).length;
+                PracticeControls.setValueText('playlistSongCount', String(count));
+                PracticeControls.setValueText('playlistSongUnit', count === 1 ? 'song' : 'songs');
+                PracticeControls.setValueText('playlistStarCount', String(starred));
+                PracticeControls.setValueText('loadFavoritesCount', `+${unloadedFavorites}`);
+                const empty = document.getElementById('playlistEmpty');
+                if (empty) empty.hidden = count > 0;
+                this.syncPlaylistSurfaces();
+                this.updateNowPlayingStar();
             },
 
             /**
-             * Live view filter over the working playlist. Purely visual:
-             * rows that do not match are hidden, the array and playback
-             * order are untouched (next/previous still traverse the full
-             * list). Text query and "Timed only" combine: both must pass.
-             * The status line names the active constraints and counts so
-             * a filtered view is never mistaken for the whole playlist.
+             * Live view over the working playlist: the text query, Timed
+             * only, and Favorites only combine (all must pass). What the
+             * list shows is also what plays: Previous/Next and auto-advance
+             * step through the shown songs only (see playlistIndexInView).
+             * The status line names the active constraints and counts so a
+             * filtered view is never mistaken for the whole playlist.
              * @param {string} value raw input text
              */
             setPlaylistFilter(value) {
@@ -429,17 +499,65 @@ const PlayerPlaylist = (function () {
                 this.applyPlaylistFilter();
             },
 
+            /** @param {boolean} favoritesOnly */
+            setPlaylistFavoritesOnly(favoritesOnly) {
+                this.settings.playlistFavoritesOnly = favoritesOnly;
+                this.saveSettings();
+                PracticeControls.syncToggle('playlistFavoritesOnlyToggle', favoritesOnly);
+                this.applyPlaylistFilter();
+            },
+
+            /** Show all: clears the text query, Timed only, and Favorites only. */
             clearPlaylistFilter() {
                 const input = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistFilterInput'));
                 if (input) input.value = '';
                 this.playlistFilterQuery = '';
-                if (this.settings.playlistTimedOnly) {
+                if (this.settings.playlistTimedOnly || this.settings.playlistFavoritesOnly) {
                     this.settings.playlistTimedOnly = false;
+                    this.settings.playlistFavoritesOnly = false;
                     this.saveSettings();
-                    const timedToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('playlistTimedOnlyToggle'));
-                    if (timedToggle) timedToggle.checked = false;
+                    PracticeControls.syncToggle('playlistTimedOnlyToggle', false);
+                    PracticeControls.syncToggle('playlistFavoritesOnlyToggle', false);
                 }
                 this.applyPlaylistFilter();
+            },
+
+            isPlaylistViewFiltered() {
+                return !!(this.playlistFilterQuery
+                    || this.settings.playlistTimedOnly
+                    || this.settings.playlistFavoritesOnly);
+            },
+
+            /**
+             * The one definition of "this row is shown": the filter view and
+             * Previous/Next both read it.
+             * @param {PlaylistItem} item
+             */
+            itemPassesPlaylistView(item) {
+                return PlayerSongs.songMatchesQuery(item, this.playlistFilterQuery || '')
+                    && (!this.settings.playlistTimedOnly || this.itemHasTimedLyrics(item))
+                    && (!this.settings.playlistFavoritesOnly || this.isFavorite(item.videoId));
+            },
+
+            /**
+             * The playlist index reached by stepping `direction` (+1 next,
+             * -1 previous) from `fromIndex` through the shown songs, wrapping
+             * at either end. From no selection (-1), next starts at the top
+             * and previous at the bottom. Returns -1 when nothing is shown.
+             * @param {number} fromIndex
+             * @param {1 | -1} direction
+             */
+            playlistIndexInView(fromIndex, direction) {
+                const length = this.playlist.length;
+                if (length === 0) return -1;
+                const start = fromIndex >= 0 && fromIndex < length
+                    ? fromIndex
+                    : (direction > 0 ? -1 : length);
+                for (let step = 1; step <= length; step++) {
+                    const index = (((start + direction * step) % length) + length) % length;
+                    if (this.itemPassesPlaylistView(this.playlist[index])) return index;
+                }
+                return -1;
             },
 
             /** @param {PlaylistItem} item */
@@ -455,28 +573,28 @@ const PlayerPlaylist = (function () {
             applyPlaylistFilter() {
                 const query = this.playlistFilterQuery || '';
                 const timedOnly = !!this.settings.playlistTimedOnly;
+                const favoritesOnly = !!this.settings.playlistFavoritesOnly;
                 let shownCount = 0;
                 let waitingForLyricsCount = 0;
                 for (const item of this.playlist) {
                     const row = /** @type {HTMLElement | null} */ (document.querySelector(`.playlist-row[data-item-id="${item.id}"]`));
                     if (!row) continue;
-                    const matchesQuery = PlayerSongs.songMatchesQuery(item, query);
-                    const matchesTimed = !timedOnly || this.itemHasTimedLyrics(item);
-                    if (timedOnly && matchesQuery
+                    if (timedOnly && PlayerSongs.songMatchesQuery(item, query)
                         && (item.lyricsStatus === 'idle' || item.lyricsStatus === 'loading')) {
                         waitingForLyricsCount++;
                     }
-                    const matches = matchesQuery && matchesTimed;
+                    const matches = this.itemPassesPlaylistView(item);
                     row.hidden = !matches;
                     if (matches) shownCount++;
                 }
 
                 const status = document.getElementById('playlistFilterStatus');
                 const statusText = document.getElementById('playlistFilterStatusText');
-                const filtering = !!(query || timedOnly);
+                const filtering = this.isPlaylistViewFiltered();
                 if (status) status.style.display = filtering ? 'flex' : 'none';
                 if (statusText && filtering) {
                     const parts = [];
+                    if (favoritesOnly) parts.push('favorites only');
                     if (timedOnly) parts.push('timed lyrics only');
                     if (query) parts.push(`"${query}"`);
                     const waiting = waitingForLyricsCount > 0
@@ -786,10 +904,9 @@ const PlayerPlaylist = (function () {
                 return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             },
 
-            // One compact data line per song, Excel-tight - every datum in a
-            // fixed slot on the SAME line:
-            //   [star][lyric marker] Name  Artist - Year - Album  3:59 [x]
-            // The AI note is a second line only when the Notes toggle is on.
+            // One data line per song - every datum in a fixed slot on the
+            // SAME line, including the AI note when Notes is on:
+            //   [star][lyric marker] Name  Artist - Year - Album - note  3:59 [x]
             // Star + lyric marker sit in a padded leading gutter so a near
             // miss on the star favorites instead of starting the song.
             playlistItemRowHtml(item) {
@@ -797,19 +914,17 @@ const PlayerPlaylist = (function () {
                 const marker = this.lyricsRowMarker(item);
                 const videoId = this.escapeHtml(item.videoId);
                 const markerAria = this.escapeHtml(marker.aria);
+                const name = this.escapeHtml(item.name);
                 return `
                     <div class="playlist-row" data-item-id="${item.id}" data-video-id="${videoId}">
                         <div class="playlist-row-leading">
-                            <button class="favorite-btn ${isFav ? 'favorited' : ''}" data-video-id="${videoId}" aria-label="Toggle favorite">${isFav ? '\u2605' : '\u2606'}</button>
-                            <button class="lyrics-row-btn ${marker.className}" data-item-id="${item.id}" aria-label="${markerAria}" title="${markerAria}">${marker.label}</button>
+                            <button class="favorite-btn ${isFav ? 'favorited' : ''}" type="button" data-video-id="${videoId}" aria-pressed="${isFav}" aria-label="${isFav ? 'Unstar' : 'Star'} ${name}">${isFav ? '\u2605' : '\u2606'}</button>
+                            <button class="lyrics-row-btn ${marker.className}" type="button" data-item-id="${item.id}" aria-label="${markerAria}" title="${markerAria}">${marker.label}</button>
                         </div>
-                        <span class="playlist-song-name">${this.escapeHtml(item.name)}</span>
-                        <span class="playlist-row-meta">
-                            <span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}
-                        </span>
+                        <span class="playlist-song-name">${name}</span>
+                        <span class="playlist-row-meta"><span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}${item.comment ? `<span class="playlist-song-comment" title="${this.escapeHtml(item.comment)}">${this.escapeHtml(item.comment)}</span>` : ''}</span>
                         <span class="playlist-song-duration">${this.escapeHtml(item.duration || '--:--')}</span>
-                        <button class="playlist-remove-btn" aria-label="Remove from playlist">\u00d7</button>
-                        ${item.comment ? `<div class="playlist-song-comment">${this.escapeHtml(item.comment)}</div>` : ''}
+                        <button class="playlist-remove-btn" type="button" aria-label="Remove ${name} from playlist">\u2715</button>
                     </div>
                 `;
             },
@@ -830,12 +945,9 @@ const PlayerPlaylist = (function () {
                     const item = this.playlist.find(entry => entry.id === itemId);
                     if (!item) return;
 
-                    const favoriteButton = /** @type {HTMLButtonElement | null} */ (target.closest('.favorite-btn'));
-                    if (favoriteButton) {
+                    if (target.closest('.favorite-btn')) {
                         event.stopPropagation();
-                        const isNowFavorited = this.toggleFavorite(item.videoId, item);
-                        favoriteButton.classList.toggle('favorited', isNowFavorited);
-                        favoriteButton.textContent = isNowFavorited ? '\u2605' : '\u2606';
+                        this.toggleSongFavorite(item);
                         return;
                     }
                     if (target.closest('.lyrics-row-btn')) {
@@ -902,17 +1014,20 @@ const PlayerPlaylist = (function () {
                 if (index < this.currentPlaylistIndex) {
                     this.currentPlaylistIndex--;
                 } else if (index === this.currentPlaylistIndex) {
-                    // The cursor slides onto the song that took this slot
+                    // The cursor slides onto the song that took this slot;
+                    // playback continues with the next song the list shows.
                     this.currentPlaylistIndex = Math.min(index, this.playlist.length - 1);
-                    if (wasActivelyPlaying) {
-                        void this.playVideo(this.playlist[this.currentPlaylistIndex]);
+                    const nextShown = this.playlistIndexInView(index - 1, 1);
+                    if (wasActivelyPlaying && nextShown >= 0) {
+                        this.currentPlaylistIndex = nextShown;
+                        void this.playVideo(this.playlist[nextShown]);
                     } else if (wasCurrent) {
-                        this.updateCentralPlayer(null);
+                        this.updateNowPlaying(null);
                     }
                 }
 
                 this.updatePlaylistLabel();
-                if (this.playlistFilterQuery || this.settings.playlistTimedOnly) this.applyPlaylistFilter();
+                if (this.isPlaylistViewFiltered()) this.applyPlaylistFilter();
                 this.persistPlaylist();
                 this.updateStatus(`Removed: ${this.truncateForStatus(this.describePlaylistItem(item), 80)}`);
             },
@@ -1162,6 +1277,74 @@ const PlayerPlaylist = (function () {
                 const favorited = this.isFavorite(item.videoId);
                 favBtn.classList.toggle('favorited', favorited);
                 favBtn.textContent = favorited ? '\u2605' : '\u2606';
+                favBtn.setAttribute('aria-pressed', String(favorited));
+                favBtn.setAttribute('aria-label', `${favorited ? 'Unstar' : 'Star'} ${item.name}`);
+            },
+
+            /**
+             * Star or unstar one song. Every star control (row stars, the
+             * now-playing star, Big Lyrics, voice) goes through here, so all
+             * views of that song and the Favorites only view update together.
+             * @param {Song} song
+             * @returns {boolean} whether the song is starred now
+             */
+            toggleSongFavorite(song) {
+                const starred = this.toggleFavorite(song.videoId, song);
+                this.refreshFavoriteViews(song.videoId);
+                const name = this.truncateForStatus(song.name || song.title || 'song', 80);
+                const hidden = !starred && this.settings.playlistFavoritesOnly;
+                this.updateStatus(starred
+                    ? `Starred: ${name}`
+                    : `Unstarred: ${name}${hidden ? ' - hidden by Favorites only' : ''}`);
+                return starred;
+            },
+
+            /** @param {Song} song @param {boolean} starred */
+            setSongFavorite(song, starred) {
+                if (this.isFavorite(song.videoId) === starred) {
+                    const name = this.truncateForStatus(song.name || song.title || 'song', 80);
+                    this.updateStatus(`${starred ? 'Already starred' : 'Not starred'}: ${name}`);
+                    return;
+                }
+                this.toggleSongFavorite(song);
+            },
+
+            /** The song the now-playing controls act on: the sounding one, else the selected one. */
+            nowPlayingItem() {
+                return this.playlist.find(entry => entry.id === this.currentPlayingId)
+                    || this.currentPlaylistItem();
+            },
+
+            toggleNowPlayingFavorite() {
+                const item = this.nowPlayingItem();
+                if (!item) {
+                    this.updateStatus('Play or select a song to star it');
+                    return;
+                }
+                this.toggleSongFavorite(item);
+            },
+
+            /** @param {string} videoId */
+            refreshFavoriteViews(videoId) {
+                for (const item of this.playlist) {
+                    if (item.videoId === videoId) this.refreshPlaylistRowFavorite(item);
+                }
+                this.updatePlaylistLabel();
+                if (this.settings.playlistFavoritesOnly) this.applyPlaylistFilter();
+            },
+
+            updateNowPlayingStar() {
+                const item = this.nowPlayingItem();
+                const starred = !!item && this.isFavorite(item.videoId);
+                for (const id of ['nowPlayingStarBtn', 'lyricsOverlayStarBtn']) {
+                    const button = document.getElementById(id);
+                    if (!(button instanceof HTMLButtonElement)) continue;
+                    button.disabled = !item;
+                    button.classList.toggle('favorited', starred);
+                    button.textContent = starred ? '\u2605' : '\u2606';
+                    button.setAttribute('aria-pressed', String(starred));
+                    button.setAttribute('aria-label', starred ? 'Unstar this song' : 'Star this song');
+                }
             },
 
             refreshPlaylistRowVideo(item) {
@@ -1171,11 +1354,14 @@ const PlayerPlaylist = (function () {
                 row.dataset.videoId = item.videoId;
                 this.refreshPlaylistRowFavorite(item);
 
+                // The new video starts unresolved; its chip shows that state.
                 const lyricsBtn = row.querySelector('.lyrics-row-btn');
                 if (lyricsBtn) {
-                    lyricsBtn.classList.remove('ready');
-                    lyricsBtn.textContent = 'Get';
-                    lyricsBtn.setAttribute('aria-label', 'Get lyrics');
+                    const marker = this.lyricsRowMarker(item);
+                    lyricsBtn.className = `lyrics-row-btn ${marker.className}`.trim();
+                    lyricsBtn.textContent = marker.label;
+                    lyricsBtn.setAttribute('aria-label', marker.aria);
+                    lyricsBtn.setAttribute('title', marker.aria);
                 }
 
                 const durationEl = row.querySelector('.playlist-song-duration');
@@ -1375,8 +1561,7 @@ const PlayerPlaylist = (function () {
                         // Update playlist index
                         this.playback.currentPlaylistIndex = this.playlist.findIndex(song => song.id === item.id);
 
-                        // Update central player display
-                        this.updateCentralPlayer(item);
+                        this.updateNowPlaying(item);
                         this.updateMediaSessionForItem(item);
                         this.resetSongReportForPlay(item);
 
@@ -1487,34 +1672,53 @@ const PlayerPlaylist = (function () {
                 return repairs.length;
             },
 
-            updateCentralPlayer(item) {
-                const titleEl = document.getElementById('playerSongTitle');
-                const artistEl = document.getElementById('playerSongArtist');
-                const transportInfo = document.getElementById('transportBarInfo');
+            /**
+             * The now-playing card's song line, star, and seek scale follow
+             * the sounding (or selected) song. `null` means nothing selected.
+             * @param {PlaylistItem | null} item
+             */
+            updateNowPlaying(item) {
+                const identity = document.getElementById('transportBarInfo');
                 const shareSongBtn = /** @type {HTMLButtonElement | null} */ (
                     document.getElementById('shareSongBtn')
                 );
 
-                if (item) {
-                    const songTitle = item.name || item.title || '';
-                    const artistName = item.artist || item.channelTitle || '';
-                    titleEl.textContent = songTitle;
-                    artistEl.textContent = artistName;
-                    if (transportInfo) {
-                        transportInfo.textContent = artistName ? `${artistName} - ${songTitle}` : songTitle;
+                if (identity) {
+                    if (item) {
+                        const name = document.createElement('span');
+                        name.className = 'now-playing-name';
+                        name.textContent = item.name || item.title || 'Unknown song';
+                        const detail = document.createElement('span');
+                        detail.className = 'now-playing-detail';
+                        detail.textContent = [item.artist || item.channelTitle, item.year]
+                            .map(part => String(part || '').trim())
+                            .filter(Boolean)
+                            .join(' \u00b7 ');
+                        identity.replaceChildren(name, detail);
+                    } else {
+                        identity.textContent = 'Press Play to start';
                     }
-                } else {
-                    titleEl.textContent = '';
-                    artistEl.textContent = '';
-                    if (transportInfo) transportInfo.textContent = 'No song playing';
                 }
                 if (shareSongBtn) shareSongBtn.disabled = !item;
+                // A different song starts its scale at 0 from its catalog
+                // duration; the player's own clock refines it on the next render.
+                const videoId = item ? item.videoId : '';
+                if (videoId !== this.seekScaleVideoId) {
+                    this.seekScaleVideoId = videoId;
+                    this.renderSeekPosition(0, item ? item.durationSeconds : 0);
+                }
                 // Song change or clear: the bar lyric belongs to the previous
-                // song until this song's synced position writes its own.
-                this.resetTransportBarText();
+                // song until this song's synced position writes its own. A
+                // re-render of the same row (shuffle, sort) keeps its rows.
+                const rowId = item ? item.id : null;
+                if (rowId !== this.nowPlayingRowId) {
+                    this.nowPlayingRowId = rowId;
+                    this.resetTransportBarText();
+                }
                 this.updateBigLyricsAvailability();
                 this.updateFirstLyricButton();
                 this.updateSongReportControls();
+                this.updateNowPlayingStar();
             },
 
             /** Bring the current song's row into view (the bar's song line). */
@@ -1588,7 +1792,7 @@ const PlayerPlaylist = (function () {
                 MediaSessionCore.clearTrack();
                 this.updatePlayPauseButton();
                 this.stopProgressUpdates();
-                this.updateProgressBar(0, 1);
+                this.updateProgressBar(0, this.seekScaleDuration || 0);
             },
 
             playPlaylist() {
@@ -1616,13 +1820,19 @@ const PlayerPlaylist = (function () {
                             void this.ensureLyricsForItem(currentItem);
                         }
                     }
-                } else if (this.currentPlaylistIndex >= 0 && this.currentPlaylistIndex < this.playlist.length) {
-                    // Continue from current position
-                    this.playVideo(this.playlist[this.currentPlaylistIndex]);
                 } else {
-                    // Start from beginning
-                    this.currentPlaylistIndex = 0;
-                    this.playVideo(this.playlist[0]);
+                    // Continue from the selected song when the list shows
+                    // it; otherwise start at the next shown song.
+                    const selected = this.currentPlaylistItem();
+                    const startIndex = selected && this.itemPassesPlaylistView(selected)
+                        ? this.currentPlaylistIndex
+                        : this.playlistIndexInView(this.currentPlaylistIndex, 1);
+                    if (startIndex < 0) {
+                        this.updateStatus('No songs shown - press Show all to play the rest');
+                        return;
+                    }
+                    this.currentPlaylistIndex = startIndex;
+                    this.playVideo(this.playlist[startIndex]);
                 }
             },
 
@@ -1651,28 +1861,31 @@ const PlayerPlaylist = (function () {
                 }
             },
 
+            // Next/Previous (buttons, media keys, voice, and auto-advance at a
+            // song's end) move through the songs the list shows, wrapping at
+            // either end.
             playNext() {
-                if (this.playlist.length === 0) return;
-
-                let nextIndex = this.currentPlaylistIndex + 1;
-                if (nextIndex >= this.playlist.length) {
-                    nextIndex = 0; // Loop to beginning
-                }
-
-                this.currentPlaylistIndex = nextIndex;
-                this.playVideo(this.playlist[nextIndex]);
+                return this.stepPlaylist(1);
             },
 
             playPrevious() {
-                if (this.playlist.length === 0) return;
+                return this.stepPlaylist(-1);
+            },
 
-                let prevIndex = this.currentPlaylistIndex - 1;
-                if (prevIndex < 0) {
-                    prevIndex = this.playlist.length - 1; // Loop to end
+            /**
+             * @param {1 | -1} direction
+             * @returns {boolean} whether a song started
+             */
+            stepPlaylist(direction) {
+                if (this.playlist.length === 0) return false;
+                const index = this.playlistIndexInView(this.currentPlaylistIndex, direction);
+                if (index < 0) {
+                    this.updateStatus('No songs shown - press Show all to play the rest');
+                    return false;
                 }
-
-                this.currentPlaylistIndex = prevIndex;
-                this.playVideo(this.playlist[prevIndex]);
+                this.currentPlaylistIndex = index;
+                this.playVideo(this.playlist[index]);
+                return true;
             },
 
             /** @param {number} seconds positive = forward, negative = back */
@@ -1732,8 +1945,7 @@ const PlayerPlaylist = (function () {
             },
 
             updateTransportPauseLabel() {
-                const btn = document.getElementById('lyricsTransportPause');
-                if (btn) btn.innerHTML = (this.isPlaying && !this.isPaused) ? '&#9208;' : '&#9654;';
+                this.updatePlayPauseButton();
             },
 
             restartCurrentTrack() {
@@ -1748,20 +1960,14 @@ const PlayerPlaylist = (function () {
                 }
             },
 
+            /** Both play/pause buttons (now-playing card, Big Lyrics) carry both icons; CSS shows one. */
             updatePlayPauseButton() {
-                const btn = document.getElementById('playPauseBtn');
-                const transportBtn = document.getElementById('lyricsTransportPause');
-                const barBtn = document.getElementById('transportPlayPauseBtn');
-                if (this.isPlaying && !this.isPaused) {
-                    btn.textContent = '⏸';
-                    btn.setAttribute('aria-label', 'Pause');
-                    if (transportBtn) transportBtn.innerHTML = '&#9208;';
-                    if (barBtn) { barBtn.innerHTML = '&#9208;'; barBtn.setAttribute('aria-label', 'Pause'); }
-                } else {
-                    btn.textContent = '▶';
-                    btn.setAttribute('aria-label', 'Play');
-                    if (transportBtn) transportBtn.innerHTML = '&#9654;';
-                    if (barBtn) { barBtn.innerHTML = '&#9654;'; barBtn.setAttribute('aria-label', 'Play'); }
+                const playing = this.isPlaying && !this.isPaused;
+                for (const id of ['transportPlayPauseBtn', 'lyricsTransportPause']) {
+                    const button = document.getElementById(id);
+                    if (!button) continue;
+                    button.classList.toggle('is-playing', playing);
+                    button.setAttribute('aria-label', playing ? 'Pause' : 'Play');
                 }
             },
 
@@ -1813,7 +2019,7 @@ const PlayerPlaylist = (function () {
                 this.clearSongReportPlayback();
                 MediaSessionCore.clearTrack();
                 this.updatePlayPauseButton();
-                this.updateCentralPlayer(null);
+                this.updateNowPlaying(null);
                 this.updatePlaylistLabel();
                 this.currentLyricsItemId = null;
                 this.currentLyricsLineIndex = -1;
@@ -1824,9 +2030,6 @@ const PlayerPlaylist = (function () {
             clearPlaylist() {
                 this.clearPlaylistItems();
 
-                document.getElementById('playlistContainer').style.display = 'none';
-                document.getElementById('centralPlayer').style.display = 'none';
-                this.hideTransportBar();
                 this.setLyricsPanelVisible(false);
                 this.lyricsPanelDismissed = false;
                 this.closeLyricsOverlay();
@@ -1855,7 +2058,6 @@ const PlayerPlaylist = (function () {
                     return;
                 }
 
-                this.showPlaylistSurfaces();
 
                 const restoredItems = [];
                 for (const entry of saved.items) {
@@ -1875,7 +2077,7 @@ const PlayerPlaylist = (function () {
 
                 if (this.currentPlaylistIndex >= 0) {
                     const current = this.playlist[this.currentPlaylistIndex];
-                    this.updateCentralPlayer(current);
+                    this.updateNowPlaying(current);
                     const row = document.querySelector(`[data-item-id="${current.id}"]`);
                     if (row) row.classList.add('playing');
                 }
@@ -1934,62 +2136,60 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            showTransportBar() {
-                const bar = document.getElementById('playlistTransportBar');
-                if (bar) bar.style.display = 'flex';
-            },
-
-            hideTransportBar() {
-                const bar = document.getElementById('playlistTransportBar');
-                if (bar) bar.style.display = 'none';
-            },
-
-            // Two seek surfaces, one behavior: the central player's track
-            // and the sticky bar's strip both click/drag-seek through
-            // seekToPercentage.
+            // The seek scale: click or drag anywhere on the track to jump
+            // (seekToPercentage); arrow keys step 5 seconds, Home restarts.
             setupProgressBar() {
-                const strips = [
-                    document.getElementById('progressBarTrack'),
-                    document.getElementById('transportProgressTrack')
-                ].filter(strip => strip !== null);
+                const strip = document.getElementById('transportProgressTrack');
+                if (!strip) return;
 
-                /** @param {HTMLElement} strip @param {number} clientX */
-                const seekAt = (strip, clientX) => {
-                    const rect = strip.getBoundingClientRect();
+                /** @param {HTMLElement} target @param {number} clientX */
+                const seekAt = (target, clientX) => {
+                    const rect = target.getBoundingClientRect();
                     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
                     this.seekToPercentage(percentage);
                 };
 
-                for (const strip of strips) {
-                    strip.addEventListener('mousedown', (e) => {
-                        this.isDraggingProgress = true;
-                        this.activeSeekStrip = strip;
-                        strip.classList.add('dragging');
-                        seekAt(strip, e.clientX);
-                    });
+                strip.addEventListener('keydown', (event) => {
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        this.seekBy(-SEEK_JUMP_SECONDS);
+                    } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        this.seekBy(SEEK_JUMP_SECONDS);
+                    } else if (event.key === 'Home') {
+                        event.preventDefault();
+                        this.seekToTime(0);
+                    }
+                });
 
-                    strip.addEventListener('touchstart', (e) => {
-                        this.isDraggingProgress = true;
-                        this.activeSeekStrip = strip;
-                        strip.classList.add('dragging');
+                strip.addEventListener('mousedown', (e) => {
+                    this.isDraggingProgress = true;
+                    this.activeSeekStrip = strip;
+                    strip.classList.add('dragging');
+                    seekAt(strip, e.clientX);
+                });
+
+                strip.addEventListener('touchstart', (e) => {
+                    this.isDraggingProgress = true;
+                    this.activeSeekStrip = strip;
+                    strip.classList.add('dragging');
+                    seekAt(strip, e.touches[0]?.clientX || 0);
+                });
+
+                strip.addEventListener('touchmove', (e) => {
+                    if (this.isDraggingProgress && this.activeSeekStrip === strip) {
+                        e.preventDefault();
                         seekAt(strip, e.touches[0]?.clientX || 0);
-                    });
+                    }
+                });
 
-                    strip.addEventListener('touchmove', (e) => {
-                        if (this.isDraggingProgress && this.activeSeekStrip === strip) {
-                            e.preventDefault();
-                            seekAt(strip, e.touches[0]?.clientX || 0);
-                        }
-                    });
+                strip.addEventListener('touchend', () => {
+                    this.isDraggingProgress = false;
+                    this.activeSeekStrip = null;
+                    strip.classList.remove('dragging');
+                });
 
-                    strip.addEventListener('touchend', () => {
-                        this.isDraggingProgress = false;
-                        this.activeSeekStrip = null;
-                        strip.classList.remove('dragging');
-                    });
-
-                    strip.addEventListener('click', (e) => seekAt(strip, e.clientX));
-                }
+                strip.addEventListener('click', (e) => seekAt(strip, e.clientX));
 
                 document.addEventListener('mousemove', (e) => {
                     if (this.isDraggingProgress && this.activeSeekStrip) {
@@ -2105,31 +2305,71 @@ const PlayerPlaylist = (function () {
             },
 
             updateProgressBar(currentTime, duration) {
-                if (!this.progressDiff) this.progressDiff = new ValueDiff();
-                const percentage = `${(currentTime / duration) * 100}%`;
-
-                const fill = document.getElementById('progressBarFill');
-                const handle = document.getElementById('progressBarHandle');
-                const currentTimeEl = document.getElementById('currentTime');
-                const totalTimeEl = document.getElementById('totalTime');
-                if (fill && handle && currentTimeEl && totalTimeEl) {
-                    this.progressDiff.style('fillWidth', fill, 'width', percentage);
-                    this.progressDiff.style('handleLeft', handle, 'left', percentage);
-                    this.progressDiff.text('currentTime', currentTimeEl, this.formatTime(currentTime));
-                    this.progressDiff.text('totalTime', totalTimeEl, this.formatTime(duration));
-                }
-
-                // The sticky bar's strip mirrors the same truth.
-                const barFill = document.getElementById('transportProgressFill');
-                const barCurrent = document.getElementById('transportBarTimeCurrent');
-                const barTotal = document.getElementById('transportBarTimeTotal');
-                if (barFill && barCurrent && barTotal) {
-                    this.progressDiff.style('barFillWidth', barFill, 'width', percentage);
-                    this.progressDiff.text('barTimeCurrent', barCurrent, this.formatTime(currentTime));
-                    this.progressDiff.text('barTimeTotal', barTotal, this.formatTime(duration));
-                }
-
+                this.renderSeekPosition(currentTime, duration);
                 this.updateListeningTextPosition(currentTime);
+            },
+
+            /**
+             * Draw the seek scale at a position: fill, thumb, the elapsed
+             * time (the current value), the time left, and - when the
+             * duration changed - the notched scale.
+             * @param {number} currentTime @param {number} duration seconds
+             */
+            renderSeekPosition(currentTime, duration) {
+                if (!this.progressDiff) this.progressDiff = new ValueDiff();
+                const total = duration > 0 ? duration : 0;
+                const position = Math.min(Math.max(currentTime || 0, 0), total);
+                const percentage = `${total > 0 ? (position / total) * 100 : 0}%`;
+                this.progressDiff.style('seekFill', document.getElementById('transportProgressFill'), 'width', percentage);
+                this.progressDiff.style('seekThumb', document.getElementById('transportProgressThumb'), 'left', percentage);
+                this.progressDiff.text('seekElapsed', document.getElementById('transportBarTimeCurrent'), this.formatTime(position));
+                this.progressDiff.text('seekRemaining', document.getElementById('transportBarTimeTotal'), `-${this.formatTime(total - position)}`);
+                const track = document.getElementById('transportProgressTrack');
+                const wholeSeconds = Math.floor(position);
+                if (track && this.progressDiff.changed('seekAria', `${wholeSeconds}/${Math.round(total)}`)) {
+                    track.setAttribute('aria-valuemax', String(Math.round(total)));
+                    track.setAttribute('aria-valuenow', String(wholeSeconds));
+                    track.setAttribute('aria-valuetext', `${this.formatTime(position)} of ${this.formatTime(total)}`);
+                }
+                if (Math.round(total) !== this.seekScaleDuration) {
+                    this.renderSeekScale(Math.round(total));
+                }
+            },
+
+            /**
+             * Notches along the seek track at a round interval (every 10s up
+             * to every 30 minutes, chosen so a song gets at most six steps),
+             * each labeled with its time; both endpoints are always labeled.
+             * A notch too close to the end keeps its mark but not its label
+             * so labels never collide.
+             * @param {number} totalSeconds whole seconds; 0 clears the scale
+             */
+            renderSeekScale(totalSeconds) {
+                this.seekScaleDuration = totalSeconds;
+                const host = document.getElementById('transportProgressTicks');
+                if (!host) return;
+                host.replaceChildren();
+                if (totalSeconds <= 0) return;
+                const step = SEEK_SCALE_STEPS_SECONDS.find(seconds => totalSeconds / seconds <= SEEK_SCALE_MAX_STEPS)
+                    || SEEK_SCALE_STEPS_SECONDS[SEEK_SCALE_STEPS_SECONDS.length - 1];
+                /** @type {number[]} */
+                const marks = [];
+                for (let at = 0; at < totalSeconds; at += step) marks.push(at);
+                marks.push(totalSeconds);
+                for (const at of marks) {
+                    const left = `${(at / totalSeconds) * 100}%`;
+                    const tick = document.createElement('span');
+                    tick.className = 'seek-tick';
+                    tick.style.left = left;
+                    host.appendChild(tick);
+                    const isEnd = at === totalSeconds;
+                    if (!isEnd && at > 0 && totalSeconds - at < step * SEEK_SCALE_END_LABEL_CLEARANCE) continue;
+                    const label = document.createElement('span');
+                    label.className = `seek-tick-label${at === 0 ? ' is-start' : ''}${isEnd ? ' is-end' : ''}`;
+                    label.style.left = left;
+                    label.textContent = this.formatTime(at);
+                    host.appendChild(label);
+                }
             },
 
             formatTime(seconds) {
@@ -2201,10 +2441,9 @@ const PlayerPlaylist = (function () {
                         }
                     }
 
-                    this.showPlaylistSurfaces();
                     this.currentPlaylistIndex = sharedIndex;
                     this.currentLyricsItemId = sharedItem.id;
-                    this.updateCentralPlayer(sharedItem);
+                    this.updateNowPlaying(sharedItem);
                     this.updatePlaylistLabel();
                     this.setLyricsPanelVisible(true);
                     this.renderLyricsStateForItem(sharedItem);
@@ -2235,11 +2474,10 @@ const PlayerPlaylist = (function () {
                 });
                 if (!demoItem) return;
 
-                this.showPlaylistSurfaces();
                 this.appendPlaylistItem(demoItem);
                 this.currentPlaylistIndex = 0;
                 this.currentLyricsItemId = demoItem.id;
-                this.updateCentralPlayer(demoItem);
+                this.updateNowPlaying(demoItem);
                 this.updatePlaylistLabel();
                 this.setLyricsPanelVisible(true);
                 this.renderLyricsStateForItem(demoItem);

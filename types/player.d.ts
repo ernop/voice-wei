@@ -13,6 +13,7 @@ interface PlayerAppSettings {
     lyricsOnNowPlaying: boolean;
     showSongNotes: boolean;
     playlistTimedOnly: boolean;
+    playlistFavoritesOnly: boolean;
     songDisplayMode: 'identity' | 'report';
     songReportIntervalSeconds: number;
 }
@@ -426,12 +427,18 @@ interface VoiceMusicController {
     classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
     requestSongReportResearch(prompt: string): Promise<{ text: string; provider: 'claude' | 'openai'; model: string }>;
 
-    loadFavoritesToPlaylist(): void;
+    loadFavoritesToPlaylist(): number;
+    unloadUnstarredSongs(): number;
     shufflePlaylist(): void;
     sortPlaylist(key: PlaylistSortKey): void;
     playlistFilterQuery: string;
     setPlaylistFilter(value: string): void;
+    setPlaylistFavoritesOnly(favoritesOnly: boolean): void;
     clearPlaylistFilter(): void;
+    isPlaylistViewFiltered(): boolean;
+    itemPassesPlaylistView(item: PlaylistItem): boolean;
+    playlistIndexInView(fromIndex: number, direction: 1 | -1): number;
+    stepPlaylist(direction: 1 | -1): boolean;
     applyPlaylistFilter(): void;
     itemHasTimedLyrics(item: PlaylistItem | null | undefined): boolean;
     applySongNotesVisibility(): void;
@@ -439,7 +446,7 @@ interface VoiceMusicController {
     removePlaylistItem(itemId: number): void;
     appendPlaylistItem(item: PlaylistItem): void;
     appendPlaylistItems(items: PlaylistItem[]): void;
-    showPlaylistSurfaces(): void;
+    syncPlaylistSurfaces(): void;
     clearPlaylistItems(): void;
     updatePlaylistLabel(): void;
     formatSeconds(totalSeconds: number): string;
@@ -483,6 +490,12 @@ interface VoiceMusicController {
             | { relation: 'favorite-repair'; intendedSong: Song }
     ): PlaylistItem[];
     refreshPlaylistRowFavorite(item: PlaylistItem): void;
+    toggleSongFavorite(song: Song): boolean;
+    setSongFavorite(song: Song, starred: boolean): void;
+    nowPlayingItem(): PlaylistItem | null;
+    toggleNowPlayingFavorite(): void;
+    refreshFavoriteViews(videoId: string): void;
+    updateNowPlayingStar(): void;
     refreshPlaylistRowVideo(item: PlaylistItem): void;
     describeYouTubePlayerError(code: number | string): string;
     playerLoadFailureInfo(failure: any): { detail: string; errorCode: number | null };
@@ -501,7 +514,8 @@ interface VoiceMusicController {
     bindPlaylistRowEvents(playlistBody: HTMLElement): void;
     addPlaylistItemsToDOM(items: PlaylistItem[]): void;
     addPlaylistItemToDOM(item: PlaylistItem): void;
-    updateCentralPlayer(item: PlaylistItem): void;
+    updateNowPlaying(item: PlaylistItem | null): void;
+    nowPlayingRowId: number | null;
     scrollToCurrentSong(): void;
     updateTransportBarLyric(text: string): void;
     updateTransportBarSecondary(text: string): void;
@@ -512,8 +526,8 @@ interface VoiceMusicController {
     playPlaylist(): void;
     pausePlayback(): void;
     togglePlayPause(): void;
-    playNext(): void;
-    playPrevious(): void;
+    playNext(): boolean;
+    playPrevious(): boolean;
     fastForward(): void;
     rewind(): void;
     seekBy(seconds: number): void;
@@ -531,8 +545,6 @@ interface VoiceMusicController {
     currentPlaylistItem(): PlaylistItem | null;
     shareLinkForItem(item: PlaylistItem): string;
     copyCurrentSongShareLink(): Promise<void>;
-    showTransportBar(): void;
-    hideTransportBar(): void;
     setupProgressBar(): void;
     seekToPercentage(percentage: number): void;
     seekToTime(seconds: number): void;
@@ -543,6 +555,10 @@ interface VoiceMusicController {
     renderPlaybackPosition(): number | null;
     nextListeningTextDeadline(currentTime: number): number;
     updateProgressBar(currentTime: number, duration: number): void;
+    renderSeekPosition(currentTime: number, duration: number): void;
+    renderSeekScale(totalSeconds: number): void;
+    seekScaleDuration: number;
+    seekScaleVideoId: string;
     formatTime(seconds: number): string;
     setupYouTubeAPI(): void;
     playerReady(): void;

@@ -1,0 +1,1466 @@
+/* Lyrics page (player.html). Loaded after style.css and
+   practice-controls.css; it may place and size shared controls but never
+   restyles them (tests/test-css-ownership.js).
+
+   Display rules this sheet follows (docs/controls.md, "Owner display rules"):
+   neutral text is pure white, hierarchy comes from size/weight/placement,
+   every list row is one line, data values out-rank their labels, widths
+   are fluid, and the seek scale shows notches, endpoint labels, and the
+   current value. */
+
+.lyrics-page {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* The sung line has its own large row in the now-playing card; the
+   header's mirror of the same line (media-session-core still writes it,
+   for the tab title and screen readers) would only repeat it. */
+body[data-page="music"] .header-lyric-line {
+    display: none;
+}
+
+/* ---------------- Cards ---------------- */
+
+.player-card {
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: var(--radius-card);
+    text-align: left;
+    min-width: 0;
+}
+
+.player-card-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #fff;
+    text-shadow: none;
+}
+
+.player-card-note {
+    margin: 6px 0 10px;
+    font-size: 0.85rem;
+    color: #fff;
+}
+
+/* ---------------- Now playing (sticky) ---------------- */
+
+/* main (style.css) pads 10px and Chrome sticks inside that padding; the
+   matching negative top and margin keep the card flush with the header so
+   no page content shows above it. */
+.now-playing {
+    position: sticky;
+    top: -10px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: -10px -10px 0;
+    padding: 6px 10px 8px;
+    background: rgba(5, 16, 10, 0.97);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    text-align: left;
+}
+
+.now-playing[hidden] {
+    display: none;
+}
+
+.now-playing-info,
+.now-playing-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* Wide screens: song and position on the left, controls on the right, so
+   the card stays short without stretching the transport across the page. */
+@media (min-width: 1000px) {
+    .now-playing {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        align-items: center;
+        column-gap: 14px;
+    }
+}
+
+.now-playing-song {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.now-playing-identity {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 46px;
+    padding: 0 6px;
+    display: block;
+    border: 1px solid transparent;
+    border-radius: var(--radius-group);
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 46px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.now-playing-identity:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.now-playing-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.now-playing-detail::before {
+    content: '\2014';
+    margin: 0 6px;
+}
+
+.now-playing-detail:empty::before {
+    content: none;
+}
+
+/* Two reserved lines: a long line wraps instead of growing the sticky
+   card, so its height never changes mid-track (a sticky height change
+   shoves the page under the reader). */
+.now-playing-lyric,
+.now-playing-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    text-align: center;
+    overflow-wrap: anywhere;
+    color: #fff;
+}
+
+.now-playing-lyric {
+    height: calc(2 * 1.2 * 1.4rem);
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.now-playing-lyric.is-long {
+    font-size: 1.05rem;
+}
+
+.now-playing-secondary {
+    height: calc(2 * 1.25 * 1rem);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #bfdbfe;
+}
+
+.now-playing-lyric[hidden],
+.now-playing-secondary[hidden] {
+    display: none;
+}
+
+/* Seek scale: the current value (elapsed) and time left are the large
+   numbers; the notches and their minute labels run under the track with
+   both endpoints labeled. */
+.seek-scale {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+}
+
+.seek-time {
+    min-width: 3.4em;
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 22px;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.seek-time-remaining {
+    text-align: right;
+}
+
+.seek-body {
+    position: relative;
+    padding-top: 7px;
+    min-width: 0;
+}
+
+.seek-track {
+    position: relative;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+    touch-action: none;
+}
+
+/* Slim to look at, comfortable to hit */
+.seek-track::before {
+    content: '';
+    position: absolute;
+    inset: -14px 0;
+}
+
+.seek-track:focus-visible {
+    outline: 2px solid #4ade80;
+    outline-offset: 6px;
+}
+
+.seek-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 4px 0 0 4px;
+    background: #4ade80;
+    pointer-events: none;
+}
+
+.seek-thumb {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border: 3px solid #4ade80;
+    border-radius: 50%;
+    background: #fff;
+    pointer-events: none;
+}
+
+.seek-ticks {
+    position: relative;
+    height: 26px;
+}
+
+.seek-tick {
+    position: absolute;
+    top: 3px;
+    width: 2px;
+    height: 7px;
+    margin-left: -1px;
+    background: #fff;
+}
+
+.seek-tick-label {
+    position: absolute;
+    top: 11px;
+    transform: translateX(-50%);
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.seek-tick-label.is-start {
+    transform: none;
+}
+
+.seek-tick-label.is-end {
+    transform: translateX(-100%);
+}
+
+.now-playing-transport {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 8px;
+}
+
+.now-playing-transport .media-btn {
+    height: 68px;
+}
+
+.now-playing-seek {
+    display: flex;
+    gap: 6px;
+}
+
+.now-playing-seek .media-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 42px;
+    padding: 0 4px;
+}
+
+/* ---------------- Media transport family ----------------
+   One look for every playback control on this page: the now-playing
+   card, Big Lyrics, and the star. White text; hover changes only the
+   background. Context modifiers choose size and color meaning:
+   track = between songs, play = the main action, seek = within a song. */
+
+.media-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 46px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: var(--radius-group);
+    background: #14532d;
+    color: #fff;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.media-btn:hover {
+    background: #166534;
+}
+
+.media-btn:active {
+    background: #15803d;
+}
+
+.media-btn:disabled {
+    border-style: dashed;
+    background: transparent;
+    cursor: not-allowed;
+}
+
+.media-btn svg {
+    width: 1.9em;
+    height: 1.9em;
+    fill: currentColor;
+    pointer-events: none;
+}
+
+.media-btn-track {
+    font-size: 1.25rem;
+    border-color: rgba(134, 239, 172, 0.45);
+}
+
+.media-btn-play {
+    font-size: 1.6rem;
+    background: #15803d;
+    border: 2px solid #86efac;
+}
+
+.media-btn-play:hover {
+    background: #16a34a;
+}
+
+.media-btn-play .icon-pause,
+.media-btn-play.is-playing .icon-play {
+    display: none;
+}
+
+.media-btn-play.is-playing .icon-pause {
+    display: block;
+}
+
+.media-btn-seek {
+    background: #134e4a;
+    border-color: rgba(94, 234, 212, 0.45);
+    font-size: 1rem;
+}
+
+.media-btn-seek:hover {
+    background: #115e59;
+}
+
+.media-btn-seek:active {
+    background: #0f766e;
+}
+
+.media-btn-seek svg {
+    width: 1.5em;
+    height: 1.5em;
+}
+
+.media-btn-star {
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+    padding: 0;
+    flex: none;
+    background: transparent;
+    border-color: rgba(250, 204, 21, 0.6);
+    font-size: 1.6rem;
+}
+
+.media-btn-star:hover {
+    background: rgba(250, 204, 21, 0.18);
+}
+
+.media-btn-star.favorited {
+    color: #facc15;
+    background: rgba(250, 204, 21, 0.16);
+    border-color: #facc15;
+}
+
+/* Big Lyrics launcher: availability of the sounding song's lyrics. */
+.media-btn-lyrics {
+    flex: none;
+    height: 46px;
+    font-size: 0.9rem;
+}
+
+.media-btn-lyrics.lyrics-available {
+    background: #115e59;
+    border-color: #5eead4;
+}
+
+.media-btn-lyrics.lyrics-loading {
+    background: #713f12;
+    border-color: #facc15;
+}
+
+.media-btn-lyrics.lyrics-unavailable {
+    background: transparent;
+    border-style: dashed;
+}
+
+/* ---------------- Status, request, banner ---------------- */
+
+.lyrics-page .status {
+    margin-bottom: 0;
+}
+
+.lyrics-page .transcript-container {
+    margin: 0;
+    text-align: left;
+}
+
+.api-key-problem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    border-radius: var(--radius-card);
+    background: rgba(127, 29, 29, 0.6);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+/* ---------------- Layout grid ---------------- */
+
+.lyrics-page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+}
+
+.lyrics-page-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+@media (min-width: 1000px) {
+    .lyrics-page-grid {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        align-items: start;
+    }
+}
+
+/* ---------------- Find music ---------------- */
+
+.find-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* The shared voice row is sticky on practice pages; here the now-playing
+   card is the sticky surface, so Listen scrolls with its card. */
+.find-card .voice-controls-row {
+    position: static;
+    min-height: 0;
+    margin: 0;
+    background: none;
+    border-bottom: none;
+    backdrop-filter: none;
+}
+
+.find-card .voice-controls-row .listen-button,
+.find-card .voice-controls-row .submit-button-large {
+    height: 60px;
+}
+
+.find-label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.typed-command-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.typed-command-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 48px;
+    resize: vertical;
+    line-height: 1.4;
+}
+
+.typed-command-btn {
+    flex: none;
+    min-width: 96px;
+    min-height: 48px;
+}
+
+.query-model-details summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    padding: 4px 0;
+}
+
+.query-model-value {
+    font-weight: 800;
+}
+
+.query-model-row {
+    margin-top: 6px;
+}
+
+.find-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ---------------- Playlist ---------------- */
+
+.playlist-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.playlist-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.playlist-counts {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.playlist-count-value {
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.playlist-star-glyph {
+    color: #facc15;
+}
+
+/* Curation: the four owner-requested list actions, big enough to hit
+   blind. Two per row on phones, one row when there is room. */
+.playlist-curation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.playlist-curation > * {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 48px;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.load-favorites-count {
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 700px) {
+    .playlist-curation {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.playlist-filter-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.playlist-filter-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.95rem;
+    padding: 8px 12px;
+}
+
+.playlist-filter-row .display-toggle,
+.playlist-order .display-toggle {
+    min-height: 40px;
+}
+
+.playlist-order {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.playlist-order .panel-action-btn {
+    min-height: 40px;
+    min-width: 64px;
+    font-size: 0.85rem;
+}
+
+.playlist-order-label {
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.playlist-filter-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid rgba(74, 222, 128, 0.45);
+    border-radius: var(--radius-group);
+    background: rgba(20, 83, 45, 0.55);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.playlist-filter-status .panel-action-btn {
+    flex: none;
+    min-height: 36px;
+}
+
+.playlist-empty {
+    padding: 14px 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.35);
+    border-radius: var(--radius-group);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+}
+
+.playlist-empty[hidden] {
+    display: none;
+}
+
+.playlist-list {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Playlist rows - one data line per song, every datum in a fixed slot:
+   [star][lyric] Name  Artist - Year - Album (- note) ...... 3:59 [x]
+   The note stays on the same line when Notes is on. */
+.playlist-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 42px;
+    padding: 0 2px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.16);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.playlist-row[hidden] {
+    display: none;
+}
+
+.playlist-row:hover {
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.playlist-row:active {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.playlist-row.playing {
+    background: rgba(22, 101, 52, 0.55);
+    box-shadow: inset 4px 0 0 #4ade80;
+}
+
+/* Star + lyric marker: padded gutter so a near-miss on the star
+   favorites (or opens lyrics) instead of starting playback. */
+.playlist-row-leading {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2px;
+    align-self: stretch;
+    padding: 0 8px 0 2px;
+    cursor: default;
+}
+
+.favorite-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: none;
+    color: #fff;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.favorite-btn:hover {
+    background: rgba(250, 204, 21, 0.16);
+    border-color: rgba(250, 204, 21, 0.5);
+}
+
+.favorite-btn.favorited {
+    color: #facc15;
+}
+
+/* Lyric state chip: check = timed (best), ~ = simple text, dash = none. */
+.lyrics-row-btn {
+    flex-shrink: 0;
+    min-width: 26px;
+    height: 34px;
+    padding: 0 2px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+}
+
+.lyrics-row-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.lyrics-row-btn.timed {
+    color: #4ade80;
+}
+
+.lyrics-row-btn.simple {
+    color: #fbbf24;
+    font-size: 1.05rem;
+}
+
+.playlist-song-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 48%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.playlist-row-meta {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #fff;
+}
+
+.playlist-song-year::before,
+.playlist-song-album::before,
+.playlist-song-comment::before {
+    content: '\00b7';
+    margin: 0 5px;
+}
+
+.playlist-song-comment {
+    font-style: italic;
+}
+
+.playlist-container:not(.playlist-notes-on) .playlist-song-comment {
+    display: none;
+}
+
+.playlist-song-duration {
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+.playlist-remove-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: none;
+    color: #fff;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.playlist-remove-btn:hover {
+    background: rgba(220, 38, 38, 0.55);
+    border-color: rgba(248, 113, 113, 0.8);
+}
+
+.youtube-player {
+    width: 100%;
+    margin-top: 10px;
+    border-radius: var(--radius-group);
+    overflow: hidden;
+    display: none;
+}
+
+/* ---------------- Lyrics card ---------------- */
+
+.lyrics-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.lyrics-panel-song {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.lyrics-panel-header .panel-action-btn {
+    flex: none;
+    min-height: 40px;
+    min-width: 64px;
+    font-size: 0.85rem;
+}
+
+.lyrics-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.lyrics-status,
+.lyrics-overlay-status {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.lyrics-status.is-error,
+.lyrics-overlay-status.is-error {
+    color: #fca5a5;
+}
+
+.lyrics-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 42vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.lyrics-line {
+    padding: 4px 6px;
+    border-radius: var(--radius-control);
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: #fff;
+    white-space: pre-wrap;
+}
+
+.lyrics-line.is-blank {
+    min-height: 10px;
+    padding: 0;
+}
+
+.lyrics-line.is-active {
+    background: rgba(22, 101, 52, 0.7);
+    font-weight: 800;
+}
+
+/* Lyric timing correction: the same pair in the Lyrics card and Big Lyrics. */
+.lyrics-sync-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lyrics-sync-btn {
+    min-height: 44px;
+    padding: 6px 12px;
+    border: 1px solid rgba(251, 191, 36, 0.6);
+    border-radius: var(--radius-group);
+    background: #713f12;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.lyrics-sync-btn:hover,
+.lyrics-sync-btn:active {
+    background: #854d0e;
+}
+
+.lyrics-offset-value {
+    min-width: 94px;
+    color: #fff;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* ---------------- This song (share + Song Report) ---------------- */
+
+.song-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.song-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.song-card-header .secondary-btn {
+    min-height: 40px;
+}
+
+.song-report-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.song-report-controls .primary-btn,
+.song-report-controls .vf-btn,
+.song-report-controls .step-btn {
+    min-height: 44px;
+}
+
+.song-report-status {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #fff;
+}
+
+/* The whole saved report as readable text; bounded so the card never
+   swallows the page when it is open. */
+.song-report-text {
+    max-height: 40vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(147, 197, 253, 0.4);
+    border-radius: var(--radius-group);
+    padding: 10px 12px;
+}
+
+/* ---------------- History & Cache ---------------- */
+
+.music-history-header,
+.song-library-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.music-history-card h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.music-history-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+
+.music-history-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.music-history-card {
+    padding: 10px;
+    border: 1px solid rgba(74, 222, 128, 0.16);
+    border-radius: var(--radius-card);
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.music-history-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.music-history-search {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+
+.music-history-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 8px;
+}
+
+/* One line per record: [check] Title - meta ........ [actions] */
+.music-history-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.12);
+    white-space: nowrap;
+}
+
+.music-history-item-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #fff;
+}
+
+.music-history-item-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.music-history-item-meta {
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.music-history-item-meta::before {
+    content: '\00b7';
+    margin: 0 5px;
+}
+
+.music-history-item-actions {
+    display: flex;
+    flex: none;
+    gap: 6px;
+}
+
+.music-history-empty {
+    padding: 8px 0;
+    font-size: 0.85rem;
+    color: #fff;
+}
+
+/* ---------------- Local Song Library ---------------- */
+
+.song-library-actions,
+.song-library-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.song-library-actions {
+    flex-wrap: wrap;
+}
+
+.song-library-toolbar {
+    margin-bottom: 10px;
+}
+
+.song-library-search {
+    flex: 1;
+    min-width: 0;
+}
+
+.song-library-count {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.song-library-list {
+    display: flex;
+    flex-direction: column;
+}
+
+/* One line per imported song: [star] Title - format - notes ... [Play] */
+.song-library-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.14);
+    white-space: nowrap;
+}
+
+.song-library-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #fff;
+}
+
+.song-library-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.song-library-meta,
+.song-library-source,
+.song-library-lyrics {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.song-library-lyrics {
+    font-style: italic;
+}
+
+.song-library-meta::before,
+.song-library-source::before,
+.song-library-lyrics::before {
+    content: '\00b7';
+    margin: 0 5px;
+}
+
+.song-library-play {
+    flex: none;
+    min-height: 40px;
+}
+
+.song-library-empty {
+    padding: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.35);
+    border-radius: var(--radius-group);
+    font-size: 0.9rem;
+    color: #fff;
+    text-align: center;
+}
+
+/* ---------------- Big Lyrics overlay ---------------- */
+
+.lyrics-overlay {
+    --lyrics-overlay-font-size: clamp(1.8rem, 6vw, 3.8rem);
+    --lyrics-overlay-line-height: 1.15;
+    --lyrics-overlay-width: 96%;
+    --lyrics-overlay-text-align: center;
+    --lyrics-overlay-bg: rgba(3, 8, 6, 0.96);
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--lyrics-overlay-bg);
+}
+
+.lyrics-overlay-song-info {
+    display: none;
+}
+
+.lyrics-overlay-top-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    display: flex;
+    gap: 6px;
+}
+
+.media-btn-overlay-action {
+    background: rgba(0, 0, 0, 0.55);
+    font-size: 1.3rem;
+}
+
+.lyrics-overlay-config {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 60px 4% 16px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.lyrics-overlay-config-card {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    background: rgba(10, 22, 16, 0.97);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: var(--radius-card);
+}
+
+.lyrics-overlay-config-card .player-card-title {
+    flex-basis: 100%;
+}
+
+.lyrics-overlay-content {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 10px 132px;
+}
+
+.lyrics-overlay-sync {
+    position: absolute;
+    bottom: 76px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    justify-content: center;
+    padding: 6px 12px;
+    background: var(--lyrics-overlay-bg);
+}
+
+.lyrics-overlay-transport {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--lyrics-overlay-bg);
+}
+
+.lyrics-overlay-transport .media-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 58px;
+    padding: 0 4px;
+}
+
+.lyrics-overlay-transport .media-btn-play {
+    flex-grow: 1.5;
+}
+
+.lyrics-overlay .lyrics-line {
+    width: var(--lyrics-overlay-width);
+    padding: 2px 10px;
+    font-size: var(--lyrics-overlay-font-size);
+    line-height: var(--lyrics-overlay-line-height);
+    text-align: var(--lyrics-overlay-text-align);
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+    transform: scale(1);
+    transform-origin: var(--lyrics-overlay-text-align, center) center;
+}
+
+.lyrics-overlay .lyrics-line.is-active {
+    background: rgba(22, 101, 52, 0.75);
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.4) inset;
+}
+
+/* Timed lyrics: the sung line is marked by size and background, never by
+   dimming the other lines (dimmed text reads as gray). Scale, not
+   font-size, so a line change never reflows or jumps the list. */
+.lyrics-overlay.has-synced-lyrics .lyrics-line {
+    transform: scale(0.86);
+    transition: background 0.4s ease, transform 0.45s ease, box-shadow 0.4s ease;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-blank {
+    visibility: hidden;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-next {
+    box-shadow: inset 4px 0 0 #fff;
+}
+
+.lyrics-overlay.has-synced-lyrics .lyrics-line.is-active {
+    transform: scale(1.02);
+}
+
+/* ---------------- Phones ---------------- */
+
+@media (max-width: 480px) {
+    .now-playing-lyric {
+        height: calc(2 * 1.2 * 1.3rem);
+        font-size: 1.3rem;
+    }
+
+    .now-playing-lyric.is-long {
+        font-size: 1rem;
+    }
+
+    .seek-time {
+        font-size: 1.1rem;
+    }
+
+    .now-playing-transport .media-btn {
+        height: 64px;
+    }
+
+    .media-btn-lyrics {
+        padding: 0 10px;
+        font-size: 0.85rem;
+    }
+
+    .typed-command-row {
+        flex-wrap: wrap;
+    }
+
+    .typed-command-input {
+        flex-basis: 100%;
+    }
+
+    .typed-command-btn {
+        flex: 1 1 0;
+    }
+
+    .lyrics-content {
+        max-height: 36vh;
+    }
+
+    .lyrics-sync-controls .lyrics-sync-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 6px 4px;
+        white-space: normal;
+    }
+
+    .lyrics-sync-controls .lyrics-offset-value {
+        min-width: 78px;
+        font-size: 0.95rem;
+    }
+
+    .lyrics-overlay-content {
+        padding: 54px 8px 124px;
+    }
+
+    .lyrics-overlay-top-actions {
+        top: 6px;
+        right: 6px;
+    }
+
+    .lyrics-overlay-config {
+        padding: 44px 3% 10px;
+    }
+
+    .lyrics-overlay-transport {
+        padding: 6px 4px;
+        gap: 4px;
+    }
+
+    .lyrics-overlay-transport .media-btn {
+        height: 54px;
+    }
+
+    .lyrics-overlay-sync {
+        bottom: 66px;
+        padding: 4px;
+        gap: 4px;
+    }
+}

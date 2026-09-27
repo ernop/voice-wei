@@ -16,6 +16,7 @@ const PLAYER_SETTINGS_KEYS = [
     'lyricsOnNowPlaying',
     'showSongNotes',
     'playlistTimedOnly',
+    'playlistFavoritesOnly',
     'songDisplayMode',
     'songReportIntervalSeconds'
 ];

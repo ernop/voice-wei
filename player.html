@@ -11,6 +11,7 @@
     <title>Lyrics - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=355">
     <link rel="stylesheet" href="practice-controls.css?v=355">
+    <link rel="stylesheet" href="player.css?v=355">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -33,12 +34,12 @@
                 <div class="api-key-status" id="claudeApiKeyStatus"></div>
                 <div class="api-key-input-row" id="claudeApiKeyInputRow" style="display: none;">
                     <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." class="text-input api-key-input" />
-                    <button id="saveClaudeApiKeyBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveClaudeApiKeyBtn" class="panel-action-btn" type="button">Save</button>
                 </div>
                 <div class="api-key-actions" id="claudeApiKeyActions" style="display: none;">
-                    <button id="showClaudeApiKeyBtn" class="api-key-action-btn">Show</button>
-                    <button id="changeClaudeApiKeyBtn" class="api-key-action-btn">Change</button>
-                    <button id="removeClaudeApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                    <button id="showClaudeApiKeyBtn" class="panel-action-btn" type="button">Show</button>
+                    <button id="changeClaudeApiKeyBtn" class="panel-action-btn" type="button">Change</button>
+                    <button id="removeClaudeApiKeyBtn" class="panel-action-btn danger" type="button">Remove</button>
                 </div>
                 <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call Claude's API directly.</p>
@@ -50,12 +51,12 @@
                 <div class="api-key-input-row" id="openaiApiKeyInputRow" style="display: none;">
                     <input type="password" id="openaiApiKeyInput" placeholder="sk-..."
                         class="text-input api-key-input" />
-                    <button id="saveOpenaiApiKeyBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveOpenaiApiKeyBtn" class="panel-action-btn" type="button">Save</button>
                 </div>
                 <div class="api-key-actions" id="openaiApiKeyActions" style="display: none;">
-                    <button id="showOpenaiApiKeyBtn" class="api-key-action-btn">Show</button>
-                    <button id="changeOpenaiApiKeyBtn" class="api-key-action-btn">Change</button>
-                    <button id="removeOpenaiApiKeyBtn" class="api-key-action-btn danger">Remove</button>
+                    <button id="showOpenaiApiKeyBtn" class="panel-action-btn" type="button">Show</button>
+                    <button id="changeOpenaiApiKeyBtn" class="panel-action-btn" type="button">Change</button>
+                    <button id="removeOpenaiApiKeyBtn" class="panel-action-btn danger" type="button">Remove</button>
                 </div>
                 <p class="setting-description">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call OpenAI's API directly.</p>
@@ -100,7 +101,7 @@
                     <button class="vf-btn" type="button" data-openai-model="gpt-4.1">GPT-4.1</button>
                 </div>
             </div>
-            <button id="closeSettingsBtn" class="close-settings-btn">Close</button>
+            <button id="closeSettingsBtn" class="panel-action-btn" type="button">Close</button>
         </div>
 
         <!-- Optional API key entry, opened only when an AI action needs it. -->
@@ -112,151 +113,81 @@
                 <div class="api-key-input-row">
                     <input type="password" id="claudeApiKeyOverlayInput" placeholder="sk-ant-..."
                         class="text-input api-key-input" />
-                    <button id="saveClaudeApiKeyOverlayBtn" class="save-api-key-btn">Save</button>
+                    <button id="saveClaudeApiKeyOverlayBtn" class="panel-action-btn" type="button">Save</button>
                 </div>
                 <p class="api-key-privacy-note">Your API key is stored only in this browser's localStorage. It never
                     leaves your device except to call Claude's API directly.</p>
                 <div class="api-key-input-row">
                     <input type="password" id="openaiApiKeyOverlayInput" placeholder="sk-..."
                         class="text-input api-key-input" />
-                    <button id="saveOpenaiApiKeyOverlayBtn" class="save-api-key-btn">Save OpenAI</button>
+                    <button id="saveOpenaiApiKeyOverlayBtn" class="panel-action-btn" type="button">Save OpenAI</button>
                 </div>
-                <button id="closeApiKeyOverlayBtn" class="close-settings-btn" type="button">Close</button>
+                <button id="closeApiKeyOverlayBtn" class="panel-action-btn" type="button">Close</button>
             </div>
         </div>
 
-        <main>
-            <div class="central-player" id="centralPlayer" style="display: none;">
-                <div class="player-info">
-                    <div class="player-song-title" id="playerSongTitle"></div>
-                    <div class="player-song-artist" id="playerSongArtist"></div>
-                </div>
-                <div class="progress-bar-container" id="progressBarContainer">
-                    <div class="progress-bar-track" id="progressBarTrack">
-                        <div class="progress-bar-fill" id="progressBarFill"></div>
-                        <div class="progress-bar-handle" id="progressBarHandle"></div>
+        <main class="lyrics-page">
+            <!-- The now-playing card: the one always-reachable surface. It
+                 scrolls with the page until it reaches the top, then sticks.
+                 It holds only what is needed hands-busy: song, star, sung
+                 line, position, and the big transport. Everything else lives
+                 in the cards below. -->
+            <section class="now-playing" id="playlistTransportBar" aria-label="Now playing" hidden>
+                <div class="now-playing-info">
+                    <div class="now-playing-song">
+                        <button id="nowPlayingStarBtn" class="media-btn media-btn-star" type="button"
+                            aria-pressed="false" aria-label="Star this song">&#9734;</button>
+                        <button class="now-playing-identity" id="transportBarInfo" type="button"
+                            aria-label="Show this song in the playlist">Press Play to start</button>
+                        <button id="lyricsOverlayBtn" class="media-btn media-btn-lyrics lyrics-unavailable" type="button"
+                            aria-label="Open Big Lyrics">Big lyrics</button>
                     </div>
-                    <div class="progress-time">
-                        <span id="currentTime">0:00</span>
-                        <span id="totalTime">0:00</span>
-                    </div>
-                </div>
-                <div class="player-controls">
-                    <button id="prevBtn" class="control-btn" aria-label="Previous">⏮</button>
-                    <button id="playPauseBtn" class="control-btn control-btn-large" aria-label="Play/Pause">▶</button>
-                    <button id="stopBtn" class="control-btn" aria-label="Stop">⏹</button>
-                    <button id="nextBtn" class="control-btn" aria-label="Next">⏭</button>
-                </div>
-                <div class="player-controls-secondary">
-                    <button id="rewindBtn" class="control-btn-small" aria-label="Rewind">⏪</button>
-                    <button id="forwardBtn" class="control-btn-small" aria-label="Fast Forward">⏩</button>
-                    <button id="lyricsPanelBtn" class="control-btn-small lyrics-control-btn"
-                        aria-label="Show or hide lyrics">Lyrics</button>
-                </div>
-            </div>
-
-            <!-- The always-reachable control line: scrolls with the page
-                 until it reaches the top, then hooks there (sticky).
-                 Song nav (prev/play/next) and within-song seek (±5/±30,
-                 jump-to-first-lyric) are separate rows on purpose. -->
-            <div class="playlist-transport-bar" id="playlistTransportBar" style="display: none;">
-                <div class="transport-bar-progress">
-                    <span class="transport-bar-time" id="transportBarTimeCurrent">0:00</span>
-                    <div class="transport-progress-track" id="transportProgressTrack" aria-label="Seek">
-                        <div class="transport-progress-fill" id="transportProgressFill"></div>
-                    </div>
-                    <span class="transport-bar-time" id="transportBarTimeTotal">0:00</span>
-                </div>
-                <div class="transport-bar-lyric" id="transportBarLyric" style="display: none;"></div>
-                <div class="transport-bar-secondary" id="transportBarSecondary" style="display: none;"></div>
-                <div class="transport-bar-song-nav">
-                    <button id="transportPrevBtn" class="transport-bar-btn" aria-label="Previous track">&#9198;</button>
-                    <button id="transportPlayPauseBtn" class="transport-bar-btn transport-bar-playpause" aria-label="Play/Pause">&#9654;</button>
-                    <button id="transportNextBtn" class="transport-bar-btn" aria-label="Next track">&#9197;</button>
-                    <button id="lyricsOverlayBtn" class="transport-bar-btn big-lyrics-btn lyrics-unavailable"
-                        aria-label="Open large lyrics overlay">Big Lyrics</button>
-                    <button class="transport-bar-info" id="transportBarInfo" type="button"
-                        aria-label="Scroll to the current song in the playlist">No song playing</button>
-                </div>
-                <div class="song-report-controls">
-                    <button id="shareSongBtn" class="secondary-btn" type="button" disabled>Share Song</button>
-                    <button id="requestSongReportBtn" class="primary-btn" type="button">Request Song Report</button>
-                    <div class="segment-row" aria-label="Second line">
-                        <button id="songDisplayIdentityBtn" class="vf-btn" type="button" aria-pressed="true">Identity</button>
-                        <button id="songDisplayReportBtn" class="vf-btn" type="button" aria-pressed="false">Song Report</button>
-                    </div>
-                    <div class="song-report-interval">
-                        <div class="step-field">
-                            <span class="step-label">Every</span>
-                            <button id="songReportIntervalDownBtn" class="step-btn" type="button"
-                                aria-label="Show each report line for less time">-</button>
-                            <output id="songReportIntervalValue" class="step-value"
-                                aria-label="Seconds per report line">8s</output>
-                            <button id="songReportIntervalUpBtn" class="step-btn" type="button"
-                                aria-label="Show each report line for more time">+</button>
+                    <div class="now-playing-lyric" id="transportBarLyric" hidden></div>
+                    <div class="now-playing-secondary" id="transportBarSecondary" hidden></div>
+                    <div class="seek-scale">
+                        <output class="seek-time" id="transportBarTimeCurrent" aria-label="Elapsed time">0:00</output>
+                        <div class="seek-body">
+                            <div class="seek-track" id="transportProgressTrack" role="slider" tabindex="0"
+                                aria-label="Song position" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"
+                                aria-valuetext="0:00 of 0:00">
+                                <div class="seek-fill" id="transportProgressFill"></div>
+                                <div class="seek-thumb" id="transportProgressThumb"></div>
+                            </div>
+                            <div class="seek-ticks" id="transportProgressTicks" aria-hidden="true"></div>
                         </div>
+                        <output class="seek-time seek-time-remaining" id="transportBarTimeTotal"
+                            aria-label="Time left">-0:00</output>
                     </div>
-                    <button id="songReportTextBtn" class="vf-btn" type="button" aria-expanded="false"
-                        aria-controls="songReportTextPanel">Report Text</button>
-                    <span id="songReportStatus" class="song-report-status">No saved report for this song</span>
-                    <div id="songReportTextPanel" class="song-report-text" style="display: none;"></div>
                 </div>
-                <div class="transport-bar-seek">
-                    <button id="transportBack30Btn" class="transport-bar-btn" aria-label="Back 30 seconds">-30</button>
-                    <button id="transportBack5Btn" class="transport-bar-btn" aria-label="Back 5 seconds">-5</button>
-                    <button id="transportFwd5Btn" class="transport-bar-btn" aria-label="Forward 5 seconds">+5</button>
-                    <button id="transportFwd30Btn" class="transport-bar-btn" aria-label="Forward 30 seconds">+30</button>
-                    <button id="transportFirstLyricBtn" class="transport-bar-btn transport-first-lyric-btn" type="button"
-                        style="display: none;" aria-label="Jump to just before the first lyric">1st</button>
+                <div class="now-playing-controls">
+                    <div class="now-playing-transport">
+                        <button id="transportPrevBtn" class="media-btn media-btn-track" type="button"
+                            aria-label="Previous song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+                        <button id="transportPlayPauseBtn" class="media-btn media-btn-play" type="button"
+                            aria-label="Play"><svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L20 12z"/></svg><svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4.2v14H6zM13.8 5H18v14h-4.2z"/></svg></button>
+                        <button id="transportNextBtn" class="media-btn media-btn-track" type="button"
+                            aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
+                    </div>
+                    <div class="now-playing-seek">
+                        <button id="transportBack30Btn" class="media-btn media-btn-seek" type="button"
+                            aria-label="Back 30 seconds">&minus;30</button>
+                        <button id="transportBack5Btn" class="media-btn media-btn-seek" type="button"
+                            aria-label="Back 5 seconds">&minus;5</button>
+                        <button id="transportFirstLyricBtn" class="media-btn media-btn-seek" type="button"
+                            style="display: none;" aria-label="Jump to just before the first lyric">1st lyric</button>
+                        <button id="transportFwd5Btn" class="media-btn media-btn-seek" type="button"
+                            aria-label="Forward 5 seconds">+5</button>
+                        <button id="transportFwd30Btn" class="media-btn media-btn-seek" type="button"
+                            aria-label="Forward 30 seconds">+30</button>
+                    </div>
                 </div>
-                <div class="lyrics-sync-controls" id="transportLyricsSyncControls" style="display: none;">
-                    <button id="transportLyricsTooFastBtn" class="lyrics-sync-btn" type="button"
-                        aria-label="Lyrics are too fast; show earlier lyrics">Lyrics too fast</button>
-                    <output id="transportLyricOffset" class="lyrics-offset-value"
-                        aria-label="Current lyric timing offset">Offset 0.0s</output>
-                    <button id="transportLyricsTooSlowBtn" class="lyrics-sync-btn" type="button"
-                        aria-label="Lyrics are too slow; show later lyrics">Lyrics too slow</button>
-                </div>
-            </div>
+            </section>
 
             <div class="status" id="status">Initializing...</div>
-
-            <div class="voice-controls-row">
-                <button id="listenBtn" class="listen-button" aria-label="Start listening">
-                    <span class="button-text">Listen</span>
-                    <span class="button-icon">&#9834;</span>
-                </button>
-                <button id="submitBtn" class="submit-button-large" style="display: none;"
-                    aria-label="Submit">Submit</button>
-            </div>
 
             <div class="transcript-container" id="transcriptContainer" style="display: none;">
                 <p class="transcript-label">Request:</p>
                 <p class="transcript" id="transcript"></p>
-            </div>
-
-            <div class="typed-command-panel">
-                <label class="typed-command-label" for="typedCommandInput">Search music (no API key needed)</label>
-                <div class="typed-command-row">
-                    <textarea id="typedCommandInput" class="text-input typed-command-input" rows="2"
-                        placeholder='Artist, song, or YouTube search terms' aria-label="Search music"></textarea>
-                    <button id="typedCommandSubmitBtn" class="typed-command-submit-btn"
-                        aria-label="Search YouTube">Search</button>
-                    <button id="typedCommandAiSubmitBtn" class="secondary-btn typed-command-ai-btn"
-                        aria-label="Ask AI to interpret this request">Ask AI</button>
-                </div>
-                <div class="query-model-row">
-                    <span class="query-model-label">Ask AI model</span>
-                    <div class="vf-options">
-                        <button class="vf-btn" type="button" data-query-model="claude|claude-fable-5">Fable 5</button>
-                        <button class="vf-btn" type="button" data-query-model="claude|claude-opus-4-8">Opus 4.8</button>
-                        <button class="vf-btn" type="button" data-query-model="claude|claude-sonnet-5">Sonnet 5</button>
-                        <button class="vf-btn" type="button" data-query-model="claude|claude-haiku-4-5">Haiku 4.5</button>
-                        <button class="vf-btn" type="button" data-query-model="openai|gpt-5.5">GPT-5.5</button>
-                        <button class="vf-btn" type="button" data-query-model="openai|gpt-5.4">GPT-5.4</button>
-                        <button class="vf-btn" type="button" data-query-model="openai|gpt-4.1">GPT-4.1</button>
-                    </div>
-                </div>
             </div>
 
             <div class="api-key-problem" id="apiKeyProblemBanner" style="display: none;" role="alert">
@@ -264,62 +195,150 @@
                 <button id="apiKeyProblemDismissBtn" class="panel-action-btn" type="button">Dismiss</button>
             </div>
 
-            <div class="quick-actions" id="quickActions">
-                <button id="loadFavoritesBtnMain" class="secondary-btn">Load Favorites</button>
-                <button id="musicHistoryToggleBtn" class="secondary-btn" type="button">History / Cache</button>
-                <button id="songLibraryToggleBtn" class="secondary-btn" type="button">Song Library</button>
+            <div class="lyrics-page-grid">
+                <div class="lyrics-page-column">
+                    <section class="player-card find-card" aria-labelledby="findMusicTitle">
+                        <h2 class="player-card-title" id="findMusicTitle">Find music</h2>
+                        <div class="voice-controls-row">
+                            <button id="listenBtn" class="listen-button" aria-label="Start listening">
+                                <span class="button-text">Listen</span>
+                                <span class="button-icon">&#9834;</span>
+                            </button>
+                            <button id="submitBtn" class="submit-button-large" style="display: none;"
+                                aria-label="Submit">Submit</button>
+                        </div>
+                        <label class="find-label" for="typedCommandInput">Search music (no API key needed)</label>
+                        <div class="typed-command-row">
+                            <textarea id="typedCommandInput" class="text-input typed-command-input" rows="1"
+                                placeholder="Artist, song, or YouTube search terms" aria-label="Search music"></textarea>
+                            <button id="typedCommandSubmitBtn" class="primary-btn typed-command-btn" type="button"
+                                aria-label="Search YouTube">Search</button>
+                            <button id="typedCommandAiSubmitBtn" class="secondary-btn typed-command-btn" type="button"
+                                aria-label="Ask AI to interpret this request">Ask AI</button>
+                        </div>
+                        <details class="query-model-details">
+                            <summary>Ask AI model: <span class="query-model-value" id="queryModelSummary">Fable 5</span></summary>
+                            <div class="segment-row query-model-row">
+                                <button class="vf-btn" type="button" data-query-model="claude|claude-fable-5">Fable 5</button>
+                                <button class="vf-btn" type="button" data-query-model="claude|claude-opus-4-8">Opus 4.8</button>
+                                <button class="vf-btn" type="button" data-query-model="claude|claude-sonnet-5">Sonnet 5</button>
+                                <button class="vf-btn" type="button" data-query-model="claude|claude-haiku-4-5">Haiku 4.5</button>
+                                <button class="vf-btn" type="button" data-query-model="openai|gpt-5.5">GPT-5.5</button>
+                                <button class="vf-btn" type="button" data-query-model="openai|gpt-5.4">GPT-5.4</button>
+                                <button class="vf-btn" type="button" data-query-model="openai|gpt-4.1">GPT-4.1</button>
+                            </div>
+                        </details>
+                        <div class="find-sources">
+                            <button id="musicHistoryToggleBtn" class="secondary-btn" type="button">History / Cache</button>
+                            <button id="songLibraryToggleBtn" class="secondary-btn" type="button">Song Library</button>
+                        </div>
+                    </section>
+
+                    <section class="player-card playlist-container" id="playlistContainer" aria-labelledby="playlistLabel">
+                        <div class="playlist-header">
+                            <h2 class="player-card-title" id="playlistLabel">Playlist</h2>
+                            <span class="playlist-counts" id="playlistCounts"><span class="playlist-count-value"
+                                    id="playlistSongCount">0</span> <span id="playlistSongUnit">songs</span> &middot;
+                                <span class="playlist-count-value" id="playlistStarCount">0</span>
+                                <span class="playlist-star-glyph">&#9733;</span> starred</span>
+                        </div>
+                        <div class="playlist-curation">
+                            <button id="loadFavoritesBtn" class="primary-btn" type="button">Load favorites
+                                <span class="load-favorites-count" id="loadFavoritesCount"></span></button>
+                            <label class="display-toggle favorites-only-toggle">
+                                <input type="checkbox" id="playlistFavoritesOnlyToggle">
+                                <span>Favorites only</span>
+                            </label>
+                            <button id="unloadUnstarredBtn" class="secondary-btn danger" type="button">Unload unstarred</button>
+                            <button id="clearPlaylistBtn" class="secondary-btn danger" type="button">Clear</button>
+                        </div>
+                        <div class="playlist-filter-row">
+                            <input type="search" id="playlistFilterInput" class="text-input playlist-filter-input"
+                                placeholder="Filter songs (name, artist, year...)" aria-label="Filter playlist">
+                            <label class="display-toggle">
+                                <input type="checkbox" id="playlistTimedOnlyToggle">
+                                <span>Timed only</span>
+                            </label>
+                        </div>
+                        <div class="playlist-order">
+                            <span class="playlist-order-label">Order</span>
+                            <button id="shufflePlaylistBtn" class="panel-action-btn" type="button">Shuffle</button>
+                            <button id="sortPlaylistArtistBtn" class="panel-action-btn" type="button">Artist</button>
+                            <button id="sortPlaylistYearBtn" class="panel-action-btn" type="button">Year</button>
+                            <label class="display-toggle">
+                                <input type="checkbox" id="playlistNotesToggle">
+                                <span>Notes</span>
+                            </label>
+                        </div>
+                        <div class="playlist-filter-status" id="playlistFilterStatus" style="display: none;">
+                            <span id="playlistFilterStatusText"></span>
+                            <button id="playlistFilterCancelBtn" class="panel-action-btn" type="button">Show all</button>
+                        </div>
+                        <div class="playlist-empty" id="playlistEmpty">No songs yet. Search or speak above, or press
+                            Load favorites.</div>
+                        <div class="playlist-list" id="playlistBody"></div>
+                    </section>
+                </div>
+
+                <div class="lyrics-page-column">
+                    <section class="player-card lyrics-panel" id="lyricsPanel" aria-labelledby="lyricsPanelTitle">
+                        <div class="lyrics-panel-header">
+                            <h2 class="player-card-title" id="lyricsPanelTitle">Lyrics</h2>
+                            <span class="lyrics-panel-song" id="lyricsSongTitle">No song selected</span>
+                            <button id="lyricsPanelToggleBtn" class="panel-action-btn" type="button"
+                                aria-expanded="false" aria-controls="lyricsPanelBody">Show</button>
+                        </div>
+                        <div class="lyrics-panel-body" id="lyricsPanelBody" style="display: none;">
+                            <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
+                            <div class="lyrics-sync-controls" id="lyricsSyncControls" style="display: none;">
+                                <button id="lyricsTooFastBtn" class="lyrics-sync-btn" type="button"
+                                    aria-label="Lyrics are too fast; show earlier lyrics">Lyrics too fast</button>
+                                <output id="lyricsOffset" class="lyrics-offset-value"
+                                    aria-label="Current lyric timing offset">Offset 0.0s</output>
+                                <button id="lyricsTooSlowBtn" class="lyrics-sync-btn" type="button"
+                                    aria-label="Lyrics are too slow; show later lyrics">Lyrics too slow</button>
+                            </div>
+                            <div class="lyrics-content" id="lyricsContent"></div>
+                        </div>
+                    </section>
+
+                    <section class="player-card song-card" aria-labelledby="songCardTitle">
+                        <div class="song-card-header">
+                            <h2 class="player-card-title" id="songCardTitle">This song</h2>
+                            <button id="shareSongBtn" class="secondary-btn" type="button" disabled>Share song</button>
+                        </div>
+                        <div class="song-report-controls">
+                            <div class="segment-row" aria-label="Second line">
+                                <span class="step-label">Second line</span>
+                                <button id="songDisplayIdentityBtn" class="vf-btn" type="button" aria-pressed="true">Identity</button>
+                                <button id="songDisplayReportBtn" class="vf-btn" type="button" aria-pressed="false">Song Report</button>
+                            </div>
+                            <div class="step-field">
+                                <span class="step-label">Every</span>
+                                <button id="songReportIntervalDownBtn" class="step-btn" type="button"
+                                    aria-label="Show each report line for less time">-</button>
+                                <output id="songReportIntervalValue" class="step-value"
+                                    aria-label="Seconds per report line">8s</output>
+                                <button id="songReportIntervalUpBtn" class="step-btn" type="button"
+                                    aria-label="Show each report line for more time">+</button>
+                            </div>
+                            <button id="requestSongReportBtn" class="primary-btn" type="button">Request Song Report</button>
+                            <button id="songReportTextBtn" class="vf-btn" type="button" aria-expanded="false"
+                                aria-controls="songReportTextPanel">Report Text</button>
+                        </div>
+                        <div id="songReportStatus" class="song-report-status">No saved report for this song</div>
+                        <div id="songReportTextPanel" class="song-report-text" style="display: none;"></div>
+                    </section>
+                </div>
             </div>
 
-            <div class="playlist-container" id="playlistContainer" style="display: none;">
-                <div class="playlist-header">
-                    <span class="playlist-label" id="playlistLabel">Playlist:</span>
-                    <div class="playlist-header-actions">
-                        <label class="display-toggle">
-                            <input type="checkbox" id="playlistTimedOnlyToggle">
-                            <span>Timed only</span>
-                        </label>
-                        <label class="display-toggle">
-                            <input type="checkbox" id="playlistNotesToggle">
-                            <span>Notes</span>
-                        </label>
-                        <button id="shufflePlaylistBtn" class="panel-action-btn" type="button">Shuffle</button>
-                        <button id="sortPlaylistArtistBtn" class="panel-action-btn" type="button">Sort: Artist</button>
-                        <button id="sortPlaylistYearBtn" class="panel-action-btn" type="button">Sort: Year</button>
-                        <button id="clearPlaylistBtn" class="panel-action-btn danger" type="button">Clear</button>
-                    </div>
-                </div>
-                <div class="playlist-filter-row">
-                    <input type="search" id="playlistFilterInput" class="text-input playlist-filter-input"
-                        placeholder="Filter songs (name, artist, year...)" aria-label="Filter playlist">
-                </div>
-                <div class="playlist-filter-status" id="playlistFilterStatus" style="display: none;">
-                    <span id="playlistFilterStatusText"></span>
-                    <button id="playlistFilterCancelBtn" class="panel-action-btn" type="button">Cancel</button>
-                </div>
-                <div class="playlist-list" id="playlistBody"></div>
-            </div>
-
-            <div class="lyrics-panel" id="lyricsPanel" style="display: none;">
-                <div class="lyrics-panel-header">
-                    <div class="lyrics-panel-title-group">
-                        <div class="lyrics-panel-label">Lyrics</div>
-                        <div class="lyrics-panel-song" id="lyricsSongTitle">No song selected</div>
-                    </div>
-                    <button id="lyricsHideBtn" class="lyrics-panel-hide-btn" aria-label="Hide lyrics panel">Hide</button>
-                </div>
-                <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
-                <div class="lyrics-content" id="lyricsContent"></div>
-            </div>
-
-            <section class="music-history-panel" id="musicHistoryPanel" aria-labelledby="musicHistoryTitle"
+            <section class="player-card music-history-panel" id="musicHistoryPanel" aria-labelledby="musicHistoryTitle"
                 style="display: none;">
                 <div class="music-history-header">
-                    <div>
-                        <h2 id="musicHistoryTitle">Music History & Cache</h2>
-                        <p>Reload old lookups, combine known songs, and inspect cached YouTube conversions.</p>
-                    </div>
+                    <h2 class="player-card-title" id="musicHistoryTitle">History &amp; Cache</h2>
                     <button id="musicHistoryReloadBtn" class="secondary-btn" type="button">Refresh</button>
                 </div>
+                <p class="player-card-note">Reload old lookups, combine known songs, and inspect cached YouTube conversions.</p>
                 <div class="music-history-actions">
                     <button id="historyLoadSelectedLookupsBtn" class="secondary-btn" type="button">Load Selected Lookups</button>
                     <button id="historyLoadSelectedSongsBtn" class="secondary-btn" type="button">Load Selected Songs</button>
@@ -345,19 +364,17 @@
                 </div>
             </section>
 
-            <section class="song-library-panel" id="songLibraryPanel" aria-labelledby="songLibraryTitle"
+            <section class="player-card song-library-panel" id="songLibraryPanel" aria-labelledby="songLibraryTitle"
                 style="display: none;">
                 <div class="song-library-header">
-                    <div>
-                        <h2 id="songLibraryTitle">Local Song Library</h2>
-                        <p>Import MIDI or MusicXML melody files. Notes and lyrics stay saved in this browser.</p>
-                    </div>
+                    <h2 class="player-card-title" id="songLibraryTitle">Local Song Library</h2>
                     <div class="song-library-actions">
                         <input id="songLibraryImportInput" type="file" accept=".mid,.midi,.musicxml,.xml" multiple hidden>
                         <button id="songLibraryImportBtn" class="primary-btn" type="button">Load Songs</button>
                         <button id="songLibraryStopBtn" class="secondary-btn danger" type="button">Stop Melody</button>
                     </div>
                 </div>
+                <p class="player-card-note">Import MIDI or MusicXML melody files. Notes and lyrics stay saved in this browser.</p>
                 <div class="song-library-toolbar">
                     <input type="search" id="songLibrarySearch" class="text-input song-library-search"
                         placeholder="Search saved songs, filenames, lyrics, or format">
@@ -391,18 +408,39 @@
             <div class="lyrics-overlay-status" id="lyricsOverlayStatus">Play a song to load lyrics.</div>
         </div>
         <div class="lyrics-overlay-top-actions">
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlaySettingsBtn" aria-label="Lyrics settings">&#9881;</button>
-            <button class="lyrics-overlay-action-btn" id="lyricsOverlayCloseBtn" aria-label="Close large lyrics">&#10005;</button>
+            <button class="media-btn media-btn-overlay-action" id="lyricsOverlaySettingsBtn" type="button"
+                aria-label="Lyrics display settings">&#9881;</button>
+            <button class="media-btn media-btn-overlay-action" id="lyricsOverlayCloseBtn" type="button"
+                aria-label="Close Big Lyrics">&#10005;</button>
         </div>
         <div class="lyrics-overlay-config" id="lyricsOverlayConfig" style="display: none;">
             <div class="lyrics-overlay-config-card">
-                <div class="lyrics-overlay-controls">
-                    <button id="lyricsFontDownBtn" class="lyrics-overlay-control-btn" aria-label="Smaller lyrics">A-</button>
-                    <button id="lyricsFontUpBtn" class="lyrics-overlay-control-btn" aria-label="Larger lyrics">A+</button>
-                    <button id="lyricsWidthToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle lyrics width">Wide</button>
-                    <button id="lyricsAlignToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle text alignment">Center</button>
-                    <button id="lyricsSpacingToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle line spacing">Roomy</button>
-                    <button id="lyricsBackdropToggleBtn" class="lyrics-overlay-control-btn" aria-label="Toggle backdrop strength">Dim</button>
+                <h2 class="player-card-title">Big Lyrics display</h2>
+                <div class="step-field">
+                    <span class="step-label">Size</span>
+                    <button id="lyricsFontDownBtn" class="step-btn" type="button" aria-label="Smaller lyrics">-</button>
+                    <output id="lyricsFontValue" class="step-value" aria-label="Lyrics text size">100%</output>
+                    <button id="lyricsFontUpBtn" class="step-btn" type="button" aria-label="Larger lyrics">+</button>
+                </div>
+                <div class="segment-row">
+                    <span class="step-label">Width</span>
+                    <button class="vf-btn" type="button" data-lyrics-width="wide">Wide</button>
+                    <button class="vf-btn" type="button" data-lyrics-width="focus">Focus</button>
+                </div>
+                <div class="segment-row">
+                    <span class="step-label">Align</span>
+                    <button class="vf-btn" type="button" data-lyrics-align="center">Center</button>
+                    <button class="vf-btn" type="button" data-lyrics-align="left">Left</button>
+                </div>
+                <div class="segment-row">
+                    <span class="step-label">Spacing</span>
+                    <button class="vf-btn" type="button" data-lyrics-spacing="roomy">Roomy</button>
+                    <button class="vf-btn" type="button" data-lyrics-spacing="tight">Tight</button>
+                </div>
+                <div class="segment-row">
+                    <span class="step-label">Backdrop</span>
+                    <button class="vf-btn" type="button" data-lyrics-backdrop="dim">Dim</button>
+                    <button class="vf-btn" type="button" data-lyrics-backdrop="blackout">Black</button>
                 </div>
             </div>
         </div>
@@ -416,12 +454,14 @@
                 aria-label="Lyrics are too slow; show later lyrics">Lyrics too slow</button>
         </div>
         <div class="lyrics-overlay-transport">
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPrev" aria-label="Previous track">&#9198;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRestart" aria-label="Restart track">&#8635;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportRewind" aria-label="Rewind">&#9194;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportPause" aria-label="Pause or play">&#9208;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportFwd" aria-label="Fast forward">&#9193;</button>
-            <button class="lyrics-overlay-transport-btn" id="lyricsTransportNext" aria-label="Next track">&#9197;</button>
+            <button class="media-btn media-btn-star" id="lyricsOverlayStarBtn" type="button"
+                aria-pressed="false" aria-label="Star this song">&#9734;</button>
+            <button class="media-btn media-btn-track" id="lyricsTransportPrev" type="button" aria-label="Previous song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+            <button class="media-btn media-btn-seek" id="lyricsTransportRestart" type="button" aria-label="Restart song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1.5L6.5 6l5.5 4.5V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg></button>
+            <button class="media-btn media-btn-seek" id="lyricsTransportRewind" type="button" aria-label="Back 5 seconds">&minus;5</button>
+            <button class="media-btn media-btn-play" id="lyricsTransportPause" type="button" aria-label="Play"><svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L20 12z"/></svg><svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4.2v14H6zM13.8 5H18v14h-4.2z"/></svg></button>
+            <button class="media-btn media-btn-seek" id="lyricsTransportFwd" type="button" aria-label="Forward 5 seconds">+5</button>
+            <button class="media-btn media-btn-track" id="lyricsTransportNext" type="button" aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
         </div>
     </div>
 

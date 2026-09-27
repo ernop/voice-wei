@@ -176,6 +176,7 @@ class VoiceMusicController {
             lyricsOnNowPlaying: true,
             showSongNotes: false,
             playlistTimedOnly: false,
+            playlistFavoritesOnly: false,
             songDisplayMode: 'identity',
             songReportIntervalSeconds: 8
         });
@@ -932,7 +933,7 @@ class VoiceMusicController {
         // Per-query model chooser: the same persisted provider/model
         // settings, reachable at the request box. Both surfaces stay in
         // sync through syncQueryModelPills / the settings-panel pickers.
-        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+        this.syncQueryModelPills();
         PracticeControls.wireSingleSelect('data-query-model', String, this.activeQueryModelValue(), value => {
             const [provider, model] = String(value).split('|');
             this.settings.aiProvider = provider;
@@ -946,6 +947,7 @@ class VoiceMusicController {
             PracticeControls.syncSingleSelect('data-ai-provider', provider);
             PracticeControls.syncSingleSelect('data-claude-model', this.settings.claudeModel);
             PracticeControls.syncSingleSelect('data-openai-model', this.settings.openaiModel);
+            this.syncQueryModelPills();
         });
 
         const apiKeyProblemDismissBtn = document.getElementById('apiKeyProblemDismissBtn');
@@ -1021,38 +1023,22 @@ class VoiceMusicController {
         // Setup global error handlers
         this.setupErrorHandling();
 
-        // Playlist control buttons
-        const playPauseBtn = document.getElementById('playPauseBtn');
-        playPauseBtn.addEventListener('click', () => {
-            this.togglePlayPause();
+        // Playlist curation: load favorites, favorites-only view, unload
+        // unstarred, clear. Order: shuffle and sorts.
+        const loadFavoritesBtn = document.getElementById('loadFavoritesBtn');
+        if (loadFavoritesBtn) {
+            loadFavoritesBtn.addEventListener('click', () => this.loadFavoritesToPlaylist());
+        }
+
+        PracticeControls.wireToggle('playlistFavoritesOnlyToggle', this.settings.playlistFavoritesOnly, checked => {
+            this.setPlaylistFavoritesOnly(checked);
         });
 
-        const nextBtn = document.getElementById('nextBtn');
-        nextBtn.addEventListener('click', () => {
-            this.playNext();
-        });
+        const unloadUnstarredBtn = document.getElementById('unloadUnstarredBtn');
+        if (unloadUnstarredBtn) {
+            unloadUnstarredBtn.addEventListener('click', () => this.unloadUnstarredSongs());
+        }
 
-        const prevBtn = document.getElementById('prevBtn');
-        prevBtn.addEventListener('click', () => {
-            this.playPrevious();
-        });
-
-        const stopBtn = document.getElementById('stopBtn');
-        stopBtn.addEventListener('click', () => {
-            this.stopPlayback();
-        });
-
-        const rewindBtn = document.getElementById('rewindBtn');
-        rewindBtn.addEventListener('click', () => {
-            this.rewind();
-        });
-
-        const forwardBtn = document.getElementById('forwardBtn');
-        forwardBtn.addEventListener('click', () => {
-            this.fastForward();
-        });
-
-        // Playlist header actions: order, shuffle, clear
         const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
         if (clearPlaylistBtn) {
             clearPlaylistBtn.addEventListener('click', () => {
@@ -1107,19 +1093,17 @@ class VoiceMusicController {
             this.applySongNotesVisibility();
         });
         this.applySongNotesVisibility();
-
-        const loadFavoritesBtnMain = document.getElementById('loadFavoritesBtnMain');
-        if (loadFavoritesBtnMain) {
-            loadFavoritesBtnMain.addEventListener('click', () => {
-                this.loadFavoritesToPlaylist();
-            });
-        }
+        this.updatePlaylistLabel();
 
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
 
-        // The sticky control line: song nav (prev/play/next), within-song
+        // The now-playing card: star, song nav (prev/play/next), within-song
         // seek (±5/±30 + jump-to-first-lyric), and the current-song button.
+        for (const id of ['nowPlayingStarBtn', 'lyricsOverlayStarBtn']) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => this.toggleNowPlayingFavorite());
+        }
         const transportPrevBtn = document.getElementById('transportPrevBtn');
         if (transportPrevBtn) {
             transportPrevBtn.addEventListener('click', () => this.playPrevious());
@@ -1147,11 +1131,11 @@ class VoiceMusicController {
         if (transportFirstLyricBtn) {
             transportFirstLyricBtn.addEventListener('click', () => this.seekToFirstLyric());
         }
-        for (const id of ['transportLyricsTooFastBtn', 'lyricsOverlayTooFastBtn']) {
+        for (const id of ['lyricsTooFastBtn', 'lyricsOverlayTooFastBtn']) {
             const btn = document.getElementById(id);
             if (btn) btn.addEventListener('click', () => this.lyricsTooFast());
         }
-        for (const id of ['transportLyricsTooSlowBtn', 'lyricsOverlayTooSlowBtn']) {
+        for (const id of ['lyricsTooSlowBtn', 'lyricsOverlayTooSlowBtn']) {
             const btn = document.getElementById(id);
             if (btn) btn.addEventListener('click', () => this.lyricsTooSlow());
         }
@@ -1196,17 +1180,10 @@ class VoiceMusicController {
         }
         this.updateSongReportControls();
 
-        const lyricsPanelBtn = document.getElementById('lyricsPanelBtn');
-        if (lyricsPanelBtn) {
-            lyricsPanelBtn.addEventListener('click', () => {
+        const lyricsPanelToggleBtn = document.getElementById('lyricsPanelToggleBtn');
+        if (lyricsPanelToggleBtn) {
+            lyricsPanelToggleBtn.addEventListener('click', () => {
                 this.toggleLyricsPanel();
-            });
-        }
-
-        const lyricsHideBtn = document.getElementById('lyricsHideBtn');
-        if (lyricsHideBtn) {
-            lyricsHideBtn.addEventListener('click', () => {
-                this.setLyricsPanelVisible(false);
             });
         }
 
@@ -1260,37 +1237,23 @@ class VoiceMusicController {
             });
         }
 
-        const lyricsWidthToggleBtn = document.getElementById('lyricsWidthToggleBtn');
-        if (lyricsWidthToggleBtn) {
-            lyricsWidthToggleBtn.addEventListener('click', () => {
-                this.lyricsViewSettings.widthMode = this.lyricsViewSettings.widthMode === 'wide' ? 'focus' : 'wide';
-                this.applyLyricsViewSettings();
-            });
-        }
-
-        const lyricsAlignToggleBtn = document.getElementById('lyricsAlignToggleBtn');
-        if (lyricsAlignToggleBtn) {
-            lyricsAlignToggleBtn.addEventListener('click', () => {
-                this.lyricsViewSettings.align = this.lyricsViewSettings.align === 'center' ? 'left' : 'center';
-                this.applyLyricsViewSettings();
-            });
-        }
-
-        const lyricsSpacingToggleBtn = document.getElementById('lyricsSpacingToggleBtn');
-        if (lyricsSpacingToggleBtn) {
-            lyricsSpacingToggleBtn.addEventListener('click', () => {
-                this.lyricsViewSettings.spacing = this.lyricsViewSettings.spacing === 'roomy' ? 'tight' : 'roomy';
-                this.applyLyricsViewSettings();
-            });
-        }
-
-        const lyricsBackdropToggleBtn = document.getElementById('lyricsBackdropToggleBtn');
-        if (lyricsBackdropToggleBtn) {
-            lyricsBackdropToggleBtn.addEventListener('click', () => {
-                this.lyricsViewSettings.backdrop = this.lyricsViewSettings.backdrop === 'dim' ? 'blackout' : 'dim';
-                this.applyLyricsViewSettings();
-            });
-        }
+        // Big Lyrics display options: exclusive choices as segment rows.
+        PracticeControls.wireSingleSelect('data-lyrics-width', String, this.lyricsViewSettings.widthMode, value => {
+            this.lyricsViewSettings.widthMode = value;
+            this.applyLyricsViewSettings();
+        });
+        PracticeControls.wireSingleSelect('data-lyrics-align', String, this.lyricsViewSettings.align, value => {
+            this.lyricsViewSettings.align = value;
+            this.applyLyricsViewSettings();
+        });
+        PracticeControls.wireSingleSelect('data-lyrics-spacing', String, this.lyricsViewSettings.spacing, value => {
+            this.lyricsViewSettings.spacing = value;
+            this.applyLyricsViewSettings();
+        });
+        PracticeControls.wireSingleSelect('data-lyrics-backdrop', String, this.lyricsViewSettings.backdrop, value => {
+            this.lyricsViewSettings.backdrop = value;
+            this.applyLyricsViewSettings();
+        });
 
         /** @type {Array<[string, () => void]>} */
         const transportBindings = [
@@ -1360,7 +1323,10 @@ class VoiceMusicController {
     }
 
     syncQueryModelPills() {
-        PracticeControls.syncSingleSelect('data-query-model', this.activeQueryModelValue());
+        const value = this.activeQueryModelValue();
+        PracticeControls.syncSingleSelect('data-query-model', value);
+        const pill = document.querySelector(`[data-query-model="${value}"]`);
+        PracticeControls.setValueText('queryModelSummary', pill ? pill.textContent || value : value);
     }
 
     /**

@@ -94,7 +94,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
             videoId: item?.videoId || '',
             songName: item?.name || '',
             status: document.getElementById('status')?.textContent || '',
-            panelVisible: getComputedStyle(document.getElementById('lyricsPanel')).display !== 'none',
+            panelVisible: getComputedStyle(document.getElementById('lyricsPanelBody')).display !== 'none',
             overlayVisible: getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none',
             shareButtonEnabled: !document.getElementById('shareSongBtn').disabled,
             generatedRoundTripVideoId: PlayerSongs.songFromShareParameter(generatedParameter)?.videoId || '',

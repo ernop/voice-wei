@@ -68,15 +68,12 @@ const PlayerHistoryUI = (function () {
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
-                        <input type="checkbox" data-history-lookup-id="${record.id}">
-                        <div>
-                            <div class="music-history-item-title">${this.escapeHtml(this.truncateForStatus(record.requestText || '(no request)', 90))}</div>
-                            <div class="music-history-item-meta">${record.songCount || 0} extracted - ${this.escapeHtml(record.provider || 'unknown')} - ${this.escapeHtml(record.createdAt || '')}</div>
-                            <div class="music-history-item-actions">
-                                <button class="panel-action-btn" type="button" data-load-lookup-id="${record.id}">Load</button>
-                                <button class="panel-action-btn" type="button" data-rerun-lookup-id="${record.id}">Run Again</button>
-                            </div>
-                        </div>`;
+                        <input type="checkbox" data-history-lookup-id="${record.id}" aria-label="Select lookup">
+                        <span class="music-history-item-text" title="${this.escapeHtml(record.requestText || '')}"><span class="music-history-item-title">${this.escapeHtml(this.truncateForStatus(record.requestText || '(no request)', 90))}</span><span class="music-history-item-meta">${record.songCount || 0} extracted - ${this.escapeHtml(record.provider || 'unknown')} - ${this.escapeHtml(record.createdAt || '')}</span></span>
+                        <span class="music-history-item-actions">
+                            <button class="panel-action-btn" type="button" data-load-lookup-id="${record.id}">Load</button>
+                            <button class="panel-action-btn" type="button" data-rerun-lookup-id="${record.id}">Run Again</button>
+                        </span>`;
                     host.appendChild(item);
                 });
                 host.querySelectorAll('[data-load-lookup-id]').forEach(btn => {
@@ -113,14 +110,11 @@ const PlayerHistoryUI = (function () {
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
-                        <input type="checkbox" data-history-song-id="${this.escapeHtml(record.videoId)}">
-                        <div>
-                            <div class="music-history-item-title">${this.escapeHtml(title)}</div>
-                            <div class="music-history-item-meta">${this.escapeHtml(artist)} - ${this.escapeHtml(record.sourceKind || 'known')} - ${this.escapeHtml(record.lastSeenAt || '')}</div>
-                            <div class="music-history-item-actions">
-                                <button class="panel-action-btn" type="button" data-load-song-id="${this.escapeHtml(record.videoId)}">Load</button>
-                            </div>
-                        </div>`;
+                        <input type="checkbox" data-history-song-id="${this.escapeHtml(record.videoId)}" aria-label="Select song">
+                        <span class="music-history-item-text"><span class="music-history-item-title">${this.escapeHtml(title)}</span><span class="music-history-item-meta">${this.escapeHtml(artist)} - ${this.escapeHtml(record.sourceKind || 'known')} - ${this.escapeHtml(record.lastSeenAt || '')}</span></span>
+                        <span class="music-history-item-actions">
+                            <button class="panel-action-btn" type="button" data-load-song-id="${this.escapeHtml(record.videoId)}">Load</button>
+                        </span>`;
                     host.appendChild(item);
                 });
                 host.querySelectorAll('[data-load-song-id]').forEach(btn => {
@@ -140,15 +134,11 @@ const PlayerHistoryUI = (function () {
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
-                        <input type="checkbox" disabled>
-                        <div>
-                            <div class="music-history-item-title">${this.escapeHtml(record.query || record.queryKey)}</div>
-                            <div class="music-history-item-meta">${record.resultCount || 0} results - ${this.escapeHtml(record.source || 'cache')} - ${this.escapeHtml(record.updatedAt || '')}</div>
-                            <div class="music-history-item-actions">
-                                <button class="panel-action-btn" type="button" data-use-cache-query="${this.escapeHtml(record.query || '')}">Use First</button>
-                                <button class="panel-action-btn" type="button" data-refresh-cache-query="${this.escapeHtml(record.query || '')}">Refresh</button>
-                            </div>
-                        </div>`;
+                        <span class="music-history-item-text"><span class="music-history-item-title">${this.escapeHtml(record.query || record.queryKey)}</span><span class="music-history-item-meta">${record.resultCount || 0} results - ${this.escapeHtml(record.source || 'cache')} - ${this.escapeHtml(record.updatedAt || '')}</span></span>
+                        <span class="music-history-item-actions">
+                            <button class="panel-action-btn" type="button" data-use-cache-query="${this.escapeHtml(record.query || '')}">Use First</button>
+                            <button class="panel-action-btn" type="button" data-refresh-cache-query="${this.escapeHtml(record.query || '')}">Refresh</button>
+                        </span>`;
                     host.appendChild(item);
                 });
                 host.querySelectorAll('[data-use-cache-query]').forEach(btn => {
@@ -236,7 +226,6 @@ const PlayerHistoryUI = (function () {
             },
 
             addKnownSongsToPlaylist(songs) {
-                this.showPlaylistSurfaces();
                 for (const song of songs) {
                     if (this.playlist.some(item => item.videoId === song.videoId)) continue;
                     const item = PlayerSongs.createPlaylistItem(song, {
