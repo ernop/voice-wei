@@ -65,31 +65,45 @@ function globRegExp(glob) {
     [...wronglyRefused, ...wronglyAccepted].forEach(args => report.errors.push(`check-target.sh misjudged ${JSON.stringify(args)}`));
 
     //-------WRITERS-------
-    const writers = {
+    // Callers never run rsync themselves; every host write goes through the
+    // deploy/ scripts, and each script guards its target before any rsync.
+    const callers = {
         '.github/workflows/deploy.yml': read('.github/workflows/deploy.yml'),
         '.github/workflows/deploy-telemetry.yml': read('.github/workflows/deploy-telemetry.yml'),
         'deploy.sh': read('deploy.sh')
     };
-    for (const [file, text] of Object.entries(writers)) {
-        // Workflow steps are the unit of execution; deploy.sh is one script.
-        const units = file.endsWith('.yml') ? text.split(/^\s*- name:/m) : [text];
-        const rsyncUnits = units.filter(unit => /^\s*rsync\s/m.test(unit));
-        const guarded = rsyncUnits.length > 0 && rsyncUnits.every(unit => {
-            const guardAt = unit.search(/^\s*deploy\/check-target\.sh\s/m);
-            return guardAt !== -1 && guardAt < unit.search(/^\s*rsync\s/m);
-        });
-        report.check(`${file}: every rsync runs after deploy/check-target.sh`, guarded);
+    const rsyncCommand = /(?:^\s*|\$\()(?:"\$\{publish\[@\]\}"|rsync)\s/m;
+    for (const [file, text] of Object.entries(callers)) {
+        const code = text.split('\n').filter(line => !/^\s*#/.test(line)).join('\n');
+        report.check(`${file}: reaches the host only through deploy/ scripts`, !/\brsync\s+-/.test(code));
         const secretLines = text.split('\n').filter(line => line.includes('secrets.'));
         const secretsAsData = secretLines.every(line => /^\s+[A-Z_]+: \$\{\{ secrets\.[A-Z_]+ \}\}\s*$/.test(line));
         report.check(`${file}: secrets reach scripts only through env mappings`, secretsAsData);
     }
-    for (const file of ['.github/workflows/deploy.yml', 'deploy.sh']) {
-        const text = writers[file];
-        report.check(`${file}: publishes with --delete through the one filter file and no inline excludes`,
-            text.includes("--filter='merge deploy/rsync-filter'")
-            && /--delete\b/.test(text)
-            && !text.includes('--exclude'));
+    const scripts = fs.readdirSync(path.join(ROOT, 'deploy')).filter(name => name.endsWith('.sh')).sort()
+        .map(name => ({ file: `deploy/${name}`, text: read(`deploy/${name}`) }));
+    for (const { file, text } of scripts.filter(script => rsyncCommand.test(script.text))) {
+        const guardAt = text.search(/(?:^\s*|"\$\(dirname "\$0"\)\/)(?:deploy\/)?check-target\.sh"? "\$(?:1|user)"/m);
+        report.check(`${file}: guards its target before its first rsync`,
+            guardAt !== -1 && guardAt < text.search(rsyncCommand));
+        const writesBase = text.includes('$base/');
+        report.check(`${file}: guards the directory beside the target before writing there`,
+            !writesBase || /check-target\.sh "\$user" "\$host" "\$base"/.test(text));
     }
+    const publisher = read('deploy/publish-site.sh');
+    report.check('publish-site.sh publishes the committed tree (git archive HEAD), never a working tree',
+        publisher.includes('git archive HEAD | tar -x -C "$work/tree"')
+        && !/"\$\{publish\[@\]\}"[^\n]* \.\/ /.test(publisher)
+        && [...publisher.matchAll(/^\s*"\$\{publish\[@\]\}".*$/gm)].every(line => line[0].includes('"$work/tree/"')));
+    report.check('publish-site.sh publishes through the one filter file, with --delete in place',
+        publisher.includes("--filter='merge deploy/rsync-filter'") && /--delete --delete-excluded/.test(publisher));
+    report.check('no deploy path carries its own exclude list',
+        [...Object.values(callers), ...scripts.map(script => script.text)].every(text => !text.includes('--exclude')));
+
+    const workflow = callers['.github/workflows/deploy.yml'];
+    const deployJob = workflow.slice(workflow.indexOf('\n  deploy:'), workflow.indexOf('\n  validate:'));
+    report.check('Verify deployment checks the shipped commit, not only VERSION',
+        /deploy\/verify-live\.sh "\$APP_URL" "\$\(tr -d '\[:space:\]' < VERSION\)" "\$GITHUB_SHA"/.test(deployJob));
 
     //-------PUBLISH FILTER-------
     const rules = read('deploy/rsync-filter').split('\n')
@@ -103,18 +117,19 @@ function globRegExp(glob) {
     /** @param {string} relative */
     const isExcluded = relative => relative.split('/').some(part => excludes.some(pattern => pattern.test(part)));
 
-    report.check('the host copy of deploy-telemetry.json is protected and never sent from a checkout',
-        protectedNames.includes('deploy-telemetry.json') && isExcluded('deploy-telemetry.json'));
+    report.check('deploy-telemetry.json stays host-owned: the publish protects the host copy',
+        protectedNames.includes('deploy-telemetry.json'));
 
-    // deploy.sh publishes a working tree, so every locally ignored artifact
-    // (credentials, private deploy key, build output) must be filtered too.
+    // The committed tree is the only source, yet the filter still names every
+    // local artifact (credentials, private deploy key, build output), so no
+    // future caller can publish one. Host-owned files are protected instead.
     const ignoredSamples = read('.gitignore').split('\n')
         .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'))
+        .filter(line => line && !line.startsWith('#') && !protectedNames.includes(line))
         .map(entry => entry.endsWith('/') ? `${entry}sample` : entry);
     const ignoredButShipped = ignoredSamples.filter(sample => !isExcluded(sample));
-    report.check('every .gitignore entry is excluded from the publish', ignoredButShipped.length === 0);
-    ignoredButShipped.forEach(sample => report.errors.push(`gitignored path would publish via deploy.sh: ${sample}`));
+    report.check('every local-only (.gitignore) artifact is excluded from the publish', ignoredButShipped.length === 0);
+    ignoredButShipped.forEach(sample => report.errors.push(`gitignored path is not excluded: ${sample}`));
 
     const listing = spawnSync('git', ['ls-files', '-co', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8' });
     const shipped = listing.stdout.split('\n').filter(Boolean).filter(relative => !isExcluded(relative)).sort();

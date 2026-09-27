@@ -1,9 +1,9 @@
-# The one publish list: everything in the repository ships to the host
-# except the paths below. Read by .github/workflows/deploy.yml and deploy.sh
-# through --filter='merge deploy/rsync-filter', alongside --delete and
-# --delete-excluded, so the host holds exactly the product files.
-# tests/test-deploy.js reads this file too; keep patterns to plain
-# (unanchored, no '/', '**', '?', or '[') names and '*' globs.
+# The one publish list: everything committed ships to the host except the
+# paths below. deploy/publish-site.sh reads it (--filter='merge
+# deploy/rsync-filter') for every layout, alongside --delete and
+# --delete-excluded when publishing in place, so the host holds exactly the
+# product files. tests/test-deploy.js reads this file too; keep patterns to
+# plain (unanchored, no '/', '**', '?', or '[') names and '*' globs.
 
 - .git
 - .gitignore
@@ -35,7 +35,6 @@
 - screenshot-*.png
 
 # deploy-telemetry.json belongs to .github/workflows/deploy-telemetry.yml,
-# which regenerates it by merging the live copy's history. The publish
-# never deletes the host's copy (P) and never sends a local one (-).
+# which regenerates it by merging the live copy's history. The publish never
+# deletes the host's copy.
 P deploy-telemetry.json
-- deploy-telemetry.json

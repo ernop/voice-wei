@@ -39,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_URL: https://fuseki.net/voice-wei/
+      RSYNC_RSH: ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -55,25 +56,20 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # Product files only: deploy/rsync-filter is the one publish list
-      # (deploy.sh reads it too). check-target.sh refuses any target outside
-      # a voice-wei directory before rsync --delete can run.
+      # The committed tree, published through the one filter.
+      # publish-site.sh runs the target guard before any rsync.
       - name: Deploy via rsync
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          deploy/check-target.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH"
-          rsync -avz --delete --delete-excluded --prune-empty-dirs \
-            --filter='merge deploy/rsync-filter' \
-            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
-            ./ "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/"
+        run: deploy/publish-site.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH"
 
-      # The live site must serve exactly the build this commit ships. This
-      # step is the "live" signal.
+      # The live site must serve exactly the build this commit ships
+      # (VERSION, header build id, and release.json's commit). This step is
+      # the "live" signal.
       - name: Verify deployment
-        run: deploy/verify-live.sh "$APP_URL" "$(tr -d '[:space:]' < VERSION)"
+        run: deploy/verify-live.sh "$APP_URL" "$(tr -d '[:space:]' < VERSION)" "$GITHUB_SHA"
 
       # After the live signal: the domain owner's site is unharmed and
       # proxy.php works. A failure names the broken piece; the ship is live.

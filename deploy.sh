@@ -1,9 +1,9 @@
 #!/bin/bash
 # Deploy Voice-Wei to production (manual bypass of GitHub Actions).
 # Reads deploy.user / deploy.host / deploy.remotePath / deploy.publicUrl from
-# config.json. Publishes with the same target guard and filter as
-# .github/workflows/deploy.yml (deploy/check-target.sh, deploy/rsync-filter),
-# then runs the same live checks.
+# config.json. Publishes the committed tree (HEAD) exactly as CI does, through
+# deploy/publish-site.sh, then runs the same live checks. Uncommitted edits
+# and untracked files never ship.
 # Usage: ./deploy.sh [--dry-run]
 
 set -e
@@ -33,8 +33,7 @@ if [ -z "$deploy_user" ] || [ -z "$deploy_host" ] || [ -z "$remote_dir" ] || [ -
     echo "Make sure deploy.user, deploy.host, deploy.remotePath, and deploy.publicUrl are set."
     exit 1
 fi
-
-deploy/check-target.sh "$deploy_user" "$deploy_host" "$remote_dir"
+app_url="${public_url%/*}/"
 
 DRY_RUN=""
 if [ "$1" = "--dry-run" ]; then
@@ -43,20 +42,20 @@ if [ "$1" = "--dry-run" ]; then
     echo ""
 fi
 
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Note: publishing HEAD $(git rev-parse --short HEAD); uncommitted changes are not deployed."
+fi
 echo "Deploying Voice-Wei to $deploy_user@$deploy_host:${remote_dir%/}"
 echo ""
 
-rsync -avz $DRY_RUN --delete --delete-excluded --prune-empty-dirs \
-  --filter='merge deploy/rsync-filter' \
-  ./ "$deploy_user@$deploy_host:${remote_dir%/}/"
+deploy/publish-site.sh "$deploy_user" "$deploy_host" "$remote_dir" $DRY_RUN
 
 if [ -n "$DRY_RUN" ]; then
     exit 0
 fi
 
-app_url="${public_url%/*}/"
 echo ""
-deploy/verify-live.sh "$app_url" "$(tr -d '[:space:]' < VERSION)"
+deploy/verify-live.sh "$app_url" "$(git show HEAD:VERSION | tr -d '[:space:]')" "$(git rev-parse HEAD)"
 deploy/smoke-live.sh "$app_url"
 echo ""
 echo "Live at $public_url"

@@ -43,16 +43,14 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      # upload-telemetry.sh runs the target guard first.
       - name: Upload deploy telemetry
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          deploy/check-target.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH"
-          rsync -avz \
-            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
-            deploy-telemetry.json "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/deploy-telemetry.json"
+          RSYNC_RSH: ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes
+        run: deploy/upload-telemetry.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH" deploy-telemetry.json
 
       - name: Cleanup
         if: always()
