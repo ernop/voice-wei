@@ -362,6 +362,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             contentType: 'image/png',
             body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
         }));
+        // Lyric lookups for the synthetic songs below answer empty here
+        // instead of reaching LRCLIB, whose stalls surface as proxy 502s.
+        await ctx.route(/\/proxy\.php\?.*\blyrics=search\b/, route => route.fulfill({
+            contentType: 'application/json',
+            body: '[]'
+        }));
         // Fake key (long enough to pass the gate) and a controllable fake
         // SpeechRecognition, installed before page scripts run.
         await ctx.addInitScript(() => {
