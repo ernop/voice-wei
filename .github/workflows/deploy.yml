@@ -10,12 +10,6 @@ on:
       - 'demos/**'
   workflow_dispatch:
 
-# Never cancel mid-run: an aborted rsync --delete can leave a partial tree.
-# Deploys are ~15s, so queued runs wait briefly instead.
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
 permissions:
   actions: read
   contents: read
@@ -37,6 +31,12 @@ jobs:
   # the fix-forward signal.
   deploy:
     runs-on: ubuntu-latest
+    # Deploys run one at a time and are never cancelled mid-publish (a
+    # half-finished publish must not be abandoned). Only this job queues: a
+    # newer push's deploy waits for the running deploy, not for its validate.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     env:
       APP_URL: https://fuseki.net/voice-wei/
       RSYNC_RSH: ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes

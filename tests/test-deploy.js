@@ -102,6 +102,9 @@ function globRegExp(glob) {
 
     const workflow = callers['.github/workflows/deploy.yml'];
     const deployJob = workflow.slice(workflow.indexOf('\n  deploy:'), workflow.indexOf('\n  validate:'));
+    report.check('only the deploy job queues: job-level concurrency, never cancelled mid-publish',
+        !/^concurrency:/m.test(workflow)
+        && /\n    concurrency:\n      group: deploy-production\n      cancel-in-progress: false\n/.test(deployJob));
     report.check('Verify deployment checks the shipped commit, not only VERSION',
         /deploy\/verify-live\.sh "\$APP_URL" "\$\(tr -d '\[:space:\]' < VERSION\)" "\$GITHUB_SHA"/.test(deployJob));
 
