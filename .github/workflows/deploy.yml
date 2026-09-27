@@ -37,6 +37,8 @@ jobs:
   # the fix-forward signal.
   deploy:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: https://fuseki.net/voice-wei/
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -68,13 +70,15 @@ jobs:
             -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/"
 
-      # The live site must serve exactly the VERSION this commit ships.
+      # The live site must serve exactly the build this commit ships. This
+      # step is the "live" signal.
       - name: Verify deployment
-        run: |
-          EXPECTED=$(tr -d '[:space:]' < VERSION)
-          LIVE=$(curl -fsS "https://fuseki.net/voice-wei/VERSION?cb=$(date +%s)" | tr -d '[:space:]')
-          echo "expected $EXPECTED, live $LIVE"
-          test "$LIVE" = "$EXPECTED"
+        run: deploy/verify-live.sh "$APP_URL" "$(tr -d '[:space:]' < VERSION)"
+
+      # After the live signal: the domain owner's site is unharmed and
+      # proxy.php works. A failure names the broken piece; the ship is live.
+      - name: Smoke-check host site and proxy
+        run: deploy/smoke-live.sh "$APP_URL"
 
       - name: Cleanup
         if: always()
