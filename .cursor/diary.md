@@ -1304,3 +1304,11 @@ busy hands need; everything else lives in cards that scroll.
 - The search suite's voice context let a lyric revalidation reach LRCLIB;
   provider stalls showed up as proxy 502 console errors about one run in
   three. Any unrouted external call in a test is a future flake.
+- Correction to the URL-import note above: an `exposeBinding` callback also
+  counts as a user gesture once Playwright delivers its result, so a status
+  observer that reports every change turns a no-tap run into a tapped one
+  (the live link build then autoplayed). Report only final statuses, after
+  the page has made its activation decision.
+- YouTube answers this cloud VM's embeds with "Sign in to confirm you're not
+  a bot" (the page logs player error 150), whatever the user agent. Live
+  checks here can prove the transport and state, not audible playback.
