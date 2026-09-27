@@ -33,18 +33,26 @@ jobs:
           DEPLOY_TELEMETRY_PAGES: 1
 
       - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Upload deploy telemetry
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          deploy/check-target.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH"
           rsync -avz \
             -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
-            deploy-telemetry.json ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/deploy-telemetry.json
+            deploy-telemetry.json "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/deploy-telemetry.json"
 
       - name: Cleanup
         if: always()

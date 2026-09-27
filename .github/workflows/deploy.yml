@@ -41,22 +41,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # Secrets reach scripts as environment data, never as script text.
       - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       # Product files only: deploy/rsync-filter is the one publish list
-      # (deploy.sh reads it too).
+      # (deploy.sh reads it too). check-target.sh refuses any target outside
+      # a voice-wei directory before rsync --delete can run.
       - name: Deploy via rsync
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          deploy/check-target.sh "$DEPLOY_USER" "$DEPLOY_HOST" "$DEPLOY_PATH"
           rsync -avz --delete --delete-excluded --prune-empty-dirs \
             --filter='merge deploy/rsync-filter' \
             -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=yes" \
-            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/"
 
       # The live site must serve exactly the VERSION this commit ships.
       - name: Verify deployment
