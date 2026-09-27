@@ -33,6 +33,7 @@
 - dev-server.js
 - pipeline-*.svg
 - screenshot-*.png
+- coolness-log.jsonl
 
 # deploy-telemetry.json belongs to .github/workflows/deploy-telemetry.yml,
 # which regenerates it by merging the live copy's history. The publish never

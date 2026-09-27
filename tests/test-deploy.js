@@ -150,13 +150,20 @@ function globRegExp(glob) {
             if (file && !shippedSet.has(file)) missing.add(`${page} -> ${ref}`);
         }
     }
+    const fetched = new Set();
     for (const script of shipped.filter(relative => relative.endsWith('.js'))) {
         for (const match of read(script).matchAll(/fetch(?:Json)?\(\s*[`'"]([A-Za-z0-9_.-]+\.(?:json|jsonl|php|js|css|svg|html))/g)) {
+            fetched.add(match[1]);
             if (!shippedSet.has(match[1]) && !protectedNames.includes(match[1])) missing.add(`${script} -> ${match[1]}`);
         }
     }
     report.check('every file a page loads or fetches is published', missing.size === 0);
     missing.forEach(entry => report.errors.push(`referenced but not published: ${entry}`));
+    // Data files ship only because a page reads them (coolness-log.jsonl, a
+    // CLI log, stopped shipping on 2026-09-27 for exactly this reason).
+    const unreadData = shipped.filter(relative => /\.jsonl?$/.test(relative) && !fetched.has(relative));
+    report.check('every published data file is read by a page', unreadData.length === 0);
+    unreadData.forEach(relative => report.errors.push(`published but never fetched: ${relative}`));
 
     //-------BUILD NUMBER-------
     const version = read('VERSION').trim();
