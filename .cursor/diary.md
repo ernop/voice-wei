@@ -4,6 +4,47 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-09-27 (atomic releases, HEAD-only deploys, job-level concurrency)
+
+**Context**: Yui approved all six audit proposals. The host side (nginx,
+root) lives in the private Fuseki repository, which this agent cannot read,
+so the tenant side shipped and the host side became an exact request in
+docs/hosting-contract.md ("Pending requests"): nginx `expires` map (A) and
+`deploy/host-release-setup.sh` (B).
+
+**Design**: the host owns the layout; `deploy/host-layout.sh` reads it (the
+served path is a directory, or a symlink to `releases/<id>`), and
+`deploy/publish-site.sh` follows it. That is one decision point, so the
+first release deploy happens by itself after the host converts, and every
+order of events is safe. Nginx stays untouched because the served path
+itself becomes the swapped symlink.
+
+**For future mei**:
+- PHP-FPM plus symlink swaps means stale code. On the replica (PHP 8.3.6,
+  production pool), warm workers kept running the previous release's
+  proxy.php indefinitely after a swap; cold workers did not, so a quick
+  test lies. Disabling the realpath cache changed nothing;
+  `opcache.revalidate_path = on` fixed it. Test warm (parallel load).
+- rsync can do the atomic swap alone: a symlink over a symlink goes to a
+  temp name plus `rename()` (strace), and onto a real directory it refuses.
+  No shell access is needed on the host.
+- Do not order releases by timestamped names for safety decisions. Two ids
+  in one second compare by their suffix; the forward-only rule refused a
+  valid swap. Compare-and-swap on the release a deploy started from is the
+  correct rule.
+- `git archive` stamps every file with the commit time. rsync's
+  size+mtime check can then skip same-size edits, so publish with `-c` and
+  without `-t` (it also keeps ETags of untouched files stable).
+- `release.json`'s commit caught a deploy lost during the cutover whose
+  VERSION matched the served tree. VERSION-only verification would have
+  said LIVE.
+- Rehearse with real timing: freeze a process with SIGSTOP (host-side
+  processes need sudo), and never `pgrep -f` a pattern that appears in your
+  own command line. It froze this agent's shell once.
+- Parallel edit calls on one file can lose a write; edit a file sequentially.
+
+---
+
 ## 2026-09-27 (deploy boundary audit: guard, one filter, live checks)
 
 **Context**: Yui asked to confirm, improve, and validate the auto-publish to
