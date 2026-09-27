@@ -103,6 +103,17 @@ function readFixturePage(body, options = {}) {
         && lyricsBlock.includes('json_decode($body, true)')
         && lyricsBlock.includes("http_response_code($timedOut ? 504 : 502)"));
 
+    const selfTest = invokeProxy('test=1');
+    const smokeScript = fs.readFileSync(path.join(ROOT, 'deploy', 'smoke-live.sh'), 'utf8');
+    const smokeSignature = (smokeScript.match(/\*"([^"*]+)"\*\) smoke_failed "this app's proxy\.php answers at the host root"/) || [])[1] || '';
+    report.check(`the deploy smoke check still recognizes this proxy by its self-test text ("${smokeSignature}")`,
+        smokeSignature !== ''
+        && String(JSON.parse(selfTest.stdout).status).includes(smokeSignature)
+        && JSON.parse(selfTest.stdout).curl_available === true);
+    if (selfTest.status !== 0 || selfTest.stderr) {
+        report.errors.push(selfTest.stderr || `proxy self-test exited ${selfTest.status}`);
+    }
+
     // ============ PAGE IMPORT: the text Books and linked-page music read ============
     const readBlockStart = source.indexOf('// Page-read mode:');
     const readBlock = source.slice(readBlockStart, source.indexOf('// Asset passthrough:', readBlockStart));
