@@ -4,6 +4,40 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-09-27 (deploy boundary audit: guard, one filter, live checks)
+
+**Context**: Yui asked to confirm, improve, and validate the auto-publish to
+`/voice-wei/` on fuseki.net: harmless to the main site, working for our
+tools. Live state was healthy (84/84 static files byte-identical to HEAD,
+every page and proxy path working, main site unaffected). Three weak
+points were found.
+
+**Found and fixed**:
+- The rsync target was assembled from secrets inline. An empty
+  `DEPLOY_PATH` meant `rsync --delete` to the remote `/`; `/srv` planned
+  deletion of Fuseki's site. `deploy/check-target.sh` now runs before every
+  rsync writer and refuses anything outside a `voice-wei` directory.
+- Every deploy deleted `deploy-telemetry.json` (it is not in the checkout,
+  and `--delete-excluded` makes excludes delete). The Deploys page lost its
+  data after each deploy, nine days after one failed telemetry run, and the
+  generator's history merge read a 404 and capped history at 100 runs.
+- The exclude list lived twice (CI and `deploy.sh`), synced by comment.
+
+**For future mei**:
+- With `--delete-excluded`, a plain exclude hides a file from the sender
+  but still lets the receiver delete it. To keep a host-owned file, add an
+  explicit receiver-side protect rule (`P name`) in `deploy/rsync-filter`.
+- When two writers share one directory, name the owner of each file in the
+  filter. `--delete` claims ownership of everything it is not told about.
+- Prove rsync behavior against a local sshd replica (a `voicewei` account
+  plus a sibling "landlord" directory) and run the workflow's literal
+  `run:` blocks. Dry runs of the old workflow gave the evidence for the
+  guard without touching production.
+- `tests/test-deploy.js` holds the whole deploy boundary statically. Extend
+  it instead of adding comments that say "keep in sync".
+
+---
+
 ## 2026-07-30 (lyrics migration overloaded the provider)
 
 **Context**: After v323 began revalidating the 900-favorite library, yui's log
