@@ -54,7 +54,14 @@ requirement not written here does not exist.
    does not mediate or gate voice-wei deploys. That directory's absolute
    path must include a component named `voice-wei`: the pipeline's deploy
    target guard refuses any other target ([setup.md](setup.md), "Deploy
-   target guard").
+   target guard"). The host provides one of two layouts, and the deploy
+   follows whichever it finds ([setup.md](setup.md), "Host layouts and
+   atomic releases"):
+   - **in-place**: the served path is a directory the deploy rewrites;
+   - **releases** (atomic): the served path is a symlink the deploy
+     swaps, in a parent directory the deploy account owns (for
+     `releases/` and `shared/` beside it), with PHP set to follow the
+     swapped symlink (`deploy/voicewei-fpm.conf`).
 
 ## What voice-wei promises the host
 
@@ -95,7 +102,72 @@ belong to the fuseki.net project.
   would do. Longer transfers widen the window for mobile load failures
   (observed 2026-09-02: transient "Failed to load script ebook.js" on 5G
   while the server was verifiably healthy).
+- **No `Cache-Control` on voice-wei HTML and `VERSION`** (the root sends
+  `no-cache`). Browsers may reuse a cached page by heuristic freshness after
+  a deploy, which then keeps old `?v=` references. Requested below.
 
+## Pending requests to the fuseki.net project (2026-09-27)
+
+Approved by the owner on 2026-09-27. Voice-wei cannot apply them: the host
+config lives in the private Fuseki repository, which voice-wei's agents cannot
+read, and the change needs root on the server (the `voicewei` account has no
+sudo). Both are confined to voice-wei's own URL path and directory; nothing
+else on the domain changes. Rehearsed on a replica with nginx 1.24 and PHP
+8.3.6 FPM ([setup.md](setup.md), "Host layouts and atomic releases").
+
+**A. Revalidate voice-wei HTML, `VERSION`, and `release.json` on every load.**
+In the http context:
+
+```nginx
+map $uri $voice_wei_expires {
+    default                    off;
+    ~^/voice-wei/[^/]*\.html$  epoch;
+    /voice-wei/VERSION         epoch;
+    /voice-wei/release.json    epoch;
+}
+```
+
+and one line inside the existing `location /voice-wei/ { ... }`:
+
+```nginx
+    expires $voice_wei_expires;
+```
+
+Result: those responses carry `Cache-Control: no-cache` (the directory index
+too, via its internal redirect to `index.html`); `?v=`-versioned assets,
+`proxy.php`, and every path outside `/voice-wei/` are untouched. `expires`
+does not change `add_header` inheritance, so the location's security headers
+stay. Verify: `curl -sI https://fuseki.net/voice-wei/ | grep -i cache-control`
+shows `no-cache` (same for `scales.html` and `VERSION`),
+`curl -sI 'https://fuseki.net/voice-wei/style.css?v=1'` shows none, and the
+root's headers are unchanged. Roll back by removing the line and the map.
+
+**B. Atomic releases.** Run `deploy/host-release-setup.sh` from the voice-wei
+repository once, as root, at any time. Nginx is unchanged. The script:
+- edits the `voicewei` pool: `open_basedir` becomes `/srv/voice-wei:/tmp`,
+  and it adds `php_admin_flag[opcache.revalidate_path] = on`, matching
+  `deploy/voicewei-fpm.conf`; then reloads PHP-FPM;
+- makes `voicewei` the owner of `/srv/voice-wei`, with `releases/` and
+  `shared/` inside it;
+- snapshots the live tree as the first release, using hardlinks;
+- atomically exchanges `site` with a symlink to that release, keeping the
+  old directory as `site.pre-releases`.
+
+The next voice-wei deploy detects the new layout and publishes its first
+release. Its `release.json` then shows `"layout": "releases"`, and the
+deploy job verifies it. To trigger that deploy immediately, re-run the
+latest "Deploy to Production" workflow. A deploy that happened to be
+uploading during the exchange reports NOT LIVE and succeeds on re-run.
+
+To roll back, as root in `/srv/voice-wei`:
+
+```bash
+python3 -c 'import ctypes; libc = ctypes.CDLL(None, use_errno=True); assert libc.renameat2(-100, b"site.pre-releases", -100, b"site", 2) == 0, ctypes.get_errno()'
+rm site.pre-releases
+```
+
+Deploys then detect in-place again. The pool settings can stay, since they
+are harmless in place.
 
 ## Independent-origin hosting review (2026-09-26)
 

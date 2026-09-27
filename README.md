@@ -106,10 +106,12 @@ docs/tests-only commits, and do not push bump-only commits.
 
 ## Deployment
 
-Push to `master` triggers the GitHub Actions deploy (rsync `--delete`
-through `deploy/rsync-filter`, which excludes docs, tests, and tooling,
-behind the `deploy/check-target.sh` target guard). Manual:
-`./deploy.sh [--dry-run]`. Details: [docs/setup.md](docs/setup.md).
+Push to `master` triggers the GitHub Actions deploy: `deploy/publish-site.sh`
+publishes the committed tree through `deploy/rsync-filter` (docs, tests, and
+tooling excluded) behind the `deploy/check-target.sh` target guard, in place
+or as an atomic release swap when the host provides that layout. Manual:
+`./deploy.sh [--dry-run | --rollback [RELEASE]]`. Details:
+[docs/setup.md](docs/setup.md).
 
 ## Browser support
 

@@ -67,8 +67,9 @@ the repo is reachable from here.
      version changes are resolved before generated version edits exist;
    - after Actions reports `Verify deployment` successful, probe the live
      `VERSION` and changed path and report immediately
-     (`deploy/verify-live.sh https://fuseki.net/voice-wei/ N` checks
-     `VERSION` and the header build id). Deploy telemetry is
+     (`deploy/verify-live.sh https://fuseki.net/voice-wei/ N <commit>` checks
+     `VERSION`, the header build id, and `release.json`'s commit; drop the
+     commit if another push may have landed on top). Deploy telemetry is
      a separate post-live workflow and is not part of the ship's critical
      path.
 

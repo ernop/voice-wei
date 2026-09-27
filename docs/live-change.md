@@ -122,11 +122,21 @@ more than it strictly must.
 
 The trusted “live” is the deploy job's **Verify deployment** step
 (`deploy/verify-live.sh`): it fails unless the public `VERSION` and the
-header build id both equal the shipped number, and agents confirm a ship
-with the same command. The smoke step after it (the fuseki.net root still
+header build id both equal the shipped number and the served `release.json`
+names the shipped commit. That commit check makes “live” exact even for
+pushes without a version bump. Agents confirm a ship with the same
+command. The smoke step after it (the fuseki.net root still
 serves, none of our files answer there, `proxy.php` works) names a broken
 dependency; it does not make a verified ship “not live”. Details:
 [setup.md](setup.md), “Post-deploy checks”.
+
+Status of the review's sequence below (2026-09-27): step 2 is the Verify
+step, now commit-exact. Step 3 (HTML/`VERSION` revalidation) and the host half
+of step 6 (atomic publish directories) are requested from the fuseki.net
+project ([hosting-contract.md](hosting-contract.md), “Pending requests”).
+The tenant half of step 6 (release directories and `release.json`) is done;
+deploys switch to atomic swaps on their own once the host provides the
+releases layout.
 
 CI speed, paths-ignore, and caches matter only insofar as they shorten
 the wait between voice note and trustworthy “live.”
