@@ -2323,7 +2323,8 @@ const PlayerPlaylist = (function () {
                 this.progressDiff.style('seekFill', document.getElementById('transportProgressFill'), 'width', percentage);
                 this.progressDiff.style('seekThumb', document.getElementById('transportProgressThumb'), 'left', percentage);
                 this.progressDiff.text('seekElapsed', document.getElementById('transportBarTimeCurrent'), this.formatTime(position));
-                this.progressDiff.text('seekRemaining', document.getElementById('transportBarTimeTotal'), `-${this.formatTime(total - position)}`);
+                // Rounded up so it complements the floored elapsed readout: both add up to the duration.
+                this.progressDiff.text('seekRemaining', document.getElementById('transportBarTimeTotal'), `-${this.formatTime(Math.ceil(total - position))}`);
                 const track = document.getElementById('transportProgressTrack');
                 const wholeSeconds = Math.floor(position);
                 if (track && this.progressDiff.changed('seekAria', `${wholeSeconds}/${Math.round(total)}`)) {
