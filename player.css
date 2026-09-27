@@ -1244,7 +1244,7 @@ body[data-page="music"] .header-lyric-line {
     --lyrics-overlay-line-height: 1.15;
     --lyrics-overlay-width: 96%;
     --lyrics-overlay-text-align: center;
-    --lyrics-overlay-bg: rgba(3, 8, 6, 0.96);
+    --lyrics-overlay-bg: #030806;
     position: fixed;
     inset: 0;
     z-index: 300;
@@ -1386,6 +1386,14 @@ body[data-page="music"] .header-lyric-line {
 /* ---------------- Phones ---------------- */
 
 @media (max-width: 480px) {
+    .now-playing-identity {
+        font-size: 0.85rem;
+    }
+
+    .now-playing-name {
+        font-size: 1rem;
+    }
+
     .now-playing-lyric {
         height: calc(2 * 1.2 * 1.3rem);
         font-size: 1.3rem;

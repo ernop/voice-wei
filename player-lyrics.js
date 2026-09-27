@@ -198,9 +198,11 @@ const PlayerLyrics = (function () {
                     const width = this.lyricsViewSettings.widthMode === 'wide' ? '96%' : '74%';
                     const textAlign = this.lyricsViewSettings.align === 'left' ? 'left' : 'center';
                     const lineHeight = this.lyricsViewSettings.spacing === 'tight' ? '1.05' : '1.15';
+                    // Both backdrops are opaque: page text showing through
+                    // would read as gray text behind the lyrics.
                     const backdrop = this.lyricsViewSettings.backdrop === 'blackout'
-                        ? 'rgba(0, 0, 0, 0.985)'
-                        : 'rgba(3, 8, 6, 0.96)';
+                        ? '#000'
+                        : '#030806';
 
                     overlay.style.setProperty('--lyrics-overlay-font-size', `clamp(${fontRem}rem, ${fontRem}rem + 2vw, ${(3.8 * this.lyricsViewSettings.fontScale).toFixed(2)}rem)`);
                     overlay.style.setProperty('--lyrics-overlay-width', width);
@@ -1349,7 +1351,10 @@ const PlayerLyrics = (function () {
                 button.textContent = marker.label;
                 button.setAttribute('aria-label', marker.aria);
                 button.title = marker.aria;
-                if (this.currentLyricsItemId === item.id || this.currentPlayingId === item.id) {
+                // The Big Lyrics launcher names the lyric state of the song the
+                // now-playing card shows, including a selected song at rest.
+                const shown = this.playingPlaylistItem() || this.currentLyricsItem() || this.currentPlaylistItem();
+                if (shown && shown.id === item.id) {
                     this.updateBigLyricsAvailability();
                 }
                 // Timed-only filter depends on lyric state; refresh when a row settles.

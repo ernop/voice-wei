@@ -641,7 +641,8 @@ the **Second line** choice (Identity / Song Report), the **Every** stepper,
 **Big Lyrics** is the full-screen lyric view. Its bottom row carries the
 star plus Previous, Restart, -5, Play/Pause, +5, and Next; the gear opens
 display options as segment rows (**Width** Wide/Focus, **Align**,
-**Spacing**, **Backdrop**) and a **Size** stepper that shows the current size
+**Spacing**, **Backdrop** Dim/Black - both opaque, so the page never shows
+through) and a **Size** stepper that shows the current size
 as a percentage. On timed lyrics the sung line is marked by a green fill and
 a larger scale, the next line by a white edge; other lines stay full white
 (never dimmed).

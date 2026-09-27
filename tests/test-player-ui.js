@@ -125,6 +125,17 @@ const EXTRA_FAVORITES = [
             && c.playlist.every(item => item.lyricsStatus !== 'idle' && item.lyricsStatus !== 'loading');
     });
 
+    // ---- At rest, the card shows the restored selection and its lyric state.
+    const atRest = await tab.evaluate(() => ({
+        identity: document.querySelector('#transportBarInfo .now-playing-name')?.textContent,
+        bigLyrics: document.getElementById('lyricsOverlayBtn')?.textContent,
+        playLabel: document.getElementById('transportPlayPauseBtn')?.getAttribute('aria-label')
+    }));
+    report.check(`at rest the now-playing card names the selected song and its lyric state ("${atRest.identity}", "${atRest.bigLyrics}")`,
+        atRest.identity === 'Amazing Grace'
+        && atRest.bigLyrics === 'Big \u00b7 timed'
+        && atRest.playLabel === 'Play');
+
     // ---- Play the first song at 21s so the card, lyric row, and scale are live.
     await tab.evaluate(() => { void window.musicController.playVideo(window.musicController.playlist[0]); });
     await tab.waitForFunction(() => window.musicController.isPlaying === true);
@@ -408,8 +419,16 @@ const EXTRA_FAVORITES = [
         star.click();
         /** @type {HTMLElement} */ (document.querySelector('[data-lyrics-width="focus"]')).click();
         document.getElementById('lyricsFontUpBtn')?.click();
+        const overlayStyle = () => getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('lyricsOverlay')));
+        const opaque = color => !/rgba\([^)]*,\s*0?\.\d+\)/.test(color);
+        const dimOpaque = opaque(overlayStyle().backgroundColor);
+        /** @type {HTMLElement} */ (document.querySelector('[data-lyrics-backdrop="blackout"]')).click();
+        const blackOpaque = overlayStyle().backgroundColor === 'rgb(0, 0, 0)';
+        /** @type {HTMLElement} */ (document.querySelector('[data-lyrics-backdrop="dim"]')).click();
         const view = {
-            width: getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('lyricsOverlay'))).getPropertyValue('--lyrics-overlay-width').trim(),
+            dimOpaque,
+            blackOpaque,
+            width: overlayStyle().getPropertyValue('--lyrics-overlay-width').trim(),
             focusSelected: document.querySelector('[data-lyrics-width="focus"]')?.classList.contains('selected'),
             size: document.getElementById('lyricsFontValue')?.textContent
         };
@@ -418,8 +437,10 @@ const EXTRA_FAVORITES = [
         c.closeLyricsOverlay();
         return { starredBefore, starredAfter, cardAgrees, view };
     });
-    report.check(`Big Lyrics stars the sounding song and uses fluid widths (${overlay.view.width}, size ${overlay.view.size})`,
+    report.check(`Big Lyrics stars the sounding song, uses fluid widths, and never lets the page show through (${overlay.view.width}, size ${overlay.view.size})`,
         overlay.starredAfter !== overlay.starredBefore
+        && overlay.view.dimOpaque
+        && overlay.view.blackOpaque
         && overlay.cardAgrees
         && overlay.view.width === '74%'
         && overlay.view.focusSelected

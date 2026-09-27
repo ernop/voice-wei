@@ -366,7 +366,7 @@ Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 | widthMode | wide | wide (96% of the screen) / focus (74%) |
 | align | center | center / left |
 | spacing | roomy | roomy / tight |
-| backdrop | dim | dim / blackout |
+| backdrop | dim | dim (solid near-black green) / blackout (pure black); both opaque |
 
 API keys are plain strings via `api-keys-store.js` (`API_CLAUDE`,
 `API_OPENAI`). The working playlist + current index persist in
