@@ -402,10 +402,18 @@ const EXTRA_FAVORITES = [
             return box.height > 0 && box.top >= 0 && box.bottom <= window.innerHeight;
         };
         document.querySelector('main').scrollTop = 0;
-        return { status: onScreen('status'), request: onScreen('transcriptContainer'), play: onScreen('transportPlayPauseBtn') };
+        const main = /** @type {HTMLElement} */ (document.querySelector('main'));
+        const card = /** @type {HTMLElement} */ (document.getElementById('transcriptContainer'));
+        c.transcript.show('Linked page (onlyURL=true): https://en.wikipedia.org/wiki/Rumours_(album)?with=a-long-unbroken-query-string');
+        return {
+            status: onScreen('status'),
+            request: onScreen('transcriptContainer'),
+            play: onScreen('transportPlayPauseBtn'),
+            urlWraps: card.scrollWidth <= card.clientWidth && main.scrollWidth <= main.clientWidth
+        };
     });
-    report.check('a linked-page build shows its request, the tap-Play status, and Play without scrolling',
-        linkedPage.status && linkedPage.request && linkedPage.play);
+    report.check('a linked-page build shows its request (long URLs wrap), the tap-Play status, and Play without scrolling',
+        linkedPage.status && linkedPage.request && linkedPage.play && linkedPage.urlWraps);
 
     // ---- Big Lyrics: star and transport ride along; display options are canonical segment rows.
     const overlay = await tab.evaluate(() => {

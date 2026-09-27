@@ -528,10 +528,13 @@ h1 {
     font-weight: 800;
 }
 
+/* A request can be one long URL (linked-page links); it wraps rather than
+   widening the page. */
 .transcript {
     font-size: 1.2rem;
     font-weight: 500;
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .transcript .segment {
