@@ -14,8 +14,8 @@ on the phone → yui knows it is live). Full requirements vs mechanisms:
 Operationally today:
 
 1. **New code reaches the live site.** A change that affects served files
-   must land on `master` (direct push or merged PR). That triggers GitHub
-   Actions → rsync → https://fuseki.net/voice-wei/. Reload to load it.
+   must land on `master` (direct push). That triggers GitHub Actions →
+   `deploy/publish-site.sh` → https://fuseki.net/voice-wei/. Reload to load it.
 2. **Yui gets a signal that it is live.** The current mechanism is an
    **incrementing** header build id (not a SHA — yui glances and compares).
    `?v=N` cache-busts assets so the reload actually shows the new code.
@@ -41,8 +41,12 @@ change the live site.
 1. Work on `master`. Commit in small, clear commits as the work proceeds.
 2. **When yui says "deploy" / "ship" / "release":** run the ~13s local gate
    (or the owning suite if the full gate just ran), push `master` once, watch
-   the ~10s deploy job verify the live `VERSION`, and report the live
-   version. That is the entire procedure.
+   the deploy job's "Verify deployment" step (live `VERSION`, header build
+   id, and `release.json` commit), confirm with
+   `deploy/verify-live.sh https://fuseki.net/voice-wei/ N [commit]`, and
+   report the live version. A red smoke step after a green Verify still
+   means live; report which piece (fuseki.net or `proxy.php`) failed. That
+   is the entire procedure.
 3. End-of-turn invariant: `gh pr list --state open` empty, no `cursor/*`
    branches on origin, nothing unpushed on `master` if code changed this
    turn.
@@ -75,11 +79,16 @@ with content + version together.
 ## Pipeline (reference)
 
 Deploy-first (yui's direction, 2026-07-25; single-user site): push to
-`master` (when not paths-ignored) → rsync `--delete` immediately (excludes
-docs/tests/tooling; list shared with `deploy.sh`) → live in ~15s, verified
-against the shipped `VERSION`. A parallel `validate` job runs typecheck,
-lint, and the full `npm test` gate AFTER the site is live; a red run means
-fix forward now, not roll back the ceremony. Agents still run the ~13s gate
+`master` (when not paths-ignored) → `deploy/publish-site.sh` immediately
+(target guard; the committed tree through `deploy/rsync-filter`, which
+excludes docs/tests/tooling; rewritten in place, or swapped in atomically
+as a release when the host provides that layout) → live in ~15s, verified
+against the shipped `VERSION` and commit. Deploy jobs run one at a time and
+are never cancelled mid-publish (job-level concurrency, 2026-09-27); the
+parallel `validate` job is not queued behind them and runs typecheck, lint,
+and the full `npm test` gate AFTER the site is live; a red run means fix
+forward now, not roll back the ceremony. Agents still run the ~13s gate
 (or the owning suite) locally before pushing — CI validation is the backstop,
-not the primary check. Manual: `./deploy.sh`. Details:
+not the primary check. Manual: `./deploy.sh` (publishes HEAD only;
+`--rollback` returns to the previous release). Details:
 [docs/setup.md](docs/setup.md).
