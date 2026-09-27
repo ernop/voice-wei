@@ -55,13 +55,14 @@ must not be added together:
 The named phases are controller construction/stored settings, configuration
 and key state, UI/voice wiring, lyrics-view settings, YouTube readiness
 wiring, local-library hydration, favorite-lyrics scheduling, playlist
-restoration, favorite-video repair scheduling, and linked-song setup.
-`application initialization` contains those phases and is intentionally
-nested.
+restoration, favorite-video repair scheduling, linked-song setup, and
+linked-page request parsing. `application initialization` contains those
+phases and is intentionally nested.
 
 External work that does not gate interaction is outside this readiness
-boundary. The YouTube IFrame API starts in parallel and playback awaits its
-ready callback. Favorite and restored-playlist lyric fetches run through the
+boundary. A direct linked-page request (`?url=...&onlyURL=...`) is parsed
+inside it and run after it. The YouTube IFrame API starts in parallel and
+playback awaits its ready callback. Favorite and restored-playlist lyric fetches run through the
 bounded background queue after they are scheduled. Tone.js is not a Lyrics
 startup dependency: the page loads it only when Local Song Library playback
 is first requested. `tests/test-player-startup.js` enforces the one-second
@@ -113,6 +114,22 @@ only the application root and `/tmp`. Lyrics search uses the same outbound
 request boundary but accepts only `track_name` and `artist_name`; the server
 fixes the destination to LRCLIB, caps JSON at 2 MB, and retains the 12-second
 provider timeout. It is not a general URL proxy.
+
+The importer's `readUrl` answer (`readablePageAnswer`, the tested boundary)
+is shared by Books and linked-page music requests, so its text keeps the
+page's shape: one line per table row, list item, or `<br>`; a tab between
+cells; one blank line between blocks. Source newlines inside HTML text still
+render as spaces, and adjacent boundaries merge to the strongest one.
+Stripping tags alone fused adjacent cells, which ruined tracklists. The
+readable container (Wikipedia's `mw-content-text`, `<article>`, known
+post-body classes, `<main>`) is sliced by offsets from bounded start/end
+patterns, never captured by one lazy regex: a capture spanning a megabyte
+article exhausts PCRE's backtrack limit. Every extraction pattern goes
+through the strict `preg` wrappers, so an engine failure is a 500 naming the
+page, not silently degraded text. Plain-text pages keep their own lines. The
+answer also carries the page's parsed JSON-LD blocks as `structuredData`
+(each client takes what it can use), and text is truncated at a UTF-8
+character boundary so `json_encode` cannot fail.
 
 ## Articles: Fuseki editor client
 
@@ -665,6 +682,29 @@ used when an AI-selected named song or identity repair needs a single recording
 plus same-song alternates. Ask AI alone calls `processMusicSearch`; missing
 provider keys therefore cannot block or alter ordinary search.
 
+AI requests are explicit `MusicSearchRequest` records: the logged
+`requestText`, a `pageScope`, and the `pageUrls` to read. Typed, spoken, and
+history text becomes scope `request` (URLs in the words, or a known page they
+name, are read, and the words decide what to take). A direct link,
+`player.html?url=<page>&onlyURL=true|false`, becomes `only-page` or
+`page-plus-related` through `parseLinkedPageEntry`, which rejects anything
+but an http(s) `url` and a `true`/`false` flag (omitted means `true`).
+`runMusicSearch` is the one runner for every entry. Page scopes get their own
+extraction prompt, one per batch; each returned item states `fromPage`, and
+`mergeAIResponseBatches` puts the page's own songs first in batch/page order,
+then related picks (commented "Related pick:"), and for `only-page` keeps
+nothing without `fromPage`. The page's schema.org music JSON-LD (Music* types,
+pruned to identity fields) leads the extraction text, and batches split on
+line breaks so no row is cut. Lookups record the whole request, so a History
+rerun repeats the same scope. The link's parameters leave the address bar
+once its request has run (a mid-run reload or a missing-key stop keeps them),
+and a run with no user activation on the page ends at "Playlist ready ... tap
+Play" rather than calling play, because audible playback would be refused.
+
+`searchAndAddToPlaylist` delivers found songs one by one but in list order: a
+settled search waits only for the searches ahead of it, so a playlist keeps
+the AI's (or the page's) order however the network answers.
+
 A song share URL embeds that versioned Song directly in its `song` query
 parameter. Opening it never searches for the recording: the exact `videoId`
 enters through `createPlaylistItem` with source kind `share`, while lyrics use
@@ -1030,7 +1070,7 @@ monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 `test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one
 suite while iterating.
 
-Two disciplines keep the gate fast and honest:
+Three disciplines keep the gate fast and honest:
 
 - **No fixed sleeps where state is observable.** Tests wait on explicit
   signals - `window.__voiceWeiStartup.ready`, page debug handles
@@ -1043,6 +1083,12 @@ Two disciplines keep the gate fast and honest:
 - **No external network.** `tests/helpers.js` transparently serves every
   Salamander piano-sample request as a locally generated silent WAV on all
   pages and contexts, so the gate cannot flake on CDN availability.
+- **An evaluate is a tap.** Playwright runs `evaluate` and `waitFor*`
+  polling as user gestures, which give the page sticky user activation
+  (`navigator.userActivation.hasBeenActive`). A test of behavior without a
+  tap - the linked-page link opened from a shortcut - instruments the page
+  with an init script, reports through `exposeBinding`, and evaluates
+  nothing until the run has settled.
 
 One suite is deliberately outside every profile:
 `node tests/audit-search-live.js` runs real songs through the REAL search

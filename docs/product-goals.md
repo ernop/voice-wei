@@ -171,6 +171,39 @@ checked against this list, and new standing intent gets added here.
    lyrics through the keyless provider path. Raw searches are also keyless;
    API keys remain optional until a visitor explicitly presses Ask AI or asks
    for a Song Report.
+12. **A linked page can be the whole request.** Opening
+   `player.html?url=<encoded page URL>&onlyURL=true|false` (a phone shortcut,
+   a shared link) sends the page straight to the AI searcher; the playlist
+   builds with no further input. The page is read through the same
+   `proxy.php` importer as every linked-page request; YouTube search stays
+   keyless; the extraction uses the browser's saved AI key like Ask AI.
+   - The page's songs are its song list when it has one (album tracklist,
+     setlist, radio/DJ playlist, chart, ranked list - every part, in order),
+     otherwise the songs its text names, in the order it first names them.
+     Navigation, references, and citations are not songs; neither are
+     artists or albums named without a song.
+   - `onlyURL=true`: the playlist is exactly those songs (title, artist,
+     album/year where known), in page order, nothing added. `onlyURL=false`:
+     those songs first, in page order, then up to 20 related picks marked
+     "Related pick" in their notes. When `onlyURL` is omitted it means
+     `true`; any other value, or a `url` that is not a full http(s)
+     address, is reported and runs nothing.
+   - Browsers start audible playback only after a tap on the page, so a link
+     opened without one ends at "Playlist ready: N songs - tap Play to
+     start"; if the page was tapped, it plays.
+   - The link's parameters leave the address bar once it has run, so a
+     reload keeps the built playlist; a reload mid-run, or after entering a
+     missing key, runs the link again. History reruns keep the page scope.
+
+   The owner's request (2026-09-27), verbatim:
+
+   > be able to directly post a URL and a boolean 'onlyURL' to the ai
+   > searcher system, and then it would extract all the songs and artist etc
+   > from the linked page and use that to make the playlist.
+
+   A true HTTP POST entry would add nothing: the AI key and the player live
+   in the browser, so any entry has to open this page; a GET link is that
+   entry.
 
 ## Current priorities (deduplicated from the idea pool)
 

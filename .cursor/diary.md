@@ -1189,3 +1189,39 @@ path that violates it - the rule was written after one path was fixed
 while the reclaim path kept violating it. Also: a dedupe key must match
 its stated granularity; toFixed(1) under a "whole-second" comment was the
 entire position-churn bug.
+
+## 2026-09-27 - Direct playlist link (url + onlyURL) and the importer's text
+
+**Request from yui**: post a URL plus an `onlyURL` boolean to the AI
+searcher; it extracts the page's songs and makes the playlist. Shipped as
+`player.html?url=<page>&onlyURL=true|false` on the existing linked-page
+path (product-goals item 12 holds the contract and the verbatim request).
+
+**What looking at real pages found**: the importer was the weak link, not
+the prompt. `readUrl` text for the Rumours Wikipedia article began with the
+table of contents and 64 language names, and its tracklist read
+`Buckingham2:432."Dreams"`. Two causes: a lazy regex capture over the
+~1 MB article hit PCRE's backtrack limit, `preg_match` returned `false`,
+and the code read `false` as "no match"; and `strip_tags` fuses adjacent
+cells and list items because markup has no whitespace between them.
+Spotify playlists fused into one run of titles and artists the same way.
+
+**For future mei**:
+- In PHP, `preg_*` returning `false`/`null` is an engine failure, not a
+  non-match. Page extraction now goes through strict wrappers that throw.
+  Never lazily capture a whole document; find bounded start/end offsets
+  and slice. Check a new pattern by rerunning it under
+  `ini_set('pcre.backtrack_limit', '20000')` on a real 1 MB page: bounded
+  patterns pass with 50x headroom, whole-document captures fail.
+- Before improving an extraction prompt, print what the model will read.
+  The first real fetch showed more than any amount of prompt wording would.
+- Playwright `evaluate` and `waitForFunction` count as user gestures and
+  flip `navigator.userActivation.hasBeenActive`. My first no-tap test
+  passed through the "play" branch because the test itself tapped. Tests
+  of no-activation behavior must report via `exposeBinding`.
+- A link opened from a phone shortcut has no activation, so audible
+  autoplay is refused; the honest end state is "Playlist ready - tap Play",
+  not "Playing" over silence.
+- setlist.fm serves an AWS WAF challenge (HTTP 202, ~2 KB) after a few
+  requests from one IP; last.fm always does. They read as "no songs", which
+  is true, but they are not reliable link sources.

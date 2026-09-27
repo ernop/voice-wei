@@ -404,8 +404,9 @@ while explicit loads - favorites, past lookups, known songs - append to
 it. The replacement is gentle: a search that finds nothing leaves the list
 untouched, and a song that is already playing carries over as entry 1 and keeps
 playing with the new songs queued behind it. Direct results arrive as one
-ordered set; AI-selected songs appear one by one as their individual YouTube
-searches complete. The raw AI request and response JSON are logged for every
+ordered set; AI-selected songs appear one by one in the AI's order - each
+waits only for the YouTube searches ahead of it, so a slow search never
+reorders the list. The raw AI request and response JSON are logged for every
 Ask AI batch.
 
 **Share Song** copies a self-contained Lyrics URL for the selected or sounding
@@ -414,6 +415,35 @@ visitor receives a ready playlist row and can play it directly without an API
 key or an AI/YouTube lookup. LRCLIB lyrics then resolve through the normal
 keyless proxy. A shared song appends to an existing browser playlist rather
 than deleting it.
+
+**Playlist from a linked page.** Open the Lyrics page with the page's address
+in `url` (URL-encoded) and a mode in `onlyURL`:
+
+```
+player.html?url=<encoded page URL>&onlyURL=true
+https://fuseki.net/voice-wei/player.html?url=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FRumours_(album)&onlyURL=true
+```
+
+The page is read through the proxy, the selected AI model extracts its songs
+(the saved key is used exactly as for Ask AI; a missing key opens key entry),
+and the keyless YouTube search builds the playlist in page order.
+`onlyURL=true` - also the meaning when `onlyURL` is omitted - takes exactly
+the songs the page names: its tracklist, setlist, playlist, or ranked list
+when it has one, otherwise the songs its text mentions; nothing is added.
+`onlyURL=false` puts those songs first and follows them with up to 20 related
+picks, whose notes start with "Related pick". Any other `onlyURL` value, or a
+`url` that is not a full http(s) address, shows an error and runs nothing.
+Pages that answer the proxy with a bot check (last.fm always, setlist.fm after
+a few requests) or render their song list only in the browser yield no songs
+and say so; Spotify playlists, Apple Music albums (from their embedded
+schema.org data), Bandcamp albums, and Wikipedia album pages read well. A link opened from a shortcut ends at "Playlist ready: N
+songs - tap Play to start", because browsers start audible playback only
+after a tap on the page; a page tapped while the request runs starts playing.
+Once the link has run, `url` and `onlyURL` leave the address bar, so a reload
+keeps the built playlist; a reload mid-run (or after saving a missing key)
+runs the link again. The lookup is recorded in History and reruns with the
+same page and mode. Typed or spoken requests that contain a URL still work as
+before: their words decide what to take from the page.
 
 Searches prefer the original studio recording unless the raw terms or Ask AI
 request specify otherwise. Direct results preserve proxy relevance order after
