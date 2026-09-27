@@ -32,6 +32,7 @@ const PARALLEL_SUITES = [
     'test-player-report.js',
     'test-player-lifecycle.js',
     'test-proxy.js',
+    'test-deploy.js',
     'test-coolness.js',
     'test-articles.js',
     'test-syntax.js',
