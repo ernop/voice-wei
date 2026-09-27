@@ -111,8 +111,8 @@ The only server-side piece in the product path is `proxy.php` (keyless
 Piped/Invidious and LRCLIB search plus remote webpage/PDF import for Books and
 linked-page requests). Claude and OpenAI calls go from the browser with keys in
 localStorage (`api-keys-store.js`). Deploy: push `master` (user-facing paths) → GitHub
-Actions (typecheck, lint, fast tests) → rsync → live; reload and check the
-header version. Docs/rules-only pushes are skipped by Actions.
+Actions rsync → live, with typecheck, lint, and tests validating in parallel;
+reload and check the header version. Docs/rules-only pushes are skipped by Actions.
 
 Browser target: Chrome / Edge / Safari (Web Speech API). HTTPS required
 for mic.

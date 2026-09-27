@@ -51,7 +51,10 @@ requirement not written here does not exist.
 7. **Write access for the tenant pipeline.** Voice-wei's own deploy
    (GitHub Actions rsync, or `./deploy.sh`) keeps direct write access to
    its directory, preserving the push-to-live-in-~15s car loop. The host
-   does not mediate or gate voice-wei deploys.
+   does not mediate or gate voice-wei deploys. That directory's absolute
+   path must include a component named `voice-wei`: the pipeline's deploy
+   target guard refuses any other target ([setup.md](setup.md), "Deploy
+   target guard").
 
 ## What voice-wei promises the host
 
@@ -70,14 +73,17 @@ requirement not written here does not exist.
 The runtime is domain-free. The full inventory of `fuseki.net`
 references, all in tooling, is:
 
-- `.github/workflows/deploy.yml` — post-deploy live `VERSION` check URL.
+- `.github/workflows/deploy.yml` — `APP_URL`, the app URL the post-deploy
+  verify and smoke checks probe (the smoke check derives the host root
+  from it).
 - `.github/scripts/generate-deploy-telemetry.js` — default existing
   telemetry URL (env-overridable).
+- `config.example.json` — the example `deploy.publicUrl` for `./deploy.sh`.
 - `tests/audit-search-live.js` — a comment showing an example
   `PROXY_BASE`.
 
-Rehosting voice-wei means: point the `DEPLOY_*` secrets at the new host,
-update those two URLs, done.
+Rehosting voice-wei means: point the `DEPLOY_*` secrets at the new host (its
+path inside a `voice-wei` directory), update those URLs, done.
 
 ## Known gaps on the current host (fuseki.net side)
 

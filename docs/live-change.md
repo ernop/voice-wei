@@ -120,6 +120,14 @@ matches the “reload the phone tab” habit. It is awkward when yui is not
 looking at the page, and it couples “human signal” to “asset cache key”
 more than it strictly must.
 
+The trusted “live” is the deploy job's **Verify deployment** step
+(`deploy/verify-live.sh`): it fails unless the public `VERSION` and the
+header build id both equal the shipped number, and agents confirm a ship
+with the same command. The smoke step after it (the fuseki.net root still
+serves, none of our files answer there, `proxy.php` works) names a broken
+dependency; it does not make a verified ship “not live”. Details:
+[setup.md](setup.md), “Post-deploy checks”.
+
 CI speed, paths-ignore, and caches matter only insofar as they shorten
 the wait between voice note and trustworthy “live.”
 

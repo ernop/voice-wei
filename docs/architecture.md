@@ -1054,8 +1054,9 @@ first two albums by default; pass `"Artist - Song"` arguments or
 (`php -S 127.0.0.1:8000`) and the network, so it never runs in CI; use it
 when investigating wrong-version or wrong-lyrics reports. `npm run lint` (ast-grep, including the ownership guards),
 `npm run typecheck` (checkJs), and `npm test` must stay clean - **zero errors,
-no tolerated baseline**. These run as gates in the deploy workflow; any failure
-blocks the push from reaching the live site.
+no tolerated baseline**. Agents run them before pushing; the deploy workflow
+re-runs them in its parallel `validate` job after the site is already live,
+so a failure there means fix forward (see Deploy below).
 
 ## Deploy
 
@@ -1067,7 +1068,9 @@ forward now. Agents run the local gate before pushing. For user-facing
 ships, run `./bump-version.sh` once in the same push so reload shows a new
 header/`?v=` build. Skip bumps for docs/tests-only commits; never push
 bump-only commits. Full rules: `.cursor/rules/10-deploy-workflow.mdc`.
-Manual deploy: `./deploy.sh`.
+Manual deploy: `./deploy.sh`. The deploy target guard, the one publish
+filter, and the post-deploy verify/smoke checks are in
+[setup.md](setup.md).
 
 ## How to decide what a control looks like
 

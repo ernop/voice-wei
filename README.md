@@ -84,7 +84,8 @@ binary. Mic tests use Chrome's fake audio device, and piano-sample requests
 are served locally so no test depends on an external CDN. Use
 `npm run test:startup` for Lyrics loading/readiness work; it runs alone so
 other browser processes cannot contaminate wall-clock timings. The deploy
-workflow gates on typecheck, lint, and `npm test` before rsync. Also:
+workflow publishes first and re-runs typecheck, lint, and `npm test` in a
+parallel validate job, so run them locally before pushing. Also:
 `npm run lint` (ast-grep, including the shared-library ownership guards),
 `npm run typecheck`, and `php -l proxy.php` when touching the PHP proxy.
 
@@ -105,8 +106,10 @@ docs/tests-only commits, and do not push bump-only commits.
 
 ## Deployment
 
-Push to `master` triggers the GitHub Actions deploy (rsync `--delete`;
-docs, tests, and tooling are excluded). Manual: `./deploy.sh [--dry-run]`.
+Push to `master` triggers the GitHub Actions deploy (rsync `--delete`
+through `deploy/rsync-filter`, which excludes docs, tests, and tooling,
+behind the `deploy/check-target.sh` target guard). Manual:
+`./deploy.sh [--dry-run]`. Details: [docs/setup.md](docs/setup.md).
 
 ## Browser support
 

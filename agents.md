@@ -66,7 +66,9 @@ the repo is reachable from here.
    - synchronize with `origin/master` before the release bump, so concurrent
      version changes are resolved before generated version edits exist;
    - after Actions reports `Verify deployment` successful, probe the live
-     `VERSION` and changed path and report immediately. Deploy telemetry is
+     `VERSION` and changed path and report immediately
+     (`deploy/verify-live.sh https://fuseki.net/voice-wei/ N` checks
+     `VERSION` and the header build id). Deploy telemetry is
      a separate post-live workflow and is not part of the ship's critical
      path.
 
@@ -174,7 +176,9 @@ parameters (setting behaviors), tools (user-visible behavior).
    `validate` job re-runs typecheck/lint/`npm test` in parallel. Confirm the
    deploy job verified the live version, and if validate goes red, fix
    forward immediately — the broken build is already live. Local testing
-   before the push (step 1) is therefore not optional.
+   before the push (step 1) is therefore not optional. A red smoke step
+   after a green verify means the ship is live but fuseki.net or
+   `proxy.php` needs attention (docs/setup.md, "Post-deploy checks").
 4. When a session produced lessons worth keeping, append a diary entry
    (.cursor/diary.md) and fold standing guidance into this file.
 
