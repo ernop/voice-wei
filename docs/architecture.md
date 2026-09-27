@@ -20,7 +20,7 @@ phrases.html/js/css      # Phrase practice
 trace.html/js/css        # Free pitch trace
 pitch-meter.html/js/css  # Scored pitch practice
 ears.html/js/css         # Redirects to intervals.html?mode=ear
-player.html + player.js  # AI music player
+player.html/js/css       # Lyrics: keyless music player (player-*.js modules)
 ebook.html/js/css        # Ebook to audiobook
 articles.html/js/css     # Dictate blog drafts into the Fuseki editor
 ```
@@ -1064,7 +1064,8 @@ prints per-suite times plus the slowest three.
 Suites are product-scoped, extracted from the retired tab-functions
 monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 `test-player-live`, `test-player-search`, `test-player-playlist`,
-`test-player-report`, plus the standing `test-books`, `test-controls`,
+`test-player-report`, `test-player-ui` (Lyrics page layout, curation, and
+the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-playback-engine`, `test-staff-view`, `test-staff-page`, `test-pages-load`,
 `test-player-startup`, `test-player-lifecycle`, `test-syntax`, and
 `test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one
@@ -1255,7 +1256,8 @@ Transport rows hold playback only.
 
 Gameplay surfaces that are not settings controls and intentionally keep
 their own look: ears' answer grid and interval multi-select, scales'
-piano keyboard, the player's media transport bar and lyrics overlay,
+piano keyboard, the Lyrics page's media transport (the `media-btn`
+family in its now-playing card and Big Lyrics) and the lyrics overlay,
 and the ebook reader surface (page text, TOC, and its dynamic
 voice/model selects - Books' buttons use the shared vocabulary).
 

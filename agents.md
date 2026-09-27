@@ -147,6 +147,11 @@ parameters (setting behaviors), tools (user-visible behavior).
   webkitSpeechRecognition, and Tone.Frequency.
 - Never use "code smell" or similar phrases. Never use emojis. Minimal
   persona: no exuberance, no repetition.
+- **Owner display rules** for every designed UI: no gray or dimmed text
+  (pure white on dark, pure black on light), one line per list row, data
+  values out-rank labels, fluid widths, sliders with notches and labeled
+  endpoints, headers out-rank body. Full list: "Owner display rules" in
+  docs/controls.md.
 - Docstrings only when they add information the code doesn't already say;
   comments explain why, not what.
 

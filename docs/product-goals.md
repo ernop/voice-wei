@@ -115,11 +115,16 @@ checked against this list, and new standing intent gets added here.
    gently: nothing dropped until the first found song lands, results
    stream in as found, and the currently playing song keeps playing.
    Loads (favorites, history) append. Rows are compact single data
-   lines - vertical space is precious.
+   lines - vertical space is precious. The list is curated directly:
+   Load favorites in one tap, star or unstar any song where it shows,
+   Favorites only hides unstarred songs live, and Unload unstarred or
+   Clear removes songs (never the one that is playing, for Unload).
+   What the list shows is what plays.
 6. **Hands and eyes stay free.** Voice in, spoken feedback out, one
-   always-reachable control line (sticks to the top when scrolling),
-   hardware media keys, and playable-video recovery (fresh alternates
-   are searched when a video refuses to embed).
+   always-reachable now-playing card (sticks to the top when scrolling)
+   whose Previous / Play-Pause / Next are the largest controls on the
+   page, hardware media keys, and playable-video recovery (fresh
+   alternates are searched when a video refuses to embed).
 7. **Problems must be visible.** Raw AI requests/responses are logged
    readably; truncated responses recover their complete songs and say
    so; key-level provider failures (spend/rate limits, billing) show a
@@ -204,6 +209,36 @@ checked against this list, and new standing intent gets added here.
    A true HTTP POST entry would add nothing: the AI key and the player live
    in the browser, so any entry has to open this page; a GET link is that
    entry.
+13. **Controls first, nothing in the way (the 2026-09-27 redo).** The page
+   is built from what is needed with busy hands and eyes:
+   - The sticky now-playing card holds only the star for the sounding song,
+     the song line, Big Lyrics, the sung line (two reserved lines, so the
+     card never changes height mid-track), the seek scale, big Previous /
+     Play-Pause / Next, and a compact -30 / -5 / 1st lyric / +5 / +30 row.
+     On a phone it stays under half the screen; on wide screens it splits
+     into info and controls columns.
+   - Everything else lives in cards below: Find music (Listen, search, Ask
+     AI, its model fold-out, History / Cache, Song Library), Playlist
+     (always present, curation buttons first), Lyrics (collapsible, with
+     the timing controls), and This song (Share, Song Report).
+   - Stars are one favorite everywhere (row, now playing, Big Lyrics,
+     voice). Favorites only follows star changes live; the status line says
+     when an unstarred song was hidden.
+   - What the list shows is what plays: Previous/Next, media keys, voice,
+     and the advance at a song's end step through the shown songs, so a
+     filtered list never plays a hidden song. Show all clears every view.
+   - Unload unstarred keeps the song that is playing or paused: list upkeep
+     never cuts off the music.
+   - The owner display rules in [controls.md](controls.md) apply: no gray
+     or dimmed text, one line per row, data values out-rank labels, fluid
+     widths, notched and labeled seek scale, headers out-rank body text.
+
+   The owner's request (2026-09-27), verbatim:
+
+   > i find the UI for the lyrics part a bit cluttered. can you change it
+   > so the controls (next, etc) are prominent, so that we can load favs,
+   > also unload things, hide non-favs as i star/unstar them, and have more
+   > control? basically a total UI redo for the lyrics page.
 
 ## Current priorities (deduplicated from the idea pool)
 
@@ -216,6 +251,8 @@ checked against this list, and new standing intent gets added here.
    measurable). Next: generators biasing toward weak degrees;
    call-and-response variants on more tools.
 2. **Car mode**: larger UI preset, wake word, fewer on-screen elements.
+   (The Lyrics page redo of 2026-09-27 did this for music: a lean sticky
+   card with big transport and star, everything else below.)
 3. **Training content**: more coach-style exercises and preset packs;
    lower-range control drills specifically.
 4. **Conversational player**: follow-ups like "more like that" and playlist

@@ -1225,3 +1225,41 @@ Spotify playlists fused into one run of titles and artists the same way.
 - setlist.fm serves an AWS WAF challenge (HTTP 202, ~2 KB) after a few
   requests from one IP; last.fm always does. They read as "no songs", which
   is true, but they are not reliable link sources.
+
+## 2026-09-27 - Lyrics page redo: controls first, direct curation
+
+**Request from yui** (verbatim in product-goals item 13): the Lyrics UI was
+cluttered; make next and the other controls prominent, load favorites,
+unload things, hide non-favorites as stars change, more control - a total
+redo of the page.
+
+**Base-design finding**: the clutter was structural. The sticky bar had been
+defined as "the only on-screen transport" and "always reachable", so every
+later control (Song Report, share, seek, lyric timing) landed in it; it grew
+past half a phone screen while Previous/Play/Next stayed the size of "Big
+(timed)". The fix is a rule, not a restyle: the sticky card holds only what
+busy hands need; everything else lives in cards that scroll.
+
+**Decisions made on yui's behalf** (recorded in product-goals 13):
+- What the list shows is what plays. The old settled rule said filtering
+  was a pure view; a Favorites only list that still plays hidden songs
+  would defeat the request, so Previous/Next and auto-advance now step
+  through shown songs for every view (text, Timed only, Favorites only).
+- Unload unstarred keeps the playing song, the same gentleness a new search
+  already had.
+- The header's lyric mirror is hidden on this page: it repeated the sticky
+  card's line 0.75s early. Media Session still writes it and the tab title.
+- Shared primitives drew labels at 60-85% white; fixed in
+  practice-controls.css at the source, not overridden per page.
+
+**For future mei**:
+- Chrome sticks a `position: sticky` child at the content edge of a padded
+  scroller; `top` must be the negative padding or content peeks above it.
+- Variable-length text in a sticky surface needs a reserved fixed height
+  (and a smaller size for long lines), or every line change shoves the page.
+- A gray-text scanner must use HSL saturation: Tailwind-style grays are
+  blue-tinted and slip past a channel-spread threshold. Plant a gray, a
+  dimmed ancestor, and a near-white tint to prove the scanner is not vacuous.
+- The search suite's voice context let a lyric revalidation reach LRCLIB;
+  provider stalls showed up as proxy 502 console errors about one run in
+  three. Any unrouted external call in a test is a future flake.

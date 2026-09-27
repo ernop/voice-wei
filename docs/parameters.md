@@ -333,7 +333,9 @@ playback update, or lyric render without replaying anything.
 | autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay timed lyrics on the first line and the selected identity/report value on the second) |
-| showSongNotes | false | Notes toggle in the playlist header | immediate (CSS class flip shows/hides every song's comment line, no re-render) |
+| showSongNotes | false | Notes toggle in the playlist card's Order row | immediate (CSS class flip shows/hides every song's note on its own row line, no re-render) |
+| playlistTimedOnly | false | Timed only toggle beside the playlist filter | immediate (hides rows without timed lyrics; Previous/Next step through the shown rows) |
+| playlistFavoritesOnly | false | Favorites only toggle in the playlist card | immediate (hides unstarred rows and re-applies on every star change; Previous/Next step through the shown rows) |
 | songDisplayMode | identity | identity / report | immediate (switches the second display line; Song Report is available whenever a song is selected and requests one when none is saved) |
 | songReportIntervalSeconds | 8 | 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30 seconds | immediate (spaces untimed notes and wrapped note segments; lyric-anchored notes keep their absolute sung moments; audio never restarts) |
 
@@ -347,19 +349,21 @@ on reload. Both use the one matcher in `player-songs.js`
 (`songMatchesQuery`: punctuation/apostrophe and diacritic differences are
 normalized, then every query word must appear in the visible name, artist,
 year, or album). Hidden notes, search terms, and raw YouTube metadata do not
-match. The playlist filter only hides rows - the playlist array, playback order,
-and next/previous are untouched - and an active filter always shows a
-status line ("Filtering for "x" - 3 of 12 shown") with a Cancel button.
-When Timed only is active, that line also counts text-matching rows still
-waiting for lyric resolution; Timed only remains an AND constraint.
+match. The playlist views (filter text, Timed only, Favorites only) only hide
+rows - the playlist array and its order are untouched - but Previous/Next and
+the advance at a song's end step through the shown rows only. An active view
+always shows a status line ("Filtering for favorites only + "x" - 3 of 12
+shown") with a Show all button that clears the text and both toggles. When
+Timed only is active, that line also counts text-matching rows still waiting
+for lyric resolution; the three views combine as AND constraints.
 
 Lyrics overlay view preferences (`PLAYER_LYRICS_VIEW`), all `immediate`
 (re-render of the open overlay):
 
 | Setting | Default | Values |
 |---------|---------|--------|
-| fontScale | 1 | 0.72..1.9 in overlay +/- steps |
-| widthMode | wide | wide / focus |
+| fontScale | 1 | 0.72..1.9 in 0.12 steps (Size stepper, shown as a percentage) |
+| widthMode | wide | wide (96% of the screen) / focus (74%) |
 | align | center | center / left |
 | spacing | roomy | roomy / tight |
 | backdrop | dim | dim / blackout |

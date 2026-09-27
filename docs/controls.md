@@ -53,52 +53,43 @@ vocabulary plus their declared gameplay surfaces:
 redefine a shared class, and `tests/test-controls.js` fails if a retired
 dialect class reappears.
 
-## Inventory - the music UI (player.html, styles in style.css)
+## Inventory - the Lyrics page (player.html, styles in player.css) - CONVERGED
 
-The player consumes the canonical `vf-btn` segment rows, `panel-action-btn`,
-`primary-btn`, `step-field`/`step-btn`, `listen-button`,
-`submit-button-large`, and `text-input`. The song-report row uses those
-canonical controls directly: Request is primary, Identity/Song Report is a
-segment, the seconds-per-line picker is a step field, and Report Text is a
-`vf-btn` toggle that opens the saved report as text in a bounded scrollable
-panel. Share Song is a `secondary-btn` in the same selected-song action row;
-it is disabled until a song is selected and copies that exact recording's
-self-contained URL. Song Report is
-available whenever a song is selected: it activates a saved report or requests
-one when none is stored, and its label carries request wait/result state. The
-Log header uses `panel-action-btn`; **Show Previous** is a separate explicit
-history action and opening the panel itself shows only current-session lines.
-The request row makes keyless Search the primary `typed-command-submit-btn`;
-Enter triggers the same action. Ask AI is a separate `secondary-btn`, and the
-model segment beneath it is labeled `Ask AI model` so provider choices cannot
-be mistaken for part of ordinary search.
-The player also carries these dialects, all defined in style.css:
+The Lyrics page consumes the canonical `vf-btn` segment rows,
+`panel-action-btn`, `secondary-btn`, `primary-btn`, `step-field` /
+`step-btn` / `step-value`, `display-toggle`, `listen-button`,
+`submit-button-large`, and `text-input`, plus two declared page surfaces:
 
-| Dialect class | Job today | Resolution |
-|---------------|-----------|------------|
-| `typed-command-submit-btn` | Primary keyless YouTube search | Retire -> `primary-btn` after its row sizing is separated from its look |
-| `close-settings-btn` | Close the settings panel | Retire -> `panel-action-btn` (shared with Books) |
-| `save-api-key-btn` | Save an API key | Retire -> `panel-action-btn` (shared with Books) |
-| `api-key-action-btn` (+ `.danger`) | Show/Change/Remove key | Retire -> `panel-action-btn` (shared with Books) |
-| `control-btn` / `control-btn-large` / `control-btn-small` | Central player transport (prev/play/stop/next, rewind/forward, lyrics launchers) | Keep as ONE named media-transport family (see below) |
-| `transport-bar-btn` (+ `transport-bar-playpause`) | Sticky bottom transport bar | Fold into the same media-transport family |
-| `big-lyrics-btn`, `lyrics-control-btn` | Lyrics launchers (now in the central player's secondary control row) | State classes on media-transport buttons, not separate button kinds |
-| `lyrics-overlay-transport-btn`, `lyrics-overlay-control-btn`, `lyrics-overlay-action-btn`, `lyrics-panel-hide-btn` | Overlay transport + view chips + hide | Three near-identical chip kinds; collapse to media-transport (transport) and `panel-action-btn` (view chips, hide) |
-| `lyrics-sync-btn`, `lyrics-offset-value` | Shared timing correction controls and live offset in the sticky bar and Big Lyrics | Keep as one semantic lyric-sync family across both surfaces |
-| `favorite-btn`, `lyrics-row-btn`, `playlist-remove-btn` | Playlist row star / per-row lyrics chip / per-row remove | Row-level gameplay surface; keep, document in architecture's distinct list |
+| Class | Job | Where |
+|-------|-----|-------|
+| `media-btn` (+ `media-btn-track`, `media-btn-play` with `.is-playing`, `media-btn-seek`, `media-btn-star` with `.favorited`, `media-btn-lyrics` with `lyrics-available` / `lyrics-loading` / `lyrics-unavailable`, `media-btn-overlay-action`) | The one media-transport family: white text, hover changes background only | Now-playing card, Big Lyrics transport and top actions |
+| `favorite-btn` (+ `.favorited`), `lyrics-row-btn`, `playlist-remove-btn` | Row-level star, lyric-state chip, remove (40px targets) | Playlist rows; the star also on Song Library rows |
+| `lyrics-sync-btn`, `lyrics-offset-value` | Lyric timing correction and its live offset | Lyrics card and Big Lyrics |
 
-Retired in the playlist-organization pass (v218): `quick-action-btn` on the
-player (now `secondary-btn` / `primary-btn`; deploys.html still carries the
-class and CSS until its own pass) and `clear-playlist-btn` (now
-`panel-action-btn danger` in the playlist header alongside Shuffle and the
-sort chips).
+Placement of the canonical controls: the Playlist card's curation row is
+`primary-btn` (Load favorites, with a `+N` count), a `display-toggle`
+(Favorites only), and `secondary-btn danger` (Unload unstarred, Clear); the
+filter row pairs the `text-input` with the Timed only toggle; the Order row
+is `panel-action-btn` (Shuffle, Artist, Year) plus the Notes toggle. The
+This song card uses a labeled `segment-row` (Second line: Identity / Song
+Report), a `step-field` (Every), `primary-btn` (Request Song Report), and a
+`vf-btn` toggle (Report Text); Share song is a `secondary-btn`. Search is a
+`primary-btn`, Ask AI a `secondary-btn`, and the Ask AI model pills a
+`segment-row` inside a fold-out whose closed line names the current model.
+Big Lyrics display options are labeled `segment-row`s (Width, Align,
+Spacing, Backdrop) and a Size `step-field` showing the percentage. The Log
+header and the key/settings actions use `panel-action-btn`.
 
-**Media transport is deliberately distinct, but it must be one family.**
-architecture.md already exempts the player's media transport bar from the
-practice-transport look; today that exemption is spent on three separate
-families (`control-btn*`, `transport-bar-btn`, overlay transport). The
-end state is a single `media-btn` family with size/context modifiers,
-used by the central player, the sticky bar, and the lyrics overlay.
+Retired in the 2026-09-27 redo and blocked by `tests/test-controls.js`:
+`control-btn`, `control-btn-large`, `control-btn-small`,
+`transport-bar-btn`, `transport-bar-playpause`, `big-lyrics-btn`,
+`lyrics-control-btn`, `lyrics-overlay-transport-btn`,
+`lyrics-overlay-control-btn`, `lyrics-overlay-action-btn`,
+`lyrics-panel-hide-btn`, `typed-command-submit-btn`, `close-settings-btn`,
+`save-api-key-btn`, `api-key-action-btn`, and `song-library-fav`. The hidden
+central player block and the `quick-actions` row are gone. Retired earlier
+(v218): `quick-action-btn` on the player (deploys.html and wording.html still
+carry the class until their own pass) and `clear-playlist-btn`.
 
 ## Inventory - Books (ebook.css) - CONVERGED
 
@@ -141,21 +132,17 @@ inside collapsed Advanced/Audio details. No new button dialect is introduced.
 Ordered so each stage ships alone, and the page never gets worse at its
 job (architecture.md, "How to decide what a control looks like"):
 
-1. **Action chips.** Replace `quick-action-btn`, `clear-playlist-btn`,
-   `typed-command-submit-btn`, `close-settings-btn`, `save-api-key-btn`,
-   `api-key-action-btn`, `lyrics-overlay-action-btn`, and
-   `lyrics-panel-hide-btn` with `panel-action-btn` / `secondary-btn`
-   (+ `.danger`) on player.html and deploys.html. Delete the retired CSS.
-2. **One media-transport family.** Define `media-btn` (one look, size and
-   context modifiers) in the player's stylesheet; migrate the central
-   player, sticky transport bar, and lyrics overlay transport onto it.
-   Lyrics availability (`lyrics-available` / `lyrics-loading` /
-   `lyrics-unavailable`) becomes state classes on `media-btn`.
-3. **Ownership and enforcement.** Carve the player's styles out of
-   style.css into `player.css`, add `player.css` to the `PAGE_SHEETS`
-   list in `tests/test-css-ownership.js`, and add every retired class
-   from stages 1-2 to the retired-dialects list in
-   `tests/test-controls.js` so they cannot reappear.
+1. **Action chips - DONE on the Lyrics page (2026-09-27).** Its dialect
+   buttons became `panel-action-btn` / `secondary-btn` / `primary-btn` and
+   their CSS is deleted. deploys.html and wording.html still carry
+   `quick-action-btn` until their own pass.
+2. **One media-transport family - DONE (2026-09-27).** `media-btn` with
+   size/context modifiers serves the now-playing card and Big Lyrics; the
+   central player is deleted. Lyrics availability is a state class on
+   `media-btn-lyrics`.
+3. **Ownership and enforcement - DONE (2026-09-27).** The Lyrics page's
+   styles live in `player.css`, which is in `PAGE_SHEETS`; every retired
+   class is on the retired-dialects list.
 4. **Books pass - DONE.** The Books mapping table above was executed:
    ebook.html loads practice-controls.css, ebook.css lost its private
    button vocabulary, ebook.css is in the ownership test, and the Books
@@ -165,6 +152,39 @@ Feature unification between tabs (shared favorites/history surfaces,
 transport conventions, car mode) builds on this: controls converge first
 so features that move between tabs arrive already speaking the shared
 control language.
+
+## Owner display rules
+
+Standing owner direction for every designed UI in this repo (the Lyrics page
+is the first page built entirely to them; `tests/test-player-ui.js` enforces
+them there):
+
+1. **No gray text.** Neutral text is pure white (#fff) on dark backgrounds
+   and pure black (#000) on light ones. No translucent or tinted-neutral
+   text, gray placeholders, or opacity that dims text; hierarchy comes from
+   size, weight, spacing, and placement. Semantic colors (timed green,
+   star yellow, error red) are allowed only when strongly legible. Disabled
+   controls read as a dashed empty outline, not dimmed text.
+2. **One line per row.** A list or table row never stacks a second line of
+   different information; extra data goes inline on the same line (cut off
+   with an ellipsis), into a detail view, or away.
+3. **Data values out-rank labels.** Numbers, durations, times, status, and
+   progress are the most legible thing in their region; labels and units
+   are smaller or lighter. Tabular figures where values align.
+4. **Fluid widths.** Primary containers, cards, and data layouts size by
+   percentage/fraction of the available width; no fixed pixel max-width
+   that leaves empty side margins while content wraps.
+5. **Sliders show their scale.** Visible notches with numeric labels,
+   numbers at both endpoints, and the current value shown numerically (the
+   Lyrics seek scale is the reference).
+6. **Resizable containers reflow.** Enlarging or shrinking a resizable
+   panel, modal, or canvas changes its contents in both axes.
+7. **Headers out-rank their body.** A heading or label is larger and/or
+   heavier than the text beneath it, never both smaller and lighter.
+
+Buttons follow `.cursor/rules/06-ui-patterns.mdc`: white text in normal and
+hover states (black on the bright green primary and Listen buttons, per
+rule 1), hover changes the background only, 0.2s transitions.
 
 ## Dead classes (removed)
 

@@ -387,16 +387,24 @@ Transport voice commands:
 | "stop" | Stop |
 | "next" / "skip" | Next song |
 | "previous" / "back" | Previous song |
-| "fast forward" / "rewind" | Skip 10s |
+| "fast forward" / "rewind" | Skip 5s forward / back |
 | "shuffle" | Shuffle playlist |
 | "clear" | Clear playlist |
 | "what's playing" | Announce current song |
+| "load favorites" / "play my favorites" | Load favorites (same as the button) |
+| "star this" / "unstar this" | Star or unstar the sounding song |
+| "favorites only" / "show only starred" | Turn on Favorites only |
+| "show all" | Show all (clears every playlist view) |
+| "unload unstarred" / "remove non-favorites" | Unload unstarred |
 | "submit" | Send pending command (manual mode) |
 
 Music pauses while you speak and resumes while the search runs.
 
-The typed box defaults to **Search**. **Ask AI** beside it uses the model pills
-shown below the box.
+The **Find music** card holds Listen, the search box with **Search** and **Ask
+AI**, the **Ask AI model** fold-out, and the **History / Cache** and **Song
+Library** buttons. The typed box defaults to **Search**. **Ask AI** beside it
+uses the model named in the **Ask AI model** fold-out under the box; opening
+it shows the model pills.
 
 The playlist is the **working list for the current search**: a new direct or AI
 request replaces it (the previous songs stay reloadable from History),
@@ -460,21 +468,30 @@ Version)"-style renames) score down too. The remembered alternates used
 when a video refuses to embed keep only candidates that pass the same
 same-recording bar, so a retry never silently swaps in a live take or a
 different song. The **Ask AI model** pills under
-the request box pick the exact provider/model for the next Ask AI
+the request box (a fold-out whose closed line names the current model) pick the exact provider/model for the next Ask AI
 request, and the status line names it ("Processing with
 claude-opus-4-8..."). Key-level provider failures - invalid key, spend
 or rate limits, billing - show a persistent red banner naming the
 provider and where to fix it, on top of the raw error in the Log.
 
-Each playlist row is one compact data line with fixed slots: favorite
-star and lyric marker in a padded leading gutter (so a near-miss on the
-star favorites instead of starting the song), then song name, artist -
-year - album, duration, and remove. The lyric marker is a small chip:
-**✓** = timed/line-synced (best), **~** = non-timed/simple text only,
-– = none found (tap it to view or retry). The AI's note appears as a
-second line only when the Notes toggle is on. Tap the row body (not the
-leading gutter) to play it. The playlist header offers Timed only,
-Notes, Shuffle, Sort by Artist, Sort by Year, Clear, and a live filter.
+Each playlist row is one data line with fixed slots: favorite star and
+lyric marker in a padded leading gutter (so a near-miss on the star
+favorites instead of starting the song), then song name, artist - year -
+album, duration, and a remove button (the star and remove are 40px finger
+targets). The lyric marker is a small chip: **✓** = timed/line-synced
+(best, green), **~** = non-timed/simple text only (amber), – = none found
+(tap it to view or retry). With **Notes** on, the AI's note joins the same
+line after the album (italic, cut off with an ellipsis; the full note is the
+row's tooltip) - rows never grow a second line. Tap the row body (not the
+leading gutter) to play it. The playing row carries a green edge and fill.
+
+The **Playlist** card is always on the page, even empty (then it says so and
+points at search and Load favorites). Its heading line counts the songs and
+the starred songs. Under it, four large buttons (two per row on a phone):
+**Load favorites** (its **+N** is how many favorites are not in the list
+yet), **Favorites only**, **Unload unstarred**, and **Clear**; then the live
+filter box with **Timed only**, and an **Order** row: **Shuffle**,
+**Artist**, **Year**, and **Notes**.
 Behind the working list, every song ever seen is recorded durably in the
 known-songs catalog (IndexedDB), so clearing or replacing the playlist
 never loses song information. When a video refuses to play (embed
@@ -575,48 +592,79 @@ display. Pause freezes that complete state; stop or playlist clear removes it.
 Car seek-back, seek-forward, and seek-to actions seek the YouTube player.
 Writes are pushed into the OS media session exactly when the text changes
 (line boundaries / countdown seconds); the car pulls its redraw from that. On
-this page the header gives the lyric
-heading its own full-width line, with the nav tabs and the settings gear
-sharing one row beneath it. The Lyrics panel toggle sits with the sticky transport's Big Lyrics
-button (the older central-player secondary row is hidden).
+this page the header shows the brand and version with the nav tabs and the
+settings gear beneath; the header's mirror of the sung line is hidden (the
+Media Session core still writes it and the tab title) because the
+now-playing card shows the same line larger.
 
-The always-reachable surface is the now-playing control line under the
-header: it scrolls with the page until it reaches the top, then hooks
-there. It carries a clickable track-position strip (current and total
-time at the ends; click or drag anywhere to jump), the current timed
-lyric line (own full row; once shown it holds its space through lyric
-gaps so the sticky bar never changes height mid-track and shoves the
-page under the reader - rows collapse only at track boundaries), a song-nav row
-(previous/play-pause/next, Big Lyrics, and the current song line -
-tapping the song line scrolls the playlist to that row; green controls =
-between-song / track actions), and a within-song seek row (-30/-5/+5/+30,
-plus a "1st" jump to just before the first lyric that appears only on
-timed-lyric tracks; teal controls = within-song seek). Timed tracks also
-show **Lyrics too fast** / **Lyrics too slow** controls and the current
-signed lyric offset. Each tap corrects the named problem by 0.5 seconds.
-The same controls and live offset appear inside Big Lyrics. Each song's
-timing nudge is stored forever on that video's lyric state (absent means
-no offset); the next play reapplies it automatically. The older central
-player block is kept in the DOM for progress wiring but stays hidden; the
-sticky bar is the only on-screen transport. The Listen button scrolls with
-the page like everything else.
+The always-reachable surface is the **now-playing card** under the header:
+it scrolls with the page until it reaches the top, then sticks there, and it
+shows whenever the playlist has songs. It holds only what is needed with
+busy hands and eyes, top to bottom:
+
+- a **star** for the sounding (or selected) song, the song line (name, then
+  artist and year; tap it to scroll the playlist to that row), and **Big
+  lyrics** (its label names the lyric state: `Big · timed`, `Big · simple`,
+  `Finding lyrics`, or `No lyrics`);
+- the sung line, large, in two reserved lines (a long line drops to a
+  smaller size) and, in Song Report mode, the report line; once shown, these
+  rows hold their space through lyric gaps so the sticky card never changes
+  height mid-track and shoves the page under the reader - they collapse only
+  at song boundaries;
+- the **seek scale**: elapsed time (the current value) and time left as the
+  large numbers at either end, and under the track a notch at every round
+  interval (10s up to 30 minutes, at most six steps per song) labeled with
+  its time, both endpoints always labeled (`0:00` and the song length).
+  Click or drag anywhere on the track to jump; arrow keys step 5 seconds;
+- big **Previous / Play-Pause / Next** (Play is the widest; 64px tall on a
+  phone);
+- a compact within-song row: **-30 / -5 / 1st lyric / +5 / +30**. **1st
+  lyric** (just before the first sung line) appears only on timed tracks.
+
+On wide screens the card splits into two columns: song, sung line, and seek
+scale on the left, the controls on the right. The Listen button scrolls with
+the page inside the **Find music** card.
+
+The **Lyrics** card shows the whole lyric for the song with the current line
+highlighted; its header names the song and folds or opens the card
+(**Hide** / **Show**). Playing a song opens it unless you folded it.
+Timed tracks show **Lyrics too fast** / **Lyrics too slow** in the card, with
+the current signed lyric offset between them. Each tap corrects the named
+problem by 0.5 seconds. The same controls and live offset appear inside Big
+Lyrics. Each song's timing nudge is stored forever on that video's lyric
+state (absent means no offset); the next play reapplies it automatically.
+
+The **This song** card holds **Share song** and the Song Report controls:
+the **Second line** choice (Identity / Song Report), the **Every** stepper,
+**Request Song Report**, **Report Text**, and the report status.
+
+**Big Lyrics** is the full-screen lyric view. Its bottom row carries the
+star plus Previous, Restart, -5, Play/Pause, +5, and Next; the gear opens
+display options as segment rows (**Width** Wide/Focus, **Align**,
+**Spacing**, **Backdrop**) and a **Size** stepper that shows the current size
+as a percentage. On timed lyrics the sung line is marked by a green fill and
+a larger scale, the next line by a white edge; other lines stay full white
+(never dimmed).
 
 Other surfaces on the page:
 
-- **Playlist filter**: type in the filter box above the playlist to
-  live-filter the loaded songs by visible name, artist, year, or album;
-  Unicode punctuation and diacritic differences do not matter, and every
-  entered word is required. **Timed only** (playlist header toggle) further
-  hides rows that do not yet hold timed (synced) lyrics. Text and Timed only
-  combine. An active filter shows a status line ("Filtering for timed
-  lyrics only + \"sunset\" - 3 of 12 shown") with a Cancel button that
-  restores the full list (clears the text query and turns Timed only
-  off). While Timed only is active, the status also counts text matches still
-  waiting for lyric resolution. Filtering is a view: playback order and
-  next/previous still use the whole playlist.
-- **Notes toggle** (playlist header): shows or hides every song's comment
-  line instantly. Off by default; rows stay compact until you want the
-  AI's per-song notes.
+- **Playlist views**: type in the filter box to live-filter the loaded
+  songs by visible name, artist, year, or album; Unicode punctuation and
+  diacritic differences do not matter, and every entered word is required.
+  **Timed only** hides rows that do not yet hold timed (synced) lyrics.
+  **Favorites only** hides unstarred rows and follows the stars live:
+  unstarring a row hides it at once (the status line says so), starring it
+  shows it again. The three combine. An active view shows a status line
+  ("Filtering for favorites only + timed lyrics only + \"sunset\" - 3 of 12
+  shown") with a **Show all** button that clears all three. While Timed only
+  is active, the status also counts text matches still waiting for lyric
+  resolution. What the list shows is what plays: Previous/Next (buttons,
+  media keys, voice) and the advance at a song's end step through the shown
+  songs only, wrapping at either end; Play starts the selected song when it
+  is shown, otherwise the next shown one. The playlist order itself never
+  changes.
+- **Notes toggle** (Order row): shows or hides every song's note instantly,
+  on the same line as the song. Off by default.
 - **Keep-alive necessity experiment**: append `?keepAlive=0` to the Music URL
   to run the complete Media Session surface (lyric titles, artwork, position,
   media keys) without the silent ownership audio. Play a song, background the
@@ -632,13 +680,23 @@ Other surfaces on the page:
   lines labeled **Prebuffer probe**; they report player readiness, cold start,
   buffered seconds, warm-resume latency, and any YouTube errors. The probe is
   diagnostic only and is completely absent without the query parameter.
-- **Load Favorites** appends every not-already-loaded favorite in one list
-  update. A favorite whose saved video contradicts its named song waits for
+- **Stars**: a row star, the now-playing star, the Big Lyrics star, and
+  the voice "star this" / "unstar this" all change the same favorite; every
+  view of that song, the starred count, the Load favorites count, and
+  Favorites only update together.
+- **Load favorites** appends every not-already-loaded favorite in one list
+  update (the status says how many, or that all of them are already in the
+  list). A favorite whose saved video contradicts its named song waits for
   video identity repair before lyrics are resolved.
-- **History / Cache** toggles a panel with past lookups, the known-songs
+- **Unload unstarred** removes every unstarred song from the working
+  playlist in one step (they stay in Known Songs history). The song that is
+  playing or paused stays even when unstarred - list upkeep never cuts off
+  the music - and the status says so. **Clear** empties the whole list.
+- **History / Cache** (in the Find music card) toggles a panel with past lookups, the known-songs
   catalog, and the YouTube search cache (all from the `voice-wei-music`
   IndexedDB); selected lookups or songs can be loaded back into the
-  playlist. Hidden by default. The Known Songs card has the same
+  playlist. Hidden by default; every record is one line (title, counts or
+  artist, source, time, then its buttons). The Known Songs card has the same
   punctuation/diacritic-insensitive live identity search as the playlist
   filter (name, artist, year, album), with per-row Load buttons and a "Load
   All Shown" button that loads every matching song into the working playlist.
@@ -654,9 +712,11 @@ Other surfaces on the page:
   input are logged with the elements that moved (`event=layout-shift;
   moved=...`), so "the page moved on its own" reports name their culprit; a
   felt jump with no shift line points at a scripted scroll instead.
-- **Song Library** toggles the local song library: imports
+- **Song Library** (in the Find music card) toggles the local song library: imports
   `.mid`/`.midi`/`.musicxml`/`.xml` melody files, keeps them in this
-  browser, and plays their melodies on the shared piano. Its search requires
+  browser, and plays their melodies on the shared piano. Each song is one
+  line: star, title, format, note count, length, tempo, file, and the first
+  lyric words, then Play. Its search requires
   every typed word to match somewhere across title, source filename/type, or
   imported lyric text, so words may occur in different fields. Public-domain
   corpora to import are listed in
