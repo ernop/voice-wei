@@ -1,7 +1,8 @@
 <?php
-// Same-origin keyless YouTube search and Books URL importer. Every network hop
-// is resolved and pinned before cURL connects so redirects and DNS rebinding
-// cannot reach private hosts.
+// Same-origin keyless YouTube search, fixed-provider lyrics search, and the
+// webpage/PDF importer shared by Books and linked-page music requests. Every
+// network hop is resolved and pinned before cURL connects so redirects and
+// DNS rebinding cannot reach private hosts.
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -176,8 +177,29 @@ function makeSearchRequest($url) {
     return requestPublicUrl($url, 'application/json', 2000000, 15);
 }
 
+// preg_* report engine failures (backtrack limit, malformed input) as
+// false/null. Read as "no match", that silently imported whole page chrome
+// or empty text, so page extraction goes through these and fails loudly.
+class PageTextExtractionError extends RuntimeException {}
+
+function pregMatchStrict($pattern, $subject, &$matches = null, $flags = 0, $offset = 0) {
+    $result = preg_match($pattern, $subject, $matches, $flags, $offset);
+    if ($result === false) {
+        throw new PageTextExtractionError(preg_last_error_msg() . " in $pattern");
+    }
+    return $result === 1;
+}
+
+function pregReplaceStrict($pattern, $replacement, $subject) {
+    $result = preg_replace($pattern, $replacement, $subject);
+    if ($result === null) {
+        throw new PageTextExtractionError(preg_last_error_msg() . " in $pattern");
+    }
+    return $result;
+}
+
 function extractPageTitle($html) {
-    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
+    if (pregMatchStrict('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
         return trim(html_entity_decode(strip_tags($matches[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
     return '';
@@ -189,39 +211,105 @@ function extractPageTitle($html) {
 function stripTrailingComments($source) {
     $pattern = '/<(?:div|section|ol|ul|aside)\b[^>]*(?:id|class)=["\'][^"\']*'
         . '(?:comments?-area|comment-list|commentlist|comment-respond|comment-thread|disqus_thread)/i';
-    if (preg_match($pattern, $source, $matches, PREG_OFFSET_CAPTURE)) {
+    if (pregMatchStrict($pattern, $source, $matches, PREG_OFFSET_CAPTURE)) {
         return substr($source, 0, $matches[0][1]);
     }
-    if (preg_match('/<[^>]+id=["\']comments["\'][^>]*>/i', $source, $matches, PREG_OFFSET_CAPTURE)) {
+    if (pregMatchStrict('/<[^>]+id=["\']comments["\'][^>]*>/i', $source, $matches, PREG_OFFSET_CAPTURE)) {
         return substr($source, 0, $matches[0][1]);
     }
     return $source;
 }
 
+// Readable-content containers, most specific first: the opening tag and the
+// markers that end its content. The content is sliced by the offsets these
+// bounded patterns find. A lazy capture spanning the whole article exhausted
+// PCRE's backtrack limit on megabyte pages (every large Wikipedia article).
+const READABLE_CONTAINERS = [
+    [
+        'start' => '/<div[^>]+id=["\']mw-content-text["\'][^>]*>/i',
+        'end' => '/<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>/i'
+    ],
+    [
+        'start' => '/<article\b[^>]*>/i',
+        'end' => '/<\/article>/i'
+    ],
+    [
+        'start' => '/<div[^>]+class=["\'][^"\']*(?:entry-content|post-content|postcontent|article-content|post-body|markdown-body)[^"\']*["\'][^>]*>/i',
+        'end' => '/<footer\b|<div[^>]+(?:id|class)=["\'][^"\']*comment|<\/main>|<\/body>/i'
+    ],
+    [
+        'start' => '/<main\b[^>]*>/i',
+        'end' => '/<\/main>|<\/body>/i'
+    ]
+];
+
 function narrowToReadable($body) {
-    if (preg_match('/<div[^>]+id=["\']mw-content-text["\'][^>]*>(.*?)(?:<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>)/is', $body, $matches)) {
-        return $matches[1];
-    }
-    if (preg_match('/<article\b[^>]*>(.*?)<\/article>/is', $body, $matches)) {
-        return $matches[1];
-    }
-    if (preg_match('/<div[^>]+class=["\'][^"\']*(?:entry-content|post-content|postcontent|article-content|post-body|markdown-body)[^"\']*["\'][^>]*>(.*?)(?:<footer\b|<div[^>]+(?:id|class)=["\'][^"\']*comment|<\/main>|<\/body>)/is', $body, $matches)) {
-        return $matches[1];
-    }
-    if (preg_match('/<main\b[^>]*>(.*?)(?:<\/main>|<\/body>)/is', $body, $matches)) {
-        return $matches[1];
+    foreach (READABLE_CONTAINERS as $container) {
+        if (!pregMatchStrict($container['start'], $body, $start, PREG_OFFSET_CAPTURE)) {
+            continue;
+        }
+        $contentStart = $start[0][1] + strlen($start[0][0]);
+        if (!pregMatchStrict($container['end'], $body, $end, PREG_OFFSET_CAPTURE, $contentStart)) {
+            continue;
+        }
+        return substr($body, $contentStart, $end[0][1] - $contentStart);
     }
     return $body;
 }
 
+// Markup rarely has whitespace between adjacent cells or list items, so
+// stripping tags alone fused tracklist rows ('Buckingham2:432."Dreams"').
+// Boundaries become marks first: cells a tab, rows/items/<br> a line break,
+// blocks a paragraph break (the marks are control bytes absent from text).
+const READABLE_CELL_TAGS = '/<\/?(?:td|th)\b[^>]*>/i';
+const READABLE_LINE_TAGS = '/<br\b[^>]*>|<\/?(?:li|tr|dt|dd|caption|figcaption|summary|legend|option)\b[^>]*>/i';
+const READABLE_BLOCK_TAGS = '/<\/?(?:p|div|h[1-6]|ul|ol|dl|table|thead|tbody|tfoot|blockquote|pre|section|article|header|footer|aside|nav|figure|main|hr|address|details|form|fieldset)\b[^>]*>/i';
+const LINE_BREAK_MARK = "\x01";
+const BLOCK_BREAK_MARK = "\x02";
+
 function extractReadableText($body) {
     $source = stripTrailingComments(narrowToReadable($body));
-    $text = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
-    $text = preg_replace('/<!--.*?-->/s', ' ', $text);
-    $text = strip_tags($text);
-    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $text = preg_replace('/[ \t\r\n]+/', ' ', $text);
+    $text = pregReplaceStrict('/<(script|style|svg|noscript|template)\b[^>]*>.*?<\/\1>/is', ' ', $source);
+    $text = pregReplaceStrict('/<!--.*?-->/s', ' ', $text);
+    // Newlines inside HTML source render as spaces; only tags break lines.
+    $text = pregReplaceStrict('/[ \t\r\n\f]+/', ' ', $text);
+    $text = pregReplaceStrict(READABLE_CELL_TAGS, "\t", $text);
+    $text = pregReplaceStrict(READABLE_LINE_TAGS, LINE_BREAK_MARK, $text);
+    $text = pregReplaceStrict(READABLE_BLOCK_TAGS, BLOCK_BREAK_MARK, $text);
+    $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return normalizeReadableWhitespace($text);
+}
+
+// Plain-text pages keep their own lines; blank lines separate paragraphs.
+function extractPlainText($body) {
+    $text = pregReplaceStrict('/\r\n?/', "\n", $body);
+    $text = pregReplaceStrict('/\n[ \t]*\n[ \t\n]*/', BLOCK_BREAK_MARK, $text);
+    return normalizeReadableWhitespace(str_replace("\n", LINE_BREAK_MARK, $text));
+}
+
+// One line per row, item, or line break; a tab between cells; one blank line
+// between blocks. Adjacent boundaries merge to the strongest one rather than
+// stacking (a closing </li> plus the next <li> is still one line break).
+function normalizeReadableWhitespace($text) {
+    $text = str_replace("\xC2\xA0", ' ', $text);
+    $text = pregReplaceStrict('/[ \t]*\t[ \t]*/', "\t", $text);
+    $text = pregReplaceStrict('/ {2,}/', ' ', $text);
+    $text = pregReplaceStrict('/[ \t\x01\x02]*\x02[ \t\x01\x02]*/', "\n\n", $text);
+    $text = pregReplaceStrict('/[ \t\x01]*\x01[ \t\x01]*/', "\n", $text);
     return trim($text);
+}
+
+// Longest prefix of at most $maxBytes that does not split a UTF-8 character
+// (a split character makes json_encode fail and the answer come back empty).
+function utf8Prefix($text, $maxBytes) {
+    if (strlen($text) <= $maxBytes) {
+        return $text;
+    }
+    $cut = $maxBytes;
+    while ($cut > 0 && (ord($text[$cut]) & 0xC0) === 0x80) {
+        $cut--;
+    }
+    return substr($text, 0, $cut);
 }
 
 // Resolve a possibly-relative href against the page URL it was found on.
@@ -274,10 +362,15 @@ function absolutizeUrl($href, $baseUrl) {
 // skipping site chrome so the list reads like a table of readings.
 function extractOutboundLinks($body, $baseUrl) {
     $source = stripTrailingComments(narrowToReadable($body));
-    $source = preg_replace('/<(script|style|svg|noscript|template)[^>]*>.*?<\/\1>/is', ' ', $source);
-    $source = preg_replace('/<(nav|header|footer)\b[^>]*>.*?<\/\1>/is', ' ', $source);
+    $source = pregReplaceStrict('/<(script|style|svg|noscript|template)\b[^>]*>.*?<\/\1>/is', ' ', $source);
+    $source = pregReplaceStrict('/<(nav|header|footer)\b[^>]*>.*?<\/\1>/is', ' ', $source);
 
-    if (!preg_match_all('/<a\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', $source, $matches, PREG_SET_ORDER)) {
+    $linkPattern = '/<a\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is';
+    $found = preg_match_all($linkPattern, $source, $matches, PREG_SET_ORDER);
+    if ($found === false) {
+        throw new PageTextExtractionError(preg_last_error_msg() . " in $linkPattern");
+    }
+    if ($found === 0) {
         return [];
     }
 
@@ -302,12 +395,10 @@ function extractOutboundLinks($body, $baseUrl) {
         }
         $seen[$canonical] = true;
 
-        $text = preg_replace('/<[^>]+>/', ' ', $match[2]);
+        $text = pregReplaceStrict('/<[^>]+>/', ' ', $match[2]);
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = trim(preg_replace('/\s+/', ' ', $text));
-        if (strlen($text) > 300) {
-            $text = substr($text, 0, 300);
-        }
+        $text = trim(pregReplaceStrict('/\s+/', ' ', $text));
+        $text = utf8Prefix($text, 300);
 
         $links[] = ['text' => $text, 'url' => $canonical];
         if (count($links) >= 400) {
@@ -315,6 +406,69 @@ function extractOutboundLinks($body, $baseUrl) {
         }
     }
     return $links;
+}
+
+const STRUCTURED_DATA_MAX_BYTES = 1000000;
+
+// The page's JSON-LD blocks, parsed, in page order. Music pages often carry
+// their tracklist only here (Apple Music renders its song list client-side),
+// so the importer passes the blocks through and each client takes what it
+// can use. A block that is not valid JSON carries no data and is skipped.
+function extractStructuredData($body) {
+    $pattern = '/<script\b[^>]*\btype=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is';
+    $found = preg_match_all($pattern, $body, $matches);
+    if ($found === false) {
+        throw new PageTextExtractionError(preg_last_error_msg() . " in $pattern");
+    }
+    $blocks = [];
+    $bytes = 0;
+    foreach ($matches[1] as $raw) {
+        $bytes += strlen($raw);
+        if ($bytes > STRUCTURED_DATA_MAX_BYTES) {
+            break;
+        }
+        $decoded = json_decode(trim($raw));
+        if ($decoded !== null) {
+            $blocks[] = $decoded;
+        }
+    }
+    return $blocks;
+}
+
+const READABLE_TEXT_MAX_BYTES = 800000;
+
+// The readUrl answer for a fetched page that is not a PDF:
+// [HTTP status, JSON-ready body].
+function readablePageAnswer($url, $requestedUrl, $contentType, $body) {
+    $isPlainText = stripos($contentType, 'text/plain') !== false;
+    try {
+        $title = $isPlainText ? '' : extractPageTitle($body);
+        $text = $isPlainText ? extractPlainText($body) : extractReadableText($body);
+        $links = $isPlainText ? [] : extractOutboundLinks($body, $url);
+        $structuredData = $isPlainText ? [] : extractStructuredData($body);
+    } catch (PageTextExtractionError $error) {
+        return [500, ['error' => "Could not extract readable text from $url: {$error->getMessage()}"]];
+    }
+
+    $originalCharCount = strlen($text);
+    $truncated = $originalCharCount > READABLE_TEXT_MAX_BYTES;
+    $text = utf8Prefix($text, READABLE_TEXT_MAX_BYTES);
+    if ($text === '') {
+        return [422, ['error' => 'No readable text found on linked page']];
+    }
+
+    return [200, [
+        'url' => $url,
+        'requestedUrl' => $requestedUrl,
+        'title' => $title,
+        'text' => $text,
+        'charCount' => strlen($text),
+        'originalCharCount' => $originalCharCount,
+        'truncated' => $truncated,
+        'contentType' => $contentType,
+        'links' => $links,
+        'structuredData' => $structuredData
+    ]];
 }
 
 // Page-read mode: proxy.php?readUrl=https://example.com/page
@@ -363,32 +517,15 @@ if (isset($_GET['readUrl'])) {
     }
 
     $body = strlen($result['response']) > 8000000 ? substr($result['response'], 0, 8000000) : $result['response'];
-    $title = extractPageTitle($body);
-    $text = extractReadableText($body);
-    $links = extractOutboundLinks($body, $url);
-    $originalCharCount = strlen($text);
-    $truncated = $originalCharCount > 800000;
-    if ($truncated) {
-        $text = substr($text, 0, 800000);
-    }
-
-    if ($text === '') {
-        http_response_code(422);
-        echo json_encode(['error' => 'No readable text found on linked page']);
+    [$status, $answer] = readablePageAnswer($url, $requestedUrl, $result['contentType'], $body);
+    $json = json_encode($answer);
+    if ($json === false) {
+        http_response_code(502);
+        echo json_encode(['error' => "Page text from $url could not be encoded as JSON: " . json_last_error_msg()]);
         exit;
     }
-
-    echo json_encode([
-        'url' => $url,
-        'requestedUrl' => $requestedUrl,
-        'title' => $title,
-        'text' => $text,
-        'charCount' => strlen($text),
-        'originalCharCount' => $originalCharCount,
-        'truncated' => $truncated,
-        'contentType' => $result['contentType'],
-        'links' => $links
-    ]);
+    http_response_code($status);
+    echo $json;
     exit;
 }
 
