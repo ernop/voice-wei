@@ -629,7 +629,7 @@ if (isset($_GET['lyrics'])) {
 // Test mode: proxy.php?test=1
 if (isset($_GET['test'])) {
     echo json_encode([
-        'status' => 'Search and Books URL import are working',
+        'status' => 'Search, lyrics search, and page import are working',
         'php_version' => PHP_VERSION,
         'curl_available' => function_exists('curl_init'),
         'openssl_version' => defined('OPENSSL_VERSION_TEXT') ? OPENSSL_VERSION_TEXT : 'unknown',
