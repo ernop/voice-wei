@@ -1,6 +1,7 @@
 #!/bin/bash
-# Uploads deploy-telemetry.json into PATH, where the in-place publish protects
-# it from deletion.
+# Uploads deploy-telemetry.json to where the host layout serves it from: in
+# place, PATH/deploy-telemetry.json; with releases, shared/ beside PATH, which
+# every release links to (deploy/publish-site.sh).
 #
 # Usage: deploy/upload-telemetry.sh USER HOST PATH FILE
 
@@ -18,4 +19,16 @@ host=$2
 path=${3%/}
 
 deploy/check-target.sh "$user" "$host" "$path"
-rsync -avz "$file" "$user@$host:$path/deploy-telemetry.json"
+layout=$(deploy/host-layout.sh "$user" "$host" "$path")
+case "${layout%% *}" in
+    in-place)
+        destination="$path/deploy-telemetry.json"
+        ;;
+    releases)
+        base=${path%/*}
+        deploy/check-target.sh "$user" "$host" "$base" > /dev/null
+        destination="$base/shared/deploy-telemetry.json"
+        ;;
+esac
+
+rsync -avz "$file" "$user@$host:$destination"

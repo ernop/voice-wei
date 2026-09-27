@@ -56,7 +56,8 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # The committed tree, published through the one filter.
+      # The committed tree, published through the one filter in whichever
+      # layout the host provides (in place, or an atomic release swap).
       # publish-site.sh runs the target guard before any rsync.
       - name: Deploy via rsync
         env:

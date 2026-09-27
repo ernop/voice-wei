@@ -5,6 +5,8 @@
 # deploy/publish-site.sh, then runs the same live checks. Uncommitted edits
 # and untracked files never ship.
 # Usage: ./deploy.sh [--dry-run]
+#        ./deploy.sh --rollback [RELEASE]   (releases layout: back to RELEASE,
+#                                            by default the previous release)
 
 set -e
 
@@ -34,6 +36,13 @@ if [ -z "$deploy_user" ] || [ -z "$deploy_host" ] || [ -z "$remote_dir" ] || [ -
     exit 1
 fi
 app_url="${public_url%/*}/"
+
+if [ "$1" = "--rollback" ]; then
+    deploy/swap-release.sh "$deploy_user" "$deploy_host" "$remote_dir" --rollback ${2:+"$2"}
+    curl -fsS "${app_url}release.json?cb=$(date +%s)"
+    deploy/smoke-live.sh "$app_url"
+    exit 0
+fi
 
 DRY_RUN=""
 if [ "$1" = "--dry-run" ]; then

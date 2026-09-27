@@ -120,8 +120,10 @@ function globRegExp(glob) {
     /** @param {string} relative */
     const isExcluded = relative => relative.split('/').some(part => excludes.some(pattern => pattern.test(part)));
 
-    report.check('deploy-telemetry.json stays host-owned: the publish protects the host copy',
-        protectedNames.includes('deploy-telemetry.json'));
+    report.check('deploy-telemetry.json stays host-owned: protected in place, linked to shared/ by every release',
+        protectedNames.includes('deploy-telemetry.json')
+        && publisher.includes('ln -s ../../shared/deploy-telemetry.json "$work/tree/deploy-telemetry.json"')
+        && read('deploy/upload-telemetry.sh').includes('destination="$base/shared/deploy-telemetry.json"'));
 
     // The committed tree is the only source, yet the filter still names every
     // local artifact (credentials, private deploy key, build output), so no

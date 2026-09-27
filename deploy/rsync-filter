@@ -36,6 +36,6 @@
 - coolness-log.jsonl
 
 # deploy-telemetry.json belongs to .github/workflows/deploy-telemetry.yml,
-# which regenerates it by merging the live copy's history. The publish never
-# deletes the host's copy.
+# which regenerates it by merging the live copy's history. An in-place
+# publish never deletes the host's copy; a release links to shared/ instead.
 P deploy-telemetry.json

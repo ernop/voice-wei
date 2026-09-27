@@ -43,7 +43,8 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # upload-telemetry.sh runs the target guard first.
+      # Lands where the host layout serves it (in place, or shared/ beside
+      # the releases); upload-telemetry.sh runs the target guard first.
       - name: Upload deploy telemetry
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
