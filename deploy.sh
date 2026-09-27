@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deploy Voice-Wei to production (manual bypass of GitHub Actions).
 # Reads deploy.user / deploy.host / deploy.remotePath from config.json.
-# Keep the rsync exclude list in sync with .github/workflows/deploy.yml.
+# Publishes through deploy/rsync-filter, the same list as .github/workflows/deploy.yml.
 # Usage: ./deploy.sh [--dry-run]
 
 set -e
@@ -39,39 +39,11 @@ fi
 echo "Deploying Voice-Wei to $USER@$HOST:$REMOTE_DIR"
 echo ""
 
-# Same excludes as .github/workflows/deploy.yml (including --delete).
 rsync -avz $DRY_RUN \
   --delete \
   --delete-excluded \
   --prune-empty-dirs \
-  --exclude='.git' \
-  --exclude='.gitignore' \
-  --exclude='.cursorignore' \
-  --exclude='.cursor' \
-  --exclude='.github' \
-  --exclude='.ast-grep' \
-  --exclude='.vscode' \
-  --exclude='.dev' \
-  --exclude='config.json' \
-  --exclude='config.example.json' \
-  --exclude='tests' \
-  --exclude='types' \
-  --exclude='demos' \
-  --exclude='deploy' \
-  --exclude='node_modules' \
-  --exclude='__pycache__' \
-  --exclude='*.pyc' \
-  --exclude='*.md' \
-  --exclude='*.txt' \
-  --exclude='*.sh' \
-  --exclude='*.py' \
-  --exclude='tsconfig.json' \
-  --exclude='sgconfig.yml' \
-  --exclude='package.json' \
-  --exclude='package-lock.json' \
-  --exclude='dev-server.js' \
-  --exclude='pipeline-*.svg' \
-  --exclude='screenshot-*.png' \
+  --filter='merge deploy/rsync-filter' \
   ./ "$USER@$HOST:$REMOTE_DIR/"
 
 echo ""
