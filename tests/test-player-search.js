@@ -104,6 +104,256 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
+    // ============ DIRECT LINK: player.html?url=<page>&onlyURL=true|false ============
+    {
+        const pageUrl = 'https://en.wikipedia.org/wiki/Rumours_(album)';
+        const album = { artist: 'Fleetwood Mac', year: '1977', album: 'Rumours', comment: '', fromPage: true };
+        const pageSongs = ['Second Hand News', 'Dreams', 'Never Going Back Again']
+            .map(name => ({ ...album, name, searchTerm: `Fleetwood Mac ${name}` }));
+        const relatedPick = {
+            name: 'Landslide', artist: 'Fleetwood Mac', year: '1975', album: 'Fleetwood Mac',
+            comment: 'Same band, the album before', searchTerm: 'Fleetwood Mac Landslide', fromPage: false
+        };
+        const pageText = [
+            'Rumours is the eleventh studio album by Fleetwood Mac.',
+            '',
+            'Side one',
+            '',
+            'No.\tTitle\tWriter(s)\tLength',
+            '1.\t"Second Hand News"\tLindsey Buckingham\t2:43',
+            '2.\t"Dreams"\tStevie Nicks\t4:14',
+            '3.\t"Never Going Back Again"\tLindsey Buckingham\t2:02'
+        ].join('\n');
+        /** @type {string[]} */
+        const readUrls = [];
+        /** @type {string[]} */
+        const searchedTerms = [];
+        /** @type {string[]} */
+        const linkErrors = [];
+
+        /**
+         * Same-origin services for the link flow, answered locally. The
+         * page's first song answers its search last, so the order the
+         * network settles in differs from page order.
+         * @param {import('playwright').BrowserContext} ctx
+         */
+        const routeLinkServices = async ctx => {
+            await ctx.route('**/iframe_api', route => route.fulfill({
+                contentType: 'application/javascript',
+                body: 'queueMicrotask(() => window.onYouTubeIframeAPIReady?.());'
+            }));
+            await ctx.route('https://i.ytimg.com/**', route => route.fulfill({
+                status: 200,
+                contentType: 'image/png',
+                body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+            }));
+            await ctx.route('**/proxy.php?*', async route => {
+                const url = new URL(route.request().url());
+                const readUrl = url.searchParams.get('readUrl');
+                if (readUrl !== null) {
+                    readUrls.push(readUrl);
+                    return route.fulfill({
+                        contentType: 'application/json',
+                        body: JSON.stringify({
+                            url: pageUrl, requestedUrl: readUrl, title: 'Rumours (album) - Wikipedia',
+                            text: pageText, charCount: pageText.length, originalCharCount: pageText.length,
+                            truncated: false, contentType: 'text/html; charset=UTF-8', links: [], structuredData: []
+                        })
+                    });
+                }
+                const query = url.searchParams.get('q');
+                if (query !== null) {
+                    searchedTerms.push(query);
+                    if (query.endsWith('Second Hand News')) await new Promise(resolve => setTimeout(resolve, 300));
+                    const name = query.replace('Fleetwood Mac ', '');
+                    return route.fulfill({
+                        contentType: 'application/json',
+                        body: JSON.stringify({
+                            results: [{
+                                videoId: `link-${name.toLowerCase().replace(/\W+/g, '-')}`,
+                                title: name, channelTitle: 'Fleetwood Mac - Topic', duration: 200, isAlbumTrack: true
+                            }],
+                            source: 'test-proxy'
+                        })
+                    });
+                }
+                return route.fulfill({ contentType: 'application/json', body: '[]' });
+            });
+        };
+
+        /**
+         * A browser context for one link scenario. Everything page-side is
+         * installed before page scripts run: a Claude stand-in (answering at
+         * once, or on the first tap when releaseOnTap), a playPlaylist probe
+         * (search and link behavior, not the YouTube iframe, owns these
+         * checks), and a watcher that reports the settled link run through a
+         * binding. The test never evaluates in the page before the run
+         * settles: Playwright runs evaluate calls as user gestures, which the
+         * page would count as the tap that the no-tap scenario must lack.
+         * @param {{ songs: any[], withKey: boolean, releaseOnTap: boolean }} setup
+         */
+        const openLinkContext = async setup => {
+            const ctx = await browser.newContext();
+            await routeLinkServices(ctx);
+            /** @type {any[]} */
+            const settledRuns = [];
+            /** @type {((run: any) => void) | null} */
+            let settledWaiter = null;
+            await ctx.exposeBinding('__linkRunSettled', (_source, run) => {
+                if (settledWaiter) {
+                    settledWaiter(run);
+                    settledWaiter = null;
+                } else {
+                    settledRuns.push(run);
+                }
+            });
+            await ctx.addInitScript(({ songs, withKey, releaseOnTap }) => {
+                if (withKey) localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890');
+                window.__claudeBodies = [];
+                let release = () => {};
+                const released = new Promise(resolve => { release = resolve; });
+                if (releaseOnTap) {
+                    document.addEventListener('pointerdown', () => release(), { once: true, capture: true });
+                } else {
+                    release();
+                }
+                const realFetch = window.fetch.bind(window);
+                window.fetch = async (url, init) => {
+                    if (!String(url).startsWith('https://api.anthropic.com/')) return realFetch(url, init);
+                    window.__claudeBodies.push(JSON.parse(String(init?.body || '{}')));
+                    await released;
+                    return new Response(JSON.stringify({
+                        content: [{ type: 'text', text: JSON.stringify(songs) }],
+                        stop_reason: 'end_turn'
+                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                };
+
+                let controller = null;
+                window.__playCalls = 0;
+                Object.defineProperty(window, 'musicController', {
+                    configurable: true,
+                    get() { return controller; },
+                    set(value) {
+                        controller = value;
+                        value.playPlaylist = () => { window.__playCalls++; };
+                    }
+                });
+                const settledStatus = /^(Playlist ready|Playing$|No AI key saved|Linked page link|No songs found|No YouTube matches|Music lookup failed)/;
+                const watcher = setInterval(() => {
+                    const status = document.getElementById('status')?.textContent || '';
+                    if (!controller || controller.isProcessingCommand || !settledStatus.test(status)) return;
+                    clearInterval(watcher);
+                    window.__linkRunSettled({
+                        status,
+                        search: window.location.search,
+                        songs: controller.playlist.map(item => item.name).join('|'),
+                        comments: controller.playlist.map(item => item.comment),
+                        playCalls: window.__playCalls,
+                        claudeCalls: window.__claudeBodies.length,
+                        tapped: navigator.userActivation.hasBeenActive
+                    });
+                }, 50);
+            }, setup);
+            const tab = await ctx.newPage();
+            collectErrors(tab, 'player-linked-page', linkErrors);
+            /** @returns {Promise<any>} */
+            const nextSettledRun = () => Promise.race([
+                settledRuns.length > 0
+                    ? Promise.resolve(settledRuns.shift())
+                    : new Promise(resolve => { settledWaiter = resolve; }),
+                new Promise((_resolve, reject) => setTimeout(() => reject(new Error('link run did not settle within 20s')), 20000))
+            ]);
+            return { ctx, tab, nextSettledRun };
+        };
+
+        /** Details read after the run settled, when evaluating can no longer change it. @param {import('playwright').Page} tab */
+        const linkDetails = tab => tab.evaluate(async () => {
+            const lookups = await PlayerHistoryDB.listLookups();
+            return {
+                prompts: window.__claudeBodies.map(body => body.messages?.[0]?.content || ''),
+                transcript: document.getElementById('transcript')?.textContent || '',
+                lookupRequest: lookups[0]?.request || null,
+                phaseDetail: window.__voiceWeiStartup.report.phases
+                    .find(phase => phase.name === 'linked page request')?.detail || null,
+                overlayVisible: getComputedStyle(document.getElementById('apiKeyOverlay')).display !== 'none'
+            };
+        });
+        /** @param {string} flags */
+        const linkTo = flags => `${BASE_URL}/player.html?url=${encodeURIComponent(pageUrl)}&${flags}`;
+
+        // onlyURL=true, opened with no tap on the page (a phone shortcut).
+        const exactLink = await openLinkContext({ songs: [...pageSongs, relatedPick], withKey: true, releaseOnTap: false });
+        await exactLink.tab.goto(linkTo('onlyURL=true&note=kept'), { waitUntil: 'domcontentloaded' });
+        const exact = await exactLink.nextSettledRun();
+        const exactDetails = await linkDetails(exactLink.tab);
+        report.check(`direct link onlyURL=true builds exactly the page's songs in page order (${exact.songs})`,
+            readUrls.length === 1 && readUrls[0] === pageUrl
+            && exact.songs === 'Second Hand News|Dreams|Never Going Back Again'
+            && !searchedTerms.includes('Fleetwood Mac Landslide')
+            && exactDetails.transcript === `Linked page (onlyURL=true): ${pageUrl}`
+            && exactDetails.phaseDetail?.requested === true);
+        report.check('onlyURL=true prompt carries the structured page text and the exact-page scope',
+            exactDetails.prompts.length === 1
+            && exactDetails.prompts[0].includes('(onlyURL=true)')
+            && exactDetails.prompts[0].includes("the playlist is exactly the page's songs")
+            && exactDetails.prompts[0].includes('1.\t"Second Hand News"\tLindsey Buckingham\t2:43')
+            && exactDetails.prompts[0].includes('"fromPage": true')
+            && !exactDetails.prompts[0].includes('related songs'));
+        report.check(`a link opened without a tap builds the playlist and waits for Play (${exact.status})`,
+            exact.status === 'Playlist ready: 3 songs - tap Play to start'
+            && !exact.tapped
+            && exact.playCalls === 0);
+        report.check('the link leaves the address bar once run; other parameters stay; the lookup keeps its scope',
+            exact.search === '?note=kept'
+            && exactDetails.lookupRequest?.pageScope === 'only-page'
+            && exactDetails.lookupRequest?.pageUrls?.[0] === pageUrl);
+
+        // An invalid flag is reported, never guessed into a mode.
+        const readsBeforeInvalid = readUrls.length;
+        await exactLink.tab.goto(linkTo('onlyURL=maybe'), { waitUntil: 'domcontentloaded' });
+        const invalid = await exactLink.nextSettledRun();
+        report.check(`an invalid onlyURL value is reported and runs nothing (${invalid.status})`,
+            invalid.status === 'Linked page link: onlyURL must be true or false (got "maybe")'
+            && invalid.search === ''
+            && invalid.claudeCalls === 0
+            && readUrls.length === readsBeforeInvalid);
+        await exactLink.ctx.close();
+
+        // onlyURL=false; the AI answers only after a tap on the page.
+        const seededLink = await openLinkContext({ songs: [...pageSongs, relatedPick], withKey: true, releaseOnTap: true });
+        await seededLink.tab.goto(linkTo('onlyURL=false'), { waitUntil: 'domcontentloaded' });
+        await seededLink.tab.locator('#status').click();
+        const seeded = await seededLink.nextSettledRun();
+        const seededDetails = await linkDetails(seededLink.tab);
+        report.check(`direct link onlyURL=false keeps page songs first, then related picks (${seeded.songs})`,
+            seeded.songs === 'Second Hand News|Dreams|Never Going Back Again|Landslide'
+            && seeded.comments[3] === 'Related pick: Same band, the album before'
+            && seeded.comments.slice(0, 3).every(comment => comment === '')
+            && seededDetails.prompts[0].includes('(onlyURL=false)')
+            && seededDetails.prompts[0].includes('up to 20 related songs')
+            && seededDetails.lookupRequest?.pageScope === 'page-plus-related');
+        report.check('a link run after a tap on the page starts playback',
+            seeded.status === 'Playing' && seeded.tapped && seeded.playCalls === 1 && seeded.search === '');
+        await seededLink.ctx.close();
+
+        // No key saved: the key entry opens, and the link stays in the
+        // address bar so a reload after saving a key runs it.
+        const noKeyLink = await openLinkContext({ songs: pageSongs, withKey: false, releaseOnTap: false });
+        const readsBeforeNoKey = readUrls.length;
+        await noKeyLink.tab.goto(linkTo('onlyURL=true'), { waitUntil: 'domcontentloaded' });
+        const noKey = await noKeyLink.nextSettledRun();
+        const noKeyDetails = await linkDetails(noKeyLink.tab);
+        report.check(`a link with no key saved opens key entry and stays reloadable (${noKey.status})`,
+            noKey.status === 'No AI key saved - save one, then reload this link to build its playlist'
+            && noKeyDetails.overlayVisible
+            && noKey.search === `?url=${encodeURIComponent(pageUrl)}&onlyURL=true`
+            && noKey.claudeCalls === 0
+            && readUrls.length === readsBeforeNoKey);
+        await noKeyLink.ctx.close();
+
+        linkErrors.forEach(error => report.errors.push(error));
+    }
+
     // ============ PLAYER VOICE: shared core drives commands and music requests ============
     {
         const ctx = await browser.newContext();
@@ -199,6 +449,18 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     provider: 'openai',
                     createdAt: '2026-01-01',
                     songList: [{ searchTerm: 'old one' }, { searchTerm: 'old two' }]
+                }, {
+                    id: 2,
+                    requestText: 'Linked page (onlyURL=true): https://example.test/list',
+                    request: {
+                        requestText: 'Linked page (onlyURL=true): https://example.test/list',
+                        pageScope: 'only-page',
+                        pageUrls: ['https://example.test/list']
+                    },
+                    songCount: 1,
+                    provider: 'claude',
+                    createdAt: '2026-01-02',
+                    songList: [{ searchTerm: 'listed one' }]
                 }],
                 musicHistorySongs: [{
                     videoId: 'known-video',
@@ -232,6 +494,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 updateStatus(message) { this.statuses.push(message); },
                 async searchAndAddToPlaylist(songList) { this.searchedTerms.push(...songList.map(song => song.searchTerm)); },
                 async processMusicSearch(requestText) { this.rerunRequest = requestText; },
+                async runMusicSearch(request) { this.rerunScopedRequest = request; },
                 appendPlaylistItem(item) { this.playlist.push(item); },
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
@@ -249,6 +512,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
             await harness.loadHistoryLookups([1]);
             await harness.rerunHistoryLookupById(1);
+            await harness.rerunHistoryLookupById(2);
             await harness.loadKnownSongs(['known-video']);
             document.getElementById('musicLookupHistoryList').innerHTML = '';
             document.getElementById('musicKnownSongsList').innerHTML = '';
@@ -257,6 +521,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 rendered,
                 searchedTerms: harness.searchedTerms.join('|'),
                 rerunRequest: harness.rerunRequest,
+                rerunScopedRequest: harness.rerunScopedRequest || null,
                 loadedKnown: harness.playlist[0]?.sourceKind || ''
             };
         });
@@ -267,6 +532,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && musicHistoryWorkflows.searchedTerms === 'old one|old two'
             && musicHistoryWorkflows.rerunRequest === 'old lookup request'
             && musicHistoryWorkflows.loadedKnown === 'history');
+        report.check('a linked-page lookup reruns with its recorded page scope',
+            musicHistoryWorkflows.rerunScopedRequest?.pageScope === 'only-page'
+            && musicHistoryWorkflows.rerunScopedRequest?.pageUrls[0] === 'https://example.test/list');
 
         // Known Songs live search: the list filters with the same matcher
         // as the playlist filter, and Load All Shown loads exactly the
@@ -420,14 +688,15 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                     text: 'The page mentions The Clash, London Calling, and The Ventures.',
                     charCount: 67,
                     originalCharCount: 1000,
-                    truncated: true
+                    truncated: true,
+                    structuredData: []
                 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             };
-            const prepared = await harness.prepareMusicSearchRequest('all songs in https://example.test/page please');
-            const inferred = await harness.prepareMusicSearchRequest('get the songs bands and search terms from the tvtropes regional riffs page');
+            const prepared = await harness.prepareMusicSearchRequest(harness.musicSearchRequestFromText('all songs in https://example.test/page please'));
+            const inferred = await harness.prepareMusicSearchRequest(harness.musicSearchRequestFromText('get the songs bands and search terms from the tvtropes regional riffs page'));
             const prompt = harness.getMusicSearchPrompt(prepared);
             const longTextPrompts = harness.getMusicSearchPrompts({
-                transcript: `Please extract every song. ${'Song line. '.repeat(7000)}`,
+                ...harness.musicSearchRequestFromText(`Please extract every song. ${'Song line. '.repeat(7000)}`),
                 linkedPages: []
             });
             window.fetch = realFetch;
@@ -510,6 +779,115 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && aiParsing.fetchUrls.some(url => url.includes('RegionalRiff'))
             && aiParsing.inferredTitle === 'Regional riffs');
 
+        // Direct-link parsing, page-scope prompts, and the page-first merge
+        // on the installed module, without a browser round trip.
+        const linkedPageScopes = await tab.evaluate(() => {
+            const harness = {
+                messages: [],
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
+                updateStatus() {},
+                logClaudeMessage() {}
+            };
+            PlayerCommands.install(harness);
+            const parse = query => harness.parseLinkedPageEntry(new URLSearchParams(query));
+            const page = encodeURIComponent('https://en.wikipedia.org/wiki/Rumours_(album)');
+            const entries = {
+                none: parse('song=abc'),
+                omitted: parse(`url=${page}`),
+                upper: parse(`url=${page}&onlyURL=TRUE`),
+                related: parse(`url=${page}&onlyURL=false`),
+                yes: parse(`url=${page}&onlyURL=yes`),
+                empty: parse(`url=${page}&onlyURL=`),
+                bare: parse('url=rumours'),
+                script: parse(`url=${encodeURIComponent('javascript:alert(1)')}`)
+            };
+
+            const albumJsonLd = {
+                '@context': 'http://schema.org',
+                '@type': 'MusicAlbum',
+                name: 'Rumours',
+                byArtist: [{ '@type': 'MusicGroup', name: 'Fleetwood Mac', url: 'https://music.example/artist' }],
+                citation: [{ '@type': 'MusicAlbum', name: 'Tusk' }],
+                tracks: [
+                    { '@type': 'MusicRecording', name: 'Second Hand News', duration: 'PT2M56S', offers: { price: 0 } },
+                    { '@type': 'MusicRecording', name: 'Dreams', duration: 'PT4M17S', offers: { price: 0 } }
+                ]
+            };
+            const linkedPage = {
+                url: 'https://en.wikipedia.org/wiki/Rumours_(album)',
+                requestedUrl: 'https://en.wikipedia.org/wiki/Rumours_(album)',
+                title: 'Rumours (album) - Wikipedia',
+                text: `Side one\n1.\t"Second Hand News"\tLindsey Buckingham\n${'A line about the recording sessions.\n'.repeat(2200)}`,
+                charCount: 81000,
+                originalCharCount: 81000,
+                truncated: false,
+                structuredData: [{ '@type': 'Article', name: 'Rumours (album)' }, albumJsonLd]
+            };
+            const onlyPagePrompts = harness.getMusicSearchPrompts({ ...entries.omitted.request, linkedPages: [linkedPage] });
+            const relatedPrompts = harness.getMusicSearchPrompts({ ...entries.related.request, linkedPages: [linkedPage] });
+            const chunks = harness.chunkMusicSource(linkedPage.text, 'label', 'meta');
+
+            const song = (name, fromPage) => ({
+                name, artist: 'Fleetwood Mac', year: '', album: '',
+                comment: fromPage ? '' : 'same era', searchTerm: `Fleetwood Mac ${name}`, fromPage
+            });
+            const batches = [
+                [song('Second Hand News', true), song('Landslide', false)],
+                [song('Dreams', true), song('Rhiannon', false), song('Second Hand News', true)]
+            ];
+            const describe = list => list.map(item => `${item.name}${item.fromPage ? '' : `(${item.comment})`}`).join('|');
+            return {
+                entries,
+                onlyPagePrompts,
+                relatedPrompts,
+                chunkCount: chunks.length,
+                chunksEndOnLines: chunks.slice(0, -1).every(chunk => chunk.text.endsWith('\n')),
+                merged: {
+                    onlyPage: describe(harness.mergeAIResponseBatches(batches, ['a', 'b'], 'only-page').songList),
+                    related: describe(harness.mergeAIResponseBatches(batches, ['a', 'b'], 'page-plus-related').songList),
+                    request: describe(harness.mergeAIResponseBatches(batches, ['a', 'b'], 'request').songList)
+                },
+                leftOutLogged: harness.messages.some(message => message.label === 'Not on the page'
+                    && message.text.includes('Fleetwood Mac Landslide; Fleetwood Mac Rhiannon')),
+                normalizedFromPage: harness.normalizeAISongList([
+                    { name: 'Dreams', artist: 'Fleetwood Mac', fromPage: true },
+                    { name: 'Other', artist: 'Someone' },
+                    'plain search term'
+                ]).map(item => item.fromPage)
+            };
+        });
+        const scopes = linkedPageScopes.entries;
+        report.check('direct link parameters parse into explicit page scopes; bad values are errors',
+            scopes.none === null
+            && scopes.omitted.ok && scopes.omitted.request.pageScope === 'only-page'
+            && scopes.omitted.request.pageUrls[0] === 'https://en.wikipedia.org/wiki/Rumours_(album)'
+            && scopes.omitted.request.requestText === 'Linked page (onlyURL=true): https://en.wikipedia.org/wiki/Rumours_(album)'
+            && scopes.upper.ok && scopes.upper.request.pageScope === 'only-page'
+            && scopes.related.ok && scopes.related.request.pageScope === 'page-plus-related'
+            && !scopes.yes.ok && scopes.yes.error.includes('onlyURL must be true or false (got "yes")')
+            && !scopes.empty.ok
+            && !scopes.bare.ok && scopes.bare.error.includes('full http(s) page address')
+            && !scopes.script.ok);
+        const [firstOnlyPagePrompt] = linkedPageScopes.onlyPagePrompts;
+        report.check('page-scope prompts lead with pruned schema.org music data and split on lines',
+            linkedPageScopes.onlyPagePrompts.length === 2
+            && linkedPageScopes.chunkCount === 2
+            && linkedPageScopes.chunksEndOnLines
+            && firstOnlyPagePrompt.includes('Page batch 1 of 2 from Rumours (album) - Wikipedia.')
+            && firstOnlyPagePrompt.includes('Structured music data embedded in the page')
+            && firstOnlyPagePrompt.includes('{"@type":"MusicRecording","name":"Dreams","duration":"PT4M17S"}')
+            && !firstOnlyPagePrompt.includes('offers')
+            && !firstOnlyPagePrompt.includes('Tusk')
+            && !firstOnlyPagePrompt.includes('"@type":"Article"')
+            && firstOnlyPagePrompt.includes('Add nothing else')
+            && linkedPageScopes.relatedPrompts.every(prompt => prompt.includes('up to 10 related songs')));
+        report.check(`page merge keeps page songs first in page order (${linkedPageScopes.merged.related})`,
+            linkedPageScopes.merged.onlyPage === 'Second Hand News|Dreams'
+            && linkedPageScopes.merged.related === 'Second Hand News|Dreams|Landslide(Related pick: same era)|Rhiannon(Related pick: same era)'
+            && linkedPageScopes.merged.request === 'Second Hand News|Landslide(same era)|Dreams|Rhiannon(same era)'
+            && linkedPageScopes.leftOutLogged
+            && linkedPageScopes.normalizedFromPage.join('|') === 'true|false|false');
+
         const partialPlaylist = await tab.evaluate(async () => {
             const harness = {
                 playlist: [],
@@ -577,6 +955,56 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && partialPlaylist.cachedAlternate === 'alternate-found'
             && partialPlaylist.hasErrorLog === false
             && partialPlaylist.hasNotAddedLog === true);
+
+        // The AI's list order (a linked page's order) survives searches that
+        // settle out of order; each song lands once every song ahead settled.
+        const orderedRelease = await tab.evaluate(async () => {
+            const harness = {
+                playlist: [],
+                youtubeAlternateResults: new Map(),
+                settings: { playlistTimedOnly: false },
+                appended: []
+            };
+            PlayerPlaylist.install(harness);
+            Object.assign(harness, {
+                addMessage() {},
+                updateStatus() {},
+                showPlaylistSurfaces() {},
+                decodeHtml(value) { return value; },
+                addPlaylistItemsToDOM() {},
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                queueLyricsLookup() {}
+            });
+            const delays = { 'song a': 80, 'song b': 0, 'song c': 30, 'song d': 0 };
+            const settledOrder = [];
+            harness.searchYouTube = async query => {
+                await new Promise(resolve => setTimeout(resolve, delays[query]));
+                settledOrder.push(query);
+                if (query === 'song b') return null;
+                return { videoId: `ordered-${query.replace(' ', '-')}`, title: query, channelTitle: 'Artist', duration: '3:00', durationSeconds: 180 };
+            };
+            const appendItem = harness.appendPlaylistItem.bind(harness);
+            harness.appendPlaylistItem = item => {
+                harness.appended.push(item.searchTerm);
+                appendItem(item);
+            };
+            const result = await harness.searchAndAddToPlaylist(['song a', 'song b', 'song c', 'song d']
+                .map(term => ({ searchTerm: term, name: term, artist: 'Artist' })));
+            return {
+                settledOrder: settledOrder.join('|'),
+                appended: harness.appended.join('|'),
+                playlist: harness.playlist.map(item => item.searchTerm).join('|'),
+                addedCount: result.addedCount,
+                skippedTerms: result.skippedTerms.join('|')
+            };
+        });
+        report.check(`AI playlist keeps list order when searches settle out of order (settled ${orderedRelease.settledOrder})`,
+            orderedRelease.settledOrder.startsWith('song b')
+            && orderedRelease.appended === 'song a|song c|song d'
+            && orderedRelease.playlist === 'song a|song c|song d'
+            && orderedRelease.addedCount === 3
+            && orderedRelease.skippedTerms === 'song b');
 
         // Replace-on-search keeps the playing song: the old list is only
         // dropped when the first found song is actually added, the current

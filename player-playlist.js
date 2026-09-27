@@ -198,9 +198,10 @@ const PlayerPlaylist = (function () {
                 const skippedTerms = [];
                 let skippedCount = songList.length - validSongs.length;
 
-                // Each song is added the moment its search completes (the
-                // list fills in while later searches are still running),
-                // so rows appear in completion order.
+                // Songs are added one by one as their searches settle, but in
+                // list order: a found song waits only for the searches ahead
+                // of it, so the playlist keeps the AI's (or the linked page's)
+                // order instead of the order the network happened to answer.
                 const handleSearchResult = ({ song, index, videoData, error }) => {
                     if (error) {
                         skippedCount++;
@@ -259,7 +260,20 @@ const PlayerPlaylist = (function () {
                     this.persistPlaylist();
                 };
 
-                await this.searchSongsWithConcurrency(validSongs, { onResult: handleSearchResult });
+                /** @type {Map<number, any>} settled results waiting on an earlier song, by list index */
+                const settledAhead = new Map();
+                let releaseCursor = 0;
+                const releaseInListOrder = result => {
+                    settledAhead.set(result.index, result);
+                    while (releaseCursor < validSongs.length && settledAhead.has(validSongs[releaseCursor].index)) {
+                        const next = settledAhead.get(validSongs[releaseCursor].index);
+                        settledAhead.delete(validSongs[releaseCursor].index);
+                        releaseCursor++;
+                        handleSearchResult(next);
+                    }
+                };
+
+                await this.searchSongsWithConcurrency(validSongs, { onResult: releaseInListOrder });
 
                 this.updatePlaylistLabel();
                 this.addMessage('claude', 'Complete', `Added ${addedCount} of ${songList.length} songs`);

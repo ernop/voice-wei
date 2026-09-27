@@ -6,6 +6,17 @@ const SKIP_CLAUDE = false;
 const MUSIC_SEARCH_MAX_TOKENS = 16000;
 const MUSIC_SOURCE_CHUNK_CHARS = 50000;
 const SONG_REPORT_MAX_TOKENS = 6000;
+// The direct playlist entry: player.html?url=<page>&onlyURL=true|false
+const LINKED_PAGE_URL_PARAM = 'url';
+const LINKED_PAGE_ONLY_PARAM = 'onlyURL';
+// onlyURL=false: related picks for the whole page, shared across its batches.
+const LINKED_PAGE_RELATED_PICKS_MAX = 20;
+// schema.org fields that identify songs; the rest of a page's JSON-LD
+// (offers, images, audio URLs, related albums) is prompt noise.
+const MUSIC_STRUCTURED_DATA_KEYS = new Set([
+    '@graph', '@type', 'name', 'byArtist', 'inAlbum', 'album', 'track', 'tracks',
+    'itemListElement', 'item', 'position', 'datePublished', 'duration'
+]);
 
 const PlayerCommands = (function () {
     'use strict';
@@ -182,7 +193,8 @@ const PlayerCommands = (function () {
                 }
             },
 
-            async processCommandWithLLM(transcript) {
+            /** @param {MusicSearchRequest} request */
+            async processCommandWithLLM(request) {
                 // Debug mode: skip API and return hardcoded test data
                 if (SKIP_CLAUDE) {
                     this.addMessage('claude', 'DEBUG', 'Skipping API - using hardcoded Cecilia');
@@ -192,7 +204,8 @@ const PlayerCommands = (function () {
                         year: "1970",
                         album: "Bridge Over Troubled Water",
                         comment: "DEBUG: Hardcoded test song",
-                        searchTerm: "Simon & Garfunkel Cecilia"
+                        searchTerm: "Simon & Garfunkel Cecilia",
+                        fromPage: false
                     }];
                     return { songList: testSongList, prompt: '[DEBUG MODE - API skipped]' };
                 }
@@ -201,9 +214,9 @@ const PlayerCommands = (function () {
                 const provider = this.settings.aiProvider;
 
                 if (provider === 'openai') {
-                    return this.processCommandWithOpenAI(transcript);
+                    return this.processCommandWithOpenAI(request);
                 } else {
-                    return this.processCommandWithClaude(transcript);
+                    return this.processCommandWithClaude(request);
                 }
             },
 
@@ -345,13 +358,14 @@ const PlayerCommands = (function () {
                 return { text, provider: 'claude', model };
             },
 
-            async processCommandWithClaude(transcript) {
+            /** @param {MusicSearchRequest} request */
+            async processCommandWithClaude(request) {
                 if (!this.config || !this.config.claudeApiKey) {
                     throw this.missingApiKeyError('claude');
                 }
 
-                const request = await this.prepareMusicSearchRequest(transcript);
-                const prompts = this.getMusicSearchPrompts(request);
+                const prepared = await this.prepareMusicSearchRequest(request);
+                const prompts = this.getMusicSearchPrompts(prepared);
                 const songLists = [];
 
                 for (let i = 0; i < prompts.length; i++) {
@@ -409,35 +423,36 @@ const PlayerCommands = (function () {
                     songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
-                return this.mergeAIResponseBatches(songLists, prompts);
+                return this.mergeAIResponseBatches(songLists, prompts, prepared.pageScope);
             },
 
-            async processCommandWithOpenAI(transcript) {
+            /** @param {MusicSearchRequest} request */
+            async processCommandWithOpenAI(request) {
                 if (!this.config || !this.config.openaiApiKey) {
                     throw this.missingApiKeyError('openai');
                 }
 
-                const request = await this.prepareMusicSearchRequest(transcript);
-                const prompts = this.getMusicSearchPrompts(request);
+                const prepared = await this.prepareMusicSearchRequest(request);
+                const prompts = this.getMusicSearchPrompts(prepared);
                 const songLists = [];
 
                 for (let i = 0; i < prompts.length; i++) {
                     const prompt = prompts[i];
                     let responseText = '';
-                    const request = this.buildOpenAIRequest(prompt);
+                    const openaiRequest = this.buildOpenAIRequest(prompt);
 
                     this.logClaudeMessage(`Music search request to OpenAI (${this.settings.openaiModel}) batch ${i + 1}/${prompts.length}`);
-                    this.addMessage('claude', `OpenAI request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(request.body, null, 2));
+                    this.addMessage('claude', `OpenAI request (raw, batch ${i + 1}/${prompts.length})`, JSON.stringify(openaiRequest.body, null, 2));
 
                     let truncated = false;
                     try {
-                        const response = await fetch(request.url, {
+                        const response = await fetch(openaiRequest.url, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${this.config.openaiApiKey}`
                             },
-                            body: JSON.stringify(request.body)
+                            body: JSON.stringify(openaiRequest.body)
                         });
 
                         if (!response.ok) {
@@ -461,7 +476,7 @@ const PlayerCommands = (function () {
                     songLists.push(this.parseAIResponse(responseText, prompt, { allowEmpty: true, truncated }).songList);
                 }
 
-                return this.mergeAIResponseBatches(songLists, prompts);
+                return this.mergeAIResponseBatches(songLists, prompts, prepared.pageScope);
             },
 
             buildOpenAIRequest(prompt) {
@@ -519,20 +534,94 @@ const PlayerCommands = (function () {
                 return [];
             },
 
-            async prepareMusicSearchRequest(transcript) {
-                const explicitUrls = this.extractUrlsFromTranscript(transcript);
-                const urls = explicitUrls.length > 0 ? explicitUrls : this.inferKnownPageUrls(transcript);
+            /**
+             * A typed, spoken, or history request. URLs in its words (or a
+             * known page it names) are read, and the words decide what to take.
+             * @param {string} requestText
+             * @returns {MusicSearchRequest}
+             */
+            musicSearchRequestFromText(requestText) {
+                const explicitUrls = this.extractUrlsFromTranscript(requestText);
+                return {
+                    requestText,
+                    pageScope: 'request',
+                    pageUrls: explicitUrls.length > 0 ? explicitUrls : this.inferKnownPageUrls(requestText)
+                };
+            },
+
+            /**
+             * The direct playlist entry: player.html?url=<page>&onlyURL=true|false.
+             * onlyURL=true (also the value when omitted) takes exactly the
+             * page's songs; false lets related picks follow them. Any other
+             * value is an error rather than a guessed mode.
+             * @param {URLSearchParams} params
+             * @returns {LinkedPageEntry | null} null when the page was opened without one
+             */
+            parseLinkedPageEntry(params) {
+                const rawUrl = params.get(LINKED_PAGE_URL_PARAM);
+                if (rawUrl === null) return null;
+
+                /** @type {URL | null} */
+                let pageUrl = null;
+                try {
+                    pageUrl = new URL(rawUrl.trim());
+                } catch (_invalidUrl) {
+                    pageUrl = null;
+                }
+                if (!pageUrl || (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:')) {
+                    return { ok: false, error: `Linked page link needs a full http(s) page address in "${LINKED_PAGE_URL_PARAM}" (got "${rawUrl}")` };
+                }
+
+                const rawOnly = params.get(LINKED_PAGE_ONLY_PARAM);
+                const onlyValue = rawOnly === null ? 'true' : rawOnly.trim().toLowerCase();
+                if (onlyValue !== 'true' && onlyValue !== 'false') {
+                    return { ok: false, error: `Linked page link: ${LINKED_PAGE_ONLY_PARAM} must be true or false (got "${rawOnly}")` };
+                }
+
+                const onlyUrl = onlyValue === 'true';
+                return {
+                    ok: true,
+                    request: {
+                        requestText: `Linked page (${LINKED_PAGE_ONLY_PARAM}=${onlyUrl}): ${pageUrl.href}`,
+                        pageScope: onlyUrl ? 'only-page' : 'page-plus-related',
+                        pageUrls: [pageUrl.href]
+                    }
+                };
+            },
+
+            linkedPageEntryFromLocation() {
+                return this.parseLinkedPageEntry(new URLSearchParams(window.location.search));
+            },
+
+            // Leaves every other parameter (diagnostic flags) in place.
+            clearLinkedPageEntryFromLocation() {
+                const url = new URL(window.location.href);
+                url.searchParams.delete(LINKED_PAGE_URL_PARAM);
+                url.searchParams.delete(LINKED_PAGE_ONLY_PARAM);
+                history.replaceState(history.state, '', url.href);
+            },
+
+            /**
+             * @param {MusicSearchRequest} request
+             * @returns {Promise<PreparedMusicSearchRequest>}
+             */
+            async prepareMusicSearchRequest(request) {
+                const urls = request.pageUrls;
                 if (urls.length === 0) {
-                    return { transcript, linkedPages: [] };
+                    return { ...request, linkedPages: [] };
                 }
 
                 this.updateStatus(`Reading ${urls.length} linked page${urls.length === 1 ? '' : 's'}...`);
                 this.addMessage('claude', 'Linked pages', `Reading ${urls.join(', ')}`);
 
                 const linkedPages = await Promise.all(urls.map(url => this.fetchLinkedPageText(url)));
-                return { transcript, linkedPages };
+                return { ...request, linkedPages };
             },
 
+            /**
+             * @param {string} url
+             * @returns {Promise<LinkedPageText>}
+             */
             async fetchLinkedPageText(url) {
                 const response = await fetch(`proxy.php?readUrl=${encodeURIComponent(url)}`);
                 const data = await response.json().catch(() => ({}));
@@ -550,17 +639,22 @@ const PlayerCommands = (function () {
                 return data;
             },
 
-            getMusicSearchPrompt(request) {
-                return this.getMusicSearchPrompts(request)[0];
+            /** @param {PreparedMusicSearchRequest} prepared */
+            getMusicSearchPrompt(prepared) {
+                return this.getMusicSearchPrompts(prepared)[0];
             },
 
-            getMusicSearchPrompts(request) {
-                const transcript = typeof request === 'string' ? request : request.transcript;
-                const linkedPages = typeof request === 'string' ? [] : request.linkedPages;
-                const sourceChunks = this.buildMusicSourceChunks(transcript, linkedPages);
-                const promptRequest = sourceChunks.length > 0 && linkedPages.length === 0 && transcript.length > 2000
-                    ? `${transcript.slice(0, 2000)}\n[Long typed/pasted request continues in the extraction batches below.]`
-                    : transcript;
+            /** @param {PreparedMusicSearchRequest} prepared */
+            getMusicSearchPrompts(prepared) {
+                if (prepared.pageScope !== 'request') {
+                    return this.getLinkedPagePrompts(prepared);
+                }
+
+                const { requestText, linkedPages } = prepared;
+                const sourceChunks = this.buildMusicSourceChunks(prepared);
+                const promptRequest = sourceChunks.length > 0 && linkedPages.length === 0 && requestText.length > 2000
+                    ? `${requestText.slice(0, 2000)}\n[Long typed/pasted request continues in the extraction batches below.]`
+                    : requestText;
 
                 if (sourceChunks.length === 0) {
                     return [this.buildMusicSearchPrompt(promptRequest, '')];
@@ -576,28 +670,93 @@ Text:
 """${chunk.text}"""`));
             },
 
-            buildMusicSourceChunks(transcript, linkedPages) {
-                if (linkedPages.length > 0) {
-                    return linkedPages.flatMap(page => this.chunkMusicSource(
-                        page.text,
+            /**
+             * One prompt per batch of a directly linked page. The related-pick
+             * allowance is split across batches so a long page gets the same
+             * total as a short one.
+             * @param {PreparedMusicSearchRequest} prepared
+             */
+            getLinkedPagePrompts(prepared) {
+                const chunks = this.buildMusicSourceChunks(prepared);
+                this.addMessage('claude', 'Extraction batches', `${chunks.length} page batch${chunks.length === 1 ? '' : 'es'} prepared (${prepared.pageScope})`);
+                const relatedPicksMax = Math.ceil(LINKED_PAGE_RELATED_PICKS_MAX / chunks.length);
+                return chunks.map(chunk => this.buildLinkedPagePrompt({ pageScope: prepared.pageScope, chunk, relatedPicksMax }));
+            },
+
+            /** @param {PreparedMusicSearchRequest} prepared */
+            buildMusicSourceChunks(prepared) {
+                if (prepared.linkedPages.length > 0) {
+                    return prepared.linkedPages.flatMap(page => this.chunkMusicSource(
+                        this.linkedPageSourceText(page),
                         page.title || page.url,
                         `URL: ${page.url}
 Readable text: ${page.charCount || page.text.length} chars${page.truncated ? ` (truncated from ${page.originalCharCount || 'unknown'} chars)` : ''}`
                     ));
                 }
 
-                if (transcript.length > MUSIC_SOURCE_CHUNK_CHARS) {
-                    return this.chunkMusicSource(transcript, 'typed/pasted request text', 'The user supplied a long typed request. The extraction instruction may be part of the first batch.');
+                if (prepared.requestText.length > MUSIC_SOURCE_CHUNK_CHARS) {
+                    return this.chunkMusicSource(prepared.requestText, 'typed/pasted request text', 'The user supplied a long typed request. The extraction instruction may be part of the first batch.');
                 }
 
                 return [];
             },
 
+            /**
+             * What the extraction reads for one page: its readable text, led
+             * by any schema.org music data it embeds (Apple Music albums, for
+             * one, list their songs only there).
+             * @param {LinkedPageText} page
+             */
+            linkedPageSourceText(page) {
+                const music = this.musicStructuredData(page.structuredData);
+                if (music.length === 0) return page.text;
+                return `Structured music data embedded in the page (schema.org JSON-LD):
+${JSON.stringify(music)}
+
+Readable page text:
+${page.text}`;
+            },
+
+            /**
+             * The page's JSON-LD blocks that describe music (MusicAlbum,
+             * MusicPlaylist, MusicRecording...), pruned to identity fields.
+             * @param {unknown[]} blocks
+             * @returns {unknown[]}
+             */
+            musicStructuredData(blocks) {
+                /** @param {unknown} node @returns {boolean} */
+                const describesMusic = node => {
+                    if (Array.isArray(node)) return node.some(describesMusic);
+                    if (!node || typeof node !== 'object') return false;
+                    const types = [].concat(node['@type'] || []);
+                    return types.some(type => /^Music/.test(String(type)))
+                        || Object.values(node).some(describesMusic);
+                };
+                /** @param {unknown} node @returns {unknown} */
+                const prune = node => {
+                    if (Array.isArray(node)) return node.map(prune);
+                    if (!node || typeof node !== 'object') return node;
+                    return Object.fromEntries(Object.entries(node)
+                        .filter(([key]) => MUSIC_STRUCTURED_DATA_KEYS.has(key))
+                        .map(([key, value]) => [key, prune(value)]));
+                };
+                return blocks.filter(describesMusic).map(prune);
+            },
+
             chunkMusicSource(text, label, meta) {
                 const chunks = [];
                 const source = String(text || '');
-                for (let start = 0; start < source.length; start += MUSIC_SOURCE_CHUNK_CHARS) {
-                    chunks.push(source.slice(start, start + MUSIC_SOURCE_CHUNK_CHARS));
+                let start = 0;
+                while (start < source.length) {
+                    let end = Math.min(source.length, start + MUSIC_SOURCE_CHUNK_CHARS);
+                    // End a batch on a line break when one is near, so a
+                    // tracklist row is never split between two batches.
+                    if (end < source.length) {
+                        const lineBreak = source.lastIndexOf('\n', end);
+                        if (lineBreak > start + MUSIC_SOURCE_CHUNK_CHARS / 2) end = lineBreak + 1;
+                    }
+                    chunks.push(source.slice(start, end));
+                    start = end;
                 }
                 return chunks.map((chunk, index) => ({
                     text: chunk,
@@ -606,6 +765,51 @@ Readable text: ${page.charCount || page.text.length} chars${page.truncated ? ` (
                     index,
                     total: chunks.length
                 }));
+            },
+
+            /**
+             * The extraction prompt for one batch of a directly linked page.
+             * Every item states fromPage, so the merge can keep the page's own
+             * songs first and in page order, and onlyURL=true can hold the
+             * playlist to exactly them.
+             * @param {{ pageScope: LinkedPageScope, chunk: MusicSourceChunk, relatedPicksMax: number }} options
+             */
+            buildLinkedPagePrompt({ pageScope, chunk, relatedPicksMax }) {
+                const onlyPage = pageScope === 'only-page';
+                const scopeRules = onlyPage
+                    ? `Scope (onlyURL=true): the playlist is exactly the page's songs.
+- Return every one of the page's songs in this batch, in page order. Do not skip, summarize, or cap them; keep fields compact for long lists.
+- Add nothing else: no recommendations, no similar songs, no other songs by the page's artists. Every item has "fromPage": true.`
+                    : `Scope (onlyURL=false): the page's songs seed the playlist, and related picks may follow them.
+- First return every one of the page's songs in this batch, in page order, each with "fromPage": true. Do not skip, summarize, or cap them; keep fields compact for long lists.
+- Then add up to ${relatedPicksMax} related songs that fit the page, each with "fromPage": false and a comment saying why it fits: for example a well-known song by an artist the page mentions without naming a song, or a song close to the page's songs in style, era, or theme. Never repeat one of the page's songs as a related pick.`;
+
+                return `Build a music playlist from a web page the user linked directly (onlyURL=${onlyPage}). There is no other request.
+
+The page's songs: when the page is built around a list of songs (an album tracklist, a setlist, a radio or DJ playlist, a chart, a ranked or curated list), they are that list in its order, every part of it (both sides, bonus tracks, encores). Otherwise they are the songs the page's text names, in the order it first names each one. Navigation, links to other pages, footnotes, references, and citations are not the page's songs. A song needs a title: artists, bands, and albums the page mentions without naming a song are not songs.
+
+${scopeRules}
+
+Use each song's title and artist as the page gives them; when the page's context makes the artist clear (an album's tracklist, one band's setlist), use that artist. Every item means the ORIGINAL STUDIO RECORDING unless the page names a live, acoustic, cover, or remix version: never add words like "live" to the search term.
+
+Page batch ${chunk.index + 1} of ${chunk.total} from ${chunk.label}.
+${chunk.meta}
+Name only songs visible in this batch; duplicates across batches are merged.
+Text:
+"""${chunk.text}"""
+
+Return ONLY a JSON array (no markdown, no code blocks, no explanation), using this schema:
+[{
+  "name": "Song title",
+  "artist": "Artist or band name, or empty string if the page does not make it clear",
+  "year": "Release year if the page gives it or you are confident of it, otherwise empty string",
+  "album": "Album if the page gives it or its context makes it clear, otherwise empty string",
+  "comment": "A few words: what the page says about the song, or why a related pick fits",
+  "searchTerm": "Artist Name Song Title",
+  "fromPage": true
+}]
+
+If this batch holds none of the page's songs${onlyPage ? '' : ' and you have no related picks'}, return an empty array [].`;
             },
 
             buildMusicSearchPrompt(transcript, sourceContext) {
@@ -738,19 +942,39 @@ If the request is not about music, return an empty array [].`;
                 return items;
             },
 
-            mergeAIResponseBatches(songLists, prompts) {
+            /**
+             * Batches merge in order, first occurrence winning. For a linked
+             * page, the page's own songs lead in page order and related picks
+             * follow; onlyURL=true keeps nothing the page does not name.
+             * @param {AISongItem[][]} songLists
+             * @param {string[]} prompts
+             * @param {LinkedPageScope} pageScope
+             */
+            mergeAIResponseBatches(songLists, prompts, pageScope) {
+                const items = songLists.flat();
+                const pageSongs = items.filter(item => item.fromPage);
+                const relatedPicks = items.filter(item => !item.fromPage);
+                const ordered = pageScope === 'request' ? items
+                    : pageScope === 'only-page' ? pageSongs
+                        : [...pageSongs, ...relatedPicks];
+
                 const seen = new Set();
                 const merged = [];
-                for (const list of songLists) {
-                    for (const item of list) {
-                        const key = item.searchTerm.toLowerCase();
-                        if (seen.has(key)) continue;
-                        seen.add(key);
-                        merged.push(item);
-                    }
+                for (const item of ordered) {
+                    const key = item.searchTerm.toLowerCase();
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    merged.push(pageScope === 'page-plus-related' && !item.fromPage
+                        ? { ...item, comment: `Related pick: ${item.comment}`.trim() }
+                        : item);
                 }
 
-                this.addMessage('claude', 'Merged extraction', `${merged.length} unique music item${merged.length === 1 ? '' : 's'} from ${songLists.length} batch${songLists.length === 1 ? '' : 'es'}`);
+                if (pageScope === 'only-page' && relatedPicks.length > 0) {
+                    this.addMessage('claude', 'Not on the page', `onlyURL=true: left out ${relatedPicks.length} item${relatedPicks.length === 1 ? '' : 's'} the AI did not mark as named by the page: ${relatedPicks.map(item => item.searchTerm).join('; ')}`);
+                }
+                const provenance = pageScope === 'request' ? ''
+                    : ` (${merged.filter(item => item.fromPage).length} from the page, ${merged.filter(item => !item.fromPage).length} related picks)`;
+                this.addMessage('claude', 'Merged extraction', `${merged.length} unique music item${merged.length === 1 ? '' : 's'} from ${songLists.length} batch${songLists.length === 1 ? '' : 'es'}${provenance}`);
                 if (merged.length === 0) {
                     const error = new Error('No songs found in the AI response');
                     error.name = 'NoSongsFoundError';
@@ -793,6 +1017,7 @@ If the request is not about music, return an empty array [].`;
                     .filter(item => item && item.searchTerm);
             },
 
+            /** @returns {AISongItem | null} */
             normalizeAISongItem(item) {
                 if (typeof item === 'string') {
                     const searchTerm = item.trim();
@@ -803,7 +1028,8 @@ If the request is not about music, return an empty array [].`;
                         year: '',
                         album: '',
                         comment: '',
-                        searchTerm
+                        searchTerm,
+                        fromPage: false
                     };
                 }
 
@@ -821,7 +1047,8 @@ If the request is not about music, return an empty array [].`;
                     year: String(item.year || '').trim(),
                     album: String(item.album || '').trim(),
                     comment: String(item.comment || item.reason || '').trim(),
-                    searchTerm
+                    searchTerm,
+                    fromPage: item.fromPage === true
                 };
             }
         }));

@@ -299,6 +299,12 @@ class VoiceMusicController {
             endPhase = PlayerStartup.begin('linked song request');
             this.loadLinkedSongIfRequested();
             endPhase();
+
+            // Parsed inside the startup boundary, run after it: the page
+            // read, AI request, and searches must not hold readiness.
+            endPhase = PlayerStartup.begin('linked page request');
+            const linkedPageEntry = this.linkedPageEntryFromLocation();
+            endPhase({ requested: linkedPageEntry !== null });
             endInitialization();
 
             const report = await PlayerStartup.finish();
@@ -320,6 +326,9 @@ class VoiceMusicController {
                 + `app/paint ${navigation.appAfterDomContentLoadedMs.toFixed(1)}ms; `
                 + `transferred ${transferredKb.toFixed(1)}KB. ${phaseSummary}`
             );
+            if (linkedPageEntry) {
+                void this.runLinkedPageEntry(linkedPageEntry);
+            }
         } catch (error) {
             this.logError('Initialization error', error);
             throw error;
@@ -1492,13 +1501,48 @@ class VoiceMusicController {
         }
     }
 
+    /** Ask AI with typed or history text. @param {string} transcript */
     async processMusicSearch(transcript) {
         const requestText = transcript.trim();
         if (!requestText) {
             this.updateStatus('Enter a music request first');
             return;
         }
+        await this.runMusicSearch(this.musicSearchRequestFromText(requestText));
+    }
 
+    /**
+     * Build the playlist a direct link asks for (see parseLinkedPageEntry).
+     * The link's parameters leave the address bar once the request has run,
+     * so a later reload restores the built playlist instead of spending
+     * another AI request. A reload mid-run, or after a missing-key stop,
+     * runs the link again.
+     * @param {LinkedPageEntry} entry
+     */
+    async runLinkedPageEntry(entry) {
+        if (entry.ok === false) {
+            this.updateStatus(entry.error);
+            this.addMessage('error', 'Linked page link', entry.error);
+            this.clearLinkedPageEntryFromLocation();
+            return;
+        }
+        const outcome = await this.runMusicSearch(entry.request);
+        if (outcome === 'missing-key') {
+            this.updateStatus('No AI key saved - save one, then reload this link to build its playlist');
+            return;
+        }
+        this.clearLinkedPageEntryFromLocation();
+    }
+
+    /**
+     * One AI music request end to end: interpret it (reading any linked
+     * page), record the lookup, replace the working playlist through keyless
+     * YouTube search, and start playback when the browser allows it.
+     * @param {MusicSearchRequest} request
+     * @returns {Promise<MusicSearchOutcome>}
+     */
+    async runMusicSearch(request) {
+        const requestText = request.requestText;
         this.hideClaudeResponse();
         this.logUserMessage(requestText);
         this.transcript.show(requestText);
@@ -1513,7 +1557,7 @@ class VoiceMusicController {
         this.updateStatus(`Processing with ${this.activeModelLabel()}...`);
 
         try {
-            const result = await this.processCommandWithLLM(requestText);
+            const result = await this.processCommandWithLLM(request);
             this.hideApiKeyProblem();
 
             // Music that resumed during the Claude wait keeps playing while
@@ -1526,7 +1570,7 @@ class VoiceMusicController {
                 if (this.settings.readClaudeResponse) {
                     this.speakText('No songs found. Try again.');
                 }
-                return;
+                return 'no-songs';
             }
 
             if (result.prompt) {
@@ -1537,6 +1581,7 @@ class VoiceMusicController {
             if (window.PlayerHistoryDB) {
                 window.PlayerHistoryDB.recordLookup({
                     requestText,
+                    request,
                     provider: this.settings.aiProvider,
                     songCount: result.songList.length,
                     songList: result.songList,
@@ -1556,14 +1601,23 @@ class VoiceMusicController {
                 const termsText = this.formatSearchTermsForDisplay(attemptedTerms);
                 this.updateStatus(`No YouTube matches for: ${termsText}`);
                 this.addMessage('claude', 'No YouTube matches', `Attempted search terms:\n${attemptedTerms.join('\n')}`);
-                return;
+                return 'no-youtube-matches';
             }
 
+            const skipText = skippedCount > 0 ? `; ${skippedCount} not added` : '';
             if (this.settings.readClaudeResponse) {
                 const songNames = result.songList.map(s => s.searchTerm).slice(0, 3).join(', ');
-                const skipText = skippedCount > 0 ? `; ${skippedCount} not added` : '';
                 const announcement = `Added ${addedCount} song${addedCount > 1 ? 's' : ''}${skipText}: ${songNames}`;
                 await this.speakTextAsync(announcement);
+            }
+
+            // Browsers refuse audible playback until the reader has touched
+            // the page. A direct link opened from a shortcut has not, and a
+            // refused start would sit silent under a "Playing" status, so the
+            // built playlist waits for one tap instead.
+            if (!this.isPlaying && !navigator.userActivation.hasBeenActive) {
+                this.updateStatus(`Playlist ready: ${addedCount} song${addedCount === 1 ? '' : 's'}${skipText} - tap Play to start`);
+                return 'ready';
             }
 
             // A song already playing keeps playing (the new songs queue up
@@ -1574,6 +1628,7 @@ class VoiceMusicController {
             this.updateStatus(skippedCount > 0
                 ? `Playing ${addedCount} song${addedCount > 1 ? 's' : ''}; ${skippedCount} not added`
                 : 'Playing');
+            return 'playing';
         } catch (error) {
             const message = error && error.message ? error.message : 'Music lookup failed';
             if (error && error.name === 'NoSongsFoundError') {
@@ -1583,6 +1638,7 @@ class VoiceMusicController {
                 if (window.PlayerHistoryDB) {
                     window.PlayerHistoryDB.recordLookup({
                         requestText,
+                        request,
                         provider: this.settings.aiProvider,
                         songCount: 0,
                         songList: [],
@@ -1593,7 +1649,7 @@ class VoiceMusicController {
                 if (this.settings.readClaudeResponse) {
                     this.speakText(`No songs found for: ${requestSummary}`);
                 }
-                return;
+                return 'no-songs';
             }
             this.logError('Music Lookup Error', error);
             this.updateStatus(`Music lookup failed: ${message}`);
@@ -1603,6 +1659,7 @@ class VoiceMusicController {
                 this.speakText(`Music lookup failed: ${message}`);
             }
             this.hidePrompt();
+            return error && error.missingKey === true ? 'missing-key' : 'failed';
         } finally {
             this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;

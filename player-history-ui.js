@@ -196,7 +196,13 @@ const PlayerHistoryUI = (function () {
                 const record = (this.musicHistoryLookups || []).find(item => item.id === id);
                 if (!record?.requestText) return;
                 this.addMessage('user', 'History override', `Running lookup again:\n${record.requestText}`);
-                await this.processMusicSearch(record.requestText);
+                // Lookups recorded with their whole request (page scope and
+                // URLs) rerun it exactly; older records hold only the text.
+                if (record.request) {
+                    await this.runMusicSearch(record.request);
+                } else {
+                    await this.processMusicSearch(record.requestText);
+                }
                 await this.refreshMusicHistoryPanel();
             },
 

@@ -203,6 +203,69 @@ interface PlaylistSearchResult {
     skippedTerms: string[];
 }
 
+/**
+ * How linked page text bounds an AI music request (docs/product-goals.md).
+ * 'request': URLs inside a typed, spoken, or history request - its words
+ * decide what to take. 'only-page': the direct link with onlyURL=true -
+ * exactly the page's songs, in page order. 'page-plus-related': the direct
+ * link with onlyURL=false - the page's songs first, then related picks.
+ */
+type LinkedPageScope = 'request' | 'only-page' | 'page-plus-related';
+
+/** One AI music request, before any linked page is read. */
+interface MusicSearchRequest {
+    /** What was asked, as logged, shown, and stored in lookup history. */
+    requestText: string;
+    pageScope: LinkedPageScope;
+    pageUrls: string[];
+}
+
+/** proxy.php?readUrl's answer for one readable page. */
+interface LinkedPageText {
+    url: string;
+    requestedUrl: string;
+    title: string;
+    /** One line per row/item, tab-separated cells, blank line between blocks. */
+    text: string;
+    charCount: number;
+    originalCharCount: number;
+    truncated: boolean;
+    /** The page's JSON-LD blocks, parsed, in page order. */
+    structuredData: unknown[];
+}
+
+interface PreparedMusicSearchRequest extends MusicSearchRequest {
+    linkedPages: LinkedPageText[];
+}
+
+/** A direct playlist link (player.html?url=...&onlyURL=...), parsed. */
+type LinkedPageEntry =
+    | { ok: true; request: MusicSearchRequest }
+    | { ok: false; error: string };
+
+interface MusicSourceChunk {
+    text: string;
+    label: string;
+    meta: string;
+    index: number;
+    total: number;
+}
+
+/** One music item from an AI response, normalized. */
+interface AISongItem {
+    name: string;
+    artist: string;
+    year: string;
+    album: string;
+    comment: string;
+    searchTerm: string;
+    /** The linked page itself names this song (asserted only in page scopes). */
+    fromPage: boolean;
+}
+
+/** How one AI music request ended (runMusicSearch). 'ready': built, waiting for a tap to play. */
+type MusicSearchOutcome = 'playing' | 'ready' | 'no-songs' | 'no-youtube-matches' | 'missing-key' | 'failed';
+
 interface PlayerHistoryDBApi {
     setNoticeHandler(handler: (message: string) => void): void;
     recordLog(entry: { type: string; label: string; text: string; line: string }): void;
@@ -331,26 +394,34 @@ interface VoiceMusicController {
     executeControlCommand(command: string): void;
     showHelp(): void;
     announceCurrentSong(): void;
-    processCommandWithLLM(transcript: string): Promise<any>;
-    processCommandWithClaude(transcript: string): Promise<any>;
-    processCommandWithOpenAI(transcript: string): Promise<any>;
+    processCommandWithLLM(request: MusicSearchRequest): Promise<any>;
+    processCommandWithClaude(request: MusicSearchRequest): Promise<any>;
+    processCommandWithOpenAI(request: MusicSearchRequest): Promise<any>;
     buildOpenAIRequest(prompt: string): { url: string; body: any };
     extractOpenAIResponseText(data: any): string;
     extractUrlsFromTranscript(transcript: string): string[];
     inferKnownPageUrls(transcript: string): string[];
-    prepareMusicSearchRequest(transcript: string): Promise<any>;
-    fetchLinkedPageText(url: string): Promise<any>;
-    getMusicSearchPrompt(request: any): string;
-    getMusicSearchPrompts(request: any): string[];
-    buildMusicSourceChunks(transcript: string, linkedPages: any[]): any[];
-    chunkMusicSource(text: string, label: string, meta: string): any[];
+    musicSearchRequestFromText(requestText: string): MusicSearchRequest;
+    parseLinkedPageEntry(params: URLSearchParams): LinkedPageEntry | null;
+    linkedPageEntryFromLocation(): LinkedPageEntry | null;
+    clearLinkedPageEntryFromLocation(): void;
+    prepareMusicSearchRequest(request: MusicSearchRequest): Promise<PreparedMusicSearchRequest>;
+    fetchLinkedPageText(url: string): Promise<LinkedPageText>;
+    getMusicSearchPrompt(prepared: PreparedMusicSearchRequest): string;
+    getMusicSearchPrompts(prepared: PreparedMusicSearchRequest): string[];
+    getLinkedPagePrompts(prepared: PreparedMusicSearchRequest): string[];
+    buildMusicSourceChunks(prepared: PreparedMusicSearchRequest): MusicSourceChunk[];
+    linkedPageSourceText(page: LinkedPageText): string;
+    musicStructuredData(blocks: unknown[]): unknown[];
+    chunkMusicSource(text: string, label: string, meta: string): MusicSourceChunk[];
     buildMusicSearchPrompt(transcript: string, sourceContext: string): string;
-    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean; truncated?: boolean }): any;
+    buildLinkedPagePrompt(options: { pageScope: LinkedPageScope; chunk: MusicSourceChunk; relatedPicksMax: number }): string;
+    parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean; truncated?: boolean }): { songList: AISongItem[]; prompt: string };
     salvageJsonArrayItems(text: string): any[] | null;
-    mergeAIResponseBatches(songLists: any[][], prompts: string[]): any;
+    mergeAIResponseBatches(songLists: AISongItem[][], prompts: string[], pageScope: LinkedPageScope): { songList: AISongItem[]; prompt: string };
     extractAIJson(responseText: string): string;
-    normalizeAISongList(parsed: any): any[];
-    normalizeAISongItem(item: any): any;
+    normalizeAISongList(parsed: any): AISongItem[];
+    normalizeAISongItem(item: any): AISongItem | null;
     missingApiKeyError(provider: 'claude' | 'openai'): Error & { provider?: string; missingKey?: boolean };
     classifyProviderError(provider: 'claude' | 'openai', status: number, errorBody: any): Error & { provider?: string; status?: number };
     requestSongReportResearch(prompt: string): Promise<{ text: string; provider: 'claude' | 'openai'; model: string }>;

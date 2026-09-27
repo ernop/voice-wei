@@ -50,6 +50,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
         'saved playlist restoration',
         'favorite video identity repair scheduling',
         'linked song request',
+        'linked page request',
         'application initialization'
     ];
     report.check(`cold player is ready within ${STARTUP_BUDGET_MS}ms (${cold.readyAtMs}ms)`,
