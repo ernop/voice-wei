@@ -14,6 +14,12 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             contentType: 'image/png',
             body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
         }));
+        // Lyric lookups for the searched song answer empty here instead of
+        // reaching LRCLIB, whose stalls surface as proxy 502s.
+        await ctx.route(/\/proxy\.php\?.*\blyrics=search\b/, route => route.fulfill({
+            contentType: 'application/json',
+            body: '[]'
+        }));
         await ctx.route(/\/proxy\.php\?.*\bq=/, route => route.fulfill({
             contentType: 'application/json',
             body: JSON.stringify({
