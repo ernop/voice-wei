@@ -212,11 +212,20 @@ checked against this list, and new standing intent gets added here.
 13. **Controls first, nothing in the way (the 2026-09-27 redo).** The page
    is built from what is needed with busy hands and eyes:
    - The sticky now-playing card holds only the star for the sounding song,
-     the song line, Big Lyrics, the sung line (two reserved lines, so the
-     card never changes height mid-track), the seek scale, big Previous /
-     Play-Pause / Next, and a compact -30 / -5 / 1st lyric / +5 / +30 row.
-     On a phone it stays under half the screen; on wide screens it splits
-     into info and controls columns.
+     the song line, Big Lyrics, the sung line (two reserved lines), and one
+     control cluster: big Previous / Play-Pause / Next directly on the seek
+     scale and the -30 / -5 / 1st lyric / +5 / +30 row directly under it,
+     with nothing in between, at every width. On a phone it stays under
+     half the screen; on wide screens the song and sung line sit on the
+     left and the cluster on the right.
+   - The card never changes height while it shows: not at Play, while the
+     player loads or buffers, at a song change, or on an empty lyric line.
+     Its rows exist by mode (the report row only in Song Report mode),
+     never by whether they have text this moment, and buttons that cannot
+     act yet stay in place disabled. The status line under it reserves two
+     lines for the same reason. `tests/test-player-ui.js` samples the card
+     every frame across Play and Next at phone and wide widths and fails on
+     any height change or layout shift.
    - Everything else lives in cards below: Find music (Listen, search, Ask
      AI, its model fold-out, History / Cache, Song Library), Playlist
      (always present, curation buttons first), Lyrics (collapsible, with
@@ -239,6 +248,13 @@ checked against this list, and new standing intent gets added here.
    > so the controls (next, etc) are prominent, so that we can load favs,
    > also unload things, hide non-favs as i star/unstar them, and have more
    > control? basically a total UI redo for the lyrics page.
+
+   His follow-up on the redo (2026-09-28), verbatim:
+
+   > great. there is just a bit of page-jumping on the left side when we
+   > hit play, as the height of the 'currently playing' section momentarily
+   > goes to 0 lines. B. Can the left/right and other track positioning
+   > stuff & controls be located close to the track timeline?
 
 ## Current priorities (deduplicated from the idea pool)
 

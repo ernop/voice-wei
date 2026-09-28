@@ -599,38 +599,50 @@ now-playing card shows the same line larger.
 
 The always-reachable surface is the **now-playing card** under the header:
 it scrolls with the page until it reaches the top, then sticks there, and it
-shows whenever the playlist has songs. It holds only what is needed with
-busy hands and eyes, top to bottom:
+shows whenever the playlist has songs. Its height never changes while it
+shows: Play, the player loading and buffering, a song change, and a moment
+with no lyric only swap text (a sticky card that grew or shrank would shove
+the whole page under the reader). It holds only what is needed with busy
+hands and eyes, top to bottom:
 
 - a **star** for the sounding (or selected) song, the song line (name, then
   artist and year; tap it to scroll the playlist to that row), and **Big
-  lyrics** (its label names the lyric state: `Big · timed`, `Big · simple`,
-  `Finding lyrics`, or `No lyrics`);
+  lyrics**, a fixed-width button whose label names the lyric state
+  (`Big · timed`, `Big · simple`, `Finding…`, or `No lyrics`);
 - the sung line, large, in two reserved lines (a long line drops to a
-  smaller size) and, in Song Report mode, the report line; once shown, these
-  rows hold their space through lyric gaps so the sticky card never changes
-  height mid-track and shoves the page under the reader - they collapse only
-  at song boundaries;
-- the **seek scale**: elapsed time (the current value) and time left as the
-  large numbers at either end, and under the track a notch at every round
-  interval (10s up to 30 minutes, at most six steps per song) labeled with
-  its time, both endpoints always labeled (`0:00` and the song length).
-  Click or drag anywhere on the track to jump; arrow keys step 5 seconds;
-- big **Previous / Play-Pause / Next** (Play is the widest; 64px tall on a
-  phone);
-- a compact within-song row: **-30 / -5 / 1st lyric / +5 / +30**. **1st
-  lyric** (just before the first sung line) appears only on timed tracks.
+  smaller size). At rest and at each song boundary it names the song
+  (artist - song - year - album), as the first seconds of playback do; a
+  moment with nothing to show is a blank line, never a missing row. In Song
+  Report mode the report line sits under it; that row follows the mode
+  alone, so it comes and goes only when Song Report is switched on or off;
+- one control cluster with nothing between its parts: big **Previous /
+  Play-Pause / Next** (Play is the widest; 64px tall on a phone) directly on
+  the **seek scale**, and the within-song row **-30 / -5 / 1st lyric / +5 /
+  +30** (50px tall) directly under it. The seek scale shows elapsed time
+  (the current value) and time left as the large numbers at either end, and
+  under the track a notch at every round interval (10s up to 30 minutes, at
+  most six steps per song) labeled with its time, both endpoints always
+  labeled (`0:00` and the song length). Click or drag anywhere on the track
+  to jump; arrow keys step 5 seconds. The position buttons stay in place,
+  disabled until a song is loaded; **1st lyric** (just before the first sung
+  line) is disabled on tracks without timed lyrics.
 
-On wide screens the card splits into two columns: song, sung line, and seek
-scale on the left, the controls on the right. The Listen button scrolls with
-the page inside the **Find music** card.
+On wide screens the card splits into two columns: the song line and sung
+line on the left, the control cluster on the right. The Listen button
+scrolls with the page inside the **Find music** card.
+
+The status line under the card always holds two lines of space (a longer
+message is cut after its second line), so Play's loading and playing
+messages never move the cards below it.
 
 The **Lyrics** card shows the whole lyric for the song with the current line
-highlighted; its header names the song and folds or opens the card
-(**Hide** / **Show**). Playing a song opens it unless you folded it.
-Timed tracks show **Lyrics too fast** / **Lyrics too slow** in the card, with
-the current signed lyric offset between them. Each tap corrects the named
-problem by 0.5 seconds. The same controls and live offset appear inside Big
+highlighted, in a fixed-height scrolling view; its header names the song and
+folds or opens the card (**Hide** / **Show**). It starts open and shows the
+selected song at rest, so Play only moves the highlight; once folded it
+stays folded for the session. Timed tracks show **Lyrics too fast** /
+**Lyrics too slow** in the card (on other tracks the row keeps its space,
+empty), with the current signed lyric offset between them. Each tap corrects
+the named problem by 0.5 seconds. The same controls and live offset appear inside Big
 Lyrics. Each song's timing nudge is stored forever on that video's lyric
 state (absent means no offset); the next play reapplies it automatically.
 
