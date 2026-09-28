@@ -1312,3 +1312,50 @@ busy hands need; everything else lives in cards that scroll.
 - YouTube answers this cloud VM's embeds with "Sign in to confirm you're not
   a bot" (the page logs player error 150), whatever the user agent. Live
   checks here can prove the transport and state, not audible playback.
+
+## 2026-09-28 - Lyrics page: no jump at Play, controls on the seek bar
+
+**Request from yui** (verbatim in product-goals item 13): the page jumped on
+the left when Play was pressed, because the now-playing section briefly
+went to 0 lines; and the Previous/Next and position controls should sit at
+the track timeline.
+
+**Root cause**: the sung-line row existed only while it had text. It started
+hidden, and the song-boundary reset hid it again, so every Play collapsed it
+until the identity arrived. Smaller movers joined in: 1st lyric appearing,
+the Big lyrics label changing width, the status line growing a line, and the
+Lyrics card opening at Play. Measured on v358: card 228 -> 284px (phone),
+133 -> 168px (wide, the left column 93 -> 153px), three layout shifts per
+Play. The fix is a rule, not a patch: rows exist by mode, never by momentary
+text; controls that cannot act yet stay in place disabled; labels that change
+have a fixed width; the seek thumb moves by transform; the status reserves
+two lines; the Lyrics card starts open with a fixed-height view.
+
+**Choices made on yui's behalf** (recorded in tools.md / product-goals 13):
+- The Song Report row follows the mode alone, so switching Song Report on or
+  off is the one deliberate height change.
+- The Lyrics card starts open (it used to open at the first Play, which moved
+  every card under it); Hide still folds it for the session.
+- A status longer than two lines is cut cleanly after the second line
+  (no ellipsis): the one centering technique that works in both engines.
+
+**For future mei**:
+- Count every `layout-shift` entry, including `hadRecentInput`: CLS ignores
+  shifts within 500ms of a tap, and that is exactly when this jump happened.
+- A moving `left` is a layout shift on every render; `transform` is not.
+  Replacing an element's text is not a shift, but a wrapper element that
+  re-centers when its text changes is (an inner clamp span did this).
+- Line-clamped `-webkit-box`: Chromium ignores `-webkit-box-pack` and centers
+  via `align-content`; WebKit is the reverse. Flex `align-items: safe center`
+  plus a transparent-border inset (so `overflow: hidden` clips exactly under
+  line two) works in both. WebKit for Playwright installs here with
+  `npx playwright install webkit` plus the apt libraries it names; every
+  iPhone browser is WebKit, so check layout tricks there too.
+- A fixed-height flex-column scroller shrinks children whose `overflow` is
+  not `visible` (their automatic minimum height is 0): `flex-shrink: 0`.
+- To prove a regression test, run it against the shipped commit from a
+  `git worktree` with `TEST_PORT` set to a free port; the runner starts its
+  own server there.
+- The live suite's voice context had the same unrouted lyric lookup as the
+  search suite (now routed). During a gate run, `lyrics=search` lines in the
+  PHP dev server's log name any lookup still reaching LRCLIB.
