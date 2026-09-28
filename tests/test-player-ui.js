@@ -1,16 +1,22 @@
 // @ts-check
 // Lyrics page layout and curation contract (the 2026-09-27 redo): prominent
 // transport, one-tap favorites, unload, live Favorites only, a notched seek
-// scale, one-line rows, and the owner display rules (no gray text).
+// scale, one-line rows, and the owner display rules (no gray text). Play and
+// Next never change the now-playing card's height or move the page, and the
+// track and position buttons sit directly on the seek bar at phone and wide
+// widths.
 
 const fs = require('fs');
 const path = require('path');
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 const PHONE = { width: 412, height: 915 };
+const WIDE = { width: 1280, height: 800 };
 
 // A clock-driven stand-in for the YouTube IFrame API: playback state and
 // position are real to the page, and no external network is touched.
+// window.__uiReadyDelayMs / __uiBufferMs stretch the player's creation and
+// a buffering spell before each start, as a real first Play has them.
 const FAKE_YOUTUBE_API = `(function () {
     class Player {
         constructor(id, opts) {
@@ -19,7 +25,7 @@ const FAKE_YOUTUBE_API = `(function () {
             this.state = -1;
             this.base = 0;
             this.startedAt = 0;
-            setTimeout(() => opts.events.onReady({ target: this }), 0);
+            setTimeout(() => opts.events.onReady({ target: this }), window.__uiReadyDelayMs || 0);
         }
         now() { return this.state === 1 ? this.base + (performance.now() - this.startedAt) / 1000 : this.base; }
         setVolume() {}
@@ -31,6 +37,17 @@ const FAKE_YOUTUBE_API = `(function () {
         getVideoLoadedFraction() { return 0.5; }
         loadVideoById(id) { this.videoId = id; this.base = 0; this.state = -1; this.playVideo(); }
         playVideo() {
+            const bufferMs = window.__uiBufferMs || 0;
+            if (bufferMs > 0 && this.state !== 1) {
+                this.state = 3;
+                setTimeout(() => this.opts.events.onStateChange({ target: this, data: 3 }), 0);
+                setTimeout(() => {
+                    this.startedAt = performance.now();
+                    this.state = 1;
+                    this.opts.events.onStateChange({ target: this, data: 1 });
+                }, bufferMs);
+                return;
+            }
             if (this.state !== 1) { this.startedAt = performance.now(); this.state = 1; }
             setTimeout(() => this.opts.events.onStateChange({ target: this, data: 1 }), 0);
         }
@@ -71,9 +88,170 @@ const EXTRA_FAVORITES = [
     song('The Parting Glass', 'The Wailin Jennys', '2:56', true, 'timed')
 ];
 
+const TRANSITION_SONGS = [
+    song('Wild Mountain Thyme', 'The Corries', '4:10', true, 'timed'),
+    song('Scarborough Fair', 'Simon and Garfunkel', '3:10', false, 'timed')
+];
+// A blank timed line between two sung ones, the second long enough to wrap.
+const TRANSITION_LYRICS = '[00:02.90]first line\n[00:03.20]\n[00:03.50]second line with quite a few more words than the first one had, so it wraps';
+
+/**
+ * Play from rest, then Next, with a tap each (a tap is when the reported
+ * jump happened, so layout shifts right after input count too). The first
+ * song's lyrics are held until its identity intro ends, so one Play walks
+ * the card through player loading, buffering, the identity intro, an empty
+ * lyric row, the lyrics arriving, a blank timed line, and a wrapping line;
+ * Next then crosses a song boundary. Every animation frame records the
+ * card's heights; the returned cluster geometry is measured while playing.
+ * @param {import('playwright').Browser} browser
+ * @param {{ width: number, height: number }} viewport
+ * @param {string[]} errors
+ */
+async function playTransition(browser, viewport, errors) {
+    const ctx = await browser.newContext({ viewport, hasTouch: true });
+    await ctx.route('https://www.youtube.com/iframe_api', route => route.fulfill({
+        contentType: 'text/javascript', body: FAKE_YOUTUBE_API
+    }));
+    await ctx.route('https://i.ytimg.com/**', route => route.fulfill({ status: 204, body: '' }));
+    const [first, second] = TRANSITION_SONGS;
+    /** @type {(value?: unknown) => void} */
+    let releaseFirstLyrics = () => {};
+    const firstLyricsHeld = new Promise(resolve => { releaseFirstLyrics = resolve; });
+    await ctx.route(/\/proxy\.php\?.*lyrics=search/, async route => {
+        const track = new URL(route.request().url()).searchParams.get('track_name') || '';
+        const entry = TRANSITION_SONGS.find(candidate => candidate.record.name === track);
+        if (entry === first) await firstLyricsHeld;
+        await route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify(entry ? [{
+                trackName: entry.record.name,
+                artistName: entry.record.artist,
+                albumName: entry.record.album,
+                duration: entry.record.durationSeconds,
+                instrumental: false,
+                plainLyrics: 'first line\nsecond line',
+                syncedLyrics: TRANSITION_LYRICS
+            }] : [])
+        });
+    });
+    const tab = await ctx.newPage();
+    collectErrors(tab, `player-ui ${viewport.width}px`, errors);
+    await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+    await tab.evaluate(songs => {
+        SettingsStore.saveJson(StorageKeys.PLAYER_PLAYLIST, {
+            items: songs.map(entry => ({ ...entry, sourceKind: 'search', sourceLabel: 'UI test', sourceSearchTerm: entry.searchTerm })),
+            currentPlaylistIndex: 0
+        });
+    }, TRANSITION_SONGS.map(entry => entry.record));
+    await tab.reload({ waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => {
+        const c = window.musicController;
+        return window.__voiceWeiStartup?.ready === true
+            && c.playlist[0]?.lyricsStatus === 'loading' && c.playlist[1]?.lyricsStatus === 'ready';
+    });
+    await tab.evaluate(() => {
+        window.__uiReadyDelayMs = 300;
+        window.__uiBufferMs = 300;
+        const c = window.musicController;
+        const card = /** @type {HTMLElement} */ (document.getElementById('playlistTransportBar'));
+        const info = /** @type {HTMLElement} */ (card.querySelector('.now-playing-info'));
+        const lyricRow = /** @type {HTMLElement} */ (document.getElementById('transportBarLyric'));
+        const status = /** @type {HTMLElement} */ (document.getElementById('status'));
+        /** @param {HTMLElement} el */
+        const height = el => Math.round(el.getBoundingClientRect().height * 10) / 10;
+        const run = {
+            frames: /** @type {any[]} */ ([]),
+            shifts: /** @type {string[]} */ ([]),
+            observable: PerformanceObserver.supportedEntryTypes.includes('layout-shift'),
+            stop: false
+        };
+        window.__transition = run;
+        new PerformanceObserver(list => {
+            for (const entry of /** @type {any[]} */ (list.getEntries())) {
+                const moved = (entry.sources || []).map(source => source.node?.id || source.node?.className || source.node?.nodeName);
+                run.shifts.push(`${Math.round(entry.startTime)}ms ${entry.value.toFixed(4)} ${moved.join(',')}`);
+            }
+        }).observe({ type: 'layout-shift' });
+        const sample = () => {
+            run.frames.push({
+                card: height(card),
+                info: height(info),
+                lyricRow: lyricRow.hidden ? 0 : height(lyricRow),
+                status: height(status),
+                lyric: lyricRow.textContent,
+                phase: c.playback.status,
+                buffering: c.playback.player?.getPlayerState() === 3
+            });
+            if (!run.stop) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+    });
+    await tab.waitForTimeout(150);
+    await tab.tap('#transportPlayPauseBtn');
+    await tab.waitForFunction(() => window.musicController.isPlaying
+        && window.musicController.currentPlaybackTime() >= 2
+        && document.getElementById('transportBarLyric')?.textContent === '\u00A0');
+    releaseFirstLyrics();
+    await tab.waitForFunction(() => document.getElementById('transportBarLyric')?.textContent?.startsWith('second line'));
+    await tab.tap('#transportNextBtn');
+    await tab.waitForFunction(name => window.musicController.playingPlaylistItem()?.name === name
+        && window.musicController.isPlaying
+        && window.musicController.playback.player?.getPlayerState() === 1, second.record.name);
+    await tab.waitForTimeout(300);
+
+    const result = await tab.evaluate(() => {
+        const run = window.__transition;
+        run.stop = true;
+        /** @param {string} key */
+        const distinct = key => [...new Set(run.frames.map(frame => frame[key]))];
+        /** @param {Element} el */
+        const box = el => el.getBoundingClientRect();
+        const rows = ['now-playing-transport', 'seek-scale', 'now-playing-seek']
+            .map(name => /** @type {HTMLElement} */ (document.querySelector(`#playlistTransportBar .${name}`)));
+        const [transport, scale, position] = rows.map(box);
+        const track = box(/** @type {HTMLElement} */ (document.getElementById('transportProgressTrack')));
+        /** @param {Element} row */
+        const buttons = row => Array.from(row.querySelectorAll('button')).map(button => ({
+            label: button.textContent?.trim() || button.getAttribute('aria-label') || '',
+            left: box(button).left,
+            width: box(button).width,
+            height: box(button).height,
+            disabled: /** @type {HTMLButtonElement} */ (button).disabled
+        }));
+        return {
+            frames: run.frames.length,
+            cards: distinct('card'),
+            infos: distinct('info'),
+            lyricRows: distinct('lyricRow'),
+            statuses: distinct('status'),
+            lyrics: distinct('lyric'),
+            phases: distinct('phase'),
+            buffered: run.frames.some(frame => frame.buffering),
+            shifts: run.shifts,
+            observable: run.observable,
+            cluster: {
+                siblings: rows.every((row, index) => index === 0 || row.previousElementSibling === rows[index - 1]),
+                gaps: [scale.top - transport.bottom, position.top - scale.bottom].map(gap => Math.round(gap * 10) / 10),
+                trackGaps: [track.top - transport.bottom, position.top - track.bottom].map(Math.round),
+                edges: [transport, scale, position].map(rect => [Math.round(rect.left), Math.round(rect.right)]),
+                transportButtons: buttons(rows[0]),
+                positionButtons: buttons(rows[2])
+            }
+        };
+    });
+    await ctx.close();
+    const identity = /** @param {{ record: { artist: string, name: string, year: string, album: string } }} entry */ entry =>
+        [entry.record.artist, entry.record.name, entry.record.year, entry.record.album].join(' - ');
+    return { ...result, firstIdentity: identity(first), secondIdentity: identity(second) };
+}
+
 (async () => {
     const report = createReporter('player page layout and curation');
     const browser = await launch();
+    // Timed in real seconds, so they run alongside the rest of the suite.
+    const transitions = Promise.all([PHONE, WIDE].map(viewport => playTransition(browser, viewport, report.errors)
+        .then(result => ({ viewport, ...result }))));
     const ctx = await browser.newContext({ viewport: PHONE });
     await ctx.route('https://www.youtube.com/iframe_api', route => route.fulfill({
         contentType: 'text/javascript', body: FAKE_YOUTUBE_API
@@ -468,6 +646,36 @@ const EXTRA_FAVORITES = [
         .map(match => match[1].trim())
         .filter(value => /rgba\([^)]*,\s*0?\.\d+\)/.test(value) || isGrayHex(value) || /gr[ae]y/i.test(value));
     report.check(`player.css declares no translucent or gray text colors (${grayText.join(', ') || 'none'})`, grayText.length === 0);
+
+    // ---- Play and Next never move the page, and the controls sit on the seek bar.
+    for (const run of await transitions) {
+        const width = `${run.viewport.width}px`;
+        report.check(`${width}: the Play transition walked loading, buffering, identity, an empty lyric row, first, wrapping, and next-song lines (${run.phases.join(' > ')}; ${run.lyrics.length} lyric texts)`,
+            run.phases.includes('loading')
+            && run.buffered
+            && [run.firstIdentity, '\u00A0', 'first line', run.secondIdentity].every(text => run.lyrics.includes(text))
+            && run.lyrics.some(text => text.startsWith('second line')));
+        report.check(`${width}: Play and Next hold the now-playing card at ${run.cards.join('/')}px (song column ${run.infos.join('/')}px, lyric row ${run.lyricRows.join('/')}px, status ${run.statuses.join('/')}px) over ${run.frames} frames with ${run.shifts.length} layout shifts${run.shifts.length ? ': ' + run.shifts.slice(0, 4).join('; ') : ''}`,
+            run.frames >= 60
+            && run.cards.length === 1 && run.cards[0] > 0
+            && run.infos.length === 1 && run.infos[0] > 0
+            && run.lyricRows.length === 1 && run.lyricRows[0] > 0
+            && run.statuses.length === 1
+            && run.observable
+            && run.shifts.length === 0);
+        const cluster = run.cluster;
+        const positionLefts = cluster.positionButtons.map(button => button.left);
+        const smallest = /** @param {{ height: number }[]} list */ list => Math.round(Math.min(...list.map(button => button.height)));
+        report.check(`${width}: Previous / Play / Next sit directly on the seek bar and -30 / -5 / 1st lyric / +5 / +30 directly under it (row gaps ${cluster.gaps.join('/')}px, to the bar ${cluster.trackGaps.join('/')}px; buttons ${smallest(cluster.transportButtons)}px / ${smallest(cluster.positionButtons)}px tall)`,
+            cluster.siblings
+            && cluster.gaps.every(gap => gap >= 0 && gap <= 6)
+            && cluster.edges.every(([left, right]) => Math.abs(left - cluster.edges[1][0]) <= 1 && Math.abs(right - cluster.edges[1][1]) <= 1)
+            && cluster.transportButtons.length === 3
+            && cluster.transportButtons.every(button => button.height >= 56 && button.width >= 56 && !button.disabled)
+            && cluster.positionButtons.map(button => button.label).join('|') === '\u221230|\u22125|1st lyric|+5|+30'
+            && positionLefts.every((left, index) => index === 0 || left > positionLefts[index - 1])
+            && cluster.positionButtons.every(button => button.height >= 48 && button.width >= 44 && !button.disabled));
+    }
 
     await ctx.close();
     await browser.close();

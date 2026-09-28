@@ -202,27 +202,32 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && gapCountdown.gapTail === '1 verse two'
             && gapCountdown.shortGap === 'verse three');
 
-        // The sticky bar must never change height mid-track: lyric gaps and
-        // blank lines empty a row's text, but the row's box holds until a
-        // real track boundary releases it. A sticky bar that grows/shrinks
-        // shoves the whole page under a reader scrolled below it.
+        // The sticky card must never change height while it shows: its rows
+        // are present by mode, never by whether they hold text right now, so
+        // a song boundary, a lyric gap, or a long line only swaps text. A
+        // sticky card that grows or shrinks shoves the page under the reader.
         const stickyBarStability = await tab.evaluate(() => {
-            const harness = {};
+            const harness = { settings: { songDisplayMode: 'identity' } };
             PlayerLyrics.install(harness);
             const lyricRow = document.getElementById('transportBarLyric');
             const secondaryRow = document.getElementById('transportBarSecondary');
-            harness.resetTransportBarText();
 
             // The rows live in the (hidden) now-playing card; show it so
-            // their reserved boxes can be measured.
+            // their boxes can be measured.
             const card = document.getElementById('playlistTransportBar');
             const cardWasHidden = card.hidden;
             card.hidden = false;
             const rowState = row => ({
                 shown: !row.hidden,
                 text: row.textContent,
-                height: Math.round(row.getBoundingClientRect().height)
+                height: Math.round(row.getBoundingClientRect().height),
+                card: Math.round(card.getBoundingClientRect().height * 10) / 10
             });
+            const song = { id: 5, videoId: 'bar', name: 'Bar Song', artist: 'Bar Artist', year: '2001', album: 'Bar Album' };
+            harness.resetTransportBarText(null);
+            const atRest = rowState(lyricRow);
+            harness.resetTransportBarText(song);
+            const boundary = rowState(lyricRow);
             harness.updateTransportBarLyric('sung line');
             const shown = rowState(lyricRow);
             harness.updateTransportBarLyric('');
@@ -231,35 +236,48 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             const long = { ...rowState(lyricRow), isLong: lyricRow.classList.contains('is-long') };
             harness.updateTransportBarLyric('next line');
             const resumed = { ...rowState(lyricRow), isLong: lyricRow.classList.contains('is-long') };
+            harness.resetTransportBarText(song);
+            const nextSong = rowState(lyricRow);
 
-            // A row that never showed text this track must not appear.
+            // The report row exists exactly while Song Report is the second
+            // line; within that mode a blank note or a song boundary keeps it.
             harness.updateTransportBarSecondary('');
-            const neverShown = rowState(secondaryRow);
+            const identityMode = rowState(secondaryRow);
+            harness.settings.songDisplayMode = 'report';
+            harness.updateTransportBarSecondary('');
+            const reportBlank = rowState(secondaryRow);
+            harness.updateTransportBarSecondary('a report note');
+            const reportNote = rowState(secondaryRow);
+            harness.resetTransportBarText(song);
+            const reportBoundary = rowState(secondaryRow);
+            harness.settings.songDisplayMode = 'identity';
+            harness.updateTransportBarSecondary('');
+            const identityAgain = rowState(secondaryRow);
 
-            harness.resetTransportBarText();
-            const afterBoundary = {
-                ...rowState(lyricRow),
-                holdReleased: lyricRow.dataset.holdsSpace === undefined
-            };
+            harness.resetTransportBarText(null);
             card.hidden = cardWasHidden;
-            return { shown, gap, long, resumed, neverShown, afterBoundary };
+            return { atRest, boundary, shown, gap, long, resumed, nextSong, identityMode, reportBlank, reportNote, reportBoundary, identityAgain };
         });
-        report.check(`sticky bar rows hold one reserved height through lyric gaps and long lines, collapsing only at track boundaries (${stickyBarStability.shown.height}px / ${stickyBarStability.gap.height}px / ${stickyBarStability.long.height}px)`,
-            stickyBarStability.shown.shown
+        const lyricRowStates = ['atRest', 'boundary', 'shown', 'gap', 'long', 'resumed', 'nextSong'].map(key => stickyBarStability[key]);
+        const reportRowStates = [stickyBarStability.reportBlank, stickyBarStability.reportNote, stickyBarStability.reportBoundary];
+        report.check(`now-playing rows keep one height through rest, song boundaries, lyric gaps, and long lines; the report row follows the mode only (${lyricRowStates.map(s => s.card).join('/')}px card)`,
+            lyricRowStates.every(s => s.shown && s.height > 0
+                && s.height === stickyBarStability.shown.height && s.card === stickyBarStability.shown.card)
+            && stickyBarStability.atRest.text === '\u00A0'
+            && stickyBarStability.boundary.text === 'Bar Artist - Bar Song - 2001 - Bar Album'
             && stickyBarStability.shown.text === 'sung line'
-            && stickyBarStability.shown.height > 0
-            && stickyBarStability.gap.shown
             && stickyBarStability.gap.text === '\u00A0'
-            && stickyBarStability.gap.height === stickyBarStability.shown.height
             && stickyBarStability.long.isLong
-            && stickyBarStability.long.height === stickyBarStability.shown.height
             && stickyBarStability.resumed.text === 'next line'
             && !stickyBarStability.resumed.isLong
-            && !stickyBarStability.neverShown.shown
-            && stickyBarStability.neverShown.text === ''
-            && !stickyBarStability.afterBoundary.shown
-            && stickyBarStability.afterBoundary.text === ''
-            && stickyBarStability.afterBoundary.holdReleased);
+            && stickyBarStability.nextSong.text === 'Bar Artist - Bar Song - 2001 - Bar Album'
+            && !stickyBarStability.identityMode.shown
+            && reportRowStates.every(s => s.shown && s.height === stickyBarStability.reportBlank.height
+                && s.card === stickyBarStability.reportBlank.card)
+            && stickyBarStability.reportBlank.text === '\u00A0'
+            && stickyBarStability.reportNote.text === 'a report note'
+            && stickyBarStability.reportBoundary.text === '\u00A0'
+            && !stickyBarStability.identityAgain.shown);
 
         // A reader scrolling the lyric panel owns its position: the
         // auto-centering highlight yields for the holdoff window, then
@@ -743,7 +761,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             songReport.schedule.length === 2
             && songReport.schedule[0].at === 60
             && songReport.schedule[1].at === 120
-            && songReport.beforeNotes.barSecondary === ''
+            && songReport.beforeNotes.barSecondary === '\u00A0'
             && songReport.beforeNotes.artist === '2001 - Report Artist - Report Song'
             && songReport.atAnchoredNote.artist === 'The second verse turns the hook into a response.'
             && songReport.atAnchoredNote.barSecondary === 'The second verse turns the hook into a response.'
@@ -768,9 +786,8 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && songReport.halfSecondSecond.artist === 'legacy two'
             && songReport.halfSecondDeadline === 0.5
             && songReport.identityAgain.artist === '2001 - Report Artist - Report Song'
-            // Mid-track mode switch empties the second line's TEXT but must
-            // not collapse its row: the bar is sticky and a height change
-            // there shoves the page under the reader.
+            // Leaving Song Report blanks the report row's text (the row itself
+            // follows the mode; see the now-playing rows check).
             && songReport.identityAgain.barSecondary === '\u00A0');
         report.check(`song report controls select saved reports and step the interval (${songReport.controls.afterUp} -> ${songReport.controls.afterDown})`,
             songReport.controls.reportSelected
