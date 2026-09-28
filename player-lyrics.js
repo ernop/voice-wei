@@ -170,7 +170,7 @@ const PlayerLyrics = (function () {
                     btn.title = 'Big Lyrics';
                 } else if (currentItem.lyricsStatus === 'loading') {
                     btn.classList.add('lyrics-loading');
-                    btn.textContent = 'Finding lyrics';
+                    btn.textContent = 'Finding\u2026';
                     btn.title = 'Looking up lyrics';
                 } else if (currentItem.lyricsStatus === 'ready' && currentItem.lyricsData) {
                     btn.classList.add('lyrics-available');
@@ -636,10 +636,12 @@ const PlayerLyrics = (function () {
             updateLyricOffsetControls() {
                 const item = this.playingPlaylistItem();
                 const show = !!item && this.itemHasTimedLyrics(item);
-                for (const id of ['lyricsSyncControls', 'lyricsOverlaySyncControls']) {
-                    const controls = document.getElementById(id);
-                    if (controls) controls.style.display = show ? '' : 'none';
-                }
+                // The card keeps the row's space (a timed / untimed song change
+                // must not resize it); the overlay's floating row just hides.
+                const cardControls = document.getElementById('lyricsSyncControls');
+                if (cardControls) cardControls.style.visibility = show ? '' : 'hidden';
+                const overlayControls = document.getElementById('lyricsOverlaySyncControls');
+                if (overlayControls) overlayControls.style.display = show ? '' : 'none';
                 const text = `Offset ${this.formatLyricOffset(this.lyricOffsetForItem(item))}`;
                 for (const id of ['lyricsOffset', 'lyricsOverlayOffset']) {
                     const output = document.getElementById(id);
@@ -1019,7 +1021,9 @@ const PlayerLyrics = (function () {
                         ? this.lyricDisplayTextAt(playingItem, [], -1, currentTime)
                         : '';
                     this.relayListeningTextToNowPlaying(lyricText, report.text);
-                    this.updateTransportBarLyric(lyricText);
+                    // With nothing sounding, the lyric row keeps what the song
+                    // boundary put there (the selection's identity).
+                    if (playingItem) this.updateTransportBarLyric(lyricText);
                     this.updateTransportBarSecondary(barReportText);
                     return;
                 }
@@ -1038,71 +1042,55 @@ const PlayerLyrics = (function () {
             },
 
             /**
-             * The sticky now-playing bar's lyric row: the sung (or next
-             * upcoming) line, always on screen while scrolling.
+             * The now-playing card's lyric row: the sung (or next upcoming)
+             * line, always on screen while scrolling.
              * @param {string} text
              */
             updateTransportBarLyric(text) {
-                this.setTransportBarRowText('transportBarLyric', text);
+                this.writeNowPlayingRow('transportBarLyric', text, true);
             },
 
             /**
-             * A non-breaking space renders the between-note blank: the row
-             * stays open but visibly empty. An empty string collapses it.
+             * The report row is present exactly while Song Report is the
+             * chosen second line; a non-breaking space renders the
+             * between-note blank.
              * @param {string} text
              */
             updateTransportBarSecondary(text) {
-                this.setTransportBarRowText('transportBarSecondary', text);
+                this.writeNowPlayingRow('transportBarSecondary', text, this.settings.songDisplayMode === 'report');
             },
 
             /**
-             * Shared bar-row updater. Once a row has shown text for the
-             * current track, an empty update keeps the row's box (blank)
-             * instead of collapsing it: the bar is sticky, so mid-track
-             * height changes shove the whole page under the reader on
-             * every lyric gap. Rows truly collapse only at track
-             * boundaries (resetTransportBarText).
+             * The card's rows keep one height for as long as the card shows: a
+             * row is present or absent by mode, never by whether it has text
+             * right now, so Play's loading moment, a song change, or an empty
+             * lyric line cannot collapse it (the card is sticky - any height
+             * change shoves the whole page). Empty text renders as a blank line.
              * @param {string} id
              * @param {string} text
+             * @param {boolean} present
              */
-            setTransportBarRowText(id, text) {
+            writeNowPlayingRow(id, text, present) {
                 const el = document.getElementById(id);
                 if (!el) return;
-                const raw = String(text || '');
-                const line = raw.trim();
-                if (line) {
-                    if (el.textContent !== line) el.textContent = line;
-                    // A long line drops to the smaller size so it still fits
-                    // the row's two reserved lines.
-                    el.classList.toggle('is-long', line.length > LONG_BAR_LINE_CHARS);
-                    el.dataset.holdsSpace = '1';
-                    el.hidden = false;
-                    return;
-                }
-                // Whitespace-only text (the between-note blank) opens and
-                // holds the row deliberately; a truly empty update holds it
-                // only once the row has shown content this track. Both keep
-                // the sticky bar's height constant mid-track.
-                if (raw || el.dataset.holdsSpace === '1') {
-                    el.dataset.holdsSpace = '1';
-                    if (el.textContent !== '\u00A0') el.textContent = '\u00A0';
-                    el.hidden = false;
-                    return;
-                }
-                if (el.textContent !== '') el.textContent = '';
-                el.hidden = true;
+                const line = String(text || '').trim();
+                const shown = line || '\u00A0';
+                if (el.textContent !== shown) el.textContent = shown;
+                // A long line drops to the smaller size so it still fits the
+                // row's two reserved lines.
+                el.classList.toggle('is-long', line.length > LONG_BAR_LINE_CHARS);
+                if (el.hidden === present) el.hidden = !present;
             },
 
-            /** Track boundary: release both rows' held space and collapse. */
-            resetTransportBarText() {
-                for (const id of ['transportBarLyric', 'transportBarSecondary']) {
-                    const el = document.getElementById(id);
-                    if (!el) continue;
-                    delete el.dataset.holdsSpace;
-                    el.textContent = '';
-                    el.classList.remove('is-long');
-                    el.hidden = true;
-                }
+            /**
+             * Song boundary: the lyric row starts on the new song's identity
+             * (what the first seconds of playback show anyway) and the report
+             * row on a blank line; no row appears or disappears.
+             * @param {PlaylistItem | null} item
+             */
+            resetTransportBarText(item) {
+                this.updateTransportBarLyric(item ? this.describeSongIdentity(item) : '');
+                this.updateTransportBarSecondary('');
             },
 
             /** @param {SyncedLyricLine[]} syncedLines @param {number} time */

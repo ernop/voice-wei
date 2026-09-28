@@ -208,8 +208,8 @@ class VoiceMusicController {
         /** @type {Map<string, Promise<LyricStateRecord>>} One shared resolution flight per videoId */
         this.lyricsLookupsInFlight = new Map();
         this.lyricsViewSettings = PlayerStorage.loadLyricsViewSettings();
-        /** @type {boolean} */
-        this.lyricsPanelVisible = false;
+        /** @type {boolean} The Lyrics card starts open; Hide folds it for the session */
+        this.lyricsPanelVisible = true;
         /** @type {boolean} */
         this.lyricsPanelDismissed = false;
         /** @type {number | null} */
@@ -1179,6 +1179,9 @@ class VoiceMusicController {
             songReportIntervalUpBtn.addEventListener('click', () => this.stepSongReportInterval(1));
         }
         this.updateSongReportControls();
+        // The card's rows take their presence from the saved second-line mode
+        // before any song shows, so the first Play cannot add a row.
+        this.resetTransportBarText(null);
 
         const lyricsPanelToggleBtn = document.getElementById('lyricsPanelToggleBtn');
         if (lyricsPanelToggleBtn) {

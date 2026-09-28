@@ -2,6 +2,8 @@
 // Playlist DOM, YouTube search/playback, and transport controls.
 
 const SEEK_JUMP_SECONDS = 5;
+/** The now-playing card's within-song position buttons (1st lyric has its own rule). */
+const SEEK_BUTTON_IDS = Object.freeze(['transportBack30Btn', 'transportBack5Btn', 'transportFwd5Btn', 'transportFwd30Btn']);
 /** Seek-scale notch intervals, smallest first; a song gets at most SEEK_SCALE_MAX_STEPS. */
 const SEEK_SCALE_STEPS_SECONDS = Object.freeze([10, 15, 30, 60, 120, 300, 600, 900, 1800]);
 const SEEK_SCALE_MAX_STEPS = 6;
@@ -1713,7 +1715,7 @@ const PlayerPlaylist = (function () {
                 const rowId = item ? item.id : null;
                 if (rowId !== this.nowPlayingRowId) {
                     this.nowPlayingRowId = rowId;
-                    this.resetTransportBarText();
+                    this.resetTransportBarText(item);
                 }
                 this.updateBigLyricsAvailability();
                 this.updateFirstLyricButton();
@@ -1927,13 +1929,16 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            /** Show "1st" only while the playing track has timed lyrics. */
+            /**
+             * "1st lyric" acts only while the playing track has timed lyrics;
+             * otherwise it stays in place, disabled, so the row never reflows.
+             */
             updateFirstLyricButton() {
                 const item = this.currentPlaylistItem();
-                const show = !!this.currentPlayingId && !!item && this.itemHasTimedLyrics(item)
+                const usable = !!this.currentPlayingId && !!item && this.itemHasTimedLyrics(item)
                     && item.id === this.currentPlayingId;
-                const btn = document.getElementById('transportFirstLyricBtn');
-                if (btn) btn.style.display = show ? '' : 'none';
+                const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById('transportFirstLyricBtn'));
+                if (btn) btn.disabled = !usable;
             },
 
             fastForward() {
@@ -1960,7 +1965,11 @@ const PlayerPlaylist = (function () {
                 }
             },
 
-            /** Both play/pause buttons (now-playing card, Big Lyrics) carry both icons; CSS shows one. */
+            /**
+             * Both play/pause buttons (now-playing card, Big Lyrics) carry both
+             * icons; CSS shows one. The position buttons act on a loaded song
+             * only, so they are disabled (in place) until one is.
+             */
             updatePlayPauseButton() {
                 const playing = this.isPlaying && !this.isPaused;
                 for (const id of ['transportPlayPauseBtn', 'lyricsTransportPause']) {
@@ -1968,6 +1977,10 @@ const PlayerPlaylist = (function () {
                     if (!button) continue;
                     button.classList.toggle('is-playing', playing);
                     button.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+                }
+                for (const id of SEEK_BUTTON_IDS) {
+                    const button = /** @type {HTMLButtonElement | null} */ (document.getElementById(id));
+                    if (button) button.disabled = !this.currentPlayingId;
                 }
             },
 
@@ -2030,8 +2043,6 @@ const PlayerPlaylist = (function () {
             clearPlaylist() {
                 this.clearPlaylistItems();
 
-                this.setLyricsPanelVisible(false);
-                this.lyricsPanelDismissed = false;
                 this.closeLyricsOverlay();
 
                 // Also hide transcript/response containers
@@ -2078,6 +2089,10 @@ const PlayerPlaylist = (function () {
                 if (this.currentPlaylistIndex >= 0) {
                     const current = this.playlist[this.currentPlaylistIndex];
                     this.updateNowPlaying(current);
+                    // The open Lyrics card shows the selection at rest, so Play
+                    // changes only the highlighted line.
+                    this.currentLyricsItemId = current.id;
+                    this.renderLyricsStateForItem(current);
                     const row = document.querySelector(`[data-item-id="${current.id}"]`);
                     if (row) row.classList.add('playing');
                 }
@@ -2321,7 +2336,7 @@ const PlayerPlaylist = (function () {
                 const position = Math.min(Math.max(currentTime || 0, 0), total);
                 const percentage = `${total > 0 ? (position / total) * 100 : 0}%`;
                 this.progressDiff.style('seekFill', document.getElementById('transportProgressFill'), 'width', percentage);
-                this.progressDiff.style('seekThumb', document.getElementById('transportProgressThumb'), 'left', percentage);
+                this.progressDiff.style('seekThumb', document.getElementById('transportProgressThumb'), 'transform', `translateX(${percentage})`);
                 this.progressDiff.text('seekElapsed', document.getElementById('transportBarTimeCurrent'), this.formatTime(position));
                 // Rounded up so it complements the floored elapsed readout: both add up to the duration.
                 this.progressDiff.text('seekRemaining', document.getElementById('transportBarTimeTotal'), `-${this.formatTime(Math.ceil(total - position))}`);

@@ -14,6 +14,12 @@
     gap: 10px;
 }
 
+/* main scrolls; its sections keep their own height instead of shrinking to
+   fit the viewport (a clipped section would otherwise be squashed). */
+.lyrics-page > * {
+    flex-shrink: 0;
+}
+
 /* The sung line has its own large row in the now-playing card; the
    header's mirror of the same line (media-session-core still writes it,
    for the tab title and screen readers) would only repeat it. */
@@ -80,8 +86,15 @@ body[data-page="music"] .header-lyric-line {
     min-width: 0;
 }
 
-/* Wide screens: song and position on the left, controls on the right, so
-   the card stays short without stretching the transport across the page. */
+/* One control cluster: Previous / Play / Next directly on top of the seek
+   bar, the position buttons directly under it. */
+.now-playing-controls {
+    gap: 4px;
+}
+
+/* Wide screens: song and sung line on the left, the control cluster on the
+   right, so the card stays short without stretching the transport across
+   the page. */
 @media (min-width: 1000px) {
     .now-playing {
         display: grid;
@@ -139,9 +152,10 @@ body[data-page="music"] .header-lyric-line {
     content: none;
 }
 
-/* Two reserved lines: a long line wraps instead of growing the sticky
-   card, so its height never changes mid-track (a sticky height change
-   shoves the page under the reader). */
+/* The sung-line row is always there while the card shows (two reserved
+   lines; a long line wraps instead of growing the card), and the report row
+   whenever Song Report is the second line. Text changes never add or remove
+   a row, so no Play, song change, or empty lyric line moves the page. */
 .now-playing-lyric,
 .now-playing-secondary {
     display: flex;
@@ -184,7 +198,8 @@ body[data-page="music"] .header-lyric-line {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
-    gap: 10px;
+    gap: 2px;
+    padding-top: 4px;
 }
 
 .seek-time {
@@ -201,10 +216,14 @@ body[data-page="music"] .header-lyric-line {
     text-align: right;
 }
 
+/* The thumb travels by transform (a moving `left` would register as a
+   layout shift every second); this clip keeps its full-width travel box
+   from widening the page, and the side padding leaves room for the knob. */
 .seek-body {
     position: relative;
-    padding-top: 7px;
+    padding: 7px 10px 0;
     min-width: 0;
+    overflow: hidden;
 }
 
 .seek-track {
@@ -220,7 +239,7 @@ body[data-page="music"] .header-lyric-line {
 .seek-track::before {
     content: '';
     position: absolute;
-    inset: -14px 0;
+    inset: -7px -10px -14px;
 }
 
 .seek-track:focus-visible {
@@ -238,15 +257,23 @@ body[data-page="music"] .header-lyric-line {
 
 .seek-thumb {
     position: absolute;
+    inset: 0;
+    transform: translateX(0%);
+    pointer-events: none;
+}
+
+.seek-thumb::before {
+    content: '';
+    position: absolute;
     top: 50%;
-    left: 0%;
+    left: -9px;
     width: 18px;
     height: 18px;
-    margin: -9px 0 0 -9px;
+    margin-top: -9px;
+    box-sizing: border-box;
     border: 3px solid #4ade80;
     border-radius: 50%;
     background: #fff;
-    pointer-events: none;
 }
 
 .seek-ticks {
@@ -301,8 +328,9 @@ body[data-page="music"] .header-lyric-line {
 .now-playing-seek .media-btn {
     flex: 1 1 0;
     min-width: 0;
-    height: 42px;
+    height: 50px;
     padding: 0 4px;
+    font-size: 1.05rem;
 }
 
 /* ---------------- Media transport family ----------------
@@ -420,10 +448,16 @@ body[data-page="music"] .header-lyric-line {
 }
 
 /* Big Lyrics launcher: availability of the sounding song's lyrics. */
+/* Fixed width: its label follows the lyric state and must not move the
+   song line when it changes. */
 .media-btn-lyrics {
     flex: none;
+    width: 7.6em;
     height: 46px;
+    padding: 0 6px;
     font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .media-btn-lyrics.lyrics-available {
@@ -443,8 +477,21 @@ body[data-page="music"] .header-lyric-line {
 
 /* ---------------- Status, request, banner ---------------- */
 
+/* Two reserved lines: a status that grows or shrinks between Play's
+   loading and playing messages would move every card below it. The
+   vertical inset is a transparent border rather than padding so the clip
+   edge sits exactly under the second line, and `safe` keeps a longer
+   status on its first two lines instead of centering its overflow. */
 .lyrics-page .status {
+    height: calc(2 * 1.3em + 20px);
+    min-height: 0;
     margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    align-items: safe center;
+    overflow: hidden;
 }
 
 .lyrics-page .transcript-container {
@@ -919,16 +966,24 @@ body[data-page="music"] .header-lyric-line {
     color: #fff;
 }
 
+.lyrics-status {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .lyrics-status.is-error,
 .lyrics-overlay-status.is-error {
     color: #fca5a5;
 }
 
+/* A fixed-height lyrics viewport: a song change never resizes the card
+   (which would move the This song card under it). */
 .lyrics-content {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 42vh;
+    height: 42vh;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -1412,7 +1467,7 @@ body[data-page="music"] .header-lyric-line {
     }
 
     .media-btn-lyrics {
-        padding: 0 10px;
+        padding: 0 4px;
         font-size: 0.85rem;
     }
 
@@ -1429,7 +1484,7 @@ body[data-page="music"] .header-lyric-line {
     }
 
     .lyrics-content {
-        max-height: 36vh;
+        height: 36vh;
     }
 
     .lyrics-sync-controls .lyrics-sync-btn {

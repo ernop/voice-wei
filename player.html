@@ -130,8 +130,9 @@
             <!-- The now-playing card: the one always-reachable surface. It
                  scrolls with the page until it reaches the top, then sticks.
                  It holds only what is needed hands-busy: song, star, sung
-                 line, position, and the big transport. Everything else lives
-                 in the cards below. -->
+                 line, and one control cluster where Previous / Play / Next
+                 sit directly on the seek bar and the position buttons
+                 directly under it. Its height never changes while it shows. -->
             <section class="now-playing" id="playlistTransportBar" aria-label="Now playing" hidden>
                 <div class="now-playing-info">
                     <div class="now-playing-song">
@@ -142,8 +143,18 @@
                         <button id="lyricsOverlayBtn" class="media-btn media-btn-lyrics lyrics-unavailable" type="button"
                             aria-label="Open Big Lyrics">Big lyrics</button>
                     </div>
-                    <div class="now-playing-lyric" id="transportBarLyric" hidden></div>
-                    <div class="now-playing-secondary" id="transportBarSecondary" hidden></div>
+                    <div class="now-playing-lyric" id="transportBarLyric">&nbsp;</div>
+                    <div class="now-playing-secondary" id="transportBarSecondary" hidden>&nbsp;</div>
+                </div>
+                <div class="now-playing-controls">
+                    <div class="now-playing-transport">
+                        <button id="transportPrevBtn" class="media-btn media-btn-track" type="button"
+                            aria-label="Previous song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+                        <button id="transportPlayPauseBtn" class="media-btn media-btn-play" type="button"
+                            aria-label="Play"><svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L20 12z"/></svg><svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4.2v14H6zM13.8 5H18v14h-4.2z"/></svg></button>
+                        <button id="transportNextBtn" class="media-btn media-btn-track" type="button"
+                            aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
+                    </div>
                     <div class="seek-scale">
                         <output class="seek-time" id="transportBarTimeCurrent" aria-label="Elapsed time">0:00</output>
                         <div class="seek-body">
@@ -158,26 +169,16 @@
                         <output class="seek-time seek-time-remaining" id="transportBarTimeTotal"
                             aria-label="Time left">-0:00</output>
                     </div>
-                </div>
-                <div class="now-playing-controls">
-                    <div class="now-playing-transport">
-                        <button id="transportPrevBtn" class="media-btn media-btn-track" type="button"
-                            aria-label="Previous song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
-                        <button id="transportPlayPauseBtn" class="media-btn media-btn-play" type="button"
-                            aria-label="Play"><svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L20 12z"/></svg><svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4.2v14H6zM13.8 5H18v14h-4.2z"/></svg></button>
-                        <button id="transportNextBtn" class="media-btn media-btn-track" type="button"
-                            aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
-                    </div>
                     <div class="now-playing-seek">
-                        <button id="transportBack30Btn" class="media-btn media-btn-seek" type="button"
+                        <button id="transportBack30Btn" class="media-btn media-btn-seek" type="button" disabled
                             aria-label="Back 30 seconds">&minus;30</button>
-                        <button id="transportBack5Btn" class="media-btn media-btn-seek" type="button"
+                        <button id="transportBack5Btn" class="media-btn media-btn-seek" type="button" disabled
                             aria-label="Back 5 seconds">&minus;5</button>
-                        <button id="transportFirstLyricBtn" class="media-btn media-btn-seek" type="button"
-                            style="display: none;" aria-label="Jump to just before the first lyric">1st lyric</button>
-                        <button id="transportFwd5Btn" class="media-btn media-btn-seek" type="button"
+                        <button id="transportFirstLyricBtn" class="media-btn media-btn-seek" type="button" disabled
+                            aria-label="Jump to just before the first lyric">1st lyric</button>
+                        <button id="transportFwd5Btn" class="media-btn media-btn-seek" type="button" disabled
                             aria-label="Forward 5 seconds">+5</button>
-                        <button id="transportFwd30Btn" class="media-btn media-btn-seek" type="button"
+                        <button id="transportFwd30Btn" class="media-btn media-btn-seek" type="button" disabled
                             aria-label="Forward 30 seconds">+30</button>
                     </div>
                 </div>
@@ -286,11 +287,11 @@
                             <h2 class="player-card-title" id="lyricsPanelTitle">Lyrics</h2>
                             <span class="lyrics-panel-song" id="lyricsSongTitle">No song selected</span>
                             <button id="lyricsPanelToggleBtn" class="panel-action-btn" type="button"
-                                aria-expanded="false" aria-controls="lyricsPanelBody">Show</button>
+                                aria-expanded="true" aria-controls="lyricsPanelBody">Hide</button>
                         </div>
-                        <div class="lyrics-panel-body" id="lyricsPanelBody" style="display: none;">
+                        <div class="lyrics-panel-body" id="lyricsPanelBody">
                             <div class="lyrics-status" id="lyricsStatus">Play a song to load lyrics.</div>
-                            <div class="lyrics-sync-controls" id="lyricsSyncControls" style="display: none;">
+                            <div class="lyrics-sync-controls" id="lyricsSyncControls" style="visibility: hidden;">
                                 <button id="lyricsTooFastBtn" class="lyrics-sync-btn" type="button"
                                     aria-label="Lyrics are too fast; show earlier lyrics">Lyrics too fast</button>
                                 <output id="lyricsOffset" class="lyrics-offset-value"
