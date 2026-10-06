@@ -16,6 +16,11 @@
 // append-only coolness-log.jsonl - and can be exported as .jsonl.
 //-----------------------------------------------------------------------
 
+/**
+ * @typedef {{ text: string, parts: string[], strategy: string, source: string,
+ *             score: number }} CombineRow
+ */
+
 const CoolnessCombine = (function () {
     'use strict';
 
@@ -55,23 +60,27 @@ const CoolnessCombine = (function () {
      * All combination strategies for a pair, compound-first, in the same
      * deterministic order as coolness-combine.py combine_parts():
      * compound (glow+code -> glowcode), seam (vibe+code -> vibcode,
-     * stack+kernel -> stackernel), clip (drift+code -> dricode).
+     * stack+kernel -> stackernel, vibe+byte -> vibyte, never a doubled
+     * letter), clip (drift+code -> dricode; A must keep its onset).
+     * Each join carries its two parts so the scorer reads the joint.
      * @param {string} a @param {string} b
-     * @returns {Array<[string, string]>}
+     * @returns {Array<[string, string[]]>}
      */
     function combineParts(a, b) {
-        /** @type {Array<[string, string]>} */
-        const parts = [['compound', a + b]];
+        /** @type {Array<[string, string[]]>} */
+        const joins = [['compound', [a, b]]];
         if (a[a.length - 1] === b[0]) {
-            parts.push(['seam', a + b.slice(1)]);
-        } else if (a[a.length - 1] === 'e') {
-            parts.push(['seam', a.slice(0, -1) + b]);
+            joins.push(['seam', [a.slice(0, -1), b]]);
+        } else if (a[a.length - 1] === 'e' && a.length >= 3) {
+            let stem = a.slice(0, -1);
+            if (stem[stem.length - 1] === b[0]) stem = stem.slice(0, -1);
+            joins.push(['seam', [stem, b]]);
         }
         const runA = firstVowelRun(a);
-        if (runA !== null && runA[1] < a.length) {
-            parts.push(['clip', a.slice(0, runA[1]) + b]);
+        if (runA !== null && runA[0] > 0 && runA[1] < a.length) {
+            joins.push(['clip', [a.slice(0, runA[1]), b]]);
         }
-        return parts;
+        return joins;
     }
 
     /**
@@ -124,17 +133,19 @@ const CoolnessCombine = (function () {
      * @param {string[]} wordsA
      * @param {string[]} wordsB
      * @param {Set<string>} realWords
-     * @param {(word: string) => { total: number }} scoreWord
+     * @param {(word: string) => { total: number }} scoreWord called with
+     *     the hyphen-joined parts (vibe-code), so the joint is scored
      */
     function crossProduct(wordsA, wordsB, realWords, scoreWord) {
-        /** @type {Array<{ text: string, strategy: string, source: string, score: number }>} */
+        /** @type {CombineRow[]} */
         const results = [];
         const seen = new Set();
         const inputs = new Set([...wordsA, ...wordsB]);
         let droppedReal = 0;
         for (const wordA of wordsA) {
             for (const wordB of wordsB) {
-                for (const [strategy, text] of combineParts(wordA, wordB)) {
+                for (const [strategy, parts] of combineParts(wordA, wordB)) {
+                    const text = parts.join('');
                     if (seen.has(text)) continue;
                     // Length floor of 4 mirrors the Python combiner: shorter
                     // joins are fragments or rare real words the list misses.
@@ -145,9 +156,10 @@ const CoolnessCombine = (function () {
                     seen.add(text);
                     results.push({
                         text,
+                        parts,
                         strategy,
                         source: `${wordA} + ${wordB}`,
-                        score: scoreWord(text).total
+                        score: scoreWord(parts.join('-')).total
                     });
                 }
             }

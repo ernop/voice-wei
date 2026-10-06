@@ -1359,3 +1359,33 @@ two lines; the Lyrics card starts open with a fixed-height view.
 - The live suite's voice context had the same unrouted lyric lookup as the
   search suite (now routed). During a gate run, `lyrics=search` lines in the
   PHP dev server's log name any lookup still reaching LRCLIB.
+
+## 2026-10-06 - Articles removed; Wording reworked around a measured tier order
+
+yui: remove Articles "for the moment", and fully review and redo Wording in
+the same structure (scorer + formulas + weights + leaderboard, then the
+two-set combiner). Articles is gone from nav, home, tests, and docs; the
+restore command is in product-goals ("Removed tabs"), and the
+`ARTICLES_SETTINGS` storage key name stays reserved.
+
+**What changed in the engine** (both twins, parity 0 mismatches):
+- Score = 100 x gate x weighted mean, gate = 0.4 + 0.6 x pronounceability.
+  Junk strings no longer ride energy/novelty into the middle of the board.
+- Sonority exceptions (s+stop onsets, coronal coda appendix): spark, flux.
+- Leave-one-out anchors: listed words no longer match themselves.
+- Hyphen = compound joint; combiners emit parts and score across the joint.
+- y-after-onset and post-vocalic w are vowels (glow was scored as a w coda).
+- `sampleTiers` replaces `sampleWords`; tier order (pairwise) is in the
+  report, on the page, and gated at >= 85% for Balanced (now 86.8%).
+
+**For future mei**:
+- Judge engine changes by tier order on words NOT on any anchor list.
+  On that fair set the old engine scored 83.9% (Balanced) and the new one
+  87.9%, better under all 11 formulas. Single-example wins mislead.
+- Tried and dropped (no tier-order gain): an energy-peak variant and
+  bland-suffix phonesthemes.
+- Leave-one-out broke the old "genalpha rates skibidi over groovy" test:
+  it only passed by self-matching. Persona tests now use unlisted words
+  (rizzler vs groovester flips between Gen alpha and Boomer).
+- test-proxy needs `php`; this machine has none, so the local gate shows
+  that one suite failing for environment reasons. CI runners have php.

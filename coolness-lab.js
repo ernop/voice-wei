@@ -2,9 +2,11 @@
 //-----------------------------------------------------------------------
 // WORD LAB (wording.html)
 // UI glue for the word-coolness scorer. Loads coolness-config.json and
-// the Python-generated coolness-report.json, scores typed words live
-// with the browser engine (coolness-score.js), and lets the metric
-// weights be tuned; weights and tried words persist on this device.
+// the Python-generated coolness-report.json, scores words live with the
+// browser engine (coolness-score.js), measures how well the current
+// formula orders the config's sample tiers, and runs the two-set word
+// combiner (coolness-combine.js). Weights, typed words, and combine
+// inputs persist on this device.
 //-----------------------------------------------------------------------
 
 const CoolnessLab = (function () {
@@ -24,6 +26,10 @@ const CoolnessLab = (function () {
         brevity: 'Brev'
     };
     const WEIGHT_MAX = 3;
+    const WEIGHT_NOTCH = 0.5;
+    const TRIED_TIER = 'yours';
+    const COMBINE_PAGE = 50;
+    const COMBINE_MORE = 100;
 
     /** @type {Record<string, any> | null} */
     let config = null;
@@ -35,15 +41,15 @@ const CoolnessLab = (function () {
     let weights = {};
     /** @type {string} */
     let formulaId = 'balanced';
-    /** @type {string[]} */
+    /** Typed words, stored with their hyphen joints (vibe-code). @type {string[]} */
     let triedWords = [];
     /** @type {string | null} */
     let featuredWord = null;
-    /** @type {Array<{ text: string, strategy: string, source: string, score: number }>} */
+    /** @type {CombineRow[]} */
     let combineResults = [];
     /** @type {{ a: Record<string, any>, b: Record<string, any> } | null} */
     let combineSets = null;
-    let combineShown = 50;
+    let combineShown = COMBINE_PAGE;
     let combineDroppedReal = 0;
     /** @type {number | undefined} */
     let combineRerankTimer;
@@ -62,40 +68,58 @@ const CoolnessLab = (function () {
         return response.json();
     }
 
+    /** @param {string} tag @param {string} [className] @param {string} [text] */
+    function make(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    }
+
+    function showError(text) {
+        const box = el('wordLabError');
+        if (!box) return;
+        box.textContent = text;
+        box.hidden = false;
+    }
+
     // ---- persisted state ------------------------------------------------
 
     function loadState() {
         weights = { ...config.weights };
         const stored = SettingsStore.loadJson(StorageKeys.COOLNESS_LAB, null);
-        if (stored && typeof stored === 'object') {
-            if (stored.weights && typeof stored.weights === 'object') {
-                for (const name of METRICS) {
-                    if (typeof stored.weights[name] === 'number') {
-                        weights[name] = stored.weights[name];
-                    }
+        if (!stored || typeof stored !== 'object') return;
+        if (stored.weights && typeof stored.weights === 'object') {
+            for (const name of METRICS) {
+                if (typeof stored.weights[name] === 'number') {
+                    weights[name] = stored.weights[name];
                 }
             }
-            if (Array.isArray(stored.words)) {
-                triedWords = stored.words.filter(w => typeof w === 'string' && w);
+        }
+        if (Array.isArray(stored.words)) {
+            triedWords = stored.words
+                .filter(w => typeof w === 'string')
+                .map(w => scorer.partsOf(w).join('-'))
+                .filter(Boolean);
+        }
+        if (typeof stored.formulaId === 'string'
+            && (stored.formulaId === 'custom' || findFormula(stored.formulaId))) {
+            formulaId = stored.formulaId;
+        }
+        const combineFields = {
+            combineA: 'combineSetA',
+            combineB: 'combineSetB',
+            combineExpand: 'combineExpand'
+        };
+        for (const [key, id] of Object.entries(combineFields)) {
+            if (typeof stored[key] === 'string' && stored[key]) {
+                const input = /** @type {HTMLInputElement | HTMLSelectElement | null} */ (el(id));
+                if (input) input.value = stored[key];
             }
-            if (typeof stored.formulaId === 'string' && stored.formulaId) {
-                formulaId = stored.formulaId;
-            }
-            const combineFields = {
-                combineA: 'combineSetA',
-                combineB: 'combineSetB',
-                combineExpand: 'combineExpand'
-            };
-            for (const [key, id] of Object.entries(combineFields)) {
-                if (typeof stored[key] === 'string' && stored[key]) {
-                    const input = /** @type {HTMLInputElement | HTMLSelectElement | null} */ (el(id));
-                    if (input) input.value = stored[key];
-                }
-            }
-            if (typeof stored.combineGroupBest === 'boolean') {
-                const check = /** @type {HTMLInputElement | null} */ (el('combineGroupBest'));
-                if (check) check.checked = stored.combineGroupBest;
-            }
+        }
+        if (typeof stored.combineGroupBest === 'boolean') {
+            const check = /** @type {HTMLInputElement | null} */ (el('combineGroupBest'));
+            if (check) check.checked = stored.combineGroupBest;
         }
     }
 
@@ -116,75 +140,15 @@ const CoolnessLab = (function () {
         });
     }
 
-    // ---- weights UI ------------------------------------------------------
-
-    function weightTitle(name) {
-        const label = config.weightLabels[name] || name;
-        const colon = label.indexOf(':');
-        return colon === -1
-            ? { short: label, long: label }
-            : { short: label.slice(0, colon), long: label };
-    }
-
-    function renderWeights() {
-        const host = el('wordLabWeights');
-        if (!host) return;
-        host.textContent = '';
-        for (const name of METRICS) {
-            const title = weightTitle(name);
-            const wrap = document.createElement('div');
-            wrap.className = 'word-lab-weight';
-            wrap.title = title.long;
-
-            const head = document.createElement('div');
-            head.className = 'word-lab-weight-head';
-            const label = document.createElement('span');
-            label.textContent = title.short;
-            const value = document.createElement('span');
-            value.className = 'word-lab-weight-value';
-            value.textContent = String(weights[name]);
-            head.appendChild(label);
-            head.appendChild(value);
-
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.min = '0';
-            slider.max = String(WEIGHT_MAX);
-            slider.step = '0.05';
-            slider.value = String(weights[name]);
-            slider.setAttribute('aria-label', `Weight for ${title.short}`);
-            slider.addEventListener('input', () => {
-                weights[name] = Number(slider.value);
-                value.textContent = String(weights[name]);
-                formulaId = 'custom';
-                syncFormulaUI();
-                saveState();
-                renderTable();
-                renderFeatured();
-                combineRerank(false);
-            });
-
-            wrap.appendChild(head);
-            wrap.appendChild(slider);
-            host.appendChild(wrap);
-        }
-    }
-
-    function resetWeights() {
-        weights = { ...config.weights };
-        formulaId = 'balanced';
-        syncFormulaUI();
-        saveState();
-        renderWeights();
-        renderTable();
-        renderFeatured();
-        combineRerank(true);
-    }
-
-    // ---- formulas ---------------------------------------------------------
+    // ---- formulas -----------------------------------------------------------
 
     function findFormula(id) {
         return config.formulas.find(f => f.id === id) || null;
+    }
+
+    function formulaName() {
+        const formula = findFormula(formulaId);
+        return formula ? formula.name : 'Custom';
     }
 
     function renderFormulaSelect() {
@@ -192,26 +156,25 @@ const CoolnessLab = (function () {
         if (!select) return;
         select.textContent = '';
         for (const formula of config.formulas) {
-            const option = document.createElement('option');
-            option.value = formula.id;
-            option.textContent = formula.name;
+            const option = make('option', '', formula.name);
+            /** @type {HTMLOptionElement} */ (option).value = formula.id;
             select.appendChild(option);
         }
-        const custom = document.createElement('option');
-        custom.value = 'custom';
-        custom.textContent = 'Custom';
+        const custom = make('option', '', 'Custom');
+        /** @type {HTMLOptionElement} */ (custom).value = 'custom';
         select.appendChild(custom);
         select.addEventListener('change', () => {
             const formula = findFormula(select.value);
-            if (!formula) return;
-            formulaId = formula.id;
-            weights = { ...formula.weights };
+            if (!formula) {
+                formulaId = 'custom';
+            } else {
+                formulaId = formula.id;
+                weights = { ...formula.weights };
+            }
             syncFormulaUI();
             saveState();
             renderWeights();
-            renderTable();
-            renderFeatured();
-            combineRerank(true);
+            refreshScores(true);
         });
         syncFormulaUI();
     }
@@ -224,11 +187,82 @@ const CoolnessLab = (function () {
             const formula = findFormula(formulaId);
             note.textContent = formula
                 ? formula.note
-                : 'Custom weights - move sliders freely, or pick a formula.';
+                : 'Custom weights: move the sliders freely, or pick a formula.';
         }
     }
 
-    // ---- scoring context --------------------------------------------------
+    // ---- weights ------------------------------------------------------------
+
+    function weightTitle(name) {
+        const label = config.weightLabels[name] || name;
+        const colon = label.indexOf(':');
+        return colon === -1
+            ? { short: label, long: label }
+            : { short: label.slice(0, colon), long: label };
+    }
+
+    /** A notched scale under each slider: marks every half step, labels whole numbers. */
+    function renderScale() {
+        const scale = make('div', 'wording-scale');
+        scale.setAttribute('aria-hidden', 'true');
+        for (let at = 0; at <= WEIGHT_MAX + 1e-9; at += WEIGHT_NOTCH) {
+            const whole = Math.abs(at - Math.round(at)) < 1e-9;
+            const notch = make('span', whole ? 'wording-notch is-labeled' : 'wording-notch',
+                whole ? String(Math.round(at)) : '');
+            notch.style.setProperty('--at', String(at / WEIGHT_MAX));
+            scale.appendChild(notch);
+        }
+        return scale;
+    }
+
+    function renderWeights() {
+        const host = el('wordLabWeights');
+        if (!host) return;
+        host.textContent = '';
+        for (const name of METRICS) {
+            const title = weightTitle(name);
+            const wrap = make('div', 'wording-weight');
+            wrap.title = title.long;
+
+            const head = make('div', 'wording-weight-head');
+            head.appendChild(make('span', 'wording-weight-label', title.short));
+            const value = make('span', 'wording-weight-value', weights[name].toFixed(2));
+            head.appendChild(value);
+
+            const slider = /** @type {HTMLInputElement} */ (make('input'));
+            slider.type = 'range';
+            slider.min = '0';
+            slider.max = String(WEIGHT_MAX);
+            slider.step = '0.05';
+            slider.value = String(weights[name]);
+            slider.dataset.metric = name;
+            slider.setAttribute('aria-label', `Weight for ${title.short}`);
+            slider.addEventListener('input', () => {
+                weights[name] = Number(slider.value);
+                value.textContent = weights[name].toFixed(2);
+                formulaId = 'custom';
+                syncFormulaUI();
+                saveState();
+                refreshScores(false);
+            });
+
+            wrap.appendChild(head);
+            wrap.appendChild(slider);
+            wrap.appendChild(renderScale());
+            host.appendChild(wrap);
+        }
+    }
+
+    function resetWeights() {
+        weights = { ...config.weights };
+        formulaId = 'balanced';
+        syncFormulaUI();
+        saveState();
+        renderWeights();
+        refreshScores(true);
+    }
+
+    // ---- scoring context ----------------------------------------------------
     // Persona formulas judge with their own anchor vocabulary, so rows are
     // always rescored live under the current formula's context.
 
@@ -244,19 +278,58 @@ const CoolnessLab = (function () {
         return anchorContextCache.get(formula.id);
     }
 
+    /** @param {string} word may carry hyphen joints @returns {CoolnessResult} */
     function scoreLive(word) {
         return scorer.score(word, { weights, anchorContext: currentAnchorContext() });
     }
 
-    // ---- leaderboard -----------------------------------------------------
-
-    function allRows() {
-        const sampleWords = new Set(report.words.map(row => row.word));
-        const words = report.words.map(row => ({ word: row.word, tried: false }));
-        for (const word of triedWords) {
-            if (!sampleWords.has(word)) words.push({ word, tried: true });
+    /**
+     * Share of word pairs from differently ranked sample tiers that the
+     * totals order correctly (ties are misses), plus each tier's mean.
+     * Same rule as coolness.py calibration().
+     * @param {Map<string, number>} totals
+     */
+    function calibration(totals) {
+        const round = CoolnessScore.roundPlaces;
+        const tiers = config.sampleTiers;
+        let good = 0;
+        let pairs = 0;
+        for (const upper of tiers) {
+            for (const lower of tiers) {
+                if (upper.rank >= lower.rank) continue;
+                for (const a of upper.words) {
+                    for (const b of lower.words) {
+                        pairs += 1;
+                        if (totals.get(a) > totals.get(b)) good += 1;
+                    }
+                }
+            }
         }
-        const rows = words.map(({ word, tried }) => ({ ...scoreLive(word), tried }));
+        /** @type {Array<{ id: string, mean: number }>} */
+        const means = tiers.map(tier => ({
+            id: tier.id,
+            mean: round(tier.words.reduce((sum, w) => sum + totals.get(w), 0) / tier.words.length, 1)
+        }));
+        return { pairAccuracy: round(good / pairs, 4), means };
+    }
+
+    // ---- leaderboard ----------------------------------------------------------
+
+    /** @returns {Array<CoolnessResult & { tier: string, input: string }>} */
+    function allRows() {
+        /** @type {Array<{ input: string, tier: string }>} */
+        const entries = [];
+        const sampled = new Set();
+        for (const tier of config.sampleTiers) {
+            for (const word of tier.words) {
+                entries.push({ input: word, tier: tier.id });
+                sampled.add(word);
+            }
+        }
+        for (const word of triedWords) {
+            if (!sampled.has(word.replace(/-/g, ''))) entries.push({ input: word, tier: TRIED_TIER });
+        }
+        const rows = entries.map(({ input, tier }) => ({ ...scoreLive(input), tier, input }));
         rows.sort((a, b) => (b.total - a.total) || (a.word < b.word ? -1 : 1));
         return rows;
     }
@@ -265,10 +338,13 @@ const CoolnessLab = (function () {
         const head = el('wordLabTableHead');
         if (!head) return;
         head.textContent = '';
-        const tr = document.createElement('tr');
-        for (const text of ['#', 'Word', 'Score', ...METRICS.map(m => SHORT_LABELS[m])]) {
-            const th = document.createElement('th');
-            th.textContent = text;
+        const tr = make('tr');
+        for (const [text, className] of [['#', 'wording-rank'], ['Word', ''], ['Tier', ''], ['Score', 'wording-score']]) {
+            tr.appendChild(make('th', className, text));
+        }
+        for (const name of METRICS) {
+            const th = make('th', 'wording-metric-col', SHORT_LABELS[name]);
+            th.title = weightTitle(name).long;
             tr.appendChild(th);
         }
         head.appendChild(tr);
@@ -278,30 +354,57 @@ const CoolnessLab = (function () {
         const body = el('wordLabTableBody');
         if (!body) return;
         body.textContent = '';
-        allRows().forEach((row, index) => {
-            const tr = document.createElement('tr');
-            if (row.tried) tr.className = 'word-lab-row-user';
-            const cells = [
-                String(index + 1),
-                row.word,
-                row.total.toFixed(1),
-                ...METRICS.map(m => row.metrics[m].toFixed(2))
-            ];
-            cells.forEach((text, cellIndex) => {
-                const td = document.createElement('td');
-                td.textContent = text;
-                if (cellIndex === 1) {
-                    td.className = 'word-lab-word-cell';
-                    td.title = `${row.tokens.join('-')} (${row.syllables} syllable${row.syllables === 1 ? '' : 's'})`;
-                }
+        const rows = allRows();
+        rows.forEach((row, index) => {
+            const tr = make('tr');
+            tr.dataset.tier = row.tier;
+            if (row.tier === TRIED_TIER) tr.classList.add('wording-row-user');
+            tr.appendChild(make('td', 'wording-rank', String(index + 1)));
+            const wordCell = make('td', 'wording-word', row.word);
+            wordCell.title = `${row.tokens.join('-')} (${row.syllables} syllable${row.syllables === 1 ? '' : 's'})`;
+            tr.appendChild(wordCell);
+            tr.appendChild(make('td', 'wording-tier', row.tier));
+            tr.appendChild(make('td', 'wording-score', row.total.toFixed(1)));
+            for (const name of METRICS) {
+                const td = make('td', 'wording-metric-col', row.metrics[name].toFixed(2));
+                td.dataset.metric = name;
                 tr.appendChild(td);
-            });
-            tr.addEventListener('click', () => featureWord(row.word));
+            }
+            tr.addEventListener('click', () => featureWord(row.input));
             body.appendChild(tr);
         });
+        renderCalibration(rows);
     }
 
-    // ---- featured word breakdown --------------------------------------------
+    /** @param {Array<CoolnessResult & { tier: string }>} rows */
+    function renderCalibration(rows) {
+        const status = el('wordLabStatus');
+        if (!status) return;
+        /** @type {Map<string, number>} */
+        const totals = new Map();
+        for (const row of rows) {
+            if (row.tier !== TRIED_TIER) totals.set(row.word, row.total);
+        }
+        const result = calibration(totals);
+        status.textContent = '';
+        status.dataset.accuracy = String(result.pairAccuracy);
+        const lead = make('span', 'wording-calibration-lead');
+        lead.appendChild(make('span', 'wording-calibration-label', 'Tier order'));
+        lead.appendChild(make('span', 'wording-calibration-value',
+            `${(result.pairAccuracy * 100).toFixed(1)}%`));
+        lead.title = 'Share of sample-word pairs from differently ranked tiers '
+            + '(cool and coined > bland > gross > junk) that this formula orders correctly';
+        status.appendChild(lead);
+        for (const { id, mean } of result.means) {
+            const item = make('span', 'wording-calibration-tier');
+            item.appendChild(make('span', 'wording-calibration-label', id));
+            item.appendChild(make('span', 'wording-calibration-value', mean.toFixed(1)));
+            status.appendChild(item);
+        }
+        status.appendChild(make('span', 'wording-calibration-label', `under ${formulaName()}`));
+    }
+
+    // ---- featured word breakdown ------------------------------------------------
 
     function renderFeatured() {
         const host = el('wordLabResult');
@@ -314,54 +417,47 @@ const CoolnessLab = (function () {
         host.textContent = '';
         host.hidden = false;
 
-        const title = document.createElement('div');
-        title.className = 'word-lab-result-title';
-        const wordSpan = document.createElement('span');
-        wordSpan.textContent = result.word;
-        const scoreSpan = document.createElement('span');
-        scoreSpan.textContent = `${result.total.toFixed(1)}/100`;
-        title.appendChild(wordSpan);
-        title.appendChild(scoreSpan);
+        const title = make('div', 'wording-featured-title');
+        title.appendChild(make('span', 'wording-featured-word', result.word));
+        title.appendChild(make('span', 'wording-featured-score', result.total.toFixed(1)));
         host.appendChild(title);
 
-        const detail = document.createElement('div');
-        detail.className = 'word-lab-result-detail';
-        detail.textContent = `sounds: ${result.tokens.join('-')}, `
-            + `${result.syllables} syllable${result.syllables === 1 ? '' : 's'}`;
-        host.appendChild(detail);
+        const gate = scorer.legalityGate(result.metrics);
+        const joint = result.parts.length > 1 ? `${result.parts.join(' + ')}: ` : '';
+        host.appendChild(make('div', 'wording-featured-detail',
+            `${joint}${result.tokens.join('-')}, `
+            + `${result.syllables} syllable${result.syllables === 1 ? '' : 's'}, `
+            + `legality x${gate.toFixed(2)}`));
 
         for (const name of METRICS) {
             const value = result.metrics[name];
-            const row = document.createElement('div');
-            row.className = 'word-lab-metric';
+            const row = make('div', 'wording-metric');
             row.title = weightTitle(name).long;
-
-            const label = document.createElement('span');
-            label.textContent = weightTitle(name).short;
-            const track = document.createElement('div');
-            track.className = 'word-lab-bar-track';
-            const bar = document.createElement('div');
-            bar.className = 'word-lab-bar';
+            row.appendChild(make('span', 'wording-metric-label', weightTitle(name).short));
+            const track = make('div', 'wording-bar-track');
+            const bar = make('div', 'wording-bar');
             bar.style.width = `${Math.round(value * 100)}%`;
             track.appendChild(bar);
-            const amount = document.createElement('span');
-            amount.className = 'word-lab-metric-value';
-            amount.textContent = value.toFixed(2);
-
-            row.appendChild(label);
             row.appendChild(track);
-            row.appendChild(amount);
+            row.appendChild(make('span', 'wording-metric-value', value.toFixed(2)));
             host.appendChild(row);
         }
     }
 
-    // ---- actions -----------------------------------------------------------
+    /** Tap any ranked word to see its full metric breakdown up top. @param {string} input */
+    function featureWord(input) {
+        featuredWord = input;
+        renderFeatured();
+        el('wordLabResult')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    // ---- typed words ----------------------------------------------------------
 
     function scoreInput() {
         const input = /** @type {HTMLInputElement | null} */ (el('wordLabInput'));
         if (!input) return;
         const words = input.value.split(/[\s,]+/)
-            .map(word => scorer.clean(word))
+            .map(word => scorer.partsOf(word).join('-'))
             .filter(Boolean);
         if (!words.length) return;
         for (const word of words) {
@@ -382,14 +478,14 @@ const CoolnessLab = (function () {
         renderFeatured();
     }
 
-    // ---- combine two word sets --------------------------------------------
+    // ---- combine two word sets --------------------------------------------------
 
     function combineStatus(text) {
         const status = el('combineStatus');
         if (status) status.textContent = text;
     }
 
-    async function updateLogCount() {
+    async function appendLogCount() {
         const count = await CoolnessCombine.batchCount();
         const status = el('combineStatus');
         if (status && status.textContent) {
@@ -418,6 +514,7 @@ const CoolnessLab = (function () {
         const inputA = /** @type {HTMLInputElement | null} */ (el('combineSetA'));
         const inputB = /** @type {HTMLInputElement | null} */ (el('combineSetB'));
         const expandSelect = /** @type {HTMLSelectElement | null} */ (el('combineExpand'));
+        const runBtn = /** @type {HTMLButtonElement | null} */ (el('combineRunBtn'));
         if (!inputA || !inputB) return;
         const seedsA = CoolnessCombine.cleanWordList(inputA.value);
         const seedsB = CoolnessCombine.cleanWordList(inputB.value);
@@ -427,12 +524,13 @@ const CoolnessLab = (function () {
         }
         const expandBy = Number(expandSelect ? expandSelect.value : 0);
         saveState();
+        if (runBtn) runBtn.disabled = true;
         try {
             await ensureRealWords();
             let expandedA = [];
             let expandedB = [];
             if (expandBy > 0) {
-                combineStatus(`Expanding both sets by up to ${expandBy} related words...`);
+                combineStatus(`Finding up to ${expandBy} related words per set...`);
                 [expandedA, expandedB] = await Promise.all([
                     CoolnessCombine.expandSet(seedsA, expandBy),
                     CoolnessCombine.expandSet(seedsB, expandBy)
@@ -453,20 +551,21 @@ const CoolnessLab = (function () {
                 }
             };
             combineResults = rescoreCombine();
-            combineShown = 50;
+            combineShown = COMBINE_PAGE;
             renderCombine();
-            combineStatus(`${combineResults.length} new words `
-                + `(${combineDroppedReal} real words dropped) from `
+            combineStatus(`${combineResults.length} new words from `
                 + `${combineSets.a.words.length} x ${combineSets.b.words.length} words`
-                + (expandBy > 0 ? ` (expanded +${expandedA.length}/+${expandedB.length})` : '')
-                + ` under ${formulaId}.`);
+                + (expandBy > 0 ? ` (+${expandedA.length} / +${expandedB.length} related)` : '')
+                + `, ${combineDroppedReal} real words dropped, ranked under ${formulaName()}.`);
             // On phones the results land below the fold; bring them into view.
             el('combineStatus')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
             await logCombineBatch();
-            await updateLogCount();
+            await appendLogCount();
         } catch (error) {
             combineStatus(error instanceof Error ? error.message : String(error));
             el('combineStatus')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        } finally {
+            if (runBtn) runBtn.disabled = false;
         }
     }
 
@@ -484,19 +583,30 @@ const CoolnessLab = (function () {
         });
     }
 
-    /** Rerank the existing cross product under the current formula/weights.
-     * Discrete changes (formula switch) are logged; slider drags are not. */
+    /**
+     * Rerank the existing cross product under the current formula/weights.
+     * Discrete changes (formula switch, reset) are logged; slider drags are
+     * debounced and not logged.
+     * @param {boolean} log
+     */
     function combineRerank(log) {
         if (!combineSets) return;
         window.clearTimeout(combineRerankTimer);
         combineRerankTimer = window.setTimeout(() => {
             combineResults = rescoreCombine();
             renderCombine();
-            combineStatus(`${combineResults.length} new words re-ranked under ${formulaId}.`);
+            combineStatus(`${combineResults.length} new words re-ranked under ${formulaName()}.`);
             if (log) {
-                void logCombineBatch().then(updateLogCount);
+                void logCombineBatch().then(appendLogCount);
             }
         }, log ? 0 : 150);
+    }
+
+    /** Everything that depends on weights or formula, redrawn together. @param {boolean} log */
+    function refreshScores(log) {
+        renderTable();
+        renderFeatured();
+        combineRerank(log);
     }
 
     /**
@@ -510,7 +620,7 @@ const CoolnessLab = (function () {
         if (!group || !group.checked) {
             return combineResults.map(row => ({ row, variants: 0 }));
         }
-        /** @type {Map<string, { row: typeof combineResults[0], variants: number }>} */
+        /** @type {Map<string, { row: CombineRow, variants: number }>} */
         const bySource = new Map();
         for (const row of combineResults) {
             const kept = bySource.get(row.source);
@@ -526,45 +636,29 @@ const CoolnessLab = (function () {
         const moreBtn = el('combineMoreBtn');
         if (!head || !body) return;
         head.textContent = '';
-        const tr = document.createElement('tr');
-        for (const text of ['#', 'New word', 'Score', 'Made from']) {
-            const th = document.createElement('th');
-            th.textContent = text;
-            tr.appendChild(th);
+        const tr = make('tr');
+        for (const [text, className] of [['#', 'wording-rank'], ['New word', ''], ['Score', 'wording-score'], ['Made from', '']]) {
+            tr.appendChild(make('th', className, text));
         }
         head.appendChild(tr);
 
         const rows = combineDisplayRows();
         body.textContent = '';
         rows.slice(0, combineShown).forEach(({ row, variants }, index) => {
-            const line = document.createElement('tr');
-            const from = variants > 0
-                ? `${row.source} (+${variants} variant${variants === 1 ? '' : 's'})`
-                : row.source;
-            const cells = [String(index + 1), row.text, row.score.toFixed(1), from];
-            cells.forEach((text, cellIndex) => {
-                const td = document.createElement('td');
-                td.textContent = text;
-                if (cellIndex === 1) {
-                    td.className = 'word-lab-word-cell';
-                    td.title = row.strategy;
-                }
-                line.appendChild(td);
-            });
-            line.addEventListener('click', () => featureWord(row.text));
+            const line = make('tr');
+            line.appendChild(make('td', 'wording-rank', String(index + 1)));
+            line.appendChild(make('td', 'wording-word', row.text));
+            line.appendChild(make('td', 'wording-score', row.score.toFixed(1)));
+            const extra = variants > 0 ? `, +${variants} variant${variants === 1 ? '' : 's'}` : '';
+            line.appendChild(make('td', 'wording-source', `${row.source} (${row.strategy}${extra})`));
+            line.addEventListener('click', () => featureWord(row.parts.join('-')));
             body.appendChild(line);
         });
         if (moreBtn) {
-            moreBtn.hidden = rows.length <= combineShown;
-            moreBtn.textContent = `Show 100 more (${Math.max(0, rows.length - combineShown)} hidden)`;
+            const hidden = Math.max(0, rows.length - combineShown);
+            moreBtn.hidden = hidden === 0;
+            moreBtn.textContent = `Show ${Math.min(COMBINE_MORE, hidden)} more (${hidden} hidden)`;
         }
-    }
-
-    /** Tap any ranked word to see its full metric breakdown up top. */
-    function featureWord(word) {
-        featuredWord = word;
-        renderFeatured();
-        el('wordLabResult')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     async function exportDeviceLog() {
@@ -577,27 +671,22 @@ const CoolnessLab = (function () {
         URL.revokeObjectURL(link.href);
     }
 
-    // ---- status line ----------------------------------------------------------
+    // ---- engine parity ----------------------------------------------------------
 
-    function renderStatus() {
-        const status = el('wordLabStatus');
-        if (!status) return;
-        const total = report.words.length;
+    /** The browser engine must reproduce the Python report exactly; say so loudly if not. */
+    function checkParity() {
         let matching = 0;
         for (const row of report.words) {
-            const live = scorer.score(row.word);
-            if (scorer.totalFromMetrics(live.metrics, report.weights) === row.total) {
-                matching += 1;
-            }
+            if (scorer.score(row.word).total === row.total) matching += 1;
         }
-        const parity = matching === total
-            ? `browser engine matches all ${total} report words`
-            : `ENGINE MISMATCH: browser agrees on only ${matching}/${total} report words`;
-        status.textContent = `Report by coolness.py at ${report.generatedAt}; ${parity}. `
-            + 'Regenerate with: python3 coolness.py --report';
+        if (matching !== report.words.length) {
+            showError(`Engine mismatch: the browser scorer agrees with coolness.py on only `
+                + `${matching} of ${report.words.length} report words. `
+                + 'Regenerate with python3 coolness.py --report.');
+        }
     }
 
-    // ---- init ----------------------------------------------------------------
+    // ---- init ---------------------------------------------------------------------
 
     async function init() {
         if (!el('wordLabPanel')) return;
@@ -612,9 +701,8 @@ const CoolnessLab = (function () {
             scorer = CoolnessScore.createScorer(config);
         } catch (error) {
             const status = el('wordLabStatus');
-            if (status) {
-                status.textContent = error instanceof Error ? error.message : String(error);
-            }
+            if (status) status.textContent = '';
+            showError(error instanceof Error ? error.message : String(error));
             return;
         }
 
@@ -628,14 +716,15 @@ const CoolnessLab = (function () {
         el('combineRunBtn')?.addEventListener('click', () => void runCombine());
         el('combineExportBtn')?.addEventListener('click', () => void exportDeviceLog());
         el('combineMoreBtn')?.addEventListener('click', () => {
-            combineShown += 100;
+            combineShown += COMBINE_MORE;
             renderCombine();
         });
         el('combineGroupBest')?.addEventListener('change', () => {
-            combineShown = 50;
+            combineShown = COMBINE_PAGE;
             saveState();
             renderCombine();
         });
+        el('combineExpand')?.addEventListener('change', saveState);
         for (const id of ['combineSetA', 'combineSetB']) {
             el(id)?.addEventListener('keydown', event => {
                 if (event.key === 'Enter') void runCombine();
@@ -647,7 +736,7 @@ const CoolnessLab = (function () {
         renderTableHead();
         renderTable();
         renderFeatured();
-        renderStatus();
+        checkParity();
     }
 
     return { init };

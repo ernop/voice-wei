@@ -88,8 +88,8 @@ Retired in the 2026-09-27 redo and blocked by `tests/test-controls.js`:
 `lyrics-panel-hide-btn`, `typed-command-submit-btn`, `close-settings-btn`,
 `save-api-key-btn`, `api-key-action-btn`, and `song-library-fav`. The hidden
 central player block and the `quick-actions` row are gone. Retired earlier
-(v218): `quick-action-btn` on the player (deploys.html and wording.html still
-carry the class until their own pass) and `clear-playlist-btn`.
+(v218): `quick-action-btn` on the player (deploys.html still carries the
+class until its own pass) and `clear-playlist-btn`.
 
 ## Inventory - Books (ebook.css) - CONVERGED
 
@@ -134,8 +134,11 @@ job (architecture.md, "How to decide what a control looks like"):
 
 1. **Action chips - DONE on the Lyrics page (2026-09-27).** Its dialect
    buttons became `panel-action-btn` / `secondary-btn` / `primary-btn` and
-   their CSS is deleted. deploys.html and wording.html still carry
-   `quick-action-btn` until their own pass.
+   their CSS is deleted. deploys.html still carries `quick-action-btn`
+   until its own pass. wording.html converged in its v360 rework:
+   `primary-btn` (Score, Combine + score), `secondary-btn` (+ `danger`
+   for Clear my words), page layout in wording.css (in the ownership
+   test).
 2. **One media-transport family - DONE (2026-09-27).** `media-btn` with
    size/context modifiers serves the now-playing card and Big Lyrics; the
    central player is deleted. Lyrics availability is a state class on

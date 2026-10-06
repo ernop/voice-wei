@@ -85,20 +85,26 @@ def combine_parts(a, b):
     deterministic order:
     compound  glow|code    -> glowcode      (straight join)
     seam      vibe|code    -> vibcode       (one letter absorbed at the
-              stack|kernel -> stackernel     joint: silent e or a doubled
-                                             seam letter)
-    clip      drift|code   -> dricode       (A cut to its first syllable,
-                                             then compounded)
-    Returns [(strategy, text), ...]; callers filter real words."""
-    parts = [("compound", a + b)]
+              stack|kernel -> stackernel     joint: silent e or a shared
+              vibe|byte    -> vibyte         seam letter, never doubled)
+    clip      drift|code   -> dricode       (A cut after its first vowel,
+                                             then compounded; A must keep
+                                             its onset, so aura gives none)
+    Returns [(strategy, [part, part]), ...]: the parts mark the joint so
+    the scorer reads each side with its own spelling rules. Callers
+    filter real words on the joined text."""
+    joins = [("compound", [a, b])]
     if a[-1] == b[0]:
-        parts.append(("seam", a + b[1:]))
-    elif a[-1] == "e":
-        parts.append(("seam", a[:-1] + b))
+        joins.append(("seam", [a[:-1], b]))
+    elif a[-1] == "e" and len(a) >= 3:
+        stem = a[:-1]
+        if stem[-1] == b[0]:
+            stem = stem[:-1]
+        joins.append(("seam", [stem, b]))
     run_a = first_vowel_run(a)
-    if run_a is not None and run_a[1] < len(a):
-        parts.append(("clip", a[:run_a[1]] + b))
-    return parts
+    if run_a is not None and run_a[0] > 0 and run_a[1] < len(a):
+        joins.append(("clip", [a[:run_a[1]], b]))
+    return joins
 
 
 def inflect(word, suffix):
@@ -269,7 +275,8 @@ class Session:
 
     def pair_candidates(self, word_a, word_b, seen):
         rows = []
-        for strategy, text in combine_parts(word_a, word_b):
+        for strategy, parts in combine_parts(word_a, word_b):
+            text = "".join(parts)
             if text in seen:
                 continue
             if not self._is_new_word(text, word_a, word_b):
@@ -278,9 +285,10 @@ class Session:
             seen.add(text)
             rows.append({
                 "text": text,
+                "parts": parts,
                 "strategy": strategy,
                 "source": f"{word_a} + {word_b}",
-                "score": self.score_word(text)["total"],
+                "score": self.score_word("-".join(parts))["total"],
             })
         return rows
 

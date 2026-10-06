@@ -17,12 +17,14 @@ index.html               # Home: cards for every tool
 scales.html/js/css       # Scale practice (voice-first)
 intervals.html/js/css    # Interval drills
 phrases.html/js/css      # Phrase practice
+staff.html/js/css        # Scrolling grand-staff sight singing
 trace.html/js/css        # Free pitch trace
 pitch-meter.html/js/css  # Scored pitch practice
 ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html/js/css       # Lyrics: keyless music player (player-*.js modules)
 ebook.html/js/css        # Ebook to audiobook
-articles.html/js/css     # Dictate blog drafts into the Fuseki editor
+wording.html             # Word lab: coolness scorer + word combiner (coolness-*.js)
+deploys.html/js          # Deploy duration telemetry
 ```
 
 ### Lyrics startup contract
@@ -130,33 +132,6 @@ page, not silently degraded text. Plain-text pages keep their own lines. The
 answer also carries the page's parsed JSON-LD blocks as `structuredData`
 (each client takes what it can use), and text is truncated at a UTF-8
 character boundary so `json_encode` cannot fail.
-
-## Articles: Fuseki editor client
-
-The Articles tab writes to a system this repo does not own: the Fuseki
-editor's voice-draft JSON API (`/articles/api/voice/state|create|append`
-under the private editor URL, defined in the fuseki4_ai repository).
-The editor has its own origin (`https://edit.fuseki.net/<prefix>`), separate
-from fuseki.net where this page runs. The boundary rules:
-
-- **The editor URL is owner-entered data, never code.** It lives in
-  `ARTICLES_SETTINGS` in the owner's browser localStorage, exactly like
-  API keys. Its secret prefix must never appear in this repo or its
-  deployed files.
-- **Authentication is the owner's editor session.** Requests are
-  credentialed CORS fetches (`credentials: 'include'`); the editor admits
-  this page's origin on the three voice-draft endpoints only and rejects it
-  everywhere else. The editor's host-only session cookie rides along
-  because fuseki.net and edit.fuseki.net are the same site. This page cannot
-  read the editor's CSRF cookie, so the state endpoint returns the CSRF
-  token and POSTs echo it in `X-CSRFToken`; one refresh-and-retry handles a
-  stale token. A signed-out editor answers 401 - the page shows the sign-in
-  link. Any other non-JSON answer is reported with its HTTP status.
-- **No article text is stored client-side.** The Fuseki database is the
-  only owner of draft content; the page holds it as transient render
-  state. Speech recognition goes through `voice-command-core.js` (manual
-  continuous mode; a "new article/draft/post" utterance is a command,
-  everything else appends as a paragraph).
 
 ## Change stance: owner direction before continuity
 
@@ -568,7 +543,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
 | `PLAYER_LYRICS_VIEW` | Lyrics overlay preferences |
 | `EBOOK_SETTINGS` | Books TTS settings |
-| `ARTICLES_SETTINGS` | Articles editor URL + selected draft id (no article text) |
+| `ARTICLES_SETTINGS` | Retired with the Articles tab (2026-10-06); name stays reserved |
 | `PRACTICE_PROGRESS` | Scored take history (cap 1000) |
 | `API_CLAUDE` / `API_OPENAI` | API keys (plain strings via `api-keys-store.js`) |
 | `PANEL_*` | Pitch test panel options per page |
@@ -1039,6 +1014,20 @@ the interchange.
   `python3 coolness.py --report`, carrying a sha256 digest of the config
   it came from) through the JS engine, and by exact-comparing the two
   combiners' cross products. A stale report fails the gate.
+- **Calibrated, not asserted.** The config's `sampleTiers` rank words
+  cool/coined (1), bland (2), gross (3), junk (4); the report stores the
+  pairwise tier-order accuracy per formula, the page shows it live, and
+  the gate holds Balanced at >= 85%. Engine changes are judged by that
+  number on words outside the anchor lists, not by single examples.
+  Anchors are leave-one-out so listed words cannot self-match.
+- **Score = gate x mean.** Pronounceability gates the weighted mean
+  (`legalityFloor`) instead of averaging into it; one shared
+  `totalFromMetrics` in each engine applies it, so slider re-weighting
+  and the report agree.
+- **Words have parts.** A hyphen is a compound joint; each part keeps
+  its own spelling rules. The combiners emit `[strategy, parts]` and
+  score `parts.join('-')`, so a coinage is rated as two morphemes said
+  together.
 - **Combiner twins.** `coolness-combine.py` and `coolness-combine.js`
   share set construction (seeds + inflections + Datamuse expansion),
   compound-first join strategies, and the real-word filter

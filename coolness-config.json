@@ -1,5 +1,5 @@
 {
-    "description": "Model data for the word-coolness scorer. Single representation shared by coolness.py (canonical engine, generates coolness-report.json) and coolness-score.js (browser mirror on deploys.html). tests/test-coolness.js keeps the two engines in lockstep. Edit values here, run `python3 coolness.py --report`, and commit both files together.",
+    "description": "Model data for the word-coolness scorer. Single representation shared by coolness.py (canonical engine, generates coolness-report.json) and coolness-score.js (browser mirror on wording.html). tests/test-coolness.js keeps the two engines in lockstep. Edit values here, run `python3 coolness.py --report`, and commit both files together.",
     "weights": {
         "pronounceability": 1.5,
         "flow": 1.0,
@@ -142,6 +142,10 @@
         "liquids": ["l", "r"],
         "glides": ["w", "y"]
     },
+    "sonorityExceptions": {
+        "sClusterStops": ["p", "t", "k"],
+        "codaAppendix": ["s", "z", "t", "d", "th"]
+    },
     "legalOnsets": [
         "bl", "br", "dr", "dw", "fl", "fr", "gl", "gr", "kl", "kr", "kw",
         "pl", "pr", "sf", "sk", "skr", "skw", "sl", "sm", "sn", "sp", "spl",
@@ -154,10 +158,11 @@
         "mz", "nch", "nd", "nds", "ngs", "nj", "nk", "nks", "ns", "nt",
         "nts", "nz", "ps", "pt", "rb", "rch", "rd", "rf", "rg", "rj", "rk",
         "rl", "rld", "rm", "rn", "rp", "rs", "rst", "rt", "rts", "rv", "rz",
-        "sk", "sks", "sp", "st", "sts", "tch", "ts", "vz", "zd"
+        "sk", "sks", "sp", "st", "sts", "tch", "ts", "tz", "vz", "zd"
     ],
     "illegalSingleCodas": ["h", "w", "y"],
     "flowNoTransitionScore": 0.75,
+    "legalityFloor": 0.4,
     "energy": {
         "default": 0.4,
         "values": {
@@ -216,13 +221,54 @@
         ]
     },
     "brevityBySyllables": [0.85, 1.0, 0.6, 0.35, 0.15],
-    "sampleWords": [
-        "vibe", "sleek", "blaze", "glide", "neon", "flux", "zen", "nova",
-        "echo", "drift", "spark", "groove",
-        "cabbage", "admin", "porridge", "mundane", "carpet", "oatmeal",
-        "phlegm", "moist", "smudge", "gunk", "sludge",
-        "zorvane", "vyx", "zephra", "glimber", "quorix", "brivo",
-        "fnorpt", "sglurb", "pfimf", "snurdge"
+    "sampleTiers": [
+        {
+            "id": "cool",
+            "rank": 1,
+            "note": "real words widely heard as cool",
+            "words": [
+                "vibe", "sleek", "blaze", "glide", "neon", "flux", "zen", "nova", "echo",
+                "drift", "spark", "groove", "glint", "zest", "vivid", "swoop", "flare",
+                "jolt", "zephyr", "blitz", "onyx", "velvet", "ember", "lumen", "cobalt",
+                "vex"
+            ]
+        },
+        {
+            "id": "coined",
+            "rank": 1,
+            "note": "invented words built to sound cool",
+            "words": [
+                "zorvane", "vyx", "zephra", "glimber", "quorix", "brivo", "lumix",
+                "velora", "kyro", "zentra", "novix", "strobix"
+            ]
+        },
+        {
+            "id": "bland",
+            "rank": 2,
+            "note": "real words with no shine",
+            "words": [
+                "cabbage", "admin", "porridge", "mundane", "carpet", "oatmeal", "invoice",
+                "pamphlet", "beige", "tuesday", "gravel", "napkin", "ledger", "memo",
+                "stapler", "minivan"
+            ]
+        },
+        {
+            "id": "gross",
+            "rank": 3,
+            "note": "real words that sound unpleasant",
+            "words": [
+                "phlegm", "moist", "smudge", "gunk", "sludge", "snurdge", "crust", "grub",
+                "scab", "ooze", "bunion", "goiter", "wart", "mucus", "pus"
+            ]
+        },
+        {
+            "id": "junk",
+            "rank": 4,
+            "note": "strings English cannot pronounce",
+            "words": [
+                "fnorpt", "sglurb", "pfimf", "zzkrt", "bnixt", "tlopq", "mfrask", "grbzl"
+            ]
+        }
     ],
     "referenceLexicon": [
         "the", "be", "to", "of", "and", "a", "in", "that", "have", "it",

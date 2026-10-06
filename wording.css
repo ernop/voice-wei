@@ -1,0 +1,433 @@
+/* Wording page (wording.html): word lab + two-set combiner.
+   Owner display rules: neutral text is pure white, headings out-rank
+   their body, score values out-rank labels, sliders show a notched
+   scale, every table row is one line, widths are fluid. */
+
+.wording-panel {
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.24);
+    text-align: left;
+    color: #fff;
+    box-sizing: border-box;
+}
+
+.wording-head h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.wording-head p,
+.wording-combine > p {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+.wording-error {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid #f87171;
+    border-radius: 8px;
+    background: rgba(127, 29, 29, 0.6);
+    color: #fff;
+    font-weight: 700;
+}
+
+.wording-try,
+.wording-combine-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 10px;
+}
+
+.wording-input {
+    flex: 1 1 16rem;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid rgba(74, 222, 128, 0.45);
+    border-radius: var(--radius-group);
+    background: rgba(0, 0, 0, 0.35);
+    color: #fff;
+    font-size: 1rem;
+}
+
+.wording-input::placeholder {
+    color: #fff;
+    opacity: 1;
+    font-style: italic;
+}
+
+.wording-input:focus {
+    outline: none;
+    border-color: #4ade80;
+}
+
+.wording-select {
+    padding: 7px 10px;
+    border: 1px solid rgba(74, 222, 128, 0.45);
+    border-radius: var(--radius-group);
+    background: #0d2818;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+/* ---- featured breakdown ---- */
+
+.wording-featured {
+    margin: 10px 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.wording-featured-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.wording-featured-word {
+    font-size: 1.6rem;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.wording-featured-score {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #4ade80;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-featured-detail {
+    margin: 2px 0 10px;
+    font-size: 0.85rem;
+}
+
+.wording-metric {
+    display: grid;
+    grid-template-columns: minmax(7rem, 22%) 1fr 3.5rem;
+    align-items: center;
+    gap: 10px;
+    margin: 5px 0;
+    font-size: 0.85rem;
+}
+
+.wording-metric-value {
+    text-align: right;
+    font-size: 1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-bar-track {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.wording-bar {
+    height: 100%;
+    border-radius: 5px;
+    background: #4ade80;
+}
+
+/* ---- formula + weights ---- */
+
+.wording-formula-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 14px 0 6px;
+}
+
+.wording-formula-row label {
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.wording-formula-note {
+    flex: 1 1 14rem;
+    font-size: 0.85rem;
+}
+
+.wording-weights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 10px 22px;
+    margin: 10px 0 14px;
+}
+
+.wording-weight-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.wording-weight-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.wording-weight-value {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #4ade80;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Thumb width the notches line up with: the scale insets by half of it. */
+.wording-weight {
+    --thumb: 16px;
+}
+
+.wording-weight input[type="range"] {
+    width: 100%;
+    margin: 4px 0 0;
+    accent-color: #4ade80;
+}
+
+.wording-scale {
+    position: relative;
+    height: 22px;
+    margin: 0 calc(var(--thumb) / 2);
+}
+
+.wording-notch {
+    position: absolute;
+    top: 0;
+    left: calc(var(--at) * 100%);
+    transform: translateX(-50%);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding-top: 7px;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-notch::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: 4px;
+    background: #fff;
+}
+
+.wording-notch.is-labeled::before {
+    height: 6px;
+    width: 2px;
+    margin-left: -0.5px;
+}
+
+/* ---- calibration line ---- */
+
+.wording-calibration {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 16px;
+    margin: 6px 0 10px;
+}
+
+.wording-calibration-lead,
+.wording-calibration-tier {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.wording-calibration-label {
+    font-size: 0.8rem;
+}
+
+.wording-calibration-value {
+    font-size: 1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-calibration-lead .wording-calibration-label {
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.wording-calibration-lead .wording-calibration-value {
+    font-size: 1.3rem;
+    color: #4ade80;
+}
+
+/* ---- tables ---- */
+
+.wording-table-wrap {
+    overflow-x: auto;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+/* Bounded so the combiner below stays one short scroll away on a phone. */
+.wording-table-wrap.is-bounded {
+    max-height: min(32rem, 60vh);
+    overflow-y: auto;
+}
+
+.wording-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.wording-table-wrap.is-bounded thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #0d2818;
+}
+
+.wording-table th,
+.wording-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.12);
+    text-align: left;
+    white-space: nowrap;
+    color: #fff;
+}
+
+.wording-table th {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.wording-table td {
+    font-size: 0.9rem;
+}
+
+.wording-table .wording-rank {
+    width: 1%;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-table td.wording-word {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.wording-table td.wording-score {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #4ade80;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.wording-table th.wording-score,
+.wording-table .wording-metric-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.wording-table td.wording-source {
+    max-width: 0;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wording-table tbody tr {
+    cursor: pointer;
+}
+
+.wording-table tbody tr:hover td {
+    background: rgba(74, 222, 128, 0.12);
+}
+
+.wording-table tbody tr.wording-row-user td {
+    background: rgba(250, 204, 21, 0.14);
+}
+
+.wording-table tr[data-tier="junk"] .wording-tier,
+.wording-table tr[data-tier="gross"] .wording-tier {
+    color: #fca5a5;
+}
+
+.wording-table tr[data-tier="cool"] .wording-tier,
+.wording-table tr[data-tier="coined"] .wording-tier {
+    color: #86efac;
+}
+
+.wording-table tr[data-tier="yours"] .wording-tier {
+    color: #fde047;
+    font-weight: 800;
+}
+
+/* Phones: the per-metric columns move into the tap-for-breakdown card. */
+@media (max-width: 700px) {
+    .wording-table .wording-metric-col {
+        display: none;
+    }
+}
+
+/* ---- combine ---- */
+
+.wording-combine {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.wording-combine h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.wording-combine-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.wording-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wording-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #4ade80;
+}
+
+.wording-status {
+    margin: 8px 0;
+    font-size: 0.9rem;
+}
+
+.wording-status:empty {
+    display: none;
+}
+
+.wording-more-btn {
+    margin-top: 8px;
+}

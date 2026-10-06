@@ -1,15 +1,16 @@
 // @ts-check
 // Word-coolness engine contract:
 // 1. coolness-report.json is fresh: generated from the current
-//    coolness-config.json (digest match) over the config sampleWords.
+//    coolness-config.json (digest match) over the config sampleTiers.
 // 2. The browser engine (coolness-score.js) reproduces the Python
 //    engine's report exactly - the two implementations stay in lockstep.
-// 3. Scoring sanity: cool words beat junk, metrics stay in [0, 1].
+// 3. Scoring sanity: the sample tiers come out in order, hyphen joints,
+//    the legality gate, leave-one-out anchors, and the sound fixes hold.
 // 4. Formulas are well-formed weight presets over exactly the 7 metrics.
 // 5. The theme combiner produces ranked batches, appends every batch to
 //    its append-only log, and rejects a same-theme pair.
-// 6. The Word lab on deploys.html loads, scores a typed word, applies a
-//    formula preset, and renders the leaderboard without errors.
+// 6. The Word lab on wording.html loads, scores a typed word, applies a
+//    formula preset, shows live tier calibration, and combines sets.
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -54,9 +55,10 @@ function loadBrowserCombiner() {
     report.check('report weights equal config weights',
         JSON.stringify(scored.weights) === JSON.stringify(config.weights));
     const reportWords = scored.words.map(row => row.word).sort();
-    const sampleWords = [...config.sampleWords].sort();
-    report.check('report covers exactly the config sampleWords',
-        JSON.stringify(reportWords) === JSON.stringify(sampleWords));
+    /** @type {string[]} */
+    const sampleWords = config.sampleTiers.flatMap(tier => tier.words);
+    report.check('report covers exactly the config sampleTiers words',
+        JSON.stringify(reportWords) === JSON.stringify([...sampleWords].sort()));
 
     // 2. Engine parity: browser mirror reproduces the Python report.
     const engine = loadBrowserEngine();
@@ -94,6 +96,28 @@ function loadBrowserCombiner() {
     report.check('vibe outscores phlegm', vibe.total > phlegm.total);
     report.check('illegal onset+coda word gets 0 pronounceability',
         fnorpt.metrics.pronounceability === 0);
+    report.check(`legality gate sinks unpronounceable strings (fnorpt ${fnorpt.total})`,
+        fnorpt.total < 35 && scorer.legalityGate(fnorpt.metrics) === config.legalityFloor);
+    const tierRank = new Map(config.sampleTiers.map(tier => [tier.id, tier.rank]));
+    const tierMeans = scored.calibration.tierMeans;
+    report.check(`sample tier means fall with tier rank (${JSON.stringify(tierMeans)})`,
+        config.sampleTiers.every(upper => config.sampleTiers.every(lower =>
+            tierRank.get(upper.id) >= tierRank.get(lower.id)
+            || tierMeans[upper.id] > tierMeans[lower.id])));
+    report.check(`Balanced orders the sample tiers well (${scored.calibration.pairAccuracy})`,
+        scored.calibration.pairAccuracy >= 0.85);
+    const joined = scorer.score('vibe-code');
+    report.check('a hyphen marks a compound joint: vibe-code is two syllables, silent e kept silent',
+        joined.word === 'vibecode' && joined.syllables === 2
+        && joined.tokens.join('-') === 'v-i-b-k-o-d'
+        && JSON.stringify(joined.parts) === '["vibe","code"]'
+        && scorer.score('vibecode').syllables === 3);
+    report.check('a w closing a vowel is part of it (glow, brew, glowcode stay legal)',
+        ['glow', 'brew', 'glow-code', 'draw'].every(w => scorer.score(w).metrics.pronounceability === 1));
+    report.check('s+stop onsets and coronal coda appendices flow (spark, flux)',
+        scorer.score('spark').metrics.flow === 1 && scorer.score('flux').metrics.flow === 1);
+    report.check('anchors are leave-one-out: a listed cool word never matches itself',
+        config.anchors.cool.includes('vibe') && vibe.metrics.anchors < 1);
     report.check('vowelless strings score 0 pronounceability and flow',
         scorer.score('zzkrt').metrics.pronounceability === 0
         && scorer.score('zzkrt').metrics.flow === 0);
@@ -125,7 +149,7 @@ function loadBrowserCombiner() {
 
     // Cross-engine parity under a persona formula (own anchor vocabulary).
     const genalpha = config.formulas.find(f => f.id === 'genalpha');
-    const personaWords = ['vibe', 'skibidi', 'groovy', 'zorvane'];
+    const personaWords = ['vibe', 'skibidi', 'groovy', 'zorvane', 'rizzler', 'groovester'];
     const pythonPersona = spawnSync('python3',
         ['coolness.py', '--json', '--formula', 'genalpha', ...personaWords],
         { cwd: ROOT, encoding: 'utf8' });
@@ -140,10 +164,17 @@ function loadBrowserCombiner() {
                 Math.abs(live.metrics[name] - row.metrics[name]) > 1e-4);
     });
     report.check('engines agree under persona anchors (genalpha)', !personaMismatch);
-    const genalphaSkibidi = personaRows.find(row => row.word === 'skibidi');
-    const genalphaGroovy = personaRows.find(row => row.word === 'groovy');
-    report.check('genalpha rates skibidi over groovy',
-        genalphaSkibidi.total > genalphaGroovy.total);
+    // Unlisted words only: anchors are leave-one-out, so a persona's own
+    // list words prove nothing about its taste.
+    const boomer = config.formulas.find(f => f.id === 'boomer');
+    const boomerContext = scorer.anchorContext(boomer.anchors);
+    const underBoomer = (/** @type {string} */ word) =>
+        scorer.score(word, { weights: boomer.weights, anchorContext: boomerContext }).total;
+    const genalphaTotal = (/** @type {string} */ word) =>
+        personaRows.find(row => row.word === word).total;
+    report.check('personas flip: genalpha rates rizzler over groovester, boomer the reverse',
+        genalphaTotal('rizzler') > genalphaTotal('groovester')
+        && underBoomer('groovester') > underBoomer('rizzler'));
 
     // 5. Theme combiner and its append-only log.
     const logPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'coolness-')), 'log.jsonl');
@@ -189,6 +220,8 @@ function loadBrowserCombiner() {
         && cross.every(r => !r.text.includes(' ') && !realWords.has(r.text)));
     report.check('compounds lead: straight joins like glowcode are generated',
         cross.some(r => r.text === 'glowcode' && r.strategy === 'compound'));
+    report.check('every coinage carries its joint (parts join to the text)',
+        cross.every(r => Array.isArray(r.parts) && r.parts.length === 2 && r.parts.join('') === r.text));
     report.check('inflected forms join the sets (glowing + coding compounds)',
         cross.some(r => r.text === 'glowingcoding'));
     report.check('exhaustive batch is sorted by score descending',
@@ -222,12 +255,16 @@ function loadBrowserCombiner() {
         lastLog.sets.a.words, lastLog.sets.b.words, realWords,
         word => scorer.score(word));
     report.check('browser combiner matches the Python cross product',
-        JSON.stringify(jsCross.results.map(r => [r.text, r.score, r.strategy]))
-        === JSON.stringify(cross.map(r => [r.text, r.score, r.strategy]))
+        JSON.stringify(jsCross.results.map(r => [r.text, r.parts, r.score, r.strategy]))
+        === JSON.stringify(cross.map(r => [r.text, r.parts, r.score, r.strategy]))
         && jsCross.droppedReal === lastLog.droppedRealWords);
     report.check('browser strategies and inflection mirror Python',
         JSON.stringify(combiner.combineParts('vibe', 'code'))
-        === JSON.stringify([['compound', 'vibecode'], ['seam', 'vibcode'], ['clip', 'vicode']])
+        === JSON.stringify([['compound', ['vibe', 'code']], ['seam', ['vib', 'code']], ['clip', ['vi', 'code']]])
+        && JSON.stringify(combiner.combineParts('vibe', 'byte'))
+        === JSON.stringify([['compound', ['vibe', 'byte']], ['seam', ['vi', 'byte']], ['clip', ['vi', 'byte']]])
+        && JSON.stringify(combiner.combineParts('aura', 'code'))
+        === JSON.stringify([['compound', ['aura', 'code']]])
         && combiner.inflect('run', 'ing') === 'running'
         && combiner.inflect('code', 'ing') === 'coding'
         && combiner.inflect('glow', 'ing') === 'glowing'
@@ -241,40 +278,59 @@ function loadBrowserCombiner() {
     const pageErrors = [];
     collectErrors(tab, 'wording.html', pageErrors);
     await tab.goto(`${BASE_URL}/wording.html`, { waitUntil: 'networkidle', timeout: 30000 });
-    await tab.waitForFunction(() => {
-        const status = document.getElementById('wordLabStatus');
-        return status !== null && status.textContent !== null
-            && status.textContent.includes('coolness.py');
-    }, undefined, { timeout: 10000 });
+    await tab.waitForFunction(
+        () => document.getElementById('wordLabStatus')?.dataset.accuracy !== undefined,
+        undefined, { timeout: 10000 });
 
-    const statusText = await tab.evaluate(
-        () => document.getElementById('wordLabStatus')?.textContent || '');
-    report.check('word lab reports engine parity on page',
-        statusText.includes('matches all'));
+    const pageState = await tab.evaluate(() => ({
+        error: document.getElementById('wordLabError')?.hidden === false
+            ? document.getElementById('wordLabError')?.textContent || '' : '',
+        accuracy: Number(document.getElementById('wordLabStatus')?.dataset.accuracy),
+        calibrationText: document.getElementById('wordLabStatus')?.textContent || '',
+        rows: document.querySelectorAll('#wordLabTableBody tr').length,
+        sliders: document.querySelectorAll('#wordLabWeights input[type="range"]').length,
+        scaleLabels: [...document.querySelectorAll('#wordLabWeights .wording-weight')[0]
+            .querySelectorAll('.wording-notch')].map(n => n.textContent),
+        valueText: document.querySelector('#wordLabWeights .wording-weight-value')?.textContent || ''
+    }));
+    report.check('page shows no engine-mismatch error', pageState.error === '');
+    report.check(`page tier calibration matches the Python report (${pageState.accuracy})`,
+        pageState.accuracy === scored.calibration.pairAccuracy
+        && pageState.calibrationText.includes('Tier order'));
+    report.check(`leaderboard renders every sample tier word (${pageState.rows} rows)`,
+        pageState.rows === sampleWords.length);
+    report.check(`weight sliders show a notched scale with numbered endpoints and value (${pageState.scaleLabels.join(',')})`,
+        pageState.sliders === METRICS.length
+        && pageState.scaleLabels.length === 7
+        && pageState.scaleLabels[0] === '0' && pageState.scaleLabels[6] === '3'
+        && pageState.valueText === config.weights.pronounceability.toFixed(2));
 
-    const rowCount = await tab.evaluate(
-        () => document.querySelectorAll('#wordLabTableBody tr').length);
-    report.check(`leaderboard renders the sample words (${rowCount} rows)`,
-        rowCount === config.sampleWords.length);
-
-    await tab.fill('#wordLabInput', 'squanch');
+    await tab.fill('#wordLabInput', 'squanch, vibe-code');
     await tab.click('#wordLabScoreBtn');
     const featured = await tab.evaluate(() => {
         const result = document.getElementById('wordLabResult');
+        const userCells = [...document.querySelectorAll('.wording-row-user .wording-word')];
         return {
             visible: result !== null && !result.hidden,
             text: result?.textContent || '',
-            userRows: document.querySelectorAll('.word-lab-row-user').length
+            userWords: userCells.map(td => td.textContent || '')
         };
     });
     report.check('typed word shows a featured breakdown',
         featured.visible && featured.text.includes('squanch'));
-    report.check('typed word joins the leaderboard highlighted',
-        featured.userRows === 1);
+    report.check(`typed words join the leaderboard highlighted, joints scored (${featured.userWords.join(',')})`,
+        featured.userWords.length === 2 && featured.userWords.includes('vibecode'));
+    const typedVibeCode = await tab.evaluate(() => {
+        const row = [...document.querySelectorAll('.wording-row-user')]
+            .find(tr => tr.querySelector('.wording-word')?.textContent === 'vibecode');
+        return row?.querySelector('.wording-score')?.textContent || '';
+    });
+    report.check('typed vibe-code scores as the two-part compound',
+        typedVibeCode === joined.total.toFixed(1));
 
     await tab.click('#wordLabClearBtn');
     const clearedRows = await tab.evaluate(
-        () => document.querySelectorAll('.word-lab-row-user').length);
+        () => document.querySelectorAll('.wording-row-user').length);
     report.check('clear removes tried words', clearedRows === 0);
 
     const optionCount = await tab.evaluate(
@@ -286,7 +342,8 @@ function loadBrowserCombiner() {
         const sliders = [...document.querySelectorAll('#wordLabWeights input[type="range"]')];
         return {
             values: sliders.map(s => /** @type {HTMLInputElement} */(s).value),
-            note: document.getElementById('wordLabFormulaNote')?.textContent || ''
+            note: document.getElementById('wordLabFormulaNote')?.textContent || '',
+            accuracy: Number(document.getElementById('wordLabStatus')?.dataset.accuracy)
         };
     });
     const edgeExpected = METRICS.map(name => String(edge.weights[name]));
@@ -294,6 +351,8 @@ function loadBrowserCombiner() {
         JSON.stringify(afterFormula.values) === JSON.stringify(edgeExpected));
     report.check('formula note explains the selected formula',
         afterFormula.note.includes('Westbury'));
+    report.check('tier calibration recomputes live under the selected formula',
+        afterFormula.accuracy !== scored.calibration.pairAccuracy);
     const customAfterNudge = await tab.evaluate(() => {
         const slider = /** @type {HTMLInputElement} */ (
             document.querySelector('#wordLabWeights input[type="range"]'));
@@ -311,8 +370,8 @@ function loadBrowserCombiner() {
         /** @type {Record<string, string>} */
         const byWord = {};
         document.querySelectorAll('#wordLabTableBody tr').forEach(tr => {
-            const cells = tr.querySelectorAll('td');
-            byWord[cells[1].textContent || ''] = cells[8].textContent || '';
+            const word = tr.querySelector('.wording-word')?.textContent || '';
+            byWord[word] = tr.querySelector('td[data-metric="anchors"]')?.textContent || '';
         });
         return byWord;
     });
@@ -331,48 +390,73 @@ function loadBrowserCombiner() {
     await tab.click('#combineRunBtn');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');
-        return status !== null && (status.textContent || '').includes('new words');
+        return status !== null && (status.textContent || '').includes('Device log');
     }, undefined, { timeout: 10000 });
     const combineState = await tab.evaluate(() => ({
         status: document.getElementById('combineStatus')?.textContent || '',
         rows: document.querySelectorAll('#combineTableBody tr').length,
-        words: [...document.querySelectorAll('#combineTableBody tr td:nth-child(2)')]
+        words: [...document.querySelectorAll('#combineTableBody .wording-word')]
             .map(td => td.textContent || '')
     }));
     const distinctSources = new Set(cross.map(r => r.source)).size;
-    report.check(`page groups best-per-pair by default (${distinctSources} pairs from 24 words)`,
-        combineState.status.includes('24 new words')
+    report.check(`page groups best-per-pair by default (${distinctSources} pairs from ${cross.length} words)`,
+        combineState.status.includes(`${cross.length} new words`)
         && combineState.rows === distinctSources
         && combineState.words.every(word => !word.includes(' ')));
     await tab.setChecked('#combineGroupBest', false);
     const ungroupedRows = await tab.evaluate(
         () => document.querySelectorAll('#combineTableBody tr').length);
-    report.check('all variants show when grouping is off (24 rows)',
-        ungroupedRows === 24);
+    report.check(`all variants show when grouping is off (${cross.length} rows)`,
+        ungroupedRows === cross.length);
 
-    // Tapping a ranked word features its metric breakdown.
+    // Tapping a ranked word features its metric breakdown, joint included.
     const tappedWord = await tab.evaluate(() => {
         const row = /** @type {HTMLElement} */ (
             document.querySelector('#combineTableBody tr'));
         row.click();
         return {
-            word: row.querySelector('td:nth-child(2)')?.textContent || '',
+            word: row.querySelector('.wording-word')?.textContent || '',
             featured: document.getElementById('wordLabResult')?.textContent || '',
             hidden: document.getElementById('wordLabResult')?.hidden
         };
     });
-    report.check('tapping a coined word shows its breakdown',
-        tappedWord.hidden === false && tappedWord.featured.includes(tappedWord.word));
+    report.check('tapping a coined word shows its breakdown with the joint',
+        tappedWord.hidden === false && tappedWord.featured.includes(tappedWord.word)
+        && tappedWord.featured.includes(' + '));
     await tab.selectOption('#wordLabFormula', 'streetwise');
     await tab.waitForFunction(() => {
         const status = document.getElementById('combineStatus');
-        return status !== null && (status.textContent || '').includes('re-ranked under streetwise');
+        return status !== null && (status.textContent || '').includes('re-ranked under Streetwise');
     }, undefined, { timeout: 10000 });
     const deviceLogCount = await tab.evaluate(() => window.CoolnessCombine.batchCount());
     report.check('combine batches persist to the device log (IndexedDB)',
         deviceLogCount >= 2);
     report.check('export button for the device log is present',
         await tab.evaluate(() => document.getElementById('combineExportBtn') !== null));
+
+    // Owner display rule: no gray or dimmed neutral text anywhere on the page.
+    const grayText = await tab.evaluate(() => {
+        /** @type {string[]} */
+        const offenders = [];
+        document.querySelectorAll('.wording-panel *').forEach(node => {
+            const element = /** @type {HTMLElement} */ (node);
+            if (!element.childNodes.length || element.offsetParent === null) return;
+            const hasText = [...element.childNodes].some(c =>
+                c.nodeType === Node.TEXT_NODE && (c.textContent || '').trim());
+            if (!hasText) return;
+            const style = getComputedStyle(element);
+            const match = style.color.match(/rgba?\(([^)]+)\)/);
+            if (!match) return;
+            const [r, g, b, a = '1'] = match[1].split(',').map(v => v.trim());
+            const neutral = r === g && g === b;
+            if ((neutral && r !== '255' && r !== '0') || Number(a) < 1 || Number(style.opacity) < 1) {
+                offenders.push(`${element.className || element.tagName}: ${style.color}`);
+            }
+        });
+        return offenders;
+    });
+    report.check(`no gray or translucent text on the page${grayText.length ? ' (' + grayText.slice(0, 4).join('; ') + ')' : ''}`,
+        grayText.length === 0);
 
     report.check('wording.html stays free of console errors', pageErrors.length === 0);
     pageErrors.forEach(e => report.errors.push(e));

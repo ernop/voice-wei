@@ -862,37 +862,6 @@ OpenAI.
   Log panel is page-local and can be cleared; the local history panel is
   browser-local and exists to support user navigation/progress.
 
-## Articles
-
-Dictate blog-post drafts straight into the fuseki.net editor database, for
-finishing later at a computer. The page is a thin client of the Fuseki
-editor's voice-draft JSON API; nothing article-related is stored in this
-browser beyond the connection settings.
-
-Setup (once per browser): enter the private Fuseki editor URL
-(`https://edit.fuseki.net/<prefix>`) in the connection card (kept in
-localStorage, like API keys - never in this repo) and be signed into the
-editor in the same browser. The card links to the editor sign-in page when
-the session is missing. Sessions use rolling two-week expiry, so regular use
-stays signed in.
-
-Dictation: tap **Listen** and speak freely - recognition is continuous and
-survives pauses, with the live transcript shown. Say "submit" or tap
-**Send** to add everything said as a new paragraph of the current draft.
-Repeat as often as wanted; each chunk appends as its own paragraph. The
-first paragraph automatically creates a draft (titled like "Voice draft
-2026-08-15 16:45", unpublished) if none is selected. Saying "new article",
-"new draft", or "create new draft article" as a complete utterance starts a
-fresh draft, as does the **New draft** button. A text field adds typed
-paragraphs the same way, and short spoken confirmations ("Added.") support
-eyes-free use.
-
-The current draft's full body is always visible, and the recent-drafts list
-(any unpublished article, newest first) switches or resumes drafts; the
-selection persists across visits. Appending to published articles is
-refused by the server - finalizing, titling, tagging, and publishing happen
-in the Fuseki editor.
-
 ## Pitch test panel (shared)
 
 The embedded "listen" component used by Phrases (Test), Scales (Sing),
@@ -953,17 +922,48 @@ the pinned action row.
 Scores how cool a word *sounds* - real or invented - from English
 phonotactics (which sound sequences the language permits) plus sound
 symbolism. Lives on its own tab, `wording.html`. Type a word (or
-several, comma-separated) and it joins the leaderboard, highlighted,
-with a per-metric breakdown of the first word typed. Seven metrics, each 0-1,
-combine as a weighted mean scaled to 0-100:
+several, comma-separated) and it joins the leaderboard, highlighted
+(tier "yours"), with a per-metric breakdown of the first word typed in
+the card at the top (parts, sound tokens, syllables, legality gate).
+Seven metrics, each 0-1, combine as a weighted mean; the mean is then
+multiplied by a **legality gate** and scaled to 0-100:
+
+    total = 100 x gate x weighted mean,  gate = 0.4 + 0.6 x pronounceability
+
+The gate exists because a weighted mean let unpronounceable strings
+(fnorpt, zzkrt) ride on energy and novelty into the middle of the
+board; with the gate a word English cannot say is capped at 40% of its
+mean. The floor (`legalityFloor`, 0.4) lives in the config.
 
 - **Pronounceability**: every syllable onset/coda is a legal English cluster
-- **Flow**: sonority rises into each vowel and falls after it
+- **Flow**: sonority rises into each vowel and falls after it, with the
+  two standard English exceptions exempt: s before a stop in an onset
+  (spark, stop) and a coronal appendix in a coda (flux, texts)
 - **Energy**: bright, punchy sounds (v, z, k, front vowels) over mushy ones
 - **Phonesthemes**: sound-symbolic prefixes/endings (gl- light, sn- nose, -ibe vibe)
 - **Novelty**: sound pairs in the fresh zone between boring-common and unpronounceably rare
-- **Anchors**: n-gram similarity to a cool-word list minus an uncool-word list
+- **Anchors**: n-gram similarity to a cool-word list minus an uncool-word
+  list. Leave-one-out: a word on an anchor list is compared only to the
+  *other* list words, so listing a word never scores it by matching itself
 - **Brevity**: one or two syllables land hardest
+
+Spelling rules the engines share: y after the first sound is a vowel
+(gym, skyline); a w closing a vowel is part of the vowel (glow, crowd),
+not a consonant coda. A **hyphen marks a compound joint**: `vibe-code`
+is read as vibe + code (2 syllables, the silent e of vibe stays silent)
+instead of one run-together spelling. The combiner scores every coinage
+this way, from its parts, so "vibecode" is rated as it is said.
+
+**Calibration.** The leaderboard is the config's `sampleTiers`: cool
+real words (rank 1), coined words (rank 1), bland (2), gross (3), and
+unpronounceable junk (4). The status line under the weights reports
+**tier order**: the share of cross-tier word pairs the current formula
+puts in the right order (ties count as misses). Balanced scores 86.8%;
+`python3 coolness.py --report` prints it for every formula, and the gate
+requires Balanced to stay at or above 85% with tier means in rank order.
+The leaderboard's Tier column shows each word's tier; the table scrolls
+inside a bounded box with a sticky header (metric columns hide below
+700px wide).
 
 The canonical engine is `coolness.py` (CLI: `python3 coolness.py vibe
 zorvane`, breakdowns per word); the page runs its exact browser mirror
@@ -991,16 +991,21 @@ Five are register personas that carry their **own anchor vocabularies**
 (phonestheme tradition, lyrical anchors), Gen alpha (kid slang: rizz,
 skibidi, drip...), Boomer (mid-century slang: groovy, snazzy, mellow...),
 and Streetwise (hip-hop/skate register: dope, fresh, steez...). The same
-word flips ranks across personas - "skibidi" beats "groovy" for Gen
-alpha and loses badly for Boomer. These are homages to the findings and
+unlisted word flips ranks across personas - "rizzler" beats "groovester"
+for Gen alpha and loses to it for Boomer (tested). These are homages to the findings and
 registers, not implementations of papers or dialect surveys.
 
 **Word combiner** makes NEW words only, compound-first: every candidate
 is a single coined word that does not already exist in English. Each A x
 B pair is joined three ways, straight joins before trims: compound
-(glow+code -> glowcode), seam - one letter absorbed at the joint
-(vibe+code -> vibcode, stack+kernel -> stackernel), and clip - A cut to
-its first syllable, then compounded (drift+code -> dricode). Input sets
+(glow+code -> glowcode), seam - a shared letter absorbed at the joint
+(stack+kernel -> stackernel), or A's final silent e dropped (vibe+byte
+-> vibyte; only for A of three or more letters, and a letter left
+doubled by the drop goes too), and clip - A cut to its first syllable,
+then compounded (drift+code -> dricode; only when A keeps its onset and
+actually shortens). Every coinage keeps its parts and is scored across
+the joint (see hyphen rule above); the combine table's "Made from"
+cell reads "a + b (strategy)". Input sets
 also grow by inflected forms (config `inflections`, default -ing: run
 also tries running, which is how vibe+code yields "vibecoding"). Any
 result found in `coolness-wordlist.json` (30k frequency-ranked English

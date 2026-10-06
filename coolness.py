@@ -4,19 +4,31 @@
 Scores how cool a word *sounds* (real or invented) from English
 phonotactics plus sound symbolism. All model data lives in
 coolness-config.json; this file holds only the algorithm. The browser
-mirror is coolness-score.js (used by the Word lab on deploys.html) and
+mirror is coolness-score.js (used by the Word lab on wording.html) and
 tests/test-coolness.js keeps the two engines in exact lockstep, so any
 algorithm change here must be made there too.
 
-The seven metrics, each 0..1, combined as a weighted mean scaled to 0-100:
+The seven metrics, each 0..1, combine as a weighted mean scaled to 0-100,
+then multiplied by the legality gate (config legalityFloor + the rest
+scaled by pronounceability), so unpronounceable strings sink:
 
 - pronounceability: every syllable onset/coda is a legal English cluster
-- flow: sonority rises into each vowel and falls after it
+- flow: sonority rises into each vowel and falls after it (s+stop onsets
+  and coronal coda appendices are licensed exceptions: spark, flux)
 - energy: bright, punchy sounds (v, z, k, front vowels) over mushy ones
 - phonesthemes: sound-symbolic prefixes/endings (gl- light, sn- nose, -ibe vibe)
 - novelty: sound-pair rarity in the sweet zone between boring and unpronounceable
-- anchors: n-gram similarity to a cool-word list minus an uncool-word list
+- anchors: n-gram similarity to the cool-word list minus the uncool-word
+  list, leave-one-out (a listed word never matches itself)
 - brevity: one or two syllables land hardest
+
+A hyphen marks a compound joint: "vibe-code" reads each part with its own
+spelling rules (vibe's silent e stays silent), then scores the joined word.
+The combiner always scores its coinages this way.
+
+config "sampleTiers" (cool, coined, bland, gross, junk) is the calibration
+set: --report and --calibrate measure how often a formula orders words
+from differently ranked tiers correctly.
 
 Named formulas (config "formulas") are alternative weightings of the same
 seven metrics, each modeled on a strand of the naming/phonology literature
@@ -29,8 +41,9 @@ Usage:
   python3 coolness.py --formula edge vibe     score under a named formula
   python3 coolness.py --formulas              list the formulas
   python3 coolness.py --report                rewrite coolness-report.json
-                                              from config sampleWords
-  python3 coolness.py --calibrate             bigram rarity stats (tuning aid)
+                                              from config sampleTiers
+  python3 coolness.py --calibrate             tier order per formula + bigram
+                                              rarity stats (tuning aid)
 
 The theme combiner (coolness-combine.py) builds candidate coinages from
 two theme word lists and scores them through this engine.
@@ -83,6 +96,8 @@ class Scorer:
                 self.sonority[token] = value
         for vowel in self.vowels:
             self.sonority[vowel] = VOWEL_SONORITY
+        self.s_cluster_stops = set(config["sonorityExceptions"]["sClusterStops"])
+        self.coda_appendix = set(config["sonorityExceptions"]["codaAppendix"])
         self.energy_values = config["energy"]["values"]
         self.energy_default = config["energy"]["default"]
         self.phonesthemes = config["phonesthemes"]
@@ -93,12 +108,13 @@ class Scorer:
         self._build_bigram_model(config["referenceLexicon"])
 
     def anchor_context(self, anchors):
-        """Prebuilt bigram sets for an anchor vocabulary ({cool, uncool}).
-        Formulas may carry their own anchors (persona vocabularies)."""
-        return (
-            [self._char_bigrams(self._clean(w)) for w in anchors["cool"]],
-            [self._char_bigrams(self._clean(w)) for w in anchors["uncool"]],
-        )
+        """Prebuilt (word, bigram set) pairs for an anchor vocabulary
+        ({cool, uncool}). Formulas may carry their own anchors (persona
+        vocabularies)."""
+        def entries(words):
+            return [(self._clean(w), self._char_bigrams(self._clean(w)))
+                    for w in words]
+        return (entries(anchors["cool"]), entries(anchors["uncool"]))
 
     # ---- tokenizer ----------------------------------------------------
 
@@ -146,25 +162,33 @@ class Scorer:
 
         # Final silent e (vibe, blaze) - unless it makes a syllabic-l
         # syllable (table, bubble) or is the only vowel (the).
-        if (len(tokens) >= 2 and tokens[-1] == "e"
-                and not self._is_vowel(tokens[-2], len(tokens) - 2)):
+        if len(tokens) >= 2 and tokens[-1] == "e":
+            flags = self._vowel_flags(tokens)
             rest = tokens[:-1]
-            has_vowel = any(self._is_vowel(t, idx) for idx, t in enumerate(rest))
             syllabic_l = (len(tokens) >= 3 and tokens[-2] == "l"
-                          and not self._is_vowel(tokens[-3], len(tokens) - 3))
-            if has_vowel and not syllabic_l:
+                          and not flags[-3])
+            if not flags[-2] and any(self._vowel_flags(rest)) and not syllabic_l:
                 tokens = rest
         return tokens
 
-    def _is_vowel(self, token, index):
-        if token in self.vowels:
-            return True
-        return token == "y" and index > 0
+    def _vowel_flags(self, tokens):
+        """Which tokens are vowel sounds. y after the first sound is a
+        vowel (kyro); w closing a vowel before a consonant or the end is
+        part of that vowel (glow, brew, glowcode), not a coda."""
+        flags = []
+        for i, token in enumerate(tokens):
+            if token in self.vowels or (token == "y" and i > 0):
+                flags.append(True)
+            elif token == "w" and i > 0 and flags[i - 1]:
+                flags.append(i + 1 == len(tokens) or tokens[i + 1] not in self.vowels)
+            else:
+                flags.append(False)
+        return flags
 
     # ---- syllabification ----------------------------------------------
 
     def _syllabify(self, tokens):
-        flags = [self._is_vowel(t, i) for i, t in enumerate(tokens)]
+        flags = self._vowel_flags(tokens)
         if not any(flags):
             return [{"onset": list(tokens), "nucleus": [], "coda": []}]
 
@@ -266,14 +290,20 @@ class Scorer:
         transitions = 0
         for syllable in syllables:
             rising = syllable["onset"] + syllable["nucleus"][:1]
-            for a, b in zip(rising, rising[1:]):
+            for k, (a, b) in enumerate(zip(rising, rising[1:])):
                 transitions += 1
-                if self.sonority[a] <= self.sonority[b]:
+                # English licenses s before a stop (spark, street) outside
+                # the sonority slope.
+                s_cluster = k == 0 and a == "s" and b in self.s_cluster_stops
+                if s_cluster or self.sonority[a] <= self.sonority[b]:
                     good += 1
             falling = syllable["nucleus"][-1:] + syllable["coda"]
-            for a, b in zip(falling, falling[1:]):
+            for k, (a, b) in enumerate(zip(falling, falling[1:])):
                 transitions += 1
-                if self.sonority[a] >= self.sonority[b]:
+                # A coronal appendix after a coda consonant (flux, glints)
+                # is likewise licensed outside the slope.
+                appendix = k > 0 and b in self.coda_appendix
+                if appendix or self.sonority[a] >= self.sonority[b]:
                     good += 1
         if transitions == 0:
             return self.config["flowNoTransitionScore"]
@@ -313,10 +343,14 @@ class Scorer:
         return total / (len(tokens) - 1)
 
     def _metric_anchors(self, letters, anchor_context):
-        cool_grams, uncool_grams = anchor_context
+        # Leave-one-out: a listed word is judged by how it sounds like the
+        # OTHER anchors, never by matching itself.
+        cool_entries, uncool_entries = anchor_context
         grams = self._char_bigrams(letters)
-        cool = max((self._dice(grams, g) for g in cool_grams), default=0.0)
-        uncool = max((self._dice(grams, g) for g in uncool_grams), default=0.0)
+        cool = max((self._dice(grams, g) for w, g in cool_entries if w != letters),
+                   default=0.0)
+        uncool = max((self._dice(grams, g) for w, g in uncool_entries if w != letters),
+                     default=0.0)
         return max(0.0, min(1.0, 0.5 + 0.5 * (cool - uncool)))
 
     def _metric_brevity(self, syllable_count):
@@ -325,11 +359,28 @@ class Scorer:
 
     # ---- scoring -----------------------------------------------------------
 
+    def parts_of(self, word):
+        """A hyphen marks a compound joint (vibe-code): each part keeps
+        its own spelling rules, so vibe's silent e stays silent."""
+        return [part for part in (self._clean(p) for p in word.split("-")) if part]
+
+    def _tokenize_parts(self, parts):
+        tokens = []
+        for part in parts:
+            part_tokens = self._tokenize(part)
+            # A consonant doubled across the joint is still one sound.
+            if (tokens and part_tokens and tokens[-1] == part_tokens[0]
+                    and part_tokens[0] not in self.vowels):
+                part_tokens = part_tokens[1:]
+            tokens.extend(part_tokens)
+        return tokens
+
     def score(self, word, weights=None, anchor_context=None):
-        letters = self._clean(word)
-        tokens = self._tokenize(letters)
+        parts = self.parts_of(word)
+        letters = "".join(parts)
+        tokens = self._tokenize_parts(parts)
         syllables = self._syllabify(tokens)
-        has_vowel = any(self._is_vowel(t, i) for i, t in enumerate(tokens))
+        has_vowel = any(self._vowel_flags(tokens))
         syllable_count = len(syllables) if has_vowel else 1
 
         metrics = {
@@ -345,19 +396,26 @@ class Scorer:
         metrics = {name: round_places(value, 4) for name, value in metrics.items()}
         return {
             "word": letters,
+            "parts": parts,
             "total": self.total_from_metrics(metrics, weights or self.weights),
             "syllables": syllable_count,
             "tokens": tokens,
             "metrics": metrics,
         }
 
-    @staticmethod
-    def total_from_metrics(metrics, weights):
+    def legality_gate(self, metrics):
+        """Illegal clusters scale the whole score down: a word nobody can
+        say is not cool, however its other traits average out."""
+        floor = self.config["legalityFloor"]
+        return floor + (1.0 - floor) * metrics["pronounceability"]
+
+    def total_from_metrics(self, metrics, weights):
         weight_sum = sum(weights.values())
         if weight_sum <= 0:
             return 0.0
         weighted = sum(weights[name] * metrics[name] for name in weights)
-        return round_places(100.0 * weighted / weight_sum, 1)
+        gate = self.legality_gate(metrics)
+        return round_places(100.0 * gate * weighted / weight_sum, 1)
 
 
 def load_config():
@@ -408,25 +466,60 @@ def print_pretty(result, weights):
         print(f"  {name:17s} {value:6.4f}  w={weights[name]:<5g} {bar}")
 
 
+def sample_words(config):
+    return [word for tier in config["sampleTiers"] for word in tier["words"]]
+
+
+def calibration(config, totals):
+    """How well totals ({word: total}) order the sample tiers: the share
+    of word pairs from differently ranked tiers that come out in rank
+    order (ties count as misses), plus each tier's mean. Same rule in
+    the Word lab (coolness-lab.js)."""
+    tiers = config["sampleTiers"]
+    good = pairs = 0
+    for upper in tiers:
+        for lower in tiers:
+            if upper["rank"] >= lower["rank"]:
+                continue
+            for a in upper["words"]:
+                for b in lower["words"]:
+                    pairs += 1
+                    good += totals[a] > totals[b]
+    means = {tier["id"]: round_places(
+        sum(totals[w] for w in tier["words"]) / len(tier["words"]), 1)
+        for tier in tiers}
+    return {"pairAccuracy": round_places(good / pairs, 4), "tierMeans": means}
+
+
 def write_report(scorer, config):
-    words = [scorer.score(word) for word in config["sampleWords"]]
+    tier_of = {w: tier["id"] for tier in config["sampleTiers"] for w in tier["words"]}
+    words = [dict(scorer.score(word), tier=tier_of[word]) for word in sample_words(config)]
     words.sort(key=lambda row: (-row["total"], row["word"]))
     report = {
         "generatedBy": "coolness.py",
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "configDigest": config_digest(),
         "weights": config["weights"],
+        "calibration": calibration(config, {row["word"]: row["total"] for row in words}),
         "words": words,
     }
     REPORT_PATH.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {REPORT_PATH.name}: {len(words)} words, "
-          f"top {words[0]['word']} ({words[0]['total']})")
+          f"top {words[0]['word']} ({words[0]['total']}), "
+          f"tier order {report['calibration']['pairAccuracy']:.1%}")
 
 
 def print_calibration(scorer, config):
     print(f"bigram model: {scorer.bigram_total} bigrams, "
           f"vocab {scorer.bigram_vocab}")
-    for word in config["sampleWords"]:
+    for formula in config["formulas"]:
+        weights, context = formula_scoring(scorer, formula)
+        totals = {w: scorer.score(w, weights, context)["total"]
+                  for w in sample_words(config)}
+        result = calibration(config, totals)
+        means = " ".join(f"{k}={v:g}" for k, v in result["tierMeans"].items())
+        print(f"  {formula['id']:12s} tier order {result['pairAccuracy']:.1%}  {means}")
+    for word in sample_words(config):
         tokens = scorer._tokenize(scorer._clean(word))
         rarities = [scorer._rarity(a, b) for a, b in zip(tokens, tokens[1:])]
         shown = " ".join(f"{r:.1f}" for r in rarities)

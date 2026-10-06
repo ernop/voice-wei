@@ -1,7 +1,7 @@
 {
   "generatedBy": "coolness.py",
-  "generatedAt": "2026-08-06T12:58:44Z",
-  "configDigest": "3ba91a3c49b8270e0c6da9c7c94c530549efbf3d91417060aea9ac30904605cd",
+  "generatedAt": "2026-10-06T23:20:04Z",
+  "configDigest": "7b653f400ca6234e722bd4af51c0e57dbeba57cf15cd60e63aba02bc04128517",
   "weights": {
     "pronounceability": 1.5,
     "flow": 1.0,
@@ -11,10 +11,121 @@
     "anchors": 1.5,
     "brevity": 0.75
   },
+  "calibration": {
+    "pairAccuracy": 0.8675,
+    "tierMeans": {
+      "cool": 73.8,
+      "coined": 74.1,
+      "bland": 69.4,
+      "gross": 66.8,
+      "junk": 27.0
+    }
+  },
   "words": [
     {
+      "word": "flux",
+      "parts": [
+        "flux"
+      ],
+      "total": 81.0,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "l",
+        "u",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5,
+        "phonesthemes": 0.725,
+        "novelty": 0.8092,
+        "anchors": 0.75,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "vivid",
+      "parts": [
+        "vivid"
+      ],
+      "total": 79.9,
+      "syllables": 2,
+      "tokens": [
+        "v",
+        "i",
+        "v",
+        "i",
+        "d"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.73,
+        "phonesthemes": 0.625,
+        "novelty": 0.747,
+        "anchors": 0.5889,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "vyx",
+      "parts": [
+        "vyx"
+      ],
+      "total": 78.6,
+      "syllables": 1,
+      "tokens": [
+        "v",
+        "y",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.675,
+        "phonesthemes": 0.625,
+        "novelty": 0.671,
+        "anchors": 0.6818,
+        "brevity": 0.85
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "vex",
+      "parts": [
+        "vex"
+      ],
+      "total": 78.2,
+      "syllables": 1,
+      "tokens": [
+        "v",
+        "e",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6625,
+        "phonesthemes": 0.625,
+        "novelty": 0.5177,
+        "anchors": 0.7727,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
       "word": "vibe",
-      "total": 85.2,
+      "parts": [
+        "vibe"
+      ],
+      "total": 77.7,
       "syllables": 1,
       "tokens": [
         "v",
@@ -27,153 +138,67 @@
         "energy": 0.7167,
         "phonesthemes": 0.775,
         "novelty": 0.6258,
-        "anchors": 0.9091,
+        "anchors": 0.5091,
         "brevity": 0.85
-      }
+      },
+      "tier": "cool"
     },
     {
-      "word": "echo",
-      "total": 82.9,
+      "word": "zephyr",
+      "parts": [
+        "zephyr"
+      ],
+      "total": 77.5,
       "syllables": 2,
       "tokens": [
+        "z",
         "e",
-        "ch",
-        "o"
+        "f",
+        "y",
+        "r"
       ],
       "metrics": {
         "pronounceability": 1.0,
         "flow": 1.0,
-        "energy": 0.5333,
-        "phonesthemes": 0.5,
-        "novelty": 0.724,
-        "anchors": 1.0,
+        "energy": 0.61,
+        "phonesthemes": 0.65,
+        "novelty": 0.6184,
+        "anchors": 0.6049,
         "brevity": 1.0
-      }
+      },
+      "tier": "cool"
     },
     {
-      "word": "nova",
-      "total": 82.7,
+      "word": "novix",
+      "parts": [
+        "novix"
+      ],
+      "total": 77.4,
       "syllables": 2,
       "tokens": [
         "n",
         "o",
         "v",
-        "a"
-      ],
-      "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.55,
-        "phonesthemes": 0.5,
-        "novelty": 0.6927,
-        "anchors": 1.0,
-        "brevity": 1.0
-      }
-    },
-    {
-      "word": "zen",
-      "total": 81.8,
-      "syllables": 1,
-      "tokens": [
-        "z",
-        "e",
-        "n"
-      ],
-      "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.6167,
-        "phonesthemes": 0.65,
-        "novelty": 0.4792,
-        "anchors": 1.0,
-        "brevity": 0.85
-      }
-    },
-    {
-      "word": "flux",
-      "total": 81.0,
-      "syllables": 1,
-      "tokens": [
-        "f",
-        "l",
-        "u",
+        "i",
         "k",
         "s"
       ],
       "metrics": {
         "pronounceability": 1.0,
-        "flow": 0.75,
-        "energy": 0.5,
-        "phonesthemes": 0.725,
-        "novelty": 0.8092,
-        "anchors": 0.9167,
-        "brevity": 0.85
-      }
-    },
-    {
-      "word": "drift",
-      "total": 80.3,
-      "syllables": 1,
-      "tokens": [
-        "d",
-        "r",
-        "i",
-        "f",
-        "t"
-      ],
-      "metrics": {
-        "pronounceability": 1.0,
         "flow": 1.0,
-        "energy": 0.51,
-        "phonesthemes": 0.625,
-        "novelty": 0.7673,
-        "anchors": 0.8182,
-        "brevity": 0.85
-      }
-    },
-    {
-      "word": "neon",
-      "total": 79.0,
-      "syllables": 1,
-      "tokens": [
-        "n",
-        "e",
-        "o",
-        "n"
-      ],
-      "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.425,
-        "phonesthemes": 0.6,
-        "novelty": 0.5083,
-        "anchors": 1.0,
-        "brevity": 0.85
-      }
-    },
-    {
-      "word": "sleek",
-      "total": 77.7,
-      "syllables": 1,
-      "tokens": [
-        "s",
-        "l",
-        "e",
-        "e",
-        "k"
-      ],
-      "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.55,
-        "phonesthemes": 0.55,
-        "novelty": 0.5683,
-        "anchors": 0.8462,
-        "brevity": 0.85
-      }
+        "energy": 0.6,
+        "phonesthemes": 0.5,
+        "novelty": 0.5603,
+        "anchors": 0.7727,
+        "brevity": 1.0
+      },
+      "tier": "coined"
     },
     {
       "word": "zephra",
+      "parts": [
+        "zephra"
+      ],
       "total": 77.3,
       "syllables": 2,
       "tokens": [
@@ -191,10 +216,14 @@
         "novelty": 0.6354,
         "anchors": 0.5985,
         "brevity": 1.0
-      }
+      },
+      "tier": "coined"
     },
     {
       "word": "glide",
+      "parts": [
+        "glide"
+      ],
       "total": 76.0,
       "syllables": 1,
       "tokens": [
@@ -211,71 +240,211 @@
         "novelty": 0.6927,
         "anchors": 0.5152,
         "brevity": 0.85
-      }
+      },
+      "tier": "cool"
     },
     {
-      "word": "blaze",
+      "word": "jolt",
+      "parts": [
+        "jolt"
+      ],
       "total": 75.8,
       "syllables": 1,
       "tokens": [
-        "b",
+        "j",
+        "o",
         "l",
-        "a",
-        "z"
+        "t"
       ],
       "metrics": {
         "pronounceability": 1.0,
         "flow": 1.0,
-        "energy": 0.6125,
-        "phonesthemes": 0.5,
-        "novelty": 0.4582,
-        "anchors": 0.8182,
+        "energy": 0.5,
+        "phonesthemes": 0.6,
+        "novelty": 0.6272,
+        "anchors": 0.7,
         "brevity": 0.85
-      }
+      },
+      "tier": "cool"
     },
     {
-      "word": "groove",
-      "total": 74.9,
+      "word": "drift",
+      "parts": [
+        "drift"
+      ],
+      "total": 75.6,
       "syllables": 1,
       "tokens": [
-        "g",
+        "d",
         "r",
-        "o",
-        "o",
-        "v"
+        "i",
+        "f",
+        "t"
       ],
       "metrics": {
         "pronounceability": 1.0,
         "flow": 1.0,
-        "energy": 0.56,
-        "phonesthemes": 0.45,
-        "novelty": 0.5761,
-        "anchors": 0.7692,
+        "energy": 0.51,
+        "phonesthemes": 0.625,
+        "novelty": 0.7673,
+        "anchors": 0.5682,
         "brevity": 0.85
-      }
+      },
+      "tier": "cool"
     },
     {
-      "word": "vyx",
-      "total": 74.4,
-      "syllables": 1,
+      "word": "zentra",
+      "parts": [
+        "zentra"
+      ],
+      "total": 75.5,
+      "syllables": 2,
       "tokens": [
-        "v",
-        "y",
+        "z",
+        "e",
+        "n",
+        "t",
+        "r",
+        "a"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5417,
+        "phonesthemes": 0.65,
+        "novelty": 0.3984,
+        "anchors": 0.6894,
+        "brevity": 1.0
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "lumix",
+      "parts": [
+        "lumix"
+      ],
+      "total": 75.4,
+      "syllables": 2,
+      "tokens": [
+        "l",
+        "u",
+        "m",
+        "i",
         "k",
         "s"
       ],
       "metrics": {
         "pronounceability": 1.0,
-        "flow": 0.6667,
-        "energy": 0.675,
+        "flow": 1.0,
+        "energy": 0.5083,
+        "phonesthemes": 0.5,
+        "novelty": 0.5655,
+        "anchors": 0.7231,
+        "brevity": 1.0
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "echo",
+      "parts": [
+        "echo"
+      ],
+      "total": 75.2,
+      "syllables": 2,
+      "tokens": [
+        "e",
+        "ch",
+        "o"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5333,
+        "phonesthemes": 0.5,
+        "novelty": 0.724,
+        "anchors": 0.5909,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "nova",
+      "parts": [
+        "nova"
+      ],
+      "total": 75.2,
+      "syllables": 2,
+      "tokens": [
+        "n",
+        "o",
+        "v",
+        "a"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.5,
+        "novelty": 0.6927,
+        "anchors": 0.6,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "velvet",
+      "parts": [
+        "velvet"
+      ],
+      "total": 74.5,
+      "syllables": 2,
+      "tokens": [
+        "v",
+        "e",
+        "l",
+        "v",
+        "e",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6333,
         "phonesthemes": 0.625,
-        "novelty": 0.671,
-        "anchors": 0.6818,
+        "novelty": 0.3941,
+        "anchors": 0.5985,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "zen",
+      "parts": [
+        "zen"
+      ],
+      "total": 74.5,
+      "syllables": 1,
+      "tokens": [
+        "z",
+        "e",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6167,
+        "phonesthemes": 0.65,
+        "novelty": 0.4792,
+        "anchors": 0.6111,
         "brevity": 0.85
-      }
+      },
+      "tier": "cool"
     },
     {
       "word": "zorvane",
+      "parts": [
+        "zorvane"
+      ],
       "total": 74.1,
       "syllables": 2,
       "tokens": [
@@ -294,10 +463,14 @@
         "novelty": 0.3934,
         "anchors": 0.5824,
         "brevity": 1.0
-      }
+      },
+      "tier": "coined"
     },
     {
       "word": "glimber",
+      "parts": [
+        "glimber"
+      ],
       "total": 73.9,
       "syllables": 2,
       "tokens": [
@@ -317,10 +490,40 @@
         "novelty": 0.5373,
         "anchors": 0.511,
         "brevity": 1.0
-      }
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "napkin",
+      "parts": [
+        "napkin"
+      ],
+      "total": 73.8,
+      "syllables": 2,
+      "tokens": [
+        "n",
+        "a",
+        "p",
+        "k",
+        "i",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5167,
+        "phonesthemes": 0.5,
+        "novelty": 0.5118,
+        "anchors": 0.6667,
+        "brevity": 1.0
+      },
+      "tier": "bland"
     },
     {
       "word": "brivo",
+      "parts": [
+        "brivo"
+      ],
       "total": 73.7,
       "syllables": 2,
       "tokens": [
@@ -338,10 +541,361 @@
         "novelty": 0.6617,
         "anchors": 0.5,
         "brevity": 1.0
-      }
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "beige",
+      "parts": [
+        "beige"
+      ],
+      "total": 73.5,
+      "syllables": 1,
+      "tokens": [
+        "b",
+        "e",
+        "i",
+        "g"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5875,
+        "phonesthemes": 0.5,
+        "novelty": 0.7418,
+        "anchors": 0.528,
+        "brevity": 0.85
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "cobalt",
+      "parts": [
+        "cobalt"
+      ],
+      "total": 73.5,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "o",
+        "b",
+        "a",
+        "l",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5167,
+        "phonesthemes": 0.5,
+        "novelty": 0.6165,
+        "anchors": 0.5833,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "kyro",
+      "parts": [
+        "kyro"
+      ],
+      "total": 73.5,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "y",
+        "r",
+        "o"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.5,
+        "novelty": 0.5541,
+        "anchors": 0.6,
+        "brevity": 1.0
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "sludge",
+      "parts": [
+        "sludge"
+      ],
+      "total": 73.2,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "l",
+        "u",
+        "j"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4875,
+        "phonesthemes": 0.4,
+        "novelty": 0.7721,
+        "anchors": 0.6399,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "swoop",
+      "parts": [
+        "swoop"
+      ],
+      "total": 73.2,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "w",
+        "o",
+        "o",
+        "p"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.46,
+        "phonesthemes": 0.6,
+        "novelty": 0.6414,
+        "anchors": 0.5758,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "ooze",
+      "parts": [
+        "ooze"
+      ],
+      "total": 73.0,
+      "syllables": 1,
+      "tokens": [
+        "o",
+        "o",
+        "z"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6167,
+        "phonesthemes": 0.5,
+        "novelty": 0.5775,
+        "anchors": 0.5909,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "sleek",
+      "parts": [
+        "sleek"
+      ],
+      "total": 73.0,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "l",
+        "e",
+        "e",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.55,
+        "novelty": 0.5683,
+        "anchors": 0.5962,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "onyx",
+      "parts": [
+        "onyx"
+      ],
+      "total": 72.7,
+      "syllables": 2,
+      "tokens": [
+        "o",
+        "n",
+        "y",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.52,
+        "phonesthemes": 0.5,
+        "novelty": 0.5022,
+        "anchors": 0.6111,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "glint",
+      "parts": [
+        "glint"
+      ],
+      "total": 72.5,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "l",
+        "i",
+        "n",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5,
+        "phonesthemes": 0.675,
+        "novelty": 0.4351,
+        "anchors": 0.5909,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "zest",
+      "parts": [
+        "zest"
+      ],
+      "total": 72.5,
+      "syllables": 1,
+      "tokens": [
+        "z",
+        "e",
+        "s",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6125,
+        "phonesthemes": 0.65,
+        "novelty": 0.43,
+        "anchors": 0.5404,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "bunion",
+      "parts": [
+        "bunion"
+      ],
+      "total": 72.1,
+      "syllables": 2,
+      "tokens": [
+        "b",
+        "u",
+        "n",
+        "i",
+        "o",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4583,
+        "phonesthemes": 0.5,
+        "novelty": 0.5572,
+        "anchors": 0.5833,
+        "brevity": 1.0
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "tuesday",
+      "parts": [
+        "tuesday"
+      ],
+      "total": 71.9,
+      "syllables": 2,
+      "tokens": [
+        "t",
+        "u",
+        "e",
+        "s",
+        "d",
+        "a",
+        "y"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4857,
+        "phonesthemes": 0.5,
+        "novelty": 0.5437,
+        "anchors": 0.5659,
+        "brevity": 1.0
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "neon",
+      "parts": [
+        "neon"
+      ],
+      "total": 71.7,
+      "syllables": 1,
+      "tokens": [
+        "n",
+        "e",
+        "o",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.425,
+        "phonesthemes": 0.6,
+        "novelty": 0.5083,
+        "anchors": 0.6111,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "ember",
+      "parts": [
+        "ember"
+      ],
+      "total": 71.6,
+      "syllables": 2,
+      "tokens": [
+        "e",
+        "m",
+        "b",
+        "e",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.49,
+        "phonesthemes": 0.5,
+        "novelty": 0.4905,
+        "anchors": 0.5833,
+        "brevity": 1.0
+      },
+      "tier": "cool"
     },
     {
       "word": "cabbage",
+      "parts": [
+        "cabbage"
+      ],
       "total": 71.5,
       "syllables": 2,
       "tokens": [
@@ -359,31 +913,92 @@
         "novelty": 0.5544,
         "anchors": 0.489,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
     },
     {
-      "word": "spark",
-      "total": 71.4,
-      "syllables": 1,
+      "word": "gravel",
+      "parts": [
+        "gravel"
+      ],
+      "total": 71.3,
+      "syllables": 2,
       "tokens": [
-        "s",
-        "p",
-        "a",
+        "g",
         "r",
-        "k"
+        "a",
+        "v",
+        "e",
+        "l"
       ],
       "metrics": {
         "pronounceability": 1.0,
-        "flow": 0.75,
-        "energy": 0.53,
+        "flow": 1.0,
+        "energy": 0.5667,
+        "phonesthemes": 0.45,
+        "novelty": 0.4873,
+        "anchors": 0.5604,
+        "brevity": 1.0
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "lumen",
+      "parts": [
+        "lumen"
+      ],
+      "total": 71.3,
+      "syllables": 2,
+      "tokens": [
+        "l",
+        "u",
+        "m",
+        "e",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.41,
         "phonesthemes": 0.5,
-        "novelty": 0.4178,
-        "anchors": 0.8333,
-        "brevity": 0.85
-      }
+        "novelty": 0.4948,
+        "anchors": 0.6167,
+        "brevity": 1.0
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "quorix",
+      "parts": [
+        "quorix"
+      ],
+      "total": 71.2,
+      "syllables": 2,
+      "tokens": [
+        "k",
+        "w",
+        "o",
+        "r",
+        "i",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5571,
+        "phonesthemes": 0.5,
+        "novelty": 0.418,
+        "anchors": 0.5659,
+        "brevity": 1.0
+      },
+      "tier": "coined"
     },
     {
       "word": "admin",
+      "parts": [
+        "admin"
+      ],
       "total": 70.8,
       "syllables": 2,
       "tokens": [
@@ -401,10 +1016,240 @@
         "novelty": 0.4181,
         "anchors": 0.6,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "pus",
+      "parts": [
+        "pus"
+      ],
+      "total": 70.7,
+      "syllables": 1,
+      "tokens": [
+        "p",
+        "u",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.45,
+        "phonesthemes": 0.5,
+        "novelty": 0.6905,
+        "anchors": 0.5,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "strobix",
+      "parts": [
+        "strobix"
+      ],
+      "total": 70.7,
+      "syllables": 2,
+      "tokens": [
+        "s",
+        "t",
+        "r",
+        "o",
+        "b",
+        "i",
+        "k",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5375,
+        "phonesthemes": 0.5,
+        "novelty": 0.486,
+        "anchors": 0.5064,
+        "brevity": 1.0
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "flare",
+      "parts": [
+        "flare"
+      ],
+      "total": 70.5,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "l",
+        "a",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.475,
+        "phonesthemes": 0.6,
+        "novelty": 0.3762,
+        "anchors": 0.5985,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "invoice",
+      "parts": [
+        "invoice"
+      ],
+      "total": 70.4,
+      "syllables": 2,
+      "tokens": [
+        "i",
+        "n",
+        "v",
+        "o",
+        "i",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6,
+        "phonesthemes": 0.5,
+        "novelty": 0.4014,
+        "anchors": 0.5055,
+        "brevity": 1.0
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "grub",
+      "parts": [
+        "grub"
+      ],
+      "total": 70.1,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "r",
+        "u",
+        "b"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.475,
+        "phonesthemes": 0.45,
+        "novelty": 0.7066,
+        "anchors": 0.4848,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "blitz",
+      "parts": [
+        "blitz"
+      ],
+      "total": 70.0,
+      "syllables": 1,
+      "tokens": [
+        "b",
+        "l",
+        "i",
+        "t",
+        "z"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.62,
+        "phonesthemes": 0.5,
+        "novelty": 0.493,
+        "anchors": 0.4848,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "mucus",
+      "parts": [
+        "mucus"
+      ],
+      "total": 70.0,
+      "syllables": 2,
+      "tokens": [
+        "m",
+        "u",
+        "k",
+        "u",
+        "s"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.45,
+        "phonesthemes": 0.5,
+        "novelty": 0.6905,
+        "anchors": 0.3909,
+        "brevity": 1.0
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "goiter",
+      "parts": [
+        "goiter"
+      ],
+      "total": 69.9,
+      "syllables": 2,
+      "tokens": [
+        "g",
+        "o",
+        "i",
+        "t",
+        "e",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.525,
+        "phonesthemes": 0.5,
+        "novelty": 0.3351,
+        "anchors": 0.5705,
+        "brevity": 1.0
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "ledger",
+      "parts": [
+        "ledger"
+      ],
+      "total": 69.6,
+      "syllables": 2,
+      "tokens": [
+        "l",
+        "e",
+        "j",
+        "e",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.53,
+        "phonesthemes": 0.5,
+        "novelty": 0.281,
+        "anchors": 0.5879,
+        "brevity": 1.0
+      },
+      "tier": "bland"
     },
     {
       "word": "carpet",
+      "parts": [
+        "carpet"
+      ],
       "total": 69.4,
       "syllables": 2,
       "tokens": [
@@ -423,33 +1268,39 @@
         "novelty": 0.4003,
         "anchors": 0.5,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
     },
     {
-      "word": "quorix",
-      "total": 68.7,
-      "syllables": 2,
+      "word": "groove",
+      "parts": [
+        "groove"
+      ],
+      "total": 68.6,
+      "syllables": 1,
       "tokens": [
-        "k",
-        "w",
-        "o",
+        "g",
         "r",
-        "i",
-        "k",
-        "s"
+        "o",
+        "o",
+        "v"
       ],
       "metrics": {
         "pronounceability": 1.0,
-        "flow": 0.8,
-        "energy": 0.5571,
-        "phonesthemes": 0.5,
-        "novelty": 0.418,
-        "anchors": 0.5659,
-        "brevity": 1.0
-      }
+        "flow": 1.0,
+        "energy": 0.56,
+        "phonesthemes": 0.45,
+        "novelty": 0.5761,
+        "anchors": 0.4359,
+        "brevity": 0.85
+      },
+      "tier": "cool"
     },
     {
       "word": "porridge",
+      "parts": [
+        "porridge"
+      ],
       "total": 68.5,
       "syllables": 2,
       "tokens": [
@@ -467,10 +1318,63 @@
         "novelty": 0.3897,
         "anchors": 0.4458,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "blaze",
+      "parts": [
+        "blaze"
+      ],
+      "total": 68.3,
+      "syllables": 1,
+      "tokens": [
+        "b",
+        "l",
+        "a",
+        "z"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.6125,
+        "phonesthemes": 0.5,
+        "novelty": 0.4582,
+        "anchors": 0.4182,
+        "brevity": 0.85
+      },
+      "tier": "cool"
+    },
+    {
+      "word": "spark",
+      "parts": [
+        "spark"
+      ],
+      "total": 68.3,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "p",
+        "a",
+        "r",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.53,
+        "phonesthemes": 0.5,
+        "novelty": 0.4178,
+        "anchors": 0.5,
+        "brevity": 0.85
+      },
+      "tier": "cool"
     },
     {
       "word": "snurdge",
+      "parts": [
+        "snurdge"
+      ],
       "total": 68.2,
       "syllables": 1,
       "tokens": [
@@ -488,10 +1392,218 @@
         "novelty": 0.6737,
         "anchors": 0.519,
         "brevity": 0.85
-      }
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "crust",
+      "parts": [
+        "crust"
+      ],
+      "total": 67.8,
+      "syllables": 1,
+      "tokens": [
+        "k",
+        "r",
+        "u",
+        "s",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.49,
+        "phonesthemes": 0.5,
+        "novelty": 0.4002,
+        "anchors": 0.5152,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "memo",
+      "parts": [
+        "memo"
+      ],
+      "total": 67.8,
+      "syllables": 2,
+      "tokens": [
+        "m",
+        "e",
+        "m",
+        "o"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.425,
+        "phonesthemes": 0.5,
+        "novelty": 0.5274,
+        "anchors": 0.4,
+        "brevity": 1.0
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "wart",
+      "parts": [
+        "wart"
+      ],
+      "total": 67.8,
+      "syllables": 1,
+      "tokens": [
+        "w",
+        "a",
+        "r",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.45,
+        "phonesthemes": 0.5,
+        "novelty": 0.2946,
+        "anchors": 0.6091,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "velora",
+      "parts": [
+        "velora"
+      ],
+      "total": 67.7,
+      "syllables": 3,
+      "tokens": [
+        "v",
+        "e",
+        "l",
+        "o",
+        "r",
+        "a"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.625,
+        "novelty": 0.2563,
+        "anchors": 0.5833,
+        "brevity": 0.6
+      },
+      "tier": "coined"
+    },
+    {
+      "word": "scab",
+      "parts": [
+        "scab"
+      ],
+      "total": 67.3,
+      "syllables": 1,
+      "tokens": [
+        "s",
+        "k",
+        "a",
+        "b"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.5625,
+        "phonesthemes": 0.5,
+        "novelty": 0.4694,
+        "anchors": 0.3909,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "minivan",
+      "parts": [
+        "minivan"
+      ],
+      "total": 66.9,
+      "syllables": 3,
+      "tokens": [
+        "m",
+        "i",
+        "n",
+        "i",
+        "v",
+        "a",
+        "n"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.55,
+        "phonesthemes": 0.5,
+        "novelty": 0.4649,
+        "anchors": 0.5064,
+        "brevity": 0.6
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "stapler",
+      "parts": [
+        "stapler"
+      ],
+      "total": 66.8,
+      "syllables": 2,
+      "tokens": [
+        "s",
+        "t",
+        "a",
+        "p",
+        "l",
+        "e",
+        "r"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4857,
+        "phonesthemes": 0.5,
+        "novelty": 0.2366,
+        "anchors": 0.5,
+        "brevity": 1.0
+      },
+      "tier": "bland"
+    },
+    {
+      "word": "pamphlet",
+      "parts": [
+        "pamphlet"
+      ],
+      "total": 66.0,
+      "syllables": 2,
+      "tokens": [
+        "p",
+        "a",
+        "m",
+        "f",
+        "l",
+        "e",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.4714,
+        "phonesthemes": 0.5,
+        "novelty": 0.455,
+        "anchors": 0.3214,
+        "brevity": 1.0
+      },
+      "tier": "bland"
     },
     {
       "word": "mundane",
+      "parts": [
+        "mundane"
+      ],
       "total": 65.8,
       "syllables": 2,
       "tokens": [
@@ -510,10 +1622,14 @@
         "novelty": 0.346,
         "anchors": 0.4341,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
     },
     {
       "word": "oatmeal",
+      "parts": [
+        "oatmeal"
+      ],
       "total": 65.8,
       "syllables": 2,
       "tokens": [
@@ -533,30 +1649,38 @@
         "novelty": 0.3872,
         "anchors": 0.3571,
         "brevity": 1.0
-      }
+      },
+      "tier": "bland"
     },
     {
-      "word": "sludge",
-      "total": 65.5,
+      "word": "gunk",
+      "parts": [
+        "gunk"
+      ],
+      "total": 65.4,
       "syllables": 1,
       "tokens": [
-        "s",
-        "l",
+        "g",
         "u",
-        "j"
+        "n",
+        "k"
       ],
       "metrics": {
         "pronounceability": 1.0,
         "flow": 1.0,
         "energy": 0.4875,
-        "phonesthemes": 0.4,
-        "novelty": 0.7721,
-        "anchors": 0.2308,
+        "phonesthemes": 0.375,
+        "novelty": 0.3722,
+        "anchors": 0.5091,
         "brevity": 0.85
-      }
+      },
+      "tier": "gross"
     },
     {
       "word": "smudge",
+      "parts": [
+        "smudge"
+      ],
       "total": 65.3,
       "syllables": 1,
       "tokens": [
@@ -573,11 +1697,66 @@
         "novelty": 0.7497,
         "anchors": 0.3736,
         "brevity": 0.85
-      }
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "moist",
+      "parts": [
+        "moist"
+      ],
+      "total": 63.1,
+      "syllables": 1,
+      "tokens": [
+        "m",
+        "o",
+        "i",
+        "s",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 1.0,
+        "flow": 1.0,
+        "energy": 0.49,
+        "phonesthemes": 0.375,
+        "novelty": 0.339,
+        "anchors": 0.4091,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "bnixt",
+      "parts": [
+        "bnixt"
+      ],
+      "total": 42.4,
+      "syllables": 1,
+      "tokens": [
+        "b",
+        "n",
+        "i",
+        "k",
+        "s",
+        "t"
+      ],
+      "metrics": {
+        "pronounceability": 0.5,
+        "flow": 1.0,
+        "energy": 0.5417,
+        "phonesthemes": 0.5,
+        "novelty": 0.3995,
+        "anchors": 0.5909,
+        "brevity": 0.85
+      },
+      "tier": "junk"
     },
     {
       "word": "sglurb",
-      "total": 58.4,
+      "parts": [
+        "sglurb"
+      ],
+      "total": 40.9,
       "syllables": 1,
       "tokens": [
         "s",
@@ -595,52 +1774,91 @@
         "novelty": 0.6549,
         "anchors": 0.4872,
         "brevity": 0.85
-      }
+      },
+      "tier": "junk"
     },
     {
-      "word": "gunk",
-      "total": 57.7,
-      "syllables": 1,
-      "tokens": [
-        "g",
-        "u",
-        "n",
-        "k"
+      "word": "mfrask",
+      "parts": [
+        "mfrask"
       ],
-      "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.4875,
-        "phonesthemes": 0.375,
-        "novelty": 0.3722,
-        "anchors": 0.1,
-        "brevity": 0.85
-      }
-    },
-    {
-      "word": "moist",
-      "total": 57.1,
+      "total": 39.5,
       "syllables": 1,
       "tokens": [
         "m",
-        "o",
-        "i",
+        "f",
+        "r",
+        "a",
         "s",
-        "t"
+        "k"
       ],
       "metrics": {
-        "pronounceability": 1.0,
-        "flow": 1.0,
-        "energy": 0.49,
-        "phonesthemes": 0.375,
-        "novelty": 0.339,
-        "anchors": 0.0909,
+        "pronounceability": 0.5,
+        "flow": 0.8,
+        "energy": 0.5,
+        "phonesthemes": 0.5,
+        "novelty": 0.457,
+        "anchors": 0.5,
         "brevity": 0.85
-      }
+      },
+      "tier": "junk"
+    },
+    {
+      "word": "phlegm",
+      "parts": [
+        "phlegm"
+      ],
+      "total": 37.4,
+      "syllables": 1,
+      "tokens": [
+        "f",
+        "l",
+        "e",
+        "g",
+        "m"
+      ],
+      "metrics": {
+        "pronounceability": 0.5,
+        "flow": 0.75,
+        "energy": 0.48,
+        "phonesthemes": 0.25,
+        "novelty": 0.498,
+        "anchors": 0.5629,
+        "brevity": 0.85
+      },
+      "tier": "gross"
+    },
+    {
+      "word": "tlopq",
+      "parts": [
+        "tlopq"
+      ],
+      "total": 20.5,
+      "syllables": 1,
+      "tokens": [
+        "t",
+        "l",
+        "o",
+        "p",
+        "k"
+      ],
+      "metrics": {
+        "pronounceability": 0.0,
+        "flow": 1.0,
+        "energy": 0.51,
+        "phonesthemes": 0.5,
+        "novelty": 0.5767,
+        "anchors": 0.5,
+        "brevity": 0.85
+      },
+      "tier": "junk"
     },
     {
       "word": "fnorpt",
-      "total": 50.5,
+      "parts": [
+        "fnorpt"
+      ],
+      "total": 20.2,
       "syllables": 1,
       "tokens": [
         "f",
@@ -658,11 +1876,15 @@
         "novelty": 0.5647,
         "anchors": 0.5064,
         "brevity": 0.85
-      }
+      },
+      "tier": "junk"
     },
     {
       "word": "pfimf",
-      "total": 50.3,
+      "parts": [
+        "pfimf"
+      ],
+      "total": 20.1,
       "syllables": 1,
       "tokens": [
         "p",
@@ -679,28 +1901,57 @@
         "novelty": 0.5228,
         "anchors": 0.4833,
         "brevity": 0.85
-      }
+      },
+      "tier": "junk"
     },
     {
-      "word": "phlegm",
-      "total": 45.7,
+      "word": "zzkrt",
+      "parts": [
+        "zzkrt"
+      ],
+      "total": 16.9,
       "syllables": 1,
       "tokens": [
-        "f",
-        "l",
-        "e",
-        "g",
-        "m"
+        "z",
+        "k",
+        "r",
+        "t"
       ],
       "metrics": {
-        "pronounceability": 0.5,
-        "flow": 0.75,
-        "energy": 0.48,
-        "phonesthemes": 0.25,
-        "novelty": 0.498,
-        "anchors": 0.1538,
+        "pronounceability": 0.0,
+        "flow": 0.0,
+        "energy": 0.6375,
+        "phonesthemes": 0.65,
+        "novelty": 0.5175,
+        "anchors": 0.5167,
         "brevity": 0.85
-      }
+      },
+      "tier": "junk"
+    },
+    {
+      "word": "grbzl",
+      "parts": [
+        "grbzl"
+      ],
+      "total": 15.5,
+      "syllables": 1,
+      "tokens": [
+        "g",
+        "r",
+        "b",
+        "z",
+        "l"
+      ],
+      "metrics": {
+        "pronounceability": 0.0,
+        "flow": 0.0,
+        "energy": 0.59,
+        "phonesthemes": 0.45,
+        "novelty": 0.5693,
+        "anchors": 0.4872,
+        "brevity": 0.85
+      },
+      "tier": "junk"
     }
   ]
 }

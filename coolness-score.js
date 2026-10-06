@@ -7,6 +7,13 @@
 // both files. Metric definitions are documented in coolness.py.
 //-----------------------------------------------------------------------
 
+/**
+ * @typedef {{ cool: Array<{ word: string, grams: Set<string> }>,
+ *             uncool: Array<{ word: string, grams: Set<string> }> }} AnchorContext
+ * @typedef {{ word: string, parts: string[], total: number, syllables: number,
+ *             tokens: string[], metrics: Record<string, number> }} CoolnessResult
+ */
+
 const CoolnessScore = (function () {
     'use strict';
 
@@ -48,6 +55,8 @@ const CoolnessScore = (function () {
         for (const vowel of config.vowels) {
             sonority.set(vowel, VOWEL_SONORITY);
         }
+        const sClusterStops = new Set(config.sonorityExceptions.sClusterStops);
+        const codaAppendix = new Set(config.sonorityExceptions.codaAppendix);
 
         function sonorityOf(token) {
             const value = sonority.get(token);
@@ -106,20 +115,37 @@ const CoolnessScore = (function () {
 
             // Final silent e (vibe, blaze) - unless it makes a syllabic-l
             // syllable (table, bubble) or is the only vowel (the).
-            if (tokens.length >= 2 && tokens[tokens.length - 1] === 'e'
-                && !isVowel(tokens[tokens.length - 2], tokens.length - 2)) {
+            if (tokens.length >= 2 && tokens[tokens.length - 1] === 'e') {
+                const flags = vowelFlags(tokens);
                 const rest = tokens.slice(0, -1);
-                const hasVowel = rest.some((t, idx) => isVowel(t, idx));
                 const syllabicL = tokens.length >= 3 && tokens[tokens.length - 2] === 'l'
-                    && !isVowel(tokens[tokens.length - 3], tokens.length - 3);
-                if (hasVowel && !syllabicL) return rest;
+                    && !flags[flags.length - 3];
+                if (!flags[flags.length - 2] && vowelFlags(rest).some(Boolean) && !syllabicL) {
+                    return rest;
+                }
             }
             return tokens;
         }
 
-        function isVowel(token, index) {
-            if (vowels.has(token)) return true;
-            return token === 'y' && index > 0;
+        /**
+         * Which tokens are vowel sounds. y after the first sound is a vowel
+         * (kyro); w closing a vowel before a consonant or the end is part of
+         * that vowel (glow, brew, glowcode), not a coda.
+         * @param {string[]} tokens @returns {boolean[]}
+         */
+        function vowelFlags(tokens) {
+            /** @type {boolean[]} */
+            const flags = [];
+            tokens.forEach((token, i) => {
+                if (vowels.has(token) || (token === 'y' && i > 0)) {
+                    flags.push(true);
+                } else if (token === 'w' && i > 0 && flags[i - 1]) {
+                    flags.push(i + 1 === tokens.length || !vowels.has(tokens[i + 1]));
+                } else {
+                    flags.push(false);
+                }
+            });
+            return flags;
         }
 
         // ---- syllabification ------------------------------------------
@@ -129,7 +155,7 @@ const CoolnessScore = (function () {
          * @returns {Array<{ onset: string[], nucleus: string[], coda: string[] }>}
          */
         function syllabify(tokens) {
-            const flags = tokens.map((t, i) => isVowel(t, i));
+            const flags = vowelFlags(tokens);
             if (!flags.some(Boolean)) {
                 return [{ onset: tokens.slice(), nucleus: [], coda: [] }];
             }
@@ -228,16 +254,16 @@ const CoolnessScore = (function () {
         }
 
         /**
-         * Prebuilt bigram sets for an anchor vocabulary ({cool, uncool}).
-         * Persona formulas carry their own anchors; mirrors coolness.py
-         * anchor_context().
+         * Prebuilt { word, grams } entries for an anchor vocabulary
+         * ({cool, uncool}). Persona formulas carry their own anchors;
+         * mirrors coolness.py anchor_context().
          * @param {{ cool: string[], uncool: string[] }} anchors
+         * @returns {AnchorContext}
          */
         function anchorContext(anchors) {
-            return {
-                cool: anchors.cool.map(w => charBigrams(clean(w))),
-                uncool: anchors.uncool.map(w => charBigrams(clean(w)))
-            };
+            const entries = (/** @type {string[]} */ words) =>
+                words.map(w => ({ word: clean(w), grams: charBigrams(clean(w)) }));
+            return { cool: entries(anchors.cool), uncool: entries(anchors.uncool) };
         }
 
         const defaultAnchorContext = anchorContext(config.anchors);
@@ -264,12 +290,18 @@ const CoolnessScore = (function () {
                 const rising = syllable.onset.concat(syllable.nucleus.slice(0, 1));
                 for (let k = 0; k < rising.length - 1; k++) {
                     transitions += 1;
-                    if (sonorityOf(rising[k]) <= sonorityOf(rising[k + 1])) good += 1;
+                    // English licenses s before a stop (spark, street)
+                    // outside the sonority slope.
+                    const sCluster = k === 0 && rising[k] === 's' && sClusterStops.has(rising[k + 1]);
+                    if (sCluster || sonorityOf(rising[k]) <= sonorityOf(rising[k + 1])) good += 1;
                 }
                 const falling = syllable.nucleus.slice(-1).concat(syllable.coda);
                 for (let k = 0; k < falling.length - 1; k++) {
                     transitions += 1;
-                    if (sonorityOf(falling[k]) >= sonorityOf(falling[k + 1])) good += 1;
+                    // A coronal appendix after a coda consonant (flux,
+                    // glints) is likewise licensed outside the slope.
+                    const appendix = k > 0 && codaAppendix.has(falling[k + 1]);
+                    if (appendix || sonorityOf(falling[k]) >= sonorityOf(falling[k + 1])) good += 1;
                 }
             }
             if (transitions === 0) return config.flowNoTransitionScore;
@@ -316,15 +348,21 @@ const CoolnessScore = (function () {
         }
 
         /**
+         * Leave-one-out: a listed word is judged by how it sounds like the
+         * OTHER anchors, never by matching itself.
          * @param {string} letters
-         * @param {{ cool: Set<string>[], uncool: Set<string>[] }} context
+         * @param {AnchorContext} context
          */
         function metricAnchors(letters, context) {
             const grams = charBigrams(letters);
             let cool = 0;
-            for (const g of context.cool) cool = Math.max(cool, dice(grams, g));
+            for (const entry of context.cool) {
+                if (entry.word !== letters) cool = Math.max(cool, dice(grams, entry.grams));
+            }
             let uncool = 0;
-            for (const g of context.uncool) uncool = Math.max(uncool, dice(grams, g));
+            for (const entry of context.uncool) {
+                if (entry.word !== letters) uncool = Math.max(uncool, dice(grams, entry.grams));
+            }
             return Math.max(0, Math.min(1, 0.5 + 0.5 * (cool - uncool)));
         }
 
@@ -338,14 +376,42 @@ const CoolnessScore = (function () {
         // ---- scoring ---------------------------------------------------------
 
         /**
+         * A hyphen marks a compound joint (vibe-code): each part keeps its
+         * own spelling rules, so vibe's silent e stays silent.
+         * @param {string} word @returns {string[]}
+         */
+        function partsOf(word) {
+            return String(word).split('-').map(clean).filter(Boolean);
+        }
+
+        /** @param {string[]} parts @returns {string[]} */
+        function tokenizeParts(parts) {
+            /** @type {string[]} */
+            const tokens = [];
+            for (const part of parts) {
+                let partTokens = tokenize(part);
+                // A consonant doubled across the joint is still one sound.
+                if (tokens.length && partTokens.length
+                    && tokens[tokens.length - 1] === partTokens[0]
+                    && !vowels.has(partTokens[0])) {
+                    partTokens = partTokens.slice(1);
+                }
+                tokens.push(...partTokens);
+            }
+            return tokens;
+        }
+
+        /**
          * @param {string} word
-         * @param {{ weights?: Record<string, number>, anchorContext?: { cool: Set<string>[], uncool: Set<string>[] } }} [opts]
+         * @param {{ weights?: Record<string, number>, anchorContext?: AnchorContext }} [opts]
+         * @returns {CoolnessResult}
          */
         function score(word, opts) {
-            const letters = clean(word);
-            const tokens = tokenize(letters);
+            const parts = partsOf(word);
+            const letters = parts.join('');
+            const tokens = tokenizeParts(parts);
             const syllables = syllabify(tokens);
-            const hasVowel = tokens.some((t, idx) => isVowel(t, idx));
+            const hasVowel = vowelFlags(tokens).some(Boolean);
             const syllableCount = hasVowel ? syllables.length : 1;
 
             /** @type {Record<string, number>} */
@@ -364,11 +430,22 @@ const CoolnessScore = (function () {
             }
             return {
                 word: letters,
+                parts,
                 total: totalFromMetrics(metrics, (opts && opts.weights) || config.weights),
                 syllables: syllableCount,
                 tokens,
                 metrics
             };
+        }
+
+        /**
+         * Illegal clusters scale the whole score down: a word nobody can
+         * say is not cool, however its other traits average out.
+         * @param {Record<string, number>} metrics
+         */
+        function legalityGate(metrics) {
+            const floor = config.legalityFloor;
+            return floor + (1 - floor) * metrics.pronounceability;
         }
 
         /**
@@ -383,10 +460,10 @@ const CoolnessScore = (function () {
                 weighted += weight * metrics[name];
             }
             if (weightSum <= 0) return 0;
-            return roundPlaces(100 * weighted / weightSum, 1);
+            return roundPlaces(100 * legalityGate(metrics) * weighted / weightSum, 1);
         }
 
-        return { score, totalFromMetrics, anchorContext, clean };
+        return { score, totalFromMetrics, legalityGate, anchorContext, clean, partsOf };
     }
 
     return { createScorer, roundPlaces };

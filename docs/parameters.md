@@ -453,18 +453,6 @@ Download original / current chapter audio / generated book audio are primary;
 individual part files live under Advanced. Delete all audio preserves the
 original/research; Delete book removes all browser-local records.
 
-## Articles (`articles-settings`)
-
-Article text is never persisted in this browser; drafts live in the Fuseki
-editor database (see "Articles: Fuseki editor client" in
-[architecture.md](architecture.md)). Only the connection and selection
-state persist.
-
-| Setting | Default | Values | Behavior |
-|---------|---------|--------|----------|
-| editorBase | empty | private editor URL (`https://edit.fuseki.net/<prefix>`) | applied on Connect; kept only in this browser's localStorage |
-| currentDraftId | 0 (none) | draft article id | updated by New draft / draft selection / first append; cleared automatically if the draft was published or deleted server-side |
-
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,
@@ -488,8 +476,8 @@ at the very top of the panel, above the titles.
 | Option | Default | Behavior |
 |--------|---------|----------|
 | formula (dropdown) | balanced | applies that formula's weights to all sliders + re-rank (persona formulas also swap the anchor vocabulary) |
-| weights (7 sliders, 0-3) | from `coolness-config.json` | recompute totals + re-rank immediately; switches formula to Custom |
-| words (typed words) | empty | each scored word joins the leaderboard until Clear my words |
+| weights (7 sliders, 0-3, step 0.5, notched at whole numbers) | from `coolness-config.json` | recompute totals, tier order, and ranks immediately; switches formula to Custom |
+| words (typed words) | empty | each scored word joins the leaderboard (tier "yours") until Clear my words; a hyphen marks a compound joint (`vibe-code`) |
 | combine set A / set B (text) | empty | Combine + score joins every cross pair compound-first (plus light seam/clip trims and -ing forms); existing English words are dropped so only NEW words are rated |
 | combine expand (0-50) | 20 | related words added per set via keyless Datamuse before combining |
 | best per pair | on | one best variant represents each A+B pair (others fold into a count); off shows every variant |
@@ -498,3 +486,7 @@ Reset weights restores the config defaults (the Balanced formula).
 Sliders re-weight the stored per-metric values client-side; the metric
 values themselves only change when `coolness-config.json` changes and
 the report is regenerated (see "Word lab" in [tools.md](tools.md)).
+Config-only model knobs (no UI): `legalityFloor` (0.4, the gate's
+minimum), `sonorityExceptions` (s+stop onsets, coronal coda appendix),
+and `sampleTiers` (the ranked leaderboard words the tier-order
+calibration measures).
