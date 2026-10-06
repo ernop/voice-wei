@@ -35,7 +35,6 @@ const PARALLEL_SUITES = [
     'test-proxy.js',
     'test-deploy.js',
     'test-coolness.js',
-    'test-articles.js',
     'test-syntax.js',
     'test-css-ownership.js'
 ];

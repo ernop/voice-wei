@@ -191,3 +191,8 @@ the editor admits `https://fuseki.net` on those three endpoints only and
 keeps its CSRF token check. After the switch, the owner re-enters the editor
 URL in the Articles tab once. When Voice-Wei itself moves origin, the editor's
 single allowed origin (`VOICE_DRAFT_ORIGIN`) moves with it.
+
+Articles removed (owner direction 2026-10-06): Voice-Wei no longer ships the
+Articles tab, so nothing on fuseki.net calls the voice-draft API now. The
+editor-side allowance for `https://fuseki.net` is unused until the tab
+returns (restore path in [product-goals.md](product-goals.md)).

@@ -26,6 +26,8 @@ const StorageKeys = Object.freeze({
     PLAYER_LYRICS_CACHE: 'voice-wei:player-lyrics-cache',
     PLAYER_LYRICS_VIEW: 'voice-wei:player-lyrics-view',
     EBOOK_SETTINGS: 'voice-wei:ebook-settings',
+    // Retired with the Articles tab (removed 2026-10-06). The key remains
+    // registered so the name stays reserved; nothing reads or writes it.
     ARTICLES_SETTINGS: 'voice-wei:articles-settings',
     PRACTICE_PROGRESS: 'voice-wei:practice-progress',
     API_CLAUDE: 'voice-wei:api-key:claude',

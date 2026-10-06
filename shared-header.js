@@ -9,7 +9,6 @@ const HEADER_PAGES = [
     { id: "pitch", href: "pitch-meter.html", label: "Pitch" },
     { id: "music", href: "player.html", label: "Lyrics" },
     { id: "books", href: "ebook.html", label: "Books" },
-    { id: "articles", href: "articles.html", label: "Articles" },
     { id: "wording", href: "wording.html", label: "Wording" },
     { id: "deploys", href: "deploys.html", label: "Deploys" }
 ];
