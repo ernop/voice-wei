@@ -1389,3 +1389,34 @@ restore command is in product-goals ("Removed tabs"), and the
   (rizzler vs groovester flips between Gen alpha and Boomer).
 - test-proxy needs `php`; this machine has none, so the local gate shows
   that one suite failing for environment reasons. CI runners have php.
+
+## 2026-10-08 - Static and slowdown at song changes: not reproducible in the page
+
+yui: "there is a weird slowdown and a bit of static whenever i change
+songs." Android, usually car Bluetooth. No code changed; questions went back
+to him (how he changes songs; whether the YouTube app does it too).
+
+**What was ruled out, with evidence**:
+- A local probe at CPU x4 and x6 covered Next, Previous, a row tap,
+  auto-advance, and a media key. The silent keep-alive got 0 `play()` and 0
+  `pause()` calls; its only events were the 10 s loop. There were no long
+  tasks; the largest function was `renderLyricsLines` at about 10 ms.
+- No TTS, volume change, or rate change happens on a switch. YouTube gets
+  `pauseVideo()` then `loadVideoById()`.
+
+**For future mei** (Chromium, read at Android Stable 156.0.8078.25):
+- Media under 44.1 kHz is resampled to the hardware rate
+  (`audio_renderer_impl.cc`), so the 8 kHz keep-alive is not an 8 kHz OS
+  stream. Mixers are keyed without sample rate, so same-renderer stereo media
+  share one OS stream.
+- A paused player keeps its OS stream for 10 s. A torn-down pipeline (YouTube
+  loading the next video) closes its stream at once if nothing else holds the
+  mixer. With YouTube in its own renderer process, only the keep-alive keeps
+  the phone's audio running between songs.
+- Coming in M157 (Finch on Android, `kAudioRendererMixerImmediatePause`,
+  main #1706733): an explicit pause stops the OS stream at once and moves
+  Bluetooth AVRCP to PAUSED. Our `pauseVideo()` before `loadVideoById()` is
+  redundant and would trigger that on every switch.
+- The Log answers most device questions. `Playback diagnostic` lines carry
+  `keepAlive=`, timestamped YouTube states (buffering gaps), and the
+  network; the session-start line carries the user agent.
