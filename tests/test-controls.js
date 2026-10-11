@@ -87,8 +87,9 @@ async function sectionCanonicalControls(browser, errors) {
         { page: 'trace', steppers: ['rootPitch', 'rangeLowMidi', 'rangeHighMidi', 'guideIntervalMs', 'windowMs'], forbidden: 'select, input[type="range"]' },
         { page: 'player', steppers: [], forbidden: 'select, input[type="range"]' },
         // Books keeps its selects (dynamic voice/model lists, the declared
-        // exception) but must use the shared button vocabulary.
-        { page: 'ebook', steppers: [], forbidden: 'input[type="range"]' },
+        // exception) but must use the shared button vocabulary. The shared
+        // media player's notched volume slider is the one range input allowed.
+        { page: 'ebook', steppers: [], forbidden: 'input[type="range"]:not(.mp-volume input)' },
     ];
     const checks = await Promise.all(expectations.map(async ({ page, steppers, forbidden }) => {
         const tab = await ctx.newPage();

@@ -695,8 +695,10 @@ async function seedFrontMatterBook(page) {
             answerNavLabels: Array.from(document.querySelectorAll('#aiAnswerNavigation button')).map(button => button.textContent.trim()),
             sampleButtons: Array.from(document.querySelectorAll('#voiceSampleGrid button')).map(button => button.textContent.trim()),
             sampleStatus: document.querySelector('#voiceSampleStatus')?.textContent || '',
-            controlCount: document.querySelectorAll('.player-control-grid button').length,
-            controlLabels: Array.from(document.querySelectorAll('.player-control-grid button')).map(button => button.textContent.trim()),
+            controlLabels: Array.from(document.querySelectorAll('.listen-player .mp-controls button'))
+                .filter(button => button.offsetParent).map(button => button.textContent.trim() || button.title),
+            controlHeights: Array.from(document.querySelectorAll('.listen-player .mp-controls button'))
+                .filter(button => button.offsetParent).map(button => Math.round(button.getBoundingClientRect().height)),
             readerSearchPlaceholder: document.querySelector('#readerSearch')?.getAttribute('placeholder') || '',
             readerJumpButtons: [
                 document.querySelector('#goToLatestReadBtn')?.textContent?.trim(),
@@ -735,9 +737,10 @@ async function seedFrontMatterBook(page) {
             && ['Alloy', 'Ash', 'Ballad', 'Cedar', 'Coral', 'Echo', 'Fable', 'Marin', 'Nova', 'Onyx', 'Sage', 'Shimmer', 'Verse']
                 .every(voice => layout.sampleButtons.includes(voice))
             && layout.sampleStatus.includes('short sample')
-            && layout.controlCount === 7
-            && ['Prev', '-30s', 'Half back', 'Play', 'Half fwd', '+30s', 'Next']
-                .every((label, index) => layout.controlLabels[index] === label)
+            && ['Previous part', 'Play', 'Next part', '-30', '+30', 'Half back', 'Half fwd']
+                .every(label => layout.controlLabels.some(text => text.startsWith(label)))
+            && !layout.controlLabels.includes('+5')
+            && layout.controlHeights.length > 0 && Math.min(...layout.controlHeights) >= 58
             && layout.readerSearchPlaceholder.includes("book's contents")
             && layout.readerJumpButtons[0] === 'Go to latest read'
             && layout.readerJumpButtons[1] === 'Go to playing section'
@@ -996,14 +999,14 @@ async function seedFrontMatterBook(page) {
             audio.dispatchEvent(new Event('timeupdate'));
         });
         const readAlong = await page.evaluate(() => getComputedStyle(document.querySelector('.reader-segment.current')).getPropertyValue('--read-progress').trim());
-        await page.click('#quadraticForwardBtn');
+        await page.click('.listen-player .mp-half-forward');
         const qForward = await page.evaluate(() => document.querySelector('#audioPlayer').currentTime);
         await page.evaluate(() => { document.querySelector('#audioPlayer').currentTime = 60; });
-        await page.click('#quadraticBackBtn');
+        await page.click('.listen-player .mp-half-back');
         const qBack = await page.evaluate(() => document.querySelector('#audioPlayer').currentTime);
-        await page.click('#forward30Btn');
+        await page.click('.listen-player .mp-skip[title="Forward 30 seconds"]');
         const plus30 = await page.evaluate(() => document.querySelector('#audioPlayer').currentTime);
-        await page.click('#nextSegmentBtn');
+        await page.click('.listen-player .mp-item[title^="Next part"]');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-1');
         await page.click('#showHistoryBtn');
         await page.waitForSelector('#historyPanel[style*="block"]');
@@ -1027,7 +1030,7 @@ async function seedFrontMatterBook(page) {
                 historyVisible: document.querySelector('#historyPanel')?.style.display === 'block'
             };
         });
-        report.check(`books custom player jumps/history (qf=${qForward}, qb=${qBack}, +30=${plus30})`,
+        report.check(`books media player jumps/history (qf=${qForward}, qb=${qBack}, +30=${plus30})`,
             Math.abs(qForward - 300) <= 0.5 && Math.abs(qBack - 30) <= 0.5
             && Math.abs(plus30 - 60) <= 0.5 && player.segmentId === 'seg-1'
             && readAlong !== '' && readAlong !== '0%'
@@ -1084,9 +1087,10 @@ async function seedFrontMatterBook(page) {
         await page.waitForFunction(() => !document.querySelector('.books-shell')?.classList.contains('book-open'));
         await page.click('.saved-book-item[data-book-id="book-suite-generated-two"]');
         await page.waitForSelector('#bookWorkspace[style*="block"]');
+        // Opening a book may load its own saved part, paused, but never the last book's part.
         const clearedBeforeSecondPlay = await page.evaluate(() => {
             const audio = document.querySelector('#audioPlayer');
-            return !audio?.getAttribute('src') && !audio?.dataset.segmentId;
+            return Boolean(audio?.paused) && !['seg-0', 'seg-1'].includes(audio?.dataset.segmentId || '');
         });
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-b0');

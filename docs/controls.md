@@ -99,7 +99,7 @@ that was executed:
 
 | Retired dialect | Now |
 |-----------------|-----|
-| `small-action-btn` (+ `.danger`) | `panel-action-btn` (+ `.danger`); `transport-step-btn` survives as a layout modifier |
+| `small-action-btn` (+ `.danger`) | `panel-action-btn` (+ `.danger`) |
 | `primary-action-btn`, `upload-button` | `primary-btn` |
 | `danger-action-btn` | `secondary-btn danger` |
 | `speed-step-btn` + `speed-control` | `step-field` + `step-btn` / `step-value` |
@@ -109,8 +109,13 @@ that was executed:
 | `model-selector` (Books' selects) | renamed `books-select` so the retired player dialect name stays dead |
 
 Books' OpenAI voice/model `<select>`s stay (dynamic lists; the declared
-exception in architecture.md). The Listen card's transport grid keeps
-the shared classes but sizes them tall (58px) for driving. AI Research is its
+exception in architecture.md). The Listen card's transport is the shared
+media player (`media-player.js` / `media-player.css`, a deliberately distinct
+surface in architecture.md), themed in ebook.css only through its `--mp-*`
+variables: 58px tap targets for driving (`--mp-control-size`), white text, the
+green accent. Its volume slider is the one range input on Books, allowed by
+`tests/test-controls.js` because it shows its notches, both end values and the
+current value (owner display rule 5). AI Research is its
 own blue-bordered card immediately after Listen, with a full-width
 `primary-btn` launch, `primary-btn` Research submit, and `panel-action-btn`
 Close / answer navigation controls. Seven compact answer buttons cover

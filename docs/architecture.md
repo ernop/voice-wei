@@ -176,6 +176,24 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `staff-view.js` | The Phrases snapshot staff (one phrase, formatter-spaced) | - |
 | `staff-scroll-view.js` | The Staff page's scrolling grand staff: continuous diatonic geometry, fixed clef/key header, now-line, dedicated sung-pitch band | - |
 | `shared-header.js` | Site header, nav, version label | - |
+| `media-player.js` + `media-player.css` | The Books listening player: transport, notched seek scale, keys, speed, volume, and the Media Session on Books | yes (tests/test-media-player.js) |
+
+### The shared media player
+
+Books' Listen card is the media player library, which lives in its own
+repository and is the same player wherever it is used, so keys and controls
+never differ between sites. This repo keeps a copy of it and loads nothing from
+another checkout (owner, 2026-10-11: no dependency on a checkout sitting next
+to this one). Deploys ship only top-level files, so the copy is
+`media-player.js` and `media-player.css` at the root, with
+`media-player.sha256`, their checksums (excluded from deploys), and is never
+edited in this repo. `tests/test-media-player.js` fails when the copy differs
+from those checksums and when any page loads both the player and
+`media-session-core.js`. To take a library change: run the library's
+`copy-into.sh .` from this repo (it rewrites the checksums), run `npm test`,
+then `./bump-version.sh` so browsers fetch the new files. TypeScript sees the player through
+`types/media-player.d.ts`; the copy itself is excluded from the typecheck.
+Books themes it only through its `--mp-*` variables (ebook.css).
 
 CSS: `style.css` (global shell) -> `practice-controls.css` (shared
 primitives: vf-btn chips, step fields, segment rows, display toggles,
@@ -357,7 +375,11 @@ its hold-detection loops. User-facing behavior per page is in
 Media keys and the now-playing surface: phrases, scales, intervals, ears,
 and the player register hardware play/pause/next handlers through
 `media-session-core.js`, which is the ONLY writer of
-`navigator.mediaSession` and `document.title` (ast-grep enforced). The core
+`navigator.mediaSession` and `document.title` (ast-grep enforced). The one
+exception is Books, which never loads `media-session-core.js`: its shared media
+player owns the Media Session there (title "Book · Chapter", position,
+play/pause/seek, previous/next generated part) and does not write
+`document.title`; `tests/test-media-player.js` fails if a page loads both. The core
 composes stable track identity/artwork, changing primary and secondary display
 lines, true media position, and playback state without letting one concern
 overwrite another. It fans the primary line out to car/lock-screen title
@@ -554,7 +576,9 @@ first read.
 ### Other storage
 
 Books large files: IndexedDB (`voice-wei-books`), not localStorage. The Books
-Log is DOM-only. The Music Log is persisted in its dedicated IndexedDB as
+Log is DOM-only. The shared media player keeps its own `media-player:` keys
+(`volume`, `speed:audio`) outside `storage-keys.js`, because the library owns
+them on every site that uses it; Books turns off its remembered positions. The Music Log is persisted in its dedicated IndexedDB as
 described under Music player durable history.
 
 Scored practice persists via `progress-store.js` → `PRACTICE_PROGRESS`.
@@ -1248,7 +1272,10 @@ their own look: ears' answer grid and interval multi-select, scales'
 piano keyboard, the Lyrics page's media transport (the `media-btn`
 family in its now-playing card and Big Lyrics) and the lyrics overlay,
 and the ebook reader surface (page text, TOC, and its dynamic
-voice/model selects - Books' buttons use the shared vocabulary).
+voice/model selects - Books' buttons use the shared vocabulary). Books'
+Listen player is the shared media player (see "The shared media player"),
+with its own button and slider classes (`mp-*`), themed only through its
+`--mp-*` variables; its notched volume slider is the one range input on Books.
 
 ## Known deliberate gaps
 

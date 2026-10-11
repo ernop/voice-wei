@@ -1052,7 +1052,7 @@
 .mp3-status-detail,
 .player-key-hint {
     margin-top: 6px;
-    color: rgba(255, 255, 255, 0.58);
+    color: #fff;
     font-size: 0.76rem;
     text-align: left;
 }
@@ -1079,68 +1079,31 @@
     margin: 10px 0;
     border-radius: 8px;
     background: rgba(0, 0, 0, 0.22);
-    color: rgba(255, 255, 255, 0.76);
+    color: #fff;
     font-size: 0.86rem;
     text-align: left;
 }
 
-.audio-player {
-    display: none;
-}
-
-.custom-player {
-    display: grid;
-    gap: 6px;
+/* The shared media player (media-player.css), themed only through its
+   variables. Driving-friendly: the 58px tap targets the Listen card has
+   always had, with labels small enough that a phone fits two per row. */
+.listen-player .mp {
+    --mp-bg: transparent;
+    --mp-text: #fff;
+    --mp-border: rgba(255, 255, 255, 0.2);
+    --mp-accent: #22c55e;
+    --mp-accent-text: #000;
+    --mp-hover: rgba(255, 255, 255, 0.18);
+    --mp-buffered: rgba(255, 255, 255, 0.3);
+    --mp-font: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mp-radius: var(--radius-group);
+    --mp-radius-sm: var(--radius-control);
+    --mp-fs-control: 1.15rem;
+    --mp-control-size: 58px;
+    --mp-fs-value: 2rem;
+    --mp-fs-small: 1rem;
+    --mp-thumb: 26px;
     margin-top: 8px;
-}
-
-.player-seek-track {
-    position: relative;
-    width: 100%;
-    /* Tall enough to hit while driving */
-    height: 22px;
-    border: none;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.13);
-    overflow: hidden;
-    cursor: pointer;
-}
-
-.player-progress-fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 0;
-    background: #4ade80;
-}
-
-.player-time-row {
-    display: flex;
-    justify-content: space-between;
-    color: rgba(255, 255, 255, 0.62);
-    font-family: 'SF Mono', 'Consolas', monospace;
-    font-size: 0.74rem;
-}
-
-.player-control-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-}
-
-/* Driving-friendly transport: tall tap targets that can be hit without
-   looking closely, Play the tallest and brightest of the row. */
-.player-control-grid .panel-action-btn,
-.player-control-grid .primary-btn {
-    padding: 7px 4px;
-    min-height: 58px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    line-height: 1.1;
-    border-radius: 10px;
-}
-
-.player-control-grid .primary-btn {
-    font-size: 1rem;
 }
 
 .player-actions {
@@ -1154,10 +1117,6 @@
 .player-actions .panel-action-btn {
     width: 100%;
     min-height: 48px;
-}
-
-.transport-step-btn {
-    font-size: 0.86rem;
 }
 
 .ai-research-card {
@@ -1611,10 +1570,6 @@
 
     .voice-sample-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .player-control-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .ai-question-submit-row {

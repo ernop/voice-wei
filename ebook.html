@@ -10,6 +10,7 @@
     <title>Books - Voice-Wei</title>
     <link rel="stylesheet" href="style.css?v=360">
     <link rel="stylesheet" href="practice-controls.css?v=360">
+    <link rel="stylesheet" href="media-player.css?v=360">
     <link rel="stylesheet" href="ebook.css?v=360">
 </head>
 
@@ -246,30 +247,14 @@
                             <div class="player-card">
                                 <h3>Listen</h3>
                                 <div class="player-now" id="playerNow">No MP3 selected</div>
-                                <audio id="audioPlayer" class="audio-player"></audio>
-                                <div class="custom-player">
-                                    <button id="playerSeekTrack" class="player-seek-track" type="button" aria-label="Seek within current chapter audio">
-                                        <span id="playerProgressFill" class="player-progress-fill"></span>
-                                    </button>
-                                    <div class="player-time-row">
-                                        <span id="playerCurrentTime">0:00</span>
-                                        <span id="playerDuration">0:00</span>
-                                    </div>
-                                    <div class="player-control-grid">
-                                        <button id="previousSegmentBtn" class="panel-action-btn transport-step-btn" type="button">Prev</button>
-                                        <button id="back30Btn" class="panel-action-btn transport-step-btn" type="button">-30s</button>
-                                        <button id="quadraticBackBtn" class="panel-action-btn transport-step-btn" type="button">Half back</button>
-                                        <button id="playPauseBtn" class="primary-btn" type="button">Play</button>
-                                        <button id="quadraticForwardBtn" class="panel-action-btn transport-step-btn" type="button">Half fwd</button>
-                                        <button id="forward30Btn" class="panel-action-btn transport-step-btn" type="button">+30s</button>
-                                        <button id="nextSegmentBtn" class="panel-action-btn transport-step-btn" type="button">Next</button>
-                                    </div>
+                                <div class="listen-player" id="listenPlayer" hidden>
+                                    <audio id="audioPlayer" preload="metadata"></audio>
                                 </div>
                                 <div class="player-actions">
                                     <button id="playFromProgressBtn" class="primary-btn" type="button">Play from progress</button>
                                     <button id="showHistoryBtn" class="panel-action-btn" type="button">History</button>
                                 </div>
-                                <div class="player-key-hint">Keyboard: Left/Right moves between generated MP3s. Read-along highlight is estimated from MP3 time because the provider does not return word timings.</div>
+                                <div class="player-key-hint">Keyboard: Space plays and pauses, Left/Right move 5 s, J/L 10 s, Shift+P/Shift+N the previous or next part, ? lists every key. Book text never auto-scrolls while audio plays.</div>
                                 <div class="history-panel" id="historyPanel" style="display: none;">
                                     <div class="history-header">
                                         <strong>Listening history</strong>
@@ -394,6 +379,7 @@
     <script src="voice-output.js?v=360"></script>
     <script src="voice-command-core.js?v=360"></script>
     <script src="shared-header.js?v=360"></script>
+    <script src="media-player.js?v=360"></script>
     <script src="ebook.js?v=360"></script>
 </body>
 

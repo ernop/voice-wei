@@ -36,7 +36,8 @@ const PARALLEL_SUITES = [
     'test-deploy.js',
     'test-coolness.js',
     'test-syntax.js',
-    'test-css-ownership.js'
+    'test-css-ownership.js',
+    'test-media-player.js'
 ];
 
 // Enough workers to hide per-suite waits without starving the CPUs that

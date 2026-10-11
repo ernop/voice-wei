@@ -453,6 +453,18 @@ Download original / current chapter audio / generated book audio are primary;
 individual part files live under Advanced. Delete all audio preserves the
 original/research; Delete book removes all browser-local records.
 
+Listening speed and volume belong to the shared media player (architecture.md),
+not to `ebookSettings`. They are remembered in this browser under the player's
+own keys, `media-player:speed:audio` and `media-player:volume`.
+
+| Player setting | Default | Values | Behavior |
+|----------------|---------|--------|----------|
+| playback speed | 1x | 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3 | immediate; - and + or `[` and `]`; changes playback only, unlike the narration `speed` above, which is baked into generated MP3s |
+| volume | the site level, `AudioVolume.MEDIA_GAIN` (50%) | 0..100%, 5% steps by key | immediate; until the listener changes it Books plays at the site level, and unmuting from 0 returns there |
+
+The listening position stays Books' own (per book, in IndexedDB), so the
+player's remembered positions are off on this page.
+
 ## Pitch test panel (shared component)
 
 Per page key (`phrases-test-panel`, `scales-sing-panel`,

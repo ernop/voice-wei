@@ -15,6 +15,14 @@ const RESEARCH_STORE = 'research';
 const TTS_CHUNK_SIZE = 3800;
 const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
+// History names for the media player's jumps where Books recorded the same jump under an older
+// name, so old and new history read alike. Skips are named by direction; any other jump keeps the
+// player's own cause name.
+const SEEK_HISTORY_ACTIONS = Object.freeze({
+    scale: 'seek-bar',
+    'half-back': 'quadratic-back',
+    'half-forward': 'quadratic-forward'
+});
 const BOOK_QUESTION_MODEL = 'gpt-5.6';
 const BOOK_QUESTION_MODEL_LABEL = 'OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search';
 const BOOK_QUESTION_MAX_OUTPUT_TOKENS = 12000;
@@ -534,6 +542,8 @@ class BooksController {
         this.currentSegmentId = null;
         /** @type {string | null} */
         this.currentAudioUrl = null;
+        /** @type {MediaPlayerInstance | null} */
+        this.mediaPlayer = null;
         /** @type {HTMLAudioElement | null} */
         this.preloadAudio = null;
         /** @type {string | null} */
@@ -1070,10 +1080,6 @@ class BooksController {
             if (e.key === 'Escape' && document.body.classList.contains('reader-fullscreen-mode')) {
                 this.setReaderFullscreen(false);
             }
-            if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && this.shouldHandleSegmentArrow(e)) {
-                e.preventDefault();
-                this.playAdjacentGenerated(e.key === 'ArrowRight' ? 1 : -1);
-            }
         });
         if (autoToggle) {
             autoToggle.addEventListener('change', () => {
@@ -1129,23 +1135,22 @@ class BooksController {
     setupPlayerUI() {
         const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
         if (audio) {
+            // Set before the player starts: it keeps the page's level until the listener changes it.
             audio.volume = AudioVolume.MEDIA_GAIN;
+            // Books keeps the listening position per book itself. Its jump buttons stay the ones its
+            // listeners know, ±30 s and the half jumps, which a narrow player keeps on phones too.
+            this.mediaPlayer = MediaPlayer.enhance(audio, { title: 'Books', resume: false, halfJumps: true, skips: [30] });
             audio.addEventListener('timeupdate', () => this.handleAudioTimeUpdate());
             audio.addEventListener('ended', () => this.handleAudioEnded());
             audio.addEventListener('loadedmetadata', () => this.handleAudioMetadataLoaded());
             audio.addEventListener('play', () => this.handleAudioPlay());
             audio.addEventListener('pause', () => this.handleAudioPause());
+            // Time skipped over is not time listened, whoever moved the playhead.
+            audio.addEventListener('seeking', () => { this.lastAudioTimeForHistory = audio.currentTime || 0; });
         }
+        const listenPlayer = document.getElementById('listenPlayer');
+        if (listenPlayer) listenPlayer.addEventListener('media-player:seek', event => this.recordPlayerSeek(event.detail));
         this.bindButton('playFromProgressBtn', () => this.playFromProgress());
-        this.bindButton('previousSegmentBtn', () => this.playAdjacentGenerated(-1));
-        this.bindButton('nextSegmentBtn', () => this.playAdjacentGenerated(1));
-        this.bindButton('playPauseBtn', () => this.togglePlayPause());
-        this.bindButton('back30Btn', () => this.seekRelative(-30, 'back-30'));
-        this.bindButton('forward30Btn', () => this.seekRelative(30, 'forward-30'));
-        this.bindButton('quadraticBackBtn', () => this.quadraticSeek(-1));
-        this.bindButton('quadraticForwardBtn', () => this.quadraticSeek(1));
-        const seekTrack = document.getElementById('playerSeekTrack');
-        if (seekTrack) seekTrack.addEventListener('click', e => this.handleSeekTrackClick(e));
         this.bindButton('showHistoryBtn', () => this.showHistoryPanel(true));
         this.bindButton('hideHistoryBtn', () => this.showHistoryPanel(false));
         this.setupAiQuestionUI();
@@ -1893,16 +1898,6 @@ class BooksController {
         const sentences = Array.from(document.querySelectorAll('.ai-answer-sentence'));
         const nearest = sentences.find(node => node instanceof HTMLElement && node.offsetTop + node.offsetHeight >= pane.scrollTop);
         if (nearest) this.highlightAiAnswerAt(Number(nearest.getAttribute('data-start') || 0));
-    }
-
-    /** @param {KeyboardEvent} event */
-    shouldHandleSegmentArrow(event) {
-        if (!this.currentBook || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
-        const target = event.target instanceof HTMLElement ? event.target : null;
-        if (!target) return true;
-        const tagName = target.tagName.toLowerCase();
-        if (target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return false;
-        return this.segments.some(segment => this.isSegmentPlayable(segment));
     }
 
     async previewVoice() {
@@ -3090,6 +3085,7 @@ class BooksController {
         }
         this.currentSegmentId = this.currentBook.listeningSegmentId || this.segments[0]?.id || null;
         this.showWorkspace(true);
+        this.loadListeningPart();
         this.renderWorkspace();
         this.renderLibrary();
         this.updateStatus(`Opened ${book.title}`);
@@ -3136,6 +3132,7 @@ class BooksController {
         this.syncGenerationUnitControls();
         this.renderReader();
         this.renderPlayerNow();
+        this.updatePlayerItems();
         this.renderAiResearchHistory();
         this.syncCurrentBookArchiveButton();
         if (!this.isGenerating) this.updateGenerationProgress(0, 0, 'Idle');
@@ -3210,7 +3207,7 @@ class BooksController {
     syncGenerationUnitControls() {
         const hint = document.querySelector('.player-key-hint');
         if (hint) {
-            hint.textContent = 'Keyboard: Left/Right moves through generated chapter audio. Book text never auto-scrolls while audio plays.';
+            hint.textContent = 'Keyboard: Space plays and pauses, Left/Right move 5 s, J/L 10 s, Shift+P/Shift+N the previous or next part, ? lists every key. Book text never auto-scrolls while audio plays.';
         }
     }
 
@@ -3623,9 +3620,23 @@ class BooksController {
         await this.storage.putBook(this.currentBook);
     }
 
+    /**
+     * The generated part at the saved listening position, or the first generated part when nothing
+     * was saved. A saved part without audio gives null rather than another part, so merely opening
+     * the book never moves the saved position.
+     * @returns {AudioSegment | null}
+     */
+    listeningPart() {
+        const savedId = this.currentBook?.listeningSegmentId || '';
+        if (savedId) {
+            const saved = this.getSegmentById(savedId);
+            return saved && this.isSegmentPlayable(saved) ? saved : null;
+        }
+        return this.segments.find(item => this.isSegmentPlayable(item)) || null;
+    }
+
     playFromProgress() {
-        const saved = this.getSegmentById(this.currentBook?.listeningSegmentId || '');
-        const segment = saved && this.isSegmentPlayable(saved) ? saved : this.segments.find(item => this.isSegmentPlayable(item));
+        const segment = this.listeningPart() || this.segments.find(item => this.isSegmentPlayable(item));
         if (!segment) {
             this.updateStatus('Generate audio before playing');
             return;
@@ -3634,22 +3645,48 @@ class BooksController {
         this.playSegment(segment.id, true);
     }
 
-    /** @param {number} direction */
-    playAdjacentGenerated(direction) {
-        const currentIndex = this.getCurrentSegmentIndex();
-        const generated = this.segments.filter(segment => this.isSegmentPlayable(segment));
-        const currentGeneratedIndex = generated.findIndex(segment => segment.segmentIndex === currentIndex);
-        let next = generated[currentGeneratedIndex + direction];
-        if (!next && currentGeneratedIndex === -1) {
-            next = direction > 0
-                ? generated.find(segment => segment.segmentIndex > currentIndex) || generated[0]
-                : Array.from(generated).reverse().find(segment => segment.segmentIndex < currentIndex) || generated[generated.length - 1];
-        }
-        next = next || (direction > 0 ? generated[0] : generated[generated.length - 1]);
-        if (next) {
-            this.recordHistory(direction > 0 ? 'next-segment' : 'previous-segment', `${direction > 0 ? 'Next' : 'Previous'} MP3 segment`);
-            this.playSegment(next.id, true, false);
-        }
+    /** Shows the saved part in the player, paused, so the scale shows where listening stopped. */
+    loadListeningPart() {
+        const segment = this.listeningPart();
+        if (segment) this.loadSegmentIntoPlayer(segment, false);
+    }
+
+    /**
+     * The nearest generated part before (direction -1) or after (+1) the given one; null at either end.
+     * @param {AudioSegment} segment @param {number} direction
+     * @returns {AudioSegment | null}
+     */
+    adjacentPlayablePart(segment, direction) {
+        const candidates = this.segments.filter(item => this.isSegmentPlayable(item)
+            && (direction > 0 ? item.segmentIndex > segment.segmentIndex : item.segmentIndex < segment.segmentIndex));
+        candidates.sort((a, b) => direction * (a.segmentIndex - b.segmentIndex));
+        return candidates[0] || null;
+    }
+
+    /** The player's previous and next part buttons, Shift+P / Shift+N, and the system's track buttons. */
+    updatePlayerItems() {
+        if (!this.mediaPlayer) return;
+        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
+        const current = this.getSegmentById(audio?.dataset.segmentId || '');
+        const previous = current ? this.adjacentPlayablePart(current, -1) : null;
+        const next = current ? this.adjacentPlayablePart(current, 1) : null;
+        this.mediaPlayer.setItems({
+            label: 'Part',
+            previous: previous ? () => this.playAdjacentPart(previous, -1) : null,
+            next: next ? () => this.playAdjacentPart(next, 1) : null
+        });
+    }
+
+    /** @param {AudioSegment} segment @param {number} direction */
+    playAdjacentPart(segment, direction) {
+        this.recordHistory(direction > 0 ? 'next-segment' : 'previous-segment', `${direction > 0 ? 'Next' : 'Previous'} MP3 segment`);
+        this.playSegment(segment.id, true, false);
+    }
+
+    /** @param {boolean} show */
+    showListenPlayer(show) {
+        const listenPlayer = document.getElementById('listenPlayer');
+        if (listenPlayer) listenPlayer.hidden = !show;
     }
 
     /** @param {boolean} autoplay */
@@ -3695,8 +3732,10 @@ class BooksController {
         audio.dataset.segmentId = segment.id;
         this.currentSegmentId = segment.id;
         this.lastAudioTimeForHistory = 0;
+        this.showListenPlayer(true);
+        if (this.mediaPlayer) this.mediaPlayer.title = this.playerTitle(segment);
+        this.updatePlayerItems();
         this.renderPlayerNow();
-        this.updatePlayerControls();
         this.preloadNextGenerated();
         if (autoplay) audio.play().catch(() => this.updateStatus('Tap play to start audio'));
     }
@@ -3707,7 +3746,6 @@ class BooksController {
         if (audio.dataset.segmentId === this.currentBook.listeningSegmentId && this.currentBook.listeningOffsetSec > 0 && this.currentBook.listeningOffsetSec < audio.duration - 1) {
             audio.currentTime = this.currentBook.listeningOffsetSec;
         }
-        this.updatePlayerControls();
     }
 
     async handleAudioMetadataLoaded() {
@@ -3733,7 +3771,6 @@ class BooksController {
         const segmentId = audio.dataset.segmentId || this.currentSegmentId || '';
         const segment = this.getSegmentById(segmentId);
         if (!segment) return;
-        this.updatePlayerControls();
         this.currentBook.listeningSegmentId = segment.id;
         this.currentBook.listeningOffsetSec = audio.currentTime || 0;
         const ratio = audio.duration ? Math.min(1, audio.currentTime / audio.duration) : 0;
@@ -3762,7 +3799,6 @@ class BooksController {
         this.lastAudioTimeForHistory = audio?.currentTime || 0;
         this.lastListenHistoryAt = Date.now();
         this.recordHistory('play', 'Playback started');
-        this.updatePlayerControls();
     }
 
     handleAudioPause() {
@@ -3773,7 +3809,6 @@ class BooksController {
         } else {
             this.recordHistory('pause', 'Playback paused');
         }
-        this.updatePlayerControls();
     }
 
     handleAudioEnded() {
@@ -3781,72 +3816,21 @@ class BooksController {
         this.playNextGenerated(true);
     }
 
-    togglePlayPause() {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        if (!audio || !audio.src) {
-            this.playFromProgress();
-            return;
-        }
-        if (audio.paused) audio.play().catch(() => this.updateStatus('Tap play to start audio'));
-        else audio.pause();
+    /** A jump the media player made (keys, buttons, the scale, the system's controls) goes into the listening history. @param {MediaPlayerSeekDetail} detail */
+    recordPlayerSeek(detail) {
+        if (detail.to === detail.from) return;
+        // Skips keep the names the ±30 s buttons always had: back-30, forward-30, and so on for each amount.
+        const action = detail.cause === 'skip'
+            ? `${detail.to < detail.from ? 'back' : 'forward'}-${Math.round(Math.abs(detail.to - detail.from))}`
+            : SEEK_HISTORY_ACTIONS[detail.cause] || detail.cause;
+        this.recordHistory(action, `${this.formatClock(detail.from)} -> ${this.formatClock(detail.to)}`);
     }
 
-    /** @param {number} seconds @param {string} action */
-    seekRelative(seconds, action) {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        if (!audio || !Number.isFinite(audio.duration)) return;
-        this.seekTo(Math.max(0, Math.min(audio.duration, audio.currentTime + seconds)), action);
-    }
-
-    /** @param {number} direction */
-    quadraticSeek(direction) {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
-        const current = audio.currentTime || 0;
-        let target;
-        if (direction < 0) {
-            target = current / 2;
-        } else {
-            target = current < audio.duration / 2
-                ? audio.duration - current
-                : current + (audio.duration - current) / 2;
-        }
-        this.seekTo(Math.max(0, Math.min(audio.duration, target)), direction < 0 ? 'quadratic-back' : 'quadratic-forward');
-    }
-
-    /** @param {MouseEvent} event */
-    handleSeekTrackClick(event) {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        const track = /** @type {HTMLElement | null} */ (document.getElementById('playerSeekTrack'));
-        if (!audio || !track || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
-        const rect = track.getBoundingClientRect();
-        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-        this.seekTo(ratio * audio.duration, 'seek-bar');
-    }
-
-    /** @param {number} target @param {string} action */
-    seekTo(target, action) {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        if (!audio) return;
-        const from = audio.currentTime || 0;
-        audio.currentTime = target;
-        this.lastAudioTimeForHistory = target;
-        this.recordHistory(action, `${this.formatClock(from)} -> ${this.formatClock(target)}`);
-        this.updatePlayerControls();
-    }
-
-    updatePlayerControls() {
-        const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
-        const playBtn = document.getElementById('playPauseBtn');
-        const currentEl = document.getElementById('playerCurrentTime');
-        const durationEl = document.getElementById('playerDuration');
-        const fill = /** @type {HTMLElement | null} */ (document.getElementById('playerProgressFill'));
-        const current = audio?.currentTime || 0;
-        const duration = Number.isFinite(audio?.duration) ? audio.duration : 0;
-        if (playBtn) playBtn.textContent = audio && !audio.paused ? 'Pause' : 'Play';
-        if (currentEl) currentEl.textContent = this.formatClock(current);
-        if (durationEl) durationEl.textContent = this.formatClock(duration);
-        if (fill) fill.style.width = duration ? `${Math.min(100, Math.max(0, current / duration * 100))}%` : '0%';
+    /** What the system's media controls (lock screen, car) show for a part. @param {AudioSegment} segment */
+    playerTitle(segment) {
+        const section = this.sections.find(item => item.id === segment.sectionId);
+        const chapter = section ? this.getChapterLabel(section) : this.getSectionTitle(segment.sectionId);
+        return this.currentBook ? `${this.currentBook.title} · ${chapter}` : chapter;
     }
 
     ensureGeneratedAhead() {
@@ -4045,6 +4029,7 @@ class BooksController {
             this.releaseAudioUrls();
             const audio = /** @type {HTMLAudioElement | null} */ (document.getElementById('audioPlayer'));
             if (audio) audio.removeAttribute('src');
+            this.showListenPlayer(false);
             this.renderWorkspace();
         }
         await this.refreshLibrary();
@@ -4235,7 +4220,8 @@ class BooksController {
         }
         this.releaseAudioUrls();
         this.lastAudioTimeForHistory = 0;
-        this.updatePlayerControls();
+        this.showListenPlayer(false);
+        if (this.mediaPlayer) this.mediaPlayer.setItems(null);
     }
 
     goToLatestRead() {

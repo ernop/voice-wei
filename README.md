@@ -104,6 +104,14 @@ When shipping a change that reaches the server, bump once and include the
 version files in the **same** push as the change. Do not bump for
 docs/tests-only commits, and do not push bump-only commits.
 
+Books' player is the shared media player library, kept in its own repository.
+`media-player.js` and `media-player.css` at the root are this repo's copy of
+it, with `media-player.sha256`, their checksums; never edit them here. To take
+a library change, run the library's `copy-into.sh .` from this repo, run
+`npm test` (`tests/test-media-player.js` fails on a copy that differs from the
+checksums), then bump.
+See [docs/architecture.md](docs/architecture.md), "The shared media player".
+
 ## Deployment
 
 Push to `master` triggers the GitHub Actions deploy: `deploy/publish-site.sh`

@@ -809,11 +809,27 @@ OpenAI.
 - Generated audio parts are saved immediately to IndexedDB, so cancelling midway
   preserves the completed MP3s and reloading later can continue from the next
   pending chunk.
-- The player is custom, not native browser chrome: previous/next audio,
-  play/pause, +/-30s, quadratic back/forward jumps, seek bar, keyboard
-  Left/Right navigation, saved listening position, and preloaded next audio
-  part. Advanced audio markers remain clickable. A toggle can keep about one
-  hour generated ahead.
+- The player is the shared media player (`media-player.js`; see
+  architecture.md), sized for driving: 58px buttons for the previous and next
+  generated part, play/pause, -30/+30 s, **Half back** (back to half the time
+  played) and **Half fwd** (forward to as far before the end as the playhead
+  is after the start), speed, and mute with a notched volume slider; a notched
+  seek scale with large elapsed and remaining times; and `?`, which lists every
+  key. All of these stay on a phone. Keys, anywhere outside a text field:
+  Space or K play/pause, Left/Right 5 s (Shift 1 s, Ctrl 1 min), J/L 10 s,
+  Shift+J/Shift+L the half jumps, 0-9 a tenth of the part, Backspace back to
+  where the last jump left from, Shift+P/Shift+N the previous or next
+  generated part (no wrap past the first or last), `[`/`]` speed, M mute;
+  with focus in the player, Up/Down volume, PageUp/PageDown 1 min, Home/End.
+  Car and lock-screen controls show "Book · Chapter" and step through the
+  generated parts. Opening a book loads its saved part, paused at the saved
+  position; with no generated audio the player stays hidden. The next part
+  is preloaded. Jumps go into the listening history as `back-30` /
+  `forward-30` (and `back-5`, `forward-10` and so on for keys),
+  `quadratic-back` / `quadratic-forward` for the half jumps, `seek-bar` for
+  the scale, and `previous-segment` / `next-segment` for parts. Advanced
+  audio markers remain clickable. A toggle can keep about one hour generated
+  ahead.
 - **AI Research** is a dedicated card immediately after the Listen card.
   **AI question** pauses the current MP3 and starts one-utterance browser
   speech recognition; questions remain editable/typable. Before sending, the

@@ -24,6 +24,7 @@
 - *.pyc
 - *.md
 - *.txt
+- *.sha256
 - *.sh
 - *.py
 - tsconfig.json
