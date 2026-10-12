@@ -1483,6 +1483,9 @@ once per hide (a new player created while hidden is allowed), costing about
 2 s of silence. Design, conditions, and evidence: architecture.md, "Lyrics
 background continuation (Android Chrome)". Confirmation of the shipped build
 on the phone was still pending at commit time (the phone was locked).
+Confirmed afterwards on live v364: hidden for 180 s, Chrome's pause, one
+reload (PLAYING 2.8 s after the hide), the song's end, and the next song
+playing hidden in real time to the end of the run, with no page freeze.
 
 **For future mei**:
 - Ruled out with evidence: our code (no pause call), YouTube's own JS (its
@@ -1497,6 +1500,12 @@ on the phone was still pending at commit time (the phone was locked).
   - `seekTo` while playing: 3, 1 (no PAUSED);
   - the continuation reload: -1, 3, -1, 3, 1. Time reads 0 from the first -1
     until the second (about 0.3 s), hence the render hold.
+- Every `loadVideoById` (song change, continuation) sets the `<video>` source
+  twice: set, then remove and set again 0.5 to 0.85 s later. Android's audio
+  playback log shows YouTube's output stream stopping and starting twice per
+  song change (gaps 0.8 to 1.0 s, then 0.15 to 0.4 s, on the speaker) while
+  the keep-alive's stream stays started. A candidate for the song-change
+  static; not verified, and Bluetooth was not measured.
 - A lyric or identity push re-arms a paused keep-alive
   (`ensurePlayingSession`), so "keep-alive paused" at YouTube's PAUSED misses
   focus losses. `getKeepAlivePauseCount()` survives that re-arm.

@@ -138,9 +138,12 @@ player created while hidden. It does so only when all of these hold:
 - this hidden period has not continued yet, so a pause that keeps coming back
   cannot become a reload loop. Each hide costs at most one extra YouTube load.
 
-The measured cost is 2.0 s of silence from Chrome's pause to the reloaded
-video playing, once per hide; afterwards the song played on hidden in real
-time (12 s observed until the page was shown). YouTube reads time 0 for about 0.3 s of the reload, so
+The measured cost on live v364 is 2.2 to 2.8 s of silence from the hide to
+the reloaded video playing (three runs), once per hide. Afterwards playback
+went on hidden in real time: 17 s in one run, and 180 s in another that
+crossed the song's end, where the auto-advance's new player played on
+without a Chrome pause and the page was never frozen (2026-10-12).
+YouTube reads time 0 for about 0.3 s of the reload, so
 `renderPlaybackPosition()` renders nothing until YouTube reports playing,
 paused, or ended, and the lock screen and car keep the last position and line.
 Every decision writes a Playback diagnostic line `event=background-continuation`

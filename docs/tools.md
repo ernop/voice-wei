@@ -602,7 +602,7 @@ now-playing card shows the same line larger.
 **Background play on Android**: Chrome pauses the YouTube video as soon as
 the page is hidden (Home, another app in front, screen off) and does not let
 the page resume that same video. The player answers that pause by loading the
-same video again at the paused position, so the song goes on after about 2 s
+same video again at the paused position, so the song goes on after 2 to 3 s
 of silence; meanwhile the lock screen and car keep the last position and line.
 It does this once per hide, never for a pause you asked for, and never when the
 phone took the audio (a call, another app playing): that pause stands. The Log
