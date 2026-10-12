@@ -106,6 +106,51 @@ shows iframe/media intervention instead. `tests/test-player-lifecycle.js`
 enforces those distinctions, including an ordinary reload with an orderly
 pagehide.
 
+### Lyrics background continuation (Android Chrome)
+
+Chrome on Android pauses a playing video that has sound when its page is
+hidden, and pauses that same media player again whenever script resumes it
+(`WebMediaPlayerImpl::OnPageHidden` clears `allow_background_video_playback_`;
+read on the M155 branch, the same since at least M143). Only a tap inside the
+video's own frame, or a resume the system authorizes, lifts that. The YouTube
+video lives in a cross-origin iframe, so no tap or Media Session action on
+this page qualifies. Audio-only media such as the keep-alive keeps playing, and
+a media player created while the page is hidden starts out allowed. Measured on
+a Pixel 9 Pro XL, Android 17, Chrome 155.0.8059.39 (2026-10-12): after Home,
+YouTube's `<video>` fired `pause` 35 ms after `visibilitychange` with no script
+call before it, and YouTube reported PAUSED 0.3 s later, while the keep-alive
+and Chrome's Android media session kept playing.
+
+When YouTube reports PAUSED, `continueAfterBrowserPause()` (player-playlist.js)
+loads the same video again at the paused position (`loadVideoById(id,
+position)`); YouTube gives the `<video>` a new source, which is a new media
+player created while hidden. It does so only when all of these hold:
+
+- the app's status is playing, so nobody asked for the pause;
+- YouTube reported buffering or playing for the active video since that video
+  was requested, because a load over a playing video reports PAUSED for the
+  replaced video first;
+- the page is hidden;
+- the keep-alive is playing and has fired no `pause` since YouTube's latest
+  buffering/playing report. Only `clearTrack()` pauses it from a page, so a
+  pause means the OS took audio focus (a call, another app playing), and that
+  pause stands even when a lyric push re-armed the loop afterwards;
+- this hidden period has not continued yet, so a pause that keeps coming back
+  cannot become a reload loop. Each hide costs at most one extra YouTube load.
+
+The measured cost is 2.0 s of silence from Chrome's pause to the reloaded
+video playing, once per hide; afterwards the song played on hidden in real
+time (12 s observed until the page was shown). YouTube reads time 0 for about 0.3 s of the reload, so
+`renderPlaybackPosition()` renders nothing until YouTube reports playing,
+paused, or ended, and the lock screen and car keep the last position and line.
+Every decision writes a Playback diagnostic line `event=background-continuation`
+with `outcome=reloaded`, or `outcome=declined,reason=...` (`keep-alive-paused`,
+`keep-alive-interrupted`, `keep-alive-disabled` under `?keepAlive=0`,
+`already-continued-this-hidden-period`). `tests/test-player-lifecycle.js`
+drives a YouTube stand-in with the measured state orders and time-0 window.
+
+### Server proxy boundary (URL import, lyrics search)
+
 The URL importer accepts only same-origin GET requests. It resolves and pins
 every outbound hostname before connecting, rejects private/reserved addresses
 and nonstandard ports, revalidates every redirect, verifies TLS, caps response

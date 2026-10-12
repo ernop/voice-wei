@@ -599,6 +599,17 @@ settings gear beneath; the header's mirror of the sung line is hidden (the
 Media Session core still writes it and the tab title) because the
 now-playing card shows the same line larger.
 
+**Background play on Android**: Chrome pauses the YouTube video as soon as
+the page is hidden (Home, another app in front, screen off) and does not let
+the page resume that same video. The player answers that pause by loading the
+same video again at the paused position, so the song goes on after about 2 s
+of silence; meanwhile the lock screen and car keep the last position and line.
+It does this once per hide, never for a pause you asked for, and never when the
+phone took the audio (a call, another app playing): that pause stands. The Log
+records each decision as `event=background-continuation` with
+`outcome=reloaded`, or `outcome=declined` and the reason. Design and evidence:
+[architecture.md](architecture.md#lyrics-background-continuation-android-chrome).
+
 The always-reachable surface is the **now-playing card** under the header:
 it scrolls with the page until it reaches the top, then sticks there, and it
 shows whenever the playlist has songs. Its height never changes while it
@@ -687,7 +698,9 @@ Other surfaces on the page:
   mean the silent loop is unnecessary on that browser; YouTube's own metadata
   means ownership still requires it. `Playback diagnostic` lines label the
   session `keepAlive=disabled` so evidence from experiment runs is
-  distinguishable.
+  distinguishable. Background play on Android is off under the flag
+  (`reason=keep-alive-disabled`): without the silent loop, the phone taking
+  the audio looks the same as Chrome's hidden-page pause.
 - **Three-player prebuffer probe**: append `?prebufferProbe=1` to the Music
   URL, load at least three songs, and start one. Normal playback remains on
   its existing player while two muted off-screen players warm the next two

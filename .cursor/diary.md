@@ -1471,3 +1471,42 @@ car's next.
   commands are asynchronous `postMessage` calls, so YouTube acts on the load
   only after our task ends, and the keep-alive's `play()` in that task is
   already first.
+
+## 2026-10-12 - Android background play: reload the video Chrome paused (v364)
+
+yui: "as soon as I background it, it stops playing withing ~1s". Measured on
+his Pixel 9 Pro XL (Android 17, Chrome 155.0.8059.39) over adb and CDP. Chrome
+itself pauses a hidden page's video that has sound, and re-pauses the same
+player when script resumes it; YouTube's iframe is cross-origin, so no tap on
+our page lifts that. The fix reloads the same video at the paused position
+once per hide (a new player created while hidden is allowed), costing about
+2 s of silence. Design, conditions, and evidence: architecture.md, "Lyrics
+background continuation (Android Chrome)". Confirmation of the shipped build
+on the phone was still pending at commit time (the phone was locked).
+
+**For future mei**:
+- Ruled out with evidence: our code (no pause call), YouTube's own JS (its
+  `<video>` fired `pause` with no script call first), audio focus (the
+  keep-alive kept playing), and Chrome's tablet exemption (the phone reports
+  a 448 dp smallest width, so Chrome treats it as a phone).
+  When "it used to work" stopped is not established; the Chromium rule reads
+  the same on every branch checked back to M143.
+- IFrame API state orders, measured on the phone:
+  - a load over a playing video: 2, -1, 3, -1, 3, 1. PAUSED comes first, at
+    time 0, so a PAUSED alone is not "the browser paused us";
+  - `seekTo` while playing: 3, 1 (no PAUSED);
+  - the continuation reload: -1, 3, -1, 3, 1. Time reads 0 from the first -1
+    until the second (about 0.3 s), hence the render hold.
+- A lyric or identity push re-arms a paused keep-alive
+  (`ensurePlayingSession`), so "keep-alive paused" at YouTube's PAUSED misses
+  focus losses. `getKeepAlivePauseCount()` survives that re-arm.
+- `tests/test-player-lifecycle.js` drives the real page against a YouTube
+  stand-in that reports states asynchronously in the measured orders;
+  `quiet()` waits until the page's reactions stop producing reports. A
+  sequence with the stand-in paused before the song change hid a missing
+  guard; Chrome's resume-on-show step in the test is what exposed it.
+- The phone is shared with other agents (another thread had priority on
+  2026-10-12). Use `adb -s 47021FDAS004B3`, remove only forwards and
+  reverses you added (by port), and leave tabs you did not open alone. A
+  locked phone needs yui to unlock it; CDP only answers while Chrome is
+  in front.

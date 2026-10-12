@@ -343,6 +343,17 @@ const PlayerLifecycle = (function () {
         record('youtube-error', { code: String(code) });
     }
 
+    /**
+     * The transport's answer to YouTube pausing on a hidden page while the
+     * app still plays: the video was reloaded at the paused position, or why
+     * that pause was left standing.
+     * @param {'reloaded' | 'declined'} outcome
+     * @param {Record<string, string | number | boolean | null>} detail
+     */
+    function recordBackgroundContinuation(outcome, detail) {
+        record('background-continuation', { outcome, ...detail });
+    }
+
     return {
         start,
         recordIntent,
@@ -350,6 +361,7 @@ const PlayerLifecycle = (function () {
         recordYouTubeReady,
         recordYouTubeState,
         recordYouTubeError,
+        recordBackgroundContinuation,
         getPreviousBreadcrumb: () => previousBreadcrumb
     };
 })();

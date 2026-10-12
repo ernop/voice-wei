@@ -246,6 +246,7 @@ interface MediaSessionCoreApi {
     getPlaybackState(): MediaSessionPlaybackState | 'unavailable';
     getReportedPlaybackState(): MediaSessionPlaybackState | null;
     getKeepAliveState(): 'absent' | 'playing' | 'paused' | 'disabled';
+    getKeepAlivePauseCount(): number;
 }
 
 // -----------------------------------------------------------------------

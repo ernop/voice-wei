@@ -41,6 +41,8 @@ const MediaSessionCore = (function () {
 
     /** @type {HTMLAudioElement | null} */
     let audioEl = null;
+    /** @type {number} 'pause' events the silent loop has fired, whoever paused it */
+    let keepAlivePauseCount = 0;
     /** @type {MediaSessionPlaybackState | null} Last state a page reported */
     let explicitState = null;
     /** @type {string | null} Header heading text before the first override */
@@ -143,6 +145,7 @@ const MediaSessionCore = (function () {
             // statistics) never takes this silent loop for playback.
             audioEl.setAttribute('data-media-session-keep-alive', '');
             audioEl.style.display = 'none';
+            audioEl.addEventListener('pause', () => { keepAlivePauseCount++; });
             document.body.appendChild(audioEl);
         }
 
@@ -231,6 +234,17 @@ const MediaSessionCore = (function () {
         if (KEEP_ALIVE_DISABLED) return 'disabled';
         if (!audioEl) return 'absent';
         return audioEl.paused ? 'paused' : 'playing';
+    }
+
+    /**
+     * Pauses of the silent loop so far. Only clearTrack() pauses it from a
+     * page, so a change across a span of playback means the OS or browser
+     * took audio focus within it, even when a later lyric push re-armed
+     * the loop.
+     * @returns {number}
+     */
+    function getKeepAlivePauseCount() {
+        return keepAlivePauseCount;
     }
 
     /**
@@ -574,7 +588,8 @@ const MediaSessionCore = (function () {
         setPlaybackState,
         getPlaybackState,
         getReportedPlaybackState,
-        getKeepAliveState
+        getKeepAliveState,
+        getKeepAlivePauseCount
     };
 })();
 

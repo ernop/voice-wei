@@ -374,6 +374,7 @@ interface PlayerLifecycleApi {
     recordYouTubeReady(): void;
     recordYouTubeState(state: number): void;
     recordYouTubeError(code: number | string): void;
+    recordBackgroundContinuation(outcome: 'reloaded' | 'declined', detail: Record<string, string | number | boolean | null>): void;
     getPreviousBreadcrumb(): PlayerLifecycleBreadcrumb | null;
 }
 
@@ -525,6 +526,7 @@ interface VoiceMusicController {
     stopPlayback(): void;
     playPlaylist(): void;
     pausePlayback(): void;
+    continueAfterBrowserPause(): void;
     togglePlayPause(): void;
     playNext(): boolean;
     playPrevious(): boolean;

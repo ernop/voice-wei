@@ -3,9 +3,10 @@
 // PLAYBACK STATE
 // The single authoritative location for music-player playback state:
 // the play/pause status, the one reused YouTube player handle and its
-// readiness, the active item/video the player holds, the current item,
-// the playlist cursor, and the two transient intents (resume-after-
-// listening, auto-advance suppression).
+// readiness, the active item/video the player holds and whether YouTube
+// has started it, the current item, the playlist cursor, and the
+// transient intents (resume-after-listening, auto-advance suppression,
+// the hidden page's one background continuation).
 //
 // Nothing outside this object stores playback state. All mutations go
 // through the named transitions below so the status, the active player,
@@ -26,6 +27,10 @@ class PlaybackState {
         this.activeItemId = null;
         /** @type {string} Video id the player currently holds */
         this.activeVideoId = '';
+        /** @type {boolean} YouTube reported buffering or playing for the active video since it was requested */
+        this.activeVideoStarted = false;
+        /** @type {number} Keep-alive pause count at YouTube's latest buffering/playing report */
+        this.keepAlivePausesAtStart = 0;
         /** @type {number | null} Item id currently designated as current/playing */
         this.currentPlayingId = null;
         /** @type {number} Cursor into the playlist array (-1 = none) */
@@ -34,6 +39,10 @@ class PlaybackState {
         this.resumeAfterListening = false;
         /** @type {number} Ignore ENDED auto-advance until this epoch-ms timestamp */
         this.suppressAutoAdvanceUntil = 0;
+        /** @type {boolean} The current hidden period's one background continuation was used */
+        this.backgroundContinuationUsed = false;
+        /** @type {boolean} That continuation's reload has not settled; until it does, YouTube's time is not the song's position */
+        this.continuationReloadPending = false;
     }
 
     get isPlaying() {
@@ -61,8 +70,41 @@ class PlaybackState {
      * @param {number} itemId @param {string} videoId
      */
     setActiveMedia(itemId, videoId) {
+        // Loading a different video over a playing one makes YouTube report
+        // PAUSED for the replaced video first; until the new video starts,
+        // a PAUSED report is not the browser pausing it.
+        if (videoId !== this.activeVideoId) {
+            this.activeVideoStarted = false;
+            this.continuationReloadPending = false;
+        }
         this.activeItemId = itemId;
         this.activeVideoId = videoId;
+    }
+
+    /**
+     * YouTube reported buffering or playing for the active video.
+     * @param {number} keepAlivePauses MediaSessionCore's keep-alive pause count now
+     */
+    markActiveVideoStarted(keepAlivePauses) {
+        this.activeVideoStarted = true;
+        this.keepAlivePausesAtStart = keepAlivePauses;
+    }
+
+    /** The page was just hidden; this hidden period has its own continuation. */
+    startHiddenPeriod() {
+        this.backgroundContinuationUsed = false;
+    }
+
+    /** The active video is being reloaded in place; it has to start again. */
+    markBackgroundContinuation() {
+        this.backgroundContinuationUsed = true;
+        this.activeVideoStarted = false;
+        this.continuationReloadPending = true;
+    }
+
+    /** YouTube reported playing, paused, or ended: its time is the song's position again. */
+    settleContinuationReload() {
+        this.continuationReloadPending = false;
     }
 
     /**
@@ -110,10 +152,14 @@ class PlaybackState {
         this.ready = false;
         this.activeItemId = null;
         this.activeVideoId = '';
+        this.activeVideoStarted = false;
+        this.keepAlivePausesAtStart = 0;
         this.currentPlayingId = null;
         this.currentPlaylistIndex = -1;
         this.resumeAfterListening = false;
         this.suppressAutoAdvanceUntil = 0;
+        this.backgroundContinuationUsed = false;
+        this.continuationReloadPending = false;
     }
 }
 

@@ -1107,8 +1107,16 @@ const PlayerPlaylist = (function () {
                                 },
                                 onStateChange: (event) => {
                                     PlayerLifecycle.recordYouTubeState(event.data);
-                                    // Auto-advance to next when video ends
-                                    if (event.data === YT.PlayerState.ENDED) {
+                                    if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED
+                                        || event.data === YT.PlayerState.ENDED) {
+                                        this.playback.settleContinuationReload();
+                                    }
+                                    if (event.data === YT.PlayerState.BUFFERING || event.data === YT.PlayerState.PLAYING) {
+                                        this.playback.markActiveVideoStarted(MediaSessionCore.getKeepAlivePauseCount());
+                                    } else if (event.data === YT.PlayerState.PAUSED) {
+                                        this.continueAfterBrowserPause();
+                                    } else if (event.data === YT.PlayerState.ENDED) {
+                                        // Auto-advance to next when video ends
                                         if (this.playback.shouldSuppressAutoAdvance()) {
                                             return;
                                         }
@@ -1848,6 +1856,44 @@ const PlayerPlaylist = (function () {
                 }
             },
 
+            /**
+             * Chrome on Android pauses a playing video when its page is
+             * hidden, and pauses that same media player again whenever
+             * script resumes it; only a tap inside the video's own frame
+             * (the cross-origin YouTube iframe, out of this page's reach)
+             * exempts it. A media player created while the page is hidden
+             * is exempt, so loading the same video again at the paused
+             * position continues the song in the background after about
+             * two seconds of silence. Once per hidden period, so a pause
+             * that keeps coming back cannot turn into a reload loop. Chrome
+             * leaves audio-only media playing, so a keep-alive paused since
+             * the video started means the OS took audio focus (a call,
+             * another app playing), and that pause stands.
+             */
+            continueAfterBrowserPause() {
+                const playback = this.playback;
+                if (!playback.isPlaying || !playback.activeVideoStarted
+                    || document.visibilityState !== 'hidden') return;
+                const keepAlive = MediaSessionCore.getKeepAliveState();
+                if (keepAlive !== 'playing') {
+                    PlayerLifecycle.recordBackgroundContinuation('declined', { reason: `keep-alive-${keepAlive}` });
+                    return;
+                }
+                if (MediaSessionCore.getKeepAlivePauseCount() !== playback.keepAlivePausesAtStart) {
+                    PlayerLifecycle.recordBackgroundContinuation('declined', { reason: 'keep-alive-interrupted' });
+                    return;
+                }
+                if (playback.backgroundContinuationUsed) {
+                    PlayerLifecycle.recordBackgroundContinuation('declined', { reason: 'already-continued-this-hidden-period' });
+                    return;
+                }
+                const player = playback.player;
+                const position = player.getCurrentTime();
+                playback.markBackgroundContinuation();
+                PlayerLifecycle.recordBackgroundContinuation('reloaded', {});
+                player.loadVideoById(playback.activeVideoId, position);
+            },
+
             togglePlayPause() {
                 if (this.isPlaying && !this.isPaused) {
                     this.pausePlayback();
@@ -2295,6 +2341,9 @@ const PlayerPlaylist = (function () {
              */
             renderPlaybackPosition() {
                 if (!this.currentPlayingId || this.isDraggingProgress) return null;
+                // YouTube reads 0 for part of a background continuation's
+                // reload; the surfaces keep the position they last showed.
+                if (this.playback.continuationReloadPending) return null;
 
                 const player = this.playback.player;
                 if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
@@ -2405,6 +2454,9 @@ const PlayerPlaylist = (function () {
             },
 
             setupYouTubeAPI() {
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') this.playback.startHiddenPeriod();
+                });
                 if (typeof YT !== 'undefined' && typeof YT.Player !== 'undefined') {
                     this.playerReady();
                     return;

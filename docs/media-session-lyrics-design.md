@@ -211,6 +211,15 @@ Chrome closes a media stream as soon as its pipeline is torn down, as
 YouTube's is when the next video loads, so the keep-alive is what keeps the
 phone sounding between songs.
 
+### 7. Hold position through a background continuation
+
+When Chrome pauses YouTube on a hidden page, the player loads the same video
+again at the paused position (architecture.md, "Lyrics background
+continuation"). YouTube reads time 0 for about 0.3 s of that reload. Until
+YouTube reports playing, paused, or ended, the position clock renders nothing,
+so the receiver keeps the paused position and line instead of jumping to 0:00
+and the song's first line.
+
 ## Verification
 
 Automated browser tests should prove Voice-Wei's semantics:
@@ -225,6 +234,9 @@ Automated browser tests should prove Voice-Wei's semantics:
 7. Other tools using `media-session-core.js` retain their current behavior.
 8. Every way of changing songs loads the next video with no pause first and
    resumes a paused keep-alive in the same step (`tests/test-player-ui.js`).
+9. A background continuation's reload publishes no position but the song's,
+   and the clock renders again once YouTube plays
+   (`tests/test-player-lifecycle.js`).
 
 The browser API cannot prove a particular car's rendering policy. Device
 validation must answer:
