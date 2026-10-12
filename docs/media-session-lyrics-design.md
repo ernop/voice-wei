@@ -197,6 +197,20 @@ is to show it. Do not add extra metadata churn:
   justify one metadata update per second; and
 - never drive position from listening-text callbacks.
 
+### 6. Change songs without pausing first
+
+A song change (Next, Previous, a row tap, a song's end, the car's next)
+loads the next video directly and never pauses the sounding one first.
+Loading replaces the video anyway. An explicit pause is what Chrome answers
+by stopping the page's OS audio stream: from Chrome 157 on Android (field
+trial `kAudioRendererMixerImmediatePause`) it does so at once and reports
+"paused" over Bluetooth AVRCP, which a car hears as a stop and a restart.
+
+The same step resumes the silent keep-alive when Android has paused it.
+Chrome closes a media stream as soon as its pipeline is torn down, as
+YouTube's is when the next video loads, so the keep-alive is what keeps the
+phone sounding between songs.
+
 ## Verification
 
 Automated browser tests should prove Voice-Wei's semantics:
@@ -209,6 +223,8 @@ Automated browser tests should prove Voice-Wei's semantics:
    position.
 6. Playlist clear leaves no stale track or position.
 7. Other tools using `media-session-core.js` retain their current behavior.
+8. Every way of changing songs loads the next video with no pause first and
+   resumes a paused keep-alive in the same step (`tests/test-player-ui.js`).
 
 The browser API cannot prove a particular car's rendering policy. Device
 validation must answer:
