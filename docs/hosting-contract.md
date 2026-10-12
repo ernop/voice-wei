@@ -115,8 +115,7 @@ voice-wei must never ship a file named `_event`.
 
 It is not a hosting requirement: without it the app works unchanged, and a
 ping that reaches the app directory gets an ordinary 404, which the client
-ignores. Status 2026-10-11: the location is written in the fuseki.net project
-and not yet live on the server.
+ignores. Live on the server since 2026-10-11.
 
 ## Known gaps on the current host (fuseki.net side)
 
