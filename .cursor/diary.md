@@ -1444,3 +1444,30 @@ and Ears question. Committed locally only: the server endpoint was not live.
 - Found, not fixed (yui's call): Ears Both mode never adds a correct
   identification to the lifetime stats (tools.md, Ears). Skip after an
   answer used to record a second result; fixed, since a question has one.
+
+## 2026-10-12 - Song changes no longer pause YouTube before loading the next video
+
+yui approved the follow-up to the 2026-10-08 static report (his two
+diagnostic questions are still open). `playVideo` used to call
+`pauseVideo()` right before `loadVideoById()`; now it only loads. The
+redundant pause is gone from Next, Previous, a row tap, a song's end, and the
+car's next.
+
+`tests/test-player-ui.js` now has two song-change checks:
+- No path may pause YouTube or any media element before the load. Every path
+  failed this before the fix.
+- Each path must resume a silent keep-alive that "Android" paused, in the
+  same step as the load. This already passed: `updateMediaSessionForItem`
+  calls `setPlaybackState('playing')`, which re-arms a paused keep-alive.
+
+**For future mei**:
+- Correction to the 2026-10-08 note. Chromium 157 also treats a pipeline
+  teardown as an explicit pause: `AudioRendererMixerInput::StopInternal`
+  calls `Pause(kPlaybackPaused)`. So if YouTube tears its pipeline down to
+  load the next video, 157 can still stop that stream at a switch. Dropping
+  our pause only guarantees the page adds none. The keep-alive bridges the
+  gap.
+- The resume needs no reordering ahead of `loadVideoById`. IFrame API
+  commands are asynchronous `postMessage` calls, so YouTube acts on the load
+  only after our task ends, and the keep-alive's `play()` in that task is
+  already first.
