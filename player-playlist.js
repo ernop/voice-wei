@@ -1530,17 +1530,10 @@ const PlayerPlaylist = (function () {
                 this.ensurePlaylistPlayer(item);
                 PlayerLifecycle.recordIntent('play-track');
 
-                // Stop currently playing video
+                // Never pause the sounding video first: loading the next one
+                // replaces it, and an explicit pause is what makes Chrome stop
+                // the page's audio stream and report "paused" over Bluetooth.
                 if (this.currentPlayingId && this.currentPlayingId !== item.id) {
-                    const currentPlayer = this.playback.player;
-                    if (currentPlayer && typeof currentPlayer.pauseVideo === 'function') {
-                        try {
-                            currentPlayer.pauseVideo();
-                        } catch (e) {
-                            console.error('Error pausing video:', e);
-                        }
-                    }
-                    // Remove playing class from all rows
                     document.querySelectorAll('#playlistBody .playlist-row').forEach(el => {
                         el.classList.remove('playing');
                     });

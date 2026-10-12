@@ -17,7 +17,10 @@ const WIDE = { width: 1280, height: 800 };
 // position are real to the page, and no external network is touched.
 // window.__uiReadyDelayMs / __uiBufferMs stretch the player's creation and
 // a buffering spell before each start, as a real first Play has them.
+// window.__uiPlayerCalls lists the transport calls the page made, in order.
 const FAKE_YOUTUBE_API = `(function () {
+    window.__uiPlayerCalls = [];
+    const logged = ['loadVideoById', 'playVideo', 'pauseVideo', 'stopVideo', 'seekTo'];
     class Player {
         constructor(id, opts) {
             this.opts = opts;
@@ -55,6 +58,15 @@ const FAKE_YOUTUBE_API = `(function () {
         stopVideo() { this.base = 0; this.state = 5; }
         seekTo(time) { this.base = time; this.startedAt = performance.now(); }
         destroy() {}
+        // The sounding song reaching its end, as YouTube reports it.
+        end() { this.base = this.getDuration(); this.state = 0; this.opts.events.onStateChange({ target: this, data: 0 }); }
+    }
+    for (const name of logged) {
+        const call = Player.prototype[name];
+        Player.prototype[name] = function (...args) {
+            window.__uiPlayerCalls.push(name);
+            return call.apply(this, args);
+        };
     }
     window.YT = { Player, PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };
     if (typeof window.onYouTubeIframeAPIReady === 'function') window.onYouTubeIframeAPIReady();
@@ -275,6 +287,22 @@ async function playTransition(browser, viewport, errors) {
             syncedLyrics: entry.lyrics === 'timed' ? '[00:10.00]first line\n[00:20.00]second line' : null
         }];
         route.fulfill({ contentType: 'application/json', body: JSON.stringify(records) });
+    });
+    // The car's next button reaches the page as a Media Session action, and
+    // any media element pause is recorded for the song-change checks.
+    await ctx.addInitScript(() => {
+        window.__mediaSessionHandlers = {};
+        const setActionHandler = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+        navigator.mediaSession.setActionHandler = (action, handler) => {
+            window.__mediaSessionHandlers[action] = handler;
+            setActionHandler(action, handler);
+        };
+        window.__mediaPauses = [];
+        const pause = HTMLMediaElement.prototype.pause;
+        HTMLMediaElement.prototype.pause = function () {
+            window.__mediaPauses.push(this.hasAttribute('data-media-session-keep-alive') ? 'keep-alive' : this.tagName);
+            return pause.call(this);
+        };
     });
     const tab = await ctx.newPage();
     collectErrors(tab, 'player-ui', report.errors);
@@ -631,6 +659,54 @@ async function playTransition(browser, viewport, errors) {
         && overlay.view.width === '74%'
         && overlay.view.focusSelected
         && overlay.view.size === '112%');
+
+    // ---- Song changes: every way of changing songs loads the next video
+    // directly. Pausing the sounding one first is an explicit pause, which
+    // Chrome answers by stopping the page's audio stream and reporting
+    // "paused" over Bluetooth. Each switch also resumes a silent keep-alive
+    // that Android paused, in the same step as the load, so the phone keeps
+    // sounding while YouTube rebuilds its stream.
+    const switches = await tab.evaluate(() => {
+        const c = window.musicController;
+        const keepAlive = /** @type {HTMLAudioElement} */ (document.querySelector('audio[data-media-session-keep-alive]'));
+        const anotherRow = () => {
+            const playing = c.playingPlaylistItem();
+            const target = c.playlist.find(item => item.id !== playing?.id);
+            return /** @type {HTMLElement} */ (document.querySelector(`.playlist-row[data-item-id="${target?.id}"]`));
+        };
+        /** @type {Array<[string, () => void]>} */
+        const paths = [
+            ['Next', () => document.getElementById('transportNextBtn')?.click()],
+            ['Previous', () => document.getElementById('transportPrevBtn')?.click()],
+            ['row tap', () => anotherRow().click()],
+            ['song end', () => c.playback.player.end()],
+            ['car next', () => window.__mediaSessionHandlers.nexttrack({ action: 'nexttrack' })]
+        ];
+        return paths.map(([label, act]) => {
+            keepAlive.pause();
+            window.__uiPlayerCalls.length = 0;
+            window.__mediaPauses.length = 0;
+            const from = c.playingPlaylistItem()?.name;
+            act();
+            const calls = window.__uiPlayerCalls.slice();
+            const load = calls.indexOf('loadVideoById');
+            return {
+                label,
+                changed: !!from && c.playingPlaylistItem()?.name !== from,
+                calls: calls.join(' '),
+                pausedFirst: load < 0
+                    || calls.slice(0, load).some(name => name === 'pauseVideo' || name === 'stopVideo')
+                    || window.__mediaPauses.length > 0,
+                keepAliveResumed: !keepAlive.paused
+            };
+        });
+    });
+    report.check(`a song change loads the next video without pausing media first (${switches.map(s => `${s.label}: ${s.calls}`).join('; ')})`,
+        switches.length === 5
+        && switches.every(s => s.changed && !s.pausedFirst));
+    report.check(`a song change resumes a keep-alive Android paused, in the same step as the load (${switches.map(s => `${s.label} ${s.keepAliveResumed ? 'resumed' : 'still paused'}`).join(', ')})`,
+        switches.length === 5
+        && switches.every(s => s.keepAliveResumed));
 
     // ---- Static guard: the page sheet never declares translucent or gray text.
     const css = fs.readFileSync(path.join(__dirname, '..', 'player.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
