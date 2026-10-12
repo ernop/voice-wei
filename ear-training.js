@@ -765,10 +765,12 @@ class EarTrainingController {
         if (correct) {
             this.showFeedback('Correct!', 'correct');
             if (this.drivingMode) this.speak('Correct!');
+            // In Identify and Both mode the identification is the recorded
+            // result (owner, 2026-10-11); Both's sing phase is unrecorded practice.
+            this.recordResult(this.currentInterval, correct, answer);
 
             // In "both" mode, transition to sing phase after correct identification
             if (this.mode === 'both') {
-                // Don't record result yet - wait for sing phase
                 setTimeout(() => {
                     this.phase = 'singing';
                     this.updateUIForPhase();
@@ -779,8 +781,6 @@ class EarTrainingController {
                 return;
             }
 
-            // For identify-only mode, record result and maybe advance
-            this.recordResult(this.currentInterval, correct, answer);
             if (this.autoAdvance) {
                 setTimeout(() => this.playNextInterval(), 1000);
             }
@@ -1067,8 +1067,7 @@ class EarTrainingController {
             if (this.mode === 'sing' && this.currentInterval) {
                 this.recordResult(this.currentInterval, true, 'sung');
             }
-            // In both mode, the identify result was already handled
-            // We could track sing accuracy separately in the future
+            // In both mode the identification was already recorded
         } else {
             const msg = reason === 'timeout' ? 'Time\'s up' : 'Not matched';
             this.showFeedback(msg, 'incorrect');

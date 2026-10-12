@@ -341,15 +341,12 @@ Ear training lives on the **Intervals** page under **Ear training** mode
   name it by button or voice ("major third", "tritone", aliases accepted).
 - **Sing**: hear a reference note, sing the prompted interval; pitch
   detection confirms when you hold the target (~1.5s within tolerance).
-- **Both**: identify first, then sing it.
+- **Both**: identify first, then sing it. The identification is the recorded
+  result; the sing step is unrecorded practice (decided 2026-10-11).
 
 Adaptive mode weights practice toward your weakest intervals. Presets
 filter the interval set (perfect / 3rds+6ths / 2nds+7ths / weakest).
-Driving mode speaks feedback. Lifetime per-interval stats persist; known
-gap: in Both mode a correct identification is never added to them (the
-identify step defers it to the sing step, which records only in Sing mode),
-so Both practice reads as all misses. Whether Both should count the
-identification or identify-and-sing is open for yui. The
+Driving mode speaks feedback. Lifetime per-interval stats persist. The
 Drone Test plays a sustained reference tone and shows live cents while you
 match it.
 

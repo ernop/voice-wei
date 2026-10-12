@@ -533,8 +533,9 @@
         });
 
         // Named state inspection for the test suite (deterministic
-        // scoring via the panel's explicit recordSample seam).
-        window.intervalsDebug = { panel: singPanel };
+        // scoring via the panel's explicit recordSample seam; the Ears
+        // controller once Ears has opened).
+        window.intervalsDebug = { panel: singPanel, get ear() { return earTraining; } };
 
         // The Sing button is a toggle: open the panel, or dismiss it.
         document.getElementById('singBtn')?.addEventListener('click', async () => {

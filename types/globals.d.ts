@@ -198,7 +198,7 @@ interface Window {
         };
         panel: any;
     };
-    intervalsDebug?: { panel: any };
+    intervalsDebug?: { panel: any; readonly ear: any };
     traceDebug?: {
         patternEntries: () => Array<{ interval: number; label: string }>;
         guideTargets: () => TargetSpan[];

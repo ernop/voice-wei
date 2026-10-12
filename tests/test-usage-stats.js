@@ -207,6 +207,22 @@ function pingsOf(tab) {
         ear.rounds.length === 1 && question.m === 'ears-identify'
         && (question.r === 'pass' || question.r === 'fail') && Number(question.d) > 0 && ear.total === '1');
 
+    // Both mode records a correct identification at once; singing is practice.
+    await intervals.click('[data-mode="both"]');
+    await intervals.click('#earNextBtn');
+    await waitOn(intervals, () => window.intervalsDebug.ear.awaitingAnswer === true);
+    const before = await intervals.evaluate(() => {
+        const ear = window.intervalsDebug.ear;
+        return { target: ear.currentInterval, correct: ear.stats[ear.currentInterval].correct };
+    });
+    await intervals.click(`.answer-btn[data-interval="${before.target}"]`);
+    const both = await intervals.evaluate((interval) => ({
+        rounds: window.__statsPings.filter(ping => ping.e === 'game' && ping.m === 'ears-both'),
+        correct: window.intervalsDebug.ear.stats[interval].correct
+    }), before.target);
+    report.check(`Both mode records a correct identification (${JSON.stringify({ ...before, ...both })})`,
+        both.rounds.length === 1 && both.rounds[0].r === 'pass' && both.correct === before.correct + 1);
+
     // ============ PITCH: one scored session, same player ============
     const pitch = await ctx.newPage();
     collectErrors(pitch, 'pitch-meter', report.errors);
