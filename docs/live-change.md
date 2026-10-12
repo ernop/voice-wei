@@ -130,13 +130,12 @@ serves, none of our files answer there, `proxy.php` works) names a broken
 dependency; it does not make a verified ship “not live”. Details:
 [setup.md](setup.md), “Post-deploy checks”.
 
-Status of the review's sequence below (2026-09-27): step 2 is the Verify
-step, now commit-exact. Step 3 (HTML/`VERSION` revalidation) and the host half
-of step 6 (atomic publish directories) are requested from the fuseki.net
-project ([hosting-contract.md](hosting-contract.md), “Pending requests”).
-The tenant half of step 6 (release directories and `release.json`) is done;
-deploys switch to atomic swaps on their own once the host provides the
-releases layout.
+Status of the review's sequence below (2026-10-12): step 2 is the Verify
+step, now commit-exact. Step 3 (HTML/`VERSION` revalidation) and step 6
+(atomic publish directories) are done: the fuseki.net project applied both
+host requests on 2026-10-12 ([hosting-contract.md](hosting-contract.md),
+“Requests to the fuseki.net project”), and every deploy now publishes a
+release and swaps it in atomically.
 
 CI speed, paths-ignore, and caches matter only insofar as they shorten
 the wait between voice note and trustworthy “live.”

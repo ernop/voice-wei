@@ -67,9 +67,9 @@ deploy by pushing `master`.
 
 - Public URL: `https://fuseki.net/voice-wei/`
 - Deploy account: `voicewei`, with no sudo access
-- Document root: `/srv/voice-wei/site`, served in place today; the
-  atomic-release layout below is requested from the fuseki.net project
-  ([hosting-contract.md](hosting-contract.md), "Pending requests")
+- Document root: `/srv/voice-wei/site`, a symlink to the live release since
+  2026-10-12 (the releases layout below; [hosting-contract.md](hosting-contract.md),
+  "Requests to the fuseki.net project")
 - GitHub's deploy key is restricted against forwarding and interactive shells;
   the deploy scripts need only rsync
 - nginx maps `/voice-wei/` to the dedicated document root, rate-limits
@@ -80,11 +80,11 @@ deploy by pushing `master`.
   on-demand workers, confines PHP filesystem access to `/srv/voice-wei` and
   `/tmp`, and disables process/shell execution functions. Its release-layout
   lines (`open_basedir` widened from `/srv/voice-wei/site`, and
-  `opcache.revalidate_path`) are part of the pending host request
-- `rsync --delete` is scoped to the dedicated document root and cannot touch
-  Fuseki's generated site. That is the server side of the boundary; the
-  pipeline side is the deploy target guard below, so a misconfigured secret
-  cannot aim the publish anywhere else either
+  `opcache.revalidate_path`) are live on the host since 2026-10-12
+- Every deploy write and `rsync --delete` (release pruning) stays inside
+  `/srv/voice-wei` and cannot touch Fuseki's generated site. That is the
+  server side of the boundary; the pipeline side is the deploy target guard
+  below, so a misconfigured secret cannot aim the publish anywhere else either
 - Ownership boundary with the fuseki.net project (who owns the domain,
   headers, PHP runtime; what voice-wei may assume):
   [hosting-contract.md](hosting-contract.md)
@@ -185,9 +185,10 @@ host owns the layout; `deploy/host-layout.sh` reads which one it provides,
 and every deploy script follows it. There is one decision point, not a
 fallback chain:
 
-- **in-place** (today): `DEPLOY_PATH` is the served directory.
-  `publish-site.sh` rewrites it with `rsync --delete`, one file at a time.
-- **releases** (after the pending host change): `DEPLOY_PATH` is a symlink
+- **in-place** (the host's layout until 2026-10-12): `DEPLOY_PATH` is the
+  served directory. `publish-site.sh` rewrites it with `rsync --delete`, one
+  file at a time.
+- **releases** (the host's layout since 2026-10-12): `DEPLOY_PATH` is a symlink
   to `releases/<id>` beside it. Nginx is unchanged: it keeps serving
   `/srv/voice-wei/site`. Each deploy:
   1. publishes the committed tree into a new `releases/<id>` (id =
@@ -244,8 +245,8 @@ the exact `deploy/host-release-setup.sh`. Findings that shaped the design:
 Rollback paths: `./deploy.sh --rollback [RELEASE]` points `site` back at the
 previous (or a named) release in one rename; a revert commit and push
 publishes forward as usual; and the host can undo the conversion by
-exchanging `site` with the kept `site.pre-releases` directory, after which
-deploys detect in-place again (hosting-contract.md).
+exchanging `site` with a hardlinked directory copy of the live release, after
+which deploys detect in-place again (hosting-contract.md).
 
 ### Post-deploy checks
 

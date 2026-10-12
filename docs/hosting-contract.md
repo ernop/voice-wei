@@ -127,18 +127,16 @@ belong to the fuseki.net project.
   would do. Longer transfers widen the window for mobile load failures
   (observed 2026-09-02: transient "Failed to load script ebook.js" on 5G
   while the server was verifiably healthy).
-- **No `Cache-Control` on voice-wei HTML and `VERSION`** (the root sends
-  `no-cache`). Browsers may reuse a cached page by heuristic freshness after
-  a deploy, which then keeps old `?v=` references. Requested below.
 
-## Pending requests to the fuseki.net project (2026-09-27)
+## Requests to the fuseki.net project (2026-09-27, done 2026-10-12)
 
 Approved by the owner on 2026-09-27. Voice-wei cannot apply them: the host
 config lives in the private Fuseki repository, which voice-wei's agents cannot
 read, and the change needs root on the server (the `voicewei` account has no
 sudo). Both are confined to voice-wei's own URL path and directory; nothing
 else on the domain changes. Rehearsed on a replica with nginx 1.24 and PHP
-8.3.6 FPM ([setup.md](setup.md), "Host layouts and atomic releases").
+8.3.6 FPM ([setup.md](setup.md), "Host layouts and atomic releases"). The
+fuseki.net project applied both on 2026-10-12.
 
 **A. Revalidate voice-wei HTML, `VERSION`, and `release.json` on every load.**
 In the http context:
@@ -167,6 +165,11 @@ shows `no-cache` (same for `scales.html` and `VERSION`),
 `curl -sI 'https://fuseki.net/voice-wei/style.css?v=1'` shows none, and the
 root's headers are unchanged. Roll back by removing the line and the map.
 
+**Done 2026-10-12.** Live in the `/voice-wei/` location. `/voice-wei/`,
+`scales.html`, `VERSION`, and `release.json` send `Cache-Control: no-cache`;
+`style.css?v=1`, other assets, and `proxy.php` kept their headers; 51 sampled
+main-site URLs kept identical bodies and headers.
+
 **B. Atomic releases.** Run `deploy/host-release-setup.sh` from the voice-wei
 repository once, as root, at any time. Nginx is unchanged. The script:
 - edits the `voicewei` pool: `open_basedir` becomes `/srv/voice-wei:/tmp`,
@@ -184,15 +187,31 @@ deploy job verifies it. To trigger that deploy immediately, re-run the
 latest "Deploy to Production" workflow. A deploy that happened to be
 uploading during the exchange reports NOT LIVE and succeeds on re-run.
 
-To roll back, as root in `/srv/voice-wei`:
+**Done 2026-10-12.** Converted at 08:28 UTC; the pool file is byte-identical
+to `deploy/voicewei-fpm.conf`. The re-run of "Deploy to Production" run
+38219552936 published `20261012T083004Z-881187b`, and `release.json` shows
+`"layout": "releases"`. The host then deleted `site.pre-releases` and the
+`*-initial` snapshot release, after checking that they held only that same
+build, under the owner's rule against recovery copies of builds (recovery is a
+redeploy from this repository). The same rule forbids `publish-site.sh`
+keeping the newest five releases for `--rollback`; changing that is open
+voice-wei work.
+
+To return to in-place, as root in `/srv/voice-wei` (rehearsed as root on a
+scratch copy of this layout, 2026-10-12):
 
 ```bash
-python3 -c 'import ctypes; libc = ctypes.CDLL(None, use_errno=True); assert libc.renameat2(-100, b"site.pre-releases", -100, b"site", 2) == 0, ctypes.get_errno()'
-rm site.pre-releases
+cp -al "$(readlink -f site)" site.in-place
+rm site.in-place/deploy-telemetry.json
+ln shared/deploy-telemetry.json site.in-place/deploy-telemetry.json
+python3 -c 'import ctypes; libc = ctypes.CDLL(None, use_errno=True); assert libc.renameat2(-100, b"site.in-place", -100, b"site", 2) == 0, ctypes.get_errno()'
+rm site.in-place
+rm -rf releases shared
 ```
 
-Deploys then detect in-place again. The pool settings can stay, since they
-are harmless in place.
+The hardlinked copy keeps `voicewei` ownership and the telemetry history, and
+the exchange leaves no moment without a site. Deploys then detect in-place
+again. The pool settings can stay, since they are harmless in place.
 
 ## Independent-origin hosting review (2026-09-26)
 
@@ -204,8 +223,9 @@ explicit transfer of its known browser storage, microphone permission
 regranting, deployment URL updates, and preservation of the Articles tab's
 staff-session/CSRF-protected voice-draft integration. Do not add blanket CORS
 or shared Domain cookies to make a redirect appear sufficient. Its current
-PHP runtime/deployment shared identity and in-place rsync also remain review
-findings for the migration. The Fuseki project owns this work and its pending
+PHP runtime/deployment shared identity also remains a review finding for the
+migration; the in-place rsync finding closed with the releases layout
+(2026-10-12). The Fuseki project owns this work and its pending
 status in the [independent application hosting plan](https://github.com/ernop/fuseki4_ai/blob/master/docs/minesweeper-friendly-hosting-plan.md).
 
 Editor origin move (owner decision 2026-09-26): the Fuseki editor leaves
