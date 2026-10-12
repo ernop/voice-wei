@@ -278,15 +278,16 @@ const PitchTestPanel = (function () {
             if (session.history.length < PitchScore.MIN_VOICED) return;
 
             const hit = active.filter(t => t.result === 'good' || t.result === 'ok');
+            const avgCents = hit.length
+                ? hit.reduce((sum, t) => sum + (t.avgCents || 0), 0) / hit.length
+                : null;
             const key = config.key();
             ProgressStore.record({
                 tool: config.progressTool,
                 context: `${key.rootLabel} ${key.scaleType}`,
                 total: active.length,
                 hit: hit.length,
-                avgCents: hit.length
-                    ? hit.reduce((sum, t) => sum + (t.avgCents || 0), 0) / hit.length
-                    : null,
+                avgCents,
                 // Per-note outcomes make degree-level weak spots
                 // aggregatable (the original training goal: find and
                 // drill the degrees you miss or sing sharp/flat).
@@ -301,6 +302,18 @@ const PitchTestPanel = (function () {
             takeRecorded = true;
             log(`take recorded: ${hit.length}/${active.length} on pitch`);
             updateProgressLine();
+            try {
+                if (window.FusekiStats) window.FusekiStats.game({
+                    m: config.statsMode(),
+                    r: 'done',
+                    d: (performance.now() - session.startedAt) / 1000,
+                    hit: hit.length,
+                    total: active.length,
+                    cents: avgCents
+                });
+            } catch (error) {
+                // Statistics must never break the app (owner, 2026-10-11).
+            }
         }
 
         let lastScoreSignature = '';

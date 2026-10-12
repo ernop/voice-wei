@@ -500,6 +500,7 @@
         playNote: (midi, durationSec) => { phraseAudio.playGuideMidi(midi, durationSec); },
         onOpenChange: open => syncTestButton(open),
         progressTool: 'phrases-test',
+        statsMode: () => 'phrases',
         logLine: line => diagLog.add('test', line)
     });
     staffView = StaffView.create({

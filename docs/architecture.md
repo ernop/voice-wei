@@ -177,6 +177,8 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `staff-scroll-view.js` | The Staff page's scrolling grand staff: continuous diatonic geometry, fixed clef/key header, now-line, dedicated sung-pitch band | - |
 | `shared-header.js` | Site header, nav, version label | - |
 | `media-player.js` + `media-player.css` | The Books listening player: transport, notched seek scale, keys, speed, volume, and the Media Session on Books | yes (tests/test-media-player.js) |
+| `fuseki-stats.js` | The usage-statistics client (vendored from fuseki4_ai, never edited here): player and session numbers, active time, pings to the page's own server | yes (tests/test-usage-stats.js; FusekiStats calls only inside try) |
+| `usage-stats.js` | The client's one "in use without input" check, composed from the sound and microphone owners | - |
 
 ### The shared media player
 
@@ -578,7 +580,10 @@ first read.
 Books large files: IndexedDB (`voice-wei-books`), not localStorage. The Books
 Log is DOM-only. The shared media player keeps its own `media-player:` keys
 (`volume`, `speed:audio`) outside `storage-keys.js`, because the library owns
-them on every site that uses it; Books turns off its remembered positions. The Music Log is persisted in its dedicated IndexedDB as
+them on every site that uses it; Books turns off its remembered positions.
+The statistics client keeps its random player number under
+`fuseki-stats-player`, outside `storage-keys.js` for the same reason (see
+Usage statistics). The Music Log is persisted in its dedicated IndexedDB as
 described under Music player durable history.
 
 Scored practice persists via `progress-store.js` → `PRACTICE_PROGRESS`.
@@ -613,7 +618,8 @@ chapter extraction keeps the final occurrence of duplicated chapter headings,
 which removes contents-list duplicates before section assembly. Audio plan v2
 marks upgraded books; rebuild atomically replaces book/section/part records and
 maps listening by source character independently of reading progress. There is still no
-account identity, analytics sink, or server-side audit trail. The durable
+account identity or server-side audit trail; the site's usage statistics count
+Books only as active time (see Usage statistics). The durable
 history is browser-local and serves navigation/progress UI. The OpenAI key and
 TTS settings use `api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The
 visible Log panel is DOM state only and is lost on refresh/navigation.
@@ -933,6 +939,69 @@ gone. The dividing test: if the alternative exists because an outside service
 might fail, it is resilience; if it exists because we were unsure our own code
 would work, it is a fallback and must be collapsed to one correct path.
 
+The one deliberate silent catch is the statistics boundary (Usage statistics,
+next).
+
+## Usage statistics
+
+What is sent, when, and why is the owner's decision in
+[product-goals.md](product-goals.md), "Usage statistics"; the host side is in
+[hosting-contract.md](hosting-contract.md). This section is how it is built.
+
+**The client.** `fuseki-stats.js` is fuseki4_ai's
+`setup/apps/fuseki-stats.js`, copied byte for byte; its header is the API
+reference. `fuseki-stats.sha256` (excluded from deploys) holds its checksum,
+and `tests/test-usage-stats.js` fails on any edit. To take a new version: copy
+it unchanged, run `sha256sum fuseki-stats.js > fuseki-stats.sha256`, run
+`npm test`, bump. Every page except the `ears.html` redirect loads it right
+after `dev-error-monitor.js`, followed by `usage-stats.js`. The typecheck
+excludes the copy; `types/fuseki-stats.d.ts` declares `window.FusekiStats`.
+Off fuseki.net/voice-wei/ the client sends nothing.
+
+**Engaged time.** The client takes one "in use without input" check per page
+and samples it every 5 seconds. `usage-stats.js` composes it from the owners,
+read at call time because each page loads a different subset:
+
+| In use while | Owner query |
+|--------------|-------------|
+| Piano or sine synth sounds, or sounded in the last 5 s (silences between drill notes and patterns) | `PianoCore.soundEndsAtMs()` |
+| A microphone capture is open | `PitchDetectCore.isListening()` |
+| Speech recognition listens | `VoiceCommandCore.isAnyListening()` |
+| Speech plays | `VoiceOutput.isSpeaking()` |
+| The page reported its transport playing (Lyrics, Phrases, Staff) | `MediaSessionCore.getReportedPlaybackState()` |
+| An `<audio>`/`<video>` element plays (Books) | the DOM, skipping `data-media-session-keep-alive` |
+
+The media-session keep-alive starts on a page's first tap and loops while the
+session is claimed, so `navigator.mediaSession.playbackState` and "any media
+element playing" both read as playing on pages that never play; the reported
+state and the marker attribute exclude it. Nothing in the app calls
+`usage-stats.js`: the dependency points from statistics to the owners, so a
+statistics script that fails to load costs only statistics.
+
+**Rounds.** Three owners send one `game` when a scored round settles:
+
+- `pitch-test-panel.js` `maybeRecordTake()`, once per recorded take (the
+  Scales, Intervals, and Phrases sing tests). Each consumer names its mode
+  token through the required `statsMode` config; Intervals uses the sung
+  pattern's own `levelId`, so a level change mid-take cannot mislabel it.
+- `pitch-meter.js` `recordProgress()`, once per scored session.
+- `ear-training.js` `reportQuestion()`, once per settled question: the answer,
+  or a Skip of an unanswered question, in Identify and Both; the sing result
+  in Sing. Skip after an answer only moves on.
+
+**The silent catch.** Every `FusekiStats` call is written
+`try { if (window.FusekiStats) window.FusekiStats.<method>(...); } catch (error) {}`:
+owner direction 2026-10-11, statistics must never break or slow the app. It is
+the one exception to the anti-fallback rule, and the
+`fuseki-stats-calls-in-try` lint rule requires the try.
+
+`tests/test-usage-stats.js` checks the copy and the page wiring, then serves
+the tree as https://fuseki.net/voice-wei/ through request routing (pings
+answered locally, every other path on the host refused) and checks the play
+ping, exactly one round with its fields per sing take, ear question, and Pitch
+session, the engaged sources (microphone and piano yes, keep-alive no), and
+the player number across pages.
+
 ## Data representation law
 
 One representation per concept, conversions in one place:
@@ -1080,9 +1149,10 @@ monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 `test-player-report`, `test-player-ui` (Lyrics page layout, curation, and
 the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-playback-engine`, `test-staff-view`, `test-staff-page`, `test-pages-load`,
-`test-player-startup`, `test-player-lifecycle`, `test-syntax`, and
-`test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one
-suite while iterating.
+`test-player-startup`, `test-player-lifecycle`, `test-proxy`, `test-deploy`,
+`test-coolness`, `test-media-player`, `test-usage-stats`, `test-syntax`, and
+`test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one suite
+while iterating.
 
 Three disciplines keep the gate fast and honest:
 

@@ -39,6 +39,9 @@
     "node_modules",
     // Pinned copy of the shared media player, kept byte-identical to its library
     // (tests/test-media-player.js); its API is declared in types/media-player.d.ts.
-    "media-player.js"
+    "media-player.js",
+    // Vendored statistics client, kept byte-identical to its fuseki4_ai original
+    // (tests/test-usage-stats.js); its API is declared in types/fuseki-stats.d.ts.
+    "fuseki-stats.js"
   ]
 }

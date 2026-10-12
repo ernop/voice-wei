@@ -70,16 +70,25 @@ requirement not written here does not exist.
 2. All runtime URLs are relative (`proxy.php?...`, `ebook.js?v=N`), so
    the directory can move hosts or prefixes without code edits. Keep it
    that way: new code must not hardcode the domain or the `/voice-wei/`
-   prefix.
+   prefix. The one exception (owner decision 2026-10-11) is the vendored
+   statistics client, which names fuseki.net and `/voice-wei/` so that it
+   sends only there; on any other host or prefix it is inert, so a move
+   breaks nothing and only stops statistics.
 3. No demands on the host beyond the requirements list. Server-side
    wishes (compression, caching headers) are requests to the fuseki.net
    project, not entitlements.
 
 ## Where the domain appears in this repo
 
-The runtime is domain-free. The full inventory of `fuseki.net`
-references, all in tooling, is:
+Apart from the statistics client, the runtime is domain-free. The full
+inventory of `fuseki.net` references is:
 
+- `fuseki-stats.js` — the vendored statistics client's own host table: it
+  pings `/voice-wei/_event` only from pages under `/voice-wei/` on
+  fuseki.net or www.fuseki.net (see "Usage statistics endpoint" below).
+- `tests/test-usage-stats.js` — serves the local tree as
+  `https://fuseki.net/voice-wei/` through request routing; it refuses every
+  other path on the host, so nothing reaches the server.
 - `.github/workflows/deploy.yml` — `APP_URL`, the app URL the post-deploy
   verify and smoke checks probe (the smoke check derives the host root
   from it).
@@ -90,7 +99,24 @@ references, all in tooling, is:
   `PROXY_BASE`.
 
 Rehosting voice-wei means: point the `DEPLOY_*` secrets at the new host (its
-path inside a `voice-wei` directory), update those URLs, done.
+path inside a `voice-wei` directory), update those URLs, done. Statistics
+resume only once fuseki4_ai's client lists the new place and the copy here is
+refreshed.
+
+## Usage statistics endpoint (2026-10-11)
+
+The pages' statistics pings ([product-goals.md](product-goals.md), "Usage
+statistics") are `GET /voice-wei/_event?...` to the page's own origin. The
+host answers that one path itself: fuseki.net's nginx returns 204, writes the
+request only to a private per-app event log, and rate-limits it per address
+(fuseki4_ai `setup/nginx/fuseki_net.conf`, `location = /voice-wei/_event`).
+It is the only path under `/voice-wei/` with no voice-wei file behind it, so
+voice-wei must never ship a file named `_event`.
+
+It is not a hosting requirement: without it the app works unchanged, and a
+ping that reaches the app directory gets an ordinary 404, which the client
+ignores. Status 2026-10-11: the location is written in the fuseki.net project
+and not yet live on the server.
 
 ## Known gaps on the current host (fuseki.net side)
 

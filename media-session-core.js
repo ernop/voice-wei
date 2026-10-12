@@ -139,6 +139,9 @@ const MediaSessionCore = (function () {
             audioEl.volume = 1;
             audioEl.preload = 'auto';
             audioEl.setAttribute('playsinline', 'true');
+            // Named so code that scans the page's media elements (usage
+            // statistics) never takes this silent loop for playback.
+            audioEl.setAttribute('data-media-session-keep-alive', '');
             audioEl.style.display = 'none';
             document.body.appendChild(audioEl);
         }
@@ -206,6 +209,16 @@ const MediaSessionCore = (function () {
         return 'mediaSession' in navigator
             ? navigator.mediaSession.playbackState
             : 'unavailable';
+    }
+
+    /**
+     * The transport state the page itself last reported (null: never).
+     * Unlike getPlaybackState(), the silent keep-alive cannot turn this
+     * into 'playing' on a page that never reports.
+     * @returns {MediaSessionPlaybackState | null}
+     */
+    function getReportedPlaybackState() {
+        return explicitState;
     }
 
     /**
@@ -560,6 +573,7 @@ const MediaSessionCore = (function () {
         clearTrack,
         setPlaybackState,
         getPlaybackState,
+        getReportedPlaybackState,
         getKeepAliveState
     };
 })();

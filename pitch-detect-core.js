@@ -194,6 +194,17 @@ const PitchDetectCore = (function () {
         return rate / period;
     }
 
+    /** @type {Set<{ readonly running: boolean }>} Every capture the page created */
+    const captures = new Set();
+
+    /** True while any microphone capture on the page is open. */
+    function isListening() {
+        for (const capture of captures) {
+            if (capture.running) return true;
+        }
+        return false;
+    }
+
     /**
      * Low-level microphone capture. Owns the AudioContext, analyser, and
      * stream; exposes on-demand pitch reads for pages that drive their
@@ -215,7 +226,7 @@ const PitchDetectCore = (function () {
         /** @type {{ rms: number, freq: number, rejected: string | null } | null} */
         let lastRead = null;
 
-        return {
+        const capture = {
             get running() { return microphone !== null; },
 
             // Returns false when the browser refuses microphone access.
@@ -293,6 +304,8 @@ const PitchDetectCore = (function () {
                 };
             }
         };
+        captures.add(capture);
+        return capture;
     }
 
     /**
@@ -526,7 +539,8 @@ const PitchDetectCore = (function () {
         VOICE_MAX_MIDI,
         detectPitch,
         createMicCapture,
-        createTraceSession
+        createTraceSession,
+        isListening
     };
 })();
 

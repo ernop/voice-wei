@@ -213,8 +213,20 @@ class TranscriptManager {
 //-------VOICE COMMAND CORE-------
 
 class VoiceCommandCore {
+    /** @type {Set<VoiceCommandCore>} Every core the page created */
+    static instances = new Set();
+
+    /** True while any core on the page is listening. */
+    static isAnyListening() {
+        for (const core of VoiceCommandCore.instances) {
+            if (core.isListening) return true;
+        }
+        return false;
+    }
+
     /** @param {any} [options] */
     constructor(options = {}) {
+        VoiceCommandCore.instances.add(this);
         /** @type {InstanceType<typeof window.SpeechRecognition> | null} */
         this.recognition = null;
         /** @type {boolean} */

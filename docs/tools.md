@@ -345,11 +345,16 @@ Ear training lives on the **Intervals** page under **Ear training** mode
 
 Adaptive mode weights practice toward your weakest intervals. Presets
 filter the interval set (perfect / 3rds+6ths / 2nds+7ths / weakest).
-Driving mode speaks feedback. Lifetime per-interval stats persist. The
+Driving mode speaks feedback. Lifetime per-interval stats persist; known
+gap: in Both mode a correct identification is never added to them (the
+identify step defers it to the sing step, which records only in Sing mode),
+so Both practice reads as all misses. Whether Both should count the
+identification or identify-and-sing is open for yui. The
 Drone Test plays a sustained reference tone and shows live cents while you
 match it.
 
-Voice commands: "next", "repeat", "skip", "stats", or an interval name to
+Voice commands: "next", "repeat", "skip" (an unanswered question counts as
+missed; after an answer it only moves on), "stats", or an interval name to
 answer. Hardware media keys: play/pause repeat the current interval, next
 plays a new one.
 
@@ -874,9 +879,12 @@ OpenAI.
   localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
   belong in IndexedDB. Books requests persistent browser storage automatically
   and displays the current quota estimate.
-- There is no user identity, server-side audit log, or analytics. The visible
-  Log panel is page-local and can be cleared; the local history panel is
-  browser-local and exists to support user navigation/progress.
+- There is no user identity or server-side audit log. Like every page, Books
+  reports usage statistics (a random player number and active time; Books has
+  no scored round), never book content; see "Usage statistics" in
+  [product-goals.md](product-goals.md). The visible Log panel is page-local
+  and can be cleared; the local history panel is browser-local and exists to
+  support user navigation/progress.
 
 ## Pitch test panel (shared)
 

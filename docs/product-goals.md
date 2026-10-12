@@ -81,6 +81,51 @@ tests/test-articles.js`, plus the docs sections removed in the same change).
   git.” The header version is one signal, not the goal — see
   [live-change.md](live-change.md).
 
+## Usage statistics (owner decision, 2026-10-11)
+
+yui decided that Voice-Wei, like his other apps on fuseki.net, reports usage
+statistics to its own server: how many people use it, how long they spend,
+and completed exercises with results. His own use is included.
+
+- **Where**: only to the page's own server, as GET requests to
+  `/voice-wei/_event` on fuseki.net (or www.fuseki.net). The host's nginx
+  answers with an empty response and writes them to a private log; a private
+  analytics worker aggregates them for his staff-only dashboard. Nothing goes
+  to a third party. Anywhere else (localhost, tests, other hosts or paths)
+  nothing is sent.
+- **Who**: a random player number kept in the browser (explicitly allowed)
+  and a random number per page load for the session. No account, name, or
+  cookie.
+- **When**: `play` at a page load's first input (tap, key, or wheel); `time`
+  with the active seconds when the page is hidden or closed, and every ten
+  active minutes; `game` when a scored round completes. Each ping carries the
+  page path.
+- **Active time**: the page is visible and had input in the last five
+  minutes, or, because Voice-Wei is used hands-free (often driving with the
+  screen off), the page is playing sound (piano, synth, speech, music, Books
+  audio) or the microphone or voice commands are listening.
+- **Rounds** (`game`, at most one per round): mode `m`, result `r`, duration
+  `d` in seconds, and the round's own score numbers.
+  - Sing test take in Scales, Intervals, or Phrases: `m` = `scales`,
+    `intervals-<level>` (e.g. `intervals-a3`), or `phrases`; `r=done`; `hit`,
+    `total`, `cents` (average error of the notes on pitch).
+  - Pitch session: `m` = `pitch-free`, `pitch-call-response`, or
+    `pitch-play-along`; `r=done`; `hit`, `total`, `cents`, `acc` (accuracy
+    percent).
+  - Ears question: `m` = `ears-identify`, `ears-sing`, or `ears-both`;
+    `r=pass` or `fail`. In Both mode the identification decides it.
+  - Trace, Staff, Lyrics, Books, and Wording have no scored round; their use
+    shows in play and time only.
+- **Never sent**: song titles, lyrics, book text, voice prompts or
+  transcripts, API keys, or anything typed or said. Voice-Wei sends only
+  numbers and fixed mode and result tokens, and the client drops every value
+  that is not a finite number, a boolean, or a short token of letters,
+  digits, and `_ . : / -`.
+
+The home page says so in one line. Construction:
+[architecture.md](architecture.md), "Usage statistics"; the host side:
+[hosting-contract.md](hosting-contract.md), "Usage statistics endpoint".
+
 ## Lyrics player: intended behavior and user needs
 
 The accumulated product intent for the Lyrics tab, stated as the user's

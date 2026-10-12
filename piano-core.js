@@ -35,6 +35,15 @@ const PianoCore = (function () {
     /** @type {Promise<void> | null} */
     let toneLoadPromise = null;
 
+    // Every engine's voice registry and every sine synth's sounding
+    // window, so soundEndsAtMs() can answer for the whole page.
+    /** @type {Set<Set<{ endsAtMs: number }>>} */
+    const voiceRegistries = new Set();
+    /** @type {Set<{ endsAtMs: number }>} */
+    const synthWindows = new Set();
+    // A finished voice leaves its registry; its end time stays here.
+    let finishedVoicesEndAtMs = -Infinity;
+
     function ensureToneLoaded() {
         if (typeof Tone !== 'undefined') return Promise.resolve();
         if (toneLoadPromise) return toneLoadPromise;
@@ -88,6 +97,7 @@ const PianoCore = (function () {
          * @type {Set<{ id: number, midi: number, startAtSeconds: number, latencyCompensationSeconds: number, startedAtMs: number, endsAtMs: number, source: any, gain: any }>}
          */
         const voices = new Set();
+        voiceRegistries.add(voices);
         let nextVoiceId = 1;
 
         /** @param {number} midi */
@@ -135,6 +145,9 @@ const PianoCore = (function () {
             };
             source.onended = () => {
                 voices.delete(voice);
+                // endsAtMs, not now: a voice killed by stopAll() still ends
+                // its silent source at the originally scheduled time.
+                finishedVoicesEndAtMs = Math.max(finishedVoicesEndAtMs, voice.endsAtMs);
                 source.dispose();
                 gain.dispose();
             };
@@ -274,6 +287,8 @@ const PianoCore = (function () {
             envelope
         }).toDestination();
         synth.volume.value = volume;
+        const sounding = { endsAtMs: -Infinity };
+        synthWindows.add(sounding);
         return {
             synth,
             /**
@@ -282,19 +297,39 @@ const PianoCore = (function () {
              */
             playMidi(midi, duration) {
                 synth.triggerAttackRelease(midiToPitchString(midi), duration);
+                const endsAtMs = performance.now() + Tone.Time(duration).toSeconds() * 1000;
+                sounding.endsAtMs = Math.max(sounding.endsAtMs, endsAtMs);
             },
             // Sustained note (drone); ends on stopAll().
             /** @param {number} midi */
             startMidi(midi) {
                 synth.triggerAttack(midiToPitchString(midi));
+                sounding.endsAtMs = Infinity;
             },
             stopAll() {
                 synth.triggerRelease();
+                sounding.endsAtMs = Math.min(sounding.endsAtMs, performance.now());
             }
         };
     }
 
-    return { ensureStarted, sleep, createPiano, createSineSynth };
+    /**
+     * When the page's piano and synth sound ends, in performance.now()
+     * milliseconds: in the future while anything sounds or is scheduled,
+     * Infinity during a drone, -Infinity before the first note.
+     */
+    function soundEndsAtMs() {
+        let latest = finishedVoicesEndAtMs;
+        voiceRegistries.forEach(voices => voices.forEach(voice => {
+            latest = Math.max(latest, voice.endsAtMs);
+        }));
+        synthWindows.forEach(sounding => {
+            latest = Math.max(latest, sounding.endsAtMs);
+        });
+        return latest;
+    }
+
+    return { ensureStarted, sleep, createPiano, createSineSynth, soundEndsAtMs };
 })();
 
 window.PianoCore = PianoCore;

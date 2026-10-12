@@ -140,6 +140,10 @@ parameters (setting behaviors), tools (user-visible behavior).
   compatibility concern.
 - **No fallbacks/hacks for things we control.** Fix the upstream issue,
   fail loudly, never catch and continue silently.
+- **Statistics never break the app** (yui, 2026-10-11): every `FusekiStats`
+  call sits in a try block, the one sanctioned silent catch (lint-enforced),
+  and `fuseki-stats.js` is a vendored copy never edited here. What is sent:
+  docs/product-goals.md, "Usage statistics"; how: docs/architecture.md.
 - **The playback law**: old-settings audio never overlaps new-settings
   audio; stopping kills the actual voices (piano-core registry), never a
   master mute or a timing guess.

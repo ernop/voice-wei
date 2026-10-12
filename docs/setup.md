@@ -130,7 +130,7 @@ layout (with `--delete --delete-excluded` when publishing in place).
 Excluded: `.git`, `.gitignore`, `.cursorignore`, `.cursor`, `.github`,
 `.ast-grep`, `.vscode`, `.dev`, `config.json`, `config.example.json`,
 `tests`, `types`, `demos`, `deploy`, `node_modules`, `__pycache__`, `*.pyc`,
-`*.md`, `*.txt`, `*.sh`, `*.py`, `tsconfig.json`, `sgconfig.yml`,
+`*.md`, `*.txt`, `*.sha256`, `*.sh`, `*.py`, `tsconfig.json`, `sgconfig.yml`,
 `package.json`, `package-lock.json`, `dev-server.js`, `pipeline-*.svg`,
 `screenshot-*.png`, `coolness-log.jsonl`.
 

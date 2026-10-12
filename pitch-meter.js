@@ -293,9 +293,10 @@ class PitchMeterController {
     /**
      * Persist a finished session's result and refresh the trend line.
      * @param {number} hit @param {number} total @param {number | null} avgCents
+     * @param {number} accuracyPercent - the results panel's headline accuracy
      * @param {ProgressNoteResult[]} [notes]
      */
-    recordProgress(hit, total, avgCents, notes = []) {
+    recordProgress(hit, total, avgCents, accuracyPercent, notes = []) {
         if (this.sessionRecorded || total === 0) return;
         this.sessionRecorded = true;
         ProgressStore.record({
@@ -307,6 +308,19 @@ class PitchMeterController {
             notes
         });
         this.updateProgressLine();
+        try {
+            if (window.FusekiStats) window.FusekiStats.game({
+                m: `pitch-${this.mode}`,
+                r: 'done',
+                d: (performance.now() - this.session.startedAt) / 1000,
+                hit,
+                total,
+                cents: avgCents,
+                acc: Math.round(accuracyPercent)
+            });
+        } catch (error) {
+            // Statistics must never break the app (owner, 2026-10-11).
+        }
     }
 
     updateProgressLine() {
@@ -586,7 +600,7 @@ class PitchMeterController {
             avgCents: r.avgCents ?? null,
             biasCents: r.biasCents ?? null
         }));
-        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null, noteOutcomes);
+        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null, avgAccuracy, noteOutcomes);
 
         this.renderNoteBreakdown('Per-Note Results', this.noteResults.map((result, i) => {
             const note = this.targetNotes[i];
@@ -780,7 +794,7 @@ class PitchMeterController {
                 biasCents: score && score.attempted ? score.biasCents : null
             };
         });
-        this.recordProgress(notesHitCount, this.targetNotes.length, sungScores.length ? avgDeviation : null, playAlongOutcomes);
+        this.recordProgress(notesHitCount, this.targetNotes.length, sungScores.length ? avgDeviation : null, accuracy, playAlongOutcomes);
 
         this.renderResultsSummary(accuracy, avgDeviation.toFixed(1), notesHitCount, this.targetNotes.length);
 

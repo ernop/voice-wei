@@ -111,6 +111,10 @@ a library change, run the library's `copy-into.sh .` from this repo, run
 `npm test` (`tests/test-media-player.js` fails on a copy that differs from the
 checksums), then bump.
 See [docs/architecture.md](docs/architecture.md), "The shared media player".
+`fuseki-stats.js`, the usage-statistics client, is likewise a byte-for-byte copy
+of fuseki4_ai's `setup/apps/fuseki-stats.js`, checked against
+`fuseki-stats.sha256`; never edit it here
+([docs/architecture.md](docs/architecture.md), "Usage statistics").
 
 ## Deployment
 

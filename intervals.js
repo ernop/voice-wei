@@ -330,7 +330,7 @@
         if (!notes) return null;
         if (state.reverse) notes.reverse();
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, notes };
+        return { description: desc, levelId: level.id, notes };
     }
 
     function generateClusterInstance(scale, dpOct) {
@@ -359,7 +359,7 @@
         if (!notes) return null;
         if (state.reverse) notes.reverse();
         const desc = state.reverse ? gen.label + ' rev' : gen.label;
-        return { description: desc, notes };
+        return { description: desc, levelId: level.id, notes };
     }
 
     // ---- DISPLAY ----
@@ -527,7 +527,9 @@
                 btn.setAttribute('aria-pressed', String(open));
                 document.getElementById('intervalsSingDock')?.classList.toggle('open', open);
             },
-            progressTool: 'intervals-sing'
+            progressTool: 'intervals-sing',
+            // The sung pattern's own level: the selection may change mid-take.
+            statsMode: () => `intervals-${currentInstance.levelId}`
         });
 
         // Named state inspection for the test suite (deterministic

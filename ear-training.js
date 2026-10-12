@@ -93,6 +93,8 @@ class EarTrainingController {
         this.awaitingAnswer = false;
         /** @type {boolean} */
         this.answered = false;
+        /** @type {number} performance.now() when the current question began */
+        this.questionStartedAt = 0;
 
         // Phase tracking for "both" mode
         /** @type {'idle' | 'identifying' | 'singing'} */
@@ -632,6 +634,7 @@ class EarTrainingController {
         // Reset state
         this.awaitingAnswer = false;
         this.answered = false;
+        this.questionStartedAt = performance.now();
         this.phase = 'idle';
         this.singCompleted = false;
         this.singGoodSamples = 0;
@@ -725,9 +728,13 @@ class EarTrainingController {
     }
 
     skipInterval() {
-        // Handle skip during identify phase
-        if (this.phase === 'identifying' && this.currentInterval) {
+        // Skipping an unanswered question settles it as missed. After an
+        // answer the result already stands; skipping only moves on.
+        if (this.phase === 'identifying' && this.awaitingAnswer && !this.answered && this.currentInterval) {
+            this.answered = true;
+            this.awaitingAnswer = false;
             this.recordResult(this.currentInterval, false, 'skipped');
+            this.reportQuestion(false);
             this.revealAnswer();
         }
         // Handle skip during sing phase
@@ -748,6 +755,9 @@ class EarTrainingController {
         this.answered = true;
         this.awaitingAnswer = false;
         const correct = answer === this.currentInterval;
+        // In Identify and Both mode the identification is the question's
+        // statistics result; Both's sing phase is not part of it.
+        this.reportQuestion(correct);
 
         // Visual feedback
         this.highlightAnswer(answer, correct);
@@ -834,6 +844,22 @@ class EarTrainingController {
         // Update displays
         this.updateStatsDisplay();
         this.updateBreakdownDisplay();
+    }
+
+    /**
+     * One usage-statistics round per settled question.
+     * @param {boolean} correct
+     */
+    reportQuestion(correct) {
+        try {
+            if (window.FusekiStats) window.FusekiStats.game({
+                m: `ears-${this.mode}`,
+                r: correct ? 'pass' : 'fail',
+                d: (performance.now() - this.questionStartedAt) / 1000
+            });
+        } catch (error) {
+            // Statistics must never break the app (owner, 2026-10-11).
+        }
     }
 
     /**
@@ -1053,6 +1079,7 @@ class EarTrainingController {
                 this.recordResult(this.currentInterval, false, reason || 'failed');
             }
         }
+        if (this.mode === 'sing') this.reportQuestion(success);
 
         // Auto-advance after sing mode completes
         if (this.autoAdvance) {

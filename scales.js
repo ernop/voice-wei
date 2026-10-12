@@ -313,7 +313,8 @@ class ScalesController {
             contentDurationMs: () => this.singContentDurationMs(),
             playNote: (midi, durationSec) => this.audio.piano?.playMidi(midi, durationSec),
             onOpenChange: open => this.syncSingButton(open),
-            progressTool: 'scales-sing'
+            progressTool: 'scales-sing',
+            statsMode: () => 'scales'
         });
 
         // The Sing button is a toggle: open the panel, or dismiss it.

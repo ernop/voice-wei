@@ -1420,3 +1420,27 @@ to him (how he changes songs; whether the YouTube app does it too).
 - The Log answers most device questions. `Playback diagnostic` lines carry
   `keepAlive=`, timestamped YouTube states (buffering gaps), and the
   network; the session-start line carries the user agent.
+
+## 2026-10-11 - Usage statistics on every page (committed, not deployed)
+
+yui decided that each of his fuseki.net apps reports usage statistics to its
+own server (decision: product-goals, "Usage statistics"). Voice-Wei vendors
+fuseki4_ai's client, composes its engaged check from the sound and microphone
+owners (`usage-stats.js`), and sends one round per sing take, Pitch session,
+and Ears question. Committed locally only: the server endpoint was not live.
+
+**For future mei**:
+- The client keeps ONE engaged check per page; a second registration
+  replaces the first. Extend `usage-stats.js`, never register elsewhere.
+- After a page's first tap the media-session keep-alive loops silence until
+  `clearTrack()`, so `navigator.mediaSession.playbackState` says 'playing'
+  and an `<audio>` plays even on Scales or Intervals, which never report.
+  Read `getReportedPlaybackState()` and skip `[data-media-session-keep-alive]`.
+- The client samples the check every 5 s; "sounding this instant" misses
+  drill silences, hence the 5 s piano recency.
+- The client silently drops an invalid field value. `tests/test-usage-stats.js`
+  serves the tree as https://fuseki.net/voice-wei/ through routing to read
+  the real pings; check new fields there.
+- Found, not fixed (yui's call): Ears Both mode never adds a correct
+  identification to the lifetime stats (tools.md, Ears). Skip after an
+  answer used to record a second result; fixed, since a question has one.

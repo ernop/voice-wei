@@ -1,0 +1,18 @@
+id: fuseki-stats-calls-in-try
+message: Calls into FusekiStats (fuseki-stats.js) go inside a try block - statistics must never break or slow the app (docs/architecture.md, "Usage statistics").
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/fuseki-stats.js"
+  - "**/tests/**"
+rule:
+  any:
+    - pattern: FusekiStats.$METHOD($$$ARGS)
+    - pattern: $OWNER.FusekiStats.$METHOD($$$ARGS)
+  not:
+    inside:
+      kind: try_statement
+      stopBy: end
+note: "The owner directed (2026-10-11) that statistics never break or slow the app. A FusekiStats call is the one place a silent catch is required: the client is vendored, and a missing or failing client must be invisible to the page."

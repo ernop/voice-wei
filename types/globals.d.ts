@@ -82,6 +82,7 @@ interface Window {
     PlayerHistoryUI?: typeof PlayerHistoryUI;
     PlayerLifecycle?: PlayerLifecycleApi;
     MediaSessionCore?: MediaSessionCoreApi;
+    UsageStats?: { engaged: () => boolean };
     PitchTestPanel?: any;
     DiagLog?: any;
     ProgressStore?: any;
@@ -243,6 +244,7 @@ interface MediaSessionCoreApi {
     clearTrack(): void;
     setPlaybackState(state: MediaSessionPlaybackState): void;
     getPlaybackState(): MediaSessionPlaybackState | 'unavailable';
+    getReportedPlaybackState(): MediaSessionPlaybackState | null;
     getKeepAliveState(): 'absent' | 'playing' | 'paused' | 'disabled';
 }
 
