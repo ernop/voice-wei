@@ -1081,3 +1081,25 @@ and the expansion lists - is appended to **`coolness-log.jsonl`**, the
 append-only session log (one JSON object per line; the tool only ever
 opens it in append mode, and the test suite proves consecutive runs
 accumulate lines), so no output is ever lost.
+
+## Games (Find)
+
+One projection puzzle, on its own tab, `games.html`. Fill the eight
+letters in the right-hand column. Six colored rows on the left each
+read three of those letters: the top line of a color is the first
+letter, the bottom line is the last. The rows are animal, verb,
+transportation, food, furniture, and verb again, and the lines overlap,
+so one letter is part of several words.
+
+The score is the sum of the rows and it updates on every edit. A row
+scores one point per letter when the three letters are a word in that
+category, and one point per matching letter when they only partly
+spell one. Empty cells score nothing. The words shown on the row are
+the category spellings that earn that row's points (up to eight, then
+a `+N` count). A letter none of those spellings has in that place is
+marked red.
+
+The letters persist on the device (`voice-wei:games-find`). Clear
+letters empties the column. There is no second puzzle on the page.
+The wiring and the category word lists live in `find-puzzle.js`; the
+known filled solution of this puzzle scores 18.

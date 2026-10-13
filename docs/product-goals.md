@@ -45,6 +45,7 @@ and deliver a weaker version of the requested change.
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw voice/typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
 | Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
 | Wording | Score how cool a word sounds and coin new words from two word sets | Cool-sounding words outrank bland, gross, and unpronounceable ones; coined words are genuinely new, read as one word, and rank by how they sound when spoken |
+| Games | Play the Find projection puzzle | The eight letters project through the six category lines, the score updates on each edit, and each row names the closest category spellings |
 
 Removed tabs: **Articles** (dictating blog drafts into the Fuseki editor)
 was removed for the moment on 2026-10-06 by owner direction. Its page,
@@ -114,8 +115,8 @@ and completed exercises with results. His own use is included.
     percent).
   - Ears question: `m` = `ears-identify`, `ears-sing`, or `ears-both`;
     `r=pass` or `fail`. In Both mode the identification decides it.
-  - Trace, Staff, Lyrics, Books, and Wording have no scored round; their use
-    shows in play and time only.
+  - Trace, Staff, Lyrics, Books, Wording, and Games have no scored round; their use
+    shows in play and time only. The Find score stays on the page.
 - **Never sent**: song titles, lyrics, book text, voice prompts or
   transcripts, API keys, or anything typed or said. Voice-Wei sends only
   numbers and fixed mode and result tokens, and the client drops every value

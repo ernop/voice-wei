@@ -53,6 +53,7 @@ interface Window {
     StorageKeys?: any;
     CoolnessScore?: any;
     CoolnessCombine?: any;
+    FindPuzzle?: FindPuzzleApi;
     LegacyStorageKeys?: any;
     ApiKeysStore?: any;
     PlayerApiKeys?: any;
@@ -209,6 +210,33 @@ interface Window {
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;
     normalizeModifier?: (spoken: string | null | undefined) => string | null;
+}
+
+interface FindPuzzleApi {
+    readonly LEXICON: Readonly<Record<string, readonly string[]>>;
+    readonly PUZZLE: {
+        readonly id: string;
+        readonly slotCount: number;
+        readonly constraints: ReadonlyArray<{
+            readonly category: string;
+            readonly color: string;
+            readonly slots: readonly number[];
+        }>;
+    };
+    project: (letters: readonly string[], slots: readonly number[]) => string[];
+    scoreProjection: (category: string, projected: readonly string[]) => { score: number; words: string[] };
+    letterMarks: (projected: readonly string[], words: readonly string[]) => Array<'empty' | 'match' | 'miss'>;
+    scoreBoard: (letters: readonly string[]) => {
+        total: number;
+        rows: Array<{
+            category: string;
+            color: string;
+            slots: readonly number[];
+            projected: string[];
+            score: number;
+            words: string[];
+        }>;
+    };
 }
 
 interface MediaSessionTrackIdentity {

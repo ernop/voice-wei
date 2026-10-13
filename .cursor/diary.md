@@ -4,6 +4,32 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-10-13 (Games tab, one Find puzzle)
+
+**Context**: Yui asked for the single projection puzzle in the screenshot
+(Dana Moshkovitz, puzzle 1) as a playable Games tab, with spelling
+assistance and a score that updates on its own.
+
+**Design**: `find-puzzle.js` owns the wiring, the lexicon, and the score.
+The eight targets and six constraints are the connectors on slide 3 of
+`play.pptx`, checked against the filled solution c s c a r o t y
+(cat, say, car, soy, cot, cry, 18). Letter order is top-to-bottom on the
+right column. A row scores the best in-place overlap with its category
+list; those words are the spelling line. "mcogee" did not match a library
+or a tool in the repo, so the assistance is that overlap, not a second
+spelling engine. Only this puzzle is on the page. Yui asked for this one.
+
+**For future mei**:
+- Do not add the other slides unless yui asks. The pptx has puzzles 2-4.
+- The lexicon is the score. Adding a word changes which partials pay.
+  `tests/test-find-puzzle.js` locks the solution at 18 and the published
+  bat / cab / bed examples.
+- Furniture's line color is white because the source line is gray and
+  gray text is forbidden. The category label is white with the other
+  neutral text.
+
+---
+
 ## 2026-09-27 (atomic releases, HEAD-only deploys, job-level concurrency)
 
 **Context**: Yui approved all six audit proposals. The host side (nginx,

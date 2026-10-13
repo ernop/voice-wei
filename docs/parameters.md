@@ -483,6 +483,16 @@ opening or restarting it only resets the trace and starts listening.
 that plays the enabled targets in the current key. The action row sits
 at the very top of the panel, above the titles.
 
+## Games (`voice-wei:games-find`, games.html)
+
+The Find board has no settings. The eight letters persist per device.
+
+| Option | Default | Behavior |
+|--------|---------|----------|
+| letters (8 cells, one a-z or empty) | empty | recompute every row and the total immediately; reload restores the same letters |
+
+Clear letters empties the column and saves that empty board.
+
 ## Wording (`voice-wei:coolness-lab`, wording.html)
 
 | Option | Default | Behavior |

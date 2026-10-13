@@ -45,6 +45,7 @@ language (chips, steppers, transport buttons) aimed at phone-in-car use.
 | **Ears** | Same Intervals page in ear mode (`ears.html` redirects); adaptive weighting toward weak intervals. |
 | **Music** | Speak a natural request ("play some jazz"); Claude builds a playlist; YouTube plays; lyrics and car media keys keep hands free. |
 | **Books** | Import ebook / URL metabook → local library → read and/or generate OpenAI TTS audio that resumes where it stopped. |
+| **Games** | Fill the eight letters of the Find projection puzzle; the score and the closest category spellings update as you type. |
 
 ### Experience principles (what it feels like)
 
@@ -141,6 +142,7 @@ Voice / click / media keys
 | Pitch | `pitch-meter.html` + `pitch-meter.js` | Free / C&R / play-along |
 | Music | `player.html` + `player.js` + `player-*.js` | `VoiceMusicController` composed from mixins |
 | Books | `ebook.html` + `ebook.js` | Local library in IndexedDB `voice-wei-books` |
+| Games | `games.html` + `games.js` | Find puzzle wiring and lexicon in `find-puzzle.js` |
 | Deploys | `deploys.html` | Ops chart, not a practice tool |
 
 ### Shared libraries (the real architecture)

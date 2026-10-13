@@ -24,6 +24,7 @@ ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html/js/css       # Lyrics: keyless music player (player-*.js modules)
 ebook.html/js/css        # Ebook to audiobook
 wording.html             # Word lab: coolness scorer + word combiner (coolness-*.js)
+games.html/js/css        # Games: Find projection puzzle (find-puzzle.js)
 deploys.html/js          # Deploy duration telemetry
 ```
 
@@ -1182,6 +1183,28 @@ the interchange.
 User-facing behavior: "Wording" in [tools.md](tools.md); settings in
 [parameters.md](parameters.md).
 
+## Games (Find)
+
+The Games tab (`games.html`) plays one projection puzzle. `find-puzzle.js`
+owns the wiring, the category lexicon, and the score. `games.js` only
+draws the board and writes the eight letters.
+
+- **One puzzle.** The constraints are Dana Moshkovitz's first projection
+  puzzle: eight letters, six rows (animal, verb, transportation, food,
+  furniture, verb). Each row reads three letters. Letter order is the
+  top-to-bottom order of those targets on the right column, taken from
+  the connectors on slide 3 of her `play.pptx` (the filled solution is
+  c s c a r o t y, spelling cat, say, car, soy, cot, cry).
+- **Score is positional overlap.** A row scores the best number of
+  in-place matches against its category lexicon. Empty cells match
+  nothing. The total is the sum, recomputed on every edit.
+- **Spelling assistance is that same overlap.** The words that achieve
+  the best score are the ones shown on the row. A filled letter that
+  none of those words has in that place is a miss.
+
+User-facing behavior: "Games" in [tools.md](tools.md); the saved letters
+in [parameters.md](parameters.md).
+
 ## Testing
 
 `npm test` is the whole gate: every suite, every product, one command,
@@ -1198,7 +1221,7 @@ monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-playback-engine`, `test-staff-view`, `test-staff-page`, `test-pages-load`,
 `test-player-startup`, `test-player-lifecycle`, `test-proxy`, `test-deploy`,
-`test-coolness`, `test-media-player`, `test-usage-stats`, `test-syntax`, and
+`test-coolness`, `test-find-puzzle`, `test-media-player`, `test-usage-stats`, `test-syntax`, and
 `test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one suite
 while iterating.
 
