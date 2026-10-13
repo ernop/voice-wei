@@ -1198,9 +1198,9 @@ draws the board and writes the eight letters.
 - **Score is positional overlap.** A row scores the best number of
   in-place matches against its category lexicon. Empty cells match
   nothing. The total is the sum, recomputed on every edit.
-- **Spelling assistance is that same overlap.** The words that achieve
-  the best score are the ones shown on the row. A filled letter that
-  none of those words has in that place is a miss.
+- **No suggestions.** The lexicon never reaches the page. No word list,
+  no "closest spelling," no right/wrong color on a letter. The left
+  cells and the right column are two editors of the same eight letters.
 
 User-facing behavior: "Games" in [tools.md](tools.md); the saved letters
 in [parameters.md](parameters.md).

@@ -4,6 +4,23 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-10-13 (Find: no suggestions, type on the left)
+
+**Context**: Yui saw the spelling line (cat, cow, cub) and said we may
+not offer suggestions. Never. Also type in the left cells, and cut the
+long explanation.
+
+**Design**: the lexicon stays inside `find-puzzle.js` as the score.
+`games.js` renders numbers and letters only. A left cell writes the
+right-hand letter its line touches, so shared letters stay one value.
+The lead is "Top line first. One point per match."
+
+**For future mei**: do not put category words, closest-match lists, or
+right/wrong letter colors back on the page. The score number is the
+feedback.
+
+---
+
 ## 2026-10-13 (Games tab, one Find puzzle)
 
 **Context**: Yui asked for the single projection puzzle in the screenshot

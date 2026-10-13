@@ -6,8 +6,8 @@
 // them, top target first, into a category word on the left.
 //
 // Score, from the puzzle page: a category word scores 1 per letter, and a
-// partial spelling scores 1 per letter that matches in place. The words
-// that earn that best overlap are the spelling assistance.
+// partial spelling scores 1 per letter that matches in place. The lexicon
+// is for scoring only. The page never lists those words.
 //-----------------------------------------------------------------------
 
 const FindPuzzle = (function () {
@@ -105,8 +105,8 @@ const FindPuzzle = (function () {
 
     /**
      * Best in-place overlap between the projected letters and the category.
-     * Empty cells never match. Words that tie for the best overlap are the
-     * spellings to show; a zero overlap lists none.
+     * Empty cells never match. Tied words stay inside the score; callers
+     * must not show them. A zero overlap lists none.
      * @param {string} category
      * @param {readonly string[]} projected
      * @returns {{ score: number, words: string[] }}

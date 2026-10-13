@@ -45,7 +45,7 @@ and deliver a weaker version of the requested change.
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw voice/typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
 | Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
 | Wording | Score how cool a word sounds and coin new words from two word sets | Cool-sounding words outrank bland, gross, and unpronounceable ones; coined words are genuinely new, read as one word, and rank by how they sound when spoken |
-| Games | Play the Find projection puzzle | The eight letters project through the six category lines, the score updates on each edit, and each row names the closest category spellings |
+| Games | Play the Find projection puzzle | The eight letters project through the six category lines, either side edits a letter, and the score updates on each edit. The page never names a category word |
 
 Removed tabs: **Articles** (dictating blog drafts into the Fuseki editor)
 was removed for the moment on 2026-10-06 by owner direction. Its page,

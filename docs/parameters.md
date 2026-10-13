@@ -491,7 +491,9 @@ The Find board has no settings. The eight letters persist per device.
 |--------|---------|----------|
 | letters (8 cells, one a-z or empty) | empty | recompute every row and the total immediately; reload restores the same letters |
 
-Clear letters empties the column and saves that empty board.
+The left cells edit these same eight letters. Clear letters empties
+them and saves that empty board. The category lists are not a setting
+and are never shown.
 
 ## Wording (`voice-wei:coolness-lab`, wording.html)
 

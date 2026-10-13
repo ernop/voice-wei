@@ -38,11 +38,6 @@
     line-height: 1.4;
 }
 
-.find-credit {
-    color: #fff;
-    font-weight: 700;
-}
-
 .find-clear {
     margin-top: 12px;
 }
@@ -115,26 +110,15 @@
     gap: 4px;
 }
 
-.find-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: clamp(1.45rem, 5.5vw, 2rem);
-    height: clamp(1.9rem, 7vw, 2.4rem);
-    flex: 0 0 auto;
-    border: 2px solid #fff;
-    border-radius: var(--radius-control);
-    background: rgba(0, 0, 0, 0.35);
-    color: #fff;
+.find-cells .text-input {
+    width: clamp(1.7rem, 6vw, 2.2rem);
+    height: clamp(2rem, 7vw, 2.5rem);
+    padding: 0;
     font-size: 1.25rem;
     font-weight: 800;
     line-height: 1;
-}
-
-.find-cell.is-miss {
-    border-color: #ff4d4d;
-    background: #c4001a;
-    color: #fff;
+    text-align: center;
+    text-transform: uppercase;
 }
 
 .find-points {
@@ -152,17 +136,6 @@
     flex: 0 0 auto;
     font-size: clamp(0.82rem, 3.1vw, 1.05rem);
     font-weight: 800;
-    line-height: 1;
-}
-
-.find-spell {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 9rem;
-    overflow-x: auto;
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
     line-height: 1;
 }
 

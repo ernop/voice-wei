@@ -1,7 +1,7 @@
 // @ts-check
-// Find puzzle: the score is positional overlap with the category lexicon,
-// and the Games page shows that score and the closest spellings as the
-// letters change.
+// Find puzzle: the score is positional overlap with the category lexicon.
+// The page shows that score and never names a category word. Left cells
+// edit the same letters as the right column.
 
 const fs = require('fs');
 const path = require('path');
@@ -103,10 +103,20 @@ async function fillLetters(tab, letters) {
     report.check('the board is the letter column, not the viewport',
         layout.boardHeight > 280 && layout.boardHeight < 640);
 
+    const lead = await tab.locator('.find-lead').innerText();
+    report.check('lead is one short line', lead.length < 50 && !/closest|suggest|spelling/i.test(lead));
+    report.check('no suggestion element', await tab.locator('.find-spell').count() === 0);
+
     await fillLetters(tab, SOLUTION);
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '18');
-    const hints = await tab.locator('.find-spell').allTextContents();
-    report.check('spellings show cat say car soy cot cry', hints.join(' ') === 'cat say car soy cot cry');
+    const leaked = await tab.evaluate(() => {
+        const categories = new Set(['animal', 'verb', 'transportation', 'food', 'furniture']);
+        return Array.from(document.querySelectorAll('#findConstraints *'))
+            .filter(node => node.childElementCount === 0)
+            .map(node => (node.textContent || '').trim().toLowerCase())
+            .filter(text => text.length > 1 && !categories.has(text) && !/^\d+$/.test(text));
+    });
+    report.check('a finished board names no category words', leaked.length === 0);
     const saved = await tab.evaluate(() => {
         const raw = localStorage.getItem('voice-wei:games-find');
         return raw ? JSON.parse(raw).data.letters.join('') : '';
@@ -115,11 +125,17 @@ async function fillLetters(tab, letters) {
 
     await tab.locator('[data-slot="5"]').fill('e');
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '16');
-    const miss = await tab.evaluate(() => {
-        const row = document.querySelectorAll('.find-row')[4];
-        return Array.from(row.querySelectorAll('.find-cell')).map(cell => cell.className).join(' ');
+    const marked = await tab.locator('.is-miss, .is-match').count();
+    report.check('partial letters are not marked right or wrong', marked === 0);
+
+    await tab.locator('[data-row="0"][data-letter="0"]').fill('b');
+    await tab.waitForFunction(() => {
+        const right = document.querySelector('[data-slot="0"]');
+        const shared = document.querySelector('[data-row="4"][data-letter="0"]');
+        return right instanceof HTMLInputElement && shared instanceof HTMLInputElement
+            && right.value === 'b' && shared.value === 'b';
     });
-    report.check('mismatched furniture letter is marked', miss.includes('is-miss'));
+    report.check('typing on the left writes the shared letter', true);
 
     await tab.click('#findClear');
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '0');

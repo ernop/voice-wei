@@ -45,7 +45,7 @@ language (chips, steppers, transport buttons) aimed at phone-in-car use.
 | **Ears** | Same Intervals page in ear mode (`ears.html` redirects); adaptive weighting toward weak intervals. |
 | **Music** | Speak a natural request ("play some jazz"); Claude builds a playlist; YouTube plays; lyrics and car media keys keep hands free. |
 | **Books** | Import ebook / URL metabook → local library → read and/or generate OpenAI TTS audio that resumes where it stopped. |
-| **Games** | Fill the eight letters of the Find projection puzzle; the score and the closest category spellings update as you type. |
+| **Games** | Fill the eight letters of the Find projection puzzle from either side; the score updates as you type, and no category word is named. |
 
 ### Experience principles (what it feels like)
 

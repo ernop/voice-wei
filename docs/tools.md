@@ -1084,22 +1084,18 @@ accumulate lines), so no output is ever lost.
 
 ## Games (Find)
 
-One projection puzzle, on its own tab, `games.html`. Fill the eight
-letters in the right-hand column. Six colored rows on the left each
-read three of those letters: the top line of a color is the first
-letter, the bottom line is the last. The rows are animal, verb,
-transportation, food, furniture, and verb again, and the lines overlap,
-so one letter is part of several words.
+One projection puzzle, on its own tab, `games.html`. Eight letters.
+Each colored row reads three of them, top line first, and a letter can
+sit on more than one row. Type a letter on the right or in the left
+cell its line touches; both edit that same letter.
 
 The score is the sum of the rows and it updates on every edit. A row
-scores one point per letter when the three letters are a word in that
-category, and one point per matching letter when they only partly
-spell one. Empty cells score nothing. The words shown on the row are
-the category spellings that earn that row's points (up to eight, then
-a `+N` count). A letter none of those spellings has in that place is
-marked red.
+scores one point per letter of a category word, and one point per
+matching letter of a partial spelling. Empty cells score nothing.
+The page shows the numbers only. It never names a category word, and
+it never marks a letter right or wrong.
 
 The letters persist on the device (`voice-wei:games-find`). Clear
-letters empties the column. There is no second puzzle on the page.
-The wiring and the category word lists live in `find-puzzle.js`; the
-known filled solution of this puzzle scores 18.
+letters empties them. There is no second puzzle. The wiring and the
+category lists live in `find-puzzle.js`. The lists are how the score
+is computed. They are not a hint surface.
