@@ -485,15 +485,18 @@ at the very top of the panel, above the titles.
 
 ## Games (`voice-wei:games-find`, games.html)
 
-The Find board has no settings. The eight letters persist per device.
+The Find boards have no settings. Each puzzle's eight letters persist
+per device, and so does which puzzle is open.
 
 | Option | Default | Behavior |
 |--------|---------|----------|
-| letters (8 cells, one a-z or empty) | empty | recompute every row and the total immediately; reload restores the same letters |
+| puzzle (1-11) | 1 | the number row switches boards; reload reopens that puzzle |
+| boards (11 columns of 8 cells, one a-z or empty) | empty | recompute every row and the total of the open puzzle immediately; each puzzle keeps its own letters |
 
-The left cells edit these same eight letters. Clear letters empties
-them and saves that empty board. The category lists are not a setting
-and are never shown.
+The left cells edit the open puzzle's eight letters. Clear letters
+empties that puzzle and saves the empty column. A save from before the
+number row, which stored only `letters`, loads as puzzle 1. The
+category lists are not a setting and are never shown.
 
 ## Wording (`voice-wei:coolness-lab`, wording.html)
 

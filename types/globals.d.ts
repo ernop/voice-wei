@@ -212,21 +212,24 @@ interface Window {
     normalizeModifier?: (spoken: string | null | undefined) => string | null;
 }
 
+interface FindPuzzleBoard {
+    readonly id: string;
+    readonly slotCount: number;
+    readonly constraints: ReadonlyArray<{
+        readonly category: string;
+        readonly color: string;
+        readonly slots: readonly number[];
+    }>;
+}
+
 interface FindPuzzleApi {
     readonly LEXICON: Readonly<Record<string, readonly string[]>>;
-    readonly PUZZLE: {
-        readonly id: string;
-        readonly slotCount: number;
-        readonly constraints: ReadonlyArray<{
-            readonly category: string;
-            readonly color: string;
-            readonly slots: readonly number[];
-        }>;
-    };
+    readonly PUZZLES: readonly FindPuzzleBoard[];
+    readonly PUZZLE: FindPuzzleBoard;
     project: (letters: readonly string[], slots: readonly number[]) => string[];
     scoreProjection: (category: string, projected: readonly string[]) => { score: number; words: string[] };
     letterMarks: (projected: readonly string[], words: readonly string[]) => Array<'empty' | 'match' | 'miss'>;
-    scoreBoard: (letters: readonly string[]) => {
+    scoreBoard: (letters: readonly string[], puzzle?: FindPuzzleBoard) => {
         total: number;
         rows: Array<{
             category: string;

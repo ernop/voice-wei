@@ -4,6 +4,29 @@ Entries are mei writing to future mei. The human can read this too.
 
 ---
 
+## 2026-10-15 (Ten more Find puzzles)
+
+**Context**: Yui asked for about ten more Find puzzles, and only if a
+fully careful way to make them existed.
+
+**Design**: The lexicon stayed frozen. A wiring counts when it has eight
+letters, the same six categories in the same order, every letter on at
+least two lines, one connected figure, and exactly one column that
+scores 18 with a different category word on every line. Puzzle 1 already
+meets that (its column is the only perfect one). Ten more did too, and
+none is a relabeling of another. Wirings with zero or two perfect
+columns were dropped. The columns are locked in
+`tests/test-find-puzzle.js` and are not in `find-puzzle.js`, so the page
+cannot show them. The number row switches puzzles. Each puzzle keeps
+its letters. An older `{ letters }` save is puzzle 1.
+
+**For future mei**: Do not add a lexicon word; it changes which partials
+pay, including on puzzle 1. Do not put the perfect columns, or any
+category word, on the page. Do not ship a puzzle whose best score is
+under 18.
+
+---
+
 ## 2026-10-13 (Find: no suggestions, type on the left)
 
 **Context**: Yui saw the spelling line (cat, cow, cub) and said we may

@@ -1185,22 +1185,34 @@ User-facing behavior: "Wording" in [tools.md](tools.md); settings in
 
 ## Games (Find)
 
-The Games tab (`games.html`) plays one projection puzzle. `find-puzzle.js`
-owns the wiring, the category lexicon, and the score. `games.js` only
-draws the board and writes the eight letters.
+The Games tab (`games.html`) plays eleven projection puzzles.
+`find-puzzle.js` owns the wirings, the category lexicon, and the score.
+`games.js` draws the open board and writes its eight letters.
 
-- **One puzzle.** The constraints are Dana Moshkovitz's first projection
+- **Puzzle 1 is the source puzzle.** Dana Moshkovitz's first projection
   puzzle: eight letters, six rows (animal, verb, transportation, food,
   furniture, verb). Each row reads three letters. Letter order is the
   top-to-bottom order of those targets on the right column, taken from
   the connectors on slide 3 of her `play.pptx` (the filled solution is
   c s c a r o t y, spelling cat, say, car, soy, cot, cry).
+- **Ten further puzzles, same lexicon.** Yui asked for more only if a
+  careful construction existed. Each added puzzle keeps those six
+  categories in that order, uses eight letters, puts every letter on at
+  least two lines, and connects the eight letters into one figure. A
+  search against the frozen lexicon found exactly one column that scores
+  18, with a different category word on every line. A wiring with no
+  such column, or with two, was rejected. None is a relabeling of
+  another. The lexicon did not grow: adding a word would change which
+  partials pay on puzzle 1. The perfect columns are locked in
+  `tests/test-find-puzzle.js` and are not stored in the page script.
 - **Score is positional overlap.** A row scores the best number of
   in-place matches against its category lexicon. Empty cells match
   nothing. The total is the sum, recomputed on every edit.
 - **No suggestions.** The lexicon never reaches the page. No word list,
   no "closest spelling," no right/wrong color on a letter. The left
   cells and the right column are two editors of the same eight letters.
+  The number row switches puzzles. Each puzzle keeps its own letters.
+  An older save that stored only `letters` is puzzle 1.
 
 User-facing behavior: "Games" in [tools.md](tools.md); the saved letters
 in [parameters.md](parameters.md).

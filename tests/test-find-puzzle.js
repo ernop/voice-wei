@@ -10,6 +10,21 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
 
 const SOLUTION = ['c', 's', 'c', 'a', 'r', 'o', 't', 'y'];
 
+/** Letter columns that score 18. The page must not render these. */
+const SOLUTIONS = {
+    'projection-1': SOLUTION,
+    'projection-2': ['j', 'p', 'e', 'w', 'a', 'e', 'y', 't'],
+    'projection-3': ['p', 'v', 'e', 'o', 'a', 'n', 'w', 't'],
+    'projection-4': ['s', 'c', 'o', 'o', 'a', 't', 'w', 'b'],
+    'projection-5': ['s', 'p', 'o', 'e', 'w', 'u', 'p', 'b'],
+    'projection-6': ['c', 'p', 'j', 'e', 'a', 'o', 't', 't'],
+    'projection-7': ['t', 'h', 'r', 'u', 'a', 'g', 'g', 'm'],
+    'projection-8': ['b', 'r', 'p', 'i', 'i', 'e', 'g', 'd'],
+    'projection-9': ['b', 'r', 'e', 'd', 'i', 'p', 'i', 'g'],
+    'projection-10': ['r', 'b', 'i', 'e', 'd', 'g', 'e', 'g'],
+    'projection-11': ['r', 'c', 't', 'o', 'w', 'u', 'b', 'g']
+};
+
 function loadPuzzle() {
     const code = fs.readFileSync(path.join(__dirname, '..', 'find-puzzle.js'), 'utf8');
     const context = { window: /** @type {any} */ ({}) };
@@ -49,6 +64,23 @@ async function fillLetters(tab, letters) {
         && partial.rows[4].projected.join('') === 'cet');
     report.check('furniture e is a miss against cot',
         FindPuzzle.letterMarks(partial.rows[4].projected, partial.rows[4].words).join(',') === 'match,miss,match');
+
+    report.check('eleven boards, puzzle 1 first',
+        FindPuzzle.PUZZLES.length === 11 && FindPuzzle.PUZZLE === FindPuzzle.PUZZLES[0]);
+    const wiringKeys = FindPuzzle.PUZZLES.map(puzzle => puzzle.constraints.map(row => row.slots.join(',')).sort().join('|'));
+    report.check('each wiring is its own', new Set(wiringKeys).size === FindPuzzle.PUZZLES.length);
+    FindPuzzle.PUZZLES.forEach(puzzle => {
+        const letters = SOLUTIONS[puzzle.id];
+        const perfect = FindPuzzle.scoreBoard(letters, puzzle);
+        const spelled = perfect.rows.map(row => row.words[0]);
+        const degree = Array.from({ length: 8 }, () => 0);
+        puzzle.constraints.forEach(row => row.slots.forEach(slot => { degree[slot]++; }));
+        report.check(`${puzzle.id} scores 18 on one word per line`,
+            perfect.total === 18
+            && perfect.rows.every(row => row.score === 3 && row.words.length === 1 && row.projected.join('') === row.words[0])
+            && new Set(spelled).size === 6
+            && degree.every(count => count >= 2));
+    });
 
     const bat = FindPuzzle.scoreProjection('animal', ['b', 'a', 't']);
     const cab = FindPuzzle.scoreProjection('transportation', ['c', 'a', 'b']);
@@ -106,6 +138,18 @@ async function fillLetters(tab, letters) {
     const lead = await tab.locator('.find-lead').innerText();
     report.check('lead is one short line', lead.length < 50 && !/closest|suggest|spelling/i.test(lead));
     report.check('no suggestion element', await tab.locator('.find-spell').count() === 0);
+    const chips = await tab.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('#findPuzzles .vf-btn'));
+        const tops = buttons.map(node => node.getBoundingClientRect().top);
+        return {
+            count: buttons.length,
+            labels: buttons.map(node => (node.textContent || '').trim()).join(''),
+            oneLine: tops.length > 0 && Math.max(...tops) - Math.min(...tops) < 2,
+            selected: buttons.filter(node => node.classList.contains('selected')).map(node => node.getAttribute('data-puzzle'))
+        };
+    });
+    report.check('eleven puzzle numbers on one line',
+        chips.count === 11 && chips.labels === '1234567891011' && chips.oneLine && chips.selected.join(',') === 'projection-1');
 
     await fillLetters(tab, SOLUTION);
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '18');
@@ -119,9 +163,11 @@ async function fillLetters(tab, letters) {
     report.check('a finished board names no category words', leaked.length === 0);
     const saved = await tab.evaluate(() => {
         const raw = localStorage.getItem('voice-wei:games-find');
-        return raw ? JSON.parse(raw).data.letters.join('') : '';
+        if (!raw) return '';
+        const data = JSON.parse(raw).data;
+        return data.puzzleId === 'projection-1' && data.boards ? data.boards['projection-1'].join('') : '';
     });
-    report.check('letters persist', saved === 'cscaroty');
+    report.check('letters persist on puzzle 1', saved === 'cscaroty');
 
     await tab.locator('[data-slot="5"]').fill('e');
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '16');
@@ -166,13 +212,76 @@ async function fillLetters(tab, letters) {
     report.check('reloaded letter still scores', phone.score === '2');
     report.check('rows stay one line', phone.rowNowrap);
 
+    const phoneChips = await tab.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('#findPuzzles .vf-btn'));
+        const tops = buttons.map(node => node.getBoundingClientRect().top);
+        return {
+            oneLine: tops.length === 11 && Math.max(...tops) - Math.min(...tops) < 2,
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+        };
+    });
+    report.check('puzzle numbers stay one line on a phone', phoneChips.oneLine && phoneChips.overflow === false);
     await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone.png', fullPage: true });
+
+    await tab.locator('[data-puzzle="projection-2"]').click();
+    await tab.waitForFunction(() => {
+        const lines = Array.from(document.querySelectorAll('#findLines line'))
+            .filter(node => node.getAttribute('data-row') === '0')
+            .map(node => node.getAttribute('data-target'));
+        return document.getElementById('findScore')?.textContent === '0'
+            && lines.join(',') === '0,4,6';
+    });
+    const puzzleTwo = await tab.evaluate(() => {
+        const categories = new Set(['animal', 'verb', 'transportation', 'food', 'furniture']);
+        const leaked = Array.from(document.querySelectorAll('#findConstraints *'))
+            .filter(node => node.childElementCount === 0)
+            .map(node => (node.textContent || '').trim().toLowerCase())
+            .filter(text => text.length > 1 && !categories.has(text) && !/^\d+$/.test(text));
+        return {
+            leaked: leaked.length,
+            selected: document.querySelector('#findPuzzles .vf-btn.selected')?.getAttribute('data-puzzle') || '',
+            slot: document.querySelector('[data-slot="0"]') instanceof HTMLInputElement
+                ? document.querySelector('[data-slot="0"]').value
+                : ''
+        };
+    });
+    report.check('puzzle 2 opens empty and names no words',
+        puzzleTwo.leaked === 0 && puzzleTwo.selected === 'projection-2' && puzzleTwo.slot === '');
+    await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone-puzzle-2.png', fullPage: true });
+
+    await tab.locator('[data-puzzle="projection-1"]').click();
+    await tab.waitForFunction(() => document.querySelector('[data-slot="0"]')?.value === 'c'
+        && document.getElementById('findScore')?.textContent === '2');
+    report.check('puzzle 1 keeps its letter', true);
+
     await fillLetters(tab, SOLUTION);
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '18');
     await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone-solved.png', fullPage: true });
     await tab.setViewportSize({ width: 1280, height: 900 });
     await tab.waitForFunction(() => document.querySelectorAll('#findLines line').length === 18);
     await tab.screenshot({ path: '/opt/cursor/artifacts/find-desktop-solved.png', fullPage: true });
+
+    const legacy = await browser.newPage();
+    collectErrors(legacy, 'games.html', pageErrors);
+    await legacy.goto(`${BASE_URL}/games.html`, { waitUntil: 'networkidle', timeout: 30000 });
+    await legacy.evaluate(() => {
+        localStorage.setItem('voice-wei:games-find', JSON.stringify({
+            v: '1',
+            data: { letters: ['q', '', '', '', '', '', '', ''] }
+        }));
+    });
+    await legacy.reload({ waitUntil: 'networkidle' });
+    await legacy.waitForFunction(() => document.querySelector('[data-slot="0"]')?.value === 'q');
+    const migrated = await legacy.evaluate(() => {
+        const data = JSON.parse(localStorage.getItem('voice-wei:games-find') || '{}').data;
+        return {
+            puzzleId: data.puzzleId,
+            letters: data.boards && data.boards['projection-1'] ? data.boards['projection-1'].join('') : '',
+            keptOldKey: Object.prototype.hasOwnProperty.call(data, 'letters')
+        };
+    });
+    report.check('an older save stays on puzzle 1',
+        migrated.puzzleId === 'projection-1' && migrated.letters === 'q' && migrated.keptOldKey === false);
 
     const home = await browser.newPage();
     collectErrors(home, 'index.html', pageErrors);

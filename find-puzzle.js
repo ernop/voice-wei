@@ -1,9 +1,12 @@
 // @ts-check
 //-----------------------------------------------------------------------
 // FIND PUZZLE
-// Dana Moshkovitz's first projection puzzle (play.pptx slide 2, solution
-// on slide 3). Eight letters on the right. Each constraint reads three of
-// them, top target first, into a category word on the left.
+// Eight letters on the right. Each constraint reads three of them, top
+// target first, into a category word on the left. Puzzle 1 is Dana
+// Moshkovitz's first projection puzzle (play.pptx slide 2, solution on
+// slide 3). The other ten use the same categories and the same lexicon,
+// with a different wiring. Each has one column that scores 18. Those
+// columns live in the test, not here, so the page cannot show them.
 //
 // Score, from the puzzle page: a category word scores 1 per letter, and a
 // partial spelling scores 1 per letter that matches in place. The lexicon
@@ -42,21 +45,43 @@ const FindPuzzle = (function () {
         furniture: Object.freeze(['bed', 'cot', 'pew', 'rug'])
     });
 
+    const CATEGORIES = Object.freeze(['animal', 'verb', 'transportation', 'food', 'furniture', 'verb']);
+    const COLORS = Object.freeze(['#ff4d4d', '#5dff8a', '#ffd000', '#4da3ff', '#ffffff', '#d28bff']);
+
+    /**
+     * @param {string} id
+     * @param {readonly (readonly number[])[]} wirings
+     */
+    function makePuzzle(id, wirings) {
+        return Object.freeze({
+            id,
+            slotCount: 8,
+            constraints: Object.freeze(wirings.map((slots, index) => Object.freeze({
+                category: CATEGORIES[index],
+                color: COLORS[index],
+                slots: Object.freeze(slots)
+            })))
+        });
+    }
+
     // Slot indexes are top-to-bottom on the right column, which is the
-    // letter order. Read off the slide connectors (solution cat/say/car/
-    // soy/cot/cry against letters c,s,c,a,r,o,t,y).
-    const PUZZLE = Object.freeze({
-        id: 'projection-1',
-        slotCount: 8,
-        constraints: Object.freeze([
-            Object.freeze({ category: 'animal', color: '#ff4d4d', slots: Object.freeze([0, 3, 6]) }),
-            Object.freeze({ category: 'verb', color: '#5dff8a', slots: Object.freeze([1, 3, 7]) }),
-            Object.freeze({ category: 'transportation', color: '#ffd000', slots: Object.freeze([2, 3, 4]) }),
-            Object.freeze({ category: 'food', color: '#4da3ff', slots: Object.freeze([1, 5, 7]) }),
-            Object.freeze({ category: 'furniture', color: '#ffffff', slots: Object.freeze([0, 5, 6]) }),
-            Object.freeze({ category: 'verb', color: '#d28bff', slots: Object.freeze([2, 4, 7]) })
-        ])
-    });
+    // letter order. Puzzle 1 is the slide connectors. Each later wiring
+    // was accepted only when one assignment scored 18, every letter sat
+    // on at least two lines, and the figure was connected.
+    const PUZZLES = Object.freeze([
+        makePuzzle('projection-1', [[0, 3, 6], [1, 3, 7], [2, 3, 4], [1, 5, 7], [0, 5, 6], [2, 4, 7]]),
+        makePuzzle('projection-2', [[0, 4, 6], [1, 4, 6], [0, 5, 7], [1, 2, 4], [1, 2, 3], [3, 5, 7]]),
+        makePuzzle('projection-3', [[4, 5, 7], [1, 3, 6], [1, 4, 5], [3, 4, 7], [0, 2, 6], [0, 2, 7]]),
+        makePuzzle('projection-4', [[0, 3, 6], [0, 4, 6], [1, 4, 7], [2, 4, 5], [1, 2, 5], [0, 3, 7]]),
+        makePuzzle('projection-5', [[1, 5, 6], [0, 2, 7], [0, 5, 7], [1, 2, 6], [1, 3, 4], [0, 3, 4]]),
+        makePuzzle('projection-6', [[0, 4, 6], [1, 3, 7], [2, 3, 6], [1, 3, 4], [0, 5, 6], [2, 5, 7]]),
+        makePuzzle('projection-7', [[2, 4, 7], [1, 3, 5], [0, 3, 5], [1, 4, 7], [2, 3, 6], [0, 4, 6]]),
+        makePuzzle('projection-8', [[2, 3, 6], [1, 4, 7], [1, 3, 6], [2, 3, 5], [0, 5, 7], [0, 4, 7]]),
+        makePuzzle('projection-9', [[5, 6, 7], [0, 2, 7], [1, 6, 7], [3, 4, 5], [0, 2, 3], [1, 4, 5]]),
+        makePuzzle('projection-10', [[1, 3, 6], [0, 2, 4], [0, 2, 5], [3, 5, 7], [1, 3, 4], [1, 6, 7]]),
+        makePuzzle('projection-11', [[1, 3, 4], [0, 3, 6], [2, 5, 7], [1, 3, 6], [0, 5, 7], [2, 3, 4]])
+    ]);
+    const PUZZLE = PUZZLES[0];
 
     function assertPuzzle() {
         const categories = Object.keys(LEXICON);
@@ -72,25 +97,68 @@ const FindPuzzle = (function () {
                 seen.add(word);
             });
         });
-        if (PUZZLE.constraints.length === 0) {
-            throw new Error('Find puzzle has no constraints');
+        if (PUZZLES.length === 0 || PUZZLE !== PUZZLES[0] || PUZZLE.id !== 'projection-1') {
+            throw new Error('Find puzzle 1 must stay first');
         }
-        PUZZLE.constraints.forEach(constraint => {
-            if (!Object.prototype.hasOwnProperty.call(LEXICON, constraint.category)) {
-                throw new Error(`Find puzzle category "${constraint.category}" has no lexicon`);
+        const ids = new Set();
+        const wirings = new Set();
+        PUZZLES.forEach(puzzle => {
+            if (ids.has(puzzle.id)) throw new Error(`Find puzzle id ${puzzle.id} repeats`);
+            ids.add(puzzle.id);
+            if (puzzle.slotCount !== 8 || puzzle.constraints.length !== CATEGORIES.length) {
+                throw new Error(`Find puzzle ${puzzle.id} is not an eight-letter, six-line board`);
             }
-            if (constraint.slots.length !== 3) {
-                throw new Error(`Find constraint ${constraint.category} must read 3 letters`);
-            }
-            for (let i = 0; i < constraint.slots.length; i++) {
-                const slot = constraint.slots[i];
-                if (slot < 0 || slot >= PUZZLE.slotCount) {
-                    throw new Error(`Find constraint ${constraint.category} slot ${slot} is outside the column`);
+            const degree = Array.from({ length: puzzle.slotCount }, () => 0);
+            const lines = new Set();
+            puzzle.constraints.forEach((constraint, index) => {
+                if (constraint.category !== CATEGORIES[index] || constraint.color !== COLORS[index]) {
+                    throw new Error(`Find puzzle ${puzzle.id} line ${index + 1} drifted from the row order`);
                 }
-                if (i > 0 && slot <= constraint.slots[i - 1]) {
-                    throw new Error(`Find constraint ${constraint.category} slots must run top to bottom`);
+                if (!Object.prototype.hasOwnProperty.call(LEXICON, constraint.category)) {
+                    throw new Error(`Find puzzle category "${constraint.category}" has no lexicon`);
                 }
+                if (constraint.slots.length !== 3) {
+                    throw new Error(`Find constraint ${constraint.category} must read 3 letters`);
+                }
+                for (let i = 0; i < constraint.slots.length; i++) {
+                    const slot = constraint.slots[i];
+                    if (slot < 0 || slot >= puzzle.slotCount) {
+                        throw new Error(`Find puzzle ${puzzle.id} slot ${slot} is outside the column`);
+                    }
+                    if (i > 0 && slot <= constraint.slots[i - 1]) {
+                        throw new Error(`Find puzzle ${puzzle.id} slots must run top to bottom`);
+                    }
+                    degree[slot]++;
+                }
+                const lineKey = constraint.slots.join(',');
+                if (lines.has(lineKey)) throw new Error(`Find puzzle ${puzzle.id} repeats a line`);
+                lines.add(lineKey);
+            });
+            degree.forEach((count, slot) => {
+                if (count < 2) {
+                    throw new Error(`Find puzzle ${puzzle.id} letter ${slot + 1} is on fewer than two lines`);
+                }
+            });
+            const parent = Array.from({ length: puzzle.slotCount }, (_, slot) => slot);
+            const find = (/** @type {number} */ slot) => {
+                let at = slot;
+                while (parent[at] !== at) {
+                    parent[at] = parent[parent[at]];
+                    at = parent[at];
+                }
+                return at;
+            };
+            puzzle.constraints.forEach(constraint => {
+                parent[find(constraint.slots[1])] = find(constraint.slots[0]);
+                parent[find(constraint.slots[2])] = find(constraint.slots[0]);
+            });
+            const root = find(0);
+            for (let slot = 1; slot < puzzle.slotCount; slot++) {
+                if (find(slot) !== root) throw new Error(`Find puzzle ${puzzle.id} leaves a letter disconnected`);
             }
+            const wiring = puzzle.constraints.map(constraint => constraint.slots.join(',')).sort().join('|');
+            if (wirings.has(wiring)) throw new Error(`Find puzzle ${puzzle.id} repeats another wiring`);
+            wirings.add(wiring);
         });
     }
 
@@ -151,13 +219,14 @@ const FindPuzzle = (function () {
 
     /**
      * @param {readonly string[]} letters
+     * @param {{ id: string, slotCount: number, constraints: readonly { category: string, color: string, slots: readonly number[] }[] }} [puzzle]
      * @returns {{ total: number, rows: Array<{ category: string, color: string, slots: readonly number[], projected: string[], score: number, words: string[] }> }}
      */
-    function scoreBoard(letters) {
-        if (!Array.isArray(letters) || letters.length !== PUZZLE.slotCount) {
-            throw new Error(`Find board needs ${PUZZLE.slotCount} letters`);
+    function scoreBoard(letters, puzzle = PUZZLE) {
+        if (!Array.isArray(letters) || letters.length !== puzzle.slotCount) {
+            throw new Error(`Find board needs ${puzzle.slotCount} letters`);
         }
-        const rows = PUZZLE.constraints.map(constraint => {
+        const rows = puzzle.constraints.map(constraint => {
             const projected = project(letters, constraint.slots);
             const scored = scoreProjection(constraint.category, projected);
             return {
@@ -177,6 +246,7 @@ const FindPuzzle = (function () {
 
     return Object.freeze({
         LEXICON,
+        PUZZLES,
         PUZZLE,
         project,
         scoreProjection,

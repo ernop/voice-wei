@@ -142,7 +142,7 @@ Voice / click / media keys
 | Pitch | `pitch-meter.html` + `pitch-meter.js` | Free / C&R / play-along |
 | Music | `player.html` + `player.js` + `player-*.js` | `VoiceMusicController` composed from mixins |
 | Books | `ebook.html` + `ebook.js` | Local library in IndexedDB `voice-wei-books` |
-| Games | `games.html` + `games.js` | Find puzzle wiring and lexicon in `find-puzzle.js` |
+| Games | `games.html` + `games.js` | Eleven Find puzzles; wiring and lexicon in `find-puzzle.js` |
 | Deploys | `deploys.html` | Ops chart, not a practice tool |
 
 ### Shared libraries (the real architecture)

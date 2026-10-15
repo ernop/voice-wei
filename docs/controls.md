@@ -128,9 +128,10 @@ inside collapsed Advanced/Audio details. No new button dialect is introduced.
 ## Other pages
 
 - `index.html`: card links only, no buttons.
-- `games.html`: one `secondary-btn` (Clear letters). The right column
-  and the left cells are `text-input`s sized as single letters. A left
-  cell edits the right letter its line touches.
+- `games.html`: a `segment-row` of `vf-btn` chips (puzzles 1-11, one
+  line, `.selected` on the open puzzle) and one `secondary-btn` (Clear
+  letters). The right column and the left cells are `text-input`s sized
+  as single letters. A left cell edits the right letter its line touches.
 - `deploys.html`: one `quick-action-btn` (Refresh) - retires with the
   player's class into `secondary-btn`.
 - `shared-header.js`: emits `settings-btn` and `footer-btn` (site chrome).
