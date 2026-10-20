@@ -4,6 +4,7 @@
 // edit the same letters as the right column.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
@@ -221,7 +222,7 @@ async function fillLetters(tab, letters) {
         };
     });
     report.check('puzzle numbers stay one line on a phone', phoneChips.oneLine && phoneChips.overflow === false);
-    await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone.png', fullPage: true });
+    await tab.screenshot({ path: path.join(os.tmpdir(), 'find-phone.png'), fullPage: true });
 
     await tab.locator('[data-puzzle="projection-2"]').click();
     await tab.waitForFunction(() => {
@@ -247,7 +248,7 @@ async function fillLetters(tab, letters) {
     });
     report.check('puzzle 2 opens empty and names no words',
         puzzleTwo.leaked === 0 && puzzleTwo.selected === 'projection-2' && puzzleTwo.slot === '');
-    await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone-puzzle-2.png', fullPage: true });
+    await tab.screenshot({ path: path.join(os.tmpdir(), 'find-phone-puzzle-2.png'), fullPage: true });
 
     await tab.locator('[data-puzzle="projection-1"]').click();
     await tab.waitForFunction(() => document.querySelector('[data-slot="0"]')?.value === 'c'
@@ -256,10 +257,10 @@ async function fillLetters(tab, letters) {
 
     await fillLetters(tab, SOLUTION);
     await tab.waitForFunction(() => document.getElementById('findScore')?.textContent === '18');
-    await tab.screenshot({ path: '/opt/cursor/artifacts/find-phone-solved.png', fullPage: true });
+    await tab.screenshot({ path: path.join(os.tmpdir(), 'find-phone-solved.png'), fullPage: true });
     await tab.setViewportSize({ width: 1280, height: 900 });
     await tab.waitForFunction(() => document.querySelectorAll('#findLines line').length === 18);
-    await tab.screenshot({ path: '/opt/cursor/artifacts/find-desktop-solved.png', fullPage: true });
+    await tab.screenshot({ path: path.join(os.tmpdir(), 'find-desktop-solved.png'), fullPage: true });
 
     const legacy = await browser.newPage();
     collectErrors(legacy, 'games.html', pageErrors);
