@@ -56,7 +56,87 @@ interface Song {
     durationSeconds: number;
 }
 
-type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'share' | 'demo' | 'backfill';
+type PlaylistSourceKind = 'search' | 'favorite' | 'restored' | 'history' | 'share' | 'demo' | 'backfill' | 'youtube';
+
+/** A pasted link the YouTube list card opens (player-youtube-lists.js). */
+type YouTubeListLink =
+    | { kind: 'channel'; text: string; url: string; section: string }
+    | { kind: 'playlist'; text: string; playlistId: string };
+
+/** One video as proxy.php's youtube mode lists it. */
+interface YouTubeListVideo {
+    videoId: string;
+    title: string;
+    channelTitle: string;
+    duration: string;
+    published: string;
+}
+
+/** One playlist or release as proxy.php's youtube mode lists it. */
+interface YouTubeListPlaylist {
+    playlistId: string;
+    title: string;
+    videoCount: number | null;
+}
+
+/** A channel section: an upload playlist (videos, popular, live) or a list of playlists (releases, playlists). */
+interface YouTubeListSection {
+    key: string;
+    title: string;
+    playlistId?: string;
+}
+
+/** The videos of one playlist in the YouTube list card. */
+interface YouTubeVideoList {
+    kind: 'videos';
+    key: string;
+    playlistId: string;
+    title: string;
+    ownerTitle: string;
+    videoCount: number | null;
+    /** The release title when opened from Releases; it becomes each song's album. */
+    album: string;
+    videos: YouTubeListVideo[];
+    continuation: string | null;
+    picked: Set<string>;
+    loaded: boolean;
+    loading: boolean;
+    loadingAll: boolean;
+    stopLoadingAll: boolean;
+    note: string;
+    error: string;
+}
+
+/** A channel's Playlists or Releases in the YouTube list card. */
+interface YouTubePlaylistList {
+    kind: 'playlists';
+    key: string;
+    title: string;
+    playlists: YouTubeListPlaylist[];
+    continuation: string | null;
+    loaded: boolean;
+    loading: boolean;
+    note: string;
+    error: string;
+}
+
+type YouTubeList = YouTubeVideoList | YouTubePlaylistList;
+
+/** The open YouTube list card: one per pasted link, dropped on Close. */
+interface YouTubeListState {
+    link: YouTubeListLink;
+    channel: { id: string; title: string; handle: string } | null;
+    sections: YouTubeListSection[];
+    lists: Map<string, YouTubeList>;
+    /** The highlighted section, the list on screen, and the list Back returns to ('' when none). */
+    sectionKey: string;
+    shownKey: string;
+    backKey: string;
+    /** The card's title filter, normalized. */
+    filter: string;
+    /** Why the link could not be opened at all. */
+    error: string;
+}
 
 type PlaylistSortKey = 'artist' | 'year';
 
@@ -594,6 +674,11 @@ interface VoiceMusicController {
     addKnownSongsToPlaylist(songs: any[]): void;
     loadCachedSearchFirstResult(query: string): Promise<void>;
     refreshCachedSearchQuery(query: string): Promise<void>;
+
+    youtubeList: YouTubeListState | null;
+    setupYouTubeListUI(): void;
+    openYouTubeListLink(link: YouTubeListLink): Promise<void>;
+    closeYouTubeList(): void;
 
     currentLyricsItem(): PlaylistItem | null;
     playingPlaylistItem(): PlaylistItem | null;

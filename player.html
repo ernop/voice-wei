@@ -235,6 +235,34 @@
                         </div>
                     </section>
 
+                    <section class="player-card youtube-list-card" id="youtubeListCard" aria-labelledby="youtubeListTitle"
+                        hidden>
+                        <div class="youtube-list-header">
+                            <h2 class="player-card-title youtube-list-title" id="youtubeListTitle">YouTube</h2>
+                            <span class="youtube-list-owner" id="youtubeListOwner"></span>
+                            <button id="youtubeListCloseBtn" class="panel-action-btn" type="button">Close</button>
+                        </div>
+                        <div class="segment-row youtube-list-sections" id="youtubeListSections" hidden></div>
+                        <div class="youtube-list-subheader" id="youtubeListSubheader" hidden>
+                            <button id="youtubeListBackBtn" class="panel-action-btn" type="button">Back</button>
+                            <h3 class="youtube-list-subtitle" id="youtubeListSubtitle"></h3>
+                        </div>
+                        <div class="youtube-list-toolbar" id="youtubeListToolbar" hidden>
+                            <input type="search" id="youtubeListFilterInput" class="text-input youtube-list-filter"
+                                placeholder="Filter titles" aria-label="Filter this YouTube list">
+                            <button id="youtubeListPickShownBtn" class="panel-action-btn" type="button">Pick shown</button>
+                            <button id="youtubeListPickNoneBtn" class="panel-action-btn" type="button">Pick none</button>
+                        </div>
+                        <div class="youtube-list-status" id="youtubeListStatus" role="status"></div>
+                        <div class="youtube-list-rows" id="youtubeListRows"></div>
+                        <div class="youtube-list-actions">
+                            <button id="youtubeListPlayBtn" class="primary-btn" type="button" hidden>Play</button>
+                            <button id="youtubeListAddBtn" class="secondary-btn" type="button" hidden>Add</button>
+                            <button id="youtubeListMoreBtn" class="secondary-btn" type="button" hidden>Load 100 more</button>
+                            <button id="youtubeListAllBtn" class="secondary-btn" type="button" hidden>Load all</button>
+                        </div>
+                    </section>
+
                     <section class="player-card playlist-container" id="playlistContainer" aria-labelledby="playlistLabel">
                         <div class="playlist-header">
                             <h2 class="player-card-title" id="playlistLabel">Playlist</h2>
@@ -496,6 +524,7 @@
     <script src="player-song-report.js?v=367"></script>
     <script src="player-song-library.js?v=367"></script>
     <script src="player-history-ui.js?v=367"></script>
+    <script src="player-youtube-lists.js?v=367"></script>
     <script src="player.js?v=367"></script>
 </body>
 

@@ -81,6 +81,7 @@ interface Window {
     PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
+    PlayerYouTubeLists?: typeof PlayerYouTubeLists;
     PlayerLifecycle?: PlayerLifecycleApi;
     MediaSessionCore?: MediaSessionCoreApi;
     UsageStats?: { engaged: () => boolean };

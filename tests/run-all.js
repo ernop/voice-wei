@@ -31,6 +31,7 @@ const PARALLEL_SUITES = [
     'test-player-ui.js',
     'test-scales-trace.js',
     'test-player-search.js',
+    'test-player-youtube.js',
     'test-player-report.js',
     'test-player-lifecycle.js',
     'test-proxy.js',

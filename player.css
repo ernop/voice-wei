@@ -608,6 +608,211 @@ body[data-page="music"] .header-lyric-line {
     gap: 8px;
 }
 
+/* ---------------- YouTube list (a pasted channel or playlist link) ---------------- */
+
+.youtube-list-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.youtube-list-card[hidden],
+.youtube-list-card [hidden] {
+    display: none;
+}
+
+.youtube-list-header,
+.youtube-list-subheader {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.youtube-list-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.youtube-list-owner {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.youtube-list-header .panel-action-btn {
+    flex: none;
+    margin-left: auto;
+    min-height: 40px;
+}
+
+.youtube-list-subheader {
+    align-items: center;
+}
+
+.youtube-list-subheader .panel-action-btn {
+    flex: none;
+    min-height: 40px;
+}
+
+.youtube-list-subtitle {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.youtube-list-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.youtube-list-filter {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.95rem;
+    padding: 8px 12px;
+}
+
+.youtube-list-toolbar .panel-action-btn {
+    flex: none;
+    min-height: 40px;
+}
+
+.youtube-list-status {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+.youtube-list-value {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.youtube-list-error {
+    font-weight: 700;
+    color: #fca5a5;
+}
+
+.youtube-list-rows {
+    display: flex;
+    flex-direction: column;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* One line per entry: [pick] Title  other channel ...... 3h ago  27:30
+   or, for a playlist:   Title ................ 15 videos [Open] */
+.youtube-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 2px;
+    border-bottom: 1px solid rgba(74, 222, 128, 0.16);
+    color: #fff;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.youtube-list-row:hover {
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.youtube-list-row input[type="checkbox"] {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: #22c55e;
+}
+
+.youtube-list-row-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.youtube-list-row-channel {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 30%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.youtube-list-row-age {
+    flex: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.youtube-list-row-duration {
+    flex: none;
+    min-width: 3.4em;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.youtube-list-row-count {
+    flex: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.youtube-list-row-count .youtube-list-value {
+    font-size: 0.95rem;
+}
+
+.youtube-list-playlist-row .panel-action-btn {
+    flex: none;
+    min-height: 36px;
+}
+
+/* Play / Add / Load: big enough to hit blind, two per row on phones. */
+.youtube-list-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.youtube-list-actions > * {
+    min-height: 48px;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+@media (min-width: 700px) {
+    .youtube-list-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
 /* ---------------- Playlist ---------------- */
 
 .playlist-container {

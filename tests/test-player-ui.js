@@ -107,6 +107,29 @@ const TRANSITION_SONGS = [
 // A blank timed line between two sung ones, the second long enough to wrap.
 const TRANSITION_LYRICS = '[00:02.90]first line\n[00:03.20]\n[00:03.50]second line with quite a few more words than the first one had, so it wraps';
 
+// One channel for the YouTube list card's display rules: titles long enough
+// to trim at phone width, a guest video (its channel cell shows), and more
+// pages (the load buttons show).
+const YOUTUBE_LIST_ANSWERS = {
+    channel: {
+        channel: { id: 'UCuitestchannel000000000', title: 'UI Test Channel', handle: '@uitest' },
+        sections: [
+            { key: 'videos', title: 'Videos', playlistId: 'UULFuitestchannel000000000' },
+            { key: 'playlists', title: 'Playlists' }
+        ],
+        playlists: [{ playlistId: 'PLuitest0001', title: 'A playlist with a title long enough to trim at phone width', videoCount: 1234 }],
+        continuation: 'UI-TEST-PLAYLISTS-PAGE-2'
+    },
+    playlist: {
+        playlist: { title: 'Videos', ownerTitle: 'UI Test Channel', videoCount: 250 },
+        videos: [
+            { videoId: 'uitestvid01', title: 'UI Test Channel - A video title long enough to trim at phone width', channelTitle: 'UI Test Channel', duration: '1:02:03', published: '2 weeks ago' },
+            { videoId: 'uitestvid02', title: 'A guest video', channelTitle: 'Guest Channel With A Long Name', duration: '3:04', published: 'Streamed 5 years ago' }
+        ],
+        continuation: 'UI-TEST-VIDEOS-PAGE-2'
+    }
+};
+
 /**
  * Play from rest, then Next, with a tap each (a tap is when the reported
  * jump happened, so layout shifts right after input count too). The first
@@ -287,6 +310,10 @@ async function playTransition(browser, viewport, errors) {
             syncedLyrics: entry.lyrics === 'timed' ? '[00:10.00]first line\n[00:20.00]second line' : null
         }];
         route.fulfill({ contentType: 'application/json', body: JSON.stringify(records) });
+    });
+    await ctx.route(/\/proxy\.php\?.*youtube=/, route => {
+        const operation = new URL(route.request().url()).searchParams.get('youtube') || '';
+        route.fulfill({ contentType: 'application/json', body: JSON.stringify(YOUTUBE_LIST_ANSWERS[operation]) });
     });
     // The car's next button reaches the page as a Media Session action, and
     // any media element pause is recorded for the song-change checks.
@@ -473,6 +500,31 @@ async function playTransition(browser, viewport, errors) {
         && displayRules.plainHeights.length === SONGS.length
         && displayRules.plainHeights.every(height => height <= 48)
         && displayRules.notesHeights.join() === displayRules.plainHeights.join());
+
+    // ---- The YouTube list card, videos (one picked) and playlists alike.
+    const youtubeRules = await tab.evaluate(async () => {
+        const c = window.musicController;
+        const link = PlayerYouTubeLists.parseLink('https://www.youtube.com/@uitest');
+        if (!link) return null;
+        await c.openYouTubeListLink(link);
+        /** @type {HTMLInputElement} */ (document.querySelector('#youtubeListRows [data-youtube-pick]')).click();
+        const heights = () => Array.from(document.querySelectorAll('#youtubeListRows .youtube-list-row'))
+            .map(row => Math.round(row.getBoundingClientRect().height));
+        const videoHeights = heights();
+        const videoOffenders = window.__scanGrayText();
+        /** @type {HTMLElement} */ (document.querySelector('[data-youtube-section="playlists"]')).click();
+        const playlistHeights = heights();
+        const playlistOffenders = window.__scanGrayText();
+        c.closeYouTubeList();
+        return { videoHeights, playlistHeights, offenders: [...videoOffenders, ...playlistOffenders] };
+    });
+    report.check(`the YouTube list card has no gray text and one-line rows (${youtubeRules
+        ? `${youtubeRules.videoHeights.join('/')}px videos, ${youtubeRules.playlistHeights.join('/')}px playlists; ${youtubeRules.offenders.slice(0, 4).join('; ') || 'no offenders'}`
+        : 'the link did not parse'})`,
+        youtubeRules !== null
+        && youtubeRules.videoHeights.length === 2 && youtubeRules.playlistHeights.length === 1
+        && [...youtubeRules.videoHeights, ...youtubeRules.playlistHeights].every(height => height <= 48)
+        && youtubeRules.offenders.length === 0);
 
     // ---- Star from the now-playing card; every view follows.
     const nowPlayingStar = await tab.evaluate(() => {

@@ -232,6 +232,7 @@ class VoiceMusicController {
         PlayerSongReport.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);
+        PlayerYouTubeLists.install(this);
         PlayerLifecycle.start(this, text => {
             this.addMessage('claude', 'Playback diagnostic', text);
         });
@@ -1097,6 +1098,7 @@ class VoiceMusicController {
 
         this.setupSongLibraryUI();
         this.setupMusicHistoryUI();
+        this.setupYouTubeListUI();
 
         // The now-playing card: star, song nav (prev/play/next), within-song
         // seek (±5/±30 + jump-to-first-lyric), and the current-song button.
@@ -1413,7 +1415,12 @@ class VoiceMusicController {
 
         // No refocus after the search returns: grabbing the text box would
         // pop the keyboard / steal focus mid-listen on the results.
-        if (useAi) {
+        // A lone channel or playlist link opens the YouTube list card from
+        // either button: neither a search nor AI page reading can list it.
+        const youtubeListLink = PlayerYouTubeLists.parseLink(textToSubmit);
+        if (youtubeListLink) {
+            await this.openYouTubeListLink(youtubeListLink);
+        } else if (useAi) {
             await this.processMusicSearch(textToSubmit);
         } else {
             await this.processDirectMusicSearch(textToSubmit);
