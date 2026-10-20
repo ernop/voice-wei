@@ -38,9 +38,13 @@ requirement not written here does not exist.
    paths. (fuseki.net's root sends `microphone=()`; the voice-wei
    location must stay exempt.)
 5. **PHP execution for `proxy.php`** (one file), with outbound network
-   access — keyless music search and Books/webpage/PDF import go through
-   it. Keyless is part of the product contract
-   (`.cursor/rules/12-migration-contract.mdc`).
+   access — keyless music search, YouTube channel and playlist listing, and
+   Books/webpage/PDF import go through it. Keyless is part of the product
+   contract (`.cursor/rules/12-migration-contract.mdc`). PHP's system temp
+   directory (`sys_get_temp_dir()`, `/tmp` on the current host, inside the
+   pool's `open_basedir`) must be writable: the YouTube listing keeps its
+   shared answer cache and outbound request budget there. Its contents are
+   disposable; losing them only costs fresh calls.
 6. **Tenant directory integrity.** Host-side deploys (the fuseki.net site
    generator, config pushes) must never delete or rewrite files inside
    the voice-wei directory. On the current host this is structural, not

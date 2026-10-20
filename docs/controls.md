@@ -76,6 +76,11 @@ Report), a `step-field` (Every), `primary-btn` (Request Song Report), and a
 `vf-btn` toggle (Report Text); Share song is a `secondary-btn`. Search is a
 `primary-btn`, Ask AI a `secondary-btn`, and the Ask AI model pills a
 `segment-row` inside a fold-out whose closed line names the current model.
+The YouTube list card (a pasted channel or playlist link opens it) uses a
+`segment-row` of `vf-btn` sections; `panel-action-btn` for Close, Back, Pick
+shown, Pick none, and each playlist row's Open; a `text-input` filter; native
+checkboxes as row pick boxes; `primary-btn` (Play); and `secondary-btn` (Add,
+Load 100 more, Load all).
 Big Lyrics display options are labeled `segment-row`s (Width, Align,
 Spacing, Backdrop) and a Size `step-field` showing the percentage. The Log
 header and the key/settings actions use `panel-action-btn`.

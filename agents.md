@@ -202,7 +202,8 @@ Running the app (this is a static front-end, no build step):
 
 - `php -S 127.0.0.1:8000` from the repo root is the preferred way to serve
   locally, because it serves the static pages **and** executes `proxy.php`
-   (keyless music/lyrics search plus the Books webpage/PDF import backend).
+   (keyless music/lyrics search, YouTube channel and playlist listing, and the
+   Books webpage/PDF import backend).
    `python3 -m http.server 8000` works for the practice tools, but Music search
    and Books URL import will not run.
 - The test suite starts its own server on port 8000 (or reuses one already

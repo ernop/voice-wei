@@ -17,7 +17,7 @@ default; set `CHROME_PATH` only to force a specific binary.
 
 ## Run locally
 
-Canonical (serves static pages, keyless music search, and the Books URL importer):
+Canonical (serves static pages, keyless music search and YouTube channel listing, and the Books URL importer):
 
 ```bash
 php -S 127.0.0.1:8000
@@ -35,6 +35,8 @@ Music needs one Claude or OpenAI key for request interpretation. Books needs
 OpenAI for generated speech. Each AI key is entered in Settings and stored
 only in that browser. YouTube search needs no key: the same-origin PHP endpoint
 queries Piped/Invidious, with IndexedDB search results retained for outages.
+Channel and playlist listing needs none either: the same endpoint reads
+YouTube's public web listing, cached and budgeted on the server.
 
 ## How deploy works
 

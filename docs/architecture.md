@@ -10,7 +10,8 @@ Static site, no build step. Each tab is an `.html` + `.js` (+ `.css`) trio
 loading shared libraries via script tags. Cache busting via `?v=NN`
 (see Version System in the README). `proxy.php` is the only server-side piece:
 it provides keyless Piped/Invidious music search, fixed-provider LRCLIB
-search, and same-origin webpage/PDF imports for Books and linked-page requests.
+search, keyless YouTube channel and playlist listing, and same-origin
+webpage/PDF imports for Books and linked-page requests.
 
 ```
 index.html               # Home: cards for every tool
@@ -153,7 +154,7 @@ with `outcome=reloaded`, or `outcome=declined,reason=...` (`keep-alive-paused`,
 `already-continued-this-hidden-period`). `tests/test-player-lifecycle.js`
 drives a YouTube stand-in with the measured state orders and time-0 window.
 
-### Server proxy boundary (URL import, lyrics search)
+### Server proxy boundary (URL import, lyrics search, YouTube listing)
 
 The URL importer accepts only same-origin GET requests. It resolves and pins
 every outbound hostname before connecting, rejects private/reserved addresses
@@ -181,6 +182,30 @@ page, not silently degraded text. Plain-text pages keep their own lines. The
 answer also carries the page's parsed JSON-LD blocks as `structuredData`
 (each client takes what it can use), and text is truncated at a UTF-8
 character boundary so `json_encode` cannot fail.
+
+YouTube listing (`proxy.php?youtube=channel|releases|playlist|more`, client
+`player-youtube-lists.js`) backs the YouTube list card. The browser names a
+channel link, a channel ID, a playlist ID, or a next-page token, each
+validated before any cache, budget, or network work; the server always calls
+`www.youtube.com/youtubei/v1/` (`browse`, and `navigation/resolve_url` for
+handles), the keyless API youtube.com's own pages use, with its public web
+client context, no API key, no cookie, and no User-Agent. A channel's
+Videos, Popular, and Live are its `UULF`, `UULP`, and `UULV` upload playlists
+(the channel ID with `UC` replaced), so every video list pages the same way.
+Answers are reduced to what the card shows (about 15 KB per 100 videos) and
+kept in a shared cache in the system temp directory (`voice-wei-youtube/`):
+six hours for listings, 30 days for a handle's channel ID; a day-old stamp
+lets the next write sweep expired entries. Every outbound call spends one
+budget shared by all browsers, two fixed windows of 30 calls a minute and 300
+an hour behind a file lock. YouTube publishes no limit for this API, so the
+budget is a politeness cap. A call past it is refused with 429, `Retry-After`,
+and the wait in the message, never queued or retried; the card shows it. In
+the browser, each page loads once per open card, and nothing retries. There
+is no second provider: an unknown channel or playlist is a 404 naming it, and
+an answer whose list no longer parses is a 502 saying YouTube's format
+changed, the cue to update the parsers or the client version constant
+(`tests/fixtures/youtube/` holds trimmed real answers the parsers are tested
+against).
 
 ## Change stance: owner direction before continuity
 
@@ -1129,7 +1154,7 @@ in `types/`, required fields for required data, a throwing constructor.
 The music player is one controller (`VoiceMusicController` in `player.js`)
 composed from feature modules that mix their methods onto it via
 `Object.assign(controller, ...)` (commands, playlist, lyrics, song-report,
-song-library, history-ui). All of these are `@ts-check`, not `@ts-nocheck`: each install
+song-library, history-ui, youtube-lists). All of these are `@ts-check`, not `@ts-nocheck`: each install
 wraps its method object in `/** @type {ThisType<VoiceMusicController>} */` so
 `this` is the controller type inside every method, and the controller's full
 surface is declared in `types/player.d.ts` (merged with the `class`). Playback

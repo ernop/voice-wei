@@ -304,6 +304,45 @@ checked against this list, and new standing intent gets added here.
    > hit play, as the height of the 'currently playing' section momentarily
    > goes to 0 lines. B. Can the left/right and other track positioning
    > stuff & controls be located close to the track timeline?
+14. **A whole channel or playlist is one paste.** A YouTube channel link
+   (`youtube.com/@name`, `/channel/UC...`, `/c/...`, `/user/...`, or a
+   channel tab such as `/@name/videos`) or playlist link (including a video
+   link carrying `&list=`), pasted on its own into Find music, opens a
+   YouTube list card instead of a search, from Enter, Search, or Ask AI
+   alike. Any other text, a plain video link, or a link with words around
+   it searches as before.
+   - A channel offers its sections: Videos (uploads, newest first),
+     Popular, Live, Releases (an artist channel's albums and singles), and
+     Playlists. The card opens on the tab the link names, else Videos.
+     Playlists and Releases open into their videos, with Back.
+   - The list says how many videos it holds and how many are loaded. Each
+     row is one line: pick box, title, the uploading channel only when it
+     is not the list's owner, age, duration.
+   - Play replaces the working playlist the way a search does (the playing
+     song keeps playing); Add appends and skips videos already in it. Both
+     take the picked videos the filter shows, or every shown video when
+     none is picked: everything, a filtered subset, or a hand-picked few.
+   - Lists load 100 videos per press. Load all keeps loading until the list
+     ends, Stop is pressed, or 1,000 more have arrived (press again to
+     continue).
+   - Titles become songs the way search results do ("Artist - Song"), and
+     a release's title becomes the album. Lyrics come through the usual
+     bounded lookup queue, so a large add fills in its lyrics over time.
+   - Keyless, with no account, like search: `proxy.php` reads YouTube's
+     public web listing, sends nothing that identifies the site or its
+     user, caches every answer for all browsers (six hours; a channel
+     link's ID for 30 days), and refuses past its own budget (30 calls a
+     minute, 300 an hour) with the wait, never queueing or retrying.
+   - Browsing the card is by touch; voice commands do not drive it.
+   - Mixes (`list=RD...`), Watch later, and Liked videos belong to one
+     viewer and cannot be listed; their links search as before.
+
+   The owner's request (2026-10-20), verbatim:
+
+   > can you make it so i can paste in someone's youtube profile url and
+   > then you iterate w/me through all their videos or help provide me some
+   > way to get all/by playlist/some/some subsection etc.? rather than
+   > pasting them all in one by one?
 
 ## Current priorities (deduplicated from the idea pool)
 

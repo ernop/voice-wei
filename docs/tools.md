@@ -453,7 +453,36 @@ Once the link has run, `url` and `onlyURL` leave the address bar, so a reload
 keeps the built playlist; a reload mid-run (or after saving a missing key)
 runs the link again. The lookup is recorded in History and reruns with the
 same page and mode. Typed or spoken requests that contain a URL still work as
-before: their words decide what to take from the page.
+before: their words decide what to take from the page. A YouTube channel or
+playlist link on its own is the exception (next).
+
+**A YouTube channel or playlist.** Paste a channel link
+(`https://www.youtube.com/@kexp`, `/channel/UC...`, `/c/...`, `/user/...`, or a
+channel tab such as `/@kexp/videos`) or a playlist link (`/playlist?list=...`,
+or a video link carrying `&list=...`) on its own and press Enter, Search, or
+Ask AI: the **YouTube list** card opens under Find music instead of a search.
+A channel offers **Videos** (uploads, newest first), **Popular**, **Live**,
+**Releases** (an artist channel's albums and singles), and **Playlists**, and
+opens on the tab the link names, else Videos. Playlists and Releases list one
+per line with their video counts; tapping one opens it, and **Back** returns.
+The status line says how many videos the list holds and how many are loaded.
+Each video row is one line: a pick box, the title (without a leading
+"<channel> - " the list already says), the uploading channel when it is not
+the list's owner, the age, and the duration. **Filter titles** narrows the
+rows; **Pick shown** and **Pick none** set the picks. **Play N** replaces the
+working playlist the way a search does (a song already playing keeps playing)
+and **Add N** appends, skipping videos already in the playlist; both take the
+picked videos the filter shows, or every shown video when none is picked.
+**Load 100 more** fetches the next page; **Load all** keeps fetching until the
+list ends, **Stop loading** is pressed, or 1,000 more videos have arrived
+(press it again to continue). Titles split into artist and song the way search
+results do, a release's title becomes the album, and the songs' source reads
+`YouTube: KEXP · Videos`. Lyrics come through the usual lookup queue, so a
+large add fills in its lyrics over the following minutes. Mixes (`list=RD...`),
+Watch later, and Liked videos belong to one viewer and cannot be listed; their
+links search as before. Listing needs no key or account; the server caches
+every answer for six hours and, past its request budget, says how long to
+wait ([architecture.md](architecture.md), "Server proxy boundary").
 
 Searches prefer the original studio recording unless the raw terms or Ask AI
 request specify otherwise. Direct results preserve proxy relevance order after
