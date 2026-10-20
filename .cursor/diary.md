@@ -1585,3 +1585,44 @@ playing hidden in real time to the end of the run, with no page freeze.
   reverses you added (by port), and leave tabs you did not open alone. A
   locked phone needs yui to unlock it; CDP only answers while Chrome is
   in front.
+
+## 2026-10-20 - YouTube channel and playlist lists (v368)
+
+yui: "can you make it so i can paste in someone's youtube profile url and
+then you iterate w/me through all their videos or help provide me some way
+to get all/by playlist/some/some subsection etc.? rather than pasting them
+all in one by one?" A lone channel or playlist link in Find music now opens
+a YouTube list card: sections (Videos, Popular, Live, Releases, Playlists),
+a title filter, pick boxes, Play / Add, Load 100 more / Load all. Listing
+goes through `proxy.php?youtube=` against YouTube's own keyless web API, with
+a shared six-hour cache and a 30/min, 300/h budget that refuses with the
+wait. Spec: product-goals.md item 14; boundary: architecture.md "Server
+proxy boundary".
+
+**For future mei**:
+- YouTube web-API facts the parsers rely on (fixtures in
+  `tests/fixtures/youtube/`, trimmed real answers from 2026-10-20):
+  - Videos / Popular / Live are the channel's `UULF` / `UULP` / `UULV`
+    playlists (the channel ID's `UC` replaced), so every video list pages
+    the same way.
+  - An album (`OLAK5uy_...`) has no owner channel in the sidebar; its
+    header subtitle says "Fleet Foxes • Album". Its videos' channel is often
+    a collaboration byline ("Fleet Foxes and ANTI- Records"), which the card
+    counts as the owner.
+  - Short playlists end with a token that loads recommended playlists; the
+    parser never follows it. The fixtures replace such tokens with
+    `DECOY_*` markers that the checks look for.
+- When YouTube changes format, the proxy answers 502 "YouTube's list format
+  changed". Capture fresh answers, trim them the same way (keep every path
+  the parsers read, three items per list, decoys where a token must not be
+  followed), and update the parsers or `YOUTUBE_CLIENT_CONTEXT`.
+- A Node function passed to `page.evaluate` cannot call other Node-side
+  helpers; pass each helper to its own `evaluate`.
+- A mutation check needs the break, the run, and the restore as three
+  sequential calls. Sent as one parallel batch, the restore raced the run
+  and a broken Stop "passed".
+- `tests/test-find-puzzle.js` saved screenshots to `/opt/cursor/artifacts/`,
+  which only cloud machines and GitHub's runner can create; on yui's machine
+  the whole gate failed. They now go to the system temp directory.
+- Not done: driving the card by voice ("iterate with me" by speech). The
+  card is touch-only.
