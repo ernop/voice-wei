@@ -1,0 +1,418 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "2:15"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Wading In Waist-High Water\" (Lyric Video)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "531K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "6 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "tqVxd57H-cA",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "4:34"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Sunblind\""
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "704K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "5 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "osz9DyfbjyQ",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "4:10"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Can I Believe You\" (Official Video)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "2.1M views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "6 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "L2E2DpWO3-Y",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            }
+           ],
+           "targetId": "OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E"
+          }
+         }
+        ],
+        "sectionListLayoutConfiguration": {
+         "layoutConfiguration": {
+          "responsiveContainerConfiguration": {
+           "responsiveSize": "RESPONSIVE_SIZE_COMPACT",
+           "responsiveMap": [
+            {
+             "containerSize": "CONTAINER_SIZE_NARROW",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 599,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 12,
+              "containerMarginBottom": 12,
+              "containerMarginStart": 12,
+              "containerMarginEnd": 12
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_MEDIUM",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 1023,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_WIDE",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 2047,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            }
+           ]
+          }
+         }
+        },
+        "webComponentHint": {
+         "componentVersion": "WEB_COMPONENT_VERSION_SHARED"
+        }
+       }
+      },
+      "tabIdentifier": "PL"
+     }
+    }
+   ]
+  }
+ },
+ "header": {
+  "playlistHeaderRenderer": {
+   "playlistId": "OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E",
+   "title": {
+    "simpleText": "Shore"
+   },
+   "numVideosText": {
+    "runs": [
+     {
+      "text": "15"
+     },
+     {
+      "text": " videos"
+     }
+    ]
+   },
+   "viewCountText": {
+    "simpleText": "23,747 views"
+   },
+   "shareData": {
+    "canShare": true
+   },
+   "isEditable": false,
+   "stats": [
+    {
+     "runs": [
+      {
+       "text": "15"
+      },
+      {
+       "text": " videos"
+      }
+     ]
+    },
+    {
+     "simpleText": "23,747 views"
+    }
+   ],
+   "briefStats": [
+    {
+     "runs": [
+      {
+       "text": "15"
+      },
+      {
+       "text": " videos"
+      }
+     ]
+    }
+   ],
+   "subtitle": {
+    "simpleText": "Fleet Foxes • Album"
+   },
+   "byline": [
+    {
+     "playlistBylineRenderer": {
+      "text": {
+       "runs": [
+        {
+         "text": "15"
+        },
+        {
+         "text": " videos"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "playlistBylineRenderer": {
+      "text": {
+       "simpleText": "23,747 views"
+      }
+     }
+    },
+    {
+     "playlistBylineRenderer": {
+      "text": {
+       "runs": [
+        {
+         "text": "Last updated on "
+        },
+        {
+         "text": "Sep 23, 2025"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "playlistMetadataRenderer": {
+   "title": "Shore",
+   "playUrl": "www.youtube.com/playlist?list=OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E",
+   "androidPlayUrl": "android-app://com.google.android.youtube/http/www.youtube.com/playlist?list=OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E",
+   "albumName": "Shore"
+  }
+ },
+ "sidebar": {
+  "playlistSidebarRenderer": {
+   "items": [
+    {
+     "playlistSidebarPrimaryInfoRenderer": {
+      "title": {
+       "runs": [
+        {
+         "text": "Shore"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "runs": [
+         {
+          "text": "15"
+         },
+         {
+          "text": " videos"
+         }
+        ]
+       },
+       {
+        "simpleText": "23,747 views"
+       },
+       {
+        "runs": [
+         {
+          "text": "Last updated on "
+         },
+         {
+          "text": "Sep 23, 2025"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

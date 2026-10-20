@@ -1,0 +1,319 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "selected": true
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "playlistMetadataRenderer": {
+   "title": "Videos"
+  }
+ },
+ "onResponseReceivedActions": [
+  {
+   "appendContinuationItemsAction": {
+    "continuationItems": [
+     {
+      "lockupViewModel": {
+       "contentImage": {
+        "thumbnailViewModel": {
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "5:10"
+              }
+             }
+            ]
+           }
+          },
+          {}
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "WU LYF - Love Your Fate (Live on KEXP)"
+         },
+         "metadata": {
+          "contentMetadataViewModel": {
+           "metadataRows": [
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "KEXP"
+               }
+              }
+             ]
+            },
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "14K views"
+               }
+              },
+              {
+               "text": {
+                "content": "4 weeks ago"
+               }
+              }
+             ]
+            },
+            {
+             "badges": [
+              {
+               "badgeViewModel": {
+                "badgeText": "Fundraiser"
+               }
+              }
+             ]
+            }
+           ],
+           "delimiter": " • "
+          }
+         }
+        }
+       },
+       "contentId": "LBWH13KxgHk",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+      }
+     },
+     {
+      "lockupViewModel": {
+       "contentImage": {
+        "thumbnailViewModel": {
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "6:04"
+              }
+             }
+            ]
+           }
+          },
+          {}
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "WU LYF - At The End Of The Day (It Is What It Is) (Live on KEXP)"
+         },
+         "metadata": {
+          "contentMetadataViewModel": {
+           "metadataRows": [
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "KEXP"
+               }
+              }
+             ]
+            },
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "10K views"
+               }
+              },
+              {
+               "text": {
+                "content": "4 weeks ago"
+               }
+              }
+             ]
+            },
+            {
+             "badges": [
+              {
+               "badgeViewModel": {
+                "badgeText": "Fundraiser"
+               }
+              }
+             ]
+            }
+           ],
+           "delimiter": " • "
+          }
+         }
+        }
+       },
+       "contentId": "z1LBdRFwQc0",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+      }
+     },
+     {
+      "lockupViewModel": {
+       "contentImage": {
+        "thumbnailViewModel": {
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "3:37"
+              }
+             }
+            ]
+           }
+          },
+          {}
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "WU LYF - Cave Song (Live on KEXP)"
+         },
+         "metadata": {
+          "contentMetadataViewModel": {
+           "metadataRows": [
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "KEXP"
+               }
+              }
+             ]
+            },
+            {
+             "metadataParts": [
+              {
+               "text": {
+                "content": "10K views"
+               }
+              },
+              {
+               "text": {
+                "content": "4 weeks ago"
+               }
+              }
+             ]
+            },
+            {
+             "badges": [
+              {
+               "badgeViewModel": {
+                "badgeText": "Fundraiser"
+               }
+              }
+             ]
+            }
+           ],
+           "delimiter": " • "
+          }
+         }
+        }
+       },
+       "contentId": "2aHgnsDamdE",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+      }
+     },
+     {
+      "continuationItemViewModel": {
+       "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+       "continuationCommand": {
+        "innertubeCommand": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "sendPost": true,
+           "apiUrl": "/youtubei/v1/browse"
+          }
+         },
+         "continuationCommand": {
+          "token": "4qmFsgJvEhxWTFVVTEYzSTJHRk5fRjhXdWREXzJqVVpib2pBGjJDQUo2SDFCVU9rTk5aMEpKYUVFelVWUm5NazE2VVRKUFZFVTBVbFJCZDFGVlNYbyUzRJoCGlVVTEYzSTJHRk5fRjhXdWREXzJqVVpib2pB",
+          "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+         }
+        }
+       }
+      }
+     }
+    ],
+    "targetId": "UULF3I2GFN_F8WudD_2jUZbojA"
+   }
+  }
+ ],
+ "sidebar": {
+  "playlistSidebarRenderer": {
+   "items": [
+    {
+     "playlistSidebarPrimaryInfoRenderer": {
+      "title": {
+       "runs": [
+        {
+         "text": "Videos"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "runs": [
+         {
+          "text": "19,452"
+         },
+         {
+          "text": " videos"
+         }
+        ]
+       },
+       {
+        "simpleText": "8,079 views"
+       },
+       {
+        "runs": [
+         {
+          "text": "Updated today"
+         }
+        ]
+       }
+      ],
+      "badges": [
+       {
+        "metadataBadgeRenderer": {
+         "style": "BADGE_STYLE_TYPE_SIMPLE",
+         "label": "Unlisted"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "playlistSidebarSecondaryInfoRenderer": {
+      "videoOwner": {
+       "videoOwnerRenderer": {
+        "thumbnail": {},
+        "title": {
+         "runs": [
+          {
+           "text": "KEXP"
+          }
+         ]
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

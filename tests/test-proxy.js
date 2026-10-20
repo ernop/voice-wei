@@ -2,19 +2,37 @@
 // Focused proxy routing, validation, and fixed-provider security contracts.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { createReporter } = require('./helpers');
 
 const ROOT = path.join(__dirname, '..');
 const PROXY_PATH = path.join(ROOT, 'proxy.php');
+const YOUTUBE_FIXTURES = path.join(__dirname, 'fixtures', 'youtube');
 
-/** @param {string} query @param {string} [method] */
-function invokeProxy(query, method = 'GET') {
+/**
+ * A real YouTube web-API answer (captured 2026-10-20), trimmed: every path
+ * the parsers read is kept, item lists are cut to three entries, and tokens
+ * a parser must never follow are replaced by DECOY_* markers.
+ * @param {string} name
+ */
+function youtubeFixture(name) {
+    return JSON.parse(fs.readFileSync(path.join(YOUTUBE_FIXTURES, name), 'utf8'));
+}
+
+/**
+ * @param {string} query
+ * @param {string} [method]
+ * @param {string} [tempDir] system temp directory for the run (where the
+ *   YouTube listing cache and budget live)
+ */
+function invokeProxy(query, method = 'GET', tempDir = os.tmpdir()) {
     const script = `$_SERVER['REQUEST_METHOD']=$argv[1]; parse_str($argv[2], $_GET); include $argv[3];`;
     const result = spawnSync('php', ['-r', script, method, query, PROXY_PATH], {
         cwd: ROOT,
-        encoding: 'utf8'
+        encoding: 'utf8',
+        env: { ...process.env, TMPDIR: tempDir }
     });
     return {
         status: result.status,
@@ -27,23 +45,28 @@ function invokeProxy(query, method = 'GET') {
  * Call one proxy.php function on fixture input with no network: the script
  * includes proxy.php (defining its functions, then answering a parameterless
  * request whose output is discarded) and prints the call's JSON result.
+ * With `thrown`, a YouTubeListingError the call throws becomes the value
+ * ({ thrown: message, status }) instead of failing the run.
  * @param {string} fn
  * @param {unknown[]} args
- * @param {{ backtrackLimit?: number }} [options]
+ * @param {{ backtrackLimit?: number, tempDir?: string, thrown?: boolean }} [options]
  */
 function callProxyFunction(fn, args, options = {}) {
+    const { tempDir = os.tmpdir(), ...jobOptions } = options;
     const script = [
         "$_SERVER['REQUEST_METHOD'] = 'GET';",
         'ob_start(); include $argv[1]; ob_end_clean();',
         '$job = json_decode(stream_get_contents(STDIN), true);',
         "if (isset($job['backtrackLimit'])) ini_set('pcre.backtrack_limit', (string) $job['backtrackLimit']);",
-        "echo json_encode(call_user_func_array($job['fn'], $job['args']));"
+        "try { echo json_encode(call_user_func_array($job['fn'], $job['args'])); }",
+        "catch (YouTubeListingError $e) { if (empty($job['thrown'])) throw $e; echo json_encode(['thrown' => $e->getMessage(), 'status' => $e->status]); }"
     ].join(' ');
     const result = spawnSync('php', ['-r', script, PROXY_PATH], {
         cwd: ROOT,
         encoding: 'utf8',
-        input: JSON.stringify({ fn, args, ...options }),
-        maxBuffer: 64 * 1024 * 1024
+        input: JSON.stringify({ fn, args, ...jobOptions }),
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, TMPDIR: tempDir }
     });
     return {
         value: result.status === 0 && result.stdout ? JSON.parse(result.stdout) : null,
@@ -239,6 +262,183 @@ function readFixturePage(body, options = {}) {
     for (const result of [wikipedia, listPage, plainText, structured, emptyPage, exhausted, ...prefixes]) {
         if (result.failure) report.errors.push(result.failure);
     }
+
+    // ============ YOUTUBE LISTING: channels, releases, playlists, next pages ============
+    // Every check here runs without network: validation answers before any
+    // outbound work, parsers read trimmed real answers, and the cache and
+    // budget run against a private temp directory.
+    const youtubeTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'voice-wei-proxy-test-'));
+    const youtubeState = path.join(youtubeTemp, 'voice-wei-youtube');
+    /** @param {string} query */
+    const youtube = query => {
+        const result = invokeProxy(query, 'GET', youtubeTemp);
+        if (result.status !== 0 || result.stderr) {
+            report.errors.push(result.stderr || `proxy ${query} exited ${result.status}`);
+        }
+        return JSON.parse(result.stdout || '{}');
+    };
+    /** @param {string} fn @param {unknown[]} args */
+    const youtubeCall = (fn, args) => {
+        const result = callProxyFunction(fn, args, { tempDir: youtubeTemp, thrown: true });
+        if (result.failure) report.errors.push(result.failure);
+        return result.value;
+    };
+
+    const invalidRequests = {
+        'youtube=channel&url=https%3A%2F%2Fexample.com%2F%40kexp': 'Not a YouTube channel link',
+        'youtube=channel&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DyZXpav794BY': 'Not a YouTube channel link',
+        'youtube=channel&id=UCshort': 'Not a YouTube channel id',
+        'youtube=releases&id=PLfsbuQF4YPohXa4nvblxJQX-_ptryBAle': 'Not a YouTube channel id',
+        'youtube=playlist&id=not%20an%20id': 'Not a YouTube playlist id',
+        'youtube=more&token=short': 'Not a YouTube next-page token',
+        'youtube=download&id=UC3I2GFN_F8WudD_2jUZbojA': 'Unknown YouTube operation (use channel, releases, playlist, or more)',
+        'youtube[]=channel': 'The youtube parameter must be text of at most 4000 characters'
+    };
+    const invalidAnswers = Object.entries(invalidRequests).map(([query, expected]) => ({ query, expected, answer: youtube(query) }));
+    const wrongAnswers = invalidAnswers.filter(({ expected, answer }) => answer.error !== expected);
+    report.check(`YouTube listing rejects malformed requests before any outbound work (${wrongAnswers.map(entry => entry.query).join(', ') || 'all rejected'})`,
+        wrongAnswers.length === 0 && !fs.existsSync(path.join(youtubeState, 'budget.json')));
+
+    const channelLinks = {
+        'https://www.youtube.com/@kexp/videos': 'https://www.youtube.com/@kexp',
+        'https://m.youtube.com/@kexp?si=share-tracking': 'https://www.youtube.com/@kexp',
+        'https://youtube.com/c/kexp/featured': 'https://www.youtube.com/c/kexp',
+        'https://www.youtube.com/user/kexpradio': 'https://www.youtube.com/user/kexpradio',
+        'https://music.youtube.com/channel/UC3I2GFN_F8WudD_2jUZbojA': 'https://www.youtube.com/channel/UC3I2GFN_F8WudD_2jUZbojA',
+        'https://www.youtube.com/watch?v=yZXpav794BY': null,
+        'https://www.youtube.com.example.net/@kexp': null,
+        'https://example.net/@kexp': null,
+        'ftp://www.youtube.com/@kexp': null
+    };
+    const linkMismatches = Object.entries(channelLinks)
+        .filter(([link, expected]) => youtubeCall('youtubeChannelUrl', [link]) !== expected)
+        .map(([link]) => link);
+    report.check(`channel links reduce to the channel on www.youtube.com; other hosts and video links are not channels (${linkMismatches.join(', ') || 'all as expected'})`,
+        linkMismatches.length === 0);
+
+    const kexpChannel = youtubeCall('youtubeChannelPage', [youtubeFixture('channel-kexp-playlists.json')]);
+    report.check('a channel answer names the channel, its sections as upload playlists, and its first playlists',
+        kexpChannel?.channel?.id === 'UC3I2GFN_F8WudD_2jUZbojA'
+        && kexpChannel.channel.title === 'KEXP'
+        && kexpChannel.channel.handle === '@kexp'
+        && JSON.stringify(kexpChannel.sections) === JSON.stringify([
+            { key: 'videos', title: 'Videos', playlistId: 'UULF3I2GFN_F8WudD_2jUZbojA' },
+            { key: 'popular', title: 'Popular', playlistId: 'UULP3I2GFN_F8WudD_2jUZbojA' },
+            { key: 'live', title: 'Live', playlistId: 'UULV3I2GFN_F8WudD_2jUZbojA' },
+            { key: 'playlists', title: 'Playlists' }
+        ])
+        && kexpChannel.playlists.length === 3
+        && JSON.stringify(kexpChannel.playlists[0]) === JSON.stringify({ playlistId: 'PLVkZCaO56dXU', title: 'AXEAN Music Festival 2026', videoCount: 1 }));
+    report.check('the next page of channel playlists comes from the playlist grid, never the channel header panel',
+        typeof kexpChannel?.continuation === 'string'
+        && kexpChannel.continuation.startsWith('4qmFsgJ4')
+        && !kexpChannel.continuation.includes('DECOY'));
+
+    const fleetChannel = youtubeCall('youtubeChannelPage', [youtubeFixture('channel-fleet-playlists.json')]);
+    const fleetReleases = youtubeCall('youtubeReleasesPage', [youtubeFixture('channel-fleet-releases.json')]);
+    report.check('an artist channel offers Releases, read as album playlists with track counts',
+        JSON.stringify(fleetChannel?.sections?.map(section => section.key)) === JSON.stringify(['videos', 'popular', 'live', 'releases', 'playlists'])
+        && fleetChannel.continuation === null
+        && fleetReleases?.playlists?.length === 3
+        && JSON.stringify(fleetReleases.playlists[2]) === JSON.stringify({ playlistId: 'OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E', title: 'Shore', videoCount: 15 })
+        && fleetReleases.continuation === null);
+
+    const uploads = youtubeCall('youtubePlaylistPage', [youtubeFixture('playlist-kexp-uploads.json')]);
+    report.check('a playlist page carries its title, owner, full count, videos with durations, and next-page token',
+        JSON.stringify(uploads?.playlist) === JSON.stringify({ title: 'Videos', ownerTitle: 'KEXP', videoCount: 19452 })
+        && uploads.videos.length === 3
+        && JSON.stringify(uploads.videos[0]) === JSON.stringify({
+            videoId: 'yZXpav794BY',
+            title: 'TONTRAKUL - Full Performance (Live on KEXP)',
+            channelTitle: 'KEXP',
+            duration: '27:30',
+            published: '3 hours ago'
+        })
+        && typeof uploads.continuation === 'string' && uploads.continuation.startsWith('4qmFsgJx'));
+
+    const shore = youtubeCall('youtubePlaylistPage', [youtubeFixture('playlist-fleet-shore.json')]);
+    report.check('a short playlist ends with no next page; the recommendations YouTube appends are never followed',
+        shore?.playlist?.videoCount === 18
+        && shore.playlist.ownerTitle === 'Fleet Foxes'
+        && shore.videos.length === 3
+        && shore.videos[0].duration === '2:15'
+        && shore.continuation === null);
+
+    const album = youtubeCall('youtubePlaylistPage', [youtubeFixture('playlist-fleet-shore-album.json')]);
+    report.check('an album belongs to no channel; its header names the artist as the owner',
+        JSON.stringify(album?.playlist) === JSON.stringify({ title: 'Shore', ownerTitle: 'Fleet Foxes', videoCount: 15 })
+        && album.videos.length === 3
+        && album.videos[0].channelTitle === 'Fleet Foxes and ANTI- Records'
+        && album.continuation === null);
+
+    const nextPage = youtubeCall('youtubeNextPage', [youtubeFixture('next-page-kexp-uploads.json')]);
+    report.check('a next-page answer appends videos and carries the token after it',
+        nextPage?.videos?.length === 3
+        && nextPage.videos[0].videoId === 'LBWH13KxgHk'
+        && nextPage.videos[0].duration === '5:10'
+        && nextPage.playlists.length === 0
+        && typeof nextPage.continuation === 'string' && nextPage.continuation !== uploads?.continuation);
+
+    const unreadable = youtubeCall('youtubeListing', [[
+        { lockupViewModel: { contentType: 'LOCKUP_CONTENT_TYPE_SOMETHING_NEW', contentId: 'abc' } },
+        { lockupViewModel: { contentType: 'LOCKUP_CONTENT_TYPE_SOMETHING_NEW', contentId: 'def' } }
+    ]]);
+    const emptyList = youtubeCall('youtubeListing', [[]]);
+    report.check('a list none of whose entries can be read reports a format change instead of showing nothing',
+        unreadable?.status === 502
+        && unreadable.thrown === "YouTube's list format changed: none of its 2 entries could be read"
+        && JSON.stringify(emptyList) === JSON.stringify({ videos: [], playlists: [], continuation: null }));
+
+    const firstCall = youtubeCall('youtubeBudgetDecision', [{}, 1000]);
+    const minuteFull = youtubeCall('youtubeBudgetDecision', [{ 60: { start: 990, calls: 30 }, 3600: { start: 990, calls: 30 } }, 1000]);
+    const minuteReset = youtubeCall('youtubeBudgetDecision', [{ 60: { start: 990, calls: 30 }, 3600: { start: 990, calls: 30 } }, 1050]);
+    const hourFull = youtubeCall('youtubeBudgetDecision', [{ 60: { start: 990, calls: 2 }, 3600: { start: 0, calls: 300 } }, 1000]);
+    report.check('the outbound budget allows 30 calls a minute and 300 an hour, and names the wait when full',
+        firstCall?.allowed === true
+        && JSON.stringify(firstCall.state) === JSON.stringify({ 60: { start: 1000, calls: 1 }, 3600: { start: 1000, calls: 1 } })
+        && minuteFull?.allowed === false && minuteFull.waitSeconds === 50
+        && minuteReset?.allowed === true
+        && JSON.stringify(minuteReset.state) === JSON.stringify({ 60: { start: 1050, calls: 1 }, 3600: { start: 990, calls: 31 } })
+        && hourFull?.allowed === false && hourFull.waitSeconds === 2600);
+
+    // A full budget proves which answers make no outbound call: anything
+    // that reaches YouTube is refused first.
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    fs.mkdirSync(youtubeState, { recursive: true });
+    const fullBudget = JSON.stringify({ 60: { start: nowSeconds, calls: 30 }, 3600: { start: nowSeconds, calls: 30 } });
+    fs.writeFileSync(path.join(youtubeState, 'budget.json'), fullBudget);
+    const refused = youtube('youtube=playlist&id=PLproxyTestList');
+    report.check(`a call past the budget is refused with the wait, not queued (${refused.error})`,
+        String(refused.error).startsWith("This site's YouTube request budget is used up; try again in ")
+        && refused.retryAfterSeconds > 0 && refused.retryAfterSeconds <= 60);
+
+    const cachedAnswer = { playlist: { title: 'Cached list', ownerTitle: 'Test', videoCount: 1 }, videos: [], continuation: null };
+    const cachePath = String(youtubeCall('youtubeCachePath', ['playlist|PLproxyTestList', 21600]));
+    const cacheInState = cachePath.startsWith(youtubeState + path.sep);
+    let served = {}, budgetAfterHit = '', expired = {};
+    if (cacheInState) {
+        fs.writeFileSync(cachePath, JSON.stringify(cachedAnswer));
+        served = youtube('youtube=playlist&id=PLproxyTestList');
+        budgetAfterHit = fs.readFileSync(path.join(youtubeState, 'budget.json'), 'utf8');
+        const staleSeconds = nowSeconds - 7 * 3600;
+        fs.utimesSync(cachePath, staleSeconds, staleSeconds);
+        expired = youtube('youtube=playlist&id=PLproxyTestList');
+    }
+    if (!cacheInState) report.errors.push(`youtubeCachePath answered ${cachePath}, outside ${youtubeState}`);
+    report.check('a cached answer is served to every browser for six hours without an outbound call; an older one is not',
+        cacheInState
+        && JSON.stringify(served) === JSON.stringify(cachedAnswer)
+        && budgetAfterHit === fullBudget
+        && String(/** @type {{ error?: string }} */ (expired).error).startsWith("This site's YouTube request budget is used up"));
+
+    const youtubeSourceStart = source.indexOf('// ---------------- YouTube channel and playlist listing');
+    const youtubeSource = source.slice(youtubeSourceStart, source.indexOf('// Page-read mode:', youtubeSourceStart));
+    report.check('YouTube listing calls one fixed host, with no User-Agent, through the shared request function',
+        youtubeSource.includes("const YOUTUBE_API_BASE = 'https://www.youtube.com/youtubei/v1/';")
+        && (youtubeSource.match(/requestPublicUrl\(/g) || []).length === 1
+        && youtubeSource.includes("YOUTUBE_API_BASE . $endpoint . '?prettyPrint=false'")
+        && youtubeSource.includes("'userAgent' => null"));
+    fs.rmSync(youtubeTemp, { recursive: true, force: true });
 
     report.finish();
 })();

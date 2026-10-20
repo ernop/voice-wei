@@ -1,0 +1,466 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/featured",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Home"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/videos",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgZ2aWRlb3PyBgQKAjoA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Videos"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/streams",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Live"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/releases",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EghyZWxlYXNlc_IGBQoDsgEA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Releases"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/playlists",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Playlists",
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "gridRenderer": {
+              "items": [
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "13 videos",
+                           "backgroundColor": {
+                            "lightTheme": 2631710,
+                            "darkTheme": 2631710
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 4144944,
+                      "darkTheme": 4144944
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 12566417,
+                    "darkTheme": 9210992
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Fleet Foxes - A Very Lonely Solstice (Full Album Stream)"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLfsbuQF4YPoiEhwHODx3gKJHtHjASVXTj",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               },
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "18 videos",
+                           "backgroundColor": {
+                            "lightTheme": 2370867,
+                            "darkTheme": 2370867
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 2963519,
+                      "darkTheme": 2963519
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 7112601,
+                    "darkTheme": 7768211
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Fleet Foxes - Shore (Full Album Stream)"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLfsbuQF4YPohXa4nvblxJQX-_ptryBAle",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               },
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "5 videos",
+                           "backgroundColor": {
+                            "lightTheme": 2629653,
+                            "darkTheme": 2629653
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 4996137,
+                      "darkTheme": 4996137
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 12559749,
+                    "darkTheme": 9668214
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Fleet Foxes | Interviews"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLfsbuQF4YPojU0mbY-RdCuC5U5YdPCGMm",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               }
+              ],
+              "targetId": "browse-feedUCna-InS-5L5qv82diztOT7Aplaylists104"
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "subMenu": {
+         "channelSubMenuRenderer": {
+          "sortSetting": {
+           "sortFilterSubMenuRenderer": {
+            "subMenuItems": [
+             {
+              "title": "Date added (newest)",
+              "selected": true
+             },
+             {
+              "title": "Last video added",
+              "selected": false
+             }
+            ],
+            "title": "Sort by"
+           }
+          }
+         }
+        },
+        "targetId": "browse-feedUCna-InS-5L5qv82diztOT7Aplaylists",
+        "disablePullToRefresh": true
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/posts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgVwb3N0c_IGBAoCSgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Posts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/store",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgVzdG9yZfIGBAoCGgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Store"
+     }
+    },
+    {
+     "expandableTabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/search",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgZzZWFyY2jyBgQKAloA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Search",
+      "selected": false
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "channelMetadataRenderer": {
+   "title": "Fleet Foxes",
+   "externalId": "UCna-InS-5L5qv82diztOT7A",
+   "channelUrl": "https://www.youtube.com/channel/UCna-InS-5L5qv82diztOT7A",
+   "musicArtistName": "",
+   "androidDeepLink": "android-app://com.google.android.youtube/http/www.youtube.com/channel/UCna-InS-5L5qv82diztOT7A",
+   "vanityChannelUrl": "http://www.youtube.com/@FleetFoxes"
+  }
+ },
+ "header": {
+  "pageHeaderRenderer": {
+   "content": {
+    "engagementPanel": {
+     "sectionListRenderer": {
+      "contents": [
+       {
+        "itemSectionRenderer": {
+         "contents": [
+          {
+           "continuationItemRenderer": {
+            "continuationEndpoint": {
+             "continuationCommand": {
+              "token": "DECOY_CHANNEL_HEADER_PANEL_TOKEN"
+             }
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    }
+   }
+  }
+ }
+}

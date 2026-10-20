@@ -1,8 +1,9 @@
 <?php
-// Same-origin keyless YouTube search, fixed-provider lyrics search, and the
-// webpage/PDF importer shared by Books and linked-page music requests. Every
-// network hop is resolved and pinned before cURL connects so redirects and
-// DNS rebinding cannot reach private hosts.
+// Same-origin keyless YouTube search, YouTube channel and playlist listing,
+// fixed-provider lyrics search, and the webpage/PDF importer shared by Books
+// and linked-page music requests. Every network hop is resolved and pinned
+// before cURL connects so redirects and DNS rebinding cannot reach private
+// hosts.
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -84,7 +85,16 @@ function resolveReadablePageUrl($url) {
     return $url;
 }
 
-function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds) {
+// $options['postJson']: send this JSON body as a POST. A redirect is then an
+// error, so the body is never re-sent to wherever a redirect points.
+// $options['userAgent']: the User-Agent header, or null to send none.
+function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds, $options = []) {
+    $postJson = $options['postJson'] ?? null;
+    $userAgent = array_key_exists('userAgent', $options) ? $options['userAgent'] : 'Voice-Wei URL Import/1.0';
+    $headers = ['Accept: ' . $accept, 'Accept-Language: en-US,en;q=0.9'];
+    if ($postJson !== null) {
+        $headers[] = 'Content-Type: application/json';
+    }
     $currentUrl = $url;
     for ($redirects = 0; $redirects <= 3; $redirects++) {
         $target = publicUrlTarget($currentUrl);
@@ -103,11 +113,7 @@ function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds) {
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT => $timeoutSeconds,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-            CURLOPT_USERAGENT => 'Voice-Wei URL Import/1.0',
-            CURLOPT_HTTPHEADER => [
-                'Accept: ' . $accept,
-                'Accept-Language: en-US,en;q=0.9'
-            ],
+            CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RESOLVE => [
                 "{$target['host']}:{$target['port']}:{$target['ip']}"
             ],
@@ -131,6 +137,13 @@ function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds) {
                 return strlen($chunk);
             }
         ]);
+        if ($userAgent !== null) {
+            curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
+        }
+        if ($postJson !== null) {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postJson);
+        }
 
         $ok = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -145,6 +158,9 @@ function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds) {
             return ['response' => false, 'httpCode' => $httpCode, 'contentType' => $contentType, 'error' => $error];
         }
         if ($httpCode >= 300 && $httpCode < 400) {
+            if ($postJson !== null) {
+                return ['response' => false, 'httpCode' => $httpCode, 'contentType' => $contentType, 'error' => 'Remote answered a POST with a redirect'];
+            }
             if ($location === '') {
                 return ['response' => false, 'httpCode' => $httpCode, 'contentType' => $contentType, 'error' => 'Remote redirect had no Location header'];
             }
@@ -471,6 +487,525 @@ function readablePageAnswer($url, $requestedUrl, $contentType, $body) {
     ]];
 }
 
+// ---------------- YouTube channel and playlist listing ----------------
+// proxy.php?youtube=... lists a channel's uploads, releases, and playlists so
+// the Lyrics page can load them in bulk. The browser names a channel, a
+// playlist, or a next-page token; the outbound host is always
+// www.youtube.com (the keyless API youtube.com's own pages call), so this
+// mode adds no general-purpose fetch. Requests carry no User-Agent, cookie,
+// or other header that could identify this site or its user.
+//
+// Answers are cached here for every browser, and every outbound call spends
+// one shared budget. YouTube publishes no limit for this API, so the budget
+// is a politeness cap: a call past it is refused (HTTP 429 naming the wait),
+// never queued or retried.
+const YOUTUBE_API_BASE = 'https://www.youtube.com/youtubei/v1/';
+// The web client version youtube.com reported on 2026-10-07. Once YouTube
+// stops accepting it, every call fails loudly; update it then.
+const YOUTUBE_CLIENT_CONTEXT = [
+    'client' => ['clientName' => 'WEB', 'clientVersion' => '2.20261007.01.00', 'hl' => 'en', 'gl' => 'US']
+];
+// Channel tab selectors exactly as YouTube's own link resolver issues them.
+const YOUTUBE_TAB_PARAMS = [
+    'playlists' => 'EglwbGF5bGlzdHO4AQCSAwDyBgQKAkIA',
+    'releases' => 'EghyZWxlYXNlc7gBAJIDAPIGBQoDsgEA'
+];
+const YOUTUBE_RESPONSE_MAX_BYTES = 6000000; // a 100-video page is about 1.3 MB
+const YOUTUBE_TIMEOUT_SECONDS = 20;
+// Part of every cache key: bump it whenever an answer's shape changes, so an
+// answer cached in the old shape is never served.
+const YOUTUBE_CACHE_VERSION = 1;
+// Uploads and playlists can change at any moment; the channel a link names
+// almost never does.
+const YOUTUBE_LISTING_TTL_SECONDS = 21600; // 6 hours
+const YOUTUBE_RESOLVE_TTL_SECONDS = 2592000; // 30 days
+// Outbound calls allowed per window (window seconds => calls), across all
+// browsers. Opening a channel costs up to three calls; Load all, up to ten.
+const YOUTUBE_BUDGET = [60 => 30, 3600 => 300];
+const YOUTUBE_CHANNEL_ID = '/^UC[A-Za-z0-9_-]{22}$/';
+const YOUTUBE_PLAYLIST_ID = '/^[A-Za-z0-9_-]{2,64}$/';
+const YOUTUBE_PAGE_TOKEN = '/^[A-Za-z0-9_%=+\/-]{16,4000}$/';
+
+class YouTubeListingError extends RuntimeException {
+    public $status;
+    public $retryAfterSeconds;
+
+    public function __construct($status, $message, $retryAfterSeconds = 0) {
+        parent::__construct($message);
+        $this->status = $status;
+        $this->retryAfterSeconds = $retryAfterSeconds;
+    }
+}
+
+// Cache entries and the budget live in the system temp directory, the one
+// place the PHP pool may write besides the site (open_basedir).
+function youtubeStateDir() {
+    $dir = sys_get_temp_dir() . '/voice-wei-youtube';
+    if (!is_dir($dir) && !mkdir($dir, 0700) && !is_dir($dir)) {
+        throw new YouTubeListingError(500, "Cannot create the YouTube listing cache at $dir");
+    }
+    return $dir;
+}
+
+// Entry names carry their lifetime so the sweep can expire them.
+function youtubeCachePath($key, $ttlSeconds) {
+    return youtubeStateDir() . "/cache-$ttlSeconds-" . hash('sha256', YOUTUBE_CACHE_VERSION . "|$key") . '.json';
+}
+
+// The answer stored under $key while it is younger than $ttlSeconds;
+// otherwise $fetch() supplies it, and it is stored for every later request.
+function youtubeCached($key, $ttlSeconds, callable $fetch) {
+    $path = youtubeCachePath($key, $ttlSeconds);
+    if (is_file($path) && time() - filemtime($path) < $ttlSeconds) {
+        $cached = json_decode((string) file_get_contents($path), true);
+        if (is_array($cached)) {
+            return $cached;
+        }
+    }
+    $answer = $fetch();
+    $temp = "$path." . bin2hex(random_bytes(6)) . '.tmp';
+    if (file_put_contents($temp, json_encode($answer)) === false || !rename($temp, $path)) {
+        throw new YouTubeListingError(500, 'Cannot write the YouTube listing cache');
+    }
+    youtubeSweepCache(time());
+    return $answer;
+}
+
+// Expired entries, and temp files a crashed write left behind, are deleted
+// at most once a day, by the first cache write that finds the stamp a day old.
+function youtubeSweepCache($now) {
+    $dir = youtubeStateDir();
+    $stamp = "$dir/sweep-stamp";
+    if (is_file($stamp) && $now - filemtime($stamp) < 86400) {
+        return;
+    }
+    touch($stamp);
+    foreach (glob("$dir/cache-*") ?: [] as $file) {
+        $lifetime = preg_match('/\/cache-(\d+)-[0-9a-f]{64}\.json$/', $file, $match) ? (int) $match[1] : 3600;
+        if (is_file($file) && $now - filemtime($file) >= $lifetime) {
+            unlink($file);
+        }
+    }
+}
+
+// Fixed windows, each counting the calls since it opened. A call is refused
+// while any window is full; the wait is until the fullest one closes.
+function youtubeBudgetDecision($state, $now) {
+    $windows = [];
+    $waitSeconds = 0;
+    foreach (YOUTUBE_BUDGET as $seconds => $limit) {
+        $window = $state[$seconds] ?? null;
+        if (!is_array($window) || $now - $window['start'] >= $seconds) {
+            $window = ['start' => $now, 'calls' => 0];
+        }
+        if ($window['calls'] >= $limit) {
+            $waitSeconds = max($waitSeconds, $window['start'] + $seconds - $now);
+        }
+        $windows[$seconds] = $window;
+    }
+    if ($waitSeconds > 0) {
+        return ['allowed' => false, 'state' => $state, 'waitSeconds' => $waitSeconds];
+    }
+    foreach ($windows as $seconds => $window) {
+        $windows[$seconds]['calls']++;
+    }
+    return ['allowed' => true, 'state' => $windows, 'waitSeconds' => 0];
+}
+
+// Counts one outbound call against the shared budget (the file lock makes
+// concurrent PHP workers take turns), or refuses it with the wait.
+function youtubeSpendBudget() {
+    $handle = fopen(youtubeStateDir() . '/budget.json', 'c+');
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        throw new YouTubeListingError(500, 'Cannot open the YouTube request budget');
+    }
+    $state = json_decode((string) stream_get_contents($handle), true);
+    $decision = youtubeBudgetDecision(is_array($state) ? $state : [], time());
+    if ($decision['allowed']) {
+        ftruncate($handle, 0);
+        rewind($handle);
+        fwrite($handle, json_encode($decision['state']));
+        fflush($handle);
+    }
+    flock($handle, LOCK_UN);
+    fclose($handle);
+    if (!$decision['allowed']) {
+        throw new YouTubeListingError(
+            429,
+            "This site's YouTube request budget is used up; try again in {$decision['waitSeconds']} seconds",
+            $decision['waitSeconds']
+        );
+    }
+}
+
+// One budgeted call to YouTube's web API. YouTube answers 400 or 404 when it
+// does not know what was named; $missing says what that was.
+function youtubeApi($endpoint, $body, $missing) {
+    youtubeSpendBudget();
+    $result = requestPublicUrl(
+        YOUTUBE_API_BASE . $endpoint . '?prettyPrint=false',
+        'application/json',
+        YOUTUBE_RESPONSE_MAX_BYTES,
+        YOUTUBE_TIMEOUT_SECONDS,
+        ['postJson' => json_encode(['context' => YOUTUBE_CLIENT_CONTEXT] + $body), 'userAgent' => null]
+    );
+    $status = $result['httpCode'];
+    $data = $result['response'] === false ? null : json_decode($result['response'], true);
+    if ($status === 400 || $status === 404) {
+        $said = $data['error']['message'] ?? "HTTP $status";
+        throw new YouTubeListingError(404, "$missing (YouTube said: $said)");
+    }
+    if ($status !== 200 || !is_array($data)) {
+        $detail = $result['error'] ?: "HTTP $status";
+        throw new YouTubeListingError(502, "YouTube did not answer $endpoint: $detail");
+    }
+    return $data;
+}
+
+// Every value stored under $key anywhere inside $node, depth first.
+function youtubeFindAll($node, $key, &$found = []) {
+    if (is_array($node)) {
+        foreach ($node as $childKey => $child) {
+            if ($childKey === $key) {
+                $found[] = $child;
+            }
+            youtubeFindAll($child, $key, $found);
+        }
+    }
+    return $found;
+}
+
+function youtubeRunsText($node) {
+    $text = '';
+    foreach ($node['runs'] ?? [] as $run) {
+        $text .= (string) ($run['text'] ?? '');
+    }
+    return $text;
+}
+
+// "19,452 videos" -> 19452, "No videos" -> 0, anything else -> null.
+function youtubeCount($text) {
+    if (preg_match('/\d[\d,]*/', $text, $match)) {
+        return (int) str_replace(',', '', $match[0]);
+    }
+    return stripos($text, 'no ') === 0 ? 0 : null;
+}
+
+// One video from a lockup, or null for anything that is not a playable
+// video (playlists, shelves, malformed entries).
+function youtubeVideoItem($lockup) {
+    $videoId = $lockup['contentId'] ?? '';
+    if (($lockup['contentType'] ?? '') !== 'LOCKUP_CONTENT_TYPE_VIDEO'
+        || !is_string($videoId) || !preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId)) {
+        return null;
+    }
+    $meta = $lockup['metadata']['lockupMetadataViewModel'] ?? [];
+    $rows = $meta['metadata']['contentMetadataViewModel']['metadataRows'] ?? [];
+    $duration = '';
+    foreach (youtubeFindAll($lockup['contentImage'] ?? [], 'thumbnailBadgeViewModel') as $badge) {
+        $text = (string) ($badge['text'] ?? '');
+        if (preg_match('/^\d+(?::\d\d){1,2}$/', $text)) {
+            $duration = $text;
+            break;
+        }
+    }
+    return [
+        'videoId' => $videoId,
+        'title' => (string) ($meta['title']['content'] ?? ''),
+        'channelTitle' => (string) ($rows[0]['metadataParts'][0]['text']['content'] ?? ''),
+        'duration' => $duration,
+        'published' => (string) ($rows[1]['metadataParts'][1]['text']['content'] ?? '')
+    ];
+}
+
+// One playlist: a channel playlist (a lockup) or a release (a
+// playlistRenderer), or null for anything else.
+function youtubePlaylistItem($entry) {
+    if (isset($entry['playlistRenderer'])) {
+        $renderer = $entry['playlistRenderer'];
+        $playlistId = (string) ($renderer['playlistId'] ?? '');
+        $title = (string) ($renderer['title']['simpleText'] ?? '');
+        $videoCount = isset($renderer['videoCount']) ? (int) $renderer['videoCount'] : null;
+    } elseif (($entry['lockupViewModel']['contentType'] ?? '') === 'LOCKUP_CONTENT_TYPE_PLAYLIST') {
+        $lockup = $entry['lockupViewModel'];
+        $playlistId = (string) ($lockup['contentId'] ?? '');
+        $title = (string) ($lockup['metadata']['lockupMetadataViewModel']['title']['content'] ?? '');
+        $videoCount = null;
+        foreach (youtubeFindAll($lockup['contentImage'] ?? [], 'thumbnailBadgeViewModel') as $badge) {
+            if (preg_match('/^[\d,]+ videos?$/', (string) ($badge['text'] ?? ''))) {
+                $videoCount = youtubeCount($badge['text']);
+                break;
+            }
+        }
+    } else {
+        return null;
+    }
+    if (!preg_match(YOUTUBE_PLAYLIST_ID, $playlistId)) {
+        return null;
+    }
+    return ['playlistId' => $playlistId, 'title' => $title, 'videoCount' => $videoCount];
+}
+
+// The array holding a listing's items. Playlist pages, channel grids, and
+// next-page answers keep their items, then the next-page token, in one
+// array. The other tokens in a response (channel header panels, the
+// recommendations YouTube appends to short playlists) load unrelated lists,
+// so only this array is read.
+function youtubeItemArray($node) {
+    if (!is_array($node)) {
+        return null;
+    }
+    if (array_is_list($node)) {
+        foreach ($node as $entry) {
+            if (isset($entry['lockupViewModel']) || isset($entry['playlistRenderer']) || isset($entry['richItemRenderer'])) {
+                return $node;
+            }
+        }
+    }
+    foreach ($node as $child) {
+        $found = youtubeItemArray($child);
+        if ($found !== null) {
+            return $found;
+        }
+    }
+    return null;
+}
+
+function youtubeContinuationToken($node) {
+    if (!is_array($node)) {
+        return null;
+    }
+    if (is_string($node['continuationCommand']['token'] ?? null)) {
+        return $node['continuationCommand']['token'];
+    }
+    foreach ($node as $child) {
+        $token = youtubeContinuationToken($child);
+        if ($token !== null) {
+            return $token;
+        }
+    }
+    return null;
+}
+
+// Videos, playlists, and the next-page token from one item array. Channel
+// grids end in a continuationItemRenderer, playlist pages in a
+// continuationItemViewModel. Entries none of which can be read mean
+// YouTube changed its format, which is reported rather than shown as an
+// empty list.
+function youtubeListing($items) {
+    $listing = ['videos' => [], 'playlists' => [], 'continuation' => null];
+    $entries = 0;
+    foreach ($items ?? [] as $entry) {
+        $holder = $entry['continuationItemRenderer'] ?? $entry['continuationItemViewModel'] ?? null;
+        if ($holder !== null) {
+            $listing['continuation'] = youtubeContinuationToken($holder);
+            continue;
+        }
+        $entries++;
+        $entry = $entry['richItemRenderer']['content'] ?? $entry;
+        $video = isset($entry['lockupViewModel']) ? youtubeVideoItem($entry['lockupViewModel']) : null;
+        if ($video !== null) {
+            $listing['videos'][] = $video;
+            continue;
+        }
+        $playlist = youtubePlaylistItem($entry);
+        if ($playlist !== null) {
+            $listing['playlists'][] = $playlist;
+        }
+    }
+    if ($entries > 0 && !$listing['videos'] && !$listing['playlists']) {
+        throw new YouTubeListingError(502, "YouTube's list format changed: none of its $entries entries could be read");
+    }
+    return $listing;
+}
+
+function youtubeSelectedTab($response) {
+    foreach ($response['contents']['twoColumnBrowseResultsRenderer']['tabs'] ?? [] as $tab) {
+        if (($tab['tabRenderer']['selected'] ?? false) === true) {
+            return $tab['tabRenderer'];
+        }
+    }
+    throw new YouTubeListingError(502, "YouTube's answer held no list (it may be private or removed)");
+}
+
+// The last path segment a channel tab links to: "videos", "playlists", ...
+function youtubeTabPath($tab) {
+    $url = (string) ($tab['endpoint']['commandMetadata']['webCommandMetadata']['url'] ?? '');
+    return substr($url, strrpos($url, '/') + 1);
+}
+
+// A channel answer: identity, the sections it has, and its first page of
+// playlists. A channel's long-form uploads, most popular uploads, and past
+// live streams are playlists whose ids replace the channel id's UC prefix.
+function youtubeChannelPage($response) {
+    $metadata = $response['metadata']['channelMetadataRenderer'] ?? [];
+    $channelId = (string) ($metadata['externalId'] ?? '');
+    if (!preg_match(YOUTUBE_CHANNEL_ID, $channelId)) {
+        throw new YouTubeListingError(502, "YouTube's channel answer had no channel id");
+    }
+    $tabs = array_map(
+        fn($tab) => youtubeTabPath($tab['tabRenderer'] ?? []),
+        $response['contents']['twoColumnBrowseResultsRenderer']['tabs'] ?? []
+    );
+    $uploads = substr($channelId, 2);
+    $sections = [];
+    if (in_array('videos', $tabs, true)) {
+        $sections[] = ['key' => 'videos', 'title' => 'Videos', 'playlistId' => "UULF$uploads"];
+        $sections[] = ['key' => 'popular', 'title' => 'Popular', 'playlistId' => "UULP$uploads"];
+    }
+    if (in_array('streams', $tabs, true)) {
+        $sections[] = ['key' => 'live', 'title' => 'Live', 'playlistId' => "UULV$uploads"];
+    }
+    if (in_array('releases', $tabs, true)) {
+        $sections[] = ['key' => 'releases', 'title' => 'Releases'];
+    }
+    $listing = ['playlists' => [], 'continuation' => null];
+    if (in_array('playlists', $tabs, true)) {
+        $sections[] = ['key' => 'playlists', 'title' => 'Playlists'];
+        $selected = youtubeSelectedTab($response);
+        if (youtubeTabPath($selected) === 'playlists') {
+            $listing = youtubeListing(youtubeItemArray($selected['content'] ?? []));
+        }
+    }
+    $vanityUrl = (string) ($metadata['vanityChannelUrl'] ?? '');
+    return [
+        'channel' => [
+            'id' => $channelId,
+            'title' => (string) ($metadata['title'] ?? ''),
+            'handle' => preg_match('~/(@[^/]+)$~', $vanityUrl, $match) ? rawurldecode($match[1]) : ''
+        ],
+        'sections' => $sections,
+        'playlists' => $listing['playlists'],
+        'continuation' => $listing['continuation']
+    ];
+}
+
+// A channel's Releases tab: albums, EPs, and singles, each a playlist.
+function youtubeReleasesPage($response) {
+    $selected = youtubeSelectedTab($response);
+    if (youtubeTabPath($selected) !== 'releases') {
+        return ['playlists' => [], 'continuation' => null];
+    }
+    $listing = youtubeListing(youtubeItemArray($selected['content'] ?? []));
+    return ['playlists' => $listing['playlists'], 'continuation' => $listing['continuation']];
+}
+
+// Who a playlist belongs to. A channel's playlist names the channel in the
+// sidebar; an album (OLAK...) belongs to no channel, and its header
+// subtitle names the artist instead ("Fleet Foxes • Album").
+function youtubePlaylistOwner($response) {
+    $owner = youtubeFindAll($response['sidebar'] ?? [], 'videoOwnerRenderer')[0] ?? null;
+    if ($owner !== null) {
+        return youtubeRunsText($owner['title'] ?? []);
+    }
+    $subtitle = (string) ($response['header']['playlistHeaderRenderer']['subtitle']['simpleText'] ?? '');
+    return preg_match('/^(.+) \x{2022} Album$/u', $subtitle, $match) ? $match[1] : '';
+}
+
+// One playlist's first page. The sidebar carries the count in both of
+// YouTube's playlist header formats.
+function youtubePlaylistPage($response) {
+    $listing = youtubeListing(youtubeItemArray(youtubeSelectedTab($response)['content'] ?? []));
+    $primary = youtubeFindAll($response['sidebar'] ?? [], 'playlistSidebarPrimaryInfoRenderer')[0] ?? [];
+    return [
+        'playlist' => [
+            'title' => (string) ($response['metadata']['playlistMetadataRenderer']['title'] ?? ''),
+            'ownerTitle' => youtubePlaylistOwner($response),
+            'videoCount' => youtubeCount(youtubeRunsText($primary['stats'][0] ?? []))
+        ],
+        'videos' => $listing['videos'],
+        'continuation' => $listing['continuation']
+    ];
+}
+
+// The page a next-page token names (videos or playlists, by list).
+function youtubeNextPage($response) {
+    foreach ($response['onResponseReceivedActions'] ?? [] as $action) {
+        if (isset($action['appendContinuationItemsAction'])) {
+            return youtubeListing($action['appendContinuationItemsAction']['continuationItems'] ?? []);
+        }
+    }
+    throw new YouTubeListingError(502, "YouTube's next-page answer had no items");
+}
+
+// A channel link reduced to its channel part on www.youtube.com (any tab or
+// query dropped), or null when the link names no channel.
+function youtubeChannelUrl($url) {
+    $parts = parse_url($url);
+    if (!is_array($parts)
+        || !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
+        || !in_array(strtolower($parts['host'] ?? ''), ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'], true)
+        || !preg_match('~^/(@[^/]+|(?:channel|c|user)/[^/]+)~', $parts['path'] ?? '', $match)) {
+        return null;
+    }
+    return 'https://www.youtube.com/' . $match[1];
+}
+
+function youtubeResolveChannelId($channelUrl) {
+    if (preg_match('~/channel/(UC[A-Za-z0-9_-]{22})$~', $channelUrl, $match)) {
+        return $match[1];
+    }
+    $answer = youtubeCached("resolve|$channelUrl", YOUTUBE_RESOLVE_TTL_SECONDS, function () use ($channelUrl) {
+        $response = youtubeApi('navigation/resolve_url', ['url' => $channelUrl], "No YouTube channel at $channelUrl");
+        $channelId = (string) ($response['endpoint']['browseEndpoint']['browseId'] ?? '');
+        if (!preg_match(YOUTUBE_CHANNEL_ID, $channelId)) {
+            throw new YouTubeListingError(404, "No YouTube channel at $channelUrl");
+        }
+        return ['channelId' => $channelId];
+    });
+    return $answer['channelId'];
+}
+
+// The answer to one youtube= request. Everything is validated before any
+// cache, budget, or network work.
+function youtubeListingAnswer($params) {
+    foreach (['youtube', 'id', 'url', 'token'] as $name) {
+        if (isset($params[$name]) && (!is_string($params[$name]) || strlen($params[$name]) > 4000)) {
+            throw new YouTubeListingError(400, "The $name parameter must be text of at most 4000 characters");
+        }
+    }
+    $id = trim($params['id'] ?? '');
+    switch ($params['youtube'] ?? '') {
+        case 'channel':
+            if ($id === '') {
+                $channelUrl = youtubeChannelUrl(trim($params['url'] ?? ''));
+                if ($channelUrl === null) {
+                    throw new YouTubeListingError(400, 'Not a YouTube channel link');
+                }
+                $id = youtubeResolveChannelId($channelUrl);
+            }
+            if (!preg_match(YOUTUBE_CHANNEL_ID, $id)) {
+                throw new YouTubeListingError(400, 'Not a YouTube channel id');
+            }
+            return youtubeCached("channel|$id", YOUTUBE_LISTING_TTL_SECONDS, fn() => youtubeChannelPage(
+                youtubeApi('browse', ['browseId' => $id, 'params' => YOUTUBE_TAB_PARAMS['playlists']], "No YouTube channel $id")
+            ));
+        case 'releases':
+            if (!preg_match(YOUTUBE_CHANNEL_ID, $id)) {
+                throw new YouTubeListingError(400, 'Not a YouTube channel id');
+            }
+            return youtubeCached("releases|$id", YOUTUBE_LISTING_TTL_SECONDS, fn() => youtubeReleasesPage(
+                youtubeApi('browse', ['browseId' => $id, 'params' => YOUTUBE_TAB_PARAMS['releases']], "No YouTube channel $id")
+            ));
+        case 'playlist':
+            if (!preg_match(YOUTUBE_PLAYLIST_ID, $id)) {
+                throw new YouTubeListingError(400, 'Not a YouTube playlist id');
+            }
+            return youtubeCached("playlist|$id", YOUTUBE_LISTING_TTL_SECONDS, fn() => youtubePlaylistPage(
+                youtubeApi('browse', ['browseId' => "VL$id"], "No YouTube playlist $id")
+            ));
+        case 'more':
+            $token = trim($params['token'] ?? '');
+            if (!preg_match(YOUTUBE_PAGE_TOKEN, $token)) {
+                throw new YouTubeListingError(400, 'Not a YouTube next-page token');
+            }
+            return youtubeCached("more|$token", YOUTUBE_LISTING_TTL_SECONDS, fn() => youtubeNextPage(
+                youtubeApi('browse', ['continuation' => $token], 'YouTube no longer accepts this next-page token; reopen the list')
+            ));
+    }
+    throw new YouTubeListingError(400, 'Unknown YouTube operation (use channel, releases, playlist, or more)');
+}
+
 // Page-read mode: proxy.php?readUrl=https://example.com/page
 if (isset($_GET['readUrl'])) {
     $requestedUrl = trim($_GET['readUrl']);
@@ -558,6 +1093,24 @@ if (isset($_GET['assetUrl'])) {
     header('Content-Type: application/pdf');
     header('Content-Length: ' . strlen($bytes));
     echo $bytes;
+    exit;
+}
+
+// YouTube listing mode: proxy.php?youtube=channel&url=<channel link> (or
+// &id=UC...), youtube=releases&id=UC..., youtube=playlist&id=<playlist id>,
+// youtube=more&token=<next-page token>.
+if (isset($_GET['youtube'])) {
+    try {
+        echo json_encode(youtubeListingAnswer($_GET));
+    } catch (YouTubeListingError $error) {
+        http_response_code($error->status);
+        $body = ['error' => $error->getMessage()];
+        if ($error->retryAfterSeconds > 0) {
+            header('Retry-After: ' . $error->retryAfterSeconds);
+            $body['retryAfterSeconds'] = $error->retryAfterSeconds;
+        }
+        echo json_encode($body);
+    }
     exit;
 }
 
@@ -743,4 +1296,4 @@ if ($query !== '') {
 }
 
 http_response_code(400);
-echo json_encode(['error' => 'Use q for music search, lyrics for lyrics search, readUrl for webpages, or assetUrl for PDFs']);
+echo json_encode(['error' => 'Use q for music search, youtube for channel and playlist listing, lyrics for lyrics search, readUrl for webpages, or assetUrl for PDFs']);

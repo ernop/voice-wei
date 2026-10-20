@@ -1,0 +1,482 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/featured",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Home"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/videos",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EgZ2aWRlb3PyBgQKAjoA",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Videos"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/shorts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EgZzaG9ydHPyBgUKA5oBAA%3D%3D",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Shorts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/streams",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Live"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/podcasts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "Eghwb2RjYXN0c_IGBQoDugEA",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Podcasts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/playlists",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Playlists",
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "gridRenderer": {
+              "items": [
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "1 video",
+                           "backgroundColor": {
+                            "lightTheme": 2629138,
+                            "darkTheme": 2629138
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 4995363,
+                      "darkTheme": 4995363
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 12559493,
+                    "darkTheme": 9668214
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "AXEAN Music Festival 2026"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLVkZCaO56dXU",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               },
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "1 video",
+                           "backgroundColor": {
+                            "lightTheme": 1385267,
+                            "darkTheme": 1385267
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 2045260,
+                      "darkTheme": 2045260
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 7045529,
+                    "darkTheme": 7767187
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Mechanical Breakdown"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLMPWPCjbpadY",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               },
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "text": "1 video",
+                           "backgroundColor": {
+                            "lightTheme": 1712435,
+                            "darkTheme": 1712435
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {}
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 2568524,
+                      "darkTheme": 2568524
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 7042969,
+                    "darkTheme": 7765651
+                   }
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Street Sounds"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "View full playlist"
+                         }
+                        }
+                       ]
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "PLNMA9ZgnETuQ",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST"
+                }
+               },
+               {
+                "continuationItemRenderer": {
+                 "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+                 "continuationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "continuationCommand": {
+                   "token": "4qmFsgJ4EhhVQzNJMkdGTl9GOFd1ZERfMmpVWmJvakEaKkVnbHdiR0Y1YkdsemRITVlBeUFBTUFFNEFlb0RCME5uVGtSUmFsRSUzRJoCL2Jyb3dzZS1mZWVkVUMzSTJHRk5fRjhXdWREXzJqVVpib2pBcGxheWxpc3RzMTA0",
+                   "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                  }
+                 }
+                }
+               }
+              ],
+              "targetId": "browse-feedUC3I2GFN_F8WudD_2jUZbojAplaylists104"
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "subMenu": {
+         "channelSubMenuRenderer": {
+          "sortSetting": {
+           "sortFilterSubMenuRenderer": {
+            "subMenuItems": [
+             {
+              "title": "Date added (newest)",
+              "selected": true
+             },
+             {
+              "title": "Last video added",
+              "selected": false
+             }
+            ],
+            "title": "Sort by"
+           }
+          }
+         }
+        },
+        "targetId": "browse-feedUC3I2GFN_F8WudD_2jUZbojAplaylists",
+        "disablePullToRefresh": true
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/posts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EgVwb3N0c_IGBAoCSgA%3D",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Posts"
+     }
+    },
+    {
+     "expandableTabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@kexp/search",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC3I2GFN_F8WudD_2jUZbojA",
+        "params": "EgZzZWFyY2jyBgQKAloA",
+        "canonicalBaseUrl": "/@kexp"
+       }
+      },
+      "title": "Search",
+      "selected": false
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "channelMetadataRenderer": {
+   "title": "KEXP",
+   "externalId": "UC3I2GFN_F8WudD_2jUZbojA",
+   "channelUrl": "https://www.youtube.com/channel/UC3I2GFN_F8WudD_2jUZbojA",
+   "androidDeepLink": "android-app://com.google.android.youtube/http/www.youtube.com/channel/UC3I2GFN_F8WudD_2jUZbojA",
+   "vanityChannelUrl": "http://www.youtube.com/@kexp"
+  }
+ },
+ "header": {
+  "pageHeaderRenderer": {
+   "content": {
+    "engagementPanel": {
+     "sectionListRenderer": {
+      "contents": [
+       {
+        "itemSectionRenderer": {
+         "contents": [
+          {
+           "continuationItemRenderer": {
+            "continuationEndpoint": {
+             "continuationCommand": {
+              "token": "DECOY_CHANNEL_HEADER_PANEL_TOKEN"
+             }
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    }
+   }
+  }
+ }
+}

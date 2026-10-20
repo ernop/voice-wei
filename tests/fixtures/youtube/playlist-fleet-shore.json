@@ -1,0 +1,351 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "2:15"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Wading In Waist-High Water\" (Lyric Video)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "531K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "6 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "tqVxd57H-cA",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "4:14"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Sunblind\" (Lyric Video)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "649K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "6 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "LQ3nAhJyE44",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "3:59"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "Fleet Foxes - \"Can I Believe You\" (Lyric Video)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "Fleet Foxes and ANTI- Records"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "625K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "6 years ago"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "_SZp-XP8IkQ",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            }
+           ],
+           "targetId": "PLfsbuQF4YPohXa4nvblxJQX-_ptryBAle"
+          }
+         },
+         {
+          "continuationItemViewModel": {
+           "continuationCommand": {
+            "innertubeCommand": {
+             "continuationCommand": {
+              "token": "DECOY_RECOMMENDED_PLAYLISTS_TOKEN"
+             }
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "VLPLfsbuQF4YPohXa4nvblxJQX-_ptryBAle",
+        "sectionListLayoutConfiguration": {
+         "layoutConfiguration": {
+          "responsiveContainerConfiguration": {
+           "responsiveSize": "RESPONSIVE_SIZE_COMPACT",
+           "responsiveMap": [
+            {
+             "containerSize": "CONTAINER_SIZE_NARROW",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 599,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 12,
+              "containerMarginBottom": 12,
+              "containerMarginStart": 12,
+              "containerMarginEnd": 12
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_MEDIUM",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 1023,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_WIDE",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 2047,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            }
+           ]
+          }
+         }
+        },
+        "webComponentHint": {
+         "componentVersion": "WEB_COMPONENT_VERSION_SHARED"
+        }
+       }
+      },
+      "tabIdentifier": "PL"
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "playlistMetadataRenderer": {
+   "title": "Fleet Foxes - Shore (Full Album Stream)"
+  }
+ },
+ "sidebar": {
+  "playlistSidebarRenderer": {
+   "items": [
+    {
+     "playlistSidebarPrimaryInfoRenderer": {
+      "title": {
+       "runs": [
+        {
+         "text": "Fleet Foxes - Shore (Full Album Stream)"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "runs": [
+         {
+          "text": "18"
+         },
+         {
+          "text": " videos"
+         }
+        ]
+       },
+       {
+        "simpleText": "599,546 views"
+       },
+       {
+        "runs": [
+         {
+          "text": "Last updated on "
+         },
+         {
+          "text": "Sep 23, 2021"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "playlistSidebarSecondaryInfoRenderer": {
+      "videoOwner": {
+       "videoOwnerRenderer": {
+        "thumbnail": {},
+        "title": {
+         "runs": [
+          {
+           "text": "Fleet Foxes"
+          }
+         ]
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

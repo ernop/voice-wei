@@ -1,0 +1,426 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/featured",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Home"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/videos",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgZ2aWRlb3PyBgQKAjoA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Videos"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/streams",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Live"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/releases",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EghyZWxlYXNlc_IGBQoDsgEA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Releases",
+      "selected": true,
+      "content": {
+       "richGridRenderer": {
+        "contents": [
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_nh-2ayswM2ODOkyqycrvM_CCp7GpqKtWA",
+             "title": {
+              "simpleText": "Angel in the Snow (from \"Oh. What. Fun.\")"
+             },
+             "videoCount": "1",
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Nov 21, 2025"
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Fleet Foxes - Angel In The Snow (from the “Oh. What. Fun.” Soundtrack)"
+                },
+                "lengthText": {
+                 "simpleText": "2:45"
+                },
+                "videoId": "7tiL5jSz1RY"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "1 video"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "1",
+                "bold": true
+               },
+               {
+                "text": " video"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Nov 21, 2025"
+               }
+              ]
+             }
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_nyEbVOw9aGW4EL-ORqvePu7mfp69ZWWRY",
+             "title": {
+              "simpleText": "A Very Lonely Solstice"
+             },
+             "videoCount": "13",
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Sep 24, 2025"
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Fleet Foxes - \"Wading In Waist-High Water\" (Solstice Version)"
+                },
+                "lengthText": {
+                 "simpleText": "2:11"
+                },
+                "videoId": "zKwchungRrM"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Fleet Foxes - \"Sunblind\" (Solstice Version)"
+                },
+                "lengthText": {
+                 "simpleText": "4:25"
+                },
+                "videoId": "YVtoxyb0Nqw"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "13"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "13",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Sep 24, 2025"
+               }
+              ]
+             }
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_kk3pfIo77dZqFOoB9_57qfDr6JeBaga7E",
+             "title": {
+              "simpleText": "Shore"
+             },
+             "videoCount": "15",
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Sep 24, 2025"
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Fleet Foxes - \"Wading In Waist-High Water\" (Lyric Video)"
+                },
+                "lengthText": {
+                 "simpleText": "2:15"
+                },
+                "videoId": "tqVxd57H-cA"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Fleet Foxes - \"Sunblind\""
+                },
+                "lengthText": {
+                 "simpleText": "4:34"
+                },
+                "videoId": "osz9DyfbjyQ"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "15"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "15",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Fleet Foxes"
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Sep 24, 2025"
+               }
+              ]
+             }
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "6b33f947-0000-2ec9-85a1-d4f547f23580",
+        "style": "RICH_GRID_STYLE_SLIM"
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/playlists",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Playlists"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/posts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgVwb3N0c_IGBAoCSgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Posts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/store",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgVzdG9yZfIGBAoCGgA%3D",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Store"
+     }
+    },
+    {
+     "expandableTabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@FleetFoxes/search",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCna-InS-5L5qv82diztOT7A",
+        "params": "EgZzZWFyY2jyBgQKAloA",
+        "canonicalBaseUrl": "/@FleetFoxes"
+       }
+      },
+      "title": "Search",
+      "selected": false
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "channelMetadataRenderer": {
+   "title": "Fleet Foxes",
+   "externalId": "UCna-InS-5L5qv82diztOT7A",
+   "channelUrl": "https://www.youtube.com/channel/UCna-InS-5L5qv82diztOT7A",
+   "musicArtistName": "",
+   "androidDeepLink": "android-app://com.google.android.youtube/http/www.youtube.com/channel/UCna-InS-5L5qv82diztOT7A",
+   "vanityChannelUrl": "http://www.youtube.com/@FleetFoxes"
+  }
+ }
+}

@@ -1,0 +1,390 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "27:30"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "TONTRAKUL - Full Performance (Live on KEXP)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "KEXP"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "6.9K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "3 hours ago"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "badges": [
+                     {
+                      "badgeViewModel": {
+                       "badgeText": "Fundraiser"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "yZXpav794BY",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "4:12"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "TONTRAKUL - Isan Lum Long (อีสานลำล่อง) (Live on KEXP)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "KEXP"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "5.4K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "5 hours ago"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "badges": [
+                     {
+                      "badgeViewModel": {
+                       "badgeText": "Fundraiser"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "FUWf78dVtzw",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "lockupViewModel": {
+              "contentImage": {
+               "thumbnailViewModel": {
+                "overlays": [
+                 {
+                  "thumbnailBottomOverlayViewModel": {
+                   "badges": [
+                    {
+                     "thumbnailBadgeViewModel": {
+                      "text": "4:53"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {}
+                ]
+               }
+              },
+              "metadata": {
+               "lockupMetadataViewModel": {
+                "title": {
+                 "content": "TONTRAKUL - Home (โฮม) (Live on KEXP)"
+                },
+                "metadata": {
+                 "contentMetadataViewModel": {
+                  "metadataRows": [
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "KEXP"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "metadataParts": [
+                     {
+                      "text": {
+                       "content": "3.7K views"
+                      }
+                     },
+                     {
+                      "text": {
+                       "content": "5 hours ago"
+                      }
+                     }
+                    ]
+                   },
+                   {
+                    "badges": [
+                     {
+                      "badgeViewModel": {
+                       "badgeText": "Fundraiser"
+                      }
+                     }
+                    ]
+                   }
+                  ],
+                  "delimiter": " • "
+                 }
+                }
+               }
+              },
+              "contentId": "mHD1vBLe6Fo",
+              "contentType": "LOCKUP_CONTENT_TYPE_VIDEO"
+             }
+            },
+            {
+             "continuationItemViewModel": {
+              "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+              "continuationCommand": {
+               "innertubeCommand": {
+                "commandMetadata": {
+                 "webCommandMetadata": {
+                  "sendPost": true,
+                  "apiUrl": "/youtubei/v1/browse"
+                 }
+                },
+                "continuationCommand": {
+                 "token": "4qmFsgJxEhxWTFVVTEYzSTJHRk5fRjhXdWREXzJqVVpib2pBGjRDQUY2SGxCVU9rTkhVV2xGUkVWM1RYcENSRkpVVlRKTmVrMDBUMFJSZWsxcVVRJTNEJTNEmgIaVVVMRjNJMkdGTl9GOFd1ZERfMmpVWmJvakE%3D",
+                 "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                }
+               }
+              }
+             }
+            }
+           ],
+           "targetId": "UULF3I2GFN_F8WudD_2jUZbojA"
+          }
+         }
+        ],
+        "sectionListLayoutConfiguration": {
+         "layoutConfiguration": {
+          "responsiveContainerConfiguration": {
+           "responsiveSize": "RESPONSIVE_SIZE_COMPACT",
+           "responsiveMap": [
+            {
+             "containerSize": "CONTAINER_SIZE_NARROW",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 599,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 12,
+              "containerMarginBottom": 12,
+              "containerMarginStart": 12,
+              "containerMarginEnd": 12
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_MEDIUM",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 1023,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            },
+            {
+             "containerSize": "CONTAINER_SIZE_WIDE",
+             "containerType": "CONTAINER_TYPE_VERTICAL_LIST",
+             "maxWidth": 2047,
+             "minColumnSize": 310,
+             "minColumnCount": 1,
+             "maxColumnCount": 1,
+             "spacingConfiguration": {
+              "columnGap": 12,
+              "rowGap": 12,
+              "containerMarginTop": 16,
+              "containerMarginBottom": 16,
+              "containerMarginStart": 16,
+              "containerMarginEnd": 16
+             },
+             "columnMultiplier": 1,
+             "columnAdder": 0
+            }
+           ]
+          }
+         }
+        },
+        "webComponentHint": {
+         "componentVersion": "WEB_COMPONENT_VERSION_SHARED"
+        }
+       }
+      },
+      "tabIdentifier": "PL"
+     }
+    }
+   ]
+  }
+ },
+ "metadata": {
+  "playlistMetadataRenderer": {
+   "title": "Videos"
+  }
+ },
+ "sidebar": {
+  "playlistSidebarRenderer": {
+   "items": [
+    {
+     "playlistSidebarPrimaryInfoRenderer": {
+      "title": {
+       "runs": [
+        {
+         "text": "Videos"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "runs": [
+         {
+          "text": "19,452"
+         },
+         {
+          "text": " videos"
+         }
+        ]
+       },
+       {
+        "simpleText": "8,079 views"
+       },
+       {
+        "runs": [
+         {
+          "text": "Updated today"
+         }
+        ]
+       }
+      ],
+      "badges": [
+       {
+        "metadataBadgeRenderer": {
+         "style": "BADGE_STYLE_TYPE_SIMPLE",
+         "label": "Unlisted"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "playlistSidebarSecondaryInfoRenderer": {
+      "videoOwner": {
+       "videoOwnerRenderer": {
+        "thumbnail": {},
+        "title": {
+         "runs": [
+          {
+           "text": "KEXP"
+          }
+         ]
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}
