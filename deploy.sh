@@ -3,10 +3,9 @@
 # Reads deploy.user / deploy.host / deploy.remotePath / deploy.publicUrl from
 # config.json. Publishes the committed tree (HEAD) exactly as CI does, through
 # deploy/publish-site.sh, then runs the same live checks. Uncommitted edits
-# and untracked files never ship.
+# and untracked files never ship. Do not run it while a CI deploy is running:
+# each deploy deletes every release but the live one (docs/setup.md).
 # Usage: ./deploy.sh [--dry-run]
-#        ./deploy.sh --rollback [RELEASE]   (releases layout: back to RELEASE,
-#                                            by default the previous release)
 
 set -e
 
@@ -36,13 +35,6 @@ if [ -z "$deploy_user" ] || [ -z "$deploy_host" ] || [ -z "$remote_dir" ] || [ -
     exit 1
 fi
 app_url="${public_url%/*}/"
-
-if [ "$1" = "--rollback" ]; then
-    deploy/swap-release.sh "$deploy_user" "$deploy_host" "$remote_dir" --rollback ${2:+"$2"}
-    curl -fsS "${app_url}release.json?cb=$(date +%s)"
-    deploy/smoke-live.sh "$app_url"
-    exit 0
-fi
 
 DRY_RUN=""
 if [ "$1" = "--dry-run" ]; then

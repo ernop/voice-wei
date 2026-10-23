@@ -1626,3 +1626,23 @@ proxy boundary".
   the whole gate failed. They now go to the system temp directory.
 - Not done: driving the card by voice ("iterate with me" by speech). The
   card is touch-only.
+
+## 2026-10-23 - Deploys keep only the live release
+
+The owner approved closing the open item in hosting-contract.md: their rule
+against recovery copies of builds forbade keeping the newest five releases
+for `--rollback`, and the host held four old ones. `publish-site.sh` now
+deletes every release but the live one after the swap, and on any failure
+after the upload starts (an EXIT trap), so a lost compare-and-swap or a
+half-finished upload leaves nothing behind. `--rollback` is gone from
+`swap-release.sh` and `deploy.sh`; recovery is a revert and push.
+
+For future mei:
+- Pruning to the live release makes overlapping deploys unsafe: a deploy
+  that lists releases, then prunes, deletes a release another deploy put
+  live in between. CI's `deploy-production` queue prevents overlap; never
+  run `./deploy.sh` during a CI deploy.
+- Every host step is rsync, so the whole publish can be rehearsed without
+  sshd: point `RSYNC_RSH` at a script that drops ssh's options and the host
+  and runs the rest locally, against a fake `.../voice-wei/site` tree.
+  rsync hands the server `--link-dest DIR` as two arguments, not one.

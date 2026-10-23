@@ -122,7 +122,7 @@ Push to `master` triggers the GitHub Actions deploy: `deploy/publish-site.sh`
 publishes the committed tree through `deploy/rsync-filter` (docs, tests, and
 tooling excluded) behind the `deploy/check-target.sh` target guard, in place
 or as an atomic release swap when the host provides that layout. Manual:
-`./deploy.sh [--dry-run | --rollback [RELEASE]]`. Details:
+`./deploy.sh [--dry-run]`. Details:
 [docs/setup.md](docs/setup.md).
 
 ## Browser support

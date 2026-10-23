@@ -195,8 +195,7 @@ fallback chain:
   `/srv/voice-wei/site`. Each deploy:
   1. publishes the committed tree into a new `releases/<id>` (id =
      UTC timestamp and short commit), hardlinking files that are unchanged
-     from the live release, so only changed files travel and old releases
-     keep their inodes;
+     from the live release, so only changed files travel;
   2. swaps the symlink with one rename (`deploy/swap-release.sh`: rsync
      writes the new symlink under a temporary name and renames it over
      `site`; traced on the replica as `symlink()` then `rename()`). The swap
@@ -204,7 +203,15 @@ fallback chain:
      one this deploy started from, so a deploy never replaces a release that
      another deploy put live meanwhile, and the losing deploy's verify step
      reports NOT LIVE;
-  3. keeps the newest 5 releases plus the live one and prunes the rest.
+  3. deletes every release except the live one: the release it replaced,
+     and its own when it did not go live (it lost the compare-and-swap or
+     failed partway). Decision (2026-10-23, the owner's rule against
+     recovery copies of builds): the host keeps no earlier builds, and
+     recovery is a redeploy from git. Deploys therefore must not overlap.
+     CI runs one at a time; do not run `./deploy.sh` while a CI deploy is
+     running, because a release another deploy puts live while one is
+     pruning would be deleted with the rest (its verify step would then
+     fail).
 
   Host-owned state lives in `shared/` beside the releases
   (`shared/deploy-telemetry.json`).
@@ -242,13 +249,13 @@ the exact `deploy/host-release-setup.sh`. Findings that shaped the design:
   release: the site stays up and serves that older tree until the next
   deploy. Two deploys racing (a manual `deploy.sh` overlapping CI, which
   itself runs one deploy at a time) end with exactly one live and the other
-  reporting NOT LIVE.
+  reporting NOT LIVE. That was while the newest five releases were kept;
+  since deploys prune to the live release (step 3), they must not overlap.
 
-Rollback paths: `./deploy.sh --rollback [RELEASE]` points `site` back at the
-previous (or a named) release in one rename; a revert commit and push
-publishes forward as usual; and the host can undo the conversion by
-exchanging `site` with a hardlinked directory copy of the live release, after
-which deploys detect in-place again (hosting-contract.md).
+Recovery paths: a revert commit and push publishes forward as usual (there
+are no earlier releases to swap back to; step 3), and the host can undo the
+conversion by exchanging `site` with a hardlinked directory copy of the live
+release, after which deploys detect in-place again (hosting-contract.md).
 
 ### Post-deploy checks
 
@@ -311,9 +318,8 @@ never ship (it says so when the working tree is dirty), then runs the same
 verify and smoke checks against the app URL derived from `deploy.publicUrl`:
 
 ```bash
-./deploy.sh                      # Deploy HEAD
-./deploy.sh --dry-run            # Preview
-./deploy.sh --rollback [RELEASE] # Releases layout: back to the previous (or named) release
+./deploy.sh            # Deploy HEAD (never while a CI deploy is running)
+./deploy.sh --dry-run  # Preview
 ```
 
 Claude, OpenAI, and YouTube API keys are **not** in `config.json` or on the

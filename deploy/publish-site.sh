@@ -5,7 +5,8 @@
 #   in-place  rsync --delete into PATH.
 #   releases  rsync into releases/<id> beside PATH, hardlinking unchanged
 #             files from the live release, swap PATH to it atomically
-#             (deploy/swap-release.sh), and keep the newest KEEP_RELEASES.
+#             (deploy/swap-release.sh), and delete every release but the
+#             live one, this one included when it did not go live.
 # Content is compared by checksum and mtimes are not copied: git archive
 # stamps every file with the commit time, so a size-and-mtime check could
 # skip a same-size edit, while untouched files keep their served mtime/ETag.
@@ -16,8 +17,6 @@
 # RSYNC_RSH selects the SSH command (CI puts its deploy key there).
 
 set -euo pipefail
-
-KEEP_RELEASES=5
 
 usage() {
     echo "Usage: $0 USER HOST PATH [--dry-run]" >&2
@@ -57,29 +56,40 @@ fi
 
 live=${layout#releases }
 base=${path%/*}
+name=${path##*/}
 deploy/check-target.sh "$user" "$host" "$base"
 ln -s ../../shared/deploy-telemetry.json "$work/tree/deploy-telemetry.json"
 
+# The host keeps no copies of earlier builds (recovery is a redeploy from
+# git), so only the live release survives. Deploys must not overlap, which
+# CI's deploy-production queue guarantees: a release that another deploy puts
+# live after the listing below would be deleted with the rest.
+prune_to_live() {
+    local state live_now releases earlier
+    state=$(rsync -rl --list-only --filter="+ /$name" --filter='+ /releases/' --filter='+ /releases/*/' \
+        --filter='- *' "$user@$host:$base/")
+    live_now=$(printf '%s\n' "$state" | sed -n "s#.* $name -> releases/##p")
+    releases=$(printf '%s\n' "$state" | awk '$1 ~ /^d/ && $NF ~ /^releases\/./ { sub(/^releases\//, "", $NF); print $NF }')
+    if [ -z "$live_now" ] || ! printf '%s\n' "$releases" | grep -qxF "$live_now"; then
+        echo "Refusing to prune: cannot read the live release" >&2
+        return 1
+    fi
+    earlier=$(printf '%s\n' "$releases" | grep -vxF "$live_now" || true)
+    if [ -z "$earlier" ]; then
+        return 0
+    fi
+    echo "Deleting earlier releases: $(printf '%s\n' "$earlier" | paste -sd' ')"
+    rsync -r --delete --filter="P /$live_now/" "$work/empty/" "$user@$host:$base/releases/"
+}
+
 echo "Publishing release $release (v$version); live release is $live"
+if [ -z "$dry_run" ]; then
+    # A deploy that fails from here on still leaves only the live release.
+    trap 'status=$?; if [ "$status" -ne 0 ]; then prune_to_live || true; fi; rm -rf "$work"' EXIT
+fi
 "${publish[@]}" --link-dest="../$live" "$work/tree/" "$user@$host:$base/releases/$release/"
 if [ -n "$dry_run" ]; then
     exit 0
 fi
-deploy/swap-release.sh "$user" "$host" "$path" --forward "$release" "$live"
-
-name=${path##*/}
-state=$(rsync -rl --list-only --filter="+ /$name" --filter='+ /releases/' --filter='+ /releases/*/' \
-    --filter='- *' "$user@$host:$base/")
-live_now=$(printf '%s\n' "$state" | sed -n "s#.* $name -> releases/##p")
-releases=$(printf '%s\n' "$state" | awk '$1 ~ /^d/ && $NF ~ /^releases\/./ { sub(/^releases\//, "", $NF); print $NF }' | sort)
-if [ -z "$live_now" ] || ! printf '%s\n' "$releases" | grep -qxF "$live_now"; then
-    echo "Refusing to prune: cannot read the live release" >&2
-    exit 1
-fi
-# The newest releases stay for rollback; the live one and this one always stay.
-keep=$({ printf '%s\n' "$releases" | tail -n "$KEEP_RELEASES"; echo "$live_now"; echo "$release"; } | sort -u)
-protect=()
-for kept in $keep; do
-    protect+=(--filter="P /$kept/")
-done
-rsync -r --delete --itemize-changes "${protect[@]}" "$work/empty/" "$user@$host:$base/releases/"
+deploy/swap-release.sh "$user" "$host" "$path" "$release" "$live"
+prune_to_live

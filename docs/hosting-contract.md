@@ -197,9 +197,10 @@ to `deploy/voicewei-fpm.conf`. The re-run of "Deploy to Production" run
 `"layout": "releases"`. The host then deleted `site.pre-releases` and the
 `*-initial` snapshot release, after checking that they held only that same
 build, under the owner's rule against recovery copies of builds (recovery is a
-redeploy from this repository). The same rule forbids `publish-site.sh`
-keeping the newest five releases for `--rollback`; changing that is open
-voice-wei work.
+redeploy from this repository). The same rule forbade `publish-site.sh`
+keeping the newest five releases for `--rollback`; since 2026-10-23 each
+deploy deletes every release but the live one, and `--rollback` is gone
+([setup.md](setup.md), "Host layouts and atomic releases").
 
 To return to in-place, as root in `/srv/voice-wei` (rehearsed as root on a
 scratch copy of this layout, 2026-10-12):
