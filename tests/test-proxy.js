@@ -438,6 +438,11 @@ function readFixturePage(body, options = {}) {
         && (youtubeSource.match(/requestPublicUrl\(/g) || []).length === 1
         && youtubeSource.includes("YOUTUBE_API_BASE . $endpoint . '?prettyPrint=false'")
         && youtubeSource.includes("'userAgent' => null"));
+    report.check('outbound requests send a User-Agent that names no project or person',
+        source.includes("const PUBLIC_FETCH_USER_AGENT = 'Mozilla/5.0';")
+        && source.includes(": PUBLIC_FETCH_USER_AGENT;")
+        && (source.match(/CURLOPT_USERAGENT/g) || []).length === 1
+        && !/voice.?wei/i.test((source.match(/'userAgent' => '[^']*'/g) || []).join(' ')));
     fs.rmSync(youtubeTemp, { recursive: true, force: true });
 
     report.finish();

@@ -104,6 +104,91 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         await ctx.close();
     }
 
+    // ============ PROVIDER AND MODEL TEXT STAYS TEXT ============
+    // Search titles and AI song fields are plain text from JSON. Parsing them
+    // as HTML in a live element ran markup such as <img onerror> on the origin
+    // that holds the API keys (security audit, 2026-10-23).
+    {
+        const ctx = await browser.newContext();
+        const markupErrors = [];
+        const probeRequests = [];
+        const hostileTitle = '<img src="x-markup-probe-title" onerror="window.__directMarkupRan = true">Dreams';
+        const hostileChannel = '<svg onload="window.__directMarkupRan = true"></svg>Fleetwood Mac';
+        await ctx.route('**/proxy.php?*', route => {
+            const url = new URL(route.request().url());
+            if (url.searchParams.has('q')) {
+                return route.fulfill({
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        results: [{ videoId: 'markup00001', title: hostileTitle, channelTitle: hostileChannel, duration: 257 }],
+                        source: 'test-proxy'
+                    })
+                });
+            }
+            return route.fulfill({ contentType: 'application/json', body: '[]' });
+        });
+        const tab = await ctx.newPage();
+        collectErrors(tab, 'player-search-markup', markupErrors);
+        // Lyrics lookups carry the title in their query, so only a request
+        // for the probe's own path means an <img> was created and loaded.
+        tab.on('request', request => {
+            if (new URL(request.url()).pathname.includes('x-markup-probe')) probeRequests.push(request.url());
+        });
+        await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
+        await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+        await tab.evaluate(() => { window.musicController.playPlaylist = () => {}; });
+        await tab.fill('#typedCommandInput', 'Dreams');
+        await tab.press('#typedCommandInput', 'Enter');
+        await tab.waitForFunction(() => window.musicController?.isProcessingCommand === false
+            && window.musicController?.playlist.length === 1);
+        const aiFields = await tab.evaluate(async () => {
+            const harness = {
+                playlist: [],
+                youtubeAlternateResults: new Map(),
+                settings: { playlistTimedOnly: false }
+            };
+            PlayerPlaylist.install(harness);
+            Object.assign(harness, {
+                addMessage() {},
+                updateStatus() {},
+                addPlaylistItemsToDOM() {},
+                updatePlaylistLabel() {},
+                persistPlaylist() {},
+                queueLyricsLookup() {}
+            });
+            harness.searchYouTube = async () => ({
+                videoId: 'markup00002', title: 'Dreams', channelTitle: 'Fleetwood Mac', duration: '4:17', durationSeconds: 257
+            });
+            await harness.searchAndAddToPlaylist([{
+                searchTerm: 'dreams',
+                name: '<img src="x-markup-probe-name" onerror="window.__aiMarkupRan = true">Dreams',
+                artist: 'Fleetwood Mac',
+                comment: '<svg onload="window.__aiMarkupRan = true"></svg>1977'
+            }]);
+            return { name: harness.playlist[0]?.name || '', comment: harness.playlist[0]?.comment || '' };
+        });
+        // An image error handler would fire asynchronously, after its request.
+        await tab.waitForTimeout(300);
+        const direct = await tab.evaluate(() => ({
+            ran: window.__directMarkupRan === true,
+            name: window.musicController.playlist[0].name,
+            artist: window.musicController.playlist[0].artist
+        }));
+        const aiRan = await tab.evaluate(() => window.__aiMarkupRan === true);
+        report.check(`markup in a search title never runs and stays literal text (${probeRequests.length} probe requests)`,
+            !direct.ran
+            && probeRequests.length === 0
+            && direct.name === hostileTitle
+            && direct.artist === hostileChannel);
+        report.check('markup in AI song fields never runs and stays literal text',
+            !aiRan
+            && aiFields.name.startsWith('<img src="x-markup-probe-name"')
+            && aiFields.comment === '<svg onload="window.__aiMarkupRan = true"></svg>1977');
+
+        markupErrors.forEach(error => report.errors.push(error));
+        await ctx.close();
+    }
+
     // ============ DIRECT LINK: player.html?url=<page>&onlyURL=true|false ============
     {
         const pageUrl = 'https://en.wikipedia.org/wiki/Rumours_(album)';
@@ -901,7 +986,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 messages: [],
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus() {},
-                decodeHtml(value) { return value; },
                 addPlaylistItemToDOM() {},
                 addPlaylistItemsToDOM() {},
                 updatePlaylistLabel() {},
@@ -971,7 +1055,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             Object.assign(harness, {
                 addMessage() {},
                 updateStatus() {},
-                decodeHtml(value) { return value; },
                 addPlaylistItemsToDOM() {},
                 updatePlaylistLabel() {},
                 persistPlaylist() {},
@@ -1024,7 +1107,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
                 Object.assign(harness, {
                     addMessage() {},
                     updateStatus() {},
-                    decodeHtml(value) { return value; },
                     addPlaylistItemToDOM() {},
                     addPlaylistItemsToDOM() {},
                     updatePlaylistLabel() {},

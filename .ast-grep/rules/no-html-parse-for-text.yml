@@ -1,0 +1,33 @@
+id: no-html-parse-for-text
+message: Never turn a string into text by parsing it as HTML in an element - markup such as <img onerror> runs while it parses. Provider and model strings are already text; escape them where they are rendered (escapeHtml).
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/tests/**"
+rule:
+  kind: statement_block
+  all:
+    - has:
+        kind: expression_statement
+        has:
+          pattern: $EL.innerHTML = $TEXT
+    - has:
+        any:
+          - kind: return_statement
+            has:
+              stopBy: end
+              any:
+                - pattern: $EL.textContent
+                - pattern: $EL.innerText
+          - kind: lexical_declaration
+            has:
+              kind: variable_declarator
+              has:
+                field: value
+                stopBy: end
+                any:
+                  - pattern: $EL.textContent
+                  - pattern: $EL.innerText
+note: "A detached element still loads images and fires their handlers, so decoding through innerHTML executes attacker markup (security audit 2026-10-23, player-playlist.js decodeHtml). An inert <template> parse that is sanitized before use is the only sanctioned innerHTML parse of outside text."

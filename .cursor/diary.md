@@ -1646,3 +1646,28 @@ For future mei:
   sshd: point `RSYNC_RSH` at a script that drops ssh's options and the host
   and runs the rest locally, against a fake `.../voice-wei/site` tree.
   rsync hands the server `--link-dest DIR` as two arguments, not one.
+
+## 2026-10-23 - Song text is never parsed as HTML; the User-Agent names nothing
+
+A full security audit (Cloudflare's security-audit skill, report outside the
+repo) confirmed one high finding here: `decodeHtml` decoded search titles and
+AI song fields through `div.innerHTML`, so `<img onerror>` in a YouTube title,
+or in text an imported page steered the model into, ran script on fuseki.net,
+where the API keys live. Base design: the decode was a leftover from the keyed
+YouTube Data API, which HTML-encoded titles; Piped, Invidious, youtubei and
+the models all answer in JSON text. So the decode is gone rather than made
+inert, render-time `escapeHtml` stays the one boundary, and the
+`no-html-parse-for-text` lint rule forbids decoding through an element.
+
+The owner also chose a generic `Mozilla/5.0` User-Agent for every proxy
+request and the Datamuse script, since `Voice-Wei URL Import/1.0` named the
+project to every imported site, the search instances and LRCLIB.
+
+For future mei:
+- A detached element still loads `<img src>` and fires `onerror`, so "it is
+  never attached to the page" does not make an innerHTML parse safe.
+- Lyrics lookups carry the title in their query string. A test that watches
+  for a probe image must match the request path, not the whole URL.
+- This machine has no system `php`. `~/.local/share/php-env/bin` holds a
+  user-space PHP 8.5 CLI with curl; put it on `PATH` to run `php -l` and the
+  proxy suite locally.

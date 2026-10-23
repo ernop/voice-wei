@@ -85,12 +85,16 @@ function resolveReadablePageUrl($url) {
     return $url;
 }
 
+// The default User-Agent names no project or person: the owner does not reveal
+// this project to the sites and providers it fetches from (2026-10-23).
+const PUBLIC_FETCH_USER_AGENT = 'Mozilla/5.0';
+
 // $options['postJson']: send this JSON body as a POST. A redirect is then an
 // error, so the body is never re-sent to wherever a redirect points.
 // $options['userAgent']: the User-Agent header, or null to send none.
 function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds, $options = []) {
     $postJson = $options['postJson'] ?? null;
-    $userAgent = array_key_exists('userAgent', $options) ? $options['userAgent'] : 'Voice-Wei URL Import/1.0';
+    $userAgent = array_key_exists('userAgent', $options) ? $options['userAgent'] : PUBLIC_FETCH_USER_AGENT;
     $headers = ['Accept: ' . $accept, 'Accept-Language: en-US,en;q=0.9'];
     if ($postJson !== null) {
         $headers[] = 'Content-Type: application/json';

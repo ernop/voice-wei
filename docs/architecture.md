@@ -165,7 +165,11 @@ runs as `voicewei`, has no shell/process execution functions, and can access
 only the application root and `/tmp`. Lyrics search uses the same outbound
 request boundary but accepts only `track_name` and `artist_name`; the server
 fixes the destination to LRCLIB, caps JSON at 2 MB, and retains the 12-second
-provider timeout. It is not a general URL proxy.
+provider timeout. It is not a general URL proxy. Every outbound request sends
+`User-Agent: Mozilla/5.0` (`PUBLIC_FETCH_USER_AGENT`), which names no project
+or person: the owner does not reveal this project to the sites and providers
+it fetches from (owner decision 2026-10-23; until then it sent
+`Voice-Wei URL Import/1.0`). YouTube listing sends none.
 
 The importer's `readUrl` answer (`readablePageAnswer`, the tested boundary)
 is shared by Books and linked-page music requests, so its text keeps the
@@ -753,6 +757,17 @@ added, so the working playlist is a matter of convenience over durable
 data. Runtime row ids come from one monotonic allocator in `PlayerSongs`;
 reload regenerates them, including for older saved entries that still carry
 the retired `id` field.
+
+Song fields are plain text from end to end. Search providers (Piped,
+Invidious, youtubei) and the AI models answer in JSON, so titles, names, and
+comments are stored exactly as received and escaped only where they are
+rendered (`escapeHtml`). Nothing parses them as HTML: the retired
+`decodeHtml`, a leftover from the keyed YouTube Data API, which HTML-encoded
+titles, decoded them through `div.innerHTML`, and a title or model answer
+holding `<img onerror>` ran script on the origin that stores the API keys
+(security audit, 2026-10-23). The `no-html-parse-for-text` lint rule forbids
+that pattern, and `tests/test-player-search.js` proves markup in a search
+title or AI field stays literal text and never runs.
 
 The default request boundary is keyless: voice fallback, Enter, and Search pass
 one raw term to `searchYouTubeCandidates`, then turn up to ten ranked proxy

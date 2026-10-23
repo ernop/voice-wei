@@ -142,7 +142,7 @@ def clean_word_list(raw):
 def datamuse_related(word, limit):
     query = urllib.parse.urlencode({"ml": word, "max": limit})
     request = urllib.request.Request(
-        f"{DATAMUSE_URL}?{query}", headers={"User-Agent": "voice-wei coolness"})
+        f"{DATAMUSE_URL}?{query}", headers={"User-Agent": "Mozilla/5.0"})
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             rows = json.loads(response.read().decode("utf-8"))

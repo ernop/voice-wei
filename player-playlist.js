@@ -282,11 +282,11 @@ const PlayerPlaylist = (function () {
                     const primaryVideoData = { ...videoData };
                     delete primaryVideoData.alternateVideos;
                     const playlistItem = PlayerSongs.createPlaylistItem({
-                        name: song.name ? this.decodeHtml(song.name) : '',
-                        artist: song.artist ? this.decodeHtml(song.artist) : '',
+                        name: song.name || '',
+                        artist: song.artist || '',
                         year: song.year || '',
-                        album: song.album ? this.decodeHtml(song.album) : '',
-                        comment: song.comment ? this.decodeHtml(song.comment) : '',
+                        album: song.album || '',
+                        comment: song.comment || '',
                         searchTerm: song.searchTerm,
                         ...primaryVideoData
                     }, {
@@ -363,12 +363,7 @@ const PlayerPlaylist = (function () {
                 const items = [];
                 for (const candidate of candidates) {
                     if (seenVideoIds.has(candidate.videoId)) continue;
-                    const decodedCandidate = {
-                        ...candidate,
-                        title: this.decodeHtml(candidate.title),
-                        channelTitle: this.decodeHtml(candidate.channelTitle)
-                    };
-                    const song = PlayerSongs.songFromYouTubeCandidate(decodedCandidate, query);
+                    const song = PlayerSongs.songFromYouTubeCandidate(candidate, query);
                     if (!song) continue;
                     const item = PlayerSongs.createPlaylistItem(song, {
                         sourceKind: 'search',
@@ -2145,14 +2140,6 @@ const PlayerPlaylist = (function () {
                     '"': '&quot;',
                     "'": '&#39;'
                 })[character]);
-            },
-
-            decodeHtml(text) {
-                // YouTube API returns HTML-encoded titles (e.g., &amp; instead of &)
-                // Decode them before storing to avoid double-encoding when displayed
-                const div = document.createElement('div');
-                div.innerHTML = text;
-                return div.textContent;
             },
 
             currentPlaylistItem() {
