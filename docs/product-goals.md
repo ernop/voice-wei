@@ -52,6 +52,9 @@ was removed for the moment on 2026-10-06 by owner direction. Its page,
 suite, and docs are restorable from commit `46920a5`
 (`git checkout 46920a5 -- articles.html articles.js articles.css
 tests/test-articles.js`, plus the docs sections removed in the same change).
+The restored page would not work by itself: since 2026-10-23 the Fuseki
+editor accepts no calls from fuseki.net
+([hosting contract](hosting-contract.md#independent-origin-hosting-review-2026-09-26)).
 
 ## System invariants
 

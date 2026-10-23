@@ -244,5 +244,9 @@ single allowed origin (`VOICE_DRAFT_ORIGIN`) moves with it.
 
 Articles removed (owner direction 2026-10-06): Voice-Wei no longer ships the
 Articles tab, so nothing on fuseki.net calls the voice-draft API now. The
-editor-side allowance for `https://fuseki.net` is unused until the tab
-returns (restore path in [product-goals.md](product-goals.md)).
+editor-side allowance for `https://fuseki.net` was removed on 2026-10-23
+(owner decision after a security audit: through it, any script on
+fuseki.net could use the owner's editor session). The editor now trusts no
+other origin, so restoring the tab's files alone no longer works; a
+returning tab needs a new design agreed in the Fuseki repository, such as a
+small authoring page on the editor's own origin.
