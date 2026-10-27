@@ -244,6 +244,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `practice-audio.js` | Thin shared piano playback wrapper | - |
 | `scales-playback.js` | Scales sequence playback coordinator (token-cancelled loops; its playing flag is the page's transport state) | - |
 | `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
+| `scales-patterns.js` | The note patterns Scales plays, as pure functions: a section walked by direction, ladder rungs, movement figures, exercises, rising repeats | - |
 | `piano-keyboard.js` + `piano-keyboard.css` | The Scales keyboard: which keys a pass needs, degrees, key-aware spelling, microtone markers, exact highlight | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
@@ -561,6 +562,12 @@ The scales feature plays musical patterns built from:
 2. **Scale** - which notes within that range (patterns in
    `music-constants.js`)
 3. **Root, direction, repeat, rising/shifting, movement style**
+
+`scales-patterns.js` builds every pattern as a pure function of these
+(MIDI in, MIDI out); `scales.js` reads the settings, plays, and shows.
+`tests/test-scales-patterns.js` holds each movement style to its example
+in [scales-commands.md](scales-commands.md) and checks the first two rules
+below for every style and direction.
 
 Vital rules that have caused bugs before:
 
@@ -1300,9 +1307,12 @@ monolith: `test-scales-trace`, `test-phrases`, `test-intervals-pitch`,
 the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-playback-engine`, `test-staff-view`, `test-staff-page`, `test-pages-load`,
 `test-player-startup`, `test-player-lifecycle`, `test-proxy`, `test-deploy`,
-`test-coolness`, `test-find-puzzle`, `test-media-player`, `test-usage-stats`, `test-syntax`, and
-`test-css-ownership`. Use `node tests/run-all.js --suite <file>` for one suite
-while iterating.
+`test-coolness`, `test-find-puzzle`, `test-media-player`, `test-usage-stats`, `test-syntax`,
+`test-css-ownership`, `test-scales-keyboard` (the Scales keyboard model,
+view, and page round trips), `test-scales-patterns` (Scales note patterns
+in Node, against the documented examples), and `test-display-rules` (the
+stylesheets already clean of gray text; the list only grows). Use
+`node tests/run-all.js --suite <file>` for one suite while iterating.
 
 Three disciplines keep the gate fast and honest:
 

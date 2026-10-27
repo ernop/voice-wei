@@ -117,6 +117,7 @@ interface Window {
         }) => { draw: () => void; clear: () => void };
     };
     PianoKeyboard?: typeof PianoKeyboard;
+    ScalesPatterns?: typeof ScalesPatterns;
     StaffScrollView?: {
         create: (config: StaffScrollViewConfig) => {
             render: () => void;

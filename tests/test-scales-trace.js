@@ -208,8 +208,8 @@ function waitForScalesReady(tab) {
                 cMinor,
                 ebMajorFromStoredSharp,
                 ebMajorDegrees,
-                locrianFifth: c.getDiatonicInterval(60, 60, 'fifth', 'locrian'),
-                dorianThird: c.getDiatonicInterval(60, 60, 'third', 'dorian'),
+                locrianFifth: ScalesPatterns.getDiatonicInterval(60, 60, 'fifth', 'locrian'),
+                dorianThird: ScalesPatterns.getDiatonicInterval(60, 60, 'third', 'dorian'),
                 cPlain: !/[#b]/.test(cMajor),
                 fUsesBb: fMajor.includes('Bb4') && !fMajor.includes('A#4'),
                 cMinorFlats: cMinor.includes('Eb4') && cMinor.includes('Ab4') && cMinor.includes('Bb4'),
@@ -249,7 +249,7 @@ function waitForScalesReady(tab) {
                 quarterCount: quarter.length,
                 quarterStepRatio: quarter[1].freq / quarter[0].freq,
                 slendroSpelling: scaleMidiToPitchString('C', 4, 'slendro', 62.4),
-                chordFifthOnMicrotonalDegree: c.getDiatonicInterval(60, 63.5, 'fifth', 'rast'),
+                chordFifthOnMicrotonalDegree: ScalesPatterns.getDiatonicInterval(60, 63.5, 'fifth', 'rast'),
                 played: played.join(',')
             };
         });
@@ -296,20 +296,6 @@ function waitForScalesReady(tab) {
             && chordsSing.railMax >= chordsSing.targetMax
             && chordsSing.everyTargetOnRail);
 
-        // Interval movements walk the scale any number of steps: a seventh
-        // down in a five-note scale wraps past the octave more than once.
-        const walks = await tab.evaluate(() => {
-            const c = window.scalesController;
-            const cPentatonic = [60, 62, 64, 67, 69, 72];
-            return {
-                down: c.scaleNotesFrom(60, cPentatonic, 6, -1).join(','),
-                up: c.scaleNotesFrom(69, cPentatonic, 6, 1).join(','),
-                offScale: c.scaleNotesFrom(61, cPentatonic, 2, 1).length
-            };
-        });
-        report.check(`scale walks wrap any number of steps (pentatonic down from C4 ${walks.down}; up from A4 ${walks.up})`,
-            walks.down === '57,55,52,50,48,45' && walks.up === '72,74,76,79,81,84' && walks.offScale === 0);
-
         // Ladder: overlapping rungs shifting one degree per rung.
         // Terminal ends play out (clip: 678, 78, 8); mid-cycle turnarounds
         // reflect (678, 787, 876); forever-no-gap up+down reflects at the
@@ -320,22 +306,22 @@ function waitForScalesReady(tab) {
             const cMajor = [60, 62, 64, 65, 67, 69, 71, 72];
             const rungString = result => result.groups.map(g => g.notes.join(',')).join(' | ');
 
-            const both = c.buildLadderGroups({
+            const both = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false, seamlessLoop: false
             });
-            const bothSeamless = c.buildLadderGroups({
+            const bothSeamless = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'both', size: 3, reverse: false, seamlessLoop: true
             });
-            const downAndUp = c.buildLadderGroups({
+            const downAndUp = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'down_and_up', size: 3, reverse: false, seamlessLoop: false
             });
-            const upFive = c.buildLadderGroups({
+            const upFive = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'ascending', size: 5, reverse: false, seamlessLoop: false
             });
-            const reverseUp = c.buildLadderGroups({
+            const reverseUp = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'ascending', size: 3, reverse: true, seamlessLoop: false
             });
-            const clamped = c.buildLadderGroups({
+            const clamped = ScalesPatterns.buildLadderGroups({
                 degreesAscAll: cMajor, direction: 'ascending', size: 12, reverse: false, seamlessLoop: false
             });
 
