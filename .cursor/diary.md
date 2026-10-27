@@ -1712,3 +1712,26 @@ For future mei:
 - The gray-text scanner and the static stylesheet check live in
   `tests/helpers.js`; `tests/test-display-rules.js` holds the list of
   stylesheets already clean, and that list only grows.
+
+## 2026-10-26 - Keys at a piano's proportions, and a cleanup pass (v371)
+
+yui saw v370 on a wide window and asked whether the very wide keys were
+intended. They were not designed, only accepted: I read "fill the width"
+as "stretch the keys", saw the wide keys in my own screenshots, and moved
+on. Now the view asks the model for as many 48px white keys as fit, and the
+model fills the room with plain piano (no degrees, only C keys named,
+centered, stopping at A0 and C8). The same screenshot showed Bb chromatic's
+root labeled "A#": scales with no letter pattern fell back to sharps
+whatever the root. They now take the root's accidentals.
+
+For future mei:
+- The fluid-width rule is satisfied by showing more at a natural size, not
+  by enlarging what is there. When a screenshot shows a control stretched
+  well past its natural proportions, that is a defect to fix, not a
+  consequence of the rule.
+- Never resize an observed element inside its ResizeObserver callback (the
+  browser reports "ResizeObserver loop completed with undelivered
+  notifications"). Do the refit on the next animation frame, and have tests
+  poll until the refit settles; two fixed frames race it.
+- `deploy/verify-live.sh` compares the full commit id; pass
+  `$(git rev-parse HEAD)`, since a short id reports NOT LIVE when it is live.
