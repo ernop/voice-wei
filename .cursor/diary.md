@@ -1735,3 +1735,29 @@ For future mei:
   poll until the refit settles; two fixed frames race it.
 - `deploy/verify-live.sh` compares the full commit id; pass
   `$(git rev-parse HEAD)`, since a short id reports NOT LIVE when it is live.
+
+## 2026-10-27 - A steady Scales readout (v372), and Ears' late questions (v373)
+
+yui saw a twitch above the piano when a note's name appeared. Measured
+first: the readout's height never changed (its min-height covered the large
+text). The twitch was the plan text dropping 8px, because baseline alignment
+moved it onto the large notes' baseline only while they existed. The notes
+zone now always holds a line of its type (a zero-width stand-in when
+nothing sounds), and the old min-height is gone.
+
+The v372 validate run then failed in the usage-stats suite (Both mode).
+The cause was a real Ears bug, not test noise: Skip and auto-advance queued
+`playNextInterval()` on bare timers that Next never cancelled. The late one
+replaced the question the user had just started, mid-answer. All six
+follow-ups now share one handle that Next clears; an Intervals check
+counts question starts across Skip then Next.
+
+For future mei:
+- When yui reports a layout twitch, measure the boxes in each state before
+  choosing a fix. What moves may be a sibling's position, not the height
+  everyone assumes.
+- A timer that moves the page on must be cancelled when the user moves it
+  on first. One handle per "what happens next", cleared by the next action,
+  beats separate fire-and-forget timers.
+- A red validate on an unrelated suite is still worth reading: a check
+  that fails only on slower machines can be the one place a real race shows.
