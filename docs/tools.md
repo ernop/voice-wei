@@ -407,6 +407,10 @@ missed; after an answer it only moves on), "stats", or an interval name to
 answer. Hardware media keys: play/pause repeat the current interval, next
 plays a new one.
 
+What a settled question queues (auto-advance, Skip's move on, Both's sing
+step) waits one at a time, and Next drops it: pressing Next always gives
+exactly one new question, never a second one landing on it moments later.
+
 ## Music
 
 Keyless voice music player: **say or type artist/song terms, get a playlist.**

@@ -210,6 +210,26 @@ function seedFastIntervalTimings(tab) {
         const stats = await tab.evaluate(() => SettingsStore.peekData(StorageKeys.INTERVALS_EAR_STATS));
         const total = Object.values(stats || {}).reduce((sum, s) => sum + s.total, 0);
         report.check('intervals ear answer recorded with feedback', feedback.trim().length > 0 && total >= 1);
+        // Skip queues the next question 1.5s out. Pressing Next before then
+        // must replace that queued question, not be followed by it.
+        await tab.evaluate(() => {
+            const ear = window.intervalsDebug.ear;
+            const start = ear.playNextInterval.bind(ear);
+            window.__questionStarts = 0;
+            ear.playNextInterval = () => {
+                window.__questionStarts++;
+                return start();
+            };
+            document.getElementById('singSkipBtn').click();
+        });
+        await tab.click('#earNextBtn');
+        const questionStarts = await tab.evaluate(async () => {
+            await new Promise(resolve => setTimeout(resolve, 1800));
+            delete window.intervalsDebug.ear.playNextInterval;
+            return window.__questionStarts;
+        });
+        report.check(`intervals ear Next replaces the question a Skip queued (questions started: ${questionStarts})`,
+            questionStarts === 1);
         await tab.click('.vf-btn[data-preset="perfect"]');
         // applyPreset persists synchronously through SettingsStore.
         const enabled = await tab.evaluate(() => {

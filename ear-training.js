@@ -95,6 +95,8 @@ class EarTrainingController {
         this.answered = false;
         /** @type {number} performance.now() when the current question began */
         this.questionStartedAt = 0;
+        /** @type {number | null} what a settled question queued: the next question, or Both's sing phase */
+        this.followUpId = null;
 
         // Phase tracking for "both" mode
         /** @type {'idle' | 'identifying' | 'singing'} */
@@ -628,7 +630,30 @@ class EarTrainingController {
         return min + Math.floor(Math.random() * (max - min + 1));
     }
 
+    /**
+     * Queue what follows a settled question. One at a time, and a new
+     * question cancels it, so a late one never lands on the question the
+     * user has moved on to.
+     * @param {() => void} step
+     * @param {number} delayMs
+     */
+    scheduleFollowUp(step, delayMs) {
+        this.clearFollowUp();
+        this.followUpId = setTimeout(() => {
+            this.followUpId = null;
+            step();
+        }, delayMs);
+    }
+
+    clearFollowUp() {
+        if (this.followUpId) {
+            clearTimeout(this.followUpId);
+            this.followUpId = null;
+        }
+    }
+
     async playNextInterval() {
+        this.clearFollowUp();
         await MediaSessionCore.activate();
 
         // Reset state
@@ -743,7 +768,7 @@ class EarTrainingController {
             return; // completeSingMode handles the advance
         }
         // Auto-advance after short delay
-        setTimeout(() => this.playNextInterval(), 1500);
+        this.scheduleFollowUp(() => this.playNextInterval(), 1500);
     }
 
     /**
@@ -771,7 +796,7 @@ class EarTrainingController {
 
             // In "both" mode, transition to sing phase after correct identification
             if (this.mode === 'both') {
-                setTimeout(() => {
+                this.scheduleFollowUp(() => {
                     this.phase = 'singing';
                     this.updateUIForPhase();
                     this.showFeedback('Now sing it!', 'info');
@@ -782,7 +807,7 @@ class EarTrainingController {
             }
 
             if (this.autoAdvance) {
-                setTimeout(() => this.playNextInterval(), 1000);
+                this.scheduleFollowUp(() => this.playNextInterval(), 1000);
             }
         } else {
             const correctName = INTERVALS[this.currentInterval].name;
@@ -795,7 +820,7 @@ class EarTrainingController {
 
             // In "both" mode with wrong answer, still go to sing phase but it won't count as fully correct
             if (this.mode === 'both') {
-                setTimeout(() => {
+                this.scheduleFollowUp(() => {
                     this.phase = 'singing';
                     this.updateUIForPhase();
                     this.showFeedback('Try singing it anyway', 'info');
@@ -806,7 +831,7 @@ class EarTrainingController {
             }
 
             if (this.autoAdvance) {
-                setTimeout(() => this.playNextInterval(), 2500);
+                this.scheduleFollowUp(() => this.playNextInterval(), 2500);
             }
         }
     }
@@ -1082,7 +1107,7 @@ class EarTrainingController {
 
         // Auto-advance after sing mode completes
         if (this.autoAdvance) {
-            setTimeout(() => this.playNextInterval(), success ? 1500 : 2500);
+            this.scheduleFollowUp(() => this.playNextInterval(), success ? 1500 : 2500);
         }
     }
 
