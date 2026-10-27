@@ -1671,3 +1671,44 @@ For future mei:
 - This machine has no system `php`. `~/.local/share/php-env/bin` holds a
   user-space PHP 8.5 CLI with curl; put it on `PATH` to run `php -l` and the
   proxy suite locally.
+
+## 2026-10-26 - The Scales keyboard, rebuilt (v370)
+
+yui asked for the Scales piano to be redesigned from scratch: correct
+internals with no wrong duplication, the notes just above and below the
+scale in view, and the page's buttons, controls, and naming brought up to
+the current standard, without losing anything. `piano-keyboard.js` is now a
+pure model (`buildModel`) plus a renderer (`create`): the pass's span plus
+three scale notes each way, white edges, key-aware spelling, microtone
+markers, exact highlight. The readout above it replaced the status line.
+Requirements: tools.md "Keyboard and readout"; construction: architecture.md
+"Scales engine rules".
+
+The settings became the one source of what plays: `playScale()` takes no
+arguments, voice commands write their words into the settings first, and
+history rows replay a settings snapshot. That closed a family of bugs where
+the sound, the buttons, and the history disagreed. The old
+`formatCurrentCommand()` (2025-12-13 entry) is gone; `describeSettings()` and
+`describeCommand()` speak the option buttons' own words
+(`SCALES_OPTION_LABELS`).
+
+For future mei:
+- A sweep of every scale type x section x movement through the pure model
+  (about 1,160 boards in `tests/test-scales-keyboard.js`) found what no
+  hand-picked case did: a seventh down in a pentatonic scale produced NaN,
+  because `(i - k + len) % len` goes negative once a walk wraps twice. Use
+  `positiveModulo`, and sweep pure models before trusting spot checks.
+- Restoring saved state must apply every mode, off included.
+  `applyConfig` only turned chop head on, never off, so a replayed history
+  row kept a chop head the user had switched on since.
+- A page that registers media keys must report idle as 'paused'. Scales
+  never reported, so after the first tap it claimed 'playing' forever and a
+  car's single toggle could stop a scale but never start one. The
+  coordinator's `isPlaying` setter is now the one place that reports.
+- Background `python -m http.server` processes die between shell calls
+  here; run suites through `node tests/run-all.js --suite NAME`, which
+  starts its own server. Playwright cannot click a visually hidden
+  checkbox; click its `label:has(#id)`.
+- The gray-text scanner and the static stylesheet check live in
+  `tests/helpers.js`; `tests/test-display-rules.js` holds the list of
+  stylesheets already clean, and that list only grows.
