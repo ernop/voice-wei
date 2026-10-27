@@ -141,10 +141,7 @@ const ScalesPatterns = (function () {
      * @param {boolean} [params.startsAscending]
      * @returns {ScalesPass}
      */
-    function buildMovementSequence({ movementStyle, degreesAscAll, degreesFromRoot, rootMidi, degreesAscendingRef, scaleType, turnIndex = -1, startsAscending = true }) {
-        const style = movementStyle || 'normal';
-        const sectionNotes = degreesAscAll;
-        const ascendingScale = degreesAscendingRef || degreesAscAll;
+    function buildMovementSequence({ movementStyle: style, degreesAscAll: sectionNotes, degreesFromRoot, rootMidi, degreesAscendingRef: ascendingScale, scaleType, turnIndex = -1, startsAscending = true }) {
         const lastIndex = sectionNotes.length - 1;
 
         let groups = [];
@@ -365,8 +362,6 @@ const ScalesPatterns = (function () {
                 return { min: 0, max: 19 }; // octave + perfect 5th
             case '2o':
                 return { min: 0, max: 24 }; // 2 octaves
-            case 'centered':
-                return { min: -4, max: 16 }; // major 3rd below to major 3rd above octave
             default: // '1o'
                 return { min: 0, max: 12 }; // 1 octave
         }
@@ -383,7 +378,7 @@ const ScalesPatterns = (function () {
      * @returns {number[]}
      */
     function buildExerciseNotes(rootMidi, scaleType, exercisePattern, startingDegree = 0) {
-        const basePattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
+        const basePattern = scalePattern(scaleType);
         const notesPerOctave = basePattern.length - 1;
         const extendedScale = [];
 
@@ -392,8 +387,7 @@ const ScalesPatterns = (function () {
                 extendedScale.push(rootMidi + interval + octaveShift * 12);
             }
         }
-        const lastInterval = basePattern[basePattern.length - 1] || 12;
-        extendedScale.push(rootMidi + lastInterval + 2 * 12);
+        extendedScale.push(rootMidi + 36);
 
         const resolvedPattern = exercisePattern.map(v => v === 'O' ? notesPerOctave : v);
         const notes = [];
@@ -489,7 +483,6 @@ const ScalesPatterns = (function () {
     return {
         INTERVAL_MOVEMENTS,
         buildLadderGroups,
-        buildMovementSequence,
         scaleNotesFrom,
         getDiatonicInterval,
         getSectionRange,

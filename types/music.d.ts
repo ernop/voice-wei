@@ -259,7 +259,7 @@ interface StaffScrollViewConfig {
 
 /**
  * Input to PianoKeyboard.buildModel(): a key and the pitches one pass of
- * a pattern plays. The board spans exactly these pitches plus
+ * a pattern plays. The labeled board spans exactly these pitches plus
  * PianoKeyboard.CONTEXT_DEGREES scale notes beyond each end.
  */
 interface PianoKeyboardSpec {
@@ -269,6 +269,12 @@ interface PianoKeyboardSpec {
     scaleType: string;
     /** Every pitch the pass plays, as MIDI (fractional for microtones) */
     notes: number[];
+    /**
+     * At least this many white keys: plain piano (no degrees, only C keys
+     * named) fills out the board around the labeled part. The view sets
+     * it from its width.
+     */
+    whiteKeys?: number;
 }
 
 /** One drawn pitch: a key, or a marker between keys for a microtone. */
@@ -292,7 +298,10 @@ interface PianoKeyboardKey extends PianoKeyboardNote {
     /** Left edge and width, in white-key widths */
     left: number;
     width: number;
-    /** Text on the key: the pitch with octave on C keys, the bare name elsewhere */
+    /**
+     * Text on the key: the pitch with octave on C keys, the bare name
+     * elsewhere; empty on plain-piano keys other than C
+     */
     label: string;
 }
 

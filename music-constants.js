@@ -438,13 +438,19 @@ function scaleIntervalToPitchString(root, octave, scaleType, interval, accidenta
     }
 
     const midi = rootMidi + interval;
+    const displayRoot = preferredScaleRootName(root);
     const steps = SCALE_LETTER_STEPS[scaleType];
+    // A scale with no letter steps (chromatic, the maqams) has no key
+    // signature to spell by, so it takes its root's accidentals: Bb
+    // chromatic is Bb B C Db, never A# B C C#.
+    if (!steps) {
+        return midiToPitchStringWithPreference(midi, accidentalPreference ?? (displayRoot?.includes('b') ? 'b' : '#'));
+    }
     const degreeIndex = scaleDegreeIndexForInterval(scaleType, interval);
-    if (!steps || degreeIndex < 0 || degreeIndex >= steps.length) {
+    if (degreeIndex < 0 || degreeIndex >= steps.length) {
         return midiToPitchStringWithPreference(midi, accidentalPreference);
     }
 
-    const displayRoot = preferredScaleRootName(root);
     if (!displayRoot) return midiToPitchStringWithPreference(midi, accidentalPreference);
     const rootLetterIndex = NOTE_LETTERS.indexOf(displayRoot.charAt(0));
     if (rootLetterIndex < 0) return midiToPitchStringWithPreference(midi, accidentalPreference);

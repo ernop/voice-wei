@@ -51,7 +51,27 @@ function waitForScalesReady(tab) {
                 && marker.center < key(board, Math.ceil(midi)).center;
         };
         const ebEdges = [ebMajor.keys[0], ebMajor.keys[ebMajor.keys.length - 1]];
+        const cNotes = [60, 62, 64, 65, 67, 69, 71, 72];
+        const wide = PianoKeyboard.buildModel({ root: 'C', octave: 4, scaleType: 'major', notes: cNotes, whiteKeys: 24 });
+        const plain = wide.keys.filter(k => k.midi < cMajor.lowMidi || k.midi > cMajor.highMidi);
+        /** @param {PianoKeyboardKey[]} keys */
+        const faces = keys => keys.map(k => `${k.midi}${k.label}${k.degree}${k.inSpan}${k.tonic}`).join(' ');
+        const nearLow = PianoKeyboard.buildModel({ root: 'F', octave: 1, scaleType: 'major', notes: [29, 41], whiteKeys: 30 });
+        const nearHigh = PianoKeyboard.buildModel({ root: 'G', octave: 6, scaleType: 'major', notes: [91, 103], whiteKeys: 30 });
+        /** @param {PianoKeyboardModel} board @param {number} from @param {number} to */
+        const labels = (board, from, to) => board.keys.filter(k => k.midi >= from && k.midi <= to).map(k => k.label).join(' ');
+        const bbChromatic = build('A#', 2, 'chromatic', Array.from({ length: 13 }, (_, i) => 46 + i));
+        const cChromatic = build('C', 4, 'chromatic', Array.from({ length: 13 }, (_, i) => 60 + i));
+        const bbRast = build('A#', 3, 'rast', [58, 60, 61.5, 63, 65, 67, 68.5, 70]);
         return {
+            wideRange: `${wide.lowMidi}-${wide.highMidi}, ${wide.whiteCount} white`,
+            plainLabels: plain.filter(k => k.label).map(k => k.label).join(' '),
+            plainBare: plain.every(k => k.degree === null && !k.tonic && !k.inSpan),
+            labeledKept: faces(wide.keys.filter(k => !plain.includes(k))) === faces(cMajor.keys),
+            pianoEnds: `${nearLow.lowMidi} ${nearLow.whiteCount}, ${nearHigh.highMidi} ${nearHigh.whiteCount}`,
+            bbChromatic: labels(bbChromatic, 46, 58),
+            cChromatic: labels(cChromatic, 60, 66),
+            bbRast: [58, 63].map(midi => `${key(bbRast, midi).degree}${key(bbRast, midi).label}`).join(' '),
             cRange: `${cMajor.lowMidi}-${cMajor.highMidi}, ${cMajor.whiteCount} white`,
             cDegrees: cMajor.keys.filter(k => k.degree !== null).map(k => `${k.degree}${k.label}`).join(' '),
             cInSpan: cMajor.keys.filter(k => k.inSpan).map(k => k.midi).join(','),
@@ -92,6 +112,13 @@ function waitForScalesReady(tab) {
     report.check(`lookup is exact: no other octave, no neighbor (${JSON.stringify(model.lookup)})`,
         JSON.stringify(model.lookup) === JSON.stringify(['C4', 'C5', null, null, 3, null]));
     report.check('a board needs a known root and at least one note', model.rejectsEmpty && model.rejectsRoot);
+    report.check(`room for more keys fills with plain piano on both sides: no degrees, only C keys named, the labeled part unchanged (C4 major in 24 white keys: ${model.wideRange}; named ${model.plainLabels})`,
+        model.wideRange === '47-86, 24 white' && model.plainLabels === 'C3 C6' && model.plainBare && model.labeledKept);
+    report.check(`plain piano stops at A0 and C8 and grows on the other side (F1 major low ${model.pianoEnds})`,
+        model.pianoEnds === '21 30, 108 30');
+    report.check(`a scale with no letter pattern spells with its root's accidentals (Bb chromatic ${model.bbChromatic}; C chromatic ${model.cChromatic}; Bb rast ${model.bbRast})`,
+        model.bbChromatic === 'Bb B C3 Db D Eb E F Gb G Ab A Bb' && model.cChromatic === 'C4 C# D D# E F F#'
+        && model.bbRast === '1Bb 4Eb');
 
     const coverage = await tab.evaluate(() => {
         const c = window.scalesController;
@@ -183,7 +210,40 @@ function waitForScalesReady(tab) {
     report.check(`a tapped key sounds and lights itself, then the board returns to rest (${tap.midi}, lit ${tap.lit}, "${tap.readout}")`,
         tap.midi === 62 && tap.lit === '62' && tap.readout === '2D4');
 
+    // The board as the current width fits it, once the refit a resize
+    // schedules has run: white-key width, and the plain white keys beyond
+    // the labeled part on each side.
+    const fitted = () => tab.evaluate(async () => {
+        const c = window.scalesController;
+        const host = document.getElementById('pianoKeyboard');
+        const shown = c.settingsShown();
+        const labeled = PianoKeyboard.buildModel({
+            root: NOTE_NAMES[midiPitchClass(shown.rootMidi)], octave: midiOctave(shown.rootMidi),
+            scaleType: shown.scaleType, notes: c.patternNotes(0)
+        });
+        // As many 48px keys as fit, or the labeled board when it needs more
+        const settled = () => c.keyboard.model.whiteCount === Math.max(labeled.whiteCount, Math.floor(host.clientWidth / 48));
+        for (let frame = 0; frame < 10 && (frame < 3 || !settled()); frame++) {
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        const board = c.keyboard.model;
+        /** @param {(midi: number) => boolean} beyond */
+        const plainWhite = beyond => board.keys.filter(k => !k.black && beyond(k.midi)).length;
+        return {
+            settled: settled(),
+            whitePx: host.clientWidth / board.whiteCount,
+            below: plainWhite(midi => midi < labeled.lowMidi),
+            above: plainWhite(midi => midi > labeled.highMidi)
+        };
+    });
+    /** @param {{ settled: boolean, whitePx: number, below: number, above: number }} fit */
+    const fitText = fit => `${fit.whitePx.toFixed(1)}px keys, plain ${fit.below}+${fit.above}${fit.settled ? '' : ' (not refit)'}`;
+    /** @param {{ settled: boolean, whitePx: number }} fit */
+    const natural = fit => fit.settled && fit.whitePx >= 48 && fit.whitePx < 52;
+    const desktopFit = await fitted();
+
     await tab.setViewportSize(PHONE);
+    const phoneFit = await fitted();
     const phone = await tab.evaluate(() => {
         const c = window.scalesController;
         const host = document.getElementById('pianoKeyboard');
@@ -216,12 +276,13 @@ function waitForScalesReady(tab) {
     report.check(`at phone width every key and marker label stays inside its key (narrow boards: ${phone.results.filter(r => r.narrow).map(r => r.label).join(', ') || 'none'}${overflow.length ? `; overflow ${overflow.slice(0, 4).join('; ')}` : ''})`,
         overflow.length === 0);
     await tab.setViewportSize(DESKTOP);
-    const widened = await tab.evaluate(async () => {
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        return document.getElementById('pianoKeyboard').classList.contains('kb-narrow');
-    });
+    const widenedFit = await fitted();
+    const widened = await tab.evaluate(() => document.getElementById('pianoKeyboard').classList.contains('kb-narrow'));
     report.check(`black-key names drop on a narrow board and return when it widens (phone ${phone.twoOctavesNarrow}, desktop ${widened})`,
         phone.twoOctavesNarrow && !widened);
+    report.check(`keys keep a piano's proportions: a wide screen shows more piano around the scale, a phone just the scale and its context, refit on resize (desktop ${fitText(desktopFit)}; phone ${fitText(phoneFit)}; two octaves widened ${fitText(widenedFit)})`,
+        natural(desktopFit) && desktopFit.below + desktopFit.above > 0 && Math.abs(desktopFit.below - desktopFit.above) <= 1
+        && phoneFit.settled && phoneFit.below + phoneFit.above === 0 && natural(widenedFit));
 
     // ============ PAGE: owner display rules ============
     await tab.evaluate(installGrayTextScan);
@@ -421,14 +482,37 @@ function waitForScalesReady(tab) {
         voice.eSharp === 'F' && voice.spelled === 'B,C,E');
     report.check('spoken random persists what it picked', voice.randomKept);
 
+    const movementRule = await tab.evaluate(async () => {
+        const c = window.scalesController;
+        /** @param {string} attribute */
+        const selected = attribute => [...document.querySelectorAll(`.vf-btn[${attribute}].selected`)]
+            .map(btn => btn.getAttribute(attribute)).join(',');
+        Object.assign(c.settings, c.defaultSettings);
+        c.onSettingChanged();
+        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-chop-head="1"]')).click();
+        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-movement="neighbors"]')).click();
+        const clicked = `${selected('data-movement')} chop=${selected('data-chop-head')}`;
+        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-ladder="on"]')).click();
+        await c.voiceCore.handleVoiceCommand('neighbors');
+        const spoken = `${selected('data-movement')} ladder=${selected('data-ladder')}`;
+        await c.voiceCore.handleVoiceCommand('4 u');
+        const leap = selected('data-movement');
+        Object.assign(c.settings, c.defaultSettings);
+        c.onSettingChanged();
+        return { clicked, spoken, leap };
+    });
+    report.check(`a movement figure turns chop head and the ladder off, by button or by voice (clicked ${movementRule.clicked}; spoken ${movementRule.spoken}; "4 u" ${movementRule.leap})`,
+        movementRule.clicked === 'neighbors chop=0' && movementRule.spoken === 'neighbors ladder=off'
+        && movementRule.leap === 'fourth_up');
+
     await tab.click('.vf-btn[data-repeat="Infinity-nogap"]');
     await tab.fill('#presetNameInput', 'forever-test');
     await tab.click('#savePresetBtn');
     await tab.evaluate(() => {
         const settings = SettingsStore.peekData(StorageKeys.SCALES_SETTINGS);
-        localStorage.setItem(StorageKeys.SCALES_SETTINGS, JSON.stringify({ ...settings, root: 'E#' }));
+        localStorage.setItem(StorageKeys.SCALES_SETTINGS, JSON.stringify({ ...settings, root: 'E#', sectionLength: 'centered' }));
         const presets = SettingsStore.peekData(StorageKeys.SCALES_PRESETS);
-        presets.push({ ...presets[0], id: 'stored-b-sharp', name: 'b-sharp', config: { ...presets[0].config, root: 'B#' } });
+        presets.push({ ...presets[0], id: 'stored-b-sharp', name: 'b-sharp', config: { ...presets[0].config, root: 'B#', movementStyle: 'retired' } });
         localStorage.setItem(StorageKeys.SCALES_PRESETS, JSON.stringify(presets));
     });
     await tab.reload({ waitUntil: 'networkidle' });
@@ -439,14 +523,15 @@ function waitForScalesReady(tab) {
         const bSharp = c.presets.find(p => p.name === 'b-sharp');
         return {
             forever: forever ? `${forever.config.repeatCount} gap ${forever.config.repeatGapMs}` : 'missing',
-            root: c.settings.root,
-            presetRoot: bSharp ? bSharp.config.root : 'missing',
+            settings: `${c.settings.root} ${c.settings.sectionLength}`,
+            preset: bSharp ? `${bSharp.config.root} ${bSharp.config.movementStyle}` : 'missing',
+            plan: document.getElementById('pianoReadoutPlan').textContent,
             board: c.keyboard.model.keys.length > 0
         };
     });
     report.check(`a forever preset survives a reload (${stored.forever})`, stored.forever === 'Infinity gap 0');
-    report.check(`a stored root that names no key loads as the default (settings ${stored.root}, preset ${stored.presetRoot})`,
-        stored.root === 'C' && stored.presetRoot === 'C' && stored.board);
+    report.check(`a stored value that names no current option loads as its default (settings ${stored.settings}, preset ${stored.preset}, "${stored.plan}")`,
+        stored.settings === 'C 1o' && stored.preset === 'C normal' && !stored.plan.includes('undefined') && stored.board);
 
     const replay = await tab.evaluate(async () => {
         const c = window.scalesController;

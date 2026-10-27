@@ -45,11 +45,17 @@ with the current scale.
 `piano-keyboard.js` draws the board; its model decides every musical fact
 and the page only says which notes a pass plays.
 
-- **Span plus context**: the board covers exactly what the pattern plays
-  (a two-octave section, a ladder's climb, a movement style's extra notes)
-  plus three scale notes beyond each end - the same three Trace draws -
-  so the notes just below and above stay in view. It starts and ends on
-  a white key and fills the page width; keys size with the width.
+- **Span plus context**: the labeled board covers exactly what the
+  pattern plays (a two-octave section, a ladder's climb, a movement
+  style's extra notes) plus three scale notes beyond each end - the same
+  three Trace draws - so the notes just below and above stay in view. It
+  starts and ends on a white key.
+- **A piano's proportions at any width**: the board fills the page width,
+  but white keys stay about 48px wide wherever there is room; a wider
+  screen shows more plain piano on both sides (no degrees, only C keys
+  named, stopping at A0 and C8) instead of stretching the keys. A phone
+  shows just the labeled board, with keys as wide as that allows.
+  Resizing refits it.
 - **Marking**: scale notes are green, the tonic deeper; keys outside the
   played span are muted so the span reads first, and a green bar above the
   keys marks it. Each scale note carries its degree (context degrees count
@@ -57,7 +63,9 @@ and the page only says which notes a pass plays.
   keys carry the octave so the board reads as a place.
 - **Spelling follows the key**: notes outside the scale use its accidentals
   (C# in C major, Gb in Eb major); an off-scale black key shows its name
-  only while it sounds.
+  only while it sounds. A scale with no letter pattern (chromatic, the
+  maqams, slendro) spells with its root's accidentals, so Bb chromatic
+  reads Bb B C Db and its root matches the Key stepper.
 - **Every pitch where it is**: whole notes are keys; microtonal degrees
   (rast's neutral third, quarter tones, just intonation) are markers between
   their keys, with bare ticks when they sit too close to label.

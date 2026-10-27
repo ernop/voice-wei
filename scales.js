@@ -21,7 +21,7 @@ const SCALES_PRESETS_STORAGE_KEY = StorageKeys.SCALES_PRESETS;
 // Scale types read as their names with spaces.
 /** @type {Record<string, Record<string, string>>} */
 const SCALES_OPTION_LABELS = {
-    sectionLength: { '1o': '1 octave', '1o+3': 'octave+3rd', '1o+5': 'octave+5th', '2o': '2 octaves', centered: 'centered' },
+    sectionLength: { '1o': '1 octave', '1o+3': 'octave+3rd', '1o+5': 'octave+5th', '2o': '2 octaves' },
     direction: { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' },
     movementStyle: {
         normal: 'normal', stop_and_go: '+1+2', one_three_five: '1-3-5', neighbors: 'neighbors', chords: 'chords',
@@ -54,12 +54,18 @@ function scalesTextSpan(className, text) {
 }
 
 /**
- * A saved root, or the default when it names no key: spoken "E sharp" and
- * "B sharp" were once stored as "E#" and "B#".
- * @param {string} root @param {string} fallback
+ * Repair saved practice settings in place: a value that names no current
+ * option loads as its default. Spoken "E sharp" was once stored as root
+ * "E#", and early versions had a 'centered' section width.
+ * @param {Partial<ScalesSettings>} stored
+ * @param {ScalesSettings} defaults
  */
-function scalesStoredRoot(root, fallback) {
-    return NOTE_NAMES.includes(root) ? root : fallback;
+function scalesRepairStored(stored, defaults) {
+    if (!NOTE_NAMES.includes(stored.root)) stored.root = defaults.root;
+    if (!(String(stored.scaleType) in SCALE_PATTERNS)) stored.scaleType = defaults.scaleType;
+    for (const key of /** @type {const} */ (['sectionLength', 'direction', 'movementStyle', 'exercise'])) {
+        if (!(String(stored[key]) in SCALES_OPTION_LABELS[key])) stored[key] = defaults[key];
+    }
 }
 
 // Stepper value lists (the former chip-row options)
@@ -72,6 +78,31 @@ const SCALES_LADDER_SIZE_VALUES = [2, 3, 4, 5, 6, 7, 8];
 // Spoken rung sizes ("ladder of four", "three note ladder")
 /** @type {Record<string, number>} */
 const LADDER_COUNT_WORDS = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 };
+
+// A movement style said on its own ("neighbors", "+1-1c") sets it
+/** @type {[RegExp, string][]} */
+const SCALES_MOVEMENT_COMMANDS = [
+    [/^(stop\s*-\s*and\s*-\s*go|stop\s+and\s+go|two\s+(steps?\s+)?forward\s+(one\s+step\s+)?back)$/, 'stop_and_go'],
+    [/^(1\s*[- ]?\s*3\s*[- ]?\s*5|one\s+three\s+five|triads?)$/, 'one_three_five'],
+    [/^(nbr|neighbou?rs?)$/, 'neighbors'],
+    [/^(chd|chords?\s*(mode)?)$/, 'chords'],
+    [/^(from\s+(1|one)|from\s+the\s+root|root\s+always)$/, 'from_one'],
+    [/^(to\s+(1|one)|to\s+the\s+root|interleave\s*(1|one)?|return\s+to\s+root)$/, 'to_one'],
+    [/^(plus\s*minus\s*(1|one)|\+1\s*-1|dance\s+around)$/, 'plus_minus_one'],
+    [/^(chromatic\s+stop\s*-?\s*and\s*-?\s*go|chromatic\s+steps?|\+1\s*\+2\s*(chromatic|half|c)|\+1\+2c)$/, 'chromatic_stop_and_go'],
+    [/^(plus\s*minus\s*(a\s+)?half|\+1\s*-1\s*(chromatic|half|c)|\+1-1c|chromatic\s+neighbou?rs?)$/, 'plus_minus_half'],
+    [/^(normal\s+movement|normal)$/, 'normal']
+];
+
+// Leap sizes as spoken ("thirds up", "5th down", "4u"), for the leap styles
+/** @type {Record<string, string>} */
+const SCALES_LEAP_WORDS = {
+    third: 'third', '3rd': 'third', '3': 'third',
+    fourth: 'fourth', '4th': 'fourth', '4': 'fourth',
+    fifth: 'fifth', '5th': 'fifth', '5': 'fifth',
+    sixth: 'sixth', '6th': 'sixth', '6': 'sixth',
+    seventh: 'seventh', '7th': 'seventh', '7': 'seventh'
+};
 
 const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
 const SCALES_PERSISTED_SETTING_KEYS = [
@@ -216,7 +247,7 @@ class ScalesController {
             movementStyle: 'normal', // normal, stop_and_go, one_three_five, neighbors, chords, from_one, to_one, plus_minus_one, chromatic_stop_and_go, plus_minus_half, or a ScalesPatterns.INTERVAL_MOVEMENTS key
             scaleType: 'major',
             root: 'C',
-            sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
+            sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
             shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
             chopHead: 0,       // 0=off, 1=each pass drops the first note (12345678, 2345678, ...)
@@ -318,7 +349,7 @@ class ScalesController {
             storageKey: StorageKeys.PANEL_SCALES_SING,
             legendTargetLabel: 'target notes',
             key: () => ({
-                rootMidi: noteNameToMidi(this.settings.root, this.settings.octave) ?? 60,
+                rootMidi: noteNameToMidi(this.settings.root, this.settings.octave),
                 rootLabel: scaleRootPitchString(this.settings.root, this.settings.octave),
                 scaleType: this.settings.scaleType
             }),
@@ -353,7 +384,7 @@ class ScalesController {
 
     /** @param {boolean} expandRange */
     buildSingRails(expandRange) {
-        const { min, max } = ScalesPatterns.getSectionRange(this.settings.sectionLength || '1o');
+        const { min, max } = ScalesPatterns.getSectionRange(this.settings.sectionLength);
         // Rails must cover every planned note, not just the section
         // range: chords movement stacks thirds and fifths up to a
         // twelfth above the root, and exercises can leave the section
@@ -401,7 +432,7 @@ class ScalesController {
         const snapshot = { ...this.settings };
         SettingsStore.load(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
         if (snapshot.repeatCount === -1) snapshot.repeatCount = Infinity;
-        snapshot.root = scalesStoredRoot(snapshot.root, this.defaultSettings.root);
+        scalesRepairStored(snapshot, this.defaultSettings);
 
         // One-time migration from legacy ad-hoc keys (owner-mediated access)
         const legacyShow = SettingsStore.takeLegacy('scales-show-sequence');
@@ -499,12 +530,6 @@ class ScalesController {
         this.syncUIToSettings();
     }
 
-    // The source tag documents where length changes originate (button,
-    // voice command, preset) since many paths funnel through here.
-    setNoteLengthMs(ms, source = 'unknown') {
-        this.settings.noteLengthMs = ms;
-    }
-
     /** Sync the TTS voice stepper labels and all stepper disabled states. */
     syncVoiceSteppers() {
         PracticeControls.setValueText('voiceRateValue', this.voiceCore.settings.voiceRate + 'x');
@@ -567,7 +592,7 @@ class ScalesController {
         } else if (key === 'noteLengthMs') {
             const next = PracticeControls.stepValue(PracticeControls.NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
             if (next === null) return;
-            this.setNoteLengthMs(next, 'stepper');
+            this.settings.noteLengthMs = next;
         } else if (key === 'gapMs') {
             const next = PracticeControls.stepValue(PracticeControls.GAP_VALUES, this.settings.gapMs, delta);
             if (next === null) return;
@@ -654,6 +679,47 @@ class ScalesController {
         }
     }
 
+    // A movement figure decorates the plain walk, which chop head and the
+    // ladder replace, so choosing one clears them.
+    /** @param {string} style */
+    setMovementStyle(style) {
+        this.settings.movementStyle = style;
+        if (style !== 'normal') {
+            this.settings.chopHead = 0;
+            this.settings.ladder = 'off';
+        }
+    }
+
+    /**
+     * The option button groups: the data attribute on each button, the
+     * setting its value names, and how choosing it applies (the modes that
+     * exclude each other go through their setters). Repeat buttons hold a
+     * count and a gap together and are wired on their own.
+     * @returns {[string, keyof ScalesSettings, (value: any) => void][]}
+     */
+    optionGroups() {
+        return [
+            ['scale-type', 'scaleType', value => { this.settings.scaleType = value; }],
+            ['direction', 'direction', value => { this.settings.direction = value; }],
+            ['section-length', 'sectionLength', value => { this.settings.sectionLength = value; }],
+            ['movement', 'movementStyle', value => this.setMovementStyle(value)],
+            ['exercise', 'exercise', value => this.setExercise(value, value !== 'none')],
+            ['ladder', 'ladder', value => this.setLadder(value)],
+            ['rising', 'risingSemitones', value => this.setRisingSemitones(value)],
+            ['shifting', 'shiftingSteps', value => this.setShiftingSteps(value)],
+            ['chop-head', 'chopHead', value => this.setChopHead(value)]
+        ];
+    }
+
+    /**
+     * A button's value, typed like its setting (rising "1" is 1).
+     * @param {Element} btn @param {string} attribute @param {keyof ScalesSettings} key
+     */
+    optionValue(btn, attribute, key) {
+        const raw = btn.getAttribute(`data-${attribute}`);
+        return typeof this.defaultSettings[key] === 'number' ? Number(raw) : raw;
+    }
+
     setupUI() {
         // Stop button (main)
         const stopBtn = document.getElementById('stopBtn');
@@ -732,7 +798,7 @@ class ScalesController {
         for (const preset of this.presets) {
             // JSON writes a forever repeat (Infinity) as null.
             if (preset.config.repeatCount === null) preset.config.repeatCount = Infinity;
-            preset.config.root = scalesStoredRoot(preset.config.root, this.defaultSettings.root);
+            scalesRepairStored(preset.config, this.defaultSettings);
         }
         if (this.selectedPresetId && !this.presets.some(p => p.id === this.selectedPresetId)) {
             this.selectedPresetId = null;
@@ -785,7 +851,7 @@ class ScalesController {
      */
     applyConfig(stored) {
         const c = { ...this.defaultSettings, ...stored };
-        this.setNoteLengthMs(c.noteLengthMs, 'applyConfig');
+        this.settings.noteLengthMs = c.noteLengthMs;
         this.settings.gapMs = c.gapMs;
         this.settings.direction = c.direction;
         this.settings.octave = c.octave;
@@ -929,12 +995,12 @@ class ScalesController {
     showPass(shown, notes, transpose = 0) {
         this.flashId++;
         const rootMidi = shown.rootMidi + transpose;
-        this.keyboard.render(PianoKeyboard.buildModel({
+        this.keyboard.show({
             root: NOTE_NAMES[midiPitchClass(rootMidi)],
             octave: midiOctave(rootMidi),
             scaleType: shown.scaleType,
             notes: notes.map(midi => midi + transpose)
-        }));
+        });
         this.setReadoutPlan(shown.text);
         this.showSounding([]);
     }
@@ -1104,70 +1170,19 @@ class ScalesController {
             btn.classList.toggle('selected', matchesCount && matchesGap);
         });
 
-        // Scale type buttons
-        document.querySelectorAll('[data-scale-type]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.scaleType === this.settings.scaleType);
-        });
+        for (const [attribute, key] of this.optionGroups()) {
+            document.querySelectorAll(`[data-${attribute}]`).forEach(btn => {
+                btn.classList.toggle('selected', this.optionValue(btn, attribute, key) === this.settings[key]);
+            });
+        }
 
-        // Direction buttons
-        document.querySelectorAll('[data-direction]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.direction === this.settings.direction);
-        });
-
-        // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const semitones = parseInt(btn.dataset.rising || '0');
-            btn.classList.toggle('selected', semitones === this.settings.risingSemitones);
-        });
-
-        // Exercise buttons
-        document.querySelectorAll('[data-exercise]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.exercise === this.settings.exercise);
-        });
-
-        // Shifting buttons
-        document.querySelectorAll('[data-shifting]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const steps = parseInt(btn.dataset.shifting || '0');
-            btn.classList.toggle('selected', steps === this.settings.shiftingSteps);
-        });
-
-        // Chop head buttons
-        document.querySelectorAll('[data-chop-head]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const on = parseInt(btn.dataset.chopHead || '0');
-            btn.classList.toggle('selected', on === this.settings.chopHead);
-        });
-
-        // Ladder buttons + steppers
-        document.querySelectorAll('[data-ladder]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.ladder === this.settings.ladder);
-        });
-        PracticeControls.setValueText('ladderSizeValue', String(this.settings.ladderSize));
-        PracticeControls.setValueText('ladderGapValue', PracticeControls.formatSeconds(this.settings.ladderGapMs));
-
-        // Movement buttons
-        document.querySelectorAll('[data-movement]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.movement === this.settings.movementStyle);
-        });
-
-        // Root pitch / note length / gap / voice steppers (shared control)
+        // Steppers (shared control)
         PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(this.settings.root, this.settings.octave));
         PracticeControls.setValueText('noteLengthValue', PracticeControls.formatSeconds(this.settings.noteLengthMs));
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(this.settings.gapMs));
+        PracticeControls.setValueText('ladderSizeValue', String(this.settings.ladderSize));
+        PracticeControls.setValueText('ladderGapValue', PracticeControls.formatSeconds(this.settings.ladderGapMs));
         this.syncVoiceSteppers();
-
-        // Section length buttons
-        document.querySelectorAll('[data-section-length]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.classList.toggle('selected', btn.dataset.sectionLength === this.settings.sectionLength);
-        });
 
         this.updateNoteSequencePreview();
 
@@ -1236,95 +1251,17 @@ class ScalesController {
             });
         });
 
-        // Scale type buttons
-        document.querySelectorAll('[data-scale-type]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.scaleType = btn.dataset.scaleType || 'major';
-                this.onSettingChanged();
+        for (const [attribute, key, choose] of this.optionGroups()) {
+            document.querySelectorAll(`[data-${attribute}]`).forEach(btn => {
+                btn.addEventListener('click', () => {
+                    choose(this.optionValue(btn, attribute, key));
+                    this.onSettingChanged();
+                });
             });
-        });
-
-        // Direction buttons
-        document.querySelectorAll('[data-direction]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.direction = btn.dataset.direction || 'ascending';
-                this.onSettingChanged();
-            });
-        });
-
-        // Rising buttons
-        document.querySelectorAll('[data-rising]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.setRisingSemitones(parseInt(btn.dataset.rising || '0'));
-                this.onSettingChanged();
-            });
-        });
-
-        // Exercise buttons
-        document.querySelectorAll('[data-exercise]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                const exercise = btn.dataset.exercise || 'none';
-                this.setExercise(exercise, exercise !== 'none'); // Enable shifting for exercises
-                this.onSettingChanged();
-            });
-        });
-
-        // Shifting buttons
-        document.querySelectorAll('[data-shifting]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.setShiftingSteps(parseInt(btn.dataset.shifting || '0'));
-                this.onSettingChanged();
-            });
-        });
-
-        // Chop head buttons
-        document.querySelectorAll('[data-chop-head]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.setChopHead(parseInt(btn.dataset.chopHead || '0'));
-                this.onSettingChanged();
-            });
-        });
-
-        // Ladder buttons
-        document.querySelectorAll('[data-ladder]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.setLadder(btn.dataset.ladder || 'off');
-                this.onSettingChanged();
-            });
-        });
-
-        // Movement buttons
-        document.querySelectorAll('[data-movement]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.movementStyle = btn.dataset.movement || 'normal';
-                if (this.settings.movementStyle !== 'normal') {
-                    // Grouped movement playback bypasses chop head and ladder
-                    this.settings.chopHead = 0;
-                    this.settings.ladder = 'off';
-                }
-                this.onSettingChanged();
-            });
-        });
+        }
 
         // Root pitch / note length / gap steppers (shared control)
         PracticeControls.wireSteppers((key, delta) => this.stepSettingValue(key, delta));
-
-        // Section length buttons
-        document.querySelectorAll('[data-section-length]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.sectionLength = btn.dataset.sectionLength || '1o';
-                this.onSettingChanged();
-            });
-        });
 
         // Reset button
         const resetBtn = document.getElementById('resetBtn');
@@ -1403,29 +1340,18 @@ class ScalesController {
     }
 
     randomizeCoreFilters() {
-        const roots = NOTE_NAMES;
-        const directions = Array.from(document.querySelectorAll('[data-direction]'))
-            .map(el => (/** @type {HTMLElement} */ (el)).dataset.direction)
-            .filter(Boolean);
-        const movements = Array.from(document.querySelectorAll('[data-movement]'))
-            .map(el => (/** @type {HTMLElement} */ (el)).dataset.movement)
-            .filter(Boolean);
-        const rising = Array.from(document.querySelectorAll('[data-rising]'))
-            .map(el => parseInt((/** @type {HTMLElement} */ (el)).dataset.rising || '0'))
-            .filter(n => Number.isFinite(n));
-        const scaleTypes = Array.from(document.querySelectorAll('[data-scale-type]'))
-            .map(el => (/** @type {HTMLElement} */ (el)).dataset.scaleType)
-            .filter(Boolean);
-        const lengths = PracticeControls.NOTE_LENGTH_VALUES;
+        /** @param {readonly any[]} values */
+        const pick = values => values[Math.floor(Math.random() * values.length)];
+        /** @param {string} attribute @param {keyof ScalesSettings} key */
+        const offered = (attribute, key) => [...document.querySelectorAll(`[data-${attribute}]`)]
+            .map(btn => this.optionValue(btn, attribute, key));
 
-        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-        if (roots.length) this.settings.root = pick(roots);
-        if (directions.length) this.settings.direction = pick(directions);
-        if (movements.length) this.settings.movementStyle = pick(movements);
-        if (rising.length) this.setRisingSemitones(pick(rising));
-        if (scaleTypes.length) this.settings.scaleType = pick(scaleTypes);
-        if (lengths.length) this.setNoteLengthMs(pick(lengths), 'random');
+        this.settings.root = pick(NOTE_NAMES);
+        this.settings.direction = pick(offered('direction', 'direction'));
+        this.setMovementStyle(pick(offered('movement', 'movementStyle')));
+        this.setRisingSemitones(pick(offered('rising', 'risingSemitones')));
+        this.settings.scaleType = pick(offered('scale-type', 'scaleType'));
+        this.settings.noteLengthMs = pick(PracticeControls.NOTE_LENGTH_VALUES);
 
         this.onSettingChanged();
     }
@@ -1743,72 +1669,15 @@ class ScalesController {
         }
 
         // Standalone movement style commands
-        if (originalLower.match(/^(stop\s*-\s*and\s*-\s*go|stop\s+and\s+go|two\s+(steps?\s+)?forward\s+(one\s+step\s+)?back)$/)) {
-            this.settings.movementStyle = 'stop_and_go';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'stop_and_go' };
-        }
-        if (originalLower.match(/^(1\s*[- ]?\s*3\s*[- ]?\s*5|one\s+three\s+five|triads?)$/)) {
-            this.settings.movementStyle = 'one_three_five';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'one_three_five' };
-        }
-        if (originalLower.match(/^(nbr|neighbou?rs?)$/)) {
-            this.settings.movementStyle = 'neighbors';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'neighbors' };
-        }
-        if (originalLower.match(/^(chd|chords?\s*(mode)?)$/)) {
-            this.settings.movementStyle = 'chords';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'chords' };
-        }
-        if (originalLower.match(/^(from\s+(1|one)|from\s+the\s+root|root\s+always)$/)) {
-            this.settings.movementStyle = 'from_one';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'from_one' };
-        }
-        if (originalLower.match(/^(to\s+(1|one)|to\s+the\s+root|interleave\s*(1|one)?|return\s+to\s+root)$/)) {
-            this.settings.movementStyle = 'to_one';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'to_one' };
-        }
-        if (originalLower.match(/^(plus\s*minus\s*(1|one)|\+1\s*-1|dance\s+around)$/)) {
-            this.settings.movementStyle = 'plus_minus_one';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_one' };
-        }
-        if (originalLower.match(/^(chromatic\s+stop\s*-?\s*and\s*-?\s*go|chromatic\s+steps?|\+1\s*\+2\s*(chromatic|half|c)|\+1\+2c)$/)) {
-            this.settings.movementStyle = 'chromatic_stop_and_go';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'chromatic_stop_and_go' };
-        }
-        if (originalLower.match(/^(plus\s*minus\s*(a\s+)?half|\+1\s*-1\s*(chromatic|half|c)|\+1-1c|chromatic\s+neighbou?rs?)$/)) {
-            this.settings.movementStyle = 'plus_minus_half';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'plus_minus_half' };
-        }
-        const standaloneIntervalMatch = originalLower.match(/^(?:in\s+)?(thirds?|fourths?|fifths?|sixths?|sevenths?|3rds?|4ths?|5ths?|6ths?|7ths?)\s+(up|down)$/) || originalLower.match(/^([34567])\s*([ud])$/);
-        if (standaloneIntervalMatch) {
-            /** @type {Record<string, string>} */
-            const wordMap = {
-                third: 'third', '3rd': 'third', '3': 'third',
-                fourth: 'fourth', '4th': 'fourth', '4': 'fourth',
-                fifth: 'fifth', '5th': 'fifth', '5': 'fifth',
-                sixth: 'sixth', '6th': 'sixth', '6': 'sixth',
-                seventh: 'seventh', '7th': 'seventh', '7': 'seventh'
-            };
-            const word = wordMap[standaloneIntervalMatch[1].replace(/s$/, '')];
-            const dir = standaloneIntervalMatch[2].startsWith('u') ? 'up' : 'down';
-            const style = `${word}_${dir}`;
-            this.settings.movementStyle = style;
+        const spokenMovement = SCALES_MOVEMENT_COMMANDS.find(([pattern]) => pattern.test(originalLower));
+        const spokenLeap = originalLower.match(/^(?:in\s+)?(thirds?|fourths?|fifths?|sixths?|sevenths?|3rds?|4ths?|5ths?|6ths?|7ths?)\s+(up|down)$/) || originalLower.match(/^([34567])\s*([ud])$/);
+        if (spokenMovement || spokenLeap) {
+            const style = spokenMovement
+                ? spokenMovement[1]
+                : `${SCALES_LEAP_WORDS[spokenLeap[1].replace(/s$/, '')]}_${spokenLeap[2].startsWith('u') ? 'up' : 'down'}`;
+            this.setMovementStyle(style);
             this.syncUIToSettings();
             return { type: 'setting', setting: 'movementStyle', value: style };
-        }
-        if (originalLower.match(/^(normal\s+movement|normal)$/)) {
-            this.settings.movementStyle = 'normal';
-            this.syncUIToSettings();
-            return { type: 'setting', setting: 'movementStyle', value: 'normal' };
         }
 
         // Standalone rising/modulation commands
@@ -2043,27 +1912,27 @@ class ScalesController {
         // Note length commands (standalone) - "0.5 seconds", "half second", "1s", etc.
         // These MUST be checked BEFORE the interval parser catches them
         if (originalLower.match(/^(half\s*a?\s*second|point\s*five\s*(seconds?)?)$/)) {
-            this.setNoteLengthMs(500, 'voice:500ms');
+            this.settings.noteLengthMs = 500;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'noteLengthMs', value: 500 };
         }
         if (originalLower.match(/^(one\s*second|a\s*second)$/)) {
-            this.setNoteLengthMs(1000, 'voice:1000ms');
+            this.settings.noteLengthMs = 1000;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'noteLengthMs', value: 1000 };
         }
         if (originalLower.match(/^(two\s*seconds?|a\s*couple\s*seconds?)$/)) {
-            this.setNoteLengthMs(2000, 'voice:2000ms');
+            this.settings.noteLengthMs = 2000;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'noteLengthMs', value: 2000 };
         }
         if (originalLower.match(/^(three\s*seconds?)$/)) {
-            this.setNoteLengthMs(3000, 'voice:3000ms');
+            this.settings.noteLengthMs = 3000;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'noteLengthMs', value: 3000 };
         }
         if (originalLower.match(/^(five\s*seconds?)$/)) {
-            this.setNoteLengthMs(5000, 'voice:5000ms');
+            this.settings.noteLengthMs = 5000;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'noteLengthMs', value: 5000 };
         }
@@ -2078,7 +1947,7 @@ class ScalesController {
                 value = value * 1000; // convert seconds to ms
             }
             if (value >= 50 && value <= 10000) {
-                this.setNoteLengthMs(value, `voice:${value}ms`);
+                this.settings.noteLengthMs = value;
                 this.syncUIToSettings();
                 return { type: 'setting', setting: 'noteLengthMs', value };
             }
@@ -2102,7 +1971,7 @@ class ScalesController {
                 '7th': 'seventh', 'seventh': 'seventh',
                 '8th': 'octave', 'octave': 'octave'
             };
-            const interval = intervalMap[intervalMatch[2].toLowerCase()] || intervalMatch[2].toLowerCase();
+            const interval = intervalMap[intervalMatch[2].toLowerCase()];
             const root = normalizeNoteName(intervalMatch[4]) || 'C';
             return { type: 'interval', interval, quality, root, modifiers };
         }
@@ -2136,32 +2005,32 @@ class ScalesController {
 
         // Tempo commands (standalone)
         if (originalLower.match(/^(super\s+slow|really\s+slow|very\s+very\s+slow)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['super slow'], 'voice:super slow');
+            this.settings.noteLengthMs = this.tempoNameToMs['super slow'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'super slow' };
         }
         if (originalLower.match(/^(very\s+slow|real\s+slow)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['very slow'], 'voice:very slow');
+            this.settings.noteLengthMs = this.tempoNameToMs['very slow'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'very slow' };
         }
         if (originalLower.match(/^(slow|slower)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['slow'], 'voice:slow');
+            this.settings.noteLengthMs = this.tempoNameToMs['slow'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'slow' };
         }
         if (originalLower.match(/^(normal\s+speed|normal\s+tempo|medium|default\s+speed)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['normal'], 'voice:normal');
+            this.settings.noteLengthMs = this.tempoNameToMs['normal'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'normal' };
         }
         if (originalLower.match(/^(fast|faster|quick)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['fast'], 'voice:fast');
+            this.settings.noteLengthMs = this.tempoNameToMs['fast'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'fast' };
         }
         if (originalLower.match(/^(very\s+fast|really\s+fast|super\s+fast)$/)) {
-            this.setNoteLengthMs(this.tempoNameToMs['very fast'], 'voice:very fast');
+            this.settings.noteLengthMs = this.tempoNameToMs['very fast'];
             this.syncUIToSettings();
             return { type: 'setting', setting: 'tempo', value: 'very fast' };
         }
@@ -2396,7 +2265,7 @@ class ScalesController {
         this.settings.root = command.root;
         this.settings.scaleType = command.scaleType;
         if (mods.direction) this.settings.direction = mods.direction;
-        if (mods.movementStyle) this.settings.movementStyle = mods.movementStyle;
+        if (mods.movementStyle) this.setMovementStyle(mods.movementStyle);
         if (mods.sectionLength) this.settings.sectionLength = mods.sectionLength;
         if (mods.risingSemitones !== null && mods.risingSemitones !== undefined) {
             this.setRisingSemitones(mods.risingSemitones);
@@ -2408,7 +2277,7 @@ class ScalesController {
         if (mods.shiftingSteps !== null && mods.shiftingSteps !== undefined) this.setShiftingSteps(mods.shiftingSteps);
         if (mods.tempo) {
             const ms = this.tempoNameToMs[mods.tempo];
-            if (ms !== undefined) this.setNoteLengthMs(ms, `voice:${mods.tempo}`);
+            if (ms !== undefined) this.settings.noteLengthMs = ms;
         }
         if (mods.gap) {
             const gapVal = this.gapNameToValue[mods.gap];
@@ -2799,7 +2668,7 @@ class ScalesController {
             'octave': 12
         };
 
-        const semitones = intervalMap[interval] || 0;
+        const semitones = intervalMap[interval];
         await this.playSequence(this.commandShown(command), [rootMidi, rootMidi + semitones], command.modifiers);
     }
 

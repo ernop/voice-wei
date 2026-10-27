@@ -557,8 +557,7 @@ target within the identity band, then grades each target with the same
 
 The scales feature plays musical patterns built from:
 
-1. **Section length** - the semitone range ('1o', '1o+3', '1o+5', '2o',
-   'centered' = -4..+16)
+1. **Section length** - the semitone range ('1o', '1o+3', '1o+5', '2o')
 2. **Scale** - which notes within that range (patterns in
    `music-constants.js`)
 3. **Root, direction, repeat, rising/shifting, movement style**
@@ -615,23 +614,35 @@ Vital rules that have caused bugs before:
   `applyConfig` fills any key an older config lacks from it. `applyConfig`
   applies every mode from the snapshot, off included, so a mode left on
   beforehand never survives a replay.
+- **Stored values are repaired on load.** Saved settings and presets pass
+  through `scalesRepairStored`: a root, scale type, section width,
+  direction, move, or exercise that names no current option loads as its
+  default, so retiring an option (the early 'centered' width) never
+  leaves an old value playing something its words cannot describe.
 
 Exercise patterns are degree-offset templates with `'O'` as the
 octave placeholder (`five_note`, `octave_jump`, `arpeggio_return`,
 `thirds`), so they work for any scale size.
 
 **The keyboard** (`piano-keyboard.js`) is a pure model plus a renderer.
-`buildModel({ root, octave, scaleType, notes })` decides every musical
-fact: the keys (the pass's span plus `CONTEXT_DEGREES` = 3 scale notes
-each way, widened to white edges), each key's degree and key-aware
-spelling, and microtone markers placed proportionally between their keys,
-comparing pitches with a 1e-6 tolerance because decimal microtones do not
-sum exactly. `create()` draws a model in percent of the board width and
-owns only the sounding set; rendering an identical model is a no-op, so
-the page re-renders on every pass. Lookup is exact by pitch, so a
-highlight can never land on a neighbor or another octave. The page
-decides only which notes a pass plays (`settingsPass()`,
-`patternNotes()`), and the readout above the board is its status surface.
+`buildModel({ root, octave, scaleType, notes, whiteKeys })` decides every
+musical fact: the labeled keys (the pass's span plus `CONTEXT_DEGREES` = 3
+scale notes each way, widened to white edges), each key's degree and
+key-aware spelling, microtone markers placed proportionally between their
+keys (comparing pitches with a 1e-6 tolerance because decimal microtones
+do not sum exactly), and plain piano beyond the labeled keys up to
+`whiteKeys`: no degrees, only C keys named, added a white key at a time
+on alternate sides and stopping at A0 and C8. `create().show(spec)`
+measures the board and asks for as many white keys as fit at
+`NATURAL_WHITE_PX` (48px), so keys keep a piano's proportions: a wide
+screen shows more piano around the scale, a phone just the labeled keys.
+A resize refits on the next frame (refitting inside the observer would
+resize what it observes). The view draws in percent of the board width
+and owns only the sounding set; an identical model is a no-op, so the
+page shows every pass. Lookup is exact by pitch, so a highlight can never
+land on a neighbor or another octave. The page decides only which notes
+a pass plays (`settingsPass()`, `patternNotes()`), and the readout above
+the board is its status surface.
 
 ## Persistence
 

@@ -3,10 +3,12 @@
 // PIANO KEYBOARD
 // The keyboard for one pass of a scale pattern: every key the pass plays
 // (the span), plus CONTEXT_DEGREES scale notes beyond each end so the
-// notes just below and above it stay in view. buildModel() is pure and
-// decides every musical fact - which keys exist, each key's degree and
-// spelling, where microtonal pitches sit. create() renders a model and
-// owns the sounding state; it decides nothing musical.
+// notes just below and above it stay in view. Where the screen has room
+// for more keys at a natural size, plain piano continues on both sides
+// instead of the keys stretching. buildModel() is pure and decides every
+// musical fact - which keys exist, each key's degree and spelling, where
+// microtonal pitches sit. create() measures its width, renders the model
+// for it, and owns the sounding state; it decides nothing musical.
 // Requires music-constants.js.
 //
 // Every pitch is drawn exactly where it is: whole MIDI notes are keys,
@@ -42,6 +44,14 @@ const PianoKeyboard = (function () {
     // CSS pixels wide; narrower boards (two octaves on a phone) show black
     // keys' degrees only, and the readout names what sounds.
     const BLACK_NAME_MIN_WHITE_PX = 24;
+
+    // White keys this many CSS pixels wide look like a piano's; a board
+    // with room for more shows more piano rather than wider keys.
+    const NATURAL_WHITE_PX = 48;
+
+    // A full piano's end keys, A0 and C8: plain piano stops there.
+    const PIANO_LOWEST = 21;
+    const PIANO_HIGHEST = 108;
 
     /** @param {number} midi */
     function isWholeNote(midi) {
@@ -99,7 +109,7 @@ const PianoKeyboard = (function () {
      * @param {PianoKeyboardSpec} spec
      * @returns {PianoKeyboardModel}
      */
-    function buildModel({ root, octave, scaleType, notes }) {
+    function buildModel({ root, octave, scaleType, notes, whiteKeys = 0 }) {
         const rootMidi = noteNameToMidi(root, octave);
         if (rootMidi === null) throw new Error(`PianoKeyboard.buildModel: unknown root ${root}`);
         if (!notes.length) throw new Error('PianoKeyboard.buildModel: a keyboard spans at least one note');
@@ -111,16 +121,31 @@ const PianoKeyboard = (function () {
         const contextLow = rootMidi + below[below.length - CONTEXT_DEGREES];
         const contextHigh = rootMidi + above[CONTEXT_DEGREES - 1];
 
-        // The board starts and ends on white keys, so the context's outer
-        // notes are never half-cut black keys at the edge.
-        let lowMidi = Math.floor(contextLow + EPSILON);
-        if (isBlack(lowMidi)) lowMidi -= 1;
-        let highMidi = Math.ceil(contextHigh - EPSILON);
-        if (isBlack(highMidi)) highMidi += 1;
+        // The labeled board (span and context) starts and ends on white
+        // keys, so the context's outer notes are never half-cut black keys.
+        let labeledLow = Math.floor(contextLow + EPSILON);
+        if (isBlack(labeledLow)) labeledLow -= 1;
+        let labeledHigh = Math.ceil(contextHigh - EPSILON);
+        if (isBlack(labeledHigh)) labeledHigh += 1;
+
+        // Plain piano fills the board out to whiteKeys, a white key at a
+        // time on alternate sides so the labeled board stays centered.
+        let lowMidi = labeledLow;
+        let highMidi = labeledHigh;
+        let whiteCount = 0;
+        for (let midi = lowMidi; midi <= highMidi; midi++) if (!isBlack(midi)) whiteCount++;
+        for (let up = true; whiteCount < whiteKeys && (lowMidi > PIANO_LOWEST || highMidi < PIANO_HIGHEST); up = !up) {
+            if (highMidi < PIANO_HIGHEST && (up || lowMidi <= PIANO_LOWEST)) {
+                highMidi += isBlack(highMidi + 1) ? 2 : 1;
+            } else {
+                lowMidi -= isBlack(lowMidi - 1) ? 2 : 1;
+            }
+            whiteCount++;
+        }
 
         const origin = keyCenter(lowMidi) - 0.5;
         const preference = accidentalPreference(root, octave, scaleType);
-        const members = scaleDegreeNotesInRange(root, octave, scaleType, lowMidi - rootMidi, highMidi - rootMidi);
+        const members = scaleDegreeNotesInRange(root, octave, scaleType, labeledLow - rootMidi, labeledHigh - rootMidi);
         /** @param {number} midi */
         const memberAt = midi => members.find(note => Math.abs(note.midi - midi) < EPSILON) || null;
         /** @param {number} midi */
@@ -130,20 +155,21 @@ const PianoKeyboard = (function () {
 
         /** @type {PianoKeyboardKey[]} */
         const keys = [];
-        let whiteCount = 0;
         for (let midi = lowMidi; midi <= highMidi; midi++) {
             const black = isBlack(midi);
-            if (!black) whiteCount++;
-            const member = memberAt(midi);
-            const pitch = member ? member.name : scaleMidiToPitchString(root, octave, scaleType, midi, preference);
             const center = keyCenter(midi) - origin;
             const width = black ? BLACK_KEY_WIDTH : 1;
+            const shape = { midi, black, center, left: center - width / 2, width };
+            if (midi < labeledLow || midi > labeledHigh) {
+                // Plain piano: no degrees, and only C keys named, for place
+                const pitch = midiToPitchStringWithPreference(midi, preference);
+                keys.push({ ...shape, pitch, label: midiPitchClass(midi) === 0 ? pitch : '', degree: null, tonic: false, inSpan: false });
+                continue;
+            }
+            const member = memberAt(midi);
+            const pitch = member ? member.name : scaleMidiToPitchString(root, octave, scaleType, midi, preference);
             keys.push({
-                midi,
-                black,
-                center,
-                left: center - width / 2,
-                width,
+                ...shape,
                 pitch,
                 // C keys carry the octave so the board reads as a place
                 label: midiPitchClass(midi) === 0 ? pitch : pitch.replace(/-?\d+$/, ''),
@@ -238,6 +264,9 @@ const PianoKeyboard = (function () {
         const host = document.getElementById(config.hostId);
         if (!host) throw new Error(`PianoKeyboard.create: no element #${config.hostId}`);
 
+        /** @type {PianoKeyboardSpec | null} */
+        let spec = null;
+        let fittedWhiteKeys = 0;
         /** @type {PianoKeyboardModel | null} */
         let model = null;
         let modelSignature = '';
@@ -254,10 +283,22 @@ const PianoKeyboard = (function () {
             }
         });
 
+        function naturalWhiteKeys() {
+            return Math.floor(host.clientWidth / NATURAL_WHITE_PX);
+        }
+
         function fitLabels() {
             if (model) host.classList.toggle('kb-narrow', host.clientWidth / model.whiteCount < BLACK_NAME_MIN_WHITE_PX);
         }
-        new ResizeObserver(fitLabels).observe(host);
+
+        function refit() {
+            if (spec && naturalWhiteKeys() !== fittedWhiteKeys) show(spec);
+            fitLabels();
+        }
+        // A refit changes the board's height, and resizing the observed
+        // host inside the observer's callback is a resize loop; so the
+        // refit runs on the next frame.
+        new ResizeObserver(() => requestAnimationFrame(refit)).observe(host);
 
         /**
          * @param {PianoKeyboardModel} next
@@ -294,7 +335,7 @@ const PianoKeyboard = (function () {
             el.style.width = percent(next, key.width);
             el.setAttribute('aria-label', ariaLabel(key));
             if (key.degree !== null) el.appendChild(span('kb-degree', String(key.degree)));
-            el.appendChild(span('kb-name', key.label));
+            if (key.label) el.appendChild(span('kb-name', key.label));
             return el;
         }
 
@@ -321,7 +362,7 @@ const PianoKeyboard = (function () {
 
         /**
          * Draw a model. An identical model leaves the board (and what is
-         * sounding on it) untouched, so callers may render every pass freely.
+         * sounding on it) untouched, so the page may show every pass freely.
          * @param {PianoKeyboardModel} next
          */
         function render(next) {
@@ -360,6 +401,17 @@ const PianoKeyboard = (function () {
         }
 
         /**
+         * Show a pass, with as much plain piano around it as the board's
+         * width holds at natural key size; a resize refits it.
+         * @param {PianoKeyboardSpec} next
+         */
+        function show(next) {
+            spec = next;
+            fittedWhiteKeys = naturalWhiteKeys();
+            render(buildModel({ ...next, whiteKeys: fittedWhiteKeys }));
+        }
+
+        /**
          * Light exactly these pitches (replacing the previous set).
          * @param {number[]} midis
          * @returns {number[]} the pitches the current model does not draw
@@ -371,7 +423,7 @@ const PianoKeyboard = (function () {
         }
 
         return {
-            render,
+            show,
             setSounding,
             /** The model on screen. */
             get model() { return model; },
