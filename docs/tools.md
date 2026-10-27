@@ -919,7 +919,9 @@ OpenAI.
   Space or K play/pause, Left/Right 5 s (Shift 1 s, Ctrl 1 min), J/L 10 s,
   Shift+J/Shift+L the half jumps, 0-9 a tenth of the part, Backspace back to
   where the last jump left from, Shift+P/Shift+N the previous or next
-  generated part (no wrap past the first or last), `[`/`]` speed, M mute;
+  generated part (no wrap past the first or last), `[`/`]` speed, M mute,
+  R repeat (also its button: the part plays again from its start each time it
+  ends, instead of going on to the next);
   with focus in the player, Up/Down volume, PageUp/PageDown 1 min, Home/End.
   Car and lock-screen controls show "Book · Chapter" and step through the
   generated parts. Opening a book loads its saved part, paused at the saved

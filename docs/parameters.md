@@ -463,6 +463,7 @@ own keys, `media-player:speed:audio` and `media-player:volume`.
 |----------------|---------|--------|----------|
 | playback speed | 1x | 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3 | immediate; - and + or `[` and `]`; changes playback only, unlike the narration `speed` above, which is baked into generated MP3s |
 | volume | the site level, `AudioVolume.MEDIA_GAIN` (50%) | 0..100%, 5% steps by key | immediate; until the listener changes it Books plays at the site level, and unmuting from 0 returns there |
+| repeat | off | on, off | R or the repeat button; the part plays again from its start each time it ends instead of going on to the next; not remembered, so each visit starts with it off |
 
 The listening position stays Books' own (per book, in IndexedDB), so the
 player's remembered positions are off on this page.
