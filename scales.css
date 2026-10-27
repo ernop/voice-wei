@@ -33,7 +33,6 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     display: flex;
     align-items: baseline;
     gap: 12px;
-    min-height: 2.1rem;
     padding: 0 2px 4px;
     color: #fff;
     text-align: left;
@@ -62,6 +61,13 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+/* The notes zone always holds a line of its large type: with nothing
+   sounding, a zero-width stand-in keeps that line, so notes coming and
+   going never change the readout's height or shift the plan's baseline. */
+.piano-readout-notes:empty::before {
+    content: '\200b';
 }
 
 .piano-readout-degree {

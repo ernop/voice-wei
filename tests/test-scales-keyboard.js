@@ -191,6 +191,24 @@ function waitForScalesReady(tab) {
         view.lit === '64' && view.readout === '3E4' && view.litAfter === 0);
     report.check(`at rest the readout names what Play plays ("${view.plan}")`, view.plan === 'C4 major \u00b7 up');
 
+    // Readout, plan and board boxes at rest, then under one note, a
+    // chord, and rest again: how many of those three differ from rest.
+    const readoutMoves = () => tab.evaluate(() => {
+        const c = window.scalesController;
+        const layout = () => ['pianoReadout', 'pianoReadoutPlan', 'pianoKeyboard'].map(id => {
+            const box = document.getElementById(id).getBoundingClientRect();
+            return `${box.top.toFixed(1)}+${box.height.toFixed(1)}`;
+        }).join(' ');
+        const rest = layout();
+        c.showSounding([64]);
+        const note = layout();
+        c.showSounding([60, 64, 67]);
+        const chord = layout();
+        c.showSounding([]);
+        return [note, chord, layout()].filter(moved => moved !== rest).length;
+    });
+    const desktopMoves = await readoutMoves();
+
     await tab.evaluate(() => {
         const c = window.scalesController;
         window.__taps = [];
@@ -244,6 +262,9 @@ function waitForScalesReady(tab) {
 
     await tab.setViewportSize(PHONE);
     const phoneFit = await fitted();
+    const phoneMoves = await readoutMoves();
+    report.check(`notes sounding and stopping never move the readout, its plan, or the board (states that moved: desktop ${desktopMoves}, phone ${phoneMoves})`,
+        desktopMoves === 0 && phoneMoves === 0);
     const phone = await tab.evaluate(() => {
         const c = window.scalesController;
         const host = document.getElementById('pianoKeyboard');

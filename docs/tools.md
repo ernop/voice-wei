@@ -76,7 +76,10 @@ and the page only says which notes a pass plays.
 - **Readout**: the one-line status above the board. At rest it names what
   Play plays in the option buttons' own words ("C4 major · up · 2
   octaves"); while playing, the sounding notes show large with their
-  degrees ("3 E4"). A piano load failure shows there in red.
+  degrees ("3 E4"). A piano load failure shows there in red. The line is
+  always as tall as those large notes and the status sits on their
+  baseline, so notes coming and going never move the status text or the
+  board.
 - **What the board shows**: at rest, the first pass of the settings; while
   a scale runs, each pass as it starts (rising and shifting move it); a
   chord, arpeggio, or interval shows its own notes in its root's major
