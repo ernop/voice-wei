@@ -21,17 +21,58 @@ Click **Listen**, then say things like:
 - "quarter tone scale", "rast", "bayati from D" (microtonal - see
   [scales-commands.md](scales-commands.md) for the full list)
 
-Voice commands reset settings to defaults then apply your modifiers, so
-"D minor" always sounds the same regardless of previous UI state. Clicked
-settings persist per tab and restart playback live when something is playing.
+Voice commands reset the practice settings to defaults, then write your
+words into them, so "D minor" always sounds the same regardless of previous
+UI state, and the buttons, keyboard, and history row show exactly what
+plays. **Play always plays the settings.** Clicked settings persist per tab
+and restart playback live when something is playing. **Reset** restores
+the practice settings and keeps the preferences (show sequence,
+abbreviations, the TTS voice, speed, pitch, and echo).
 
 Features: direction / repeat / rising / shifting / chop head / ladder
 (overlapping rungs with rung-size and rung-gap steppers, plus a reverse
 variant that leads each rung with the new note) / movement styles /
 exercises / section width controls; note length and gap steppers (gap goes
-negative for overlap); piano keyboard preview; presets; command history;
-hardware media keys (play/pause); **Sing** is a bottom-dock toggle that
-opens the pitch-trace sheet seeded with the current scale.
+negative for overlap); the keyboard (below); presets; command history (each
+row stores the settings it played, so replaying it plays the same notes and
+puts them back on the buttons); hardware media keys (play/pause, with an
+honest playing/paused state so a car's single toggle starts and stops);
+**Sing** is a bottom-dock toggle that opens the pitch-trace sheet seeded
+with the current scale.
+
+### Keyboard and readout
+
+`piano-keyboard.js` draws the board; its model decides every musical fact
+and the page only says which notes a pass plays.
+
+- **Span plus context**: the board covers exactly what the pattern plays
+  (a two-octave section, a ladder's climb, a movement style's extra notes)
+  plus three scale notes beyond each end - the same three Trace draws -
+  so the notes just below and above stay in view. It starts and ends on
+  a white key and fills the page width; keys size with the width.
+- **Marking**: scale notes are green, the tonic deeper; keys outside the
+  played span are muted so the span reads first, and a green bar above the
+  keys marks it. Each scale note carries its degree (context degrees count
+  in the scale: 5 6 7 below a major scale, 2 3 4 above) and its name; C
+  keys carry the octave so the board reads as a place.
+- **Spelling follows the key**: notes outside the scale use its accidentals
+  (C# in C major, Gb in Eb major); an off-scale black key shows its name
+  only while it sounds.
+- **Every pitch where it is**: whole notes are keys; microtonal degrees
+  (rast's neutral third, quarter tones, just intonation) are markers between
+  their keys, with bare ticks when they sit too close to label.
+- **Exact highlight**: a sounding note lights its own key or marker, never
+  a neighbor or the same letter in another octave. Tapping a key plays it.
+- **Narrow boards** (two octaves on a phone) drop black keys' pitch names
+  and keep their degrees; the readout names whatever sounds.
+- **Readout**: the one-line status above the board. At rest it names what
+  Play plays in the option buttons' own words ("C4 major · up · 2
+  octaves"); while playing, the sounding notes show large with their
+  degrees ("3 E4"). A piano load failure shows there in red.
+- **What the board shows**: at rest, the first pass of the settings; while
+  a scale runs, each pass as it starts (rising and shifting move it); a
+  chord, arpeggio, or interval shows its own notes in its root's major
+  key, or minor for a minor quality.
 
 Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" =
 Bb). See [scales-commands.md](scales-commands.md) for the full grammar.

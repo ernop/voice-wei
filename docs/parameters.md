@@ -249,8 +249,10 @@ meaningful for one configuration).
 
 ## Scales (`scales-settings`)
 
-All settings are `live-restart`. Voice commands first reset every setting to
-its default, then apply the spoken modifiers.
+All settings are `live-restart`. Voice commands first reset every practice
+setting below to its default, then write the spoken words into them, so the
+page shows what plays; Play always plays the settings. Reset does the same
+reset by click.
 
 | Setting | Default | Behavior |
 |---------|---------|----------|
@@ -268,13 +270,13 @@ its default, then apply the spoken modifiers.
 | ladderSize | 3 (2-8 notes per rung, clamped to the section) | live-restart |
 | ladderGapMs | 500 (shared time ladder 0-10s; pause between rungs, 0 plays straight through) | live-restart |
 | movementStyle | normal | live-restart |
-| rangeExpansion | 0 | live-restart |
-| octaveSpan | 1 | live-restart |
-| sectionLength | 1o | live-restart |
+| sectionLength | 1o (1o+3 / 1o+5 / 2o) | live-restart |
 | exercise | none | live-restart |
 
-UI preferences (separate keys): presets (`scales-presets-v1`), instruction
-dismissed, show sequence, abbreviations.
+Preferences ride in the same key and survive Reset and voice commands:
+show sequence, abbreviations, the dismissed tip, and the TTS voice, speed,
+pitch, and echo. Presets have their own key (`scales-presets-v1`) and store
+every practice setting, forever repeats included.
 
 ## Intervals (`intervals-settings`)
 

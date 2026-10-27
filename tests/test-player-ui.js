@@ -6,9 +6,7 @@
 // track and position buttons sit directly on the seek bar at phone and wide
 // widths.
 
-const fs = require('fs');
-const path = require('path');
-const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
+const { BASE_URL, launch, collectErrors, installGrayTextScan, createReporter } = require('./helpers');
 
 const PHONE = { width: 412, height: 915 };
 const WIDE = { width: 1280, height: 800 };
@@ -423,47 +421,7 @@ async function playTransition(browser, viewport, errors) {
         && layout.sliderValue === '0:21 of 4:05');
 
     // ---- Owner display rules: no gray text anywhere visible, one-line rows.
-    // The scanner stays installed so later states (open panels, Big Lyrics)
-    // are checked by the same definition.
-    await tab.evaluate(() => {
-        /** @param {Element} el */
-        const effectiveOpacity = el => {
-            let opacity = 1;
-            for (let node = /** @type {Element | null} */ (el); node; node = node.parentElement) {
-                opacity *= Number(getComputedStyle(node).opacity);
-            }
-            return opacity;
-        };
-        window.__scanGrayText = () => {
-            const offenders = [];
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-            while (walker.nextNode()) {
-                const node = walker.currentNode;
-                if (!node.textContent?.trim()) continue;
-                const el = node.parentElement;
-                if (!el) continue;
-                const box = el.getBoundingClientRect();
-                if (box.width === 0 || box.height === 0) continue;
-                const style = getComputedStyle(el);
-                if (style.visibility === 'hidden') continue;
-                const [r, g, b, a = 1] = (style.color.match(/[\d.]+/g) || []).map(Number);
-                // Near-neutral text (low saturation, or tinted near-white /
-                // near-black) must be pure white or pure black; semantic
-                // colors must be opaque.
-                const max = Math.max(r, g, b);
-                const min = Math.min(r, g, b);
-                const lightness = (max + min) / 510;
-                const saturation = max === min ? 0 : (max - min) / 255 / (1 - Math.abs(2 * lightness - 1));
-                const nearNeutral = saturation < 0.3 || min > 200 || max < 60;
-                const pure = (r === 255 && g === 255 && b === 255) || (r === 0 && g === 0 && b === 0);
-                const opacity = effectiveOpacity(el);
-                if (a < 1 || opacity < 1 || (nearNeutral && !pure)) {
-                    offenders.push(`${el.tagName.toLowerCase()}.${el.className}: "${node.textContent.trim().slice(0, 24)}" ${style.color} opacity ${opacity}`);
-                }
-            }
-            return offenders;
-        };
-    });
+    await tab.evaluate(installGrayTextScan);
     const displayRules = await tab.evaluate(() => {
         const offenders = window.__scanGrayText();
         const rows = Array.from(document.querySelectorAll('#playlistBody .playlist-row'));
@@ -759,21 +717,6 @@ async function playTransition(browser, viewport, errors) {
     report.check(`a song change resumes a keep-alive Android paused, in the same step as the load (${switches.map(s => `${s.label} ${s.keepAliveResumed ? 'resumed' : 'still paused'}`).join(', ')})`,
         switches.length === 5
         && switches.every(s => s.keepAliveResumed));
-
-    // ---- Static guard: the page sheet never declares translucent or gray text.
-    const css = fs.readFileSync(path.join(__dirname, '..', 'player.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    /** Equal-channel hex other than pure black/white is gray. @param {string} value */
-    const isGrayHex = value => {
-        const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
-        if (!hex) return false;
-        const channels = hex.length === 3 ? hex.split('').map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)];
-        return channels.every(channel => channel.toLowerCase() === channels[0].toLowerCase())
-            && !['00', 'ff'].includes(channels[0].toLowerCase());
-    };
-    const grayText = [...css.matchAll(/(?:^|[;{\s])color:\s*([^;]+);/g)]
-        .map(match => match[1].trim())
-        .filter(value => /rgba\([^)]*,\s*0?\.\d+\)/.test(value) || isGrayHex(value) || /gr[ae]y/i.test(value));
-    report.check(`player.css declares no translucent or gray text colors (${grayText.join(', ') || 'none'})`, grayText.length === 0);
 
     // ---- Play and Next never move the page, and the controls sit on the seek bar.
     for (const run of await transitions) {

@@ -13,9 +13,54 @@ const DEFAULT_OCTAVE = 4;
 // Loop timing (NOT the per-note gap control)
 const FOREVER_SECTION_GAP_MS = 1000; // 1s gap between sections when looping ("forever" mode)
 
-const PIANO_NOTIFICATION_MAX_NOTE_CELLS = 6;
-
 const SCALES_PRESETS_STORAGE_KEY = StorageKeys.SCALES_PRESETS;
+
+// Option names in the words of each option button's data-full text: the
+// readout, preset titles, and history all describe a setting with the
+// words on its button (tests/test-scales-keyboard.js holds them equal).
+// Scale types read as their names with spaces.
+/** @type {Record<string, Record<string, string>>} */
+const SCALES_OPTION_LABELS = {
+    sectionLength: { '1o': '1 octave', '1o+3': 'octave+3rd', '1o+5': 'octave+5th', '2o': '2 octaves', centered: 'centered' },
+    direction: { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' },
+    movementStyle: {
+        normal: 'normal', stop_and_go: '+1+2', one_three_five: '1-3-5', neighbors: 'neighbors', chords: 'chords',
+        from_one: 'from 1', to_one: 'to 1', plus_minus_one: '+1-1',
+        chromatic_stop_and_go: '+1+2 chrom', plus_minus_half: '+1-1 chrom',
+        third_up: '3rd up', fourth_up: '4th up', fifth_up: '5th up', sixth_up: '6th up', seventh_up: '7th up',
+        third_down: '3rd down', fourth_down: '4th down', fifth_down: '5th down', sixth_down: '6th down', seventh_down: '7th down'
+    },
+    exercise: { none: 'full scale', five_note: '5-note', octave_jump: 'octave jump', arpeggio_return: 'arp return', thirds: 'thirds' },
+    // Voice also rises by 3, 4, 5, or 7 ("rising a minor third"); those have no button.
+    risingSemitones: { 1: 'half', 2: 'whole', 3: 'minor third', 4: 'major third', 5: 'perfect fourth', 7: 'perfect fifth' }
+};
+
+/**
+ * A repeat setting in the Repeat buttons' words.
+ * @param {number} count @param {number} gapMs
+ */
+function scalesRepeatLabel(count, gapMs) {
+    if (count === Infinity) return gapMs === 0 ? '\u221e+no gap' : '\u221e';
+    if (count === 2) return 'twice';
+    return count > 2 ? `${count}x` : 'once';
+}
+
+/** @param {string} className @param {string} text */
+function scalesTextSpan(className, text) {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    return span;
+}
+
+/**
+ * A saved root, or the default when it names no key: spoken "E sharp" and
+ * "B sharp" were once stored as "E#" and "B#".
+ * @param {string} root @param {string} fallback
+ */
+function scalesStoredRoot(root, fallback) {
+    return NOTE_NAMES.includes(root) ? root : fallback;
+}
 
 // Stepper value lists (the former chip-row options)
 const SCALES_VOICE_RATE_VALUES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
@@ -49,7 +94,7 @@ const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
 const SCALES_PERSISTED_SETTING_KEYS = [
     'noteLengthMs', 'gapMs', 'direction', 'octave', 'repeatCount',
     'repeatGapMs', 'risingSemitones', 'movementStyle', 'scaleType', 'root',
-    'rangeExpansion', 'octaveSpan', 'sectionLength', 'exercise', 'shiftingSteps',
+    'sectionLength', 'exercise', 'shiftingSteps',
     'chopHead', 'ladder', 'ladderSize', 'ladderGapMs',
     'showSequence', 'useAbbrev', 'instructionDismissed',
     'voiceRate', 'voicePitch', 'voiceName', 'echoCommands'
@@ -69,8 +114,6 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {string} movementStyle
  * @property {string} scaleType
  * @property {string} root
- * @property {number} rangeExpansion
- * @property {number} octaveSpan
  * @property {string} sectionLength
  * @property {string} exercise
  * @property {number} shiftingSteps
@@ -84,12 +127,11 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @typedef {Object} ScaleModifiers
  * @property {string | null} [tempo]
  * @property {string | null} [gap]
- * @property {number} [repeat]
+ * @property {number | null} [repeat]
  * @property {string | null} [direction]
  * @property {number | null} [risingSemitones]
  * @property {string | null} [movementStyle]
- * @property {number | null} [rangeExpansion]
- * @property {number | null} [octaveSpan]
+ * @property {string | null} [sectionLength]
  * @property {number | null} [repeatGapMs]
  * @property {string | null} [exercise]
  * @property {number | null} [shiftingSteps]
@@ -112,8 +154,6 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {string} [tempoName]
  * @property {string} [gapName]
  * @property {string} [movementStyle]
- * @property {number} [rangeExpansion]
- * @property {number} [octaveSpan]
  * @property {number} [risingSemitones]
  * @property {string} [chord]
  * @property {string} [note]
@@ -135,8 +175,9 @@ const SCALES_PERSISTED_SETTING_KEYS = [
 
 /**
  * @typedef {Object} HistoryEntry
- * @property {string} [transcript]
+ * @property {string | null} [transcript]
  * @property {ScaleCommand} [command]
+ * @property {ScalesSettings | null} [config] - a scale's settings when it played
  * @property {string} [type]
  * @property {string} [message]
  * @property {string} [description]
@@ -144,21 +185,58 @@ const SCALES_PERSISTED_SETTING_KEYS = [
  * @property {Date} [timestamp]
  */
 
+/**
+ * What the keyboard shows: the key it spells and numbers notes in, and
+ * the readout line naming what is (or would be) playing.
+ * @typedef {Object} ScalesShown
+ * @property {string} text
+ * @property {number} rootMidi
+ * @property {string} scaleType
+ */
+
+/**
+ * A phrase playback paces by: a ladder rung, a movement figure, or a
+ * chord struck at once.
+ * @typedef {Object} ScalesGroup
+ * @property {number[]} notes - MIDI
+ * @property {number} sectionIndex - which note is the section's own degree (the rest decorate it)
+ * @property {boolean} isChord
+ */
+
+/**
+ * One pass of a scale: its groups, and the same notes flattened.
+ * @typedef {Object} ScalesPass
+ * @property {ScalesGroup[]} groups
+ * @property {number[]} notes
+ */
+
 class ScalesController {
     constructor() {
         /** @type {VoiceCommandCore | null} */
         this.voiceCore = null;
-        /** @type {InstanceType<typeof window.ScalesPlayback.AudioCoordinator>} */
-        this.audio = new window.ScalesPlayback.AudioCoordinator();
-        /** @type {HTMLElement | null} */
-        this.pianoNotificationCommandEl = null;
-        /** @type {HTMLElement[]} */
-        this.pianoNotificationNoteCells = [];
+        // Honest car/lock-screen transport state: most head units render one
+        // play/pause toggle and route the press by this state, so claiming
+        // 'playing' while idle turns every play press into a pause command.
+        this.audio = new window.ScalesPlayback.AudioCoordinator(
+            playing => MediaSessionCore.setPlaybackState(playing ? 'playing' : 'paused'));
+        /** @type {ReturnType<typeof PianoKeyboard.create> | null} */
+        this.keyboard = null;
+        // Set when the piano samples failed to load; it then holds the
+        // readout, since nothing can play.
+        /** @type {string | null} */
+        this.loadFailure = null;
+        // Invalidates the pending "back to the settings view" of a single
+        // note when anything else takes the display.
+        this.flashId = 0;
         /** @type {Preset[]} */
         this.presets = [];
         /** @type {string | null} */
         this.selectedPresetId = null;
-        this.settings = {
+        // What Reset (and every voice command, before applying its own
+        // words) restores: the musical settings only. Display toggles,
+        // the dismissed tip, and the TTS voice are preferences and stay.
+        /** @type {ScalesSettings} */
+        this.defaultSettings = {
             noteLengthMs: 300,  // note duration in milliseconds
             gapMs: 0,           // gap between notes in ms (or negative for overlap ratio)
             direction: 'ascending', // ascending, descending, both, down_and_up
@@ -169,11 +247,8 @@ class ScalesController {
             repeatGapMs: FOREVER_SECTION_GAP_MS,
             risingSemitones: 0, // 0=off, otherwise transpose each repeat upward by this many semitones
             movementStyle: 'normal', // normal, stop_and_go, one_three_five, neighbors, chords, from_one, to_one, plus_minus_one, chromatic_stop_and_go, plus_minus_half, or an INTERVAL_MOVEMENTS key
-            // Voice-first settings (also controllable via UI)
             scaleType: 'major',
             root: 'C',
-            rangeExpansion: 0,  // 0-6: extra notes on each end for "wide scale"
-            octaveSpan: 1,      // 1 or 2: how many octaves to span
             sectionLength: '1o', // '1o', '1o+3', '1o+5', '2o', 'centered'
             exercise: 'none', // 'none', 'five_note', 'octave_jump', 'arpeggio_return', 'thirds'
             shiftingSteps: 0,  // 0=off, 1=shift up 1 scale degree each repeat, etc.
@@ -183,37 +258,10 @@ class ScalesController {
             // the new note first (321, 432, 543, ...).
             ladder: 'off',     // 'off', 'on', 'reverse'
             ladderSize: 3,     // notes per rung
-            ladderGapMs: 500,  // pause between rungs; 0 plays straight through
-            showSequence: false,
-            useAbbrev: false,
-            instructionDismissed: false,
-            voiceRate: 1.0,
-            voicePitch: 1.0,
-            voiceName: null,
-            echoCommands: false
+            ladderGapMs: 500   // pause between rungs; 0 plays straight through
         };
-
-        // Default settings for reset (and for voice commands which reset first)
-        this.defaultSettings = {
-            noteLengthMs: 300,  // 0.3s by default
-            gapMs: 0,           // no gap by default
-            direction: 'ascending',
-            octave: DEFAULT_OCTAVE,
-            repeatCount: 1,   // Once by default
-            repeatGapMs: FOREVER_SECTION_GAP_MS,
-            risingSemitones: 0,
-            movementStyle: 'normal',
-            scaleType: 'major',
-            root: 'C',
-            rangeExpansion: 0,
-            octaveSpan: 1,
-            sectionLength: '1o',
-            exercise: 'none',
-            shiftingSteps: 0,
-            chopHead: 0,
-            ladder: 'off',
-            ladderSize: 3,
-            ladderGapMs: 500,
+        this.settings = {
+            ...this.defaultSettings,
             showSequence: false,
             useAbbrev: false,
             instructionDismissed: false,
@@ -256,11 +304,10 @@ class ScalesController {
             'very large': 500
         };
 
-        // Track last command for "repeat" / "again" functionality
+        // The command playing or last played: a spoken setting carries a
+        // running scale on with the new value.
         /** @type {ScaleCommand | null} */
         this.lastCommand = null;
-        /** @type {string | null} */
-        this.lastTranscript = null;
 
         // Command history for replay (HistoryList created in setupUI)
         /** @type {ReturnType<typeof HistoryList.create> | null} */
@@ -348,12 +395,9 @@ class ScalesController {
         let lower = min;
         let upper = max;
         const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
-        const plan = this.buildSingPlan();
-        if (rootMidi !== null && plan) {
-            for (const midi of plan.notes) {
-                lower = Math.min(lower, Math.floor(midi - rootMidi));
-                upper = Math.max(upper, Math.ceil(midi - rootMidi));
-            }
+        for (const midi of this.patternNotes(0)) {
+            lower = Math.min(lower, Math.floor(midi - rootMidi));
+            upper = Math.max(upper, Math.ceil(midi - rootMidi));
         }
         if (expandRange) {
             lower -= 12;
@@ -367,34 +411,11 @@ class ScalesController {
             }));
     }
 
-    buildSingPlan() {
-        // Active exercises define the sung notes; targets use the first
-        // repetition (shifting changes later repetitions).
-        const exercisePattern = this.exercisePatterns[this.settings.exercise];
-        if (exercisePattern && exercisePattern.length > 0) {
-            const rootMidi = noteNameToMidi(this.settings.root, this.settings.octave);
-            if (rootMidi === null) return null;
-            const notes = this.buildExerciseNotes(rootMidi, this.settings.scaleType, exercisePattern, 0);
-            return notes.length ? { notes } : null;
-        }
-
-        return this.buildScalePlaybackPlan({
-            root: this.settings.root,
-            scaleType: this.settings.scaleType,
-            direction: this.settings.direction,
-            movementStyle: this.settings.movementStyle,
-            sectionLength: this.settings.sectionLength,
-            ladder: this.settings.ladder,
-            ladderSize: this.settings.ladderSize
-        });
-    }
-
+    // Targets are the first pass (shifting and rising move later ones).
     buildSingTargets() {
-        const plan = this.buildSingPlan();
-        if (!plan) return [];
         const { ms, gap } = this.getNoteDuration();
         const stepMs = ms + gap;
-        return plan.notes.map((midi, index) => ({
+        return this.patternNotes(0).map((midi, index) => ({
             midi,
             startMs: index * stepMs,
             endMs: index * stepMs + ms,
@@ -404,10 +425,8 @@ class ScalesController {
     }
 
     singContentDurationMs() {
-        const plan = this.buildSingPlan();
-        if (!plan || !plan.notes.length) return 4000;
         const { ms, gap } = this.getNoteDuration();
-        return plan.notes.length * (ms + gap);
+        return this.patternNotes(0).length * (ms + gap);
     }
 
     // JSON cannot store Infinity, so "repeat forever" round-trips as -1.
@@ -415,6 +434,7 @@ class ScalesController {
         const snapshot = { ...this.settings };
         SettingsStore.load(SCALES_SETTINGS_STORAGE_KEY, snapshot, SCALES_PERSISTED_SETTING_KEYS);
         if (snapshot.repeatCount === -1) snapshot.repeatCount = Infinity;
+        snapshot.root = scalesStoredRoot(snapshot.root, this.defaultSettings.root);
 
         // One-time migration from legacy ad-hoc keys (owner-mediated access)
         const legacyShow = SettingsStore.takeLegacy('scales-show-sequence');
@@ -463,26 +483,24 @@ class ScalesController {
 
     setupMediaSession() {
         MediaSessionCore.register('Scales', [
-            ['play', () => { this.playAgainOrCurrent(); }],
+            ['play', () => { this.playCurrentSettings(); }],
             ['pause', () => { this.stopPlayback(); }]
         ]);
+        MediaSessionCore.setPlaybackState('paused');
     }
 
-    // The piano notification area is the page's status surface; loading is
+    // The keyboard's readout is the page's status surface; loading is
     // silent unless it fails.
     /** @param {string} message */
     showLoadFailure(message) {
-        const el = document.getElementById('pianoNotificationCommand');
-        if (el) el.textContent = message;
+        this.loadFailure = message;
+        this.setReadoutPlan('');
     }
 
     setupVoiceCore() {
         this.voiceCore = new VoiceCommandCore({
             settings: {
                 autoSubmitMode: true
-            },
-            uiIds: {
-                statusEl: 'statusRuntime'
             },
             onStatusChange: () => { },
             onError: (/** @type {string} */ msg) => this.showError(msg)
@@ -493,8 +511,10 @@ class ScalesController {
         this.voiceCore.registerHandler({
             parse: (/** @type {string} */ transcript) => this.parseScaleCommand(transcript),
             execute: async (/** @type {ScaleCommand} */ command, /** @type {string} */ transcript) => {
-                // Reset to defaults before applying voice command (unless it's a control command)
-                const controlCommands = ['stop', 'help', 'play', 'setting'];
+                // Reset to defaults before applying voice command (unless it's
+                // a control command). Setting, reset, and random commands
+                // already changed the settings while parsing.
+                const controlCommands = ['stop', 'help', 'play', 'setting', 'reset', 'random'];
                 if (!controlCommands.includes(command.type)) {
                     this.resetToDefaults();
                 }
@@ -507,9 +527,8 @@ class ScalesController {
         this.syncVoiceSteppers();
     }
 
-    // Reset to defaults without updating status (used before voice commands)
     resetToDefaults() {
-        this.settings = { ...this.defaultSettings };
+        Object.assign(this.settings, this.defaultSettings);
         this.syncUIToSettings();
     }
 
@@ -578,7 +597,6 @@ class ScalesController {
             const info = midiToNoteName(bounded);
             this.settings.root = info.name;
             this.settings.octave = info.octave;
-            this.updatePianoKeyOctaves();
         } else if (key === 'noteLengthMs') {
             const next = PracticeControls.stepValue(PracticeControls.NOTE_LENGTH_VALUES, this.settings.noteLengthMs, delta);
             if (next === null) return;
@@ -676,13 +694,10 @@ class ScalesController {
             stopBtn.addEventListener('click', () => this.stopPlayback());
         }
 
-        // Piano notification area (above the keys)
-        this.setupPianoNotificationArea();
-
-        // Again button (play again or current settings)
-        const againBtn = document.getElementById('againBtn');
-        if (againBtn) {
-            againBtn.addEventListener('click', () => this.playAgainOrCurrent());
+        // Play button: always plays what the settings show
+        const playBtn = document.getElementById('playBtn');
+        if (playBtn) {
+            playBtn.addEventListener('click', () => this.playCurrentSettings());
         }
 
         // Command history list (shared component owns rendering + clear)
@@ -700,8 +715,7 @@ class ScalesController {
             copyAllHistoryBtn.addEventListener('click', () => this.copyAllHistory());
         }
 
-        // Piano keys (if present)
-        this.setupPianoKeys();
+        this.setupKeyboard();
 
         // Voice settings
         this.setupVoiceControls();
@@ -748,6 +762,11 @@ class ScalesController {
             [],
             value => Array.isArray(value)
         );
+        for (const preset of this.presets) {
+            // JSON writes a forever repeat (Infinity) as null.
+            if (preset.config.repeatCount === null) preset.config.repeatCount = Infinity;
+            preset.config.root = scalesStoredRoot(preset.config.root, this.defaultSettings.root);
+        }
         if (this.selectedPresetId && !this.presets.some(p => p.id === this.selectedPresetId)) {
             this.selectedPresetId = null;
         }
@@ -757,29 +776,10 @@ class ScalesController {
         SettingsStore.saveJson(SCALES_PRESETS_STORAGE_KEY, this.presets);
     }
 
+    /** @returns {ScalesSettings} the practice settings, as a preset or history row keeps them */
     getCurrentConfigSnapshot() {
-        const s = this.settings;
-        return {
-            noteLengthMs: s.noteLengthMs,
-            gapMs: s.gapMs,
-            direction: s.direction,
-            octave: s.octave,
-            repeatCount: s.repeatCount,
-            repeatGapMs: s.repeatGapMs,
-            risingSemitones: s.risingSemitones,
-            movementStyle: s.movementStyle,
-            scaleType: s.scaleType,
-            root: s.root,
-            rangeExpansion: s.rangeExpansion,
-            octaveSpan: s.octaveSpan,
-            sectionLength: s.sectionLength,
-            exercise: s.exercise,
-            shiftingSteps: s.shiftingSteps,
-            chopHead: s.chopHead,
-            ladder: s.ladder,
-            ladderSize: s.ladderSize,
-            ladderGapMs: s.ladderGapMs
-        };
+        const keys = /** @type {(keyof ScalesSettings)[]} */ (Object.keys(this.defaultSettings));
+        return /** @type {ScalesSettings} */ (Object.fromEntries(keys.map(key => [key, this.settings[key]])));
     }
 
     /** @param {string} name */
@@ -787,10 +787,9 @@ class ScalesController {
         const now = Date.now();
         const config = this.getCurrentConfigSnapshot();
 
-        const title = name || this.buildPresetTitleFromConfig(config);
         const preset = {
             id: `${now}-${Math.random().toString(16).slice(2)}`,
-            name: title,
+            name: name || this.describeSettings(config),
             createdAt: now,
             config
         };
@@ -800,33 +799,6 @@ class ScalesController {
         this.selectedPresetId = preset.id;
         this.savePresetsToStorage();
         this.renderPresets();
-        this.voiceCore.updateStatus('Saved config');
-    }
-
-    /** @param {ScalesSettings} c */
-    buildPresetTitleFromConfig(c) {
-        /** @type {Record<string, string>} */
-        const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
-        const parts = [];
-
-        parts.push(`${c.scaleType.replace(/_/g, ' ')} ${c.root} scale`);
-
-        if (c.direction) parts.push(dirLabels[c.direction] || c.direction);
-        if (c.risingSemitones) parts.push(`rising ${this.getRisingLabel(c.risingSemitones)}`);
-        if (c.movementStyle && c.movementStyle !== 'normal') parts.push(this.getMovementLabel(c.movementStyle));
-        if (c.exercise && c.exercise !== 'none') parts.push(this.getExerciseLabel(c.exercise));
-        if (c.shiftingSteps && c.shiftingSteps > 0) parts.push('shifting');
-        if (c.chopHead) parts.push('chop head');
-        if (c.ladder && c.ladder !== 'off') parts.push(this.getLadderLabel(c.ladder, c.ladderSize));
-        if (c.octaveSpan && c.octaveSpan !== 1) parts.push(`${c.octaveSpan} oct`);
-        if (c.rangeExpansion) parts.push(`wide +${c.rangeExpansion}`);
-        if (c.noteLengthMs !== this.defaultSettings.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
-        if (c.gapMs !== this.defaultSettings.gapMs) parts.push(`gap ${PracticeControls.formatGapLabel(c.gapMs)}`);
-
-        if (c.repeatCount === Infinity) parts.push(c.repeatGapMs === 0 ? 'forever no gap' : 'forever');
-        else if (c.repeatCount > 1) parts.push(`x${c.repeatCount}`);
-
-        return parts.join(' ');
     }
 
     /** @param {string} id */
@@ -837,14 +809,15 @@ class ScalesController {
         this.applyConfig(preset.config);
         this.selectedPresetId = id;
         this.renderPresets();
-        // Status is updated by onSettingChanged() if playing, otherwise show this
-        if (!this.audio.isPlaying) {
-            this.voiceCore.updateStatus('Applied config');
-        }
     }
 
-    /** @param {ScalesSettings} c */
-    applyConfig(c) {
+    /**
+     * Put a preset's or history row's settings back. A config saved before
+     * a setting existed gets that setting's default.
+     * @param {Partial<ScalesSettings>} stored
+     */
+    applyConfig(stored) {
+        const c = { ...this.defaultSettings, ...stored };
         this.setNoteLengthMs(c.noteLengthMs, 'applyConfig');
         this.settings.gapMs = c.gapMs;
         this.settings.direction = c.direction;
@@ -855,18 +828,14 @@ class ScalesController {
         this.settings.movementStyle = c.movementStyle;
         this.settings.scaleType = c.scaleType;
         this.settings.root = c.root;
-        this.settings.rangeExpansion = c.rangeExpansion;
-        this.settings.octaveSpan = c.octaveSpan;
-        this.settings.sectionLength = c.sectionLength ?? '1o';
-        this.settings.exercise = c.exercise ?? 'none';
-        this.settings.shiftingSteps = c.shiftingSteps ?? 0;
-        if (c.chopHead) this.setChopHead(1);
-        this.settings.ladderSize = c.ladderSize ?? 3;
-        this.settings.ladderGapMs = c.ladderGapMs ?? 500;
-        if (c.ladder && c.ladder !== 'off') this.setLadder(c.ladder);
-        else this.settings.ladder = 'off';
+        this.settings.sectionLength = c.sectionLength;
+        this.settings.exercise = c.exercise;
+        this.settings.shiftingSteps = c.shiftingSteps;
+        this.setChopHead(c.chopHead);
+        this.settings.ladderSize = c.ladderSize;
+        this.settings.ladderGapMs = c.ladderGapMs;
+        this.setLadder(c.ladder);
 
-        this.updatePianoKeyOctaves?.();
         this.onSettingChanged();
     }
 
@@ -880,180 +849,248 @@ class ScalesController {
         }
         this.savePresetsToStorage();
         this.renderPresets();
-        this.voiceCore.updateStatus('Deleted config');
     }
 
+    // One line per config: its name, what it plays when the name says
+    // something else, and when it was saved.
     renderPresets() {
         const list = document.getElementById('presetList');
         if (!list) return;
 
         if (!this.presets.length) {
-            list.innerHTML = '<p class="history-empty">No saved configs yet</p>';
+            const empty = document.createElement('p');
+            empty.className = 'history-empty';
+            empty.textContent = 'No saved configs yet';
+            list.replaceChildren(empty);
             return;
         }
 
-        list.innerHTML = this.presets.map((p) => {
-            const when = this.formatTime(new Date(p.createdAt));
-            const selectedClass = (p.id === this.selectedPresetId) ? ' selected' : '';
-            const subtitle = this.buildPresetTitleFromConfig(p.config);
-            return `
-                <div class="preset-item${selectedClass}" data-preset-id="${this.escapeHtml(String(p.id))}">
-                    <div class="preset-item-title">
-                        ${this.escapeHtml(p.name || subtitle)}
-                        <div class="preset-item-subtitle">${this.escapeHtml(subtitle)}</div>
-                    </div>
-                    <div class="preset-item-time">${this.escapeHtml(when)}</div>
-                </div>
-            `;
-        }).join('');
-
-        list.querySelectorAll('.preset-item').forEach(el => {
-            const element = /** @type {HTMLElement} */ (el);
-            element.addEventListener('click', () => {
-                const id = element.dataset.presetId;
-                this.selectedPresetId = id || null;
+        list.replaceChildren(...this.presets.map(preset => {
+            const summary = this.describeSettings(preset.config);
+            const item = document.createElement('div');
+            item.className = preset.id === this.selectedPresetId ? 'preset-item selected' : 'preset-item';
+            item.title = summary;
+            item.append(scalesTextSpan('preset-item-name', preset.name || summary));
+            if (preset.name && preset.name !== summary) item.append(scalesTextSpan('preset-item-summary', summary));
+            item.append(scalesTextSpan('preset-item-time', this.formatTime(new Date(preset.createdAt))));
+            item.addEventListener('click', () => {
+                this.selectedPresetId = preset.id;
                 this.renderPresets();
             });
-            element.addEventListener('dblclick', () => {
-                const id = element.dataset.presetId;
-                if (id) this.applyPresetById(id);
-            });
-        });
+            item.addEventListener('dblclick', () => this.applyPresetById(preset.id));
+            return item;
+        }));
     }
 
-    setupPianoNotificationArea() {
-        this.pianoNotificationCommandEl = document.getElementById('pianoNotificationCommand');
-        this.pianoNotificationNoteCells = [
-            document.getElementById('pianoNotificationNote1'),
-            document.getElementById('pianoNotificationNote2'),
-            document.getElementById('pianoNotificationNote3'),
-            document.getElementById('pianoNotificationNote4'),
-            document.getElementById('pianoNotificationNote5'),
-            document.getElementById('pianoNotificationNote6')
-        ].filter(Boolean);
+    //-------KEYBOARD DISPLAY-------
+    // The keyboard and the readout line above it are the page's display.
+    // At rest they show what Play plays: the first pass of the current
+    // settings. A running command shows its own notes - each pass of a
+    // scale as it starts (rising and shifting move it), or the notes of a
+    // chord, arpeggio, or interval - and lights each note as it sounds.
 
-        this.updatePianoNotificationCommand(null);
-        this.setPianoNotificationActiveNotes([]);
-    }
-
-    /** @param {number[]} midiNotes */
-    setPianoNotificationActiveNotes(midiNotes) {
-        if (!this.pianoNotificationNoteCells.length) return;
-        for (let i = 0; i < this.pianoNotificationNoteCells.length; i++) {
-            const midi = midiNotes?.[i];
-            const cell = this.pianoNotificationNoteCells[i];
-            cell.textContent = midi !== undefined ? this.formatPitchStringForCurrentScale(midi) : '';
-            cell.classList.toggle('empty', midi === undefined);
-        }
-    }
-
-    /** @param {ScaleCommand | null} command */
-    updatePianoNotificationCommand(command) {
-        if (!this.pianoNotificationCommandEl) return;
-
-        const runtime = document.getElementById('statusRuntime');
-        // Remove existing non-runtime badges
-        Array.from(this.pianoNotificationCommandEl.querySelectorAll('.piano-notification-badge')).forEach(el => {
-            if (runtime && el === runtime) return;
-            el.remove();
-        });
-
-        const badges = this.buildPianoNotificationBadges(command);
-        for (const b of badges) {
-            const badge = document.createElement('span');
-            badge.className = 'piano-notification-badge';
-            badge.textContent = b;
-            if (runtime && runtime.parentElement === this.pianoNotificationCommandEl) {
-                this.pianoNotificationCommandEl.insertBefore(badge, runtime);
-            } else {
-                this.pianoNotificationCommandEl.appendChild(badge);
+    setupKeyboard() {
+        this.keyboard = PianoKeyboard.create({
+            hostId: 'pianoKeyboard',
+            onKeyPress: async midi => {
+                await this.ensureAudioStarted();
+                this.soundSingleNote(midi, '8n');
             }
+        });
+    }
+
+    /**
+     * Notes of one pass of the current settings before any rising
+     * transposition: the exercise repetition (shifting moves its start),
+     * or the scale sequence.
+     * @param {number} pass
+     * @returns {number[]}
+     */
+    patternNotes(pass) {
+        const s = this.settings;
+        const exercisePattern = this.settingsExercisePattern();
+        if (exercisePattern) {
+            const rootMidi = noteNameToMidi(s.root, s.octave);
+            return this.buildExerciseNotes(rootMidi, s.scaleType, exercisePattern, s.shiftingSteps * pass);
+        }
+        return this.settingsPass().notes;
+    }
+
+    /** @returns {(number | 'O')[] | null} the exercise the settings play instead of the scale, if any */
+    settingsExercisePattern() {
+        const pattern = this.exercisePatterns[this.settings.exercise];
+        return pattern && pattern.length > 0 ? pattern : null;
+    }
+
+    /** @returns {ScalesPass} one pass of the scale the settings describe */
+    settingsPass() {
+        const s = this.settings;
+        return this.buildScalePlaybackPlan({
+            rootMidi: noteNameToMidi(s.root, s.octave),
+            scaleType: s.scaleType,
+            direction: s.direction,
+            movementStyle: s.movementStyle,
+            sectionLength: s.sectionLength,
+            ladder: s.ladder,
+            ladderSize: s.ladderSize,
+            seamlessLoop: s.repeatCount === Infinity && s.repeatGapMs === 0
+        });
+    }
+
+    /** @returns {ScalesShown} the current settings' key and description */
+    settingsShown() {
+        return {
+            text: this.describeSettings(this.settings),
+            rootMidi: noteNameToMidi(this.settings.root, this.settings.octave),
+            scaleType: this.settings.scaleType
+        };
+    }
+
+    /** The settings view: what Play plays, nothing sounding. */
+    showIdle() {
+        this.showPass(this.settingsShown(), this.patternNotes(0));
+    }
+
+    /**
+     * Draw one pass: the board around `notes` raised by `transpose` (the
+     * rising offset), spelled and numbered in the shown key raised the
+     * same, and the readout describing it with nothing sounding yet.
+     * @param {ScalesShown} shown
+     * @param {number[]} notes
+     * @param {number} [transpose]
+     */
+    showPass(shown, notes, transpose = 0) {
+        this.flashId++;
+        const rootMidi = shown.rootMidi + transpose;
+        this.keyboard.render(PianoKeyboard.buildModel({
+            root: NOTE_NAMES[midiPitchClass(rootMidi)],
+            octave: midiOctave(rootMidi),
+            scaleType: shown.scaleType,
+            notes: notes.map(midi => midi + transpose)
+        }));
+        this.setReadoutPlan(shown.text);
+        this.showSounding([]);
+    }
+
+    /**
+     * Light exactly these pitches and name them on the readout, each
+     * with its scale degree when it has one.
+     * @param {number[]} midis
+     */
+    showSounding(midis) {
+        const missing = this.keyboard.setSounding(midis);
+        if (missing.length) console.error('Scales keyboard does not draw the sounding notes', missing);
+        const model = this.keyboard.model;
+        document.getElementById('pianoReadoutNotes').replaceChildren(...midis.flatMap(midi => {
+            const note = PianoKeyboard.noteAt(model, midi);
+            if (!note) return [];
+            const el = document.createElement('span');
+            if (note.degree !== null) el.append(scalesTextSpan('piano-readout-degree', String(note.degree)));
+            el.append(note.pitch);
+            return [el];
+        }));
+    }
+
+    /** @param {string} text */
+    setReadoutPlan(text) {
+        document.getElementById('pianoReadout').classList.toggle('is-error', this.loadFailure !== null);
+        document.getElementById('pianoReadoutPlan').textContent = this.loadFailure ?? text;
+    }
+
+    /**
+     * Sound one note and light it while it rings: a key tap, a spoken
+     * note, the tuning A. A note off the board gets a board around it in
+     * the settings' key; the settings view returns when the note ends,
+     * unless a sequence has the board by then.
+     * @param {number} midi
+     * @param {ToneDuration} duration
+     */
+    soundSingleNote(midi, duration) {
+        this.audio.playNote(midi, duration);
+        if (!PianoKeyboard.noteAt(this.keyboard.model, midi)) this.showPass(this.settingsShown(), [midi]);
+        this.showSounding([midi]);
+        this.showIdleAfter(Tone.Time(duration).toMilliseconds());
+    }
+
+    /**
+     * Return to the settings view once a sound that ends on its own (a
+     * tapped note, a chord) has rung out, unless something else has
+     * taken the board by then.
+     * @param {number} ms
+     */
+    showIdleAfter(ms) {
+        const id = ++this.flashId;
+        setTimeout(() => {
+            if (id === this.flashId && !this.audio.isPlaying) this.showIdle();
+        }, ms);
+    }
+
+    /**
+     * One line naming what these settings play, in the option buttons'
+     * words: key and scale, direction, then whatever differs from the
+     * defaults. The readout, preset titles, and history all use it.
+     * @param {ScalesSettings} c
+     */
+    describeSettings(c) {
+        const d = this.defaultSettings;
+        const labels = SCALES_OPTION_LABELS;
+        const parts = [
+            `${scaleRootPitchString(c.root, c.octave)} ${c.scaleType.replace(/_/g, ' ')}`,
+            labels.direction[c.direction]
+        ];
+        if (c.sectionLength !== d.sectionLength) parts.push(labels.sectionLength[c.sectionLength]);
+        if (c.movementStyle !== d.movementStyle) parts.push(`move ${labels.movementStyle[c.movementStyle]}`);
+        if (c.exercise !== d.exercise) parts.push(labels.exercise[c.exercise]);
+        if (c.shiftingSteps > 0) parts.push('shifting');
+        if (c.chopHead) parts.push('chop head');
+        if (c.ladder !== 'off') {
+            parts.push(`${c.ladder === 'reverse' ? 'reverse ladder' : 'ladder'} of ${c.ladderSize}`);
+            if (c.ladderGapMs !== d.ladderGapMs) parts.push(`rung gap ${PracticeControls.formatSeconds(c.ladderGapMs)}`);
+        }
+        if (c.risingSemitones) parts.push(`rising ${labels.risingSemitones[c.risingSemitones]}`);
+        if (c.repeatCount > 1) parts.push(`repeat ${scalesRepeatLabel(c.repeatCount, c.repeatGapMs)}`);
+        if (c.noteLengthMs !== d.noteLengthMs) parts.push(`len ${PracticeControls.formatSeconds(c.noteLengthMs)}`);
+        if (c.gapMs !== d.gapMs) parts.push(`gap ${PracticeControls.formatGapLabel(c.gapMs)}`);
+        return parts.join(' \u00b7 ');
+    }
+
+    /**
+     * The readout and history line for a command. A scale command has
+     * already written itself into the settings, so it reads like them.
+     * @param {ScaleCommand} command
+     */
+    describeCommand(command) {
+        const root = command.root && scaleRootPitchString(command.root, this.settings.octave);
+        switch (command.type) {
+            case 'scale': return this.describeSettings(this.settings);
+            case 'note': return `${command.note}${command.octave}`;
+            case 'tuning': return 'A440';
+            case 'arpeggio': return `${root} ${command.quality} arpeggio`;
+            case 'chord': return `${root} ${command.quality} chord`;
+            case 'interval': return `${command.quality ? `${command.quality} ` : ''}${command.interval} from ${root}`;
+            default: throw new Error(`describeCommand: ${command.type} commands play nothing`);
         }
     }
 
-    /** @param {ScaleCommand | null} command */
-    buildPianoNotificationBadges(command) {
-        const s = this.settings;
-        const d = this.defaultSettings;
-
-        /** @type {Record<string, string>} */
-        const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
-
-        const badges = [];
-
-        // Base "thing" being played
-        if (command?.type === 'scale') {
-            badges.push(`${command.scaleType.replace(/_/g, ' ')} ${command.root} scale`);
-        } else if (command?.type === 'arpeggio') {
-            badges.push(`${command.root} ${command.quality} arpeggio`);
-        } else if (command?.type === 'chord') {
-            badges.push(`${command.root} ${command.quality} chord`);
-        } else if (command?.type === 'interval') {
-            badges.push(`${command.quality}${command.interval} from ${command.root}`.trim());
-        } else if (command?.type === 'note') {
-            badges.push(`${command.note}${command.octave ?? ''}`.trim());
-        } else if (command?.type === 'tuning') {
-            badges.push('A440');
-        } else {
-            badges.push(`${s.scaleType.replace(/_/g, ' ')} ${s.root} scale`);
-        }
-
-        const mods = command?.modifiers || {};
-
-        // Unified modifiers
-        const direction = mods.direction ?? s.direction;
-        if (direction && direction !== d.direction) badges.push(dirLabels[direction] || direction);
-
-        const rising = (mods.risingSemitones ?? s.risingSemitones) || 0;
-        if (rising) badges.push(`rising ${this.getRisingLabel(rising)}`);
-
-        const movement = mods.movementStyle ?? s.movementStyle;
-        if (movement && movement !== d.movementStyle && movement !== 'normal') badges.push(this.getMovementLabel(movement));
-
-        const chopHead = mods.chopHead ?? s.chopHead;
-        if (chopHead) badges.push('chop head');
-
-        const ladder = mods.ladder ?? s.ladder;
-        if (ladder && ladder !== 'off') {
-            badges.push(this.getLadderLabel(ladder, mods.ladderSize ?? s.ladderSize));
-        }
-
-        const octaveSpan = mods.octaveSpan ?? s.octaveSpan;
-        if (octaveSpan && octaveSpan !== d.octaveSpan) badges.push(`${octaveSpan} oct`);
-
-        const rangeExpansion = mods.rangeExpansion ?? s.rangeExpansion;
-        if (rangeExpansion && rangeExpansion !== d.rangeExpansion) badges.push(`wide +${rangeExpansion}`);
-
-        // Tempo and per-note gap (note-level controls)
-        if (mods.tempo) {
-            const ms = this.tempoNameToMs[mods.tempo];
-            if (ms !== undefined) badges.push(`len ${PracticeControls.formatSeconds(ms)}`);
-        } else if (s.noteLengthMs !== d.noteLengthMs) {
-            badges.push(`len ${PracticeControls.formatSeconds(s.noteLengthMs)}`);
-        }
-
-        if (mods.gap) {
-            const gapVal = this.gapNameToValue[mods.gap];
-            if (gapVal !== undefined) badges.push(`gap ${PracticeControls.formatGapLabel(gapVal)}`);
-        } else if (s.gapMs !== d.gapMs) {
-            badges.push(`gap ${PracticeControls.formatGapLabel(s.gapMs)}`);
-        }
-
-        // Repeat (loop mode)
-        const repeatCount = mods.repeat ?? s.repeatCount;
-        const repeatGapMs = mods.repeatGapMs ?? s.repeatGapMs;
-        if (repeatCount === Infinity) badges.push(repeatGapMs === 0 ? 'forever no gap' : 'forever');
-        else if (repeatCount === 0) badges.push('repeat off');
-        else if (repeatCount > 1) badges.push(`x${repeatCount}`);
-
-        return badges.filter(Boolean);
+    /**
+     * What a chord, arpeggio, or interval command shows: its line, spelled
+     * and numbered in its root's minor scale for a minor quality, else the
+     * major.
+     * @param {ScaleCommand} command
+     * @returns {ScalesShown}
+     */
+    commandShown(command) {
+        return {
+            text: this.describeCommand(command),
+            rootMidi: noteNameToMidi(command.root, this.settings.octave),
+            scaleType: command.quality === 'minor' ? 'minor' : 'major'
+        };
     }
 
     setupVoiceControls() {
-        // Wait a bit for voices to load, then populate dropdown
-        setTimeout(() => this.populateVoiceDropdown(), 100);
-        // Also try again after a longer delay (Chrome loads voices async)
-        setTimeout(() => this.populateVoiceDropdown(), 500);
+        // Chrome fills the voice list after load and announces it.
+        this.populateVoiceDropdown();
+        speechSynthesis.addEventListener('voiceschanged', () => this.populateVoiceDropdown());
 
         const voiceSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('voiceSelect'));
         if (voiceSelect) {
@@ -1072,35 +1109,21 @@ class ScalesController {
         }
     }
 
+    // English voices with an accent hint, the saved voice selected.
     populateVoiceDropdown() {
-        const voiceSelect = document.getElementById('voiceSelect');
-        if (!voiceSelect) return;
-
-        const voices = this.voiceCore.getAvailableVoices();
-        if (voices.length === 0) return;
-
-        // Clear existing options except default
-        voiceSelect.innerHTML = '<option value="">Default</option>';
-
-        // Group voices by language
-        const englishVoices = voices.filter(v => v.lang.startsWith('en'));
-
-        // Add English voices first
-        if (englishVoices.length > 0) {
-            const group = document.createElement('optgroup');
-            group.label = 'English';
-            englishVoices.forEach(v => {
-                const option = document.createElement('option');
-                option.value = v.name;
-                // Show voice name and accent hint
-                const accent = v.lang.includes('GB') ? '(UK)' :
-                    v.lang.includes('AU') ? '(AU)' :
-                        v.lang.includes('US') ? '(US)' : '';
-                option.textContent = `${v.name} ${accent}`.trim();
-                group.appendChild(option);
-            });
-            voiceSelect.appendChild(group);
+        const voiceSelect = /** @type {HTMLSelectElement} */ (document.getElementById('voiceSelect'));
+        const englishVoices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+        const group = document.createElement('optgroup');
+        group.label = 'English';
+        for (const v of englishVoices) {
+            const accent = v.lang.includes('GB') ? '(UK)' :
+                v.lang.includes('AU') ? '(AU)' :
+                    v.lang.includes('US') ? '(US)' : '';
+            group.append(new Option(`${v.name} ${accent}`.trim(), v.name));
         }
+        voiceSelect.replaceChildren(new Option('Default', ''), ...(englishVoices.length ? [group] : []));
+        const saved = this.voiceCore.settings.voiceName;
+        voiceSelect.value = englishVoices.some(v => v.name === saved) ? saved : '';
     }
 
     // Sync UI elements to match current settings (bidirectional binding)
@@ -1173,35 +1196,16 @@ class ScalesController {
         PracticeControls.setValueText('gapValue', PracticeControls.formatGapLabel(this.settings.gapMs));
         this.syncVoiceSteppers();
 
-        // Octave span buttons
-        document.querySelectorAll('[data-octave-span]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const span = parseInt(btn.dataset.octaveSpan || '1');
-            btn.classList.toggle('selected', span === this.settings.octaveSpan);
-        });
-
-        // Range expansion buttons
-        document.querySelectorAll('[data-range]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            const range = parseInt(btn.dataset.range || '0');
-            btn.classList.toggle('selected', range === this.settings.rangeExpansion);
-        });
-
         // Section length buttons
         document.querySelectorAll('[data-section-length]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
             btn.classList.toggle('selected', btn.dataset.sectionLength === this.settings.sectionLength);
         });
 
-        // Update piano scale preview
-        this.updateScalePreview();
-        this.updatePatternPreview();
+        this.updateNoteSequencePreview();
 
-        // Keep the piano notification area showing what we'd play (when idle).
-        if (!this.audio.isPlaying) {
-            this.updatePianoNotificationCommand(null);
-            this.setPianoNotificationActiveNotes([]);
-        }
+        // A running sequence keeps the board; it shows its own passes.
+        if (!this.audio.isPlaying) this.showIdle();
     }
 
     // Called when any setting changes - immediately adopts and restarts if playing
@@ -1217,15 +1221,9 @@ class ScalesController {
 
         // Update UI to reflect new settings
         this.syncUIToSettings();
-        this.updatePianoNotificationCommand(null);
         if (this.singPanel) this.singPanel.draw();
 
-        // Restart if we were playing - use current settings directly
-        if (wasPlaying) {
-            this.voiceCore.updateStatus(this.formatCurrentCommand());
-            const modifiers = this.buildModifiersFromSettings();
-            await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
-        }
+        if (wasPlaying) await this.playScale();
     }
 
     // Build modifiers object from current settings for replay
@@ -1236,8 +1234,6 @@ class ScalesController {
             direction: this.settings.direction,
             risingSemitones: this.settings.risingSemitones,
             movementStyle: this.settings.movementStyle,
-            rangeExpansion: this.settings.rangeExpansion,
-            octaveSpan: this.settings.octaveSpan,
             repeatGapMs: this.settings.repeatGapMs,
             exercise: this.settings.exercise,
             shiftingSteps: this.settings.shiftingSteps,
@@ -1246,67 +1242,6 @@ class ScalesController {
             ladderSize: this.settings.ladderSize,
             ladderGapMs: this.settings.ladderGapMs
         };
-    }
-
-    // Format current settings as a compact status string
-    // Always shows root + scale type, only shows other options if they differ from defaults
-    formatCurrentCommand() {
-        const s = this.settings;
-        const d = this.defaultSettings;
-
-        // Always include root and scale type
-        const scaleLabel = s.scaleType.replace('_', ' ');
-        let parts = [`${s.root} ${scaleLabel}`];
-
-        // Only add non-default options
-        if (s.direction !== d.direction) {
-            const dirLabels = { ascending: 'up', descending: 'down', both: 'up+down', down_and_up: 'down+up' };
-            parts.push(dirLabels[s.direction] || s.direction);
-        }
-        if (s.movementStyle !== d.movementStyle) {
-            parts.push(`move: ${this.getMovementLabel(s.movementStyle)}`);
-        }
-        if (s.risingSemitones !== d.risingSemitones) {
-            parts.push(`rise: ${this.getRisingLabel(s.risingSemitones)}`);
-        }
-        if (s.exercise !== d.exercise) {
-            parts.push(`ex: ${this.getExerciseLabel(s.exercise)}`);
-        }
-        if (s.shiftingSteps !== d.shiftingSteps && s.shiftingSteps > 0) {
-            parts.push('shifting');
-        }
-        if (s.chopHead) {
-            parts.push('chop head');
-        }
-        if (s.ladder !== 'off') {
-            parts.push(this.getLadderLabel(s.ladder, s.ladderSize));
-        }
-        if (s.octave !== d.octave) {
-            parts.push(`oct ${s.octave}`);
-        }
-        if (s.noteLengthMs !== d.noteLengthMs) {
-            parts.push(PracticeControls.formatSeconds(s.noteLengthMs));
-        }
-        if (s.gapMs !== d.gapMs) {
-            parts.push(`gap: ${PracticeControls.formatGapLabel(s.gapMs)}`);
-        }
-        if (s.octaveSpan !== d.octaveSpan) {
-            parts.push(s.octaveSpan === 2 ? '2 oct' : '1 oct');
-        }
-        if (s.rangeExpansion !== d.rangeExpansion) {
-            parts.push(`wide +${s.rangeExpansion}`);
-        }
-        if (s.repeatCount !== d.repeatCount || (s.repeatCount === Infinity && s.repeatGapMs !== d.repeatGapMs)) {
-            if (s.repeatCount === Infinity) {
-                parts.push(s.repeatGapMs === 0 ? 'forever no gap' : 'forever');
-            } else if (s.repeatCount > 1) {
-                parts.push(`x${s.repeatCount}`);
-            } else if (s.repeatCount === 0) {
-                parts.push('repeat off');
-            }
-        }
-
-        return parts.join(' | ');
     }
 
     /** @param {string | null | undefined} raw */
@@ -1415,24 +1350,6 @@ class ScalesController {
         // Root pitch / note length / gap steppers (shared control)
         PracticeControls.wireSteppers((key, delta) => this.stepSettingValue(key, delta));
 
-        // Octave span buttons
-        document.querySelectorAll('[data-octave-span]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.octaveSpan = parseInt(btn.dataset.octaveSpan || '1');
-                this.onSettingChanged();
-            });
-        });
-
-        // Range expansion buttons
-        document.querySelectorAll('[data-range]').forEach(el => {
-            const btn = /** @type {HTMLElement} */ (el);
-            btn.addEventListener('click', () => {
-                this.settings.rangeExpansion = parseInt(btn.dataset.range || '0');
-                this.onSettingChanged();
-            });
-        });
-
         // Section length buttons
         document.querySelectorAll('[data-section-length]').forEach(el => {
             const btn = /** @type {HTMLElement} */ (el);
@@ -1446,9 +1363,7 @@ class ScalesController {
         const resetBtn = document.getElementById('resetBtn');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
-                this.settings = { ...this.defaultSettings };
-                this.updatePianoKeyOctaves();
-                this.voiceCore.updateStatus('Settings reset to defaults');
+                Object.assign(this.settings, this.defaultSettings);
                 this.onSettingChanged();
             });
         }
@@ -1548,84 +1463,9 @@ class ScalesController {
         this.onSettingChanged();
     }
 
-    setupPianoKeys() {
-        const pianoContainer = document.getElementById('pianoKeys');
-        if (!pianoContainer) return;
-
-        // Create piano keys: A below base octave through C two octaves up
-        const whiteNotes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-        const blackKeyPositions = { 'C': true, 'D': true, 'F': true, 'G': true, 'A': true };
-
-        // Build keys: 2 full octaves starting from C + final C
-        const keysToCreate = [];
-        // Add full octaves 0 and 1
-        for (let oct = 0; oct <= 1; oct++) {
-            whiteNotes.forEach(note => {
-                keysToCreate.push({ note, octaveOffset: oct });
-            });
-        }
-        // Add one more C at the top
-        keysToCreate.push({ note: 'C', octaveOffset: 2 });
-
-        keysToCreate.forEach(({ note, octaveOffset }) => {
-            const octave = this.settings.octave + octaveOffset;
-            const midi = noteNameToMidi(note, octave);
-            const key = document.createElement('div');
-            key.className = 'piano-key white-key';
-            key.dataset.midi = String(midi);
-            key.dataset.baseNote = note;
-            key.dataset.octaveOffset = String(octaveOffset);
-
-            const label = note === 'C' ? `C${octave}` : note;
-            key.innerHTML = `<span>${label}</span>`;
-
-            key.addEventListener('click', async () => {
-                await this.ensureAudioStarted();
-                this.playNote(parseInt(key.dataset.midi));
-            });
-            pianoContainer.appendChild(key);
-
-            if (blackKeyPositions[note] && !(note === 'C' && octaveOffset === 2)) {
-                const blackKey = document.createElement('div');
-                blackKey.className = 'piano-key black-key';
-                const sharpMidi = midi + 1;
-                blackKey.dataset.midi = String(sharpMidi);
-                blackKey.dataset.baseNote = `${note}#`;
-                blackKey.dataset.octaveOffset = String(octaveOffset);
-                blackKey.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    await this.ensureAudioStarted();
-                    this.playNote(parseInt(blackKey.dataset.midi));
-                });
-                pianoContainer.appendChild(blackKey);
-            }
-        });
-    }
-
     async ensureAudioStarted() {
         await MediaSessionCore.activate();
         await this.audio.ensureStarted();
-    }
-
-    updatePianoKeyOctaves() {
-        document.querySelectorAll('.piano-key').forEach(el => {
-            const key = /** @type {HTMLElement} */ (el);
-            const baseNote = key.dataset.baseNote;
-            const octaveOffset = parseInt(key.dataset.octaveOffset || '0');
-            const newOctave = this.settings.octave + octaveOffset;
-            const newMidi = noteNameToMidi(baseNote, newOctave);
-
-            key.dataset.midi = String(newMidi);
-
-            if (key.classList.contains('white-key')) {
-                const noteName = baseNote.replace('#', '');
-                const label = noteName === 'C' ? `C${newOctave}` : noteName;
-                const span = key.querySelector('span');
-                if (span) span.textContent = label;
-            }
-        });
-
-        this.updateScalePreview();
     }
 
     /**
@@ -1638,32 +1478,23 @@ class ScalesController {
         const modifiers = {
             tempo: null,        // 'very slow', 'slow', 'normal', 'fast', 'very fast'
             gap: null,          // 'none', 'small', 'normal', 'large', 'very large'
-            repeat: 1,          // number of times to repeat
+            repeat: null,       // null (use settings: rising and shifting loop) or number of passes
             direction: null,    // 'ascending', 'descending', 'both'
             risingSemitones: null, // null (use settings) or integer semitones (0=off)
             movementStyle: null, // null (use settings) or one of movement styles
-            rangeExpansion: null, // null (use settings) or number of extra notes
-            octaveSpan: null    // null (use settings) or 1/2
+            sectionLength: null // null (use settings) or a Section Width value
         };
 
-        // Wide scale modifier (check longer phrases first)
-        if (text.match(/\bvery\s+wide\b/)) {
-            modifiers.rangeExpansion = 5;
-            text = text.replace(/\bvery\s+wide\b/, '');
-        } else if (text.match(/\bwide\b/)) {
-            modifiers.rangeExpansion = this.settings.rangeExpansion || 3;
-            text = text.replace(/\bwide\b/, '');
-        } else if (text.match(/\bnarrow\b/)) {
-            modifiers.rangeExpansion = 0;
-            text = text.replace(/\bnarrow\b/, '');
-        }
+        // "Wide" and "narrow" have no section width of their own; the words
+        // are accepted so the rest of the command still plays.
+        text = text.replace(/\b(very\s+wide|wide|narrow)\b/, '');
 
-        // Octave span modifier
+        // Section width
         if (text.match(/\b(double|two|2)\s*octave(s)?\b/)) {
-            modifiers.octaveSpan = 2;
+            modifiers.sectionLength = '2o';
             text = text.replace(/\b(double|two|2)\s*octave(s)?\b/, '');
         } else if (text.match(/\bsingle\s*octave\b/) || text.match(/\bone\s*octave\b/)) {
-            modifiers.octaveSpan = 1;
+            modifiers.sectionLength = '1o';
             text = text.replace(/\b(single|one)\s*octave\b/, '');
         }
 
@@ -2122,16 +1953,11 @@ class ScalesController {
         const noteRegex = new RegExp(`^(play\\s+|note\\s+)?(${phoneticNotes})\\s*(${phoneticMods})?(\\s*\\d)?$`, 'i');
         const noteMatch = lower.match(noteRegex);
         if (noteMatch) {
-            let note = normalizeNoteName(noteMatch[2]);
-            const modifier = normalizeModifier(noteMatch[3]);
+            const letter = normalizeNoteName(noteMatch[2]);
             const octave = noteMatch[4] ? parseInt(noteMatch[4]) : this.settings.octave;
 
-            if (note) {
-                if (modifier === 'sharp') {
-                    note += '#';
-                } else if (modifier === 'flat') {
-                    note = normalizePitchClassName(note + 'b') || note;
-                }
+            if (letter) {
+                const note = ScalesVoiceMaps.spokenPitchClassName(letter, normalizeModifier(noteMatch[3]));
                 return { type: 'note', note, octave, modifiers };
             }
         }
@@ -2203,12 +2029,7 @@ class ScalesController {
         }
 
         if (scaleMatch) {
-            if (noteModifier === 'sharp') {
-                root += '#';
-            } else if (noteModifier === 'flat') {
-                root = normalizePitchClassName(root + 'b') || root;
-            }
-
+            root = ScalesVoiceMaps.spokenPitchClassName(root, noteModifier);
             return { type: 'scale', root, scaleType, modifiers };
         }
 
@@ -2216,32 +2037,16 @@ class ScalesController {
         const arpMatch = lower.match(/([a-g])?\s*(sharp|flat|#|b)?\s*(major|minor)?\s*arpeggio/i) ||
             lower.match(/arpeggio\s+([a-g])?\s*(sharp|flat|#|b)?\s*(major|minor)?/i);
         if (arpMatch) {
-            let root = (arpMatch[1] || 'C').toUpperCase();
-            const noteModifier = arpMatch[2];
+            const root = ScalesVoiceMaps.spokenPitchClassName((arpMatch[1] || 'C').toUpperCase(), normalizeModifier(arpMatch[2]));
             const quality = arpMatch[3] ? arpMatch[3].toLowerCase() : 'major';
-
-            if (noteModifier === 'sharp' || noteModifier === '#') {
-                root += '#';
-            } else if (noteModifier === 'flat' || noteModifier === 'b') {
-                root = normalizePitchClassName(root + 'b') || root;
-            }
-
             return { type: 'arpeggio', root, quality, modifiers };
         }
 
         // Chord: "C chord", "D minor chord"
         const chordMatch = lower.match(/([a-g])\s*(sharp|flat|#|b)?\s*(major|minor)?\s*chord/i);
         if (chordMatch) {
-            let root = chordMatch[1].toUpperCase();
-            const noteModifier = chordMatch[2];
+            const root = ScalesVoiceMaps.spokenPitchClassName(chordMatch[1].toUpperCase(), normalizeModifier(chordMatch[2]));
             const quality = chordMatch[3] ? chordMatch[3].toLowerCase() : 'major';
-
-            if (noteModifier === 'sharp' || noteModifier === '#') {
-                root += '#';
-            } else if (noteModifier === 'flat' || noteModifier === 'b') {
-                root = normalizePitchClassName(root + 'b') || root;
-            }
-
             return { type: 'chord', root, quality, modifiers };
         }
 
@@ -2399,7 +2204,6 @@ class ScalesController {
         if (octaveMatch) {
             const octave = parseInt(octaveMatch[2]);
             this.settings.octave = octave;
-            this.updatePianoKeyOctaves();
             this.syncUIToSettings();
             return { type: 'setting', setting: 'octave', value: octave };
         }
@@ -2439,32 +2243,27 @@ class ScalesController {
         // Repeat commands (standalone) - includes abbreviations
         if (originalLower.match(/^(once|one\s*time|1\s*x|1\s*time)$/)) {
             this.settings.repeatCount = 1;
-            this.settings.repeatForever = false;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'repeat', value: 1 };
         }
         if (originalLower.match(/^(twice|two\s*times|2\s*x|2\s*times)$/)) {
             this.settings.repeatCount = 2;
-            this.settings.repeatForever = false;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'repeat', value: 2 };
         }
         if (originalLower.match(/^(thrice|three\s*times|3\s*x|3\s*times)$/)) {
             this.settings.repeatCount = 3;
-            this.settings.repeatForever = false;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'repeat', value: 3 };
         }
         if (originalLower.match(/^(inf(inity)?|forever|loop|repeat\s*forever)$/)) {
             this.settings.repeatCount = Infinity;
-            this.settings.repeatForever = true;
             this.settings.repeatGapMs = FOREVER_SECTION_GAP_MS;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'repeat', value: Infinity };
         }
         if (originalLower.match(/^(inf(inity)?\s*(0\s*g(ap)?|no\s*gap)|forever\s*no\s*gap)$/)) {
             this.settings.repeatCount = Infinity;
-            this.settings.repeatForever = true;
             this.settings.repeatGapMs = 0;
             this.syncUIToSettings();
             return { type: 'setting', setting: 'repeat', value: 'infinity-nogap' };
@@ -2536,10 +2335,7 @@ class ScalesController {
      * @param {boolean} [skipHistory]
      */
     async executeScaleCommand(command, transcript = null, skipHistory = false) {
-        // Ensure Tone.js audio context is started (required after user interaction)
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
+        await this.ensureAudioStarted();
 
         // Track if we were playing (for setting commands that should restart)
         const wasPlaying = this.audio.isPlaying;
@@ -2547,14 +2343,7 @@ class ScalesController {
         // Stop any currently playing sequence immediately
         this.stopPlayback();
 
-        // Update the piano notification area to show what we're doing.
-        this.updatePianoNotificationCommand(command);
-        this.setPianoNotificationActiveNotes([]);
-
-        // Store transcript for replay (but not for 'play' itself)
-        if (transcript && command.type !== 'play') {
-            this.lastTranscript = transcript;
-        }
+        if (command.type === 'scale') this.applyScaleCommand(command);
 
         // Add to history (for playable commands, not control commands)
         const playableTypes = ['note', 'scale', 'arpeggio', 'chord', 'interval', 'tuning'];
@@ -2570,8 +2359,6 @@ class ScalesController {
 
         switch (command.type) {
             case 'stop':
-                this.stopPlayback();
-                this.voiceCore.updateStatus('Stopped');
                 break;
 
             case 'help':
@@ -2583,169 +2370,86 @@ class ScalesController {
                 await this.playCurrentSettings();
                 return; // Don't store 'play' as last command
 
-            case 'note': {
-                const noteMidi = noteNameToMidi(command.note, command.octave);
-                this.voiceCore.updateStatus(`Playing ${midiToPitchString(noteMidi)}`);
-                this.updatePianoNotificationCommand(command);
-                this.setPianoNotificationActiveNotes([noteMidi]);
-                this.playNote(noteMidi);
+            case 'note':
                 this.lastCommand = command;
+                this.soundSingleNote(noteNameToMidi(command.note, command.octave), '8n');
                 break;
-            }
 
             case 'scale':
-                // Update settings from voice command (voice-first bidirectional sync)
-                this.settings.root = command.root;
-                this.settings.scaleType = command.scaleType;
-                if (command.modifiers.direction) this.settings.direction = command.modifiers.direction;
-                if (command.modifiers.movementStyle) this.settings.movementStyle = command.modifiers.movementStyle;
-                if (command.modifiers.risingSemitones !== null && command.modifiers.risingSemitones !== undefined) {
-                    this.setRisingSemitones(command.modifiers.risingSemitones);
-                }
-                if (command.modifiers.chopHead !== null && command.modifiers.chopHead !== undefined) {
-                    this.setChopHead(command.modifiers.chopHead);
-                }
-                if (command.modifiers.ladderSize !== null && command.modifiers.ladderSize !== undefined) {
-                    this.settings.ladderSize = command.modifiers.ladderSize;
-                }
-                if (command.modifiers.ladder !== null && command.modifiers.ladder !== undefined) {
-                    this.setLadder(command.modifiers.ladder);
-                }
-                if (command.modifiers.rangeExpansion !== null) this.settings.rangeExpansion = command.modifiers.rangeExpansion;
-                if (command.modifiers.octaveSpan !== null) this.settings.octaveSpan = command.modifiers.octaveSpan;
-                // Apply tempo modifier to noteLengthMs
-                if (command.modifiers.tempo) {
-                    const ms = this.tempoNameToMs[command.modifiers.tempo];
-                    if (ms !== undefined) this.setNoteLengthMs(ms, `voice:${command.modifiers.tempo}`);
-                }
-                // Apply gap modifier
-                if (command.modifiers.gap) {
-                    const gapVal = this.gapNameToValue[command.modifiers.gap];
-                    if (gapVal !== undefined) this.settings.gapMs = gapVal;
-                }
-                // Apply repeat modifier
-                if (command.modifiers.repeat !== undefined && command.modifiers.repeat !== null) {
-                    this.settings.repeatCount = command.modifiers.repeat;
-                }
-                if (command.modifiers.repeatGapMs !== undefined && command.modifiers.repeatGapMs !== null) {
-                    this.settings.repeatGapMs = command.modifiers.repeatGapMs;
-                }
-                this.syncUIToSettings();
-
-                this.voiceCore.updateStatus(this.buildStatusMessage(command));
-                await this.playScale(command.root, command.scaleType, command.modifiers);
+                // applyScaleCommand wrote the words into the settings.
                 this.lastCommand = command;
+                await this.playScale();
                 break;
 
             case 'arpeggio':
-                this.voiceCore.updateStatus(this.buildStatusMessage(command));
-                await this.playArpeggio(command.root, command.quality, command.modifiers);
                 this.lastCommand = command;
+                await this.playArpeggio(command);
                 break;
 
             case 'chord':
-                this.voiceCore.updateStatus(this.buildStatusMessage(command));
-                await this.playChord(command.root, command.quality, command.modifiers);
                 this.lastCommand = command;
+                await this.playChord(command);
                 break;
 
             case 'interval':
-                this.voiceCore.updateStatus(this.buildStatusMessage(command));
-                await this.playInterval(command.root, command.interval, command.quality, command.modifiers);
                 this.lastCommand = command;
+                await this.playInterval(command);
                 break;
 
-            case 'tuning': {
-                const tuningMidi = noteNameToMidi('A', 4);
-                this.voiceCore.updateStatus('Playing A440 tuning note');
-                this.updatePianoNotificationCommand(command);
-                this.setPianoNotificationActiveNotes([tuningMidi]);
-                this.playNote(tuningMidi, '2n');
+            case 'tuning':
                 this.lastCommand = command;
+                this.soundSingleNote(noteNameToMidi('A', 4), '2n');
                 break;
-            }
 
             case 'setting':
-                // Setting was already applied in parseCommand, now restart if we were playing
-                this.voiceCore.updateStatus(this.formatCurrentCommand());
-                if (wasPlaying && this.lastCommand && this.lastCommand.type === 'scale') {
-                    // Restart with new settings
-                    const modifiers = this.buildModifiersFromSettings();
-                    await this.playScale(this.settings.root, this.settings.scaleType, modifiers);
-                }
+                // Parsing applied the setting; keep it, and carry a playing
+                // scale on with it.
+                this.saveSettings();
+                if (this.singPanel) this.singPanel.draw();
+                if (wasPlaying && this.lastCommand && this.lastCommand.type === 'scale') await this.playScale();
                 break;
 
             case 'reset':
-                this.voiceCore.updateStatus('Settings reset to defaults');
-                break;
-
-            case 'random':
-                this.voiceCore.updateStatus('Randomized settings: ' + this.formatCurrentCommand());
+                // Parsing reset the settings; keep them.
+                this.saveSettings();
+                if (this.singPanel) this.singPanel.draw();
                 break;
         }
     }
 
     /**
-     * Build a descriptive status message including modifiers
+     * Voice-first sync: write a scale command's words into the settings so
+     * the buttons, the keyboard, and history show what plays. Exercise and
+     * shifting go last: playback lets them override chop head and the ladder,
+     * and their setters clear those.
      * @param {ScaleCommand} command
      */
-    buildStatusMessage(command) {
-        const mods = command.modifiers || {};
-        let parts = [];
-
-        if (mods.tempo) parts.push(mods.tempo);
-
-        // Octave span
-        const octaveSpan = mods.octaveSpan ?? this.settings.octaveSpan;
-        if (octaveSpan === 2) parts.push('2-octave');
-
-        // Wide scale
-        const rangeExpansion = mods.rangeExpansion ?? this.settings.rangeExpansion;
-        if (rangeExpansion > 0) parts.push('wide');
-
-        // Movement style (only if not default)
-        const movementStyle = mods.movementStyle ?? this.settings.movementStyle;
-        if (movementStyle && movementStyle !== 'normal') parts.push(this.getMovementLabel(movementStyle));
-
-        // Rising / transposition
-        const risingSemitones = mods.risingSemitones ?? this.settings.risingSemitones;
-        if (risingSemitones) parts.push(`rising ${this.getRisingLabel(risingSemitones)}`);
-
-        // Chop head
-        const chopHead = mods.chopHead ?? this.settings.chopHead;
-        if (chopHead) parts.push('chop head');
-
-        // Ladder
-        const ladder = mods.ladder ?? this.settings.ladder;
-        if (ladder && ladder !== 'off') {
-            parts.push(this.getLadderLabel(ladder, mods.ladderSize ?? this.settings.ladderSize));
+    applyScaleCommand(command) {
+        const mods = command.modifiers;
+        this.settings.root = command.root;
+        this.settings.scaleType = command.scaleType;
+        if (mods.direction) this.settings.direction = mods.direction;
+        if (mods.movementStyle) this.settings.movementStyle = mods.movementStyle;
+        if (mods.sectionLength) this.settings.sectionLength = mods.sectionLength;
+        if (mods.risingSemitones !== null && mods.risingSemitones !== undefined) {
+            this.setRisingSemitones(mods.risingSemitones);
         }
-
-        switch (command.type) {
-            case 'scale':
-                parts.push(`${command.root} ${command.scaleType.replace('_', ' ')} scale`);
-                break;
-            case 'arpeggio':
-                parts.push(`${command.root} ${command.quality} arpeggio`);
-                break;
-            case 'chord':
-                parts.push(`${command.root} ${command.quality} chord`);
-                break;
-            case 'interval':
-                parts.push(`${command.quality}${command.interval} from ${command.root}`);
-                break;
+        if (mods.chopHead !== null && mods.chopHead !== undefined) this.setChopHead(mods.chopHead);
+        if (mods.ladderSize !== null && mods.ladderSize !== undefined) this.settings.ladderSize = mods.ladderSize;
+        if (mods.ladder !== null && mods.ladder !== undefined) this.setLadder(mods.ladder);
+        if (mods.exercise !== null && mods.exercise !== undefined) this.setExercise(mods.exercise);
+        if (mods.shiftingSteps !== null && mods.shiftingSteps !== undefined) this.setShiftingSteps(mods.shiftingSteps);
+        if (mods.tempo) {
+            const ms = this.tempoNameToMs[mods.tempo];
+            if (ms !== undefined) this.setNoteLengthMs(ms, `voice:${mods.tempo}`);
         }
-
-        if (mods.direction) parts.push(mods.direction);
-        if (mods.gap === 'large' || mods.gap === 'very large') parts.push('with gaps');
-        if (mods.repeat === Infinity) {
-            const repeatGapMs = mods.repeatGapMs ?? this.settings.repeatGapMs;
-            parts.push(repeatGapMs === 0 ? '(forever no gap)' : '(forever)');
-        } else if (mods.repeat > 1) {
-            parts.push(`x${mods.repeat}`);
+        if (mods.gap) {
+            const gapVal = this.gapNameToValue[mods.gap];
+            if (gapVal !== undefined) this.settings.gapMs = gapVal;
         }
-
-        return `Playing ${parts.join(' ')}`;
+        if (mods.repeat !== undefined && mods.repeat !== null) this.settings.repeatCount = mods.repeat;
+        if (mods.repeatGapMs !== undefined && mods.repeatGapMs !== null) this.settings.repeatGapMs = mods.repeatGapMs;
+        this.syncUIToSettings();
     }
 
     /**
@@ -2832,7 +2536,7 @@ class ScalesController {
         // Rising / modulation
         if (mods.risingSemitones) {
             parts.push('rising');
-            parts.push(this.getRisingLabel(mods.risingSemitones));
+            parts.push(SCALES_OPTION_LABELS.risingSemitones[mods.risingSemitones]);
         }
 
         // Chop head
@@ -2890,67 +2594,6 @@ class ScalesController {
         return midiNotes.map(m => m + semitones);
     }
 
-    /** @param {number} semitones */
-    getRisingLabel(semitones) {
-        const map = {
-            0: 'off',
-            1: 'half step',
-            2: 'whole step',
-            3: 'minor third',
-            4: 'major third',
-            5: 'perfect fourth',
-            7: 'perfect fifth'
-        };
-        return map[semitones] || `+${semitones}`;
-    }
-
-    /** @param {string} style */
-    getMovementLabel(style) {
-        /** @type {Record<string, string>} */
-        const map = {
-            normal: 'normal',
-            stop_and_go: 'stop-and-go',
-            one_three_five: '1-3-5',
-            neighbors: 'neighbors (dir)',
-            chords: 'chords',
-            from_one: 'from 1',
-            to_one: 'to 1',
-            plus_minus_one: '+1-1 (fixed)',
-            chromatic_stop_and_go: '+1+2 chromatic',
-            plus_minus_half: '+1-1 chromatic',
-            third_up: '3rd up',
-            fourth_up: '4th up',
-            fifth_up: '5th up',
-            sixth_up: '6th up',
-            seventh_up: '7th up',
-            third_down: '3rd down',
-            fourth_down: '4th down',
-            fifth_down: '5th down',
-            sixth_down: '6th down',
-            seventh_down: '7th down'
-        };
-        return map[style] || style;
-    }
-
-    getExerciseLabel(exercise) {
-        /** @type {Record<string, string>} */
-        const map = {
-            none: 'full scale',
-            five_note: '5-note',
-            octave_jump: 'oct jump',
-            arpeggio_return: 'arp return',
-            thirds: 'thirds'
-        };
-        return map[exercise] || exercise;
-    }
-
-    /** @param {string} ladder @param {number} [size] */
-    getLadderLabel(ladder, size) {
-        if (!ladder || ladder === 'off') return 'off';
-        const base = ladder === 'reverse' ? 'reverse ladder' : 'ladder';
-        return size ? `${base} of ${size}` : base;
-    }
-
     /** @param {string} token - spoken rung size ("four" or "4") */
     parseLadderCount(token) {
         return LADDER_COUNT_WORDS[token] ?? parseInt(token);
@@ -2979,7 +2622,7 @@ class ScalesController {
      * @param {number} params.size - Notes per rung (clamped to the section)
      * @param {boolean} params.reverse - Lead each rung with the new note
      * @param {boolean} [params.seamlessLoop] - Repeat-forever-no-gap: reflect at the seam too
-     * @returns {{ groups: Array<{notes: number[], sectionIndex: number, isChord: boolean}>, notes: number[] }}
+     * @returns {ScalesPass}
      */
     buildLadderGroups({ degreesAscAll, direction, size, reverse, seamlessLoop = false }) {
         const asc = degreesAscAll;
@@ -3050,7 +2693,7 @@ class ScalesController {
      * @param {string} params.scaleType
      * @param {number} [params.turnIndex]
      * @param {boolean} [params.startsAscending]
-     * @returns {{ groups: Array<{notes: number[], sectionIndex: number, isChord: boolean}>, notes: number[] }}
+     * @returns {ScalesPass}
      */
     buildMovementSequence({ movementStyle, degreesAscAll, degreesFromRoot, rootMidi, degreesAscendingRef, scaleType, turnIndex = -1, startsAscending = true }) {
         const style = movementStyle || 'normal';
@@ -3072,8 +2715,7 @@ class ScalesController {
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 2);
-                    groups.push(makeGroup([midi, ...aboveNotes], 0));
+                    groups.push(makeGroup([midi, ...this.scaleNotesFrom(midi, ascendingScale, 2, 1)], 0));
                 }
             }
         } else if (style === 'one_three_five') {
@@ -3086,7 +2728,7 @@ class ScalesController {
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const scaleSteps = this.getNotesAbove(midi, ascendingScale, DIATONIC_5TH);
+                    const scaleSteps = this.scaleNotesFrom(midi, ascendingScale, DIATONIC_5TH, 1);
                     const moveNotes = [midi];
                     if (scaleSteps.length >= DIATONIC_3RD) moveNotes.push(scaleSteps[DIATONIC_3RD - 1]);
                     if (scaleSteps.length >= DIATONIC_5TH) moveNotes.push(scaleSteps[DIATONIC_5TH - 1]);
@@ -3099,8 +2741,8 @@ class ScalesController {
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const belowNotes = this.getNotesBelow(midi, ascendingScale, 1);
-                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 1);
+                    const belowNotes = this.scaleNotesFrom(midi, ascendingScale, 1, -1);
+                    const aboveNotes = this.scaleNotesFrom(midi, ascendingScale, 1, 1);
 
                     let isAscending;
                     if (turnIndex === -1) {
@@ -3144,8 +2786,8 @@ class ScalesController {
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const aboveNotes = this.getNotesAbove(midi, ascendingScale, 1);
-                    const belowNotes = this.getNotesBelow(midi, ascendingScale, 1);
+                    const aboveNotes = this.scaleNotesFrom(midi, ascendingScale, 1, 1);
+                    const belowNotes = this.scaleNotesFrom(midi, ascendingScale, 1, -1);
                     const moveNotes = [midi];
                     if (aboveNotes.length > 0) moveNotes.push(aboveNotes[0]);
                     if (belowNotes.length > 0) moveNotes.push(belowNotes[0]);
@@ -3181,9 +2823,7 @@ class ScalesController {
                 if (i === lastIndex) {
                     groups.push(makeGroup([midi], 0));
                 } else {
-                    const steps = direction === 1
-                        ? this.getNotesAbove(midi, ascendingScale, scaleSteps)
-                        : this.getNotesBelow(midi, ascendingScale, scaleSteps);
+                    const steps = this.scaleNotesFrom(midi, ascendingScale, scaleSteps, direction);
                     const moveNotes = [midi];
                     if (steps.length >= scaleSteps) moveNotes.push(steps[scaleSteps - 1]);
                     groups.push(makeGroup(moveNotes, 0));
@@ -3209,89 +2849,34 @@ class ScalesController {
     }
 
     /**
-     * Get N notes above a MIDI note in the given scale.
-     * @param {number} midi - Starting MIDI note
-     * @param {number[]} ascendingScaleMidi - Ascending scale as MIDI array
-     * @param {number} count
-     * @returns {number[]} MIDI notes above
-     */
-    getNotesAbove(midi, ascendingScaleMidi, count) {
-        const intervals = this.getScaleIntervalsFromMidi(ascendingScaleMidi);
-        if (intervals.length === 0) return [];
-
-        const pc = midiPitchClass(midi);
-        const uniquePCs = [];
-        const seen = new Set();
-        for (const m of ascendingScaleMidi) {
-            const p = midiPitchClass(m);
-            if (!seen.has(p)) { seen.add(p); uniquePCs.push(p); }
-        }
-        const idx = uniquePCs.indexOf(pc);
-        if (idx === -1) return [];
-
-        const result = [];
-        let current = midi;
-        for (let i = 0; i < count; i++) {
-            const patternIdx = (idx + i) % intervals.length;
-            current += intervals[patternIdx];
-            result.push(current);
-        }
-        return result;
-    }
-
-    /**
-     * Get N notes below a MIDI note in the given scale.
-     * @param {number} midi - Starting MIDI note
-     * @param {number[]} ascendingScaleMidi - Ascending scale as MIDI array
-     * @param {number} count
-     * @returns {number[]} MIDI notes below
-     */
-    getNotesBelow(midi, ascendingScaleMidi, count) {
-        const intervals = this.getScaleIntervalsFromMidi(ascendingScaleMidi);
-        if (intervals.length === 0) return [];
-
-        const pc = midiPitchClass(midi);
-        const uniquePCs = [];
-        const seen = new Set();
-        for (const m of ascendingScaleMidi) {
-            const p = midiPitchClass(m);
-            if (!seen.has(p)) { seen.add(p); uniquePCs.push(p); }
-        }
-        const idx = uniquePCs.indexOf(pc);
-        if (idx === -1) return [];
-
-        const result = [];
-        let current = midi;
-        for (let i = 0; i < count; i++) {
-            const patternIdx = (idx - i - 1 + intervals.length) % intervals.length;
-            current -= intervals[patternIdx];
-            result.push(current);
-        }
-        return result;
-    }
-
-    /**
-     * Calculate semitone intervals between consecutive unique pitch classes in a MIDI scale.
+     * The next `count` scale notes from a scale note, walking up (1) or
+     * down (-1) the scale's pitch classes, so the walk continues into any
+     * octave. A note outside the scale has none.
+     * @param {number} midi
      * @param {number[]} ascendingScaleMidi
-     * @returns {number[]}
+     * @param {number} count
+     * @param {1 | -1} direction
+     * @returns {number[]} MIDI
      */
-    getScaleIntervalsFromMidi(ascendingScaleMidi) {
-        const uniquePCs = [];
-        const seen = new Set();
-        for (const m of ascendingScaleMidi) {
-            const pc = midiPitchClass(m);
-            if (!seen.has(pc)) { seen.add(pc); uniquePCs.push(pc); }
+    scaleNotesFrom(midi, ascendingScaleMidi, count, direction) {
+        const pitchClasses = [...new Set(ascendingScaleMidi.map(midiPitchClass))];
+        // steps[k]: semitones from pitch class k up to the next one
+        const steps = pitchClasses.map((pc, k) => {
+            const step = pitchClasses[(k + 1) % pitchClasses.length] - pc;
+            return step <= 0 ? step + 12 : step;
+        });
+        const start = pitchClasses.indexOf(midiPitchClass(midi));
+        if (start === -1) return [];
+
+        const notes = [];
+        let current = midi;
+        for (let i = 0; i < count; i++) {
+            current += direction === 1
+                ? steps[(start + i) % steps.length]
+                : -steps[positiveModulo(start - i - 1, steps.length)];
+            notes.push(current);
         }
-        if (uniquePCs.length === 0) return [];
-        const intervals = [];
-        for (let i = 0; i < uniquePCs.length; i++) {
-            const current = uniquePCs[i];
-            const next = uniquePCs[(i + 1) % uniquePCs.length];
-            let interval = next - current;
-            if (interval <= 0) interval += 12;
-            intervals.push(interval);
-        }
-        return intervals;
+        return notes;
     }
 
     /**
@@ -3321,66 +2906,6 @@ class ScalesController {
         return target === undefined ? null : rootMidi + target;
     }
 
-    /**
-     * Get interval name for scale degree
-     * @param {number} semitones
-     * @param {string} scaleType
-     */
-    getIntervalName(semitones, scaleType) {
-        if (semitones < 0) return `${semitones}`;
-        // Ladder scales just show the offset from the root
-        if (scaleType === 'chromatic' || scaleType === 'quarter_tone') {
-            if (semitones === 0) return 'root';
-            if (semitones === 12) return 'octave';
-            return `+${semitones}`;
-        }
-
-        // Scale degree names
-        const degreeNames = {
-            0: 'root',
-            1: 'flat second',
-            2: 'second',
-            3: 'flat third',
-            4: 'third',
-            5: 'fourth',
-            6: 'flat fifth',
-            7: 'fifth',
-            8: 'flat sixth',
-            9: 'sixth',
-            10: 'flat seventh',
-            11: 'seventh',
-            12: 'octave'
-        };
-
-        if (!Number.isInteger(semitones)) {
-            // Quarter-tone degrees carry maqam names; other microtonal
-            // offsets show the nearest degree plus signed cents.
-            const neutralNames = {
-                1.5: 'neutral second',
-                3.5: 'neutral third',
-                5.5: 'half-sharp fourth',
-                6.5: 'half-flat fifth',
-                8.5: 'neutral sixth',
-                10.5: 'neutral seventh'
-            };
-            if (neutralNames[semitones]) return neutralNames[semitones];
-            const nearest = Math.round(semitones);
-            const cents = Math.round((semitones - nearest) * 100);
-            const base = degreeNames[nearest];
-            return base ? `${base} ${formatCents(cents)}c` : `+${semitones}`;
-        }
-
-        return degreeNames[semitones] || `+${semitones}`;
-    }
-
-    // Get arpeggio interval name
-    getArpeggioIntervalName(index, quality) {
-        const names = quality === 'minor'
-            ? ['root', 'flat third', 'fifth', 'octave']
-            : ['root', 'third', 'fifth', 'octave'];
-        return names[index] || `${index + 1}`;
-    }
-
     /** @param {number} midi */
     formatPitchStringForCurrentScale(midi) {
         return scaleMidiToPitchString(
@@ -3389,73 +2914,6 @@ class ScalesController {
             this.settings.scaleType,
             midi
         );
-    }
-
-    /**
-     * @param {number} midi
-     * @param {{ root?: string, scaleType?: string } | null} context
-     */
-    formatPitchStringForContext(midi, context = null) {
-        return scaleMidiToPitchString(
-            context?.root || this.settings.root,
-            this.settings.octave,
-            context?.scaleType || this.settings.scaleType,
-            midi
-        );
-    }
-
-    /**
-     * Format the status display for current note (MIDI).
-     * Shows: "command set | current note [interval]"
-     * @param {number} midi
-     * @param {number} index
-     * @param {Object} context
-     */
-    formatNoteStatus(midi, index, context) {
-        const pitchStr = this.formatPitchStringForContext(midi, context);
-
-        const commandSet = this.formatCurrentCommand();
-
-        if (!context.type) {
-            return `${commandSet} | ${pitchStr}`;
-        }
-
-        let intervalInfo = '';
-
-        if (context.type === 'scale') {
-            if (context.rootMidi !== undefined && context.rootMidi !== null) {
-                const repeatIndex = context.repeatIndex || 0;
-                const risingSemitones = context.risingSemitones || 0;
-                const repeatRootMidi = context.rootMidi + (repeatIndex * risingSemitones);
-                intervalInfo = this.getIntervalName(midi - repeatRootMidi, context.scaleType);
-            } else {
-                const pattern = context.pattern || [];
-                if (context.intervals && context.intervals[index] !== undefined) {
-                    intervalInfo = this.getIntervalName(context.intervals[index], context.scaleType);
-                } else if (pattern[index] !== undefined) {
-                    intervalInfo = this.getIntervalName(pattern[index], context.scaleType);
-                }
-            }
-        } else if (context.type === 'arpeggio') {
-            if (context.intervals && context.intervals[index] !== undefined) {
-                intervalInfo = this.getArpeggioIntervalName(context.intervals[index], context.quality);
-            }
-        } else if (context.type === 'interval') {
-            intervalInfo = index === 0 ? 'root' : context.intervalName || '';
-        }
-
-        if (intervalInfo) {
-            return `${commandSet} | ${pitchStr} [${intervalInfo}]`;
-        }
-        return `${commandSet} | ${pitchStr}`;
-    }
-
-    /**
-     * @param {number} midi - MIDI note number
-     * @param {string | number} [duration]
-     */
-    playNote(midi, duration = '8n') {
-        this.audio.playNote(midi, duration);
     }
 
     /**
@@ -3478,119 +2936,28 @@ class ScalesController {
         }
     }
 
-    /**
-     * @param {string} root
-     * @param {string} scaleType
-     * @param {ScaleModifiers} [modifiers]
-     */
-    async playScale(root, scaleType, modifiers = {}) {
-        const rootMidi = noteNameToMidi(root, this.settings.octave);
-        if (rootMidi === null) return;
-
+    /** Play the scale the settings describe, so what sounds is what the page shows. */
+    async playScale() {
         // Voice commands mutate settings without passing through
         // onSettingChanged, so persist whatever is about to play.
         this.saveSettings();
 
-        const sectionLength = this.settings.sectionLength || '1o';
-        const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength);
-        const fullPattern = scaleIntervalsInRange(scaleType, minSemitone, maxSemitone);
-        const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
-
-        const movementStyle = modifiers.movementStyle ?? this.settings.movementStyle;
-
-        const exercise = modifiers.exercise ?? this.settings.exercise;
-        const shiftingSteps = modifiers.shiftingSteps ?? this.settings.shiftingSteps;
-        const exercisePattern = this.exercisePatterns[exercise];
-
-        if (exercisePattern && exercisePattern.length > 0) {
-            await this.playExercise(root, scaleType, exercisePattern, modifiers, {
-                degreesAscAll,
-                rootMidi,
-                fullPattern,
-                shiftingSteps
-            });
+        const s = this.settings;
+        const shown = this.settingsShown();
+        const modifiers = this.buildModifiersFromSettings();
+        const exercisePattern = this.settingsExercisePattern();
+        if (exercisePattern) {
+            await this.playExercise(shown, exercisePattern, modifiers);
             return;
         }
 
-        const direction = modifiers.direction || this.settings.direction;
-
-        const ladder = modifiers.ladder ?? this.settings.ladder;
-        if (ladder && ladder !== 'off') {
-            const ladderSize = modifiers.ladderSize ?? this.settings.ladderSize;
-            const ladderGapMs = modifiers.ladderGapMs ?? this.settings.ladderGapMs;
-            const ladderRepeat = modifiers.repeat ?? this.settings.repeatCount;
-            const ladderRepeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
-            const { groups } = this.buildLadderGroups({
-                degreesAscAll,
-                direction,
-                size: ladderSize,
-                reverse: ladder === 'reverse',
-                seamlessLoop: ladderRepeat === Infinity && ladderRepeatGapMs === 0
-            });
-            const ladderContext = {
-                type: 'scale',
-                root,
-                scaleType,
-                pattern: fullPattern,
-                rootMidi,
-                movementStyle: 'normal'
-            };
-            await this.playGroupSequence(groups, modifiers, ladderContext, { groupGapMs: ladderGapMs });
-            return;
-        }
-
-        const ascending = degreesAscAll;
-        const descending = [...degreesAscAll].reverse();
-
-        let sectionNotes;
-        let turnIndex = -1;
-        let startsAscending = true;
-
-        if (direction === 'descending') {
-            sectionNotes = descending;
-            startsAscending = false;
-        } else if (direction === 'both') {
-            sectionNotes = [...ascending, ...descending.slice(1)];
-            turnIndex = ascending.length - 1;
-            startsAscending = true;
-        } else if (direction === 'down_and_up') {
-            sectionNotes = [...descending, ...ascending.slice(1)];
-            turnIndex = descending.length - 1;
-            startsAscending = false;
+        const { groups, notes } = this.settingsPass();
+        if (s.ladder !== 'off') {
+            await this.playGroupSequence(shown, groups, modifiers, { groupGapMs: s.ladderGapMs });
+        } else if (s.movementStyle !== 'normal') {
+            await this.playGroupSequence(shown, groups, modifiers);
         } else {
-            sectionNotes = ascending;
-            startsAscending = true;
-        }
-
-        const rootIndexInSection = sectionNotes.indexOf(rootMidi);
-        const movementResult = this.buildMovementSequence({
-            movementStyle,
-            degreesAscAll: sectionNotes,
-            degreesFromRoot: rootIndexInSection >= 0 ? sectionNotes.slice(rootIndexInSection) : sectionNotes,
-            rootMidi,
-            degreesAscendingRef: degreesAscAll,
-            scaleType,
-            turnIndex,
-            startsAscending
-        });
-
-        const notes = movementResult.notes;
-        const allGroups = movementResult.groups;
-
-        const context = {
-            type: 'scale',
-            root,
-            scaleType,
-            pattern: fullPattern,
-            rootMidi,
-            movementStyle
-        };
-
-        const hasGroupedPlayback = movementStyle !== 'normal';
-        if (hasGroupedPlayback) {
-            await this.playGroupSequence(allGroups, modifiers, context);
-        } else {
-            await this.playSequence(notes, modifiers, context);
+            await this.playSequence(shown, notes, modifiers);
         }
     }
 
@@ -3598,26 +2965,31 @@ class ScalesController {
      * Play a sequence organized into groups (phrases).
      * Movement styles flow group-to-group with no extra gap; the ladder
      * passes its configurable rung gap through options.groupGapMs.
-     * All note arrays are MIDI integers.
-     * @param {Array<{notes: number[], sectionIndex: number, isChord: boolean}>} groups
+     * All note arrays are MIDI.
+     * @param {ScalesShown} shown
+     * @param {ScalesGroup[]} groups
      * @param {ScaleModifiers} [modifiers]
-     * @param {Object} [context]
      * @param {{ groupGapMs?: number }} [options]
      */
-    async playGroupSequence(groups, modifiers = {}, context = {}, options = {}) {
-        this.clearScalePreview();
-        this.clearActuallyPlayed();
-        this.updatePatternPreview(0);
-
+    async playGroupSequence(shown, groups, modifiers = {}, options = {}) {
         const groupGapMs = options.groupGapMs || 0;
-        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
-        const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
+        const repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const playTimes = repeatCount === 0 ? 1 : repeatCount;
         const isInfinite = playTimes === Infinity;
         const risingSemitones = (modifiers.risingSemitones ?? this.settings.risingSemitones) || 0;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
+        const passNotes = groups.flatMap(group => group.notes);
+
+        /** @param {number} transpose */
+        const showRepeat = transpose => {
+            this.showPass(shown, passNotes, transpose);
+            this.clearActuallyPlayed();
+            this.updateNoteSequencePreview(transpose);
+        };
 
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
+        showRepeat(0);
 
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
@@ -3626,32 +2998,23 @@ class ScalesController {
                 for (let g = 0; g < groups.length; g++) {
                     if (!this.audio.isPlaybackValid(playId)) break;
 
-                    const group = groups[g];
                     const duration = this.getNoteDuration(modifiers);
-                    const { notes: groupMidi, sectionIndex, isChord } = group;
+                    const { sectionIndex, isChord } = groups[g];
+                    const groupMidi = groups[g].notes.map(midi => midi + transpose);
 
                     if (isChord) {
-                        const chordMidi = transpose > 0 ? groupMidi.map(m => m + transpose) : groupMidi;
-                        const chordDisplay = chordMidi.map(m => this.formatPitchStringForContext(m, context)).join('+');
+                        this.showSounding(groupMidi);
+                        this.appendActuallyPlayedChord(groupMidi);
 
-                        this.highlightPianoKeys(chordMidi);
-                        this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${chordDisplay}`);
-                        this.setPianoNotificationActiveNotes(chordMidi);
-                        this.appendActuallyPlayedChord(chordMidi);
-
-                        this.audio.playChord(chordMidi, duration.tone);
+                        this.audio.playChord(groupMidi, duration.tone);
                         await this.audio.sleep(duration.ms + duration.gap);
                     } else {
                         for (let i = 0; i < groupMidi.length; i++) {
                             if (!this.audio.isPlaybackValid(playId)) break;
 
-                            const midi = transpose > 0 ? groupMidi[i] + transpose : groupMidi[i];
-                            const isSection = (i === sectionIndex);
-
-                            this.highlightPianoKey(midi);
-                            this.voiceCore.updateStatus(`${context.root} ${context.scaleType} | ${this.formatPitchStringForContext(midi, context)}`);
-                            this.setPianoNotificationActiveNotes([midi]);
-                            this.appendActuallyPlayed(midi, isSection);
+                            const midi = groupMidi[i];
+                            this.showSounding([midi]);
+                            this.appendActuallyPlayed(midi, i === sectionIndex);
 
                             this.audio.playNote(midi, duration.tone);
                             await this.audio.sleep(duration.ms + duration.gap);
@@ -3671,9 +3034,7 @@ class ScalesController {
 
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
-                    const nextTranspose = risingSemitones * r;
-                    this.clearActuallyPlayed();
-                    this.updatePatternPreview(nextTranspose);
+                    showRepeat(risingSemitones * r);
 
                     if (risingSemitones === 0) {
                         // Forever-no-gap ladder cycles reflect at the seam,
@@ -3692,10 +3053,7 @@ class ScalesController {
             }
         }
 
-        this.clearPianoHighlights();
-        this.voiceCore.updateStatus('Ready');
-        this.setPianoNotificationActiveNotes([]);
-        this.updateScalePreview();
+        if (this.audio.playbackId === playId) this.showIdle();
     }
 
     /**
@@ -3734,33 +3092,33 @@ class ScalesController {
 
     /**
      * Play an exercise pattern with optional shifting. All notes are MIDI.
+     * @param {ScalesShown} shown
+     * @param {(number | 'O')[]} exercisePattern
+     * @param {ScaleModifiers} modifiers
      */
-    async playExercise(root, scaleType, exercisePattern, modifiers, context) {
-        const { rootMidi, shiftingSteps } = context;
-
-        this.clearScalePreview();
-        this.clearActuallyPlayed();
-
-        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
-        const playTimes = repeatCount === 0 ? 1 : (repeatCount === Infinity ? Infinity : repeatCount);
+    async playExercise(shown, exercisePattern, modifiers) {
+        const shiftingSteps = modifiers.shiftingSteps ?? this.settings.shiftingSteps;
+        const repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const playTimes = repeatCount === 0 ? 1 : repeatCount;
         const isInfinite = playTimes === Infinity;
         const repeatGapMs = modifiers.repeatGapMs ?? this.settings.repeatGapMs;
 
+        // Shifting walks the start up the scale until the pattern runs off
+        // the top of the notes it is built from; that empty pass ends it.
+        /** @param {number} pass */
+        const passNotes = pass => this.buildExerciseNotes(
+            shown.rootMidi, shown.scaleType, exercisePattern, shiftingSteps * pass);
         const playId = this.audio.requestSequencePlayback();
         let r = 0;
-
-        const exerciseLabels = {
-            'five_note': '5-note',
-            'octave_jump': 'oct jump',
-            'arpeggio_return': 'arp return',
-            'thirds': 'thirds'
+        let notes = passNotes(0);
+        const showRepeat = () => {
+            if (notes.length) this.showPass(shown, notes);
+            this.clearActuallyPlayed();
         };
-        const exerciseName = exerciseLabels[this.settings.exercise] || this.settings.exercise;
+        showRepeat();
 
         try {
             while (this.audio.isPlaybackValid(playId) && (isInfinite || r < playTimes)) {
-                const notes = this.buildExerciseNotes(rootMidi, scaleType, exercisePattern, shiftingSteps * r);
-
                 if (notes.length === 0) break;
 
                 for (let i = 0; i < notes.length; i++) {
@@ -3769,10 +3127,7 @@ class ScalesController {
                     const midi = notes[i];
                     const duration = this.getNoteDuration(modifiers);
 
-                    this.highlightPianoKey(midi);
-                    const shiftLabel = shiftingSteps > 0 ? ` (shift ${r + 1})` : '';
-                    this.voiceCore.updateStatus(`${root} ${scaleType} ${exerciseName}${shiftLabel} | ${this.formatPitchStringForContext(midi, { root, scaleType })}`);
-                    this.setPianoNotificationActiveNotes([midi]);
+                    this.showSounding([midi]);
                     this.appendActuallyPlayed(midi, true);
 
                     this.audio.playNote(midi, duration.tone);
@@ -3783,7 +3138,8 @@ class ScalesController {
 
                 const hasMore = isInfinite || r < playTimes;
                 if (hasMore && this.audio.isPlaybackValid(playId)) {
-                    this.clearActuallyPlayed();
+                    notes = passNotes(r);
+                    showRepeat();
 
                     if (shiftingSteps === 0) {
                         await this.audio.sleep(isInfinite ? repeatGapMs : 1500);
@@ -3798,62 +3154,44 @@ class ScalesController {
             }
         }
 
-        this.clearPianoHighlights();
-        this.voiceCore.updateStatus('Ready');
-        this.setPianoNotificationActiveNotes([]);
-        this.updateScalePreview();
+        if (this.audio.playbackId === playId) this.showIdle();
     }
 
-    async playArpeggio(root, quality, modifiers = {}) {
-        const rootMidi = noteNameToMidi(root, this.settings.octave);
-        if (rootMidi === null) return;
+    /** @param {ScaleCommand} command */
+    async playArpeggio(command) {
+        const rootMidi = noteNameToMidi(command.root, this.settings.octave);
+        const up = (command.quality === 'minor' ? [0, 3, 7, 12] : [0, 4, 7, 12]).map(interval => rootMidi + interval);
+        const down = [...up].reverse();
 
-        const arpIntervals = quality === 'minor' ? [0, 3, 7, 12] : [0, 4, 7, 12];
-        // Bundle MIDI and degree index so they can't get out of sync
-        let steps = arpIntervals.map((interval, degreeIdx) => ({
-            midi: rootMidi + interval,
-            degreeIdx
-        }));
+        const direction = command.modifiers.direction || this.settings.direction;
+        let notes = up;
+        if (direction === 'descending') notes = down;
+        else if (direction === 'both') notes = [...up, ...down.slice(1)];
+        else if (direction === 'down_and_up') notes = [...down, ...up.slice(1)];
 
-        const direction = modifiers.direction || this.settings.direction;
-        if (direction === 'descending') {
-            steps = steps.reverse();
-        } else if (direction === 'both') {
-            steps = [...steps, ...[...steps].reverse().slice(1)];
-        } else if (direction === 'down_and_up') {
-            steps = [...[...steps].reverse(), ...[...steps].slice(1)];
-        }
-
-        const context = {
-            type: 'arpeggio',
-            root,
-            quality,
-            intervals: steps.map(s => s.degreeIdx)
-        };
-
-        await this.playSequence(steps.map(s => s.midi), modifiers, context);
+        await this.playSequence(this.commandShown(command), notes, command.modifiers);
     }
 
-    async playChord(root, quality, modifiers = {}) {
-        const rootMidi = noteNameToMidi(root, this.settings.octave);
-        if (rootMidi === null) return;
+    /** @param {ScaleCommand} command */
+    async playChord(command) {
+        const rootMidi = noteNameToMidi(command.root, this.settings.octave);
+        const notes = (command.quality === 'minor' ? [0, 3, 7] : [0, 4, 7]).map(interval => rootMidi + interval);
+        const duration = '2n';
 
-        const intervals = quality === 'minor' ? [0, 3, 7] : [0, 4, 7];
-        const midiNotes = intervals.map(interval => rootMidi + interval);
-
-        const repeatCount = modifiers.repeat || 1;
-        this.setPianoNotificationActiveNotes(midiNotes);
-        await this.audio.playChordRepeated(midiNotes, {
-            repeatCount,
-            onStatus: (message) => this.voiceCore.updateStatus(message),
-            gapMs: 2000
+        this.showPass(this.commandShown(command), notes);
+        this.showSounding(notes);
+        const finished = await this.audio.playChordRepeated(notes, {
+            repeatCount: command.modifiers.repeat || 1,
+            gapMs: 2000,
+            duration
         });
-        this.setPianoNotificationActiveNotes([]);
+        if (finished) this.showIdleAfter(Tone.Time(duration).toMilliseconds());
     }
 
-    async playInterval(root, interval, quality, modifiers = {}) {
+    /** @param {ScaleCommand} command */
+    async playInterval(command) {
+        const { root, interval, quality } = command;
         const rootMidi = noteNameToMidi(root, this.settings.octave);
-        if (rootMidi === null) return;
 
         const intervalMap = {
             'unison': 0,
@@ -3867,39 +3205,23 @@ class ScalesController {
         };
 
         const semitones = intervalMap[interval] || 0;
-        const midi1 = rootMidi;
-        const midi2 = rootMidi + semitones;
-
-        const qualityPrefix = quality ? `${quality} ` : '';
-        const intervalName = `${qualityPrefix}${interval}`;
-
-        const context = {
-            type: 'interval',
-            root,
-            interval,
-            quality,
-            intervalName
-        };
-
-        await this.playSequence([midi1, midi2], modifiers, context);
+        await this.playSequence(this.commandShown(command), [rootMidi, rootMidi + semitones], command.modifiers);
     }
 
     /**
      * Play a sequence of MIDI notes with repeat/rising support.
-     * @param {number[]} notes - MIDI note array
+     * @param {ScalesShown} shown
+     * @param {number[]} notes
+     * @param {ScaleModifiers} [modifiers]
      */
-    async playSequence(notes, modifiers = {}, context = {}) {
-        this.clearScalePreview();
-        this.clearActuallyPlayed();
-        this.updatePatternPreview(0);
-
+    async playSequence(shown, notes, modifiers = {}) {
         // Chop head: each pass drops one more leading note (12345678,
         // 2345678, 345678, ... 8). One user-facing "repeat" spans the whole
         // shrinking cycle.
         const chopHead = !!(modifiers.chopHead ?? this.settings.chopHead) && notes.length > 1;
         const chopPassCount = chopHead ? notes.length : 1;
 
-        let repeatCount = modifiers.repeat ?? this.settings.repeatCount;
+        const repeatCount = modifiers.repeat ?? this.settings.repeatCount;
         const isInfinite = repeatCount === Infinity;
         const baseTimes = repeatCount === 0 ? 1 : repeatCount;
         const playTimes = isInfinite ? Infinity : baseTimes * chopPassCount;
@@ -3916,71 +3238,45 @@ class ScalesController {
             && risingSemitones === 0
             && (direction === 'both' || direction === 'down_and_up');
 
-        const mergedContext = {
-            ...context,
-            risingSemitones
+        // Chop head keeps the whole sequence on the board as it shrinks.
+        /** @param {number} repeatIndex */
+        const showRepeat = repeatIndex => {
+            const transpose = risingSemitones * repeatIndex;
+            this.showPass(shown, notes, transpose);
+            this.clearActuallyPlayed();
+            this.updateNoteSequencePreview(transpose);
         };
+        showRepeat(0);
 
-        await this.audio.playRenderedSequence({
+        const finished = await this.audio.playRenderedSequence({
             getDuration: () => this.getNoteDuration(modifiers),
-            getStepsForRepeat: repeatIndex => {
-                if (!chopHead) {
-                    return this.buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitsContinuousLoopRoot);
-                }
-                const chopOffset = repeatIndex % chopPassCount;
-                return notes.slice(chopOffset).map((midi, i) => ({
-                    midi,
-                    sourceIndex: i + chopOffset,
-                    isSection: true,
-                    repeatIndex
-                }));
+            getNotesForRepeat: repeatIndex => chopHead
+                ? notes.slice(repeatIndex % chopPassCount)
+                : this.buildRepeatNotes(notes, repeatIndex, risingSemitones, omitsContinuousLoopRoot),
+            onNote: midi => {
+                this.showSounding([midi]);
+                this.appendActuallyPlayed(midi, true);
             },
-            onStep: step => {
-                this.highlightPianoKey(step.midi);
-                const noteDisplay = this.formatNoteStatus(step.midi, step.sourceIndex, { ...mergedContext, repeatIndex: step.repeatIndex });
-                this.voiceCore.updateStatus(noteDisplay);
-                this.setPianoNotificationActiveNotes([step.midi]);
-                this.appendActuallyPlayed(step.midi, step.isSection);
-            },
-            onStatus: (message) => {
-                this.clearPianoHighlights();
-                this.voiceCore.updateStatus(message);
-            },
-            onRepeatEnd: (nextRepeatIndex) => {
-                const nextTranspose = risingSemitones * nextRepeatIndex;
-                this.clearActuallyPlayed();
-                this.updatePatternPreview(nextTranspose);
-            },
+            onRepeatEnd: showRepeat,
             repeatCount: playTimes,
             repeatGapMs: playbackRepeatGapMs
         });
-
-        this.clearPianoHighlights();
-        this.voiceCore.updateStatus('Ready');
-        this.setPianoNotificationActiveNotes([]);
-        this.updateScalePreview();
+        if (finished) this.showIdle();
     }
 
     /**
-     * Render the exact MIDI/display events for one sequence repetition.
+     * The MIDI notes of one repetition: raised by the rising offset, and
+     * without the repeated start note on a seamless loop.
      * @param {number[]} notes
      * @param {number} repeatIndex
      * @param {number} risingSemitones
      * @param {boolean} omitRepeatedStart
-     * @returns {SequencePlaybackStep[]}
+     * @returns {number[]}
      */
-    buildSequencePlaybackSteps(notes, repeatIndex, risingSemitones, omitRepeatedStart = false) {
+    buildRepeatNotes(notes, repeatIndex, risingSemitones, omitRepeatedStart = false) {
         const transpose = repeatIndex * risingSemitones;
         const startIndex = omitRepeatedStart && repeatIndex > 0 ? 1 : 0;
-        return notes.slice(startIndex).map((midi, index) => {
-            const sourceIndex = index + startIndex;
-            return {
-                midi: midi + transpose,
-                sourceIndex,
-                isSection: true,
-                repeatIndex
-            };
-        });
+        return notes.slice(startIndex).map(midi => midi + transpose);
     }
 
     getNoteDuration(modifiers = {}) {
@@ -4010,110 +3306,82 @@ class ScalesController {
     stopPlayback() {
         this.audio.stop();
         if (this.singPanel) this.singPanel.cancelGuide();
-        this.clearPianoHighlights();
-        this.updateScalePreview();
-        this.setPianoNotificationActiveNotes([]);
+        this.showIdle();
         // Also cancel any in-progress voice recognition
         if (this.voiceCore) {
             this.voiceCore.stopListening();
         }
     }
 
-    // Play current settings (always - "Again" always plays what's in the UI)
+    // Play button: plays exactly what the settings show
     async playCurrentSettings() {
         await this.ensureAudioStarted();
+        this.lastCommand = this.settingsCommand();
+        this.addToHistory(this.lastCommand, null);
+        await this.playScale();
+    }
 
-        // Build command from current settings
-        const command = {
+    /** @returns {ScaleCommand} the settings as the scale command that plays them */
+    settingsCommand() {
+        return {
             type: 'scale',
             root: this.settings.root,
             scaleType: this.settings.scaleType,
-            modifiers: {
-                direction: this.settings.direction,
-                movementStyle: this.settings.movementStyle,
-                risingSemitones: this.settings.risingSemitones,
-                rangeExpansion: this.settings.rangeExpansion,
-                octaveSpan: this.settings.octaveSpan,
-                // Tempo/gap are voice INPUT vocabulary, never state: leaving
-                // them null makes getNoteDuration() read noteLengthMs/gapMs
-                // directly. Quantizing through the coarse tempo names here
-                // made the Play button misplay any in-between note length
-                // (0.3s became "normal" = 0.5s) until the first live-restart
-                // snapped back to the true setting.
-                tempo: null,
-                gap: null,
-                repeat: this.settings.repeatCount,
-                repeatGapMs: this.settings.repeatGapMs,
-                exercise: this.settings.exercise,
-                shiftingSteps: this.settings.shiftingSteps,
-                chopHead: this.settings.chopHead,
-                ladder: this.settings.ladder,
-                ladderSize: this.settings.ladderSize,
-                ladderGapMs: this.settings.ladderGapMs
-            }
+            modifiers: this.buildModifiersFromSettings()
         };
-
-        const transcript = `${this.settings.root} ${this.settings.scaleType} scale`;
-        this.voiceCore.updateStatus(this.buildStatusMessage(command));
-        this.updatePianoNotificationCommand(command);
-        this.setPianoNotificationActiveNotes([]);
-        await this.playScale(command.root, command.scaleType, command.modifiers);
-        this.lastCommand = command;
-        this.lastTranscript = transcript;
-        this.addToHistory(command, transcript);
     }
 
-    // Alias for button click (same behavior)
-    async playAgainOrCurrent() {
-        await this.playCurrentSettings();
-    }
-
-    // Add a command to history
+    /**
+     * A scale entry keeps the settings it played with, so its line and
+     * its replay name the same thing.
+     * @param {ScaleCommand} command
+     * @param {string | null} transcript - the words heard; null for a button
+     */
     addToHistory(command, transcript) {
-        const historyEntry = {
+        this.history.add({
             type: 'command',
-            command: JSON.parse(JSON.stringify(command)), // Deep copy
-            transcript: transcript || this.getCommandDescription(command),
-            description: this.getCommandDescription(command),
+            command: structuredClone(command),
+            config: command.type === 'scale' ? this.getCurrentConfigSnapshot() : null,
+            transcript,
+            description: this.describeCommand(command),
             timestamp: new Date()
-        };
-
-        this.history.add(historyEntry);
+        });
     }
 
+    // One line per entry: replay, what played, the words heard when they
+    // say something else, and when. An error's details sit in its tooltip
+    // and in Copy All.
     /**
      * @param {HistoryEntry} entry
      * @param {number} index
      */
     renderHistoryItem(entry, index) {
-        const timeStr = this.formatTime(entry.timestamp);
         const item = document.createElement('div');
+        const time = scalesTextSpan('history-time', this.formatTime(entry.timestamp));
 
         if (entry.type === 'error') {
-            const errorDetails = entry.details?.error ? `\n${this.formatErrorDetails(entry.details)}` : '';
             item.className = 'history-item history-error';
-            item.innerHTML = `
-                <div class="history-error-icon">⚠</div>
-                <div class="history-text">
-                    <div class="history-error-message">${this.escapeHtml(entry.message)}</div>
-                    ${errorDetails ? `<div class="history-error-details">${this.escapeHtml(errorDetails)}</div>` : ''}
-                </div>
-                <span class="history-time">${timeStr}</span>
-            `;
+            item.title = entry.details?.error ? this.formatErrorDetails(entry.details) : entry.message;
+            item.append(
+                scalesTextSpan('history-error-icon', '!'),
+                scalesTextSpan('history-text', entry.message),
+                time);
             return item;
         }
 
+        const replay = document.createElement('button');
+        replay.className = 'history-play-btn';
+        replay.title = 'Play again';
+        replay.textContent = '\u25b6';
+        replay.addEventListener('click', () => this.playFromHistory(index));
+
         item.className = 'history-item';
-        item.innerHTML = `
-            <button class="history-play-btn" title="Play again">&#9654;</button>
-            <div class="history-text">
-                ${this.escapeHtml(entry.description)}
-                ${entry.transcript !== entry.description ?
-                `<div class="history-transcript">"${this.escapeHtml(entry.transcript)}"</div>` : ''}
-            </div>
-            <span class="history-time">${timeStr}</span>
-        `;
-        item.querySelector('.history-play-btn')?.addEventListener('click', () => this.playFromHistory(index));
+        item.title = entry.description;
+        item.append(replay, scalesTextSpan('history-text', entry.description));
+        if (entry.transcript && entry.transcript !== entry.description) {
+            item.append(scalesTextSpan('history-transcript', `"${entry.transcript}"`));
+        }
+        item.append(time);
         return item;
     }
 
@@ -4139,54 +3407,38 @@ class ScalesController {
     copyAllHistory() {
         if (this.history.entries.length === 0) return;
 
-        const lines = this.history.entries.map((entry, index) => {
+        const lines = this.history.entries.map(entry => {
             const timeStr = this.formatTime(entry.timestamp);
 
             if (entry.type === 'error') {
                 const errorDetails = entry.details?.error ? `\n${this.formatErrorDetails(entry.details)}` : '';
                 return `[${timeStr}] ERROR: ${entry.message}${errorDetails}`;
-            } else {
-                const transcript = entry.transcript !== entry.description ? ` ("${entry.transcript}")` : '';
-                return `[${timeStr}] ${entry.description}${transcript}`;
             }
+            const transcript = entry.transcript && entry.transcript !== entry.description ? ` ("${entry.transcript}")` : '';
+            return `[${timeStr}] ${entry.description}${transcript}`;
         });
 
-        const text = lines.join('\n');
-
-        // Copy to clipboard
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                this.voiceCore.updateStatus('History copied to clipboard');
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                this.voiceCore.updateStatus('Failed to copy history');
-            });
-        } else {
-            // Fallback for older browsers
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                this.voiceCore.updateStatus('History copied to clipboard');
-            } catch (err) {
-                console.error('Failed to copy:', err);
-                this.voiceCore.updateStatus('Failed to copy history');
-            }
-            document.body.removeChild(textarea);
-        }
+        navigator.clipboard.writeText(lines.join('\n'))
+            .catch(error => this.logError('Could not copy the history', { error }));
     }
 
-    // Play a command from history
+    /**
+     * Replay a history entry. A scale replays the settings it played with
+     * (and leaves them set, as a voice command would).
+     * @param {number} index
+     */
     async playFromHistory(index) {
         const entry = this.history.entries[index];
-        if (entry && entry.type === 'command' && entry.command) {
-            this.voiceCore.updateStatus(`Replaying: ${entry.description}`);
-            await this.executeScaleCommand(entry.command, null, true); // skipHistory=true
+        if (entry.type !== 'command') return;
+        if (!entry.config) {
+            await this.executeScaleCommand(entry.command, null, true);
+            return;
         }
+        await this.ensureAudioStarted();
+        this.stopPlayback();
+        this.applyConfig(entry.config);
+        this.lastCommand = this.settingsCommand();
+        await this.playScale();
     }
 
     /**
@@ -4205,70 +3457,6 @@ class ScalesController {
         if (diffHours < 24) return `${diffHours}h`;
 
         return date.toLocaleDateString();
-    }
-
-    // Escape HTML for safe rendering
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /**
-     * Highlight a single piano key by MIDI number.
-     * @param {number} midi
-     */
-    highlightPianoKey(midi) {
-        this.clearPianoHighlights();
-        this.addPianoHighlight(midi);
-    }
-
-    /**
-     * Highlight multiple piano keys by MIDI numbers (for chords).
-     * @param {number[]} midiNotes
-     */
-    highlightPianoKeys(midiNotes) {
-        this.clearPianoHighlights();
-        midiNotes.forEach(m => this.addPianoHighlight(m));
-    }
-
-    /**
-     * Add highlight to the piano key matching this MIDI note.
-     * If the exact MIDI is off-keyboard, highlights the same pitch class
-     * at the nearest octave that exists on the keyboard. Microtonal notes
-     * sit between keys, so both neighbors light up.
-     * @param {number} midi
-     */
-    addPianoHighlight(midi) {
-        if (!Number.isInteger(midi)) {
-            this.addPianoHighlight(Math.floor(midi));
-            this.addPianoHighlight(Math.ceil(midi));
-            return;
-        }
-        let key = document.querySelector(`.piano-key[data-midi="${midi}"]`);
-        if (!key) {
-            const pc = midiPitchClass(midi);
-            let bestKey = null;
-            let bestDist = Infinity;
-            document.querySelectorAll('.piano-key').forEach(el => {
-                const k = /** @type {HTMLElement} */ (el);
-                const km = parseInt(k.dataset.midi);
-                if (midiPitchClass(km) === pc) {
-                    const dist = Math.abs(km - midi);
-                    if (dist < bestDist) { bestDist = dist; bestKey = k; }
-                }
-            });
-            key = bestKey;
-        }
-        if (key) {
-            key.classList.add('active');
-        }
-    }
-
-    clearPianoHighlights() {
-        document.querySelectorAll('.piano-key.active').forEach(key => {
-            key.classList.remove('active');
-        });
     }
 
     clearActuallyPlayed() {
@@ -4309,54 +3497,6 @@ class ScalesController {
         el.textContent += `[${formatted}]`;
     }
 
-    clearScalePreview() {
-        document.querySelectorAll('.piano-key.scale-root, .piano-key.scale-note').forEach(key => {
-            key.classList.remove('scale-root', 'scale-note');
-        });
-    }
-
-    /**
-     * Update piano to show current scale preview using MIDI.
-     * Highlights piano keys matching scale notes; for notes outside the
-     * keyboard range, highlights the same pitch class at the nearest octave.
-     */
-    updateScalePreview() {
-        this.clearScalePreview();
-
-        if (this.audio.isPlaying) return;
-
-        const root = this.settings.root;
-        const scaleType = this.settings.scaleType;
-        const sectionLength = this.settings.sectionLength;
-
-        const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, sectionLength });
-        if (!degreesModel) return;
-
-        const { degreesAscAll, rootMidi } = degreesModel;
-        // Microtonal degrees sit between keys; preview both neighbors.
-        const keyableDegrees = degreesAscAll.flatMap(m =>
-            Number.isInteger(m) ? [m] : [Math.floor(m), Math.ceil(m)]);
-        const scaleMidiSet = new Set(keyableDegrees);
-        const scalePitchClasses = new Set(keyableDegrees.map(m => midiPitchClass(m)));
-        const rootPC = midiPitchClass(rootMidi);
-
-        document.querySelectorAll('.piano-key').forEach(el => {
-            const key = /** @type {HTMLElement} */ (el);
-            const keyMidi = parseInt(key.dataset.midi);
-            if (isNaN(keyMidi)) return;
-
-            const exactMatch = scaleMidiSet.has(keyMidi);
-            const pcMatch = !exactMatch && scalePitchClasses.has(midiPitchClass(keyMidi));
-            if (!exactMatch && !pcMatch) return;
-
-            if (midiPitchClass(keyMidi) === rootPC) {
-                key.classList.add('scale-root');
-            } else {
-                key.classList.add('scale-note');
-            }
-        });
-    }
-
     /**
      * Format a MIDI note for display, showing octave only when non-default.
      * Section notes are uppercase, auxiliary notes lowercase.
@@ -4383,90 +3523,60 @@ class ScalesController {
         return octave === defaultOctave ? name : name + octave;
     }
 
-    truncateText(text, maxLen) {
-        if (!text) return '';
-        if (text.length <= maxLen) return text;
-        return text.slice(0, Math.max(0, maxLen - 1)) + '…';
-    }
-
     /**
-     * Build ascending scale degrees as MIDI array.
+     * One pass of a scale as MIDI: the section's degrees walked in the
+     * direction by the ladder or the movement style. The groups are the
+     * phrases playback paces by; the notes are the same pass flattened.
      * @param {Object} params
-     * @param {string} params.root
+     * @param {number} params.rootMidi
      * @param {string} params.scaleType
-     * @param {string} [params.sectionLength]
-     * @returns {{ degreesAscAll: number[], rootMidi: number, pattern: number[] } | null}
+     * @param {string} params.direction
+     * @param {string} params.movementStyle
+     * @param {string} params.sectionLength
+     * @param {string} params.ladder
+     * @param {number} params.ladderSize
+     * @param {boolean} params.seamlessLoop - forever with no gap, so ladder cycles reflect at the seam
+     * @returns {ScalesPass}
      */
-    buildScaleDegreesAscAll({ root, scaleType, sectionLength }) {
-        const rootMidi = noteNameToMidi(root, this.settings.octave);
-        if (rootMidi === null) return null;
+    buildScalePlaybackPlan({ rootMidi, scaleType, direction, movementStyle, sectionLength, ladder, ladderSize, seamlessLoop }) {
+        const { min, max } = this.getSectionRange(sectionLength);
+        const degreesAscAll = scaleIntervalsInRange(scaleType, min, max).map(interval => rootMidi + interval);
 
-        const { min: minSemitone, max: maxSemitone } = this.getSectionRange(sectionLength || '1o');
-        const fullPattern = scaleIntervalsInRange(scaleType, minSemitone, maxSemitone);
-
-        const degreesAscAll = fullPattern.map(interval => rootMidi + interval);
-
-        return { degreesAscAll, rootMidi, pattern: fullPattern };
-    }
-
-    /**
-     * Build a complete playback plan as MIDI arrays.
-     * @returns {{ segments: Array, notes: number[], rootMidi: number, pattern: number[] } | null}
-     */
-    buildScalePlaybackPlan({ root, scaleType, direction, movementStyle, sectionLength, ladder, ladderSize }) {
-        const degreesModel = this.buildScaleDegreesAscAll({ root, scaleType, sectionLength });
-        if (!degreesModel) return null;
-
-        const { degreesAscAll, rootMidi, pattern } = degreesModel;
+        // The ladder owns sequence generation: rungs replace section-note
+        // traversal and movement styles entirely.
+        if (ladder !== 'off') {
+            return this.buildLadderGroups({
+                degreesAscAll,
+                direction,
+                size: ladderSize,
+                reverse: ladder === 'reverse',
+                seamlessLoop
+            });
+        }
 
         const ascending = degreesAscAll;
         const descending = [...degreesAscAll].reverse();
 
         let sectionNotes;
-        let directionLabel;
         let turnIndex = -1;
         let startsAscending = true;
 
         if (direction === 'descending') {
             sectionNotes = descending;
-            directionLabel = 'down';
             startsAscending = false;
         } else if (direction === 'both') {
             sectionNotes = [...ascending, ...descending.slice(1)];
-            directionLabel = 'up+down';
             turnIndex = ascending.length - 1;
-            startsAscending = true;
         } else if (direction === 'down_and_up') {
             sectionNotes = [...descending, ...ascending.slice(1)];
-            directionLabel = 'down+up';
             turnIndex = descending.length - 1;
             startsAscending = false;
         } else {
             sectionNotes = ascending;
-            directionLabel = 'up';
-            startsAscending = true;
-        }
-
-        // The ladder owns sequence generation: rungs replace section-note
-        // traversal and movement styles entirely.
-        if (ladder && ladder !== 'off') {
-            const ladderResult = this.buildLadderGroups({
-                degreesAscAll,
-                direction,
-                size: ladderSize || 3,
-                reverse: ladder === 'reverse',
-                seamlessLoop: this.settings.repeatCount === Infinity && this.settings.repeatGapMs === 0
-            });
-            return {
-                segments: [{ label: `${directionLabel} ladder`, groups: ladderResult.groups }],
-                notes: ladderResult.notes,
-                rootMidi,
-                pattern
-            };
         }
 
         const rootIndexInSection = sectionNotes.indexOf(rootMidi);
-        const movementResult = this.buildMovementSequence({
+        return this.buildMovementSequence({
             movementStyle,
             degreesAscAll: sectionNotes,
             degreesFromRoot: rootIndexInSection >= 0 ? sectionNotes.slice(rootIndexInSection) : sectionNotes,
@@ -4476,127 +3586,28 @@ class ScalesController {
             turnIndex,
             startsAscending
         });
-
-        const segments = [{ label: directionLabel, groups: movementResult.groups }];
-        const notes = movementResult.notes;
-
-        return { segments, notes, rootMidi, pattern };
-    }
-
-    formatGroupsForPreview(groups, transposeSemitones = 0) {
-        const groupStrings = groups.map(group => {
-            const midiNotes = group.notes.map(m => m + transposeSemitones);
-            return midiNotes.map(m => scaleMidiToNoteName(
-                this.settings.root,
-                this.settings.octave,
-                this.settings.scaleType,
-                m
-            )).join(' ');
-        });
-        return groupStrings.join(' | ');
     }
 
     /**
-     * Update the note sequence display. All notes are MIDI integers.
-     * @param {number} [transpose=0] - Semitones to transpose the preview
+     * Write the settings' planned pass into the Sequence row, raised by
+     * `transpose` while rising.
+     * @param {number} [transpose]
      */
     updateNoteSequencePreview(transpose = 0) {
-        const el = document.getElementById('noteSequence');
-        if (!el) return;
-
-        const { root, scaleType, direction, movementStyle, sectionLength, ladder, ladderSize } = this.settings;
-
-        const plan = this.buildScalePlaybackPlan({
-            root,
-            scaleType,
-            direction,
-            movementStyle,
-            sectionLength,
-            ladder,
-            ladderSize
-        });
-
-        if (!plan || !plan.segments || !plan.segments[0]) {
-            el.textContent = '--';
-            return;
-        }
-
-        const groups = plan.segments[0].groups;
-        const defaultOctave = this.settings.octave;
-
-        const parts = groups.map(group => {
-            const { notes: midiNotes, sectionIndex, isChord } = group;
-            const displayMidi = transpose !== 0
-                ? midiNotes.map(m => m + transpose)
-                : midiNotes;
-
-            if (isChord) {
-                return `[${displayMidi.map(m => this.formatMidiDisplay(m, true, defaultOctave)).join('')}]`;
+        const s = this.settings;
+        document.getElementById('noteSequence').textContent = this.settingsPass().groups.map(group => {
+            const midiNotes = group.notes.map(midi => midi + transpose);
+            if (group.isChord) {
+                return `[${midiNotes.map(midi => this.formatMidiDisplay(midi, true, s.octave)).join('')}]`;
             }
-
-            return displayMidi.map((m, i) => {
-                return this.formatMidiDisplay(m, i === sectionIndex, defaultOctave);
-            }).join('');
-        });
-
-        el.textContent = parts.join(' ');
+            return midiNotes.map((midi, i) => this.formatMidiDisplay(midi, i === group.sectionIndex, s.octave)).join('');
+        }).join(' ');
     }
 
-    // Kept for backward compatibility - now delegates to updateNoteSequencePreview
-    updatePatternPreview(transpose = 0) {
-        this.updateNoteSequencePreview(transpose);
-    }
-
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
+    // Spoken: the page is used hands-free. The full command list is
+    // docs/scales-commands.md.
     showHelp() {
-        // Comprehensive help organized by category
-        const helpCategories = {
-            scales: [
-                'scale (C major)',
-                'D scale, A minor scale',
-                'chromatic scale, chromatic from E',
-                'pentatonic, blues scale',
-                'quarter tone scale, rast, bayati from D'
-            ],
-            notes: [
-                'C, play D, F sharp, B flat',
-                'C chord, A minor chord'
-            ],
-            intervals: [
-                'fifth, 5th, third from G, 3rd',
-                'minor third, major 3rd',
-                'perfect fifth from D'
-            ],
-            arpeggios: [
-                'arpeggio (C major)',
-                'D minor arpeggio'
-            ],
-            modifiers: [
-                'slowly, very slowly, quickly',
-                'with a gap, with a large gap',
-                'repeat, twice, three times',
-                'ascending, descending, up and down'
-            ],
-            control: [
-                'tuning (A440)',
-                'stop, help'
-            ]
-        };
-
-        // Short spoken summary
-        const spokenHelp = 'Say scale, note, chord, arpeggio, or interval. Add slowly, with a gap, or repeat. Say stop to cancel.';
-
-        // Detailed status text
-        const statusParts = [];
-        for (const [category, commands] of Object.entries(helpCategories)) {
-            statusParts.push(`${category}: ${commands[0]}`);
-        }
-
-        this.voiceCore.updateStatus('Help: ' + statusParts.join(' | '));
-        this.voiceCore.speakText(spokenHelp);
+        this.voiceCore.speakText('Say scale, note, chord, arpeggio, or interval. Add slowly, with a gap, or repeat. Say stop to cancel.');
     }
 
     setupErrorHandling() {
@@ -4624,7 +3635,6 @@ class ScalesController {
 
     logError(message, details = {}) {
         console.error(message, details);
-        this.voiceCore.updateStatus(`Error: ${message}`);
 
         // Add error to command history
         const errorEntry = {

@@ -1,4 +1,5 @@
-/* Scales Page Specific Styles */
+/* Scales Page Specific Styles. The keyboard's own look lives in
+   piano-keyboard.css; shared controls in practice-controls.css. */
 
 /* Transport order on this page is Play (primary, stretches), Stop,
    Listen (compact, sized like Stop): playing scales is the main act
@@ -16,234 +17,56 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     font-size: 1.1rem;
 }
 
-.echo-toggle span {
-    font-weight: 500;
-}
-
-/* Settings Row */
-
-.settings-row {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 12px 0;
-    padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-}
-
-.setting-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.setting-group label {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.8);
-    font-weight: 500;
-}
-
-.setting-group select {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.setting-group select option {
-    background: #1a3a2e;
-    color: #e8f5e9;
-}
-
-.stop-scale-btn {
-    padding: 8px 20px;
-    background: rgba(239, 68, 68, 0.8);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.stop-scale-btn:hover {
-    background: rgba(239, 68, 68, 0.95);
-}
-
-.stop-scale-btn:active {
-    transform: scale(0.98);
-}
-
-/* Main Stop Button (next to Listen) */
-
-/* Play Button (next to Stop) */
-
-/* Next Button (manual advance in hold mode) */
-
-/* Playback Settings */
-
-.playback-settings {
-    background: rgba(0, 0, 0, 0.25);
-}
-
-.slider-group {
-    min-width: 140px;
-}
-
-.slider-group input[type="range"] {
-    width: 70px;
-    height: 6px;
-    cursor: pointer;
-    accent-color: #4ade80;
-}
-
-.slider-label {
-    min-width: 50px;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.9);
-    text-align: left;
-}
-
-.toggle-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-}
-
-.toggle-group:hover {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.toggle-group input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: #4ade80;
-}
-
-.toggle-group:has(input:checked) {
-    background: rgba(74, 222, 128, 0.25);
-}
-
-.toggle-label {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.9);
-    font-weight: 500;
-}
-
-/* Voice Settings */
-
-.voice-settings {
-    background: rgba(0, 0, 0, 0.15);
-}
-
-.voice-settings input[type="range"] {
-    width: 80px;
-    height: 6px;
-    cursor: pointer;
-    accent-color: #14b8a6;
-}
-
-.voice-settings span {
-    min-width: 30px;
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* Piano Container */
+/* Keyboard + readout */
 
 .piano-container {
     margin: 8px 0;
-    padding: 10px;
+    padding: 6px 10px 10px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: var(--radius-card);
-    overflow: hidden;
 }
 
-.piano-notification-area {
+/* The page's status surface, one line: what Play (or the running
+   command) plays on the left, the notes sounding now on the right as the
+   largest text in the region. */
+.piano-readout {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    text-align: center;
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.6);
-    padding: 8px;
-    margin-bottom: 8px;
-}
-
-.piano-notification-area:empty {
-    display: none;
-}
-
-.piano-notification-table {
-    margin: 0 auto;
-    border-collapse: collapse;
-}
-
-.piano-notification-table td {
-    padding: 4px 8px;
-    vertical-align: middle;
-    overflow: hidden;
-}
-
-.piano-notification-command-cell {
+    align-items: baseline;
+    gap: 12px;
+    min-height: 2.1rem;
+    padding: 0 2px 4px;
+    color: #fff;
     text-align: left;
-    padding-right: 10px;
-    width: 280px;
-    min-width: 280px;
 }
 
-.piano-notification-command {
-    display: flex;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    gap: 6px;
-    align-items: center;
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.piano-notification-badge {
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 0.78rem;
-    padding: 4px 8px;
-    border-radius: var(--radius-group);
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: rgba(255, 255, 255, 0.9);
-    white-space: nowrap;
-    flex: 0 0 auto;
-}
-
-.piano-notification-note-cell {
-    /* Fits the widest microtonal name ("D#4-50c") plus cell padding */
-    width: 9ch;
-    min-width: 9ch;
-    max-width: 9ch;
-    text-align: right;
-    padding-right: 8px;
-    padding-left: 4px;
-    font-family: ui-monospace, 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-    color: rgba(255, 255, 255, 0.9);
-    white-space: nowrap;
+.piano-readout-plan {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    font-weight: 600;
 }
 
-.piano-notification-note-cell.empty {
-    color: rgba(255, 255, 255, 0.25);
+.piano-readout.is-error .piano-readout-plan {
+    color: #fca5a5;
+    font-weight: 800;
+}
+
+.piano-readout-notes {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 14px;
+    font-size: 1.4rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.piano-readout-degree {
+    margin-right: 5px;
+    color: #7dd3fc;
 }
 
 /* Note Sequence Preview - grid for aligned comparison */
@@ -255,511 +78,56 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     padding: 8px 12px;
     margin: 8px 0;
     background: rgba(0, 0, 0, 0.25);
-    border-radius: 8px;
+    border-radius: var(--radius-group);
     font-size: 0.8rem;
     overflow-x: auto;
     text-align: left;
 }
 
 .note-sequence-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: #fff;
+    font-weight: 800;
     white-space: nowrap;
-    text-align: left;
 }
 
 .note-sequence {
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    color: rgba(255, 255, 255, 0.85);
+    color: #fff;
     letter-spacing: 0.5px;
     white-space: nowrap;
     overflow-x: auto;
-    text-align: left;
 }
 
-.piano-keys {
-    display: flex;
-    justify-content: flex-start;
-    position: relative;
-    height: 130px;
-    min-width: fit-content;
-    overflow-x: auto;
-    padding: 0 10px;
-}
-
-/* Piano Keys */
-
-.piano-key {
-    position: relative;
-    cursor: pointer;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.white-key {
-    width: 38px;
-    height: 130px;
-    background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 100%);
-    border: 1px solid #999;
-    border-radius: 0 0 6px 6px;
-    margin: 0 1px;
-    z-index: 1;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    flex-shrink: 0;
-}
-
-.white-key span {
-    padding-bottom: 6px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #555;
-}
-
-.white-key:hover {
-    background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
-}
-
-.white-key:active,
-.white-key.active {
-    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
-    box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.45), 0 6px 16px rgba(34, 197, 94, 0.28);
-}
-
-.white-key:active span,
-.white-key.active span {
-    color: white;
-}
-
-.black-key {
-    width: 26px;
-    height: 80px;
-    background: linear-gradient(180deg, #333 0%, #111 100%);
-    border-radius: 0 0 4px 4px;
-    margin-left: -14px;
-    margin-right: -14px;
-    flex-shrink: 0;
-    z-index: 2;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-}
-
-.black-key:hover {
-    background: linear-gradient(180deg, #444 0%, #222 100%);
-}
-
-.black-key:active,
-.black-key.active {
-    background: linear-gradient(180deg, #111827 0%, #020617 100%);
-    border: 2px solid #86efac;
-    box-shadow:
-        0 0 0 2px rgba(134, 239, 172, 0.35),
-        0 0 18px rgba(34, 197, 94, 0.55),
-        0 5px 10px rgba(0, 0, 0, 0.65);
-}
-
-.black-key:active::after,
-.black-key.active::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    bottom: 9px;
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    background: #86efac;
-    box-shadow: 0 0 10px rgba(134, 239, 172, 0.8);
-    transform: translateX(-50%);
-}
-
-/* Scale preview highlighting (when not playing) */
-
-.white-key.scale-root {
-    background: linear-gradient(180deg, #a7f3d0 0%, #6ee7b7 100%);
-    border-color: #10b981;
-}
-
-.white-key.scale-root span {
-    color: #064e3b;
-    font-weight: 700;
-}
-
-.white-key.scale-note {
-    background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
-}
-
-.white-key.scale-note span {
-    color: #166534;
-}
-
-.black-key.scale-root {
-    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-}
-
-.black-key.scale-note {
-    background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
-}
-
-/* Command Reference */
-
-.command-reference {
-    margin-top: 20px;
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: var(--radius-card);
-    text-align: left;
-}
-
-.command-reference h3 {
-    text-align: center;
-    margin-bottom: 16px;
-    font-size: 1.1rem;
-    color: rgba(255, 255, 255, 0.9);
-    font-weight: 600;
-}
-
-.command-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-}
-
-.command-category h4 {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.8);
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.command-category ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.command-category li {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.75);
-    padding: 3px 0;
-    line-height: 1.4;
-}
-
-.command-category code {
-    background: rgba(255, 255, 255, 0.15);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'SF Mono', 'Consolas', monospace;
-    font-size: 0.75rem;
-    color: #fff;
-}
-
-/* Command History */
-
-.history-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.preset-actions-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-}
-
-/* Sizing only; the look comes from the shared .text-input */
-.preset-name-input {
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    width: 220px;
-}
-
-.preset-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    cursor: pointer;
-    border: 1px solid transparent;
-}
-
-.preset-item:hover {
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.preset-item.selected {
-    border-color: rgba(74, 222, 128, 0.55);
-    background: rgba(74, 222, 128, 0.12);
-}
-
-.preset-item-title {
-    flex: 1;
-    text-align: left;
-    color: rgba(255, 255, 255, 0.92);
-    font-size: 0.85rem;
-    line-height: 1.3;
-}
-
-.preset-item-subtitle {
-    margin-top: 4px;
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 0.75rem;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-}
-
-.preset-item-time {
-    flex-shrink: 0;
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-/* Error entries in history */
-
-.history-error {
-    background: rgba(239, 68, 68, 0.15);
-    border-left: 3px solid rgba(239, 68, 68, 0.6);
-}
-
-.history-error:hover {
-    background: rgba(239, 68, 68, 0.2);
-}
-
-.history-error-icon {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(239, 68, 68, 0.3);
-    border-radius: 50%;
-    font-size: 1rem;
-    flex-shrink: 0;
-    color: #ef4444;
-}
-
-.history-error-message {
-    color: rgba(255, 255, 255, 0.9);
-    font-weight: 500;
-}
-
-.history-error-details {
-    margin-top: 4px;
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.6);
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 100px;
-    overflow-y: auto;
-}
-
-/* Mobile adjustments */
-
-@media (max-width: 600px) {
-    .piano-keys {
-        justify-content: flex-start;
-    }
-
-    .white-key {
-        width: 42px;
-        height: 120px;
-    }
-
-    .black-key {
-        width: 28px;
-        height: 75px;
-        margin-left: -15px;
-        margin-right: -15px;
-    }
-
-    .command-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-
-    .settings-row {
-        gap: 8px;
-    }
-
-    .setting-group {
-        flex: 1 1 auto;
-        min-width: 80px;
-    }
-}
-
-@media (max-width: 400px) {
-    .command-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .white-key {
-        width: 36px;
-        height: 100px;
-    }
-
-    .black-key {
-        width: 24px;
-        height: 65px;
-        margin-left: -13px;
-        margin-right: -13px;
-    }
-}
-
-/* ============================================
-   Voice-First UI - Clickable Command Interface
-   ============================================ */
-
-/* Instruction text at top of controls */
+/* Voice-first settings */
 
 .vf-instruction {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
-    margin: 0 0 8px 0;
-    padding: 4px 10px;
-    background: rgba(74, 222, 128, 0.08);
-    border-left: 2px solid rgba(74, 222, 128, 0.4);
-    border-radius: 0 4px 4px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-}
-
-.vf-instruction.hidden {
-    display: none;
+    margin: 0 0 8px 0;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    color: #fff;
+    background: rgba(74, 222, 128, 0.08);
+    border-left: 2px solid rgba(74, 222, 128, 0.4);
+    border-radius: 0 var(--radius-control) var(--radius-control) 0;
 }
 
 .vf-dismiss {
+    padding: 0 4px;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.4);
-    cursor: pointer;
+    color: #fff;
     font-size: 0.9rem;
-    padding: 0 4px;
+    font-weight: 800;
     line-height: 1;
+    cursor: pointer;
 }
-
-.vf-dismiss:hover {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* Inline row layout: label left, options right */
 
 .vf-row.vf-row-reset {
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.vf-row.vf-row-reset .vf-options {
-    justify-content: flex-start;
-}
-
-/* Legacy section layout (if still used) */
-
-.vf-section {
-    margin-bottom: 16px;
-}
-
-.vf-section:last-of-type {
-    margin-bottom: 0;
-}
-
-.vf-hint {
-    font-weight: 400;
-    text-transform: none;
-    opacity: 0.7;
-}
-
-/* .vf-btn base styles live in practice-controls.css (shared primitive). */
-
-/* Scale types - wrap nicely */
-
-.vf-scales {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-/* Range slider row */
-
-.vf-slider-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.vf-slider-row input[type="range"] {
-    flex: 1;
-    max-width: 200px;
-    height: 6px;
-    cursor: pointer;
-    accent-color: #4ade80;
-}
-
-/* Action buttons */
-
-.vf-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.vf-play-btn {
-    flex: 1;
-    padding: 14px 24px;
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
-}
-
-.vf-play-btn:hover {
-    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
-}
-
-.vf-play-btn:active {
-    transform: translateY(0);
-}
-
-/* Command Help (collapsed reference) */
-
-.command-help {
-    margin-top: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-.command-help summary {
-    padding: 12px 16px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.7);
-    font-weight: 500;
-    user-select: none;
-}
-
-.command-help summary:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.command-help[open] summary {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.command-help .command-grid {
-    padding: 16px;
 }
 
 /* Voice Control Commands - inline list of voice-only commands */
@@ -772,13 +140,13 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     margin: 12px 0;
     padding: 10px 14px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
+    border-radius: var(--radius-group);
 }
 
 .voice-control-commands .vcc-label {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
-    font-weight: 500;
+    font-weight: 800;
+    color: #fff;
 }
 
 .voice-control-commands code {
@@ -787,12 +155,126 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     padding: 4px 10px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 5px;
-    color: rgba(255, 255, 255, 0.8);
+    border-radius: var(--radius-control);
+    color: #fff;
 }
 
-.voice-control-commands .echo-toggle {
+/* Saved configs and command history: every row is one line; whatever
+   does not fit ends in an ellipsis. */
+
+.history-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.preset-actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+/* Sizing only; the look comes from the shared .text-input */
+.preset-name-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
+.preset-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid transparent;
+    border-radius: var(--radius-group);
+    color: #fff;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.preset-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.preset-item.selected {
+    border-color: rgba(74, 222, 128, 0.55);
+    background: rgba(74, 222, 128, 0.12);
+}
+
+.preset-item-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.preset-item-summary {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.75rem;
+}
+
+.preset-item-time,
+#historyList .history-time {
+    flex: 0 0 auto;
     margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+#historyList .history-text,
+#historyList .history-transcript {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+#historyList .history-transcript {
+    flex: 0 1 auto;
+    max-width: 45%;
+}
+
+/* Error entries in history; the full details stay in the row's tooltip
+   and in Copy All. */
+
+.history-error {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 3px solid rgba(239, 68, 68, 0.6);
+}
+
+.history-error:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.history-error-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: rgba(239, 68, 68, 0.3);
+    border-radius: 50%;
+    color: #fca5a5;
+    font-weight: 900;
+}
+
+#historyList .history-error .history-text {
+    color: #fca5a5;
+    font-weight: 700;
 }
 
 /* Voice Settings Section (collapsed at bottom) */
@@ -800,16 +282,16 @@ body[data-page="scales"] .voice-controls-row .listen-button {
 .voice-settings-section {
     margin-top: 16px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
+    border-radius: var(--radius-card);
     overflow: hidden;
 }
 
 .voice-settings-section summary {
     padding: 12px 16px;
     cursor: pointer;
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.7);
-    font-weight: 500;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #fff;
     user-select: none;
 }
 
@@ -821,19 +303,51 @@ body[data-page="scales"] .voice-controls-row .listen-button {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.voice-settings-section .voice-settings {
-    margin: 0;
-    border-radius: 0;
+.settings-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.setting-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.setting-group label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+/* The one select on the page: the TTS voice list is long and dynamic */
+.setting-group select {
+    padding: 6px 10px;
+    border-radius: var(--radius-group);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.setting-group select option {
+    background: #1a3a2e;
+    color: #fff;
 }
 
 @media (max-width: 600px) {
-    .vf-actions {
-        flex-direction: column;
+    .settings-row {
+        gap: 8px;
     }
 
-    .vf-play-btn {
-        width: 100%;
+    .setting-group {
+        flex: 1 1 auto;
+        min-width: 80px;
     }
 }
-
-/*-------INTERVALS PAGE (scales2)-------*/

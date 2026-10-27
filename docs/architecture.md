@@ -242,8 +242,9 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `api-keys-store.js` | Claude/OpenAI API key read/write/remove | - |
 | `app-version.js` | Runtime release version label | - |
 | `practice-audio.js` | Thin shared piano playback wrapper | - |
-| `scales-playback.js` | Scales sequence playback coordinator | - |
+| `scales-playback.js` | Scales sequence playback coordinator (token-cancelled loops; its playing flag is the page's transport state) | - |
 | `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
+| `piano-keyboard.js` + `piano-keyboard.css` | The Scales keyboard: which keys a pass needs, degrees, key-aware spelling, microtone markers, exact highlight | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
@@ -576,8 +577,9 @@ Vital rules that have caused bugs before:
   0 = straight through), never a hard-coded pause.
 - Movement groups are explicit objects `{ notes, sectionIndex, isChord }` -
   playback and display read these properties, never special-case by name.
-- `getNotesAbove/Below` use modular arithmetic over the scale pattern, not
-  array extension.
+- `scaleNotesFrom` walks the scale's pitch classes with a true modulo, not
+  array extension, so any number of steps continues into the next octave
+  (a seventh down in a five-note scale wraps more than once).
 - **Rising** transposes the whole scale by semitones each repeat;
   **shifting** moves the start within the same scale; **chop head** drops
   one more leading note each pass (12345678, 2345678, ...). Mutually
@@ -593,11 +595,36 @@ Vital rules that have caused bugs before:
   reflect over the peak (678, 787, 876), and a forever-no-gap up+down or
   down+up cycle is one seamless triangle whose loop seam reflects too
   (the seam gets the rung gap, not a cycle divider).
-- Voice commands reset settings to defaults before applying modifiers.
+- Voice commands reset the practice settings (never the preferences) to
+  defaults before applying modifiers.
+- **The settings are what plays.** `playScale()` takes no arguments and
+  plays exactly `this.settings`; a voice command writes its words into
+  the settings (`applyScaleCommand`) before anything plays, and a preset
+  or history row is a settings snapshot replayed through `applyConfig`.
+  The buttons, keyboard, readout, and history row therefore cannot
+  disagree with the sound.
+- **Practice defaults live once**, in `defaultSettings`: `settings` adds
+  the preferences to it, snapshots take their keys from it, and
+  `applyConfig` fills any key an older config lacks from it. `applyConfig`
+  applies every mode from the snapshot, off included, so a mode left on
+  beforehand never survives a replay.
 
 Exercise patterns are degree-offset templates with `'O'` as the
 octave placeholder (`five_note`, `octave_jump`, `arpeggio_return`,
 `thirds`), so they work for any scale size.
+
+**The keyboard** (`piano-keyboard.js`) is a pure model plus a renderer.
+`buildModel({ root, octave, scaleType, notes })` decides every musical
+fact: the keys (the pass's span plus `CONTEXT_DEGREES` = 3 scale notes
+each way, widened to white edges), each key's degree and key-aware
+spelling, and microtone markers placed proportionally between their keys,
+comparing pitches with a 1e-6 tolerance because decimal microtones do not
+sum exactly. `create()` draws a model in percent of the board width and
+owns only the sounding set; rendering an identical model is a no-op, so
+the page re-renders on every pass. Lookup is exact by pitch, so a
+highlight can never land on a neighbor or another octave. The page
+decides only which notes a pass plays (`settingsPass()`,
+`patternNotes()`), and the readout above the board is its status surface.
 
 ## Persistence
 
@@ -1473,3 +1500,9 @@ with its own button and slider classes (`mp-*`), themed only through its
 ## Known deliberate gaps
 
 - New gaps must be listed here with their reasoning, or fixed.
+- **Scales "wide", "very wide", and "narrow"** are recognized and ignored.
+  They once set an extra-notes count that no code ever played; the
+  keyboard now always shows three scale notes of context, and the section
+  width commands set the played range. The words stay accepted so a
+  sentence containing them still plays, until the owner gives them a
+  meaning.

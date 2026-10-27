@@ -222,7 +222,7 @@
 .pitch-test-titles p {
     margin: 2px 0 0;
     font-size: 0.78rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff;
 }
 
 /* Pinned while the panel is in use: Restart/Guide/Close stay visible
@@ -247,7 +247,7 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-group);
     background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.85);
+    color: #fff;
     font-weight: 700;
     cursor: pointer;
 }
@@ -280,13 +280,12 @@
     flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 10px;
-    color: rgba(255, 255, 255, 0.74);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.9rem;
 }
 
 .pitch-test-readout span:first-child {
-    color: #e0f2fe;
     font-weight: 800;
 }
 
@@ -310,7 +309,7 @@
     flex-wrap: wrap;
     gap: 14px;
     margin-top: 10px;
-    color: rgba(255, 255, 255, 0.58);
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -352,7 +351,7 @@
 /* Trend line shown by scored tools ("Progress: Today 62% (5 takes) ...") */
 .progress-summary {
     margin: 2px 0 10px;
-    color: rgba(255, 255, 255, 0.6);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.8rem;
     text-align: center;
@@ -413,7 +412,7 @@
 }
 
 .pitch-test-dock-hint {
-    color: rgba(186, 230, 253, 0.72);
+    color: #fff;
     font-size: 0.82rem;
     font-weight: 600;
 }
@@ -596,11 +595,16 @@ body:has(.pitch-test-dock) {
     transform: scale(0.98);
 }
 
+/* Disabled reads as an empty dashed outline (as on Listen); opacity
+   would turn the label gray. */
 .stop-button:disabled,
 .play-button:disabled,
 .next-button:disabled,
 .repeat-button:disabled {
-    opacity: 0.5;
+    background: transparent;
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    color: #fff;
+    box-shadow: none;
     cursor: not-allowed;
     transform: none;
 }
@@ -714,7 +718,7 @@ body:has(.pitch-test-dock) {
 .history-header h3 {
     margin: 0;
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: #fff;
 }
 
 /* Text fields: one base look everywhere. Pages may size them
@@ -840,7 +844,7 @@ body:has(.pitch-test-dock) {
 }
 
 .history-empty {
-    color: rgba(255, 255, 255, 0.4);
+    color: #fff;
     font-style: italic;
     font-size: 0.85rem;
     margin: 0;
@@ -883,18 +887,20 @@ body:has(.pitch-test-dock) {
 .history-text {
     flex: 1;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: #fff;
 }
 
+/* Told apart from the description by size and italics, not dimming */
 .history-transcript {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: #fff;
     font-style: italic;
 }
 
 .history-time {
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.4);
+    font-weight: 700;
+    color: #fff;
     flex-shrink: 0;
 }
 
@@ -919,8 +925,8 @@ body:has(.pitch-test-dock) {
    control (text inputs, toggle clusters). */
 .vf-row .vf-label {
     font-size: 0.65rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
+    font-weight: 800;
+    color: #fff;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     margin-bottom: 0;
@@ -928,16 +934,10 @@ body:has(.pitch-test-dock) {
     flex-shrink: 0;
 }
 
-/* The gap sits BEFORE an inline label, separating it from the previous
-   unit while it stays tight against its own control. */
-.vf-row .vf-label-inline {
-    margin-left: 12px;
-}
-
 .vf-label {
     font-size: 0.8rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
+    font-weight: 800;
+    color: #fff;
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;

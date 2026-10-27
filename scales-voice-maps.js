@@ -44,6 +44,18 @@ function normalizeScaleModifier(spoken) {
     return SCALES_MODIFIER_PHONETIC_MAP[lower] || null;
 }
 
+/**
+ * The pitch class a spoken letter and accidental sound as, named the way
+ * noteNameToMidi reads it: "E sharp" is F, "C flat" is B, "B flat" is A#.
+ * @param {string} letter - a natural note letter, as normalizeScaleNoteName returns
+ * @param {string | null} modifier - 'sharp', 'flat', or null, as normalizeScaleModifier returns
+ * @returns {string}
+ */
+function spokenPitchClassName(letter, modifier) {
+    const shift = modifier === 'sharp' ? 1 : modifier === 'flat' ? -1 : 0;
+    return NOTE_NAMES[positiveModulo(NATURAL_PITCH_CLASSES[letter] + shift, 12)];
+}
+
 // Spoken scale-type variants that differ from the SCALE_PATTERNS key.
 // Keys are already lowercased with spaces/hyphens collapsed to underscores.
 /** @type {Record<string, string>} */
@@ -75,7 +87,8 @@ window.ScalesVoiceMaps = {
     MODIFIER_PHONETIC_MAP: SCALES_MODIFIER_PHONETIC_MAP,
     normalizeScaleNoteName,
     normalizeScaleModifier,
-    normalizeScaleTypeName
+    normalizeScaleTypeName,
+    spokenPitchClassName
 };
 
 // Backward-compatible globals used throughout scales.js voice parsing

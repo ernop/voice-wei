@@ -9,9 +9,11 @@ engine rules behind movement styles and exercises are in
 ## How commands are interpreted
 
 1. Click **Listen**, speak, and the command is parsed on the final result.
-2. **Full commands reset settings to defaults first**, then apply your
-   modifiers - "D minor" always sounds the same regardless of prior UI
-   state. Playback starts automatically.
+2. **Full commands reset the practice settings to defaults first**, then
+   write your words into them - "D minor" always sounds the same regardless
+   of prior UI state, and the buttons, keyboard, and history row show
+   exactly what plays. Playback starts automatically. Preferences (display
+   toggles, the TTS voice) are not reset.
 3. **Standalone setting commands** (a bare modifier like "slowly",
    "staccato", "thirds up", "octave 3") change just that setting and
    restart playback live if something is playing.
@@ -96,6 +98,7 @@ displacement.)
 |---------|--------|
 | `C` / `play C` | Single note |
 | `F sharp`, `B flat` | Accidentals |
+| `E sharp`, `B sharp`, `C flat`, `F flat` | The keys they sound as: F, C, B, E |
 | `C chord` / `A minor chord` | Triad |
 | `tuning` / `A 440` / `concert A` / `reference` | A440 reference tone |
 | `fifth` / `5th` | Perfect 5th from C |
@@ -153,15 +156,20 @@ The UI note-length stepper offers the finer shared preset list (see
 | `up and down` / `both ways` | Up then down |
 | `down and up` | Down then up |
 
-### Range and width
+### Section width
 
-| Modifier | Effect |
-|----------|--------|
-| `wide` | Extra scale notes on each end (range expansion) |
-| `very wide` | More extra notes on each end |
-| `octave plus third` / `1o+3` | Section spans octave + major 3rd |
-| `octave plus fifth` / `1o+5` | Section spans octave + perfect 5th |
+| Command | Effect |
+|---------|--------|
+| `one octave` / `single octave` | Section spans 1 octave (default) |
 | `two octaves` / `double octave` | Section spans 2 octaves |
+| `octave plus third` / `1o+3` (standalone) | Section spans octave + major 3rd |
+| `octave plus fifth` / `1o+5` (standalone) | Section spans octave + perfect 5th |
+
+One and two octaves also work inside a full command ("C major two
+octaves"); the other two widths are standalone setting commands. The
+keyboard always shows three scale notes beyond each end of what plays.
+`wide`, `very wide`, and `narrow` are recognized and change nothing (they
+once set an extra-notes count that never reached the sound).
 
 ### Octave (standalone)
 
@@ -247,7 +255,7 @@ shifting, and chop head remain mutually exclusive.
 "slowly chromatic scale"
 "G major up and down"
 "descending pentatonic"
-"wide C major slowly"
+"C major two octaves slowly"
 "double octave harmonic minor"
 "A minor repeat forever"
 "quickly chromatic twice"

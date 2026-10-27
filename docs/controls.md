@@ -46,7 +46,7 @@ vocabulary plus their declared gameplay surfaces:
 |------|--------------------------------------|
 | Intervals | `answer-btn` (ear answer grid), `drone-btn` (drone test) |
 | Phrases | `phrase-stage-btn` (stage actions), `phrase-toggle-btn` (a `vf-btn` modifier) |
-| Scales | piano keyboard keys |
+| Scales | `kb-key`, `kb-marker` (the keyboard's keys and microtone markers, `piano-keyboard.css`) |
 | Shared panel | `pitch-test-btn` (panel internals), `history-play-btn` (history rows) |
 
 `tests/test-css-ownership.js` enforces that these page sheets never

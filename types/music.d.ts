@@ -257,6 +257,70 @@ interface StaffScrollViewConfig {
     liveMidi: () => number | null;
 }
 
+/**
+ * Input to PianoKeyboard.buildModel(): a key and the pitches one pass of
+ * a pattern plays. The board spans exactly these pitches plus
+ * PianoKeyboard.CONTEXT_DEGREES scale notes beyond each end.
+ */
+interface PianoKeyboardSpec {
+    /** Stored root name ("C", "A#"); spelled for display by the scale rules */
+    root: string;
+    octave: number;
+    scaleType: string;
+    /** Every pitch the pass plays, as MIDI (fractional for microtones) */
+    notes: number[];
+}
+
+/** One drawn pitch: a key, or a marker between keys for a microtone. */
+interface PianoKeyboardNote {
+    /** MIDI pitch (fractional for microtones) */
+    midi: number;
+    /** Center, in white-key widths from the board's left edge */
+    center: number;
+    /** Spelled pitch with octave, e.g. "Eb4" or "E4-50c" */
+    pitch: string;
+    /** 1-based scale degree, or null for a pitch outside the scale */
+    degree: number | null;
+    /** On the scale's root pitch class */
+    tonic: boolean;
+    /** Inside the played span (false for the context around it) */
+    inSpan: boolean;
+}
+
+interface PianoKeyboardKey extends PianoKeyboardNote {
+    black: boolean;
+    /** Left edge and width, in white-key widths */
+    left: number;
+    width: number;
+    /** Text on the key: the pitch with octave on C keys, the bare name elsewhere */
+    label: string;
+}
+
+interface PianoKeyboardModel {
+    /** Lowest and highest keys on the board (always white keys) */
+    lowMidi: number;
+    highMidi: number;
+    whiteCount: number;
+    /** The played span's lowest and highest pitches */
+    spanLow: number;
+    spanHigh: number;
+    /** The span bar's edges, in white-key widths */
+    spanLeft: number;
+    spanRight: number;
+    keys: PianoKeyboardKey[];
+    markers: PianoKeyboardNote[];
+    /** Markers sit far enough apart to carry degree labels */
+    markerLabels: boolean;
+}
+
+/** Contract for PianoKeyboard.create(). */
+interface PianoKeyboardConfig {
+    /** Host element id the board renders into */
+    hostId: string;
+    /** A key or marker was pressed */
+    onKeyPress: (midi: number) => void;
+}
+
 /** One horizontal reference line on a pitch trace. */
 interface RailLine {
     /** MIDI note number the rail sits on */

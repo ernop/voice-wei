@@ -140,23 +140,26 @@ function waitForScalesReady(tab) {
         const renderedSequence = await tab.evaluate(async () => {
             const c = window.scalesController;
             c.stopPlayback();
+            c.settings.root = 'C';
+            c.settings.scaleType = 'major';
             c.settings.octave = 4;
             c.settings.direction = 'both';
             c.settings.movementStyle = 'normal';
             c.settings.sectionLength = '1o';
             c.settings.repeatCount = 2;
+            c.settings.repeatGapMs = 0;
             c.settings.risingSemitones = 0;
             c.settings.noteLengthMs = 10;
             c.settings.gapMs = 0;
-            c.audio.sleep = async () => {};
             const played = [];
             const highlighted = [];
             const realPlayMidi = c.audio.piano.playMidi.bind(c.audio.piano);
-            const realHighlight = c.highlightPianoKey.bind(c);
+            const realShowSounding = c.showSounding.bind(c);
             const realSleep = c.audio.sleep;
+            c.audio.sleep = async () => {};
             c.audio.piano.playMidi = (midi, duration) => { played.push(midi); };
-            c.highlightPianoKey = midi => { highlighted.push(midi); };
-            await c.playScale('C', 'major', { direction: 'both', repeat: 2, repeatGapMs: 0 });
+            c.showSounding = midis => { highlighted.push(...midis); };
+            await c.playScale();
 
             const loopPlayed = [];
             const loopHighlighted = [];
@@ -164,11 +167,12 @@ function waitForScalesReady(tab) {
                 loopPlayed.push(midi);
                 if (loopPlayed.length >= 29) c.audio.stop();
             };
-            c.highlightPianoKey = midi => { loopHighlighted.push(midi); };
-            await c.playScale('C', 'major', { direction: 'both', repeat: Infinity, repeatGapMs: 0 });
+            c.showSounding = midis => { loopHighlighted.push(...midis); };
+            c.settings.repeatCount = Infinity;
+            await c.playScale();
 
             c.audio.piano.playMidi = realPlayMidi;
-            c.highlightPianoKey = realHighlight;
+            c.showSounding = realShowSounding;
             c.audio.sleep = realSleep;
             return {
                 count: played.length,
@@ -228,11 +232,16 @@ function waitForScalesReady(tab) {
             const realSleep = c.audio.sleep;
             c.audio.sleep = async () => {};
             c.audio.piano.playMidi = (midi) => { played.push(midi); };
+            c.settings.root = 'C';
+            c.settings.scaleType = 'rast';
             c.settings.octave = 4;
             c.settings.sectionLength = '1o';
-            await c.playScale('C', 'rast', { direction: 'ascending', repeat: 1 });
+            c.settings.direction = 'ascending';
+            c.settings.repeatCount = 1;
+            await c.playScale();
             c.audio.piano.playMidi = realPlayMidi;
             c.audio.sleep = realSleep;
+            c.settings.scaleType = 'major';
 
             return {
                 rastNames: rast.map(n => n.name).join(' '),
@@ -240,7 +249,6 @@ function waitForScalesReady(tab) {
                 quarterCount: quarter.length,
                 quarterStepRatio: quarter[1].freq / quarter[0].freq,
                 slendroSpelling: scaleMidiToPitchString('C', 4, 'slendro', 62.4),
-                neutralThirdName: c.getIntervalName(3.5, 'rast'),
                 chordFifthOnMicrotonalDegree: c.getDiatonicInterval(60, 63.5, 'fifth', 'rast'),
                 played: played.join(',')
             };
@@ -251,8 +259,8 @@ function waitForScalesReady(tab) {
         report.check(`microtonal quarter-tone scale has 25 degrees at 50-cent steps (${microtonal.quarterCount}, ratio ${microtonal.quarterStepRatio.toFixed(5)})`,
             microtonal.quarterCount === 25
             && Math.abs(microtonal.quarterStepRatio - Math.pow(2, 0.5 / 12)) < 1e-9);
-        report.check(`microtonal non-quarter offsets spell as cents (${microtonal.slendroSpelling}) and degrees name neutrals (${microtonal.neutralThirdName})`,
-            microtonal.slendroSpelling === 'D4+40c' && microtonal.neutralThirdName === 'neutral third');
+        report.check(`microtonal non-quarter offsets spell as cents (${microtonal.slendroSpelling})`,
+            microtonal.slendroSpelling === 'D4+40c');
         report.check(`microtonal chords movement finds the fifth above a neutral degree (${microtonal.chordFifthOnMicrotonalDegree})`,
             microtonal.chordFifthOnMicrotonalDegree === 70.5);
         report.check(`microtonal rast playback hits exact fractional midis (${microtonal.played})`,
@@ -287,6 +295,20 @@ function waitForScalesReady(tab) {
             chordsSing.railMin <= chordsSing.targetMin
             && chordsSing.railMax >= chordsSing.targetMax
             && chordsSing.everyTargetOnRail);
+
+        // Interval movements walk the scale any number of steps: a seventh
+        // down in a five-note scale wraps past the octave more than once.
+        const walks = await tab.evaluate(() => {
+            const c = window.scalesController;
+            const cPentatonic = [60, 62, 64, 67, 69, 72];
+            return {
+                down: c.scaleNotesFrom(60, cPentatonic, 6, -1).join(','),
+                up: c.scaleNotesFrom(69, cPentatonic, 6, 1).join(','),
+                offScale: c.scaleNotesFrom(61, cPentatonic, 2, 1).length
+            };
+        });
+        report.check(`scale walks wrap any number of steps (pentatonic down from C4 ${walks.down}; up from A4 ${walks.up})`,
+            walks.down === '57,55,52,50,48,45' && walks.up === '72,74,76,79,81,84' && walks.offScale === 0);
 
         // Ladder: overlapping rungs shifting one degree per rung.
         // Terminal ends play out (clip: 678, 78, 8); mid-cycle turnarounds
@@ -355,7 +377,7 @@ function waitForScalesReady(tab) {
             const realSleep = c.audio.sleep.bind(c.audio);
             c.audio.piano.playMidi = midi => { played.push(midi); };
             c.audio.sleep = async ms => { sleeps.push(ms); };
-            await c.playScale('C', 'major', c.buildModifiersFromSettings());
+            await c.playScale();
 
             // Forever-no-gap up+down: the seam reflects and gets the rung
             // gap, so cycle 2 continues the climb from the bottom.
@@ -369,7 +391,7 @@ function waitForScalesReady(tab) {
                 if (loopPlayed.length >= 43) c.audio.stop();
             };
             c.audio.sleep = async ms => { loopSleeps.push(ms); };
-            await c.playScale('C', 'major', c.buildModifiersFromSettings());
+            await c.playScale();
 
             c.audio.piano.playMidi = realPlayMidi;
             c.audio.sleep = realSleep;

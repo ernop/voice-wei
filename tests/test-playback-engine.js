@@ -230,7 +230,7 @@ const WAIT = { timeout: 10000, polling: 25 };
             navigator.mediaSession && navigator.mediaSession.metadata
             && navigator.mediaSession.metadata.title === 'Scales', undefined, WAIT);
         await tab.evaluate(instrumentVoices);
-        await tab.click('#againBtn');
+        await tab.click('#playBtn');
         // Change the root only after playback is audibly in progress (a
         // voice has started). At default settings (0.3s notes, no gap,
         // 0.25s damper) voices overlap, so an old-settings voice is
@@ -285,7 +285,7 @@ const WAIT = { timeout: 10000, polling: 25 };
         check('scales chop head button reflects persisted setting', chopOnSelected === true);
 
         await tab.evaluate(instrumentVoices);
-        await tab.click('#againBtn');
+        await tab.click('#playBtn');
         // Completion: all 36 voices, then a quiet gap longer than the
         // 300ms pass gap (100ms note + 200ms repeat gap) so a 37th voice
         // or an extra pass would have shown up before we read the trace.

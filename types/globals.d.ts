@@ -59,11 +59,12 @@ interface Window {
     PlayerApiKeys?: any;
     AppVersion?: { current: string };
     PracticeAudio?: any;
-    ScalesPlayback?: { AudioCoordinator: new () => any };
+    ScalesPlayback?: { AudioCoordinator: typeof ScalesAudioCoordinator };
     ScalesVoiceMaps?: {
         normalizeScaleNoteName: (spoken: string | null | undefined) => string | null;
         normalizeScaleModifier: (spoken: string | null | undefined) => string | null;
         normalizeScaleTypeName: (spoken: string) => string;
+        spokenPitchClassName: (letter: string, modifier: string | null) => string;
         NOTE_PHONETIC_MAP: Record<string, string>;
         MODIFIER_PHONETIC_MAP: Record<string, string>;
     };
@@ -115,6 +116,7 @@ interface Window {
             notes: () => PhrasePlanNote[];
         }) => { draw: () => void; clear: () => void };
     };
+    PianoKeyboard?: typeof PianoKeyboard;
     StaffScrollView?: {
         create: (config: StaffScrollViewConfig) => {
             render: () => void;

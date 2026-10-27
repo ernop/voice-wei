@@ -29,6 +29,7 @@ const PARALLEL_SUITES = [
     'test-pages-load.js',
     'test-player-playlist.js',
     'test-player-ui.js',
+    'test-scales-keyboard.js',
     'test-scales-trace.js',
     'test-player-search.js',
     'test-player-youtube.js',
@@ -40,6 +41,7 @@ const PARALLEL_SUITES = [
     'test-find-puzzle.js',
     'test-syntax.js',
     'test-css-ownership.js',
+    'test-display-rules.js',
     'test-media-player.js'
 ];
 
