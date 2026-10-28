@@ -119,9 +119,9 @@ const PlayerSongLibrary = (function () {
 
                 // One line per song: [star] Title - format - notes - length - bpm - file - lyrics ... [Play]
                 list.innerHTML = songs.map(song => `
-                    <article class="song-library-card" data-song-id="${this.escapeHtml(song.id)}">
-                        <button class="favorite-btn ${song.favorite ? 'favorited' : ''}" type="button" data-song-action="favorite" aria-pressed="${song.favorite}" aria-label="${song.favorite ? 'Unstar' : 'Star'} ${this.escapeHtml(song.title)}">${song.favorite ? '\u2605' : '\u2606'}</button>
-                        <span class="song-library-main"><span class="song-library-title">${this.escapeHtml(song.title)}</span><span class="song-library-meta">${song.sourceType.toUpperCase()} - ${song.noteCount} notes - ${formatMs(song.durationMs)} - ${Math.round(song.tempoBpm)} bpm</span><span class="song-library-source">${this.escapeHtml(song.sourceName)}</span>${song.lyricsText ? `<span class="song-library-lyrics">${this.escapeHtml(firstWords(song.lyricsText, 18))}</span>` : ''}</span>
+                    <article class="song-library-card" data-song-id="${escapeHtml(song.id)}">
+                        <button class="favorite-btn ${song.favorite ? 'favorited' : ''}" type="button" data-song-action="favorite" aria-pressed="${song.favorite}" aria-label="${song.favorite ? 'Unstar' : 'Star'} ${escapeHtml(song.title)}">${song.favorite ? '\u2605' : '\u2606'}</button>
+                        <span class="song-library-main"><span class="song-library-title">${escapeHtml(song.title)}</span><span class="song-library-meta">${song.sourceType.toUpperCase()} - ${song.noteCount} notes - ${formatMs(song.durationMs)} - ${Math.round(song.tempoBpm)} bpm</span><span class="song-library-source">${escapeHtml(song.sourceName)}</span>${song.lyricsText ? `<span class="song-library-lyrics">${escapeHtml(firstWords(song.lyricsText, 18))}</span>` : ''}</span>
                         <button class="secondary-btn song-library-play" type="button" data-song-action="play">Play</button>
                     </article>
                 `).join('');

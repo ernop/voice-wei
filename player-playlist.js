@@ -904,9 +904,9 @@ const PlayerPlaylist = (function () {
             playlistItemRowHtml(item) {
                 const isFav = this.isFavorite(item.videoId);
                 const marker = this.lyricsRowMarker(item);
-                const videoId = this.escapeHtml(item.videoId);
-                const markerAria = this.escapeHtml(marker.aria);
-                const name = this.escapeHtml(item.name);
+                const videoId = escapeHtml(item.videoId);
+                const markerAria = escapeHtml(marker.aria);
+                const name = escapeHtml(item.name);
                 return `
                     <div class="playlist-row" data-item-id="${item.id}" data-video-id="${videoId}">
                         <div class="playlist-row-leading">
@@ -914,8 +914,8 @@ const PlayerPlaylist = (function () {
                             <button class="lyrics-row-btn ${marker.className}" type="button" data-item-id="${item.id}" aria-label="${markerAria}" title="${markerAria}">${marker.label}</button>
                         </div>
                         <span class="playlist-song-name">${name}</span>
-                        <span class="playlist-row-meta"><span class="playlist-song-artist">${this.escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${this.escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${this.escapeHtml(item.album)}</span>` : ''}${item.comment ? `<span class="playlist-song-comment" title="${this.escapeHtml(item.comment)}">${this.escapeHtml(item.comment)}</span>` : ''}</span>
-                        <span class="playlist-song-duration">${this.escapeHtml(item.duration || '--:--')}</span>
+                        <span class="playlist-row-meta"><span class="playlist-song-artist">${escapeHtml(item.artist)}</span>${item.year ? `<span class="playlist-song-year">${escapeHtml(item.year)}</span>` : ''}${item.album ? `<span class="playlist-song-album">${escapeHtml(item.album)}</span>` : ''}${item.comment ? `<span class="playlist-song-comment" title="${escapeHtml(item.comment)}">${escapeHtml(item.comment)}</span>` : ''}</span>
+                        <span class="playlist-song-duration">${escapeHtml(item.duration || '--:--')}</span>
                         <button class="playlist-remove-btn" type="button" aria-label="Remove ${name} from playlist">\u2715</button>
                     </div>
                 `;
@@ -2118,16 +2118,6 @@ const PlayerPlaylist = (function () {
                     const row = document.querySelector(`[data-item-id="${current.id}"]`);
                     if (row) row.classList.add('playing');
                 }
-            },
-
-            escapeHtml(text) {
-                return String(text).replace(/[&<>"']/g, character => ({
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                })[character]);
             },
 
             currentPlaylistItem() {

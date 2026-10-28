@@ -37,7 +37,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
             const harness = {
                 favorites: {},
                 isFavorite() { return false; },
-                escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
                 lyricsRowMarker(item) {
                     return item.lyricsStatus === 'ready'
@@ -114,7 +113,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 playlist: [],
                 playedIds: /** @type {number[]} */ ([]),
                 isFavorite() { return false; },
-                escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
                 playVideo(item) { this.playedIds.push(item.id); },
                 lyricsRowMarker(item) {
@@ -180,7 +178,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                     nowPlayingShowsText: false,
                     settings: { lyricsOnNowPlaying: false, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
-                    escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
                     addMessage() {},
                     updateStatus() {},
@@ -300,7 +297,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                     nowPlayingShowsText: false,
                     settings: { lyricsOnNowPlaying: false, songDisplayMode: 'identity', songReportIntervalSeconds: 8 },
                     isFavorite() { return false; },
-                    escapeHtml(value) { return String(value || ''); },
                     truncateForStatus(value) { return String(value || ''); },
                     addMessage() {},
                     updateStatus() {},
@@ -1138,7 +1134,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 lyricsLookupsInFlight: new Map(),
                 youtubeAlternateResults: new Map(),
                 isFavorite(videoId) { return !!this.favorites[videoId]; },
-                escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
                 lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
                 updateStatus() {},
@@ -1217,7 +1212,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 playlist: [],
                 settings: { showSongNotes: false, playlistTimedOnly: false },
                 isFavorite() { return false; },
-                escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
                 lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
                 saveSettings() {}
@@ -1391,8 +1385,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                         lyricLines: [],
                         notes: [{ midi: 62, startMs: 0, endMs: 1000 }]
                     }]
-                },
-                escapeHtml(value) { return String(value || ''); }
+                }
             };
             PlayerSongLibrary.install(harness);
             const input = document.getElementById('songLibrarySearch');

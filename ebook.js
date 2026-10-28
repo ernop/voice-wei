@@ -705,7 +705,7 @@ class BooksController {
     populateTtsModelOptions() {
         for (const modelEl of this.getTtsModelSelects()) {
             modelEl.innerHTML = OPENAI_TTS_MODELS
-                .map(model => `<option value="${this.escapeHtml(model.id)}">${this.escapeHtml(model.label)} · ${this.escapeHtml(model.price)}</option>`)
+                .map(model => `<option value="${escapeHtml(model.id)}">${escapeHtml(model.label)} · ${escapeHtml(model.price)}</option>`)
                 .join('');
         }
     }
@@ -714,7 +714,7 @@ class BooksController {
         const voices = this.getVoicesForModel(this.settings.model);
         for (const voiceEl of this.getTtsVoiceSelects()) {
             voiceEl.innerHTML = voices
-                .map(voice => `<option value="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)} - ${this.escapeHtml(voice.description)}</option>`)
+                .map(voice => `<option value="${escapeHtml(voice.id)}">${escapeHtml(voice.label)} - ${escapeHtml(voice.description)}</option>`)
                 .join('');
         }
     }
@@ -722,7 +722,7 @@ class BooksController {
     populateTtsAccentOptions() {
         for (const accentEl of this.getTtsAccentSelects()) {
             accentEl.innerHTML = OPENAI_TTS_ACCENTS
-                .map(accent => `<option value="${this.escapeHtml(accent.id)}">${this.escapeHtml(accent.label)}</option>`)
+                .map(accent => `<option value="${escapeHtml(accent.id)}">${escapeHtml(accent.label)}</option>`)
                 .join('');
         }
     }
@@ -730,7 +730,7 @@ class BooksController {
     populateTtsStyleOptions() {
         for (const styleEl of this.getTtsStyleSelects()) {
             styleEl.innerHTML = OPENAI_TTS_STYLES
-                .map(style => `<option value="${this.escapeHtml(style.id)}">${this.escapeHtml(style.label)}</option>`)
+                .map(style => `<option value="${escapeHtml(style.id)}">${escapeHtml(style.label)}</option>`)
                 .join('');
         }
     }
@@ -854,7 +854,7 @@ class BooksController {
         grid.innerHTML = voices.map(voice => {
             const selected = voice.id === this.settings.voice ? ' selected' : '';
             const playing = voice.id === this.voiceSampleVoice && this.voiceSampleAudio && !this.voiceSampleAudio.paused ? ' playing' : '';
-            return `<button class="vf-btn${selected}${playing}" type="button" data-voice-sample="${this.escapeHtml(voice.id)}">${this.escapeHtml(voice.label)}</button>`;
+            return `<button class="vf-btn${selected}${playing}" type="button" data-voice-sample="${escapeHtml(voice.id)}">${escapeHtml(voice.label)}</button>`;
         }).join('');
     }
 
@@ -1410,9 +1410,9 @@ class BooksController {
             return;
         }
         list.innerHTML = this.researchEntries.map(record => `
-            <button class="ai-research-history-item" type="button" data-research-id="${this.escapeHtml(record.id)}">
-                <span>${this.escapeHtml(record.question)}</span>
-                <small>${this.escapeHtml(new Date(record.timestamp).toLocaleString())}</small>
+            <button class="ai-research-history-item" type="button" data-research-id="${escapeHtml(record.id)}">
+                <span>${escapeHtml(record.question)}</span>
+                <small>${escapeHtml(new Date(record.timestamp).toLocaleString())}</small>
             </button>
         `).join('');
     }
@@ -1964,13 +1964,13 @@ class BooksController {
             const audioPercent = this.getBookGeneratedPercent(book);
             const generatedText = `${this.formatDuration(book.generatedDurationSec || 0)} ready`;
             return `
-                <button class="saved-book-item${selectedClass}" type="button" data-book-id="${this.escapeHtml(book.id)}">
+                <button class="saved-book-item${selectedClass}" type="button" data-book-id="${escapeHtml(book.id)}">
                     <div class="saved-book-main">
-                        <span class="saved-book-title">${this.escapeHtml(book.title)}</span>
-                        <span class="saved-book-author">${this.escapeHtml(book.author || 'Unknown author')}</span>
+                        <span class="saved-book-title">${escapeHtml(book.title)}</span>
+                        <span class="saved-book-author">${escapeHtml(book.author || 'Unknown author')}</span>
                     </div>
                     <div class="saved-book-side">
-                        <span class="saved-book-meta"><span>Read ${readPercent}%</span><span>Audio ${audioPercent}%</span>${this.formatDurationHtml(book.estimatedDurationSec)}<span>${this.escapeHtml(generatedText)}</span></span>
+                        <span class="saved-book-meta"><span>Read ${readPercent}%</span><span>Audio ${audioPercent}%</span>${this.formatDurationHtml(book.estimatedDurationSec)}<span>${escapeHtml(generatedText)}</span></span>
                     </div>
                     <span class="saved-book-progress-bars" title="Read ${readPercent}%, audio ${audioPercent}%">
                         <span class="saved-book-progress read"><span class="saved-book-progress-fill" style="width: ${readPercent}%"></span></span>
@@ -2179,8 +2179,8 @@ class BooksController {
         const truncatedNote = page.truncated ? ' (page text was truncated)' : '';
         const count = page.links.length;
         current.innerHTML = [
-            `<div class="url-import-pagehead"><strong>${this.escapeHtml(page.title)}</strong>`,
-            `<a href="${this.escapeHtml(page.url)}" target="_blank" rel="noopener">${this.escapeHtml(page.url)}</a></div>`,
+            `<div class="url-import-pagehead"><strong>${escapeHtml(page.title)}</strong>`,
+            `<a href="${escapeHtml(page.url)}" target="_blank" rel="noopener">${escapeHtml(page.url)}</a></div>`,
             `<p>This page becomes the contents chapter${truncatedNote}. Choose which of its ${count} link${count === 1 ? '' : 's'} to download as their own chapters, then Submit. Everything downloads in the background.</p>`
         ].join('');
 
@@ -2189,10 +2189,10 @@ class BooksController {
         } else {
             linksWrap.innerHTML = page.links.map((link, index) => {
                 const label = link.text || link.url;
-                return `<label class="url-import-link" data-link-text="${this.escapeHtml((link.text + ' ' + link.url).toLowerCase())}">`
-                    + `<input type="checkbox" checked data-link-url="${this.escapeHtml(link.url)}" id="urlImportLink${index}" />`
-                    + `<span class="url-import-link-text">${this.escapeHtml(label)}</span>`
-                    + `<span class="url-import-link-url">${this.escapeHtml(link.url)}</span>`
+                return `<label class="url-import-link" data-link-text="${escapeHtml((link.text + ' ' + link.url).toLowerCase())}">`
+                    + `<input type="checkbox" checked data-link-url="${escapeHtml(link.url)}" id="urlImportLink${index}" />`
+                    + `<span class="url-import-link-text">${escapeHtml(label)}</span>`
+                    + `<span class="url-import-link-url">${escapeHtml(link.url)}</span>`
                     + `</label>`;
             }).join('');
         }
@@ -2878,7 +2878,7 @@ class BooksController {
             while (node && node !== headings[i + 1]) {
                 text += `\n${node.textContent || ''}`;
                 if (node instanceof Element) html += node.outerHTML;
-                else html += this.escapeHtml(node.textContent || '');
+                else html += escapeHtml(node.textContent || '');
                 node = node.nextSibling;
             }
             sections.push({ title: heading.textContent?.trim() || `Section ${i + 1}`, text, html });
@@ -3128,15 +3128,15 @@ class BooksController {
                 : sectionSegments.map(segment => {
                     const statusClass = this.isSegmentPlayable(segment) ? ' generated' : segment.status === 'generating' ? ' generating' : '';
                     const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
-                    return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
+                    return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${escapeHtml(segment.id)}">${this.highlightText(segment.text, query)}</span>`;
                 }).join('');
             const segmentHtml = sectionSegments.map(segment => {
                 const statusClass = this.isSegmentPlayable(segment) ? ' generated' : segment.status === 'generating' ? ' generating' : '';
                 const currentClass = segment.id === this.currentSegmentId ? ' current' : '';
-                return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${this.escapeHtml(segment.id)}">${this.highlight(this.escapeHtml(segment.text), query)}</span>`;
+                return `<span class="reader-segment${statusClass}${currentClass}" data-segment-id="${escapeHtml(segment.id)}">${this.highlightText(segment.text, query)}</span>`;
             }).join('');
             const audioMap = section.html ? `<div class="reader-audio-segments">${segmentHtml}</div>` : '';
-            return `<section class="reader-section" id="reader-${this.escapeHtml(section.id)}"><h3>${this.escapeHtml(this.getChapterLabel(section))}</h3>${readerBody}${audioMap}</section>`;
+            return `<section class="reader-section" id="reader-${escapeHtml(section.id)}"><h3>${escapeHtml(this.getChapterLabel(section))}</h3>${readerBody}${audioMap}</section>`;
         }).join('');
     }
 
@@ -3146,7 +3146,7 @@ class BooksController {
         select.innerHTML = this.sections.map(section => {
             const progress = this.getSectionAudioProgress(section.id);
             const label = `${this.getChapterLabel(section)} · ${this.formatDuration(progress.generatedSec)} / ${this.formatDuration(progress.totalSec)} generated`;
-            return `<option value="${this.escapeHtml(section.id)}">${this.escapeHtml(label)}</option>`;
+            return `<option value="${escapeHtml(section.id)}">${escapeHtml(label)}</option>`;
         }).join('');
         const currentSectionId = this.getCurrentSectionId();
         if (currentSectionId) select.value = currentSectionId;
@@ -3183,12 +3183,12 @@ class BooksController {
                     segment.id === this.currentSegmentId ? 'current' : ''
                 ].filter(Boolean).join(' ');
                 const label = `Audio part ${segment.sectionSegmentIndex + 1}: ${segment.status}`;
-                return `<button class="${classes}" type="button" data-segment-id="${this.escapeHtml(segment.id)}" title="${this.escapeHtml(label)}">${segment.sectionSegmentIndex + 1}</button>`;
+                return `<button class="${classes}" type="button" data-segment-id="${escapeHtml(segment.id)}" title="${escapeHtml(label)}">${segment.sectionSegmentIndex + 1}</button>`;
             }).join('');
             return `
                 <div class="chapter-status-item">
                     <div class="chapter-status-top">
-                        <strong>${this.escapeHtml(this.getChapterLabel(section))}</strong>
+                        <strong>${escapeHtml(this.getChapterLabel(section))}</strong>
                         <span>${this.formatDuration(progress.generatedSec)} / ${this.formatDuration(progress.totalSec)} generated · ${progress.percent}%</span>
                     </div>
                     <div class="chapter-status-track"><span style="width: ${progress.percent}%"></span></div>
@@ -4607,7 +4607,7 @@ class BooksController {
         const minutes = totalMinutes % 60;
         const label = this.formatDuration(seconds);
         return `
-            <span class="duration-value" aria-label="${this.escapeHtml(label)}">
+            <span class="duration-value" aria-label="${escapeHtml(label)}">
                 <span class="duration-number">${this.formatPaddedNumberHtml(hours, 2)}</span><span class="duration-unit">h</span>
                 <span class="duration-number">${this.formatPaddedNumberHtml(minutes, 2)}</span><span class="duration-unit">m</span>
             </span>
@@ -4619,7 +4619,7 @@ class BooksController {
         const text = String(Math.max(0, Math.floor(value)));
         const padLength = Math.max(0, width - text.length);
         const pad = Array.from({ length: padLength }, () => '<span class="numeric-placeholder">0</span>').join('');
-        return `${pad}${this.escapeHtml(text)}`;
+        return `${pad}${escapeHtml(text)}`;
     }
 
     /** @param {number} value */
@@ -4673,18 +4673,17 @@ class BooksController {
         return value.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'book';
     }
 
-    /** @param {string} text */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /** @param {string} escapedHtml @param {string} query */
-    highlight(escapedHtml, query) {
-        if (!query) return escapedHtml;
-        const escapedQuery = this.escapeRegExp(this.escapeHtml(query));
-        return escapedHtml.replace(new RegExp(`(${escapedQuery})`, 'gi'), '<mark>$1</mark>');
+    /**
+     * Escaped markup for text with every match of query wrapped in <mark>.
+     * Matching runs on the raw text, so a query never lands inside an
+     * entity such as &amp;.
+     * @param {string} text @param {string} query
+     */
+    highlightText(text, query) {
+        if (!query) return escapeHtml(text);
+        return text.split(new RegExp(`(${this.escapeRegExp(query)})`, 'gi'))
+            .map((part, index) => index % 2 ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part))
+            .join('');
     }
 
     /** @param {string} value */
@@ -4773,14 +4772,14 @@ class BooksController {
         }
         const dayRows = Array.from(byDay.entries()).slice(0, 7).map(([day, totals]) => {
             const wpm = totals.read > 30 && totals.words > 0 ? ` · read ~${Math.round(totals.words / (totals.read / 60))} wpm` : '';
-            return `<div>${this.escapeHtml(day)}: listened ${this.formatDuration(totals.listened)} · read ${this.formatDuration(totals.read)}${wpm} · ${totals.events} events</div>`;
+            return `<div>${escapeHtml(day)}: listened ${this.formatDuration(totals.listened)} · read ${this.formatDuration(totals.read)}${wpm} · ${totals.events} events</div>`;
         });
         summaryEl.innerHTML = dayRows.length ? dayRows.join('') : '<div>No history yet.</div>';
         listEl.innerHTML = this.historyEntries.slice(0, 120).map(entry => {
             const date = new Date(entry.timestamp);
             const section = entry.sectionId ? this.getSectionTitle(entry.sectionId) : 'Book';
             const segment = entry.segmentIndex >= 0 ? `seg ${entry.segmentIndex + 1}` : '';
-            return `<div class="history-item">${this.escapeHtml(date.toLocaleString())} · ${this.escapeHtml(entry.action)} · ${this.escapeHtml(section)} ${this.escapeHtml(segment)} · ${this.escapeHtml(entry.detail)}</div>`;
+            return `<div class="history-item">${escapeHtml(date.toLocaleString())} · ${escapeHtml(entry.action)} · ${escapeHtml(section)} ${escapeHtml(segment)} · ${escapeHtml(entry.detail)}</div>`;
         }).join('');
     }
 

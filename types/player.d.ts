@@ -616,7 +616,6 @@ interface PlayerController {
     clearPlaylist(): void;
     persistPlaylist(): void;
     restoreSavedPlaylist(): void;
-    escapeHtml(text: string): string;
     currentPlaylistItem(): PlaylistItem | null;
     shareLinkForItem(item: PlaylistItem): string;
     copyCurrentSongShareLink(): Promise<void>;

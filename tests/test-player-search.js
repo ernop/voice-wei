@@ -543,7 +543,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 messages: [],
                 searchedTerms: [],
                 rerunRequest: '',
-                escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); },
                 truncateForStatus(value) { return String(value || ''); },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus(message) { this.statuses.push(message); },
@@ -607,7 +606,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 knownSongsQuery: '',
                 statuses: [],
                 messages: [],
-                escapeHtml(value) { return String(value || ''); },
                 truncateForStatus(value) { return String(value || ''); },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 updateStatus(message) { this.statuses.push(message); },
@@ -679,7 +677,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 messages: [],
                 updateStatus(message) { this.statuses.push(message); },
                 truncateForStatus(value) { return String(value || ''); },
-                escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 async refreshMusicHistoryPanel() {}
             };
@@ -1369,7 +1366,6 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 favorites: {},
                 messages: [],
                 isFavorite() { return false; },
-                escapeHtml(value) { return String(value || ''); },
                 showLyricsForItem() {},
                 lyricsRowMarker() { return { label: '\u00b7', className: '', aria: 'Get lyrics' }; },
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }

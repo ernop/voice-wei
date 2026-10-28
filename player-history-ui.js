@@ -69,7 +69,7 @@ const PlayerHistoryUI = (function () {
                     item.className = 'music-history-item';
                     item.innerHTML = `
                         <input type="checkbox" data-history-lookup-id="${record.id}" aria-label="Select lookup">
-                        <span class="music-history-item-text" title="${this.escapeHtml(record.requestText || '')}"><span class="music-history-item-title">${this.escapeHtml(this.truncateForStatus(record.requestText || '(no request)', 90))}</span><span class="music-history-item-meta">${record.songCount || 0} extracted - ${this.escapeHtml(record.provider || 'unknown')} - ${this.escapeHtml(record.createdAt || '')}</span></span>
+                        <span class="music-history-item-text" title="${escapeHtml(record.requestText || '')}"><span class="music-history-item-title">${escapeHtml(this.truncateForStatus(record.requestText || '(no request)', 90))}</span><span class="music-history-item-meta">${record.songCount || 0} extracted - ${escapeHtml(record.provider || 'unknown')} - ${escapeHtml(record.createdAt || '')}</span></span>
                         <span class="music-history-item-actions">
                             <button class="panel-action-btn" type="button" data-load-lookup-id="${record.id}">Load</button>
                             <button class="panel-action-btn" type="button" data-rerun-lookup-id="${record.id}">Run Again</button>
@@ -110,10 +110,10 @@ const PlayerHistoryUI = (function () {
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
-                        <input type="checkbox" data-history-song-id="${this.escapeHtml(record.videoId)}" aria-label="Select song">
-                        <span class="music-history-item-text"><span class="music-history-item-title">${this.escapeHtml(title)}</span><span class="music-history-item-meta">${this.escapeHtml(artist)} - ${this.escapeHtml(record.sourceKind || 'known')} - ${this.escapeHtml(record.lastSeenAt || '')}</span></span>
+                        <input type="checkbox" data-history-song-id="${escapeHtml(record.videoId)}" aria-label="Select song">
+                        <span class="music-history-item-text"><span class="music-history-item-title">${escapeHtml(title)}</span><span class="music-history-item-meta">${escapeHtml(artist)} - ${escapeHtml(record.sourceKind || 'known')} - ${escapeHtml(record.lastSeenAt || '')}</span></span>
                         <span class="music-history-item-actions">
-                            <button class="panel-action-btn" type="button" data-load-song-id="${this.escapeHtml(record.videoId)}">Load</button>
+                            <button class="panel-action-btn" type="button" data-load-song-id="${escapeHtml(record.videoId)}">Load</button>
                         </span>`;
                     host.appendChild(item);
                 });
@@ -134,10 +134,10 @@ const PlayerHistoryUI = (function () {
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
-                        <span class="music-history-item-text"><span class="music-history-item-title">${this.escapeHtml(record.query || record.queryKey)}</span><span class="music-history-item-meta">${record.resultCount || 0} results - ${this.escapeHtml(record.source || 'cache')} - ${this.escapeHtml(record.updatedAt || '')}</span></span>
+                        <span class="music-history-item-text"><span class="music-history-item-title">${escapeHtml(record.query || record.queryKey)}</span><span class="music-history-item-meta">${record.resultCount || 0} results - ${escapeHtml(record.source || 'cache')} - ${escapeHtml(record.updatedAt || '')}</span></span>
                         <span class="music-history-item-actions">
-                            <button class="panel-action-btn" type="button" data-use-cache-query="${this.escapeHtml(record.query || '')}">Use First</button>
-                            <button class="panel-action-btn" type="button" data-refresh-cache-query="${this.escapeHtml(record.query || '')}">Refresh</button>
+                            <button class="panel-action-btn" type="button" data-use-cache-query="${escapeHtml(record.query || '')}">Use First</button>
+                            <button class="panel-action-btn" type="button" data-refresh-cache-query="${escapeHtml(record.query || '')}">Refresh</button>
                         </span>`;
                     host.appendChild(item);
                 });

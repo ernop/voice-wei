@@ -450,6 +450,38 @@ async function seedFrontMatterBook(page) {
     }
 
     {
+        // Imported pages and books supply link text and titles that land in
+        // quoted attributes; a quote must stay text, never end the attribute.
+        const page = await browser.newPage();
+        collectErrors(page, 'books-escaping', report.errors);
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
+        const escaping = await page.evaluate(() => {
+            const hostile = 'Say "hi" onmouseover="window.__booksInjected=1" x=\'';
+            const importHost = {
+                urlImport: { rootPage: { title: 'Page', url: 'https://example.test/', truncated: false, links: [{ text: hostile, url: 'https://example.test/a' }] } },
+                showUrlImportMode() {}
+            };
+            BooksController.prototype.renderUrlImportSelection.call(importHost);
+            const label = document.querySelector('#urlImportLinks .url-import-link');
+            const highlightHost = { escapeRegExp: BooksController.prototype.escapeRegExp };
+            return {
+                labelAttributes: label ? label.getAttributeNames().join(',') : '',
+                linkText: label?.getAttribute('data-link-text') || '',
+                shownText: label?.querySelector('.url-import-link-text')?.textContent || '',
+                noEntityMatch: BooksController.prototype.highlightText.call(highlightHost, 'Tom & Jerry', 'amp'),
+                quoteMatch: BooksController.prototype.highlightText.call(highlightHost, 'say "hi" now', '"hi"')
+            };
+        });
+        report.check('books keep quotes in imported text as text, and search never matches inside an entity',
+            escaping.labelAttributes === 'class,data-link-text'
+            && escaping.linkText.startsWith('say "hi" onmouseover="window.__booksinjected=1"')
+            && escaping.shownText.startsWith('Say "hi" onmouseover=')
+            && escaping.noEntityMatch === 'Tom &amp; Jerry'
+            && escaping.quoteMatch === 'say <mark>&quot;hi&quot;</mark> now');
+        await page.close();
+    }
+
+    {
         const page = await browser.newPage();
         collectErrors(page, 'books-sentence-boundaries', report.errors);
         await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });

@@ -223,7 +223,7 @@ const PlayerYouTubeLists = (function () {
 
     /** @param {PlayerController} controller @param {YouTubeListVideo} video @param {YouTubeVideoList} list */
     function videoRowHtml(controller, video, list) {
-        const esc = (/** @type {string} */ text) => controller.escapeHtml(text);
+        const esc = (/** @type {string} */ text) => escapeHtml(text);
         const channel = videoChannel(video, list);
         return `<label class="youtube-list-row" data-video-id="${esc(video.videoId)}">`
             + `<input type="checkbox" data-youtube-pick="${esc(video.videoId)}"${list.picked.has(video.videoId) ? ' checked' : ''} aria-label="Pick ${esc(video.title)}">`
@@ -236,7 +236,7 @@ const PlayerYouTubeLists = (function () {
 
     /** @param {PlayerController} controller @param {YouTubeListPlaylist} playlist @param {string} owner */
     function playlistRowHtml(controller, playlist, owner) {
-        const esc = (/** @type {string} */ text) => controller.escapeHtml(text);
+        const esc = (/** @type {string} */ text) => escapeHtml(text);
         const count = playlist.videoCount === null ? ''
             : `<span class="youtube-list-row-count"><span class="youtube-list-value">${formatCount(playlist.videoCount)}</span> video${playlist.videoCount === 1 ? '' : 's'}</span>`;
         return `<div class="youtube-list-row youtube-list-playlist-row" data-playlist-id="${esc(playlist.playlistId)}">`
@@ -279,7 +279,7 @@ const PlayerYouTubeLists = (function () {
     /** The one-line status: counts as the most legible values, then any activity or problem. @param {PlayerController} controller @param {YouTubeListState} state */
     function statusHtml(controller, state) {
         const value = (/** @type {number} */ count) => `<span class="youtube-list-value">${formatCount(count)}</span>`;
-        const problem = (/** @type {string} */ text) => `<span class="youtube-list-error">${controller.escapeHtml(text)}</span>`;
+        const problem = (/** @type {string} */ text) => `<span class="youtube-list-error">${escapeHtml(text)}</span>`;
         if (state.error) return problem(state.error);
         const list = shownList(state);
         if (!list) return `Opening the ${state.link.kind}...`;
@@ -299,7 +299,7 @@ const PlayerYouTubeLists = (function () {
             if (state.filter) parts.push(`${value(list.playlists.filter(playlist => playlistMatches(playlist, state.filter)).length)} shown`);
         }
         if (list.loading) parts.push(list.loaded ? 'loading more...' : 'loading...');
-        if (list.note) parts.push(controller.escapeHtml(list.note));
+        if (list.note) parts.push(escapeHtml(list.note));
         if (list.error) parts.push(problem(list.error));
         return parts.join(' \u00b7 ');
     }
@@ -344,7 +344,7 @@ const PlayerYouTubeLists = (function () {
         if (sections) {
             sections.hidden = state.sections.length === 0;
             sections.innerHTML = state.sections.map(section =>
-                `<button class="vf-btn" type="button" data-youtube-section="${controller.escapeHtml(section.key)}">${controller.escapeHtml(section.title)}</button>`).join('');
+                `<button class="vf-btn" type="button" data-youtube-section="${escapeHtml(section.key)}">${escapeHtml(section.title)}</button>`).join('');
             PracticeControls.syncSingleSelect('data-youtube-section', state.sectionKey);
         }
         setVisible('youtubeListSubheader', Boolean(state.backKey));

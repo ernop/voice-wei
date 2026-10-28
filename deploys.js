@@ -212,16 +212,6 @@ const DeployTelemetry = (function () {
         });
     }
 
-    function escapeHtml(value) {
-        return String(value || '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        }[ch] || ch));
-    }
-
     function renderSummary(rows) {
         const summary = el('deploySummary');
         if (!summary) return;
