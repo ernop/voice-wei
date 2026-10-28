@@ -155,13 +155,11 @@ main {
 .message-label {
     font-weight: 600;
     font-size: 0.75rem;
-    opacity: 0.8;
     margin-bottom: 4px;
 }
 
 .message-text {
     font-size: 0.85rem;
-    opacity: 0.95;
 }
 
 header {
@@ -400,7 +398,6 @@ h1 {
 
 .subtitle {
     font-size: 1rem;
-    opacity: 0.9;
 }
 
 .status {
@@ -452,7 +449,7 @@ h1 {
 
 .deploy-header p,
 .deploy-summary {
-    color: rgba(232, 245, 233, 0.72);
+    color: #fff;
     font-size: 0.9rem;
 }
 
@@ -521,7 +518,7 @@ h1 {
     padding: 8px 10px;
     border-bottom: 1px solid rgba(74, 222, 128, 0.1);
     text-align: left;
-    color: #e8f5e9;
+    color: #fff;
 }
 
 .deploy-table th {
@@ -532,7 +529,7 @@ h1 {
 }
 
 .deploy-row-failed td {
-    color: #fecaca;
+    color: #fca5a5;
 }
 
 /* Deploys action button (retires into secondary-btn with that page's own pass) */
@@ -686,7 +683,8 @@ h1 {
 }
 
 .api-key-input::placeholder {
-    color: rgba(232, 245, 233, 0.4);
+    color: #fff;
+    font-style: italic;
 }
 
 .api-key-actions {
@@ -768,7 +766,7 @@ h1 {
     flex: 1;
     padding: 12px 20px;
     background: rgba(74, 222, 128, 0.1);
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
     border: 1px solid rgba(74, 222, 128, 0.2);
     font-size: 1rem;
     font-weight: 600;
@@ -801,7 +799,7 @@ h1 {
 
 .provider-hint {
     font-size: 0.9rem;
-    color: rgba(232, 245, 233, 0.8);
+    color: #fff;
     margin-bottom: 12px;
 }
 
@@ -854,7 +852,7 @@ h1 {
     padding: 14px 18px;
     background: #7f1d1d;
     border-bottom: 2px solid #fca5a5;
-    color: #fef2f2;
+    color: #fff;
     font-weight: 700;
     text-align: center;
 }

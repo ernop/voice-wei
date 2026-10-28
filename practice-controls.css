@@ -856,11 +856,22 @@ body:has(.pitch-test-dock) {
     color: #fff;
 }
 
-/* Told apart from the description by size and italics, not dimming */
-.history-transcript {
-    font-size: 0.75rem;
-    color: #fff;
-    font-style: italic;
+/* A history row is one line: description, degrees, note names, time.
+   On a narrow screen the note names give way first, with an ellipsis. */
+.history-degrees {
+    flex: 0 0 auto;
+    color: #86efac;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    white-space: nowrap;
+}
+
+.history-notes {
+    min-width: 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .history-time {

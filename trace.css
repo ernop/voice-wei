@@ -24,7 +24,7 @@
 
 .trace-hero p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.66);
+    color: #fff;
     font-size: 0.95rem;
 }
 
@@ -36,7 +36,7 @@
 .trace-pattern-card label {
     display: block;
     margin-bottom: 8px;
-    color: rgba(255, 255, 255, 0.68);
+    color: #fff;
     font-size: 0.68rem;
     font-weight: 900;
     letter-spacing: 0.12em;
@@ -53,7 +53,7 @@
 
 .trace-pattern-help {
     margin-top: 7px;
-    color: rgba(255, 255, 255, 0.52);
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -91,7 +91,7 @@
 
 .trace-range-help {
     flex: 1 1 220px;
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff;
     font-size: 0.78rem;
     line-height: 1.25;
 }
@@ -120,12 +120,12 @@
     padding: 8px 10px;
     border-top: none;
     border-radius: 0 0 var(--radius-card) var(--radius-card);
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
 }
 
 #pitchReadout {
-    color: #e0f2fe;
+    color: #fff;
     font-weight: 900;
 }
 

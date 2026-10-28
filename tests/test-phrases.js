@@ -465,7 +465,7 @@ async function nextPhrase(tab) {
             degrees: window.phrasesDebug.takePlan().map(note => note.degree).join(' '),
             voices: window.__voiceStarts,
             errorHidden: document.getElementById('seriesError').hidden,
-            historyDegrees: document.querySelector('#historyList .phrase-history-degrees')?.textContent || ''
+            historyDegrees: document.querySelector('#historyList .history-degrees')?.textContent || ''
         }));
         report.check(`phrases series loads as the take and plays (${seriesLoaded.degrees}, ${seriesLoaded.voices - seriesVoices0} voices)`,
             seriesLoaded.offsets === '-3,0,0,-1.5,-1,1.5,1'

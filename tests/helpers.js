@@ -156,7 +156,8 @@ function installGrayTextScan() {
             const [r, g, b, a = 1] = (style.color.match(/[\d.]+/g) || []).map(Number);
             // Near-neutral text (low saturation, or tinted near-white /
             // near-black) must be pure white or pure black; semantic
-            // colors must be opaque.
+            // colors must be opaque. Same test as isGrayTextColor below,
+            // inlined because this function runs inside the page.
             const max = Math.max(r, g, b);
             const min = Math.min(r, g, b);
             const lightness = (max + min) / 510;
@@ -173,24 +174,55 @@ function installGrayTextScan() {
 }
 
 /**
+ * The rendered scan's test for one color: translucent, or near-neutral
+ * (low saturation, or tinted near-white / near-black) without being pure
+ * white or pure black. Semantic colors pass when saturated and opaque.
+ * @param {number} r @param {number} g @param {number} b @param {number} [a]
+ */
+function isGrayTextColor(r, g, b, a = 1) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const lightness = (max + min) / 510;
+    const saturation = max === min ? 0 : (max - min) / 255 / (1 - Math.abs(2 * lightness - 1));
+    const nearNeutral = saturation < 0.3 || min > 200 || max < 60;
+    const pure = (r === 255 && g === 255 && b === 255) || (r === 0 && g === 0 && b === 0);
+    return a < 1 || (nearNeutral && !pure);
+}
+
+/**
  * Owner display rule, declared half: the text colors a stylesheet sets
- * that are gray (an equal-channel hex other than pure black or white, or
- * a gray keyword) or translucent.
+ * that the rendered scan would call gray (hex or rgb/rgba values, gray
+ * keywords), and partial opacity, which dims any text inside. Fully
+ * transparent (opacity 0) hides rather than grays.
  * @param {string} css
  * @returns {string[]}
  */
 function grayTextDeclarations(css) {
     /** @param {string} value */
-    const isGrayHex = value => {
-        const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
-        if (!hex) return false;
-        const channels = hex.length === 3 ? hex.split('').map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)];
-        return channels.every(channel => channel.toLowerCase() === channels[0].toLowerCase())
-            && !['00', 'ff'].includes(channels[0].toLowerCase());
+    const isGray = value => {
+        if (/^(gr[ae]y|silver|gainsboro|whitesmoke|lightgr[ae]y|darkgr[ae]y|dimgr[ae]y)$/i.test(value)) return true;
+        const hex = value.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i)?.[1];
+        if (hex) {
+            const full = hex.length <= 4 ? hex.split('').map(c => c + c).join('') : hex;
+            const [r, g, b, a = 255] = (full.match(/../g) || []).map(part => parseInt(part, 16));
+            return isGrayTextColor(r, g, b, a / 255);
+        }
+        const rgb = value.match(/^rgba?\(([^)]*)\)$/i)?.[1];
+        if (rgb) {
+            const [r, g, b, a = 1] = rgb.split(/[\s,/]+/).filter(Boolean).map(Number);
+            return isGrayTextColor(r, g, b, a);
+        }
+        return false;
     };
-    return [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|[;{\s])color:\s*([^;]+);/g)]
-        .map(match => match[1].trim())
-        .filter(value => /rgba\([^)]*,\s*0?\.\d+\)/.test(value) || isGrayHex(value) || /gr[ae]y/i.test(value));
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const colors = [...code.matchAll(/(?:^|[;{\s])color:\s*([^;]+);/g)]
+        .map(match => match[1].replace(/\s*!important$/, '').trim())
+        .filter(isGray);
+    const dimming = [...code.matchAll(/(?:^|[;{\s])opacity:\s*([\d.]+)\s*;/g)]
+        .map(match => Number(match[1]))
+        .filter(value => value > 0 && value < 1)
+        .map(value => `opacity ${value}`);
+    return [...colors, ...dimming];
 }
 
 /** Minimal test reporter: collects checks, prints, exits non-zero on failure. */

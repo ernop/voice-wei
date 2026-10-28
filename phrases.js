@@ -1251,22 +1251,16 @@
             await restartTakeForNewPhrase();
             await playPhrase();
         });
-        const text = document.createElement('div');
-        text.className = 'history-text';
-        const degrees = document.createElement('div');
-        degrees.className = 'phrase-history-degrees';
+        const degrees = document.createElement('span');
+        degrees.className = 'history-text history-degrees';
         degrees.textContent = phrase.notes.map(note => note.degree).join(' ');
-        const notes = document.createElement('div');
-        notes.className = 'history-transcript';
+        const notes = document.createElement('span');
+        notes.className = 'history-text history-notes';
         notes.textContent = phrase.notes.map(note => note.noteName).join(' ');
         const time = document.createElement('span');
         time.className = 'history-time';
         time.textContent = index === 0 ? 'new' : '';
-        text.appendChild(degrees);
-        text.appendChild(notes);
-        item.appendChild(playBtn);
-        item.appendChild(text);
-        item.appendChild(time);
+        item.append(playBtn, degrees, notes, time);
         return item;
     }
 

@@ -100,7 +100,7 @@
     gap: 4px 14px;
     width: 100%;
     min-height: 18px;
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-size: 0.8rem;
 }
 
@@ -146,7 +146,7 @@
 }
 
 .staff-status-readout {
-    color: rgba(255, 255, 255, 0.6);
+    color: #fff;
 }
 
 .staff-mode-row .vf-btn,
@@ -199,7 +199,7 @@
 }
 
 .staff-palette-line .staff-palette-label {
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-size: 0.68rem;
@@ -221,7 +221,7 @@
 }
 
 .staff-session-detail {
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff;
     font-size: 0.72rem;
     white-space: nowrap;
 }

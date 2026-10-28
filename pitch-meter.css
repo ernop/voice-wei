@@ -141,7 +141,7 @@
 .pitch-note {
     font-size: 3rem;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.5);
+    color: #fff;
     line-height: 1;
     margin-bottom: 4px;
     transition: color 0.1s ease;
@@ -149,13 +149,13 @@
 
 .pitch-cents {
     font-size: 1.1rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
     margin-bottom: 2px;
 }
 
 .pitch-freq {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', monospace;
 }
 
@@ -208,7 +208,7 @@
     justify-content: space-between;
     margin-top: 4px;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: #fff;
 }
 
 /* Chart Container */
@@ -256,21 +256,21 @@
 .result-label {
     display: block;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: #fff;
     margin-bottom: 4px;
 }
 
 .result-value {
     font-size: 1.8rem;
     font-weight: 700;
-    color: #e8f5e9;
+    color: #fff;
 }
 
 /* Note Breakdown */
 .note-breakdown h4 {
     margin: 0 0 12px 0;
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.8);
+    color: #fff;
 }
 
 .note-result {
@@ -317,14 +317,14 @@
 
 .note-status.note-missed {
     background: rgba(100, 100, 100, 0.3);
-    color: rgba(255, 255, 255, 0.4);
+    color: #fff;
 }
 
 .note-result .note-deviation {
     flex: 1;
     text-align: right;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: #fff;
 }
 
 /* Mobile adjustments */

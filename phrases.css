@@ -162,7 +162,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
     border: 0;
     border-radius: 11px;
     background: rgba(22, 101, 52, 0.74);
-    color: #dcfce7;
+    color: #fff;
     font-size: 0.82rem;
     line-height: 1;
     cursor: pointer;
@@ -179,7 +179,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
     width: 100%;
     min-width: 0;
     overflow: hidden;
-    color: rgba(255, 255, 255, 0.66);
+    color: #fff;
     font-size: clamp(0.58rem, 1.9vw, 0.82rem);
     font-weight: 700;
     line-height: 1.1;
@@ -195,8 +195,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
 }
 
 .phrase-note-column.inactive {
-    color: rgba(255, 255, 255, 0.18);
-    opacity: 0.55;
+    color: #fff;
 }
 
 .phrase-note-column.inactive .phrase-degree-token {
@@ -209,7 +208,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
 
 .phrase-notes-line {
     display: none;
-    color: rgba(255, 255, 255, 0.64);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.9rem;
     min-height: 1.2em;
@@ -317,7 +316,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
     padding: 0 4px;
     border-radius: var(--radius-control);
     background: rgba(14, 116, 144, 0.92);
-    color: #cffafe;
+    color: #fff;
     font-size: 9px;
     line-height: 13px;
     pointer-events: none;
@@ -346,12 +345,6 @@ body[data-page="phrases"] .transport-row .repeat-button {
     box-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
-.phrase-history-degrees {
-    color: #86efac;
-    font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-}
-
 .phrase-stage-actions {
     display: flex;
     justify-content: flex-start;
@@ -367,7 +360,7 @@ body[data-page="phrases"] .transport-row .repeat-button {
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-control);
     background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.85);
+    color: #fff;
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 14px;
@@ -376,7 +369,8 @@ body[data-page="phrases"] .transport-row .repeat-button {
 
 .phrase-stage-btn:disabled {
     cursor: default;
-    opacity: 0.45;
+    border-style: dashed;
+    background: transparent;
 }
 
 .phrase-stage-btn.selected {

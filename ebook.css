@@ -23,13 +23,13 @@
     border-radius: 8px;
     border: 1px solid rgba(74, 222, 128, 0.28);
     background: rgba(0, 0, 0, 0.34);
-    color: #e8f5e9;
+    color: #fff;
 }
 
 .books-select option,
 .chapter-selector option {
     background: #1a3a2e;
-    color: #e8f5e9;
+    color: #fff;
 }
 
 .books-select:focus,
@@ -48,7 +48,8 @@
 }
 
 .tts-instructions-input:disabled {
-    opacity: 0.58;
+    border-style: dashed;
+    cursor: not-allowed;
 }
 
 /* Buttons come from the shared vocabulary (practice-controls.css):
@@ -119,7 +120,7 @@
     border-radius: 8px;
     border: 1px solid rgba(74, 222, 128, 0.24);
     background: rgba(0, 0, 0, 0.3);
-    color: #e8f5e9;
+    color: #fff;
     font-size: 0.85rem;
 }
 
@@ -164,7 +165,7 @@
 
 .url-import-subtitle {
     margin: 0;
-    color: rgba(232, 245, 233, 0.7);
+    color: #fff;
     font-size: 0.86rem;
 }
 
@@ -173,7 +174,7 @@
     flex-wrap: wrap;
     gap: 14px;
     font-size: 0.82rem;
-    color: rgba(232, 245, 233, 0.8);
+    color: #fff;
     border-top: 1px solid rgba(74, 222, 128, 0.16);
     border-bottom: 1px solid rgba(74, 222, 128, 0.16);
     padding: 8px 0;
@@ -181,7 +182,7 @@
 
 .url-import-current {
     font-size: 0.86rem;
-    color: rgba(232, 245, 233, 0.9);
+    color: #fff;
 }
 
 .url-import-pagehead {
@@ -198,7 +199,7 @@
 
 .url-import-pagehead a,
 .url-import-link-url {
-    color: rgba(134, 239, 172, 0.75);
+    color: #86efac;
     font-size: 0.74rem;
     word-break: break-all;
 }
@@ -216,7 +217,7 @@
     border-radius: 8px;
     border: 1px solid rgba(74, 222, 128, 0.24);
     background: rgba(0, 0, 0, 0.3);
-    color: #e8f5e9;
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -256,7 +257,7 @@
 
 .url-import-link-text {
     grid-area: text;
-    color: #e8f5e9;
+    color: #fff;
     font-size: 0.86rem;
     font-weight: 600;
 }
@@ -266,7 +267,7 @@
 }
 
 .url-import-empty {
-    color: rgba(232, 245, 233, 0.6);
+    color: #fff;
     font-size: 0.85rem;
     font-style: italic;
     padding: 8px 0;
@@ -296,7 +297,7 @@
 
 .url-import-build-status {
     font-size: 0.86rem;
-    color: rgba(232, 245, 233, 0.85);
+    color: #fff;
 }
 
 .url-import-actions {
@@ -317,7 +318,7 @@
 .saved-book-meta,
 .segment-meta,
 .library-empty {
-    color: rgba(255, 255, 255, 0.62);
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -333,7 +334,7 @@
     gap: 4px;
     padding: 10px;
     margin-bottom: 12px;
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-size: 0.8rem;
     text-align: left;
 }
@@ -394,7 +395,7 @@
 }
 
 .saved-book-title {
-    color: #e8f5e9;
+    color: #fff;
     font-weight: 800;
     font-size: 0.84rem;
     line-height: 1.05;
@@ -404,7 +405,7 @@
 }
 
 .saved-book-author {
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
     font-size: 0.72rem;
     flex: 0 1 auto;
     min-width: 34px;
@@ -415,7 +416,7 @@
 
 .saved-book-author::before {
     content: "· ";
-    color: rgba(255, 255, 255, 0.32);
+    color: #fff;
 }
 
 .saved-book-side {
@@ -498,7 +499,7 @@
 }
 
 .workspace-kicker {
-    color: rgba(255, 255, 255, 0.52);
+    color: #fff;
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
     font-size: 0.74rem;
     letter-spacing: 0.08em;
@@ -532,7 +533,7 @@
 
 .audio-parts-advanced > summary {
     padding: 6px 8px;
-    color: rgba(255, 255, 255, 0.58);
+    color: #fff;
     cursor: pointer;
     font-size: 0.72rem;
 }
@@ -545,7 +546,7 @@
 }
 
 .chapter-audio-details {
-    color: rgba(255, 255, 255, 0.58);
+    color: #fff;
     font-size: 0.7rem;
 }
 
@@ -567,12 +568,12 @@
 }
 
 .book-progress-card span {
-    color: rgba(255, 255, 255, 0.56);
+    color: #fff;
     font-size: 0.78rem;
 }
 
 .book-progress-card strong {
-    color: #e8f5e9;
+    color: #fff;
 }
 
 .workspace-stack {
@@ -618,7 +619,7 @@
     text-align: left;
     line-height: 1.7;
     font-family: Georgia, 'Times New Roman', serif;
-    color: rgba(232, 245, 233, 0.92);
+    color: #fff;
 }
 
 .reader-fullscreen-mode {
@@ -710,10 +711,6 @@
     white-space: pre-wrap;
 }
 
-.reader-segment.generated {
-    color: rgba(232, 245, 233, 0.96);
-}
-
 .reader-segment.generating {
     color: #fde68a;
 }
@@ -731,7 +728,7 @@
 
 .reader-segment mark {
     background: rgba(251, 191, 36, 0.55);
-    color: #0d2818;
+    color: #000;
     border-radius: 3px;
 }
 
@@ -802,7 +799,7 @@
 .voice-config-summary span {
     display: block;
     margin-top: 3px;
-    color: rgba(255, 255, 255, 0.68);
+    color: #fff;
     font-size: 0.76rem;
 }
 
@@ -817,7 +814,7 @@
 }
 
 .conversion-options-header span {
-    color: rgba(255, 255, 255, 0.56);
+    color: #fff;
     font-size: 0.72rem;
     text-align: right;
 }
@@ -832,7 +829,7 @@
 .chapter-generator-row label {
     display: grid;
     gap: 4px;
-    color: rgba(255, 255, 255, 0.68);
+    color: #fff;
     font-size: 0.74rem;
     font-weight: 700;
     text-align: left;
@@ -845,7 +842,7 @@
 .model-pricing-line {
     grid-column: 1 / -1;
     margin: -2px 0 0;
-    color: rgba(255, 255, 255, 0.62);
+    color: #fff;
     font-size: 0.74rem;
     text-align: left;
 }
@@ -864,13 +861,13 @@
     gap: 8px;
     align-items: baseline;
     margin-bottom: 7px;
-    color: rgba(232, 245, 233, 0.9);
+    color: #fff;
     font-size: 0.8rem;
 }
 
 .voice-samples-header span,
 .voice-sample-status {
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff;
     font-size: 0.72rem;
     text-align: right;
 }
@@ -933,7 +930,7 @@
     display: flex;
     gap: 8px;
     align-items: flex-start;
-    color: rgba(255, 255, 255, 0.76);
+    color: #fff;
     font-size: 0.86rem;
     text-align: left;
 }
@@ -959,7 +956,7 @@
     justify-content: space-between;
     gap: 8px;
     align-items: baseline;
-    color: rgba(255, 255, 255, 0.68);
+    color: #fff;
     font-size: 0.78rem;
 }
 
@@ -1010,7 +1007,7 @@
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
     font-size: 0.68rem;
     cursor: pointer;
 }
@@ -1040,7 +1037,7 @@
     justify-content: space-between;
     gap: 10px;
     align-items: center;
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -1140,13 +1137,13 @@
 
 .ai-research-heading h3 {
     margin: 2px 0 3px;
-    color: #dbeafe;
+    color: #fff;
     font-size: 1.08rem;
 }
 
 .ai-research-heading p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.66);
+    color: #fff;
     font-size: 0.8rem;
 }
 
@@ -1205,14 +1202,14 @@
 
 .ai-question-header span,
 .ai-question-status {
-    color: rgba(255, 255, 255, 0.68);
+    color: #fff;
     font-size: 0.8rem;
 }
 
 .ai-question-field {
     display: grid;
     gap: 5px;
-    color: rgba(255, 255, 255, 0.78);
+    color: #fff;
     font-size: 0.82rem;
     font-weight: 700;
 }
@@ -1225,7 +1222,7 @@
     border-radius: 8px;
     border: 1px solid rgba(96, 165, 250, 0.38);
     background: rgba(0, 0, 0, 0.34);
-    color: #f8fafc;
+    color: #fff;
     font: inherit;
     font-weight: 400;
 }
@@ -1239,7 +1236,7 @@
 .ai-question-context summary {
     padding: 8px 10px;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.78);
+    color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
 }
@@ -1250,7 +1247,7 @@
     overflow: auto;
     padding: 0 10px 10px;
     white-space: pre-wrap;
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-family: Georgia, 'Times New Roman', serif;
     font-size: 0.84rem;
     line-height: 1.5;
@@ -1266,7 +1263,7 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    color: rgba(255, 255, 255, 0.78);
+    color: #fff;
     font-size: 0.82rem;
 }
 
@@ -1301,7 +1298,7 @@
     border-radius: 8px;
     background: rgba(96, 165, 250, 0.1);
     border: 1px solid rgba(96, 165, 250, 0.22);
-    color: #f8fafc;
+    color: #fff;
     line-height: 1.5;
 }
 
@@ -1332,7 +1329,7 @@
 }
 
 .ai-answer-play-btn.playing {
-    color: #fecaca;
+    color: #fca5a5;
     border-color: rgba(248, 113, 113, 0.48);
 }
 
@@ -1391,7 +1388,7 @@
     border-radius: 8px;
     border: 1px solid rgba(147, 197, 253, 0.18);
     background: rgba(0, 0, 0, 0.24);
-    color: rgba(255, 255, 255, 0.72);
+    color: #fff;
     font-size: 0.68rem;
     text-decoration: none;
 }
@@ -1436,12 +1433,12 @@
     border-radius: 7px;
     border: 1px solid rgba(147, 197, 253, 0.14);
     background: rgba(96, 165, 250, 0.06);
-    color: rgba(255, 255, 255, 0.82);
+    color: #fff;
     text-align: left;
 }
 
 .ai-research-history-item small {
-    color: rgba(255, 255, 255, 0.54);
+    color: #fff;
 }
 
 .history-panel {
@@ -1465,7 +1462,7 @@
     display: grid;
     gap: 4px;
     margin: 8px 0;
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
     font-size: 0.78rem;
     text-align: left;
 }
@@ -1475,7 +1472,7 @@
     gap: 4px;
     max-height: 180px;
     overflow: auto;
-    color: rgba(255, 255, 255, 0.64);
+    color: #fff;
     font-size: 0.72rem;
     text-align: left;
 }
