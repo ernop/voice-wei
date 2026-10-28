@@ -126,11 +126,16 @@ ignores. Live on the server since 2026-10-11.
 Tracked here so tenants' agents do not "fix" them unilaterally; they
 belong to the fuseki.net project.
 
-- **No response compression.** The new nginx serves everything identity —
-  `ebook.js` is 221 KB uncompressed over cellular where ~50 KB gzipped
-  would do. Longer transfers widen the window for mobile load failures
-  (observed 2026-09-02: transient "Failed to load script ebook.js" on 5G
-  while the server was verifiably healthy).
+- **No long-lived caching for versioned assets.** `?v=N` files are sent
+  without `Cache-Control` or `Expires`, so browsers revalidate them by
+  heuristic until a deploy changes the URL. Harmless (each check is a small
+  304 over HTTP/2); `Cache-Control: max-age=31536000, immutable` on `?v=`
+  URLs would remove the checks. A request to the fuseki.net project only
+  if the owner wants it.
+
+Closed: response compression. The 2026-09-02 rebuild served everything
+uncompressed; by 2026-10-27 JavaScript, CSS, and HTML arrive gzipped
+(`content-encoding: gzip` on `player.js?v=376` and `player.html`).
 
 ## Requests to the fuseki.net project (2026-09-27, done 2026-10-12)
 

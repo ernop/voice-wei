@@ -236,10 +236,11 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `voice-output.js` | All TTS (always resolves; engine errors never crash callers) | yes (SpeechSynthesisUtterance) |
 | `pitch-trace-view.js` | Pitch-trace canvas rendering (rails/targets/trace/playhead) | - |
 | `pitch-test-panel.js` | The embeddable listen panel (renders markup, owns mic session + options) | - |
-| `practice-controls.js` | Steppers, segmented option groups, toggles wiring | - |
+| `practice-controls.js` | Steppers, segmented option groups, checkbox toggles, pressed-button toggles (`syncPressed`: selected look, `aria-pressed`, optional on/off label) | - |
 | `settings-store.js` | Versioned persistence (typed merge, legacy migration) | - |
 | `storage-keys.js` | Namespaced localStorage key registry | - |
 | `api-keys-store.js` | Claude/OpenAI API key read/write/remove | - |
+| `html-escape.js` | `escapeHtml`, the one escape for text placed into markup; quotes included, so it is safe in quoted attributes (Books, Lyrics, Deploys) | - |
 | `app-version.js` | Runtime release version label | - |
 | `practice-audio.js` | Thin shared piano playback wrapper | - |
 | `scales-playback.js` | Scales sequence playback coordinator (token-cancelled loops; its playing flag is the page's transport state) | - |
@@ -247,7 +248,7 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `piano-keyboard.js` + `piano-keyboard.css` | The Scales keyboard: which keys a pass needs, degrees, key-aware spelling, microtone markers, exact highlight | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
-| `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
+| `pattern-practice-core.js` | Scale-degree offset and phrase math, including the phrase-range stepper and length-bound rules Phrases and Staff share | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
 | `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
 | `notation-spelling.js` | Key signatures, VexFlow spellings, clef/staff-system choice | - |
@@ -281,6 +282,16 @@ transport buttons, history lists, pitch-test panel) -> one page stylesheet.
 Page CSS may override primitives; never the reverse. The full button/control
 class inventory per page, with its unification plan, is
 [controls.md](controls.md).
+
+- `style.css` makes the `hidden` attribute always hide (`display: none
+  !important`), so code shows and hides elements with `element.hidden`
+  and no component needs its own `[hidden]` rule (2026-10-27).
+- The `vf-` prefix on our control classes (`vf-btn`, `vf-row`,
+  `vf-options`, `vf-label`, `vf-compact`) is historical. VexFlow's SVG
+  classes share it (`vf-stavenote`, `vf-notehead`); those are VexFlow's,
+  never styled as controls.
+- Settings cards are `.settings-card`; the sticky transport row on the
+  practice pages is `.transport-row`.
 
 ## The playback law
 
@@ -649,6 +660,11 @@ All user-facing browser state goes through `settings-store.js` and the
 key names in `storage-keys.js`. Do not call `localStorage` directly from
 page code except inside those modules (and `api-keys-store.js` for API
 keys, which remain plain strings).
+
+A page's saved settings are listed once, as its defaults object (Scales
+`defaultSettings`, Lyrics `PLAYER_SETTINGS_DEFAULTS` in
+`player-storage.js`). Loading and saving take their keys from it, so a
+retired setting leaves storage at the next save with no migration code.
 
 ### Envelope format
 
@@ -1319,8 +1335,10 @@ the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-coolness`, `test-find-puzzle`, `test-media-player`, `test-usage-stats`, `test-syntax`,
 `test-css-ownership`, `test-scales-keyboard` (the Scales keyboard model,
 view, and page round trips), `test-scales-patterns` (Scales note patterns
-in Node, against the documented examples), and `test-display-rules` (the
-stylesheets already clean of gray text; the list only grows). Use
+in Node, against the documented examples), and `test-display-rules` (every
+stylesheet: no gray, tinted near-white or near-black, translucent, or
+opacity-dimmed text, by the same color test the rendered scan in
+`tests/helpers.js` applies). Use
 `node tests/run-all.js --suite <file>` for one suite while iterating.
 
 Three disciplines keep the gate fast and honest:
