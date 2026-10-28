@@ -1806,3 +1806,31 @@ For future mei:
 - A few files are stored with CRLF line endings. A Python read/write in text
   mode converts them to LF and turns a 150-line change into a whole-file
   diff; check `git diff --stat` for implausible counts before committing.
+
+## 2026-10-28 - Organization pass after voice removal (v377, v378)
+
+yui asked to use the voice removal to improve setup, organization, shared
+libraries, design, comprehensibility and efficiency. v377: LF line endings
+for every text file (`.gitattributes`), player names for what they do
+(`player-ai.js`, `PlayerController`), Lyrics settings as one defaults
+object, no gray or dimmed text on any page (the stylesheet test now reads
+every sheet), one global `[hidden]` rule, shared `syncPressed` and
+phrase-range helpers, and one `escapeHtml` (`html-escape.js`), which also
+closed a quote-escaping gap in Books attributes. Since: tests serve the
+cdnjs libraries from `tests/.cdn-cache`; `ebook.js` became a controller
+plus four libraries (storage, parse, tts, research); Books can delete a
+book again.
+
+For future mei:
+- A red validate after a green deploy: before suspecting the change, look
+  at what failed. Six suites timing out in `page.goto` on exactly the pages
+  that load Tone.js was cdnjs, not code; `gh run rerun <id> --failed`
+  reruns only validate. The lasting fix was to stop fetching it per page.
+- The `player-*.js` install pattern needs every method's signature written
+  again in `types/player.d.ts`. For Books, plain libraries (IIFE objects of
+  functions with no page state) were the better split: tsc infers their
+  types and nothing is declared twice.
+- A method with no caller may be a lost feature, not dead code.
+  `deleteBook` had no caller because the June bookshelf redesign dropped
+  its button; `git log -S` on the call found it. Check history before
+  deleting an uncalled method that does something a user would want.
