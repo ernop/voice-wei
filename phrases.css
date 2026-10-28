@@ -1,15 +1,15 @@
 /* The stage is what you read while singing: it stays pinned under the
    transport row so scrolling the controls never hides the phrase. */
-body[data-page="phrases"] .voice-controls-row {
+body[data-page="phrases"] .transport-row {
     justify-content: flex-start;
     min-height: 72px;
     padding-left: 8px;
 }
 
-body[data-page="phrases"] .voice-controls-row .stop-button,
-body[data-page="phrases"] .voice-controls-row .play-button,
-body[data-page="phrases"] .voice-controls-row .next-button,
-body[data-page="phrases"] .voice-controls-row .repeat-button {
+body[data-page="phrases"] .transport-row .stop-button,
+body[data-page="phrases"] .transport-row .play-button,
+body[data-page="phrases"] .transport-row .next-button,
+body[data-page="phrases"] .transport-row .repeat-button {
     height: 72px;
     padding-top: 14px;
     padding-bottom: 14px;
@@ -221,7 +221,7 @@ body[data-page="phrases"] .voice-controls-row .repeat-button {
 
 .phrase-controls {
     /* The stage above owns the (small) separation; the shared
-       voice-first-ui top margin would double it. */
+       settings-card top margin would double it. */
     margin-top: 0;
     margin-bottom: 8px;
 }

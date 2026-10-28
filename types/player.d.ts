@@ -1,5 +1,5 @@
 /**
- * Music player types — VoiceMusicController is implemented in player.js and
+ * Music player types — PlayerController is implemented in player.js and
  * extended at runtime by player-commands, player-playlist, and player-lyrics.
  */
 
@@ -447,7 +447,7 @@ interface PlayerLifecycleBreadcrumb {
 }
 
 interface PlayerLifecycleApi {
-    start(controller: VoiceMusicController, reporter: (text: string) => void): void;
+    start(controller: PlayerController, reporter: (text: string) => void): void;
     recordIntent(intent: string): void;
     recordHeartbeat(): void;
     recordYouTubeReady(): void;
@@ -457,7 +457,7 @@ interface PlayerLifecycleApi {
     getPreviousBreadcrumb(): PlayerLifecycleBreadcrumb | null;
 }
 
-interface VoiceMusicController {
+interface PlayerController {
     // Authoritative playback state plus the thin accessors PlayerPlaylist
     // installs over it. These read/write through this.playback so playback
     // state has exactly one storage location.
@@ -470,13 +470,13 @@ interface VoiceMusicController {
     activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
-    processCommandWithLLM(request: MusicSearchRequest): Promise<any>;
-    processCommandWithClaude(request: MusicSearchRequest): Promise<any>;
-    processCommandWithOpenAI(request: MusicSearchRequest): Promise<any>;
+    interpretMusicRequest(request: MusicSearchRequest): Promise<any>;
+    interpretMusicRequestWithClaude(request: MusicSearchRequest): Promise<any>;
+    interpretMusicRequestWithOpenAI(request: MusicSearchRequest): Promise<any>;
     buildOpenAIRequest(prompt: string): { url: string; body: any };
     extractOpenAIResponseText(data: any): string;
-    extractUrlsFromTranscript(transcript: string): string[];
-    inferKnownPageUrls(transcript: string): string[];
+    extractUrlsFromRequest(text: string): string[];
+    inferKnownPageUrls(text: string): string[];
     musicSearchRequestFromText(requestText: string): MusicSearchRequest;
     parseLinkedPageEntry(params: URLSearchParams): LinkedPageEntry | null;
     linkedPageEntryFromLocation(): LinkedPageEntry | null;
@@ -490,7 +490,7 @@ interface VoiceMusicController {
     linkedPageSourceText(page: LinkedPageText): string;
     musicStructuredData(blocks: unknown[]): unknown[];
     chunkMusicSource(text: string, label: string, meta: string): MusicSourceChunk[];
-    buildMusicSearchPrompt(transcript: string, sourceContext: string): string;
+    buildMusicSearchPrompt(requestText: string, sourceContext: string): string;
     buildLinkedPagePrompt(options: { pageScope: LinkedPageScope; chunk: MusicSourceChunk; relatedPicksMax: number }): string;
     parseAIResponse(responseText: string, prompt: string, options?: { allowEmpty?: boolean; truncated?: boolean }): { songList: AISongItem[]; prompt: string };
     salvageJsonArrayItems(text: string): any[] | null;

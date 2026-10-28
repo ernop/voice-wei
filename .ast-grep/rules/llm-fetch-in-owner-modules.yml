@@ -1,11 +1,11 @@
 id: llm-fetch-in-owner-modules
-message: Calls to the Anthropic/OpenAI HTTP APIs belong in their owner modules (player-commands.js for the music LLM, ebook.js for OpenAI TTS).
+message: Calls to the Anthropic/OpenAI HTTP APIs belong in their owner modules (player-ai.js for the music LLM, ebook.js for OpenAI TTS).
 severity: error
 language: javascript
 files:
   - "**/*.js"
 ignores:
-  - "**/player-commands.js"
+  - "**/player-ai.js"
   - "**/ebook.js"
   - "**/tests/**"
 rule:

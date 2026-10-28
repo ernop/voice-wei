@@ -2,7 +2,7 @@
    piano-keyboard.css; shared controls in practice-controls.css. */
 
 /* Transport: Play (primary, stretches), then Stop. */
-body[data-page="scales"] .voice-controls-row .play-button {
+body[data-page="scales"] .transport-row .play-button {
     flex: 1;
 }
 

@@ -7,12 +7,12 @@ const PlayerSongLibrary = (function () {
     const SUPPORTED_EXTENSIONS = ['.mid', '.midi', '.musicxml', '.xml'];
     const DEFAULT_TEMPO_BPM = 120;
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
         let libraryPiano = null;
         let playbackToken = 0;
 
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             /**
              * Imported songs live in IndexedDB (full note arrays are far
              * too bulky for localStorage). Loads them into memory, first

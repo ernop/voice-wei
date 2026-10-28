@@ -221,7 +221,7 @@ const PlayerYouTubeLists = (function () {
         button.disabled = disabled;
     }
 
-    /** @param {VoiceMusicController} controller @param {YouTubeListVideo} video @param {YouTubeVideoList} list */
+    /** @param {PlayerController} controller @param {YouTubeListVideo} video @param {YouTubeVideoList} list */
     function videoRowHtml(controller, video, list) {
         const esc = (/** @type {string} */ text) => controller.escapeHtml(text);
         const channel = videoChannel(video, list);
@@ -234,7 +234,7 @@ const PlayerYouTubeLists = (function () {
             + '</label>';
     }
 
-    /** @param {VoiceMusicController} controller @param {YouTubeListPlaylist} playlist @param {string} owner */
+    /** @param {PlayerController} controller @param {YouTubeListPlaylist} playlist @param {string} owner */
     function playlistRowHtml(controller, playlist, owner) {
         const esc = (/** @type {string} */ text) => controller.escapeHtml(text);
         const count = playlist.videoCount === null ? ''
@@ -247,7 +247,7 @@ const PlayerYouTubeLists = (function () {
     }
 
     /**
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {YouTubeList} list
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {YouTubeList} list
      * @param {Array<YouTubeListVideo | YouTubeListPlaylist>} entries
      */
     function rowsHtml(controller, state, list, entries) {
@@ -276,7 +276,7 @@ const PlayerYouTubeLists = (function () {
         }
     }
 
-    /** The one-line status: counts as the most legible values, then any activity or problem. @param {VoiceMusicController} controller @param {YouTubeListState} state */
+    /** The one-line status: counts as the most legible values, then any activity or problem. @param {PlayerController} controller @param {YouTubeListState} state */
     function statusHtml(controller, state) {
         const value = (/** @type {number} */ count) => `<span class="youtube-list-value">${formatCount(count)}</span>`;
         const problem = (/** @type {string} */ text) => `<span class="youtube-list-error">${controller.escapeHtml(text)}</span>`;
@@ -304,7 +304,7 @@ const PlayerYouTubeLists = (function () {
         return parts.join(' \u00b7 ');
     }
 
-    /** Status line, action labels, and which controls the shown list offers. @param {VoiceMusicController} controller */
+    /** Status line, action labels, and which controls the shown list offers. @param {PlayerController} controller */
     function refresh(controller) {
         const state = controller.youtubeList;
         if (!state) return;
@@ -330,7 +330,7 @@ const PlayerYouTubeLists = (function () {
         setButton('youtubeListAllBtn', videos?.loadingAll ? 'Stop loading' : 'Load all', Boolean(videos && !videos.loadingAll && videos.loading));
     }
 
-    /** Redraw the whole card from its state. @param {VoiceMusicController} controller */
+    /** Redraw the whole card from its state. @param {PlayerController} controller */
     function render(controller) {
         const state = controller.youtubeList;
         if (!state) return;
@@ -364,7 +364,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Load a list's first page unless it is loaded or on its way. A failure
      * stays on the list (shown in the status line) instead of throwing.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {YouTubeList} list
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {YouTubeList} list
      */
     async function ensureLoaded(controller, state, list) {
         if (list.loaded || list.loading) return;
@@ -399,7 +399,7 @@ const PlayerYouTubeLists = (function () {
 
     /**
      * Append the list's next page. Returns how many new entries arrived.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {YouTubeList} list
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {YouTubeList} list
      */
     async function loadNextPage(controller, state, list) {
         const token = list.continuation;
@@ -435,7 +435,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Load pages until the list ends, a page fails, Stop is pressed, or this
      * press has brought LOAD_ALL_VIDEO_CAP more videos.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {YouTubeVideoList} list
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {YouTubeVideoList} list
      */
     async function loadAllPages(controller, state, list) {
         if (list.loadingAll || list.loading) return;
@@ -456,7 +456,7 @@ const PlayerYouTubeLists = (function () {
 
     /**
      * Show one of the channel's sections, loading its first page if needed.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {string} sectionKey
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {string} sectionKey
      */
     async function showSection(controller, state, sectionKey) {
         const section = state.sections.find(entry => entry.key === sectionKey);
@@ -474,7 +474,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Open a playlist or release from the shown Playlists or Releases list;
      * Back returns to that list.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state @param {string} playlistId
+     * @param {PlayerController} controller @param {YouTubeListState} state @param {string} playlistId
      */
     async function openPlaylist(controller, state, playlistId) {
         const from = shownList(state);
@@ -492,7 +492,7 @@ const PlayerYouTubeLists = (function () {
      * Playlist items for listed videos: titles split into artist and song
      * the same way direct search results are, and a release's title as the
      * album.
-     * @param {VoiceMusicController} controller @param {YouTubeListState} state
+     * @param {PlayerController} controller @param {YouTubeListState} state
      * @param {YouTubeVideoList} list @param {YouTubeListVideo[]} videos
      * @returns {PlaylistItem[]}
      */
@@ -517,7 +517,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Put new items into the working playlist, record them, and clear the
      * picks they came from.
-     * @param {VoiceMusicController} controller @param {YouTubeVideoList} list @param {PlaylistItem[]} items
+     * @param {PlayerController} controller @param {YouTubeVideoList} list @param {PlaylistItem[]} items
      */
     function commitItems(controller, list, items) {
         controller.appendPlaylistItems(items);
@@ -536,7 +536,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Play: the shown (or picked) videos replace the working playlist the way
      * a search does - a song already playing keeps playing at the top.
-     * @param {VoiceMusicController} controller
+     * @param {PlayerController} controller
      */
     function playShown(controller) {
         const state = controller.youtubeList;
@@ -567,7 +567,7 @@ const PlayerYouTubeLists = (function () {
     /**
      * Add: the shown (or picked) videos go after the working playlist's
      * songs; videos already in it are skipped.
-     * @param {VoiceMusicController} controller
+     * @param {PlayerController} controller
      */
     function addShown(controller) {
         const state = controller.youtubeList;
@@ -584,11 +584,11 @@ const PlayerYouTubeLists = (function () {
         controller.updateStatus(summary);
     }
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
         controller.youtubeList = null;
 
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             setupYouTubeListUI() {
                 const filterInput = /** @type {HTMLInputElement | null} */ (document.getElementById('youtubeListFilterInput'));
                 const rows = document.getElementById('youtubeListRows');
@@ -680,8 +680,8 @@ const PlayerYouTubeLists = (function () {
                 if (filterInput) filterInput.value = '';
                 setVisible('youtubeListCard', true);
                 render(this);
-                this.isProcessingCommand = true;
-                this.updateTypedCommandUI(true);
+                this.isProcessingRequest = true;
+                this.updateRequestUI(true);
                 this.updateStatus(`Opening YouTube ${link.kind}...`);
                 try {
                     if (link.kind === 'channel') {
@@ -717,8 +717,8 @@ const PlayerYouTubeLists = (function () {
                     this.logError('YouTube list', error);
                     this.updateStatus(state.error);
                 } finally {
-                    this.isProcessingCommand = false;
-                    this.updateTypedCommandUI(false);
+                    this.isProcessingRequest = false;
+                    this.updateRequestUI(false);
                 }
             },
 

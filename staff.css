@@ -240,26 +240,26 @@ body.staff-compact main {
     padding: 4px 8px;
 }
 
-body.staff-compact .voice-controls-row {
+body.staff-compact .transport-row {
     min-height: 44px;
     margin-bottom: 6px;
     background: rgba(7, 26, 16, 0.96);
 }
 
-body.staff-compact .voice-controls-row .stop-button,
-body.staff-compact .voice-controls-row .play-button,
-body.staff-compact .voice-controls-row .next-button,
-body.staff-compact .voice-controls-row .repeat-button {
+body.staff-compact .transport-row .stop-button,
+body.staff-compact .transport-row .play-button,
+body.staff-compact .transport-row .next-button,
+body.staff-compact .transport-row .repeat-button {
     height: 44px;
     min-width: 72px;
     padding: 4px 12px;
 }
 
-body.staff-compact .voice-controls-row .button-icon {
+body.staff-compact .transport-row .button-icon {
     display: none;
 }
 
-body.staff-compact .voice-controls-row .button-text {
+body.staff-compact .transport-row .button-text {
     font-size: 1rem;
 }
 

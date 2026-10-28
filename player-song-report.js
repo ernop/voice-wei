@@ -15,7 +15,7 @@ const SONG_REPORT_INTERVAL_VALUES = Object.freeze([
 const PlayerSongReport = (function () {
     'use strict';
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
         /** @type {Map<string, SongReportRecord>} */
         controller.songReports = new Map();
@@ -39,7 +39,7 @@ const PlayerSongReport = (function () {
         controller.songReportAnchorVideoId = null;
         controller.songReportAnchorTime = 0;
 
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             /** @param {PlaylistItem | null | undefined} item */
             songReportForItem(item) {
                 if (!item) return null;

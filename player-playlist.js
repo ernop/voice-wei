@@ -27,7 +27,7 @@ const PlayerPlaylist = (function () {
     /** @type {object | null} */
     let playlistRowEventOwner = null;
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
         // All playback state lives in controller.playback (one authoritative
         // location). The constructor creates it; create one here too so test
@@ -51,7 +51,7 @@ const PlayerPlaylist = (function () {
             }
         });
 
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             /**
              * The now-playing card shows exactly while the working playlist
              * has songs; the playlist card itself is always on the page so

@@ -308,7 +308,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                     commandLogs.push({ type, label, text });
                 }
             };
-            PlayerCommands.install(commandHarness);
+            PlayerAi.install(commandHarness);
             window.fetch = async (url, options) => {
                 requests.push({ url: String(url), body: JSON.parse(String(options?.body || '{}')) });
                 if (String(url).includes('openai.com')) {

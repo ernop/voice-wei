@@ -51,8 +51,8 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         await tab.evaluate(() => {
             const controller = window.musicController;
             controller.__directTestAiCalls = 0;
-            const original = controller.processCommandWithLLM.bind(controller);
-            controller.processCommandWithLLM = async (...args) => {
+            const original = controller.interpretMusicRequest.bind(controller);
+            controller.interpretMusicRequest = async (...args) => {
                 controller.__directTestAiCalls++;
                 return original(...args);
             };
@@ -61,7 +61,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         });
         await tab.fill('#typedCommandInput', 'The Beatles');
         await tab.press('#typedCommandInput', 'Enter');
-        await tab.waitForFunction(() => window.musicController?.isProcessingCommand === false
+        await tab.waitForFunction(() => window.musicController?.isProcessingRequest === false
             && window.musicController?.playlist.length === 3);
         const direct = await tab.evaluate(() => {
             const controller = window.musicController;
@@ -139,7 +139,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         await tab.evaluate(() => { window.musicController.playPlaylist = () => {}; });
         await tab.fill('#typedCommandInput', 'Dreams');
         await tab.press('#typedCommandInput', 'Enter');
-        await tab.waitForFunction(() => window.musicController?.isProcessingCommand === false
+        await tab.waitForFunction(() => window.musicController?.isProcessingRequest === false
             && window.musicController?.playlist.length === 1);
         const aiFields = await tab.evaluate(async () => {
             const harness = {
@@ -326,7 +326,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 const settledStatus = /^(Playlist ready|Playing$|No AI key saved|Linked page link|No songs found|No YouTube matches|Music lookup failed)/;
                 const watcher = setInterval(() => {
                     const status = document.getElementById('status')?.textContent || '';
-                    if (!controller || controller.isProcessingCommand || !settledStatus.test(status)) return;
+                    if (!controller || controller.isProcessingRequest || !settledStatus.test(status)) return;
                     clearInterval(watcher);
                     window.__linkRunSettled({
                         status,
@@ -708,7 +708,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
                 logClaudeMessage(text) { this.messages.push({ kind: 'claude', label: 'Claude', text }); }
             };
-            PlayerCommands.install(harness);
+            PlayerAi.install(harness);
             const openaiRequest = harness.buildOpenAIRequest('Return []');
             const openaiText = harness.extractOpenAIResponseText({
                 output: [{
@@ -755,7 +755,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
             window.fetch = realFetch;
 
             return {
-                urls: harness.extractUrlsFromTranscript('read https://example.test/page, thanks'),
+                urls: harness.extractUrlsFromRequest('read https://example.test/page, thanks'),
                 inferredUrls: harness.inferKnownPageUrls('get tvtropes regional riffs'),
                 fetchUrls,
                 count: wrapped.songList.length,
@@ -799,7 +799,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         // cannot fool the scanner.
         const truncatedRecovery = await tab.evaluate(() => {
             const harness = { messages: [], addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }, logClaudeMessage() {} };
-            PlayerCommands.install(harness);
+            PlayerAi.install(harness);
             harness.addMessage = (kind, label, text) => harness.messages.push({ kind, label, text });
             harness.logClaudeMessage = () => {};
             const truncated = `[
@@ -841,7 +841,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 updateStatus() {},
                 logClaudeMessage() {}
             };
-            PlayerCommands.install(harness);
+            PlayerAi.install(harness);
             const parse = query => harness.parseLinkedPageEntry(new URLSearchParams(query));
             const page = encodeURIComponent('https://en.wikipedia.org/wiki/Rumours_(album)');
             const entries = {
@@ -1201,7 +1201,7 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
         const versionRanking = await tab.evaluate(() => {
             const harness = { addMessage() {} };
             PlayerPlaylist.install(harness);
-            PlayerCommands.install(harness);
+            PlayerAi.install(harness);
             const videos = [
                 { videoId: 'live-1', title: 'New Slang (Live at KEXP)', channelTitle: 'KEXP', duration: '4:10', durationSeconds: 250 },
                 { videoId: 'cover-1', title: 'New Slang - cover by somebody', channelTitle: 'Somebody', duration: '3:50', durationSeconds: 230 },

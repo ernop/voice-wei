@@ -11,9 +11,9 @@ const PlayerPrebufferProbe = (function () {
     const PREWARM_HOLD_MS = 3000;
     const WARM_SAMPLE_MS = 500;
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             prebufferProbeEnabled: new URLSearchParams(window.location.search).get('prebufferProbe') === PROBE_QUERY_VALUE,
             prebufferProbeRunId: 0,
             prebufferProbePlayers: [],

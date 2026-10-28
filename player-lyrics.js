@@ -60,14 +60,14 @@ const PlayerLyrics = (function () {
     const MIN_LYRIC_ARTIST_IDENTITY_SCORE = 0.6;
     const EXACT_TIMED_LYRIC_EARLY_STOP_SCORE = 0.98;
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
         controller.lyricsFetchQueue = controller.lyricsFetchQueue || [];
         controller.lyricsQueuedVideoIds = new Set(
             controller.lyricsFetchQueue.map(entry => entry.videoId)
         );
 
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             currentLyricsItem() {
                 if (this.currentLyricsItemId == null) {
                     return null;

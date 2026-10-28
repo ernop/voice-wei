@@ -28,7 +28,7 @@ interface Window {
 
     // Our global instances (defined in JS files, declared here for cross-file access)
     scalesController?: import('../scales.js').ScalesController;
-    musicController?: VoiceMusicController;
+    musicController?: PlayerController;
     pitchMeter?: import('../pitch-meter.js').PitchMeterController;
     VoiceOutput?: any;
     AudioVolume?: {
@@ -62,7 +62,7 @@ interface Window {
         create: (options: any) => any;
     };
     PlaybackState?: typeof PlaybackState;
-    PlayerCommands?: typeof PlayerCommands;
+    PlayerAi?: typeof PlayerAi;
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerPrebufferProbe?: typeof PlayerPrebufferProbe;
     PlayerLyrics?: typeof PlayerLyrics;

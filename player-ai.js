@@ -17,20 +17,20 @@ const MUSIC_STRUCTURED_DATA_KEYS = new Set([
     'itemListElement', 'item', 'position', 'datePublished', 'duration'
 ]);
 
-const PlayerCommands = (function () {
+const PlayerAi = (function () {
     'use strict';
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             /** @param {MusicSearchRequest} request */
-            async processCommandWithLLM(request) {
+            async interpretMusicRequest(request) {
                 const provider = this.settings.aiProvider;
 
                 if (provider === 'openai') {
-                    return this.processCommandWithOpenAI(request);
+                    return this.interpretMusicRequestWithOpenAI(request);
                 } else {
-                    return this.processCommandWithClaude(request);
+                    return this.interpretMusicRequestWithClaude(request);
                 }
             },
 
@@ -173,7 +173,7 @@ const PlayerCommands = (function () {
             },
 
             /** @param {MusicSearchRequest} request */
-            async processCommandWithClaude(request) {
+            async interpretMusicRequestWithClaude(request) {
                 if (!this.config || !this.config.claudeApiKey) {
                     throw this.missingApiKeyError('claude');
                 }
@@ -241,7 +241,7 @@ const PlayerCommands = (function () {
             },
 
             /** @param {MusicSearchRequest} request */
-            async processCommandWithOpenAI(request) {
+            async interpretMusicRequestWithOpenAI(request) {
                 if (!this.config || !this.config.openaiApiKey) {
                     throw this.missingApiKeyError('openai');
                 }
@@ -335,14 +335,14 @@ const PlayerCommands = (function () {
                 throw new Error('OpenAI response did not contain text output');
             },
 
-            extractUrlsFromTranscript(transcript) {
-                const matches = transcript.match(/\bhttps?:\/\/[^\s<>"']+/gi) || [];
+            extractUrlsFromRequest(text) {
+                const matches = text.match(/\bhttps?:\/\/[^\s<>"']+/gi) || [];
                 const urls = matches.map(url => url.replace(/[)\].,!?;:]+$/g, ''));
                 return [...new Set(urls)];
             },
 
-            inferKnownPageUrls(transcript) {
-                if (/(tv\s*tropes|tvtropes)/i.test(transcript) && /regional\s+riffs?/i.test(transcript)) {
+            inferKnownPageUrls(text) {
+                if (/(tv\s*tropes|tvtropes)/i.test(text) && /regional\s+riffs?/i.test(text)) {
                     return ['https://tvtropes.org/pmwiki/pmwiki.php/Main/RegionalRiff'];
                 }
                 return [];
@@ -355,7 +355,7 @@ const PlayerCommands = (function () {
              * @returns {MusicSearchRequest}
              */
             musicSearchRequestFromText(requestText) {
-                const explicitUrls = this.extractUrlsFromTranscript(requestText);
+                const explicitUrls = this.extractUrlsFromRequest(requestText);
                 return {
                     requestText,
                     pageScope: 'request',
@@ -626,17 +626,17 @@ Return ONLY a JSON array (no markdown, no code blocks, no explanation), using th
 If this batch holds none of the page's songs${onlyPage ? '' : ' and you have no related picks'}, return an empty array [].`;
             },
 
-            buildMusicSearchPrompt(transcript, sourceContext) {
+            buildMusicSearchPrompt(requestText, sourceContext) {
                 return `A user is requesting music. They might also ask for comments on each song.
 
-User's request: "${transcript}"
+User's request: "${requestText}"
 ${sourceContext}
 
 Return a JSON array of music search items that match this request. If the user asks for "all", "every", a complete list, or page extraction, return every distinct music item you can identify from the supplied request/page text. Do not impose a small recommendation cap. For very large lists, keep fields compact rather than summarizing or dropping items.
 
 If linked page text is supplied, extract the songs, artists, or bands mentioned in that text according to the user's request. If a song and artist are both known, use both. If only an artist/band or only a search phrase is known, still include a useful YouTube search term.
 
-Names in the request may be misheard by voice transcription or slightly misspelled (for example "mayu ongaku" for the band Maya Ongaku). If the request looks like an artist, band, or song name you do not confidently recognize, never substitute a different better-known artist that partially matches or reinterpret the words. Return the user's literal words as a searchTerm item (YouTube search tolerates small misspellings and will find the artist); if you suspect the name is a near-miss spelling of a real artist, also include items using that corrected name.
+Names in the request may be misspelled or half-remembered (for example "mayu ongaku" for the band Maya Ongaku). If the request looks like an artist, band, or song name you do not confidently recognize, never substitute a different better-known artist that partially matches or reinterpret the words. Return the user's literal words as a searchTerm item (YouTube search tolerates small misspellings and will find the artist); if you suspect the name is a near-miss spelling of a real artist, also include items using that corrected name.
 
 Unless the user explicitly asks for live, acoustic, cover, or remix versions, every item means the ORIGINAL STUDIO RECORDING: never add words like "live" to the search term, and do not select live albums or concert recordings.
 
@@ -871,4 +871,4 @@ If the request is not about music, return an empty array [].`;
     return { install };
 })();
 
-window.PlayerCommands = PlayerCommands;
+window.PlayerAi = PlayerAi;

@@ -137,7 +137,7 @@ const PlayerStartup = (function () {
     return { begin, finish };
 })();
 
-class VoiceMusicController {
+class PlayerController {
     constructor() {
         /** @type {string} ISO time this page session began (splits stored logs into earlier/current) */
         this.sessionStartedAt = new Date().toISOString();
@@ -218,9 +218,9 @@ class VoiceMusicController {
         /** @type {boolean} Media-key handlers registered (once per page life) */
         this.mediaActionHandlersSet = false;
         /** @type {boolean} */
-        this.isProcessingCommand = false;
+        this.isProcessingRequest = false;
 
-        PlayerCommands.install(this);
+        PlayerAi.install(this);
         PlayerPlaylist.install(this);
         PlayerPrebufferProbe.install(this);
         PlayerLyrics.install(this);
@@ -880,20 +880,20 @@ class VoiceMusicController {
         const typedCommandSubmitBtn = document.getElementById('typedCommandSubmitBtn');
         if (typedCommandSubmitBtn) {
             typedCommandSubmitBtn.addEventListener('click', () => {
-                this.submitTypedCommand();
+                this.submitRequest();
             });
         }
         const typedCommandAiSubmitBtn = document.getElementById('typedCommandAiSubmitBtn');
         if (typedCommandAiSubmitBtn) {
             typedCommandAiSubmitBtn.addEventListener('click', () => {
-                this.submitTypedCommand({ useAi: true });
+                this.submitRequest({ useAi: true });
             });
         }
         if (typedCommandInput) {
             typedCommandInput.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
-                    this.submitTypedCommand();
+                    this.submitRequest();
                 }
             });
         }
@@ -1284,8 +1284,8 @@ class VoiceMusicController {
         }
     }
 
-    async submitTypedCommand({ useAi = false } = {}) {
-        if (this.isProcessingCommand) {
+    async submitRequest({ useAi = false } = {}) {
+        if (this.isProcessingRequest) {
             return;
         }
 
@@ -1333,8 +1333,8 @@ class VoiceMusicController {
         /** @type {HTMLElement} */ (document.getElementById('requestCard')).hidden = true;
     }
 
-    async processDirectMusicSearch(transcript) {
-        const query = transcript.trim();
+    async processDirectMusicSearch(text) {
+        const query = text.trim();
         if (!query) {
             this.updateStatus('Enter search terms first');
             return;
@@ -1343,8 +1343,8 @@ class VoiceMusicController {
         this.logUserMessage(query);
         this.showRequest(query);
 
-        this.isProcessingCommand = true;
-        this.updateTypedCommandUI(true);
+        this.isProcessingRequest = true;
+        this.updateRequestUI(true);
         this.updateStatus(`Searching YouTube for ${this.truncateForStatus(query)}...`);
 
         try {
@@ -1362,14 +1362,14 @@ class VoiceMusicController {
             this.logError('Direct Music Search Error', error);
             this.updateStatus(`YouTube search failed: ${message}`);
         } finally {
-            this.isProcessingCommand = false;
-            this.updateTypedCommandUI(false);
+            this.isProcessingRequest = false;
+            this.updateRequestUI(false);
         }
     }
 
-    /** Ask AI with typed or history text. @param {string} transcript */
-    async processMusicSearch(transcript) {
-        const requestText = transcript.trim();
+    /** Ask AI with typed or history text. @param {string} text */
+    async processMusicSearch(text) {
+        const requestText = text.trim();
         if (!requestText) {
             this.updateStatus('Enter a music request first');
             return;
@@ -1412,12 +1412,12 @@ class VoiceMusicController {
         this.logUserMessage(requestText);
         this.showRequest(requestText);
 
-        this.isProcessingCommand = true;
-        this.updateTypedCommandUI(true);
+        this.isProcessingRequest = true;
+        this.updateRequestUI(true);
         this.updateStatus(`Processing with ${this.activeModelLabel()}...`);
 
         try {
-            const result = await this.processCommandWithLLM(request);
+            const result = await this.interpretMusicRequest(request);
             this.hideApiKeyProblem();
 
             if (!result || !result.songList || result.songList.length === 0) {
@@ -1513,8 +1513,8 @@ class VoiceMusicController {
             }
             return error && error.missingKey === true ? 'missing-key' : 'failed';
         } finally {
-            this.isProcessingCommand = false;
-            this.updateTypedCommandUI(false);
+            this.isProcessingRequest = false;
+            this.updateRequestUI(false);
         }
     }
 
@@ -1530,7 +1530,7 @@ class VoiceMusicController {
         return this.truncateForStatus(cleanTerms.join('; '), 160);
     }
 
-    updateTypedCommandUI(busy) {
+    updateRequestUI(busy) {
         const typedCommandInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('typedCommandInput'));
         const typedCommandSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandSubmitBtn'));
         const typedCommandAiSubmitBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('typedCommandAiSubmitBtn'));
@@ -1584,7 +1584,7 @@ class VoiceMusicController {
 
 document.addEventListener('DOMContentLoaded', () => {
     const endConstruction = PlayerStartup.begin('controller construction and stored settings');
-    const controller = new VoiceMusicController();
+    const controller = new PlayerController();
     endConstruction({
         favorites: Object.keys(controller.favorites).length
     });

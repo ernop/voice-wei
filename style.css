@@ -419,7 +419,7 @@ h1 {
     color: #fff;
 }
 
-/* .voice-controls-row layout and transport button looks live in
+/* .transport-row layout and transport button looks live in
    practice-controls.css (single owner for the shared control set). */
 
 .button-text {

@@ -36,7 +36,7 @@ const PlayerLifecycle = (function () {
         5: 'cued'
     });
 
-    /** @type {VoiceMusicController | null} */
+    /** @type {PlayerController | null} */
     let controller = null;
     /** @type {((text: string) => void) | null} */
     let report = null;
@@ -228,7 +228,7 @@ const PlayerLifecycle = (function () {
         ].join(',');
     }
 
-    /** @param {VoiceMusicController} musicController @param {(text: string) => void} reporter */
+    /** @param {PlayerController} musicController @param {(text: string) => void} reporter */
     function start(musicController, reporter) {
         if (started) throw new Error('PlayerLifecycle.start called twice');
         controller = musicController;

@@ -224,7 +224,7 @@ function playlistView() {
         await tab.press('#typedCommandInput', 'Enter');
         await tab.waitForFunction(linkText => {
             const controller = window.musicController;
-            return controller.youtubeList?.link.text === linkText && !controller.isProcessingCommand;
+            return controller.youtubeList?.link.text === linkText && !controller.isProcessingRequest;
         }, text);
     };
 
@@ -399,7 +399,7 @@ function playlistView() {
     const requestCount = requests.length;
     await tab.fill('#typedCommandInput', 'https://www.youtube.com/watch?v=yZXpav794BY');
     await tab.press('#typedCommandInput', 'Enter');
-    await tab.waitForFunction(() => window.musicController.isProcessingCommand === false);
+    await tab.waitForFunction(() => window.musicController.isProcessingRequest === false);
     const closed = { card: await tab.evaluate(cardView), state: await tab.evaluate(() => window.musicController.youtubeList) };
     report.check('Close drops the card; a plain video link searches as before',
         !closed.card.visible && closed.state === null

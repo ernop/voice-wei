@@ -4,9 +4,9 @@
 const PlayerHistoryUI = (function () {
     'use strict';
 
-    /** @param {VoiceMusicController} controller */
+    /** @param {PlayerController} controller */
     function install(controller) {
-        Object.assign(controller, /** @type {ThisType<VoiceMusicController>} */ ({
+        Object.assign(controller, /** @type {ThisType<PlayerController>} */ ({
             setupMusicHistoryUI() {
                 const toggleBtn = document.getElementById('musicHistoryToggleBtn');
                 const reloadBtn = document.getElementById('musicHistoryReloadBtn');

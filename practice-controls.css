@@ -617,7 +617,7 @@ body:has(.pitch-test-dock) {
 }
 
 /* The sticky transport row: layout and responsive sizing */
-.voice-controls-row {
+.transport-row {
     display: flex;
     justify-content: center;
     align-items: stretch;
@@ -634,35 +634,35 @@ body:has(.pitch-test-dock) {
     backdrop-filter: blur(6px);
 }
 
-.voice-controls-row .stop-button,
-.voice-controls-row .play-button,
-.voice-controls-row .next-button,
-.voice-controls-row .repeat-button {
+.transport-row .stop-button,
+.transport-row .play-button,
+.transport-row .next-button,
+.transport-row .repeat-button {
     height: 48px;
 }
 
 /* Phones and tablets: taller touch targets, tighter padding so a full
    transport set fits one row */
 @media (max-width: 768px) {
-    .voice-controls-row {
+    .transport-row {
         min-height: 72px;
     }
 
-    .voice-controls-row .stop-button,
-    .voice-controls-row .play-button,
-    .voice-controls-row .next-button,
-    .voice-controls-row .repeat-button {
+    .transport-row .stop-button,
+    .transport-row .play-button,
+    .transport-row .next-button,
+    .transport-row .repeat-button {
         height: 72px;
         padding: 8px 10px;
         min-width: 0;
         font-size: 1rem;
     }
 
-    .voice-controls-row .button-text {
+    .transport-row .button-text {
         font-size: 1rem;
     }
 
-    .voice-controls-row .button-icon {
+    .transport-row .button-icon {
         font-size: 1.1rem;
     }
 }
@@ -870,7 +870,7 @@ body:has(.pitch-test-dock) {
     flex-shrink: 0;
 }
 
-.voice-first-ui {
+.settings-card {
     margin: 8px 0;
     padding: 8px 10px;
     background: rgba(0, 0, 0, 0.25);

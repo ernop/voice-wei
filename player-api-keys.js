@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------
 // PLAYER API KEYS
 // Thin wrapper around ApiKeysStore for the music player page.
-// VoiceMusicController.loadConfig and API key UI use this module;
+// PlayerController.loadConfig and API key UI use this module;
 // tests may still seed legacy claudeApiKey — ApiKeysStore migrates on read.
 //-----------------------------------------------------------------------
 
