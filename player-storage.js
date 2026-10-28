@@ -5,20 +5,23 @@
 // localStorage in player modules).
 //-----------------------------------------------------------------------
 
-/** @type {string[]} */
-const PLAYER_SETTINGS_KEYS = [
-    'readClaudeResponse',
-    'claudeModel',
-    'openaiModel',
-    'aiProvider',
-    'llmMigration',
-    'lyricsOnNowPlaying',
-    'showSongNotes',
-    'playlistTimedOnly',
-    'playlistFavoritesOnly',
-    'songDisplayMode',
-    'songReportIntervalSeconds'
-];
+// The one list of saved player settings: loading and saving take their keys
+// from it, so a retired setting leaves storage at the next save.
+/** @type {Readonly<PlayerAppSettings>} */
+const PLAYER_SETTINGS_DEFAULTS = Object.freeze({
+    readClaudeResponse: false,
+    claudeModel: 'claude-fable-5',
+    openaiModel: 'gpt-5.5',
+    aiProvider: 'claude',
+    llmMigration: '',
+    lyricsOnNowPlaying: true,
+    showSongNotes: false,
+    playlistTimedOnly: false,
+    playlistFavoritesOnly: false,
+    songDisplayMode: 'identity',
+    songReportIntervalSeconds: 8
+});
+const PLAYER_SETTINGS_KEYS = Object.keys(PLAYER_SETTINGS_DEFAULTS);
 
 /** @type {LyricsViewSettings} */
 const LYRICS_VIEW_DEFAULTS = {
@@ -89,12 +92,9 @@ const PlayerStorage = (function () {
         SettingsStore.saveJson(StorageKeys.PLAYER_LYRICS_VIEW, settings);
     }
 
-    /**
-     * @param {PlayerAppSettings} defaults
-     * @returns {PlayerAppSettings}
-     */
-    function loadSettings(defaults) {
-        const state = { ...defaults };
+    /** @returns {PlayerAppSettings} */
+    function loadSettings() {
+        const state = { ...PLAYER_SETTINGS_DEFAULTS };
         SettingsStore.load(StorageKeys.PLAYER_SETTINGS, state, PLAYER_SETTINGS_KEYS);
         return state;
     }

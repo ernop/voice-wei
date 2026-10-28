@@ -1,6 +1,6 @@
 // @ts-check
-// Voice music controller — composes player-storage, player-api-keys,
-// player-commands, player-playlist, and player-lyrics modules.
+// Lyrics page controller. The player-*.js modules install their methods
+// onto it (see PlayerController in types/player.d.ts for the full surface).
 
 const PLAYER_STARTUP_BUDGET_MS = 1000;
 
@@ -164,19 +164,7 @@ class PlayerController {
         /** @type {PlaylistItem[]} */
         this.playlist = [];
         /** @type {PlayerAppSettings} */
-            this.settings = PlayerStorage.loadSettings({
-            readClaudeResponse: false,
-            claudeModel: 'claude-fable-5',
-            openaiModel: 'gpt-5.5',
-            aiProvider: 'claude',
-            llmMigration: '',
-            lyricsOnNowPlaying: true,
-            showSongNotes: false,
-            playlistTimedOnly: false,
-            playlistFavoritesOnly: false,
-            songDisplayMode: 'identity',
-            songReportIntervalSeconds: 8
-        });
+        this.settings = PlayerStorage.loadSettings();
         /** @type {string} Live playlist view filter (normalized; never persisted) */
         this.playlistFilterQuery = '';
         /** @type {string} Live Known Songs search query (normalized; never persisted) */

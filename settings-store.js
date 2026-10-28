@@ -54,12 +54,7 @@ const SettingsStore = (function () {
         if (raw === null || raw === undefined) {
             return { version: null, data: null, legacy: false };
         }
-        let parsed;
-        try {
-            parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        } catch (err) {
-            throw err;
-        }
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (Array.isArray(parsed)) {
             return { version: null, data: parsed, legacy: true };
         }

@@ -1,6 +1,6 @@
 /**
  * Music player types — PlayerController is implemented in player.js and
- * extended at runtime by player-commands, player-playlist, and player-lyrics.
+ * extended at runtime by the player-*.js modules' install() calls.
  */
 
 interface PlayerAppSettings {
