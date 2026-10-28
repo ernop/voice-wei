@@ -104,6 +104,39 @@ const PatternPracticeCore = (function () {
         return rootMidi + octaveShift * 12 + baseIntervals[degreeIndex];
     }
 
+    // Harmony lines a singer can hold above a melody. Thirds and sixths
+    // follow the key (parallel thirds/sixths are the everyday close
+    // harmony, alternating major and minor as the scale dictates); the
+    // perfect intervals stay exact, as in parallel organum. Counting
+    // scale steps only means "third" in a seven-note scale, so other
+    // scales (pentatonic, chromatic) use the major interval.
+    const HARMONY_INTERVALS = Object.freeze({
+        third: Object.freeze({ label: '3rd', scaleSteps: 2, semitones: 4 }),
+        fourth: Object.freeze({ label: '4th', scaleSteps: null, semitones: 5 }),
+        fifth: Object.freeze({ label: '5th', scaleSteps: null, semitones: 7 }),
+        sixth: Object.freeze({ label: '6th', scaleSteps: 5, semitones: 9 }),
+        octave: Object.freeze({ label: '8ve', scaleSteps: null, semitones: 12 })
+    });
+
+    /**
+     * MIDI of the harmony note `intervalName` above the melody note at
+     * scale `offset`. A chromatic passing tone moves in parallel with
+     * its lower neighbor's harmony, so the harmony line stays parallel.
+     * @param {number} rootMidi @param {string} scaleType @param {number} offset
+     * @param {keyof typeof HARMONY_INTERVALS} intervalName
+     */
+    function harmonyMidiAbove(rootMidi, scaleType, offset, intervalName) {
+        const interval = HARMONY_INTERVALS[intervalName];
+        if (!interval) throw new Error(`Unknown harmony interval: ${intervalName}`);
+        const melodyMidi = scaleOffsetToMidi(rootMidi, scaleType, offset);
+        if (interval.scaleSteps === null || degreesPerOctave(scaleType) !== 7) {
+            return melodyMidi + interval.semitones;
+        }
+        const anchor = Math.floor(offset);
+        const anchorMidi = scaleOffsetToMidi(rootMidi, scaleType, anchor);
+        return scaleOffsetToMidi(rootMidi, scaleType, anchor + interval.scaleSteps) + (melodyMidi - anchorMidi);
+    }
+
     /**
      * The chromatic passing offset between two phrase notes, or null if
      * none exists: the notes must be adjacent scale degrees a whole step
@@ -1544,6 +1577,8 @@ const PatternPracticeCore = (function () {
         baseIntervalsForScale,
         buildExtendedScale,
         scaleOffsetToMidi,
+        HARMONY_INTERVALS,
+        harmonyMidiAbove,
         offsetToDegree,
         offsetToSpoken,
         offsetsToDisplay,

@@ -81,6 +81,30 @@ const StaffScrollView = (function () {
         let eventClefs = [];
         let renderSignature = '';
 
+        // Target pitch per note onset (the harmony line when the page sets
+        // one), keyed by beat. Memoized on the events array identity: the
+        // page rebuilds that array whenever targets change, so a retarget
+        // never needs the notation chunks rebuilt.
+        /** @type {StaffStreamEvent[] | null} */
+        let targetSource = null;
+        /** @type {Map<number, number>} */
+        let targetByBeat = new Map();
+
+        /** @param {{ beat: number, midi: number }} position */
+        function targetMidiFor(position) {
+            const events = config.events();
+            if (events !== targetSource) {
+                targetSource = events;
+                targetByBeat = new Map();
+                for (const event of events) {
+                    if (event.type === 'note' && typeof event.targetMidi === 'number') {
+                        targetByBeat.set(event.startBeat, event.targetMidi);
+                    }
+                }
+            }
+            return targetByBeat.get(position.beat) ?? position.midi;
+        }
+
         function bandVisible() {
             return config.showPitchBand();
         }
@@ -525,11 +549,11 @@ const StaffScrollView = (function () {
                 context.moveTo(0, PITCH_ZONE_TOP + 0.5);
                 context.lineTo(width, PITCH_ZONE_TOP + 0.5);
                 context.stroke();
-                context.fillStyle = 'rgba(71, 85, 105, 0.75)';
-                context.font = '10px system-ui';
+                context.fillStyle = '#000';
+                context.font = '600 10px system-ui';
                 context.textAlign = 'left';
                 context.textBaseline = 'top';
-                context.fillText('sung pitch', 6, PITCH_ZONE_TOP + 4);
+                context.fillText(config.bandLabel(), 6, PITCH_ZONE_TOP + 4);
             }
 
             // Reveal-when-done: guides and the sung line draw only for
@@ -541,16 +565,34 @@ const StaffScrollView = (function () {
                 context.strokeStyle = 'rgba(100, 116, 139, 0.55)';
                 context.lineWidth = 3;
                 context.lineCap = 'round';
+                /** @type {Array<{ x: number, y: number }>} */
+                const ghostHeads = [];
                 for (const position of notePositions) {
                     if (revealBefore !== null && position.beat >= revealBefore) continue;
                     const x1 = position.x - offset;
                     const x2 = x1 + Math.max(position.beats * pxPerBeat - 4, 4);
                     if (x2 < headerWidth + 2 || x1 > width) continue;
-                    if (position.midi < range.minMidi || position.midi > range.maxMidi) continue;
-                    const y = zoneYForMidi(position.midi);
+                    const target = targetMidiFor(position);
+                    if (target !== position.midi && x1 >= headerWidth + 2) {
+                        const y = yForMidi(target);
+                        if (y >= 4 && y <= PITCH_ZONE_TOP - 4) ghostHeads.push({ x: x1, y });
+                    }
+                    if (!withBand || target < range.minMidi || target > range.maxMidi) continue;
+                    const y = zoneYForMidi(target);
                     context.beginPath();
                     context.moveTo(Math.max(x1, headerWidth + 2), y);
                     context.lineTo(Math.min(x2, width), y);
+                    context.stroke();
+                }
+                // Harmony targets on the notation: hollow ghost noteheads
+                // on the staff's own grid, so the written note and the
+                // note to sing read together. Never horizontal dashes -
+                // on a staff those would read as ledger lines.
+                context.strokeStyle = 'rgba(22, 163, 74, 0.9)';
+                context.lineWidth = 1.8;
+                for (const head of ghostHeads) {
+                    context.beginPath();
+                    context.ellipse(head.x, head.y, 5.5, 4, -0.35, 0, Math.PI * 2);
                     context.stroke();
                 }
             }

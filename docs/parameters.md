@@ -204,6 +204,8 @@ generates ahead of the now-line - never the sheet already drawn.
 | showPitchGuides | true | toggle (stage row) - gray per-note pitch guides in the sung-pitch band. First passes only when phrases repeat | redraw |
 | sungLinePlacement | band | "sung line" segment (stage row): off / staff / band - where the recorded blue sung line draws: nowhere, on the notation itself (the noteheads' own diatonic grid, clipped to the staff area), or in the pitch band (the page-mode live dot stays either way, moving onto the staff grid when the band is hidden) | redraw |
 | showPitchReadout | true | toggle (stage row, "pitch info") - the live sung-pitch readout (note, Hz, cents) | immediate |
+| singAbove | off | "sing above" segment (stage row): off / 3rd / 4th / 5th / 6th / 8ve (stored `third`, `fourth`, `fifth`, `sixth`, `octave`; `PatternPracticeCore.HARMONY_INTERVALS`). The piano keeps the written melody; note guides, the pitch band frame and label, and green ghost noteheads on the staff move to the harmony. 3rd/6th in key (seven-note scales; others use the major interval), 4th/5th/8ve exact. Saved with each Past Run; unknown values reset to off | reproject (targets recompute, the sheet stays) |
+| hearHarmony | false | toggle (stage row, shown only while singAbove is on) - the piano also plays the harmony note on first passes; repeat passes never play it | immediate |
 | mode | page | page / scroll | immediate (switching pauses a running scroll) |
 
 Every display-affecting toggle sits in the stage row directly under the

@@ -225,6 +225,28 @@ show in full). **hear 1** plays the key's root as a reminder anytime.
 The band's frame is the working range (plus the sheet's notes) and stays
 fixed for the run; out-of-range pitch is clipped, never rescales it.
 
+**sing above** (stage row: off / 3rd / 4th / 5th / 6th / 8ve) turns the
+staff into harmony practice (owner request, 2026-10-28). The sheet and
+the piano keep the written melody; what moves is everything that marks
+where YOU should sing: the gray note guides sit at the harmony pitch,
+the pitch band's frame becomes the harmony line's span (its label reads
+"sing 3rd above"), and hollow green ghost noteheads sit on the staff at
+the harmony pitch beside each written note (ghost heads, not dashes -
+on a staff a dash reads as a ledger line). The choices follow how
+harmony is actually sung: **3rd** and **6th** stay in the key, so they
+alternate major and minor as the scale gives them (parallel thirds are
+the everyday close harmony; the sixth is the third below, an octave
+up); **4th**, **5th**, and **8ve** are exact parallel intervals, as in
+organum, even where that leaves the key (a 4th above 4 in major is the
+flat 7). Counting scale steps only means "third" in a seven-note scale,
+so pentatonic and chromatic use the major 3rd/6th. A chromatic passing
+tone moves in parallel with its lower neighbor's harmony. **hear
+harmony** (shown while sing above is on) also sounds the harmony note
+on first passes; repeat passes never play it, so Repeat x2 is "hear it
+modeled, then sing it alone". The choice persists, is saved with each
+Past Run (loading the run restores it, so the guides match the take),
+and appears in Copy Text with the harmony's spelled note names.
+
 Generation reuses the Phrases engine: the same style/lesson families
 (free, staff read, sight sing, barbershop, genre), algorithm modes,
 start/return anchors, range endpoints, min/max phrase length, and

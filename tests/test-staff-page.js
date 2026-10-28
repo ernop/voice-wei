@@ -1119,6 +1119,99 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
     report.check(`audio lead trim fires notes earlier with an earlier onset (${trim.firedInWidenedWindow} fired, onset ${trim.scheduledAheadMs === null ? 'voice-missing' : `+${Math.round(trim.scheduledAheadMs)}ms`})`,
         trim.firedInWidenedWindow >= 1 && trim.scheduledOk);
 
+    // --- Sing above: harmony practice over the written melody ---------
+    // Thirds and sixths follow the key; perfect intervals stay exact; a
+    // chromatic passing tone moves in parallel with its lower neighbor.
+    const harmonyMath = await tab.evaluate(() => {
+        const at = (scaleType, offset, interval) =>
+            PatternPracticeCore.harmonyMidiAbove(60, scaleType, offset, interval) - 60;
+        return {
+            majorThirds: [0, 1, 2, 3, 4, 5, 6].map(offset =>
+                at('major', offset, 'third') - PatternPracticeCore.scaleOffsetToMidi(0, 'major', offset)),
+            minorThirdOnOne: at('minor', 0, 'third'),
+            sixthOnOne: at('major', 0, 'sixth'),
+            fourthOnFour: at('major', 3, 'fourth') - 5,
+            fifthOnSeven: at('major', 6, 'fifth') - 11,
+            octave: at('major', 2, 'octave') - 4,
+            passingThird: at('major', 3.5, 'third'),
+            pentatonicThird: at('pentatonic', 1, 'third') - 2
+        };
+    });
+    report.check(`in-key thirds in major alternate major/minor by the scale (${harmonyMath.majorThirds.join(',')})`,
+        harmonyMath.majorThirds.join(',') === '4,3,3,4,4,3,3');
+    report.check(`in-key third on 1 is minor in a minor key, sixth on 1 is major in major (${harmonyMath.minorThirdOnOne}, ${harmonyMath.sixthOnOne})`,
+        harmonyMath.minorThirdOnOne === 3 && harmonyMath.sixthOnOne === 9);
+    report.check(`perfect intervals stay exact even off the key (4th on 4 = ${harmonyMath.fourthOnFour}, 5th on 7 = ${harmonyMath.fifthOnSeven}, 8ve = ${harmonyMath.octave})`,
+        harmonyMath.fourthOnFour === 5 && harmonyMath.fifthOnSeven === 7 && harmonyMath.octave === 12);
+    report.check(`a passing #4 harmonizes in parallel (A#, ${harmonyMath.passingThird}); pentatonic uses the major third (${harmonyMath.pentatonicThird})`,
+        harmonyMath.passingThird === 10 && harmonyMath.pentatonicThird === 4);
+
+    await tab.evaluate(() => window.staffDebug.setMode('page'));
+    await tab.click('[data-sing-above="third"]');
+    const singAbove = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        const settings = debug.settings();
+        const root = noteNameToMidi(settings.root, settings.octave);
+        const notes = debug.events().filter(event => event.type === 'note');
+        const allTargetsThirdAbove = notes.length > 0 && notes.every(event =>
+            event.targetMidi === PatternPracticeCore.harmonyMidiAbove(root, settings.scaleType, event.offset, 'third'));
+        const maxTarget = Math.max(...notes.map(event => event.targetMidi));
+        const range = debug.pitchRange();
+        const label = document.getElementById('hearHarmonyLabel');
+        return {
+            setting: debug.settings().singAbove,
+            pressed: document.querySelector('[data-sing-above="third"]')?.classList.contains('selected') ?? false,
+            allTargetsThirdAbove,
+            frameCoversHarmony: range.maxMidi >= maxTarget,
+            hearHarmonyShown: label ? !label.hidden : false,
+            stateText: debug.stateText(),
+            status: document.getElementById('statusReadout')?.textContent || ''
+        };
+    });
+    report.check(`sing above 3rd: the selector sets and shows the choice (${singAbove.setting})`,
+        singAbove.setting === 'third' && singAbove.pressed);
+    report.check('sing above 3rd: every note targets the in-key third above the written note',
+        singAbove.allTargetsThirdAbove);
+    report.check('sing above 3rd: the pitch band frame covers the harmony line', singAbove.frameCoversHarmony);
+    report.check('sing above 3rd: the hear-harmony toggle appears', singAbove.hearHarmonyShown);
+    report.check(`sing above 3rd: Copy Text and status name the harmony ("${singAbove.status}")`,
+        singAbove.stateText.includes('sing 3rd above') && /harmony \(sing 3rd above\): [A-G]/.test(singAbove.stateText)
+        && singAbove.status.includes('3rd above'));
+
+    // The piano keeps playing the melody; hear harmony adds the target
+    // on first passes only.
+    const harmonySound = await tab.evaluate(() => {
+        const debug = window.staffDebug;
+        const piano = debug.piano();
+        const fireFirst = () => {
+            debug.stopRun();
+            const first = debug.events().filter(event => event.type === 'note')[0];
+            const before = new Set(piano.activeVoices().map(voice => voice.id));
+            debug.setClockBeat(first.startBeat);
+            const fresh = piano.activeVoices().filter(voice => !before.has(voice.id)).map(voice => voice.midi);
+            piano.stopAll();
+            return { fresh, melody: first.midi, target: first.targetMidi };
+        };
+        const harmonyBefore = debug.harmonySoundedCount();
+        const silent = fireFirst();
+        const harmonySilent = debug.harmonySoundedCount() - harmonyBefore;
+        debug.applySettings({ hearHarmony: true });
+        const heard = fireFirst();
+        const harmonyHeard = debug.harmonySoundedCount() - harmonyBefore;
+        debug.applySettings({ hearHarmony: false, singAbove: 'off' });
+        debug.stopRun();
+        return { silent, heard, harmonySilent, harmonyHeard };
+    });
+    report.check(`sing above: the piano plays the written melody, not the harmony (${harmonySound.silent.fresh.join(',')})`,
+        harmonySound.silent.fresh.includes(harmonySound.silent.melody)
+        && !harmonySound.silent.fresh.includes(harmonySound.silent.target) && harmonySound.harmonySilent === 0);
+    report.check(`hear harmony adds the harmony note alongside the melody (${harmonySound.heard.fresh.join(',')})`,
+        harmonySound.heard.fresh.includes(harmonySound.heard.melody)
+        && harmonySound.heard.fresh.includes(harmonySound.heard.target) && harmonySound.harmonyHeard === 1);
+    const harmonyOff = await tab.evaluate(() => window.staffDebug.events()
+        .filter(event => event.type === 'note').every(event => event.targetMidi === event.midi));
+    report.check('sing above off: targets return to the written notes', harmonyOff);
+
     // --- Hidden tab pauses the run instead of piling up the clock ------
     await tab.evaluate(() => window.staffDebug.startRun());
     await tab.waitForFunction(() => navigator.mediaSession.playbackState === 'playing', null, { timeout: 10000 });

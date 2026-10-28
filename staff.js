@@ -77,6 +77,12 @@
         // fully over, then reveal - sing blind, check as you go.
         revealAfterPhrase: false,
         showPitchReadout: true,
+        // Harmony practice: 'off' or a HARMONY_INTERVALS name. The piano
+        // keeps playing the written melody; the guides, the pitch band's
+        // frame, and the staff ghost notes move to the harmony line.
+        singAbove: 'off',
+        // Also sound the harmony note on first passes (never on repeats).
+        hearHarmony: false,
         mode: 'page'
     };
 
@@ -88,10 +94,12 @@
         'phraseRepeats', 'repeatHearTones', 'repeatShowPitchGuides', 'repeatShowDegrees',
         'measures', 'durationBeats', 'audioOffsetMs',
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'hearTones', 'showDegrees',
-        'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase', 'showPitchReadout', 'mode'
+        'showPitchGuides', 'sungLinePlacement', 'revealAfterPhrase', 'showPitchReadout',
+        'singAbove', 'hearHarmony', 'mode'
     ];
 
     const SUNG_LINE_PLACEMENTS = ['off', 'staff', 'band'];
+    const SING_ABOVE_CHOICES = ['off', ...Object.keys(PatternPracticeCore.HARMONY_INTERVALS)];
 
     const ADJUSTER_VALUES = {
         bpm: [20, 24, 30, 36, 42, 48, 54, 60, 66, 72, 80, 90, 100, 110, 120, 132, 144, 160, 180, 200],
@@ -135,6 +143,7 @@
     let firedIndex = 0;
     let firedNoteCount = 0;
     let soundedNoteCount = 0;
+    let harmonySoundedCount = 0;
     // Phrase repeat transport: which pass of the current phrase the
     // clock is in (1-based), and the phrase's span - startBeat to the
     // next phrase's start (boundary). Both live on the transport, not
@@ -199,8 +208,29 @@
     let streamCache = [];
     let streamCacheKey = '';
 
+    /** @returns {keyof typeof PatternPracticeCore.HARMONY_INTERVALS | null} */
+    function harmonyInterval() {
+        return state.singAbove === 'off'
+            ? null
+            : /** @type {keyof typeof PatternPracticeCore.HARMONY_INTERVALS} */ (state.singAbove);
+    }
+
+    /** "sing 3rd above", or '' when singing the written line. */
+    function harmonyText() {
+        const interval = harmonyInterval();
+        return interval ? `sing ${PatternPracticeCore.HARMONY_INTERVALS[interval].label} above` : '';
+    }
+
+    /** The pitch the singer aims for at a scale offset: melody or harmony. @param {number} root @param {number} offset */
+    function targetMidiAt(root, offset) {
+        const interval = harmonyInterval();
+        return interval
+            ? PatternPracticeCore.harmonyMidiAbove(root, state.scaleType, offset, interval)
+            : PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, offset);
+    }
+
     function streamEvents() {
-        const cacheKey = `${state.root}|${state.octave}|${state.scaleType}|${timedEvents.length}`;
+        const cacheKey = `${state.root}|${state.octave}|${state.scaleType}|${state.singAbove}|${timedEvents.length}`;
         if (cacheKey !== streamCacheKey) {
             streamCacheKey = cacheKey;
             streamCache = computeStreamEvents();
@@ -219,7 +249,13 @@
         return timedEvents.map(event => {
             if (event.type !== 'note') return { ...event };
             const note = notes[noteIndex++];
-            return { ...event, midi: note.midi, degree: note.degree, noteName: note.noteName };
+            return {
+                ...event,
+                midi: note.midi,
+                targetMidi: targetMidiAt(root, note.offset),
+                degree: note.degree,
+                noteName: note.noteName
+            };
         });
     }
 
@@ -332,8 +368,10 @@
         while (index < runs.length - 1 && runs[index].endBeat <= clockBeat) index++;
         if (index === presentedPhraseIndex) return;
         presentedPhraseIndex = index;
+        const harmony = harmonyText();
         MediaSessionCore.setNowPlayingTitle(runs[index].degrees.join(','), {
             artist: `${scaleRootPitchString(state.root, state.octave)} ${state.scaleType.replace(/_/g, ' ')}`
+                + (harmony ? ` - ${harmony}` : '')
         });
     }
 
@@ -393,15 +431,17 @@
      * the current sheet actually holds (a loaded session may exceed the
      * live range settings). Extensions generate inside the range, so the
      * frame is stable for a whole run - singing never rescales it.
+     * With sing-above on, the frame is the harmony line's span: the
+     * band is where the singer listens for their own voice.
      */
     function tracePitchRange() {
         const root = rootMidi() ?? 60;
-        let min = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, state.rangeLow);
-        let max = PatternPracticeCore.scaleOffsetToMidi(root, state.scaleType, state.rangeHigh);
+        let min = targetMidiAt(root, state.rangeLow);
+        let max = targetMidiAt(root, state.rangeHigh);
         for (const event of streamEvents()) {
-            if (event.type !== 'note' || typeof event.midi !== 'number') continue;
-            if (event.midi < min) min = event.midi;
-            if (event.midi > max) max = event.midi;
+            if (event.type !== 'note' || typeof event.targetMidi !== 'number') continue;
+            if (event.targetMidi < min) min = event.targetMidi;
+            if (event.targetMidi > max) max = event.targetMidi;
         }
         return { minMidi: Math.floor(min) - 2, maxMidi: Math.ceil(max) + 2 };
     }
@@ -424,6 +464,7 @@
             || (state.phraseRepeats > 1 && state.repeatShowPitchGuides)
             || state.sungLinePlacement === 'band',
         sungLinePlacement: () => /** @type {'off' | 'staff' | 'band'} */ (state.sungLinePlacement),
+        bandLabel: () => harmonyText() || 'sung pitch',
         revealBeforeBeat,
         pitchRange: tracePitchRange,
         liveMidi: () => {
@@ -484,7 +525,8 @@
                 ? ` | repeat x${state.phraseRepeats} (repeat pass: tones ${state.repeatHearTones ? 'on' : 'off'},`
                 + ` guides ${state.repeatShowPitchGuides ? 'on' : 'off'}, numbers ${state.repeatShowDegrees ? 'on' : 'off'})`
                 : '')
-            + (state.revealAfterPhrase ? ' | reveal when done' : ''));
+            + (state.revealAfterPhrase ? ' | reveal when done' : '')
+            + (harmonyInterval() ? ` | ${harmonyText()}${state.hearHarmony ? ' (hear harmony)' : ''}` : ''));
         lines.push(`tempo: ${state.bpm} bpm | mode: ${state.mode}`
             + ` | spacing ${state.pxPerBeat}px | now ${Math.round(state.nowFraction * 100)}%`
             + ` | width ${state.staffWidthPct}%`
@@ -504,6 +546,10 @@
         }
         lines.push(tokens.join(' '));
         lines.push(`note names: ${notes.map(note => note.noteName).join(' ')}`);
+        if (harmonyInterval()) {
+            lines.push(`harmony (${harmonyText()}): ${notes.map(note => scaleMidiToPitchString(
+                state.root, state.octave, state.scaleType, /** @type {number} */ (note.targetMidi))).join(' ')}`);
+        }
         const pageErrors = window.__voiceWeiErrors || [];
         lines.push(`log (${statusLog.length} lines, ${pageErrors.length} frontend errors):`);
         for (const entry of statusLog) lines.push(entry);
@@ -618,10 +664,17 @@
             const repeatPassNote = inRepeatPass()
                 && (!repeatSpan || event.startBeat < repeatSpan.boundary);
             const audible = repeatPassNote ? state.repeatHearTones : state.hearTones;
-            if (audible && piano) {
+            const harmonyAudible = !repeatPassNote && state.hearHarmony && harmonyInterval() !== null
+                && typeof event.targetMidi === 'number';
+            if ((audible || harmonyAudible) && piano) {
                 const inSeconds = Math.max(0,
                     ((event.startBeat - clockBeat) * msPerBeat() - state.audioOffsetMs) / 1000);
-                piano.playMidiAudibleIn(event.midi, (event.beats * msPerBeat() / 1000) * 0.92, inSeconds);
+                const seconds = (event.beats * msPerBeat() / 1000) * 0.92;
+                if (audible) piano.playMidiAudibleIn(event.midi, seconds, inSeconds);
+                if (harmonyAudible) {
+                    piano.playMidiAudibleIn(/** @type {number} */ (event.targetMidi), seconds, inSeconds);
+                    harmonySoundedCount++;
+                }
             }
         }
     }
@@ -723,6 +776,7 @@
             phraseStyle: state.phraseStyle,
             phraseLesson: state.phraseLesson,
             phraseAlgo: state.phraseAlgo,
+            singAbove: state.singAbove,
             events: timedEvents.filter(event => event.startBeat < endBeat),
             trace: traceSamples.slice()
         };
@@ -743,6 +797,8 @@
         state.octave = session.octave;
         state.scaleType = session.scaleType;
         state.bpm = session.bpm;
+        // Runs saved before sing-above existed were sung on the melody.
+        state.singAbove = SING_ABOVE_CHOICES.includes(session.singAbove) ? session.singAbove : 'off';
         setMode('page');
         timedEvents = Array.isArray(session.events) ? session.events : [];
         traceSamples = Array.isArray(session.trace) ? session.trace : [];
@@ -780,7 +836,10 @@
                 ? Math.ceil((session.events[session.events.length - 1].startBeat
                     + session.events[session.events.length - 1].beats) / 4)
                 : 0;
-            title.textContent = `${key} ${String(session.scaleType).replace(/_/g, ' ')} - ${session.phraseStyle} - ${bars} bars @ ${session.bpm}bpm`;
+            const harmony = PatternPracticeCore.HARMONY_INTERVALS[session.singAbove];
+            title.textContent = `${key} ${String(session.scaleType).replace(/_/g, ' ')} - ${session.phraseStyle}`
+                + (harmony ? ` - ${harmony.label} above` : '')
+                + ` - ${bars} bars @ ${session.bpm}bpm`;
             const detail = document.createElement('span');
             detail.className = 'staff-session-detail';
             const when = new Date(session.createdAt);
@@ -898,6 +957,13 @@
         if (readout) readout.hidden = !state.showPitchReadout;
     }
 
+    function syncSingAboveControls() {
+        PracticeControls.syncSingleSelect('data-sing-above', state.singAbove);
+        PracticeControls.syncToggle('hearHarmonyToggle', state.hearHarmony);
+        const hearHarmonyLabel = getEl('hearHarmonyLabel');
+        if (hearHarmonyLabel) hearHarmonyLabel.hidden = state.singAbove === 'off';
+    }
+
     /** The repeat-pass toggle row only exists while phrases repeat. */
     function syncRepeatPassRow() {
         const row = getEl('repeatPassRow');
@@ -949,7 +1015,7 @@
     // settings are bounds-next (they apply from the next Next / the next
     // generated extension); key settings reproject the current sheet;
     // display settings redraw immediately; bpm applies live.
-    const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType']);
+    const REPROJECT_KEYS = new Set(['root', 'octave', 'scaleType', 'singAbove']);
     const REDRAW_KEYS = new Set([
         'pxPerBeat', 'nowFraction', 'staffWidthPct', 'showDegrees', 'showPitchGuides',
         'sungLinePlacement', 'revealAfterPhrase',
@@ -1114,6 +1180,7 @@
         PracticeControls.syncToggle('repeatGuidesToggle', state.repeatShowPitchGuides);
         PracticeControls.syncSingleSelect('data-sung-line', state.sungLinePlacement);
         PracticeControls.syncToggle('pitchReadoutToggle', state.showPitchReadout);
+        syncSingAboveControls();
         syncDurationChips();
         syncLessonControls();
         syncAdjusterControls();
@@ -1165,6 +1232,16 @@
         PracticeControls.wireSingleSelect('data-sung-line', String, state.sungLinePlacement, value => {
             state.sungLinePlacement = value;
             onSettingChanged('sungLinePlacement');
+        });
+        PracticeControls.wireSingleSelect('data-sing-above', String, state.singAbove, value => {
+            state.singAbove = value;
+            syncSingAboveControls();
+            onSettingChanged('singAbove');
+            setStatus(harmonyText() ? `Harmony: ${harmonyText()} the written line` : 'Singing the written line');
+        });
+        PracticeControls.wireToggle('hearHarmonyToggle', state.hearHarmony, checked => {
+            state.hearHarmony = checked;
+            onSettingChanged('hearHarmony');
         });
         PracticeControls.wireToggle('pitchReadoutToggle', state.showPitchReadout, checked => {
             state.showPitchReadout = checked;
@@ -1263,6 +1340,7 @@
             state.repeatHearTones = false;
         }
         if (!ADJUSTER_VALUES.phraseRepeats.includes(state.phraseRepeats)) state.phraseRepeats = 1;
+        if (!SING_ABOVE_CHOICES.includes(state.singAbove)) state.singAbove = 'off';
         if (!SUNG_LINE_PLACEMENTS.includes(state.sungLinePlacement)) {
             // Migrate the retired boolean: off stays off, on means band.
             const stored = /** @type {Record<string, any>} */ (SettingsStore.peekData(STORAGE_KEY) || {});
@@ -1295,6 +1373,7 @@
             repeatSpan: () => (repeatSpan ? { ...repeatSpan } : null),
             firedNoteCount: () => firedNoteCount,
             soundedNoteCount: () => soundedNoteCount,
+            harmonySoundedCount: () => harmonySoundedCount,
             piano: () => piano,
             audioLeadMs,
             revealBeforeBeat,

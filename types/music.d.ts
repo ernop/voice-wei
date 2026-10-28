@@ -198,6 +198,12 @@ interface TimedSequenceEvent {
 interface StaffStreamEvent extends TimedSequenceEvent {
     /** MIDI note number; notes only */
     midi?: number;
+    /**
+     * The pitch the singer aims for; notes only. Equals midi unless the
+     * page sets a harmony line (Staff "sing above"), in which case the
+     * guides, the band frame, and the staff ghost notes use it.
+     */
+    targetMidi?: number;
     /** Display degree label; notes only */
     degree?: string;
     /** Pitch string (e.g. "F#3"); notes only */
@@ -246,6 +252,8 @@ interface StaffScrollViewConfig {
     showPitchBand: () => boolean;
     /** Where the recorded sung line draws: on the notation, in the pitch band, or nowhere */
     sungLinePlacement: () => 'off' | 'staff' | 'band';
+    /** Label inside the pitch band ("sung pitch", or the harmony being sung) */
+    bandLabel: () => string;
     /**
      * Reveal-when-done boundary: guides and the sung line draw only
      * before this beat (phrases already finished). null = no deferral.

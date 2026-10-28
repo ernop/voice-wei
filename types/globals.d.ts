@@ -153,6 +153,7 @@ interface Window {
         repeatSpan: () => { startBeat: number; boundary: number } | null;
         firedNoteCount: () => number;
         soundedNoteCount: () => number;
+        harmonySoundedCount: () => number;
         piano: () => any;
         audioLeadMs: () => number;
         revealBeforeBeat: () => number | null;

@@ -57,6 +57,21 @@
                             <button class="vf-btn" data-sung-line="band">band</button>
                         </span>
                     </span>
+                    <span class="staff-sing-above-choice" title="Harmony practice: the piano keeps playing the written melody while you sing a harmony line above it. The note guides, the sung-pitch band, and the green ghost notes on the staff all move to the harmony. 3rd and 6th follow the key (major or minor as the scale gives them); 4th, 5th, and octave are exact parallel intervals.">
+                        <span>sing above</span>
+                        <span class="segment-row staff-sing-above-row">
+                            <button class="vf-btn" data-sing-above="off" title="Sing the written notes">off</button>
+                            <button class="vf-btn" data-sing-above="third" title="A third above, in key - the everyday close harmony">3rd</button>
+                            <button class="vf-btn" data-sing-above="fourth" title="An exact fourth above - parallel organum">4th</button>
+                            <button class="vf-btn" data-sing-above="fifth" title="An exact fifth above - open, hollow parallel harmony">5th</button>
+                            <button class="vf-btn" data-sing-above="sixth" title="A sixth above, in key - sweet duet harmony (the third below, an octave up)">6th</button>
+                            <button class="vf-btn" data-sing-above="octave" title="An octave above - doubling the melody high">8ve</button>
+                        </span>
+                    </span>
+                    <label class="display-toggle" id="hearHarmonyLabel" hidden title="Also play the harmony note on the piano during first passes (repeat passes never play it, so with Repeat x2 you hear the harmony modeled, then sing it alone)">
+                        <input type="checkbox" id="hearHarmonyToggle">
+                        <span>hear harmony</span>
+                    </label>
                     <label class="display-toggle" title="Play each note on the piano as it crosses the now-line">
                         <input type="checkbox" id="hearTonesToggle" checked>
                         <span>hear tones</span>

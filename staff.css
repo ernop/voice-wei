@@ -119,13 +119,15 @@
     display: none;
 }
 
-.staff-sung-line-choice {
+.staff-sung-line-choice,
+.staff-sing-above-choice {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 
 .staff-sung-line-row .vf-btn,
+.staff-sing-above-row .vf-btn,
 .staff-stage-meta > .vf-btn {
     padding: 1px 8px;
     font-size: 0.75rem;

@@ -39,7 +39,7 @@ and deliver a weaker version of the requested change.
 | Scales | Build a practice pattern, hear it played correctly | Every option button plays and shows exactly what it says, with the right notes and timing; the settings persist |
 | Intervals | Drill interval distances by level; ear training for naming and singing intervals | Patterns generate endlessly; ear mode adapts to weak intervals; lifetime stats persist |
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
-| Staff | Read notation fluently: sing a continuous generated line from the grand staff | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; past runs replay for review |
+| Staff | Read notation fluently: sing a continuous generated line from the grand staff; train harmony by singing a chosen interval above it ("sing above") | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; in sing-above the melody still sounds while every target marking moves to the harmony; past runs replay for review |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
