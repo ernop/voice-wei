@@ -1834,3 +1834,22 @@ For future mei:
   `deleteBook` had no caller because the June bookshelf redesign dropped
   its button; `git log -S` on the call found it. Check history before
   deleting an uncalled method that does something a user would want.
+
+## 2026-10-28 - Staff "sing above" harmony practice (v379)
+
+yui asked for a Staff mode to train harmony: sing a chosen interval above
+the written line. Shipped as a stage-row selector (off / 3rd / 4th / 5th /
+6th / 8ve) plus a hear-harmony toggle. The harmony theory lives in
+`PatternPracticeCore.harmonyMidiAbove`; stream events carry `targetMidi`,
+and the scroll view looks targets up by beat (memoized on the events
+array identity) so a retarget never rebuilds notation chunks.
+
+For future mei:
+- On a fresh VM, `fillCdnCache` can stall on cdnjs for a single file
+  (vexflow-min.js stopped at a few hundred KB, no range support). The
+  identical npm release from jsDelivr
+  (`cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js`) copied
+  into `tests/.cdn-cache/vexflow/3.0.9/` unblocks the local gate.
+- `test-player-lifecycle.js` fails on this VM even on clean master while
+  CI passes it; `test-playback-engine.js` "scales root-change" flaked red
+  in CI (0 kills) and passes locally. Neither touches Staff.
