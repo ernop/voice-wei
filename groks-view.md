@@ -141,7 +141,7 @@ Voice / click / media keys
 | Trace | `trace.html` + `trace.js` | Session + view directly (no embed panel) |
 | Pitch | `pitch-meter.html` + `pitch-meter.js` | Free / C&R / play-along |
 | Music | `player.html` + `player.js` + `player-*.js` | `PlayerController` composed from mixins |
-| Books | `ebook.html` + `ebook.js` | Local library in IndexedDB `voice-wei-books` |
+| Books | `ebook.html` + `ebook.js` (`ebook-storage`, `-parse`, `-tts`, `-research` libraries) | Local library in IndexedDB `voice-wei-books` |
 | Games | `games.html` + `games.js` | Eleven Find puzzles; wiring and lexicon in `find-puzzle.js` |
 | Deploys | `deploys.html` | Ops chart, not a practice tool |
 

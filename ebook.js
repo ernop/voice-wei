@@ -1,19 +1,9 @@
 // @ts-check
-// Books: browser-local ebook library, reader, segmented MP3 generator, and player.
+// Books page controller: library, reader, audio-part generation, player, URL
+// import, and the Ask AI panel. Parsing (ebook-parse.js), storage
+// (ebook-storage.js), narration (ebook-tts.js) and research
+// (ebook-research.js) are libraries it calls.
 
-if (typeof pdfjsLib !== 'undefined') {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
-
-const EBOOK_DB_NAME = 'voice-wei-books';
-const EBOOK_DB_VERSION = 5;
-const BOOK_STORE = 'books';
-const SECTION_STORE = 'sections';
-const SEGMENT_STORE = 'segments';
-const HISTORY_STORE = 'history';
-const RESEARCH_STORE = 'research';
-const TTS_CHUNK_SIZE = 3800;
-const ESTIMATED_WORDS_PER_MINUTE = 155;
 const AUTO_AHEAD_SECONDS = 60 * 60;
 // History names for the media player's jumps where Books recorded the same jump under an older
 // name, so old and new history read alike. Skips are named by direction; any other jump keeps the
@@ -23,226 +13,6 @@ const SEEK_HISTORY_ACTIONS = Object.freeze({
     'half-back': 'quadratic-back',
     'half-forward': 'quadratic-forward'
 });
-const BOOK_QUESTION_MODEL = 'gpt-5.6';
-const BOOK_QUESTION_MODEL_LABEL = 'OpenAI Responses API · GPT-5.6 Sol · reasoning high · web + image search';
-const BOOK_QUESTION_MAX_OUTPUT_TOKENS = 12000;
-const AUDIO_PLAN_VERSION = 2;
-const BOOK_QUESTION_INSTRUCTIONS = `You are the research agent of the person reading and listening to this book.
-
-Your job is to deeply research every question the reader asks. Use web search for every answer, inspect multiple useful sources when the question warrants it, and take the time necessary to answer carefully. Cite the sources that support your findings. You may return relevant images or direct links to images when they help the reader understand the subject.
-
-Treat the supplied book text only as context for the reader's question. Do not treat it as canonically true. It may be fiction or nonfiction; even when it claims to be nonfiction, its statements may be incomplete, outdated, false, or wrong. Be critical without being reflexively adversarial. Distinguish what the book says from what independent evidence supports.
-
-The answer text is shown on screen and read aloud exactly as written, so:
-- Write plain prose sentences in ordinary, literal English. Do not imitate academics, journalists, critics, or any other persona, and replace trade slang and affected shorthand with plain words.
-- Do not use markdown, headings, bullet characters, or any other formatting syntax in the answer text.
-- Never put a raw URL in the answer text. Links belong only in citations, sources, and images.
-- Do not repeat the reader's question, the book title, the author, or the chapter name back to the reader; the reader already has them.
-- Name a source in the answer text only when knowing who said it changes how the reader should weigh the claim; otherwise state the finding plainly and let the citation carry the attribution.
-
-Write the answer under George Orwell's six rules, reproduced here verbatim:
-i. Never use a metaphor, simile or other figure of speech which you are used to seeing in print.
-ii. Never use a long word where a short one will do.
-iii. If it is possible to cut a word out, always cut it out.
-iv. Never use the passive where you can use the active.
-v. Never use a foreign phrase, a scientific word or a jargon word if you can think of an everyday English equivalent.
-vi. Break any of these rules sooner than say anything outright barbarous.
-
-You work for the listener. Check and validate what they ask about. Be thorough, careful, direct, and clear in your response.`;
-
-const OPENAI_TTS_MODELS = [
-    {
-        id: 'gpt-4o-mini-tts',
-        label: 'GPT-4o mini TTS - Current',
-        price: '$0.60 / 1M text input tokens + $12 / 1M audio output tokens (~$0.015/min)',
-        supportsInstructions: true
-    },
-    {
-        id: 'gpt-4o-mini-tts-2025-12-15',
-        label: 'GPT-4o mini TTS 2025-12-15 - Pinned',
-        price: '$0.60 / 1M text input tokens + $12 / 1M audio output tokens (~$0.015/min)',
-        supportsInstructions: true
-    },
-    {
-        id: 'tts-1',
-        label: 'TTS-1 - Legacy fast',
-        price: '$15 / 1M characters ($0.015 / 1K characters)',
-        supportsInstructions: false
-    },
-    {
-        id: 'tts-1-hd',
-        label: 'TTS-1-HD - Legacy high quality',
-        price: '$30 / 1M characters ($0.030 / 1K characters)',
-        supportsInstructions: false
-    }
-];
-
-const OPENAI_TTS_VOICES = [
-    { id: 'alloy', label: 'Alloy', description: 'Neutral and balanced, good for most content.', legacy: true },
-    { id: 'ash', label: 'Ash', description: 'Clear, calm, and grounded.', legacy: true },
-    { id: 'ballad', label: 'Ballad', description: 'Expressive and narrative, suited to long-form reading.', legacy: false },
-    { id: 'cedar', label: 'Cedar', description: 'Warm and steady for extended listening.', legacy: false },
-    { id: 'coral', label: 'Coral', description: 'Bright and conversational.', legacy: true },
-    { id: 'echo', label: 'Echo', description: 'Male voice, clear and articulate. Good for non-fiction.', legacy: true },
-    { id: 'fable', label: 'Fable', description: 'British accent, warm and expressive. Great for fiction.', legacy: true },
-    { id: 'marin', label: 'Marin', description: 'Natural and relaxed for audiobook narration.', legacy: false },
-    { id: 'nova', label: 'Nova', description: 'Female voice, warm and conversational. Good for stories.', legacy: true },
-    { id: 'onyx', label: 'Onyx', description: 'Deep male voice, authoritative. Good for dramatic content.', legacy: true },
-    { id: 'sage', label: 'Sage', description: 'Measured and thoughtful.', legacy: true },
-    { id: 'shimmer', label: 'Shimmer', description: 'Soft female voice, gentle and calm. Good for relaxing content.', legacy: true },
-    { id: 'verse', label: 'Verse', description: 'Lyrical and expressive.', legacy: false }
-];
-
-const OPENAI_TTS_ACCENTS = [
-    { id: 'default', label: 'Default', instruction: '' },
-    { id: 'american', label: 'American English', instruction: 'Use a natural American English accent.' },
-    { id: 'british', label: 'British English', instruction: 'Use a natural British English accent.' },
-    { id: 'australian', label: 'Australian English', instruction: 'Use a natural Australian English accent.' },
-    { id: 'irish', label: 'Irish English', instruction: 'Use a natural Irish English accent.' },
-    { id: 'scottish', label: 'Scottish English', instruction: 'Use a natural Scottish English accent.' },
-    { id: 'indian', label: 'Indian English', instruction: 'Use a natural Indian English accent.' },
-    { id: 'new-york', label: 'New York English', instruction: 'Use a light New York English accent.' },
-    { id: 'southern-us', label: 'Southern US English', instruction: 'Use a light Southern US English accent.' }
-];
-
-const OPENAI_TTS_STYLES = [
-    { id: 'audiobook', label: 'Audiobook narrator', instruction: 'Read like an attentive audiobook narrator with clear pacing.' },
-    { id: 'neutral', label: 'Neutral', instruction: 'Read in a neutral, natural style.' },
-    { id: 'dramatic', label: 'Dramatic suspense', instruction: 'Read with dramatic suspense, careful pauses, and rising tension.' },
-    { id: 'warm', label: 'Warm storyteller', instruction: 'Read warmly, like a close storyteller.' },
-    { id: 'documentary', label: 'Documentary', instruction: 'Read with a calm documentary narration style.' },
-    { id: 'bedtime', label: 'Calm bedtime', instruction: 'Read softly and calmly, suitable for relaxed listening.' },
-    { id: 'whisper', label: 'Whisper', instruction: 'Read in a quiet whisper while remaining intelligible.' }
-];
-
-const VOICE_DESCRIPTIONS = {
-    ...Object.fromEntries(OPENAI_TTS_VOICES.map(voice => [voice.id, voice.description]))
-};
-
-const VOICE_PREVIEW_TEXT = 'it was a dark and stormy night. The datacenter was centrally located in the data plains of Torrenthia, humming along as usual, blotting out the sound of scraping from beneath.';
-const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
-
-/**
- * @typedef {Object} Settings
- * @property {string} voice
- * @property {string} model
- * @property {number} speed
- * @property {string} accent
- * @property {string} style
- * @property {string} instructions
- * @property {boolean} speakAiAnswers
- */
-
-/**
- * @typedef {Object} BookRecord
- * @property {string} id
- * @property {number} schemaVersion
- * @property {number | undefined} audioPlanVersion
- * @property {string} title
- * @property {string} author
- * @property {string} format
- * @property {string} fileName
- * @property {string} fileType
- * @property {number} fileSize
- * @property {Blob} rawFile
- * @property {number} sectionCount
- * @property {number} segmentCount
- * @property {number} generatedSegmentCount
- * @property {number} wordCount
- * @property {number} charCount
- * @property {number} estimatedDurationSec
- * @property {number} generatedDurationSec
- * @property {string} createdAt
- * @property {string} updatedAt
- * @property {string} lastOpenedAt
- * @property {string} [archivedAt]
- * @property {string} readingSectionId
- * @property {number} readingCharOffset
- * @property {string} listeningSegmentId
- * @property {number} listeningOffsetSec
- * @property {Blob | null | undefined} legacyAudioBlob
- * @property {number | undefined} legacyAudioSize
- * @property {string} [contentOrigin]
- * @property {string} [sourceUrl]
- * @property {string} [sourceRequestedUrl]
- * @property {string} [lastFetchedAt]
- * @property {string[]} [sourcePageUrls]
- */
-
-/**
- * @typedef {Object} BookSection
- * @property {string} key
- * @property {string} bookId
- * @property {string} id
- * @property {number} spineIndex
- * @property {string} title
- * @property {string} text
- * @property {string} html
- * @property {number} charStart
- * @property {number} charEnd
- * @property {number} wordCount
- */
-
-/** @typedef {'pending' | 'generating' | 'done' | 'error'} SegmentStatus */
-
-/**
- * @typedef {Object} AudioSegment
- * @property {string} key
- * @property {string} bookId
- * @property {string} id
- * @property {string} sectionId
- * @property {number} segmentIndex
- * @property {number} sectionSegmentIndex
- * @property {number} charStart
- * @property {number} charEnd
- * @property {string} text
- * @property {number} wordCount
- * @property {number} estimatedDurationSec
- * @property {SegmentStatus} status
- * @property {Blob | null} blob
- * @property {number} audioSize
- * @property {number} durationSec
- * @property {string} generatedAt
- * @property {Settings | null} audioSettings
- * @property {string} error
- */
-
-/**
- * @typedef {Object} BookHistoryEntry
- * @property {string} id
- * @property {string} bookId
- * @property {string} dateKey
- * @property {string} timestamp
- * @property {string} action
- * @property {string} segmentId
- * @property {string} sectionId
- * @property {number} segmentIndex
- * @property {number} positionSec
- * @property {number} durationSec
- * @property {number} listenedSec
- * @property {number} readSec
- * @property {number} readWords
- * @property {string} detail
- */
-
-/**
- * @typedef {Object} AiResearchRecord
- * @property {string} id
- * @property {string} bookId
- * @property {string} sectionId
- * @property {string} segmentId
- * @property {string} timestamp
- * @property {string} question
- * @property {string} answer
- * @property {string} bookText
- * @property {{ start: number, end: number, url: string, title: string }[]} citations
- * @property {{ url: string, title: string }[]} sources
- * @property {{ imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[]} images
- * @property {Record<string, any>} request
- * @property {string} modelLabel
- * @property {number} elapsedMs
- * @property {boolean} spokenAtReturn
- */
 
 /**
  * @typedef {Object} WebPage
@@ -269,232 +39,6 @@ const VOICE_SAMPLE_TEXT = VOICE_PREVIEW_TEXT;
  * @property {string} error
  */
 
-class BooksStorage {
-    constructor() {
-        /** @type {IDBDatabase | null} */
-        this.db = null;
-    }
-
-    async open() {
-        if (this.db) return;
-        await new Promise((resolve, reject) => {
-            const request = indexedDB.open(EBOOK_DB_NAME, EBOOK_DB_VERSION);
-            request.onupgradeneeded = () => {
-                const db = request.result;
-                if (!db.objectStoreNames.contains(BOOK_STORE)) {
-                    const books = db.createObjectStore(BOOK_STORE, { keyPath: 'id' });
-                    books.createIndex('updatedAt', 'updatedAt');
-                    books.createIndex('title', 'title');
-                }
-                if (!db.objectStoreNames.contains(SECTION_STORE)) {
-                    const sections = db.createObjectStore(SECTION_STORE, { keyPath: 'key' });
-                    sections.createIndex('bookId', 'bookId');
-                    sections.createIndex('bookSpine', ['bookId', 'spineIndex']);
-                }
-                if (!db.objectStoreNames.contains(SEGMENT_STORE)) {
-                    const segments = db.createObjectStore(SEGMENT_STORE, { keyPath: 'key' });
-                    segments.createIndex('bookId', 'bookId');
-                    segments.createIndex('bookSegment', ['bookId', 'segmentIndex']);
-                    segments.createIndex('bookSection', ['bookId', 'sectionId']);
-                    segments.createIndex('bookStatus', ['bookId', 'status']);
-                }
-                if (!db.objectStoreNames.contains(HISTORY_STORE)) {
-                    const history = db.createObjectStore(HISTORY_STORE, { keyPath: 'id' });
-                    history.createIndex('bookId', 'bookId');
-                    history.createIndex('bookDay', ['bookId', 'dateKey']);
-                    history.createIndex('timestamp', 'timestamp');
-                }
-                if (!db.objectStoreNames.contains(RESEARCH_STORE)) {
-                    const research = db.createObjectStore(RESEARCH_STORE, { keyPath: 'id' });
-                    research.createIndex('bookId', 'bookId');
-                    research.createIndex('timestamp', 'timestamp');
-                }
-            };
-            request.onsuccess = () => {
-                this.db = request.result;
-                resolve(undefined);
-            };
-            request.onerror = () => reject(request.error || new Error('Could not open Books storage'));
-        });
-    }
-
-    /** @param {string} storeName @param {'readonly' | 'readwrite'} mode */
-    store(storeName, mode) {
-        if (!this.db) throw new Error('Books storage is not open');
-        return this.db.transaction(storeName, mode).objectStore(storeName);
-    }
-
-    /** @param {BookRecord} book */
-    async putBook(book) {
-        await this.put(BOOK_STORE, book);
-    }
-
-    /** @param {string} id */
-    async getBook(id) {
-        return /** @type {Promise<BookRecord | null>} */ (this.get(BOOK_STORE, id));
-    }
-
-    async getBooks() {
-        const books = await /** @type {Promise<BookRecord[]>} */ (this.getAll(BOOK_STORE));
-        books.sort((a, b) => (b.lastOpenedAt || b.updatedAt).localeCompare(a.lastOpenedAt || a.updatedAt));
-        return books;
-    }
-
-    /** @param {BookSection[]} sections */
-    async putSections(sections) {
-        for (const section of sections) await this.put(SECTION_STORE, section);
-    }
-
-    /** @param {AudioSegment[]} segments */
-    async putSegments(segments) {
-        for (const segment of segments) await this.put(SEGMENT_STORE, segment);
-    }
-
-    /** @param {AudioSegment} segment */
-    async putSegment(segment) {
-        await this.put(SEGMENT_STORE, segment);
-    }
-
-    /** @param {string} key */
-    async getSegment(key) {
-        return /** @type {Promise<AudioSegment | null>} */ (this.get(SEGMENT_STORE, key));
-    }
-
-    /** @param {string} bookId */
-    async getSections(bookId) {
-        const sections = await /** @type {Promise<BookSection[]>} */ (this.getAllByIndex(SECTION_STORE, 'bookId', bookId));
-        sections.sort((a, b) => a.spineIndex - b.spineIndex);
-        return sections;
-    }
-
-    /** @param {string} bookId @param {BookSection[]} sections */
-    async replaceSections(bookId, sections) {
-        const existing = await this.getSections(bookId);
-        for (const section of existing) await this.delete(SECTION_STORE, section.key);
-        await this.putSections(sections);
-    }
-
-    /** @param {string} bookId */
-    async getSegments(bookId) {
-        const segments = await /** @type {Promise<AudioSegment[]>} */ (this.getAllByIndex(SEGMENT_STORE, 'bookId', bookId));
-        segments.sort((a, b) => a.segmentIndex - b.segmentIndex);
-        return segments;
-    }
-
-    /** @param {string} bookId @param {AudioSegment[]} segments */
-    async replaceSegments(bookId, segments) {
-        const existing = await this.getSegments(bookId);
-        for (const segment of existing) await this.delete(SEGMENT_STORE, segment.key);
-        await this.putSegments(segments);
-    }
-
-    /** @param {BookRecord} book @param {BookSection[]} sections @param {AudioSegment[]} segments */
-    async replaceBookContent(book, sections, segments) {
-        if (!this.db) throw new Error('Books storage is not open');
-        await new Promise((resolve, reject) => {
-            const tx = this.db.transaction([BOOK_STORE, SECTION_STORE, SEGMENT_STORE], 'readwrite');
-            const sectionStore = tx.objectStore(SECTION_STORE);
-            const segmentStore = tx.objectStore(SEGMENT_STORE);
-            const sectionKeys = sectionStore.index('bookId').getAllKeys(book.id);
-            const segmentKeys = segmentStore.index('bookId').getAllKeys(book.id);
-            sectionKeys.onsuccess = () => {
-                for (const key of sectionKeys.result) sectionStore.delete(key);
-                for (const section of sections) sectionStore.put(section);
-            };
-            segmentKeys.onsuccess = () => {
-                for (const key of segmentKeys.result) segmentStore.delete(key);
-                for (const segment of segments) segmentStore.put(segment);
-            };
-            tx.objectStore(BOOK_STORE).put(book);
-            tx.oncomplete = () => resolve(undefined);
-            tx.onerror = () => reject(tx.error || new Error('Could not replace book audio plan'));
-            tx.onabort = () => reject(tx.error || new Error('Book audio plan replacement aborted'));
-        });
-    }
-
-    /** @param {string} bookId */
-    async deleteBookCascade(bookId) {
-        const sections = await this.getSections(bookId);
-        const segments = await this.getSegments(bookId);
-        const history = await this.getHistory(bookId);
-        const research = await this.getResearch(bookId);
-        for (const section of sections) await this.delete(SECTION_STORE, section.key);
-        for (const segment of segments) await this.delete(SEGMENT_STORE, segment.key);
-        for (const entry of history) await this.delete(HISTORY_STORE, entry.id);
-        for (const entry of research) await this.delete(RESEARCH_STORE, entry.id);
-        await this.delete(BOOK_STORE, bookId);
-    }
-
-    /** @param {BookHistoryEntry} entry */
-    async putHistory(entry) {
-        await this.put(HISTORY_STORE, entry);
-    }
-
-    /** @param {string} bookId */
-    async getHistory(bookId) {
-        const entries = await /** @type {Promise<BookHistoryEntry[]>} */ (this.getAllByIndex(HISTORY_STORE, 'bookId', bookId));
-        entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-        return entries;
-    }
-
-    /** @param {AiResearchRecord} record */
-    async putResearch(record) {
-        await this.put(RESEARCH_STORE, record);
-    }
-
-    /** @param {string} bookId */
-    async getResearch(bookId) {
-        const records = await /** @type {Promise<AiResearchRecord[]>} */ (this.getAllByIndex(RESEARCH_STORE, 'bookId', bookId));
-        records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-        return records;
-    }
-
-    /** @param {string} storeName @param {any} value */
-    async put(storeName, value) {
-        await new Promise((resolve, reject) => {
-            const request = this.store(storeName, 'readwrite').put(value);
-            request.onsuccess = () => resolve(undefined);
-            request.onerror = () => reject(request.error || new Error(`Could not save ${storeName}`));
-        });
-    }
-
-    /** @param {string} storeName @param {string} key */
-    async get(storeName, key) {
-        return new Promise((resolve, reject) => {
-            const request = this.store(storeName, 'readonly').get(key);
-            request.onsuccess = () => resolve(request.result || null);
-            request.onerror = () => reject(request.error || new Error(`Could not load ${storeName}`));
-        });
-    }
-
-    /** @param {string} storeName */
-    async getAll(storeName) {
-        return new Promise((resolve, reject) => {
-            const request = this.store(storeName, 'readonly').getAll();
-            request.onsuccess = () => resolve(request.result || []);
-            request.onerror = () => reject(request.error || new Error(`Could not list ${storeName}`));
-        });
-    }
-
-    /** @param {string} storeName @param {string} indexName @param {any} value */
-    async getAllByIndex(storeName, indexName, value) {
-        return new Promise((resolve, reject) => {
-            const request = this.store(storeName, 'readonly').index(indexName).getAll(value);
-            request.onsuccess = () => resolve(request.result || []);
-            request.onerror = () => reject(request.error || new Error(`Could not list ${storeName}`));
-        });
-    }
-
-    /** @param {string} storeName @param {string} key */
-    async delete(storeName, key) {
-        await new Promise((resolve, reject) => {
-            const request = this.store(storeName, 'readwrite').delete(key);
-            request.onsuccess = () => resolve(undefined);
-            request.onerror = () => reject(request.error || new Error(`Could not delete ${storeName}`));
-        });
-    }
-}
-
 class BooksController {
     constructor() {
         /** @type {BooksStorage | null} */
@@ -507,16 +51,8 @@ class BooksController {
         this.sections = [];
         /** @type {AudioSegment[]} */
         this.segments = [];
-        /** @type {Settings} */
-        this.settings = {
-            voice: 'alloy',
-            model: 'gpt-4o-mini-tts',
-            speed: 1,
-            accent: 'default',
-            style: 'audiobook',
-            instructions: '',
-            speakAiAnswers: false
-        };
+        /** @type {BooksSettings} */
+        this.settings = { ...BOOKS_SETTINGS_DEFAULTS };
         /** @type {string | null} */
         this.apiKey = null;
         /** @type {AbortController | null} */
@@ -674,32 +210,15 @@ class BooksController {
 
     loadSettings() {
         const snapshot = { ...this.settings };
-        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, ['voice', 'model', 'speed', 'accent', 'style', 'instructions', 'speakAiAnswers']);
-        this.settings = this.normalizeTtsSettings(snapshot);
+        SettingsStore.load(StorageKeys.EBOOK_SETTINGS, snapshot, BOOKS_SETTINGS_KEYS);
+        this.settings = BooksTts.normalizeSettings(snapshot);
         this.populateTtsModelOptions();
         this.populateTtsVoiceOptions();
         this.syncTtsControls();
     }
 
     saveSettings() {
-        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, ['voice', 'model', 'speed', 'accent', 'style', 'instructions', 'speakAiAnswers']);
-    }
-
-    /** @param {Settings} settings */
-    normalizeTtsSettings(settings) {
-        const model = OPENAI_TTS_MODELS.some(item => item.id === settings.model) ? settings.model : 'gpt-4o-mini-tts';
-        const speed = Number.isFinite(settings.speed) ? Math.max(0.25, Math.min(4, settings.speed)) : 1;
-        const voices = this.getVoicesForModel(model);
-        const voice = voices.some(item => item.id === settings.voice) ? settings.voice : 'alloy';
-        return {
-            voice,
-            model,
-            speed,
-            accent: OPENAI_TTS_ACCENTS.some(item => item.id === settings.accent) ? settings.accent : 'default',
-            style: OPENAI_TTS_STYLES.some(item => item.id === settings.style) ? settings.style : 'audiobook',
-            instructions: typeof settings.instructions === 'string' ? settings.instructions : '',
-            speakAiAnswers: Boolean(settings.speakAiAnswers)
-        };
+        SettingsStore.save(StorageKeys.EBOOK_SETTINGS, this.settings, BOOKS_SETTINGS_KEYS);
     }
 
     populateTtsModelOptions() {
@@ -711,7 +230,7 @@ class BooksController {
     }
 
     populateTtsVoiceOptions() {
-        const voices = this.getVoicesForModel(this.settings.model);
+        const voices = BooksTts.voicesForModel(this.settings.model);
         for (const voiceEl of this.getTtsVoiceSelects()) {
             voiceEl.innerHTML = voices
                 .map(voice => `<option value="${escapeHtml(voice.id)}">${escapeHtml(voice.label)} - ${escapeHtml(voice.description)}</option>`)
@@ -736,7 +255,7 @@ class BooksController {
     }
 
     syncTtsControls() {
-        this.settings = this.normalizeTtsSettings(this.settings);
+        this.settings = BooksTts.normalizeSettings(this.settings);
         this.populateTtsModelOptions();
         this.populateTtsVoiceOptions();
         this.populateTtsAccentOptions();
@@ -748,7 +267,7 @@ class BooksController {
             const step = parseFloat(speedButton.getAttribute('data-tts-speed-step') || '0');
             speedButton.disabled = step < 0 ? this.settings.speed <= 0.25 : this.settings.speed >= 4;
         }
-        const supportsInstructions = this.ttsModelSupportsInstructions();
+        const supportsInstructions = BooksTts.supportsInstructions(this.settings.model);
         for (const accentEl of this.getTtsAccentSelects()) {
             accentEl.value = this.settings.accent;
             accentEl.disabled = !supportsInstructions;
@@ -809,22 +328,8 @@ class BooksController {
             .filter(/** @returns {item is HTMLTextAreaElement} */ item => Boolean(item));
     }
 
-    /** @param {string} model */
-    getVoicesForModel(model) {
-        if (model.startsWith('gpt-4o-mini-tts')) return OPENAI_TTS_VOICES;
-        return OPENAI_TTS_VOICES.filter(voice => voice.legacy);
-    }
-
-    ttsModelSupportsInstructions() {
-        return OPENAI_TTS_MODELS.find(item => item.id === this.settings.model)?.supportsInstructions || false;
-    }
-
-    getSelectedTtsModel() {
-        return OPENAI_TTS_MODELS.find(item => item.id === this.settings.model) || OPENAI_TTS_MODELS[0];
-    }
-
     updateModelPricing() {
-        const model = this.getSelectedTtsModel();
+        const model = BooksTts.modelFor(this.settings.model);
         const message = `${model.label}: ${model.price}. Prices are from OpenAI API pricing and may change.`;
         for (const el of ['modelPricingDescription', 'generatorModelPricingDescription'].map(id => document.getElementById(id))) {
             if (el) el.textContent = message;
@@ -835,7 +340,7 @@ class BooksController {
         const descEl = document.getElementById('voiceDescription');
         const generatorDescEl = document.getElementById('generatorVoiceDescription');
         const description = VOICE_DESCRIPTIONS[this.settings.voice] || '';
-        const instructionNote = this.ttsModelSupportsInstructions()
+        const instructionNote = BooksTts.supportsInstructions(this.settings.model)
             ? 'Narration instructions will be sent with conversion requests.'
             : 'Narration instructions are disabled for legacy TTS models.';
         if (descEl) descEl.textContent = description;
@@ -850,7 +355,7 @@ class BooksController {
     renderVoiceSampleButtons() {
         const grid = document.getElementById('voiceSampleGrid');
         if (!grid) return;
-        const voices = this.getVoicesForModel(this.settings.model);
+        const voices = BooksTts.voicesForModel(this.settings.model);
         grid.innerHTML = voices.map(voice => {
             const selected = voice.id === this.settings.voice ? ' selected' : '';
             const playing = voice.id === this.voiceSampleVoice && this.voiceSampleAudio && !this.voiceSampleAudio.paused ? ' playing' : '';
@@ -942,7 +447,7 @@ class BooksController {
         for (const modelEl of this.getTtsModelSelects()) {
             modelEl.addEventListener('change', () => {
                 this.settings.model = modelEl.value;
-                this.settings = this.normalizeTtsSettings(this.settings);
+                this.settings = BooksTts.normalizeSettings(this.settings);
                 this.saveSettings();
                 this.syncTtsControls();
             });
@@ -1276,25 +781,9 @@ class BooksController {
         if (answerContainer) answerContainer.style.display = 'none';
         try {
             const requestBody = this.buildAiQuestionRequest(question, segment);
-            const response = await fetch('https://api.openai.com/v1/responses', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                signal: abort.signal,
-                body: JSON.stringify(requestBody)
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
-            }
-            const data = await response.json();
+            const data = await BooksResearch.send(this.apiKey, requestBody, abort.signal);
             if (abort.signal.aborted || this.currentBook?.id !== segment.bookId) return;
-            if (data.status === 'incomplete') {
-                throw new Error(`OpenAI response incomplete: ${data.incomplete_details?.reason || 'output limit reached'}`);
-            }
-            const result = this.extractOpenAiResearchResult(data);
+            const result = BooksResearch.readResult(data);
             const elapsed = this.stopAiQuestionTimer();
             this.lastAiAnswer = result.answer;
             this.renderAiResearchResult(result);
@@ -1334,45 +823,20 @@ class BooksController {
 
     /** @param {string} question @param {AudioSegment} segment @param {string} [bookText] */
     buildAiQuestionRequest(question, segment, bookText = segment.text) {
-        return {
-            model: BOOK_QUESTION_MODEL,
-            reasoning: { effort: 'high' },
-            tools: [{
-                type: 'web_search',
-                search_context_size: 'high',
-                search_content_types: ['image', 'text'],
-                image_settings: {
-                    max_results: 6,
-                    caption: true
-                }
-            }],
-            tool_choice: 'required',
-            include: ['web_search_call.results', 'web_search_call.action.sources'],
-            max_output_tokens: BOOK_QUESTION_MAX_OUTPUT_TOKENS,
-            instructions: BOOK_QUESTION_INSTRUCTIONS,
-            input: this.buildAiQuestionPrompt(question, segment, bookText)
-        };
-    }
-
-    /** @param {string} question @param {AudioSegment} segment @param {string} bookText */
-    buildAiQuestionPrompt(question, segment, bookText) {
-        return [
-            `Reader question: ${question}`,
-            '',
-            `Book: ${this.currentBook?.title || 'Unknown title'}`,
-            `Author: ${this.currentBook?.author || 'Unknown author'}`,
-            `Chapter or section: ${this.getSectionTitle(segment.sectionId)}`,
-            '',
-            'Full text of the current audio context:',
+        return BooksResearch.buildRequest({
+            question,
+            title: this.currentBook?.title || 'Unknown title',
+            author: this.currentBook?.author || 'Unknown author',
+            section: this.getSectionTitle(segment.sectionId),
             bookText
-        ].join('\n');
+        });
     }
 
     /**
      * @param {string} question
      * @param {AudioSegment} segment
      * @param {Record<string, any>} request
-     * @param {{ answer: string, citations: { start: number, end: number, url: string, title: string }[], sources: { url: string, title: string }[], images: { imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[] }} result
+     * @param {BookResearchResult} result
      * @param {number} elapsedMs
      */
     async persistAiResearch(question, segment, request, result, elapsedMs) {
@@ -1483,199 +947,17 @@ class BooksController {
         ].join('\n');
     }
 
-    /**
-     * @param {any} data
-     * @returns {{ answer: string, citations: { start: number, end: number, url: string, title: string }[], sources: { url: string, title: string }[], images: { imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[] }}
-     */
-    extractOpenAiResearchResult(data) {
-        const contentParts = (data.output || []).flatMap(item => item.content || []);
-        const answer = typeof data.output_text === 'string' && data.output_text.trim()
-            ? data.output_text.trim()
-            : contentParts.map(part => part.text || '').join('').trim();
-        if (!answer) throw new Error('OpenAI response did not contain an answer');
-
-        const sourceMap = new Map();
-        const citations = [];
-        let contentOffset = 0;
-        for (const part of contentParts) {
-            for (const annotation of part.annotations || []) {
-                if (annotation.type !== 'url_citation' || !this.isPublicHttpUrl(annotation.url)) continue;
-                sourceMap.set(annotation.url, { url: annotation.url, title: annotation.title || annotation.url });
-                citations.push({
-                    start: contentOffset + annotation.start_index,
-                    end: contentOffset + annotation.end_index,
-                    url: annotation.url,
-                    title: annotation.title || annotation.url
-                });
-            }
-            contentOffset += (part.text || '').length;
-        }
-        for (const item of data.output || []) {
-            for (const source of item.action?.sources || []) {
-                if (!this.isPublicHttpUrl(source.url) || sourceMap.has(source.url)) continue;
-                sourceMap.set(source.url, { url: source.url, title: source.url });
-            }
-        }
-
-        const images = [];
-        const seenImages = new Set();
-        for (const item of data.output || []) {
-            for (const result of item.results || []) {
-                if (result.type !== 'image_result' || !this.isPublicHttpsUrl(result.image_url) || seenImages.has(result.image_url)) continue;
-                seenImages.add(result.image_url);
-                images.push({
-                    imageUrl: result.image_url,
-                    thumbnailUrl: this.isPublicHttpsUrl(result.thumbnail_url) ? result.thumbnail_url : result.image_url,
-                    sourceUrl: this.isPublicHttpUrl(result.source_website_url) ? result.source_website_url : result.image_url,
-                    caption: result.caption || 'Research image'
-                });
-            }
-        }
-        return { answer, citations, sources: Array.from(sourceMap.values()), images };
-    }
-
-    /** @param {string} value */
-    isPublicHttpUrl(value) {
-        if (typeof value !== 'string') return false;
-        try {
-            const url = new URL(value);
-            return (url.protocol === 'https:' || url.protocol === 'http:')
-                && !url.username
-                && !url.password
-                && !this.isPrivateNetworkHostname(url.hostname);
-        } catch (_error) {
-            return false;
-        }
-    }
-
-    /** @param {string} value */
-    isPublicHttpsUrl(value) {
-        if (!this.isPublicHttpUrl(value)) return false;
-        return new URL(value).protocol === 'https:';
-    }
-
-    /** @param {string} hostname */
-    isPrivateNetworkHostname(hostname) {
-        const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
-        if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return true;
-        if (host === '::' || host === '::1' || host.startsWith('::ffff:') || /^f[cd]/.test(host) || /^fe[89ab]/.test(host)) return true;
-        const octets = host.split('.').map(part => Number(part));
-        if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
-        const [a, b] = octets;
-        return a === 0
-            || a === 10
-            || a === 127
-            || a >= 224
-            || (a === 100 && b >= 64 && b <= 127)
-            || (a === 169 && b === 254)
-            || (a === 172 && b >= 16 && b <= 31)
-            || (a === 192 && b === 168)
-            || (a === 198 && (b === 18 || b === 19));
-    }
-
-    /** @param {{ answer: string, citations: { start: number, end: number, url: string, title: string }[], sources: { url: string, title: string }[], images: { imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[] }} result */
+    /** @param {BookResearchResult} result */
     renderAiResearchResult(result) {
         const container = document.getElementById('aiQuestionAnswer');
         const textEl = document.getElementById('aiQuestionAnswerText');
         if (container) container.style.display = 'block';
-        if (textEl) {
-            textEl.textContent = '';
-            const segmenter = new (/** @type {any} */ (Intl).Segmenter)(undefined, { granularity: 'sentence' });
-            for (const sentence of segmenter.segment(result.answer)) {
-                if (!sentence.segment.trim()) {
-                    textEl.append(document.createTextNode(sentence.segment));
-                    continue;
-                }
-                const span = document.createElement('span');
-                span.className = 'ai-answer-sentence';
-                const start = sentence.index;
-                const end = start + sentence.segment.length;
-                span.dataset.start = String(start);
-                span.dataset.end = String(end);
-                this.appendAiAnswerSentence(span, result.answer, start, end, result.citations);
-                textEl.appendChild(span);
-            }
-        }
-        this.renderAiResearchSources(result.sources);
-        this.renderAiResearchImages(result.images);
+        BooksResearch.renderAnswerText(textEl, result);
+        BooksResearch.renderSources(document.getElementById('aiQuestionSources'), result.sources);
+        BooksResearch.renderImages(document.getElementById('aiQuestionImages'), result.images);
         this.renderAiAnswerPlayState(false);
         this.aiAnswerCursor = 0;
         this.highlightAiAnswerAt(0);
-    }
-
-    /**
-     * @param {HTMLElement} container
-     * @param {string} answer
-     * @param {number} start
-     * @param {number} end
-     * @param {{ start: number, end: number, url: string, title: string }[]} citations
-     */
-    appendAiAnswerSentence(container, answer, start, end, citations) {
-        let cursor = start;
-        const withinSentence = citations
-            .filter(citation => citation.start >= start && citation.end <= end)
-            .sort((a, b) => a.start - b.start);
-        for (const citation of withinSentence) {
-            if (citation.start < cursor) continue;
-            container.append(document.createTextNode(answer.slice(cursor, citation.start)));
-            const link = document.createElement('a');
-            link.href = citation.url;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            link.title = citation.title;
-            link.textContent = answer.slice(citation.start, citation.end);
-            container.appendChild(link);
-            cursor = citation.end;
-        }
-        container.append(document.createTextNode(answer.slice(cursor, end)));
-    }
-
-    /** @param {{ url: string, title: string }[]} sources */
-    renderAiResearchSources(sources) {
-        const container = document.getElementById('aiQuestionSources');
-        if (!container) return;
-        container.textContent = '';
-        container.style.display = sources.length ? 'grid' : 'none';
-        if (!sources.length) return;
-        const heading = document.createElement('strong');
-        heading.textContent = 'Sources';
-        container.appendChild(heading);
-        for (const source of sources) {
-            const link = document.createElement('a');
-            link.href = source.url;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            link.textContent = source.title;
-            container.appendChild(link);
-        }
-    }
-
-    /** @param {{ imageUrl: string, thumbnailUrl: string, sourceUrl: string, caption: string }[]} images */
-    renderAiResearchImages(images) {
-        const container = document.getElementById('aiQuestionImages');
-        if (!container) return;
-        container.textContent = '';
-        container.style.display = images.length ? 'grid' : 'none';
-        if (!images.length) return;
-        const heading = document.createElement('strong');
-        heading.textContent = 'Research images';
-        container.appendChild(heading);
-        for (const image of images) {
-            const link = document.createElement('a');
-            link.className = 'ai-question-image';
-            link.href = image.sourceUrl;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            const img = document.createElement('img');
-            img.src = image.thumbnailUrl;
-            img.alt = image.caption;
-            img.loading = 'lazy';
-            img.referrerPolicy = 'no-referrer';
-            const caption = document.createElement('span');
-            caption.textContent = image.caption;
-            link.append(img, caption);
-            container.appendChild(link);
-        }
     }
 
     startAiQuestionTimer() {
@@ -1865,7 +1147,7 @@ class BooksController {
         previewBtn.disabled = true;
         previewBtn.textContent = 'Loading...';
         try {
-            const response = await this.fetchSpeech(VOICE_PREVIEW_TEXT, null);
+            const response = await BooksTts.fetchSpeech(this.apiKey, VOICE_SAMPLE_TEXT, this.settings, null);
             const audioBlob = await response.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
             this.previewAudio = new Audio(audioUrl);
@@ -1906,7 +1188,7 @@ class BooksController {
         if (statusEl) statusEl.textContent = `Loading ${voiceMeta.label} sample...`;
         this.renderVoiceSampleButtons();
         try {
-            const response = await this.fetchSpeech(VOICE_SAMPLE_TEXT, null, { voice });
+            const response = await BooksTts.fetchSpeech(this.apiKey, VOICE_SAMPLE_TEXT, this.settings, null, voice);
             const audioBlob = await response.blob();
             this.voiceSampleUrl = URL.createObjectURL(audioBlob);
             this.voiceSampleAudio = new Audio(this.voiceSampleUrl);
@@ -2042,7 +1324,7 @@ class BooksController {
 
         this.updateStatus('Importing book...');
         this.log('info', `Importing ${file.name} (${this.formatFileSize(file.size)})`);
-        const imported = await this.parseFile(file, this.createId('book'));
+        const imported = await this.parseBookFile(file, this.createId('book'));
         await this.storage.putBook(imported.book);
         await this.storage.putSections(imported.sections);
         await this.storage.putSegments(imported.segments);
@@ -2147,7 +1429,7 @@ class BooksController {
         const blob = await response.blob();
         const fileName = this.fileNameFromUrl(url) || 'document.pdf';
         const file = new File([blob], fileName, { type: 'application/pdf' });
-        const sections = await this.parsePdf(file);
+        const sections = await BooksParse.parsePdf(file, message => this.updateStatus(message));
         const text = sections.map(section => section.text || '').join('\n\n').trim();
         if (!text) throw new Error('No readable text in PDF');
         return {
@@ -2311,7 +1593,7 @@ class BooksController {
         const existing = books.find(b => b.sourceUrl && b.sourceUrl === state.rootUrl);
         const bookId = existing ? existing.id : this.createId('book');
 
-        /** @type {{ title: string, text: string, html?: string }[]} */
+        /** @type {RawBookSection[]} */
         const chapterSections = [];
         /** @type {string[]} */
         const tocLines = [];
@@ -2323,7 +1605,7 @@ class BooksController {
         for (const result of results) {
             const linkTitle = (result.link.text || result.page?.title || result.link.url).trim();
             if (result.page && result.page.text.trim()) {
-                chapterSections.push({ title: linkTitle, text: this.cleanText(result.page.text), html: '' });
+                chapterSections.push({ title: linkTitle, text: BooksParse.cleanText(result.page.text), html: '' });
                 tocLines.push(`Chapter ${chapterNo}: ${linkTitle}`);
                 pageUrls.push(result.page.url);
                 chapterNo++;
@@ -2338,15 +1620,15 @@ class BooksController {
         const tocBody = [
             rootPage.title,
             '',
-            this.cleanText(rootPage.text),
+            BooksParse.cleanText(rootPage.text),
             '',
             'Contents',
             ''
         ].join('\n');
         const tocText = tocLines.length ? `${tocBody}\n${tocLines.join('\n')}` : tocBody;
 
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        const rawSections = [{ title: rootPage.title || 'Contents', text: this.cleanText(tocText), html: '' }, ...chapterSections]
+        /** @type {RawBookSection[]} */
+        const rawSections = [{ title: rootPage.title || 'Contents', text: BooksParse.cleanText(tocText), html: '' }, ...chapterSections]
             .filter(section => section.text.length > 0);
         if (rawSections.length === 0) {
             this.updateStatus('No readable text collected');
@@ -2355,7 +1637,7 @@ class BooksController {
         }
 
         if (existing) await this.storage.deleteBookCascade(existing.id);
-        const { sections, segments, totalWords, charCount } = this.assembleSectionsAndSegments(bookId, rawSections);
+        const { sections, segments, totalWords, charCount } = BooksParse.assembleSectionsAndSegments(bookId, rawSections, this.settings.speed);
         const title = rootPage.title || state.rootUrl;
         const snapshot = JSON.stringify({
             rootUrl: state.rootUrl,
@@ -2385,7 +1667,7 @@ class BooksController {
             generatedSegmentCount: 0,
             wordCount: totalWords,
             charCount,
-            estimatedDurationSec: this.estimateDuration(totalWords),
+            estimatedDurationSec: BooksParse.estimateDuration(totalWords, this.settings.speed),
             generatedDurationSec: 0,
             createdAt: existing?.createdAt || now,
             updatedAt: now,
@@ -2500,7 +1782,7 @@ class BooksController {
                     type: oldBook.fileType || 'application/octet-stream',
                     lastModified: Date.parse(oldBook.updatedAt || oldBook.createdAt || new Date().toISOString())
                 });
-                const imported = await this.parseFile(file, oldBook.id);
+                const imported = await this.parseBookFile(file, oldBook.id);
                 imported.book.createdAt = oldBook.createdAt || imported.book.createdAt;
                 imported.book.updatedAt = new Date().toISOString();
                 imported.book.lastOpenedAt = oldBook.lastOpenedAt || '';
@@ -2522,478 +1804,12 @@ class BooksController {
         }
     }
 
-    /**
-     * @param {File} file
-     * @param {string} bookId
-     */
-    async parseFile(file, bookId) {
-        const extension = file.name.split('.').pop()?.toLowerCase() || 'txt';
-        let title = file.name.replace(/\.[^.]+$/, '');
-        let author = '';
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        let rawSections = [];
-        if (extension === 'epub') {
-            const epub = await this.parseEpub(file);
-            title = epub.title || title;
-            author = epub.author || '';
-            rawSections = epub.sections;
-        } else if (extension === 'pdf') {
-            rawSections = await this.parsePdf(file);
-        } else if (extension === 'html' || extension === 'htm') {
-            rawSections = await this.parseHtml(file);
-        } else if (extension === 'txt') {
-            rawSections = this.sectionsFromText(await this.readTextFile(file));
-        } else {
-            throw new Error(`Unsupported file format: ${extension}`);
-        }
-        rawSections = rawSections
-            .map((section, index) => ({
-                title: section.title || `Section ${index + 1}`,
-                text: this.cleanText(section.text || ''),
-                html: section.html ? this.sanitizeReaderHtml(section.html) : ''
-            }))
-            .filter(section => section.text.length > 0);
-        if (rawSections.length === 0) throw new Error('No readable text found');
-
-        const { sections, segments, totalWords, charCount } = this.assembleSectionsAndSegments(bookId, rawSections);
-        const now = new Date().toISOString();
-        const book = {
-            id: bookId,
-            schemaVersion: 3,
-            audioPlanVersion: AUDIO_PLAN_VERSION,
-            title,
-            author,
-            format: extension,
-            fileName: file.name,
-            fileType: file.type || 'application/octet-stream',
-            fileSize: file.size,
-            rawFile: file,
-            sectionCount: sections.length,
-            segmentCount: segments.length,
-            generatedSegmentCount: 0,
-            wordCount: totalWords,
-            charCount,
-            estimatedDurationSec: this.estimateDuration(totalWords),
-            generatedDurationSec: 0,
-            createdAt: now,
-            updatedAt: now,
-            lastOpenedAt: now,
-            archivedAt: '',
-            readingSectionId: sections[0]?.id || '',
-            readingCharOffset: 0,
-            listeningSegmentId: segments[0]?.id || '',
-            listeningOffsetSec: 0,
-            legacyAudioBlob: null,
-            legacyAudioSize: 0
-        };
-        return { book, sections, segments };
-    }
-
-    /**
-     * Turn normalized raw sections into persistent BookSection + AudioSegment
-     * arrays. Shared by file imports and web (URL) imports.
-     * @param {string} bookId
-     * @param {{ title: string, text: string, html?: string }[]} rawSections
-     */
-    assembleSectionsAndSegments(bookId, rawSections) {
-        /** @type {BookSection[]} */
-        const sections = [];
-        /** @type {AudioSegment[]} */
-        const segments = [];
-        let charCursor = 0;
-        let segmentIndex = 0;
-        let totalWords = 0;
-        for (let i = 0; i < rawSections.length; i++) {
-            const raw = rawSections[i];
-            const sectionId = `sec-${i}`;
-            const wordCount = this.countWords(raw.text);
-            const section = {
-                key: this.sectionKey(bookId, sectionId),
-                bookId,
-                id: sectionId,
-                spineIndex: i,
-                title: raw.title,
-                text: raw.text,
-                html: raw.html || '',
-                charStart: charCursor,
-                charEnd: charCursor + raw.text.length,
-                wordCount
-            };
-            sections.push(section);
-            totalWords += wordCount;
-            const pieces = this.splitIntoSegmentPieces(raw.text);
-            for (let j = 0; j < pieces.length; j++) {
-                const piece = pieces[j];
-                const segmentId = `seg-${segmentIndex}`;
-                const segmentWords = this.countWords(piece.text);
-                segments.push({
-                    key: this.segmentKey(bookId, segmentId),
-                    bookId,
-                    id: segmentId,
-                    sectionId,
-                    segmentIndex,
-                    sectionSegmentIndex: j,
-                    charStart: section.charStart + piece.start,
-                    charEnd: section.charStart + piece.end,
-                    text: piece.text,
-                    wordCount: segmentWords,
-                    estimatedDurationSec: this.estimateDuration(segmentWords),
-                    status: 'pending',
-                    blob: null,
-                    audioSize: 0,
-                    durationSec: 0,
-                    generatedAt: '',
-                    audioSettings: null,
-                    error: ''
-                });
-                segmentIndex++;
-            }
-            charCursor = section.charEnd + 2;
-        }
-        return { sections, segments, totalWords, charCount: charCursor };
-    }
-
-    /** @param {File} file */
-    async parseEpub(file) {
-        if (typeof JSZip === 'undefined') throw new Error('JSZip library not loaded');
-        const zip = await JSZip.loadAsync(file);
-        const containerXml = await zip.file('META-INF/container.xml')?.async('text');
-        if (!containerXml) throw new Error('Invalid EPUB: missing container.xml');
-        const parser = new DOMParser();
-        const containerDoc = parser.parseFromString(containerXml, 'text/xml');
-        const rootfilePath = containerDoc.querySelector('rootfile')?.getAttribute('full-path');
-        if (!rootfilePath) throw new Error('Invalid EPUB: cannot find content.opf');
-        const opfContent = await zip.file(rootfilePath)?.async('text');
-        if (!opfContent) throw new Error('Invalid EPUB: cannot read content.opf');
-        const opfDoc = parser.parseFromString(opfContent, 'text/xml');
-        const title = opfDoc.querySelector('metadata title, dc\\:title')?.textContent?.trim() || '';
-        const author = opfDoc.querySelector('metadata creator, dc\\:creator')?.textContent?.trim() || '';
-        const basePath = rootfilePath.substring(0, rootfilePath.lastIndexOf('/') + 1);
-        const manifest = new Map();
-        const manifestItems = new Map();
-        const mediaTypes = new Map();
-        opfDoc.querySelectorAll('manifest item').forEach(item => {
-            const id = item.getAttribute('id');
-            const href = item.getAttribute('href');
-            const mediaType = item.getAttribute('media-type') || '';
-            if (id && href) {
-                const path = this.normalizePath(basePath + href);
-                const properties = item.getAttribute('properties') || '';
-                manifest.set(id, href);
-                manifestItems.set(id, { href, path, mediaType, properties });
-                mediaTypes.set(path, mediaType);
-            }
+    /** @param {File} file @param {string} bookId */
+    parseBookFile(file, bookId) {
+        return BooksParse.parseFile(file, bookId, {
+            speed: this.settings.speed,
+            onProgress: message => this.updateStatus(message)
         });
-        const tocTitles = await this.parseEpubToc(zip, opfDoc, manifestItems);
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        const sections = [];
-        const spineItems = Array.from(opfDoc.querySelectorAll('spine itemref'));
-        for (let i = 0; i < spineItems.length; i++) {
-            const idref = spineItems[i].getAttribute('idref');
-            const href = idref ? manifest.get(idref) : '';
-            if (!href) continue;
-            const content = await zip.file(basePath + href)?.async('text');
-            if (!content) continue;
-            const doc = parser.parseFromString(content, 'text/html');
-            doc.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
-            const filePath = this.normalizePath(basePath + href);
-            const fileDir = filePath.substring(0, filePath.lastIndexOf('/') + 1);
-            const images = Array.from(doc.querySelectorAll('img, image'));
-            for (const img of images) {
-                const rawSrc = img.getAttribute('src') || img.getAttribute('xlink:href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                if (!rawSrc || rawSrc.startsWith('data:')) continue;
-                const resolved = this.normalizePath(rawSrc.startsWith('/') ? rawSrc.substring(1) : fileDir + rawSrc);
-                const imgFile = zip.file(resolved);
-                if (!imgFile) continue;
-                const blob = await imgFile.async('blob');
-                const typedBlob = new Blob([blob], { type: mediaTypes.get(resolved) || this.getMimeTypeFromFilename(resolved) });
-                const dataUrl = await this.blobToDataUrl(typedBlob);
-                img.setAttribute('src', dataUrl);
-                img.removeAttribute('xlink:href');
-            }
-            const heading = doc.querySelector('h1, h2, h3')?.textContent?.trim();
-            const text = doc.body?.textContent || '';
-            sections.push({ title: tocTitles.get(filePath) || heading || `Chapter ${sections.length + 1}`, text, html: doc.body?.innerHTML || '' });
-        }
-        return { title, author, sections };
-    }
-
-    /**
-     * @param {any} zip
-     * @param {Document} opfDoc
-     * @param {Map<string, { href: string, path: string, mediaType: string, properties: string }>} manifestItems
-     */
-    async parseEpubToc(zip, opfDoc, manifestItems) {
-        const titles = new Map();
-        const navItem = Array.from(manifestItems.values())
-            .find(item => item.properties.split(/\s+/).includes('nav'));
-        if (navItem) {
-            const navContent = await zip.file(navItem.path)?.async('text');
-            if (navContent) this.addEpubNavTitles(titles, navContent, navItem.path);
-        }
-        const ncxId = opfDoc.querySelector('spine')?.getAttribute('toc') || '';
-        const ncxItem = ncxId ? manifestItems.get(ncxId) : null;
-        if (ncxItem && titles.size === 0) {
-            const ncxContent = await zip.file(ncxItem.path)?.async('text');
-            if (ncxContent) this.addEpubNcxTitles(titles, ncxContent, ncxItem.path);
-        }
-        return titles;
-    }
-
-    /**
-     * @param {Map<string, string>} titles
-     * @param {string} navContent
-     * @param {string} navPath
-     */
-    addEpubNavTitles(titles, navContent, navPath) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(navContent, 'text/html');
-        const navs = Array.from(doc.querySelectorAll('nav'));
-        const tocNav = navs.find(nav => /\btoc\b/i.test(nav.getAttribute('epub:type') || nav.getAttribute('type') || nav.getAttribute('role') || '')) || navs[0];
-        if (!tocNav) return;
-        const navDir = navPath.substring(0, navPath.lastIndexOf('/') + 1);
-        for (const link of Array.from(tocNav.querySelectorAll('a[href]'))) {
-            const label = this.cleanText(link.textContent || '');
-            const href = link.getAttribute('href') || '';
-            if (!label || !href) continue;
-            const path = this.resolveEpubHref(navDir, href);
-            if (!path) continue;
-            if (!titles.has(path)) titles.set(path, label);
-        }
-    }
-
-    /**
-     * @param {Map<string, string>} titles
-     * @param {string} ncxContent
-     * @param {string} ncxPath
-     */
-    addEpubNcxTitles(titles, ncxContent, ncxPath) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(ncxContent, 'text/xml');
-        const ncxDir = ncxPath.substring(0, ncxPath.lastIndexOf('/') + 1);
-        for (const navPoint of Array.from(doc.querySelectorAll('navPoint'))) {
-            const label = this.cleanText(navPoint.querySelector('navLabel text')?.textContent || '');
-            const src = navPoint.querySelector('content')?.getAttribute('src') || '';
-            if (!label || !src) continue;
-            const path = this.resolveEpubHref(ncxDir, src);
-            if (!path) continue;
-            if (!titles.has(path)) titles.set(path, label);
-        }
-    }
-
-    /** @param {string} directory @param {string} href */
-    resolveEpubHref(directory, href) {
-        if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return '';
-        const withoutFragment = href.split('#')[0];
-        return this.normalizePath(withoutFragment.startsWith('/') ? withoutFragment.substring(1) : directory + withoutFragment);
-    }
-
-    /** @param {File} file */
-    async parsePdf(file) {
-        if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js library not loaded');
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        /** @type {string[]} */
-        const pageTexts = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const text = textContent.items.map((/** @type {any} */ item) => item.str).join(' ');
-            pageTexts.push(text);
-            if (pdf.numPages > 20 && i % 10 === 0) this.updateStatus(`Reading PDF ${Math.round(i / pdf.numPages * 100)}%`);
-        }
-        const outline = await pdf.getOutline();
-        const outlineSections = outline ? await this.sectionsFromPdfOutline(pdf, outline, pageTexts) : [];
-        if (outlineSections.length > 0) return outlineSections;
-        return pageTexts.map((text, index) => ({ title: `Page ${index + 1}`, text }));
-    }
-
-    /**
-     * @param {any} pdf
-     * @param {any[]} outline
-     * @param {string[]} pageTexts
-     */
-    async sectionsFromPdfOutline(pdf, outline, pageTexts) {
-        const flat = this.flattenPdfOutline(outline);
-        /** @type {{ title: string, page: number }[]} */
-        const entries = [];
-        for (const item of flat) {
-            const page = await this.resolvePdfOutlinePage(pdf, item.dest);
-            if (page >= 1 && page <= pageTexts.length) entries.push({ title: item.title, page });
-        }
-        const unique = entries
-            .filter((entry, index, list) => list.findIndex(item => item.page === entry.page) === index)
-            .sort((a, b) => a.page - b.page);
-        if (unique.length === 0) return [];
-        return unique.map((entry, index) => {
-            const nextPage = unique[index + 1]?.page || pageTexts.length + 1;
-            return {
-                title: entry.title || `Page ${entry.page}`,
-                text: pageTexts.slice(entry.page - 1, nextPage - 1).join('\n\n')
-            };
-        }).filter(section => section.text.trim().length > 0);
-    }
-
-    /** @param {any[]} items */
-    flattenPdfOutline(items) {
-        /** @type {{ title: string, dest: any }[]} */
-        const flat = [];
-        for (const item of items) {
-            flat.push({ title: this.cleanText(item.title || ''), dest: item.dest });
-            if (item.items?.length) flat.push(...this.flattenPdfOutline(item.items));
-        }
-        return flat;
-    }
-
-    /** @param {any} pdf @param {any} dest */
-    async resolvePdfOutlinePage(pdf, dest) {
-        if (!dest) return -1;
-        try {
-            const explicitDest = typeof dest === 'string' ? await pdf.getDestination(dest) : dest;
-            const ref = Array.isArray(explicitDest) ? explicitDest[0] : null;
-            if (!ref) return -1;
-            return await pdf.getPageIndex(ref) + 1;
-        } catch (error) {
-            return -1;
-        }
-    }
-
-    /** @param {File} file */
-    async parseHtml(file) {
-        const html = await this.readTextFile(file);
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        doc.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
-        const headings = Array.from(doc.body?.querySelectorAll('h1, h2') || []);
-        if (headings.length === 0) {
-            return [{ title: doc.querySelector('title')?.textContent?.trim() || 'HTML document', text: doc.body?.textContent || '', html: doc.body?.innerHTML || '' }];
-        }
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        const sections = [];
-        for (let i = 0; i < headings.length; i++) {
-            const heading = headings[i];
-            let text = heading.textContent || '';
-            let html = heading.outerHTML;
-            let node = heading.nextSibling;
-            while (node && node !== headings[i + 1]) {
-                text += `\n${node.textContent || ''}`;
-                if (node instanceof Element) html += node.outerHTML;
-                else html += escapeHtml(node.textContent || '');
-                node = node.nextSibling;
-            }
-            sections.push({ title: heading.textContent?.trim() || `Section ${i + 1}`, text, html });
-        }
-        return sections;
-    }
-
-    /** @param {string} text */
-    sectionsFromText(text) {
-        const clean = this.cleanText(text);
-        const chapters = this.sectionsFromTextChapterHeadings(clean);
-        if (chapters.length > 1) return chapters;
-        const maxSectionChars = 12000;
-        /** @type {{ title: string, text: string, html?: string }[]} */
-        const sections = [];
-        let cursor = 0;
-        while (cursor < clean.length) {
-            let end = Math.min(clean.length, cursor + maxSectionChars);
-            if (end < clean.length) {
-                const breakAt = Math.max(clean.lastIndexOf('\n\n', end), clean.lastIndexOf('. ', end));
-                if (breakAt > cursor + 2000) end = breakAt + 1;
-            }
-            const sectionText = clean.slice(cursor, end).trim();
-            if (sectionText) sections.push({ title: `Part ${sections.length + 1}`, text: sectionText });
-            cursor = end;
-        }
-        return sections;
-    }
-
-    /** @param {string} text */
-    sectionsFromTextChapterHeadings(text) {
-        const headingPattern = /^[ \t]*(chapter\s+(?:\d+|[ivxlcdm]+)\.?(?:[ \t]+[^\n]+)?)[ \t]*$/gim;
-        const matches = Array.from(text.matchAll(headingPattern)).map(match => ({
-            title: match[1].trim(),
-            start: match.index || 0,
-            normalized: match[1].replace(/\s+/g, ' ').trim().toLowerCase()
-        }));
-        if (matches.length < 2) return [];
-
-        const occurrences = new Map();
-        for (const match of matches) {
-            const grouped = occurrences.get(match.normalized) || [];
-            grouped.push(match);
-            occurrences.set(match.normalized, grouped);
-        }
-        const hasContentsDuplicates = Array.from(occurrences.values()).some(group => group.length > 1);
-        const headings = hasContentsDuplicates
-            ? Array.from(occurrences.values()).map(group => group[group.length - 1]).sort((a, b) => a.start - b.start)
-            : matches;
-        if (headings.length < 2) return [];
-
-        const sections = [];
-        const frontMatter = text.slice(0, headings[0].start).trim();
-        if (frontMatter.length > 200) sections.push({ title: 'Front matter', text: frontMatter });
-        for (let i = 0; i < headings.length; i++) {
-            const chapterText = text.slice(headings[i].start, headings[i + 1]?.start || text.length).trim();
-            if (chapterText) sections.push({ title: headings[i].title, text: chapterText });
-        }
-        return sections;
-    }
-
-    /** @param {File} file */
-    async readTextFile(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => resolve(/** @type {string} */ (e.target?.result) || '');
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsText(file);
-        });
-    }
-
-    /** @param {string} text */
-    splitIntoSegmentPieces(text) {
-        /** @type {{ text: string, start: number, end: number }[]} */
-        const pieces = [];
-        let cursor = 0;
-        while (cursor < text.length) {
-            while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
-            if (cursor >= text.length) break;
-            let end = Math.min(text.length, cursor + TTS_CHUNK_SIZE);
-            if (end < text.length) {
-                end = this.findSegmentBreak(text, cursor, end);
-            }
-            let pieceEnd = end;
-            while (pieceEnd > cursor && /\s/.test(text[pieceEnd - 1])) pieceEnd--;
-            const pieceText = text.slice(cursor, pieceEnd);
-            if (pieceText) pieces.push({ text: pieceText, start: cursor, end: pieceEnd });
-            cursor = end;
-        }
-        return pieces;
-    }
-
-    /** @param {string} text @param {number} cursor @param {number} hardEnd */
-    findSegmentBreak(text, cursor, hardEnd) {
-        const candidate = text.slice(cursor, hardEnd);
-        let sentenceEnd = -1;
-        const sentenceBoundary = /[.!?](?:["'”’)\]]+)?(?=\s|$)|\n{2,}/g;
-        for (const match of candidate.matchAll(sentenceBoundary)) {
-            const end = cursor + (match.index || 0) + match[0].length;
-            sentenceEnd = end;
-        }
-        if (sentenceEnd !== -1) return sentenceEnd;
-
-        let clauseEnd = -1;
-        const clauseBoundary = /[;:](?=\s)/g;
-        for (const match of candidate.matchAll(clauseBoundary)) {
-            const end = cursor + (match.index || 0) + 1;
-            if (end > cursor + 500) clauseEnd = end;
-        }
-        if (clauseEnd !== -1) return clauseEnd;
-
-        for (let end = hardEnd; end > cursor + 500; end--) {
-            if (/\s/.test(text[end - 1])) return end - 1;
-        }
-        return hardEnd;
     }
 
     /** @param {string} bookId */
@@ -3416,7 +2232,7 @@ class BooksController {
                 this.renderSegmentStatus(segment);
                 this.renderGenerationProgress();
                 try {
-                    const response = await this.fetchSpeech(segment.text, this.generationAbort.signal);
+                    const response = await BooksTts.fetchSpeech(this.apiKey, segment.text, this.settings, this.generationAbort.signal);
                     const blob = await response.blob();
                     segment.blob = blob;
                     segment.audioSize = blob.size;
@@ -3516,47 +2332,6 @@ class BooksController {
             ? `Generating ${terms.plural}: ${this.generationDone}/${this.generationTotal} done${queued ? `, ${queued} queued` : ''}`
             : 'Generation complete';
         this.updateGenerationProgress(this.generationDone, this.generationTotal, message);
-    }
-
-    /**
-     * @param {string} text
-     * @param {AbortSignal | null} signal
-     * @param {{ voice?: string }} [overrides]
-     */
-    async fetchSpeech(text, signal, overrides = {}) {
-        if (!this.apiKey) throw new Error('API key not configured');
-        const payload = {
-            model: this.settings.model,
-            input: text,
-            voice: overrides.voice || this.settings.voice,
-            speed: this.settings.speed,
-            response_format: 'mp3'
-        };
-        const instructions = this.composeNarrationInstructions();
-        if (instructions && this.ttsModelSupportsInstructions()) {
-            /** @type {any} */ (payload).instructions = instructions;
-        }
-        const response = await fetch('https://api.openai.com/v1/audio/speech', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload),
-            signal: signal || undefined
-        });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
-        }
-        return response;
-    }
-
-    composeNarrationInstructions() {
-        const accent = OPENAI_TTS_ACCENTS.find(item => item.id === this.settings.accent)?.instruction || '';
-        const style = OPENAI_TTS_STYLES.find(item => item.id === this.settings.style)?.instruction || '';
-        const custom = this.settings.instructions.trim();
-        return [accent, style, custom].filter(Boolean).join(' ');
     }
 
     async recalculateBookGeneration() {
@@ -3802,12 +2577,6 @@ class BooksController {
         if (this.currentBook) this.downloadBlob(this.currentBook.rawFile, this.currentBook.fileName);
     }
 
-    /** @param {string} id */
-    async downloadOriginalById(id) {
-        const book = await this.storage?.getBook(id);
-        if (book) this.downloadBlob(book.rawFile, book.fileName);
-    }
-
     async downloadCurrentSegment() {
         const segment = this.getSegmentById(this.currentSegmentId || '');
         if (!segment || !segment.blob || !this.currentBook) {
@@ -3909,11 +2678,12 @@ class BooksController {
             ? Math.round(oldListeningSegment.charStart + (oldListeningSegment.charEnd - oldListeningSegment.charStart) * listeningRatio)
             : 0;
         const rebuilt = book.contentOrigin === 'url'
-            ? this.assembleSectionsAndSegments(
+            ? BooksParse.assembleSectionsAndSegments(
                 book.id,
-                this.sections.map(section => ({ title: section.title, text: section.text, html: section.html }))
+                this.sections.map(section => ({ title: section.title, text: section.text, html: section.html })),
+                this.settings.speed
             )
-            : await this.parseFile(
+            : await this.parseBookFile(
                 new File([book.rawFile], book.fileName, { type: book.fileType }),
                 book.id
             );
@@ -4325,7 +3095,7 @@ class BooksController {
         return null;
     }
 
-    /** @param {Settings | null | undefined} settings */
+    /** @param {BooksSettings | null | undefined} settings */
     settingsSummary(settings) {
         if (!settings) return 'Unknown voice settings';
         const voice = OPENAI_TTS_VOICES.find(item => item.id === settings.voice)?.label || settings.voice || 'Unknown voice';
@@ -4439,71 +3209,10 @@ class BooksController {
         return Math.round(Math.max(0, Math.min(1, charOffset / this.currentBook.charCount)) * this.currentBook.wordCount);
     }
 
-    /** @param {number} words */
-    estimateDuration(words) {
-        return Math.max(1, Math.round(words / ESTIMATED_WORDS_PER_MINUTE * 60 / Math.max(0.25, this.settings.speed || 1)));
-    }
-
-    /** @param {string} bookId @param {string} sectionId */
-    sectionKey(bookId, sectionId) {
-        return `${bookId}:${sectionId}`;
-    }
-
-    /** @param {string} bookId @param {string} segmentId */
-    segmentKey(bookId, segmentId) {
-        return `${bookId}:${segmentId}`;
-    }
-
     /** @param {string} prefix */
     createId(prefix) {
         if (crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
         return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1000000000)}`;
-    }
-
-    /** @param {string} text */
-    cleanText(text) {
-        return text
-            .replace(/[\t\f\v]+/g, ' ')
-            .replace(/\r\n/g, '\n')
-            .replace(/\n{3,}/g, '\n\n')
-            .replace(/ {2,}/g, ' ')
-            .split('\n')
-            .map(line => line.trim())
-            .join('\n')
-            .trim();
-    }
-
-    /** @param {string} html */
-    sanitizeReaderHtml(html) {
-        const template = document.createElement('template');
-        template.innerHTML = html;
-        const allowedTags = new Set([
-            'A', 'ABBR', 'B', 'BLOCKQUOTE', 'BR', 'CITE', 'CODE', 'DIV', 'EM',
-            'FIGCAPTION', 'FIGURE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
-            'I', 'IMG', 'LI', 'OL', 'P', 'PRE', 'SECTION', 'SMALL', 'SPAN',
-            'STRONG', 'SUB', 'SUP', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD',
-            'TR', 'U', 'UL'
-        ]);
-        const allowedAttrs = new Set(['alt', 'colspan', 'href', 'rowspan', 'src', 'title']);
-        const elements = Array.from(template.content.querySelectorAll('*'));
-        for (const el of elements) {
-            if (!allowedTags.has(el.tagName)) {
-                el.replaceWith(document.createTextNode(el.textContent || ''));
-                continue;
-            }
-            for (const attr of Array.from(el.attributes)) {
-                const name = attr.name.toLowerCase();
-                const value = attr.value || '';
-                const allowed = allowedAttrs.has(name) || name.startsWith('aria-');
-                const safeUrl = !['href', 'src'].includes(name) || value.startsWith('data:') || value.startsWith('#') || value.startsWith('http://') || value.startsWith('https://');
-                if (!allowed || !safeUrl) el.removeAttribute(attr.name);
-            }
-            if (el.tagName === 'A') {
-                el.setAttribute('target', '_blank');
-                el.setAttribute('rel', 'noopener');
-            }
-        }
-        return template.innerHTML;
     }
 
     /**
@@ -4537,47 +3246,6 @@ class BooksController {
             textNode.replaceWith(fragment);
         }
         return template.innerHTML;
-    }
-
-    /** @param {string} path */
-    normalizePath(path) {
-        const parts = path.split('/').filter(part => part && part !== '.');
-        /** @type {string[]} */
-        const result = [];
-        for (const part of parts) {
-            if (part === '..') result.pop();
-            else result.push(part);
-        }
-        return result.join('/');
-    }
-
-    /** @param {string} filename */
-    getMimeTypeFromFilename(filename) {
-        const ext = filename.split('.').pop()?.toLowerCase() || '';
-        const mimeTypes = {
-            jpg: 'image/jpeg',
-            jpeg: 'image/jpeg',
-            png: 'image/png',
-            gif: 'image/gif',
-            svg: 'image/svg+xml',
-            webp: 'image/webp'
-        };
-        return mimeTypes[ext] || 'application/octet-stream';
-    }
-
-    /** @param {Blob} blob */
-    async blobToDataUrl(blob) {
-        return /** @type {Promise<string>} */ (new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () => reject(new Error('Could not read EPUB image'));
-            reader.readAsDataURL(blob);
-        }));
-    }
-
-    /** @param {string} text */
-    countWords(text) {
-        return text.split(/\s+/).filter(Boolean).length;
     }
 
     /** @param {number} bytes */
@@ -4640,11 +3308,6 @@ class BooksController {
         const mins = Math.floor(whole / 60);
         const secs = whole % 60;
         return `${mins}:${String(secs).padStart(2, '0')}`;
-    }
-
-    /** @param {number} num */
-    formatNumber(num) {
-        return num.toLocaleString();
     }
 
     /** @param {Blob} blob @param {string} filename */

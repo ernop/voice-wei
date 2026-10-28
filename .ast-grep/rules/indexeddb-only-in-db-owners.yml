@@ -1,12 +1,12 @@
 id: indexeddb-only-in-db-owners
-message: IndexedDB access belongs in the DB owner modules (player-history-db.js for music history, ebook.js / BooksStorage for books, coolness-combine.js for the word-lab session log).
+message: IndexedDB access belongs in the DB owner modules (player-history-db.js for music history, ebook-storage.js for books, coolness-combine.js for the word-lab session log).
 severity: error
 language: javascript
 files:
   - "**/*.js"
 ignores:
   - "**/player-history-db.js"
-  - "**/ebook.js"
+  - "**/ebook-storage.js"
   - "**/coolness-combine.js"
   - "**/tests/**"
 rule:

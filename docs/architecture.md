@@ -23,7 +23,7 @@ trace.html/js/css        # Free pitch trace
 pitch-meter.html/js/css  # Scored pitch practice
 ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html/js/css       # Lyrics: keyless music player (player-*.js modules)
-ebook.html/js/css        # Ebook to audiobook
+ebook.html/js/css        # Books: ebook to audiobook (ebook-*.js libraries)
 wording.html             # Word lab: coolness scorer + word combiner (coolness-*.js)
 games.html/js/css        # Games: Find projection puzzle (find-puzzle.js)
 deploys.html/js          # Deploy duration telemetry
@@ -741,6 +741,19 @@ localStorage. The current schema uses five object stores:
 - `research`: complete per-book AI Research request/results: source text,
   question, answer, citations, images, model/configuration, elapsed time, and
   whether speech was enabled at return.
+
+Books code: `ebook.js` is the page controller (state and UI). Four
+libraries hold everything that does not need that state, each loaded
+before it:
+
+| Module | Owns |
+|--------|------|
+| `ebook-storage.js` | `BooksStorage`, the only IndexedDB access for Books (lint-enforced), and the stored record shapes |
+| `ebook-parse.js` | `BooksParse`: files and fetched pages to sections and audio parts; pdf.js and JSZip |
+| `ebook-tts.js` | `BooksTts`: speech models, voices, accents, styles, the saved Books settings, and the speech request |
+| `ebook-research.js` | `BooksResearch`: the Ask AI request, reading its result, and rendering answer, sources and images |
+
+Only `ebook-tts.js` and `ebook-research.js` call OpenAI (lint-enforced).
 
 This makes Books a browser-local reader/player/generator rather than a
 one-shot converter: generation can stop after some audio parts, preserve completed

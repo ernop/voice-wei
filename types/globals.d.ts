@@ -62,6 +62,10 @@ interface Window {
         create: (options: any) => any;
     };
     PlaybackState?: typeof PlaybackState;
+    BooksStorage?: typeof BooksStorage;
+    BooksParse?: typeof BooksParse;
+    BooksTts?: typeof BooksTts;
+    BooksResearch?: typeof BooksResearch;
     PlayerAi?: typeof PlayerAi;
     PlayerPlaylist?: typeof PlayerPlaylist;
     PlayerPrebufferProbe?: typeof PlayerPrebufferProbe;
