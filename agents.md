@@ -98,7 +98,7 @@ existing doc or deleted - never left dangling.
 | [docs/controls.md](docs/controls.md) | Button/control class inventory across all pages + the unification plan (music UI first) |
 | [docs/tools.md](docs/tools.md) | Per-tab usage reference |
 | [docs/parameters.md](docs/parameters.md) | Every setting on every page: values, defaults, change behavior |
-| [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
+| [docs/scales-patterns.md](docs/scales-patterns.md) | What each Scales option plays: scales, movement figures and leaps, exercises, ladder rules |
 | [docs/setup.md](docs/setup.md) | Environment setup, CI deploy pipeline, secrets, version management |
 | [docs/hosting-contract.md](docs/hosting-contract.md) | fuseki.net owns the domain/server; voice-wei is a host-agnostic tenant — requirements both ways |
 

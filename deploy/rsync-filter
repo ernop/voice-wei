@@ -27,6 +27,8 @@
 - *.sha256
 - *.sh
 - *.py
+- *.orig
+- *.rej
 - tsconfig.json
 - sgconfig.yml
 - package.json

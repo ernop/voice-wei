@@ -1,7 +1,7 @@
 // @ts-check
 // The note patterns Scales plays (scales-patterns.js), checked directly in
 // Node: every movement style against its documented example
-// (docs/scales-commands.md), the engine laws in docs/architecture.md
+// (docs/scales-patterns.md), the engine laws in docs/architecture.md
 // ("Scales engine rules"), scale walks of any length, exercises, and
 // rising repeats.
 
@@ -35,7 +35,7 @@ const cMajor = (movementStyle, direction = 'ascending') => P.buildScalePlaybackP
 /** @param {{ notes: number[] }[]} groups */
 const groupString = groups => groups.map(group => group.notes.join(',')).join(' | ');
 
-// docs/scales-commands.md "Movement styles", the "Example (C major up)"
+// docs/scales-patterns.md "Move and Leaps", the "Example (C major up)"
 // column, as MIDI.
 const EXAMPLES = {
     stop_and_go: '60,62,64 | 62,64,65 | 64,65,67',
@@ -90,7 +90,7 @@ report.check(`scale walks wrap any number of steps (pentatonic down from C4 ${wa
     walkDown === '57,55,52,50,48,45' && walkUp === '72,74,76,79,81,84'
     && P.scaleNotesFrom(61, cPentatonic, 2, 1).length === 0);
 
-// docs/scales-commands.md "Exercises", with 'O' as the octave
+// docs/scales-patterns.md "Exercises", with 'O' as the octave
 const fiveNote = P.buildExerciseNotes(60, 'major', [0, 1, 2, 3, 4, 3, 2, 1, 0]).join(',');
 const fiveNoteShifted = P.buildExerciseNotes(60, 'major', [0, 1, 2, 3, 4, 3, 2, 1, 0], 1).join(',');
 const octaveJump = P.buildExerciseNotes(60, 'pentatonic', [0, 'O', 0]).join(',');

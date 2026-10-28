@@ -65,10 +65,6 @@ const LegacyStorageKeys = Object.freeze({
     [StorageKeys.PANEL_SCALES_SING]: 'scales-sing-panel',
     [StorageKeys.PANEL_INTERVALS_SING]: 'intervals-sing-panel',
     [StorageKeys.PANEL_PHRASES_TEST]: 'phrases-test-panel',
-    // Legacy UI-only keys folded into scales-settings on migration
-    'voice-wei:scales-settings:legacy-show-sequence': 'scales-show-sequence',
-    'voice-wei:scales-settings:legacy-use-abbrev': 'scales-use-abbrev',
-    'voice-wei:scales-settings:legacy-instruction': 'scales-instruction-dismissed',
     // Legacy ears settings blob
     'voice-wei:intervals-settings:legacy-ears': 'ears-settings'
 });

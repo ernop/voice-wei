@@ -212,7 +212,8 @@ rule 1), hover changes the background only, 0.2s transitions.
 - All Books button dialects in the table above - retired into the
   shared vocabulary and blocked by `tests/test-controls.js`.
 - `display-toggles` and `echo-toggle` (scales.css) - Scales' display
-  toggles moved into the voice-first settings block as a labeled row.
+  toggles moved into the settings block, and were later removed with the
+  page's voice input, sequence panel, and abbreviations (2026-10-27).
 
 ## Stepper and Key labeling
 
@@ -221,8 +222,7 @@ Numeric steppers carry their label INSIDE the pill shell as a
 and control can never separate at a wrap point. A labeled segment row
 does the same. `step-field-bare` (external `vf-label` + unlabeled pill)
 is RETIRED: every page is converted and `tests/test-controls.js` blocks
-the class from reappearing. Scales' abbreviation toggle covers in-pill
-labels via `.step-label[data-abbr][data-full]`.
+the class from reappearing.
 The user-facing name for the root-pitch chooser is **Key** on every
 practice page (state keys may still say `root` / `rootPitch`).
 Trace's **Low** and **High** controls use the same semitone pitch-stepper

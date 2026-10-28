@@ -4,14 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Voice-Wei: Voice-controlled scale practice for singers and musicians">
+    <meta name="description" content="Voice-Wei: scale practice for singers and musicians">
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Scales - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=374">
-    <link rel="stylesheet" href="practice-controls.css?v=374">
-    <link rel="stylesheet" href="piano-keyboard.css?v=374">
-    <link rel="stylesheet" href="scales.css?v=374">
+    <link rel="stylesheet" href="style.css?v=375">
+    <link rel="stylesheet" href="practice-controls.css?v=375">
+    <link rel="stylesheet" href="piano-keyboard.css?v=375">
+    <link rel="stylesheet" href="scales.css?v=375">
 </head>
 
 <body data-page="scales">
@@ -28,17 +28,6 @@
                     <span class="button-text">Stop</span>
                     <span class="button-icon">&#9632;</span>
                 </button>
-                <button id="listenBtn" class="listen-button" aria-label="Start listening">
-                    <span class="button-text">Listen</span>
-                    <span class="button-icon">&#9835;</span>
-                </button>
-                <button id="submitBtn" class="submit-button-large" style="display: none;"
-                    aria-label="Submit">Submit</button>
-            </div>
-
-            <div class="transcript-container" id="transcriptContainer" style="display: none;">
-                <p class="transcript-label">You said:</p>
-                <p class="transcript" id="transcript"></p>
             </div>
 
             <!-- The keyboard labels what the current pattern plays, plus three
@@ -53,35 +42,24 @@
                 <div id="pianoKeyboard" role="group" aria-label="Piano keyboard"></div>
             </div>
 
-            <!-- Note Sequence Preview (hidden by default, toggle via "show sequence") -->
-            <div class="sequence-grid" id="sequenceGridContainer" style="display: none">
-                <span class="note-sequence-label">Sequence:</span>
-                <code class="note-sequence" id="noteSequence">--</code>
-                <span class="note-sequence-label">Played:</span>
-                <code class="note-sequence" id="actuallyPlayed">--</code>
-            </div>
-
-            <!-- Voice-First Scale Builder - All Bidirectional Controls -->
+            <!-- Scale builder: each option button both shows and sets its setting. -->
             <div class="voice-first-ui vf-compact">
-                <p class="vf-instruction" id="vfInstruction" style="display: none">Say any option below to set it, or
-                    click directly. <button class="vf-dismiss" id="dismissInstruction" aria-label="Dismiss">x</button></p>
-
                 <!-- Timing + Key steppers share one row (same cluster as Phrases). -->
                 <div class="vf-row">
                     <div class="step-field">
-                        <span class="step-label" data-full="Note Length" data-abbr="Len">Note Length</span>
+                        <span class="step-label">Note Length</span>
                         <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="-1" aria-label="Shorter note length">-</button>
                         <span class="step-value" id="noteLengthValue">0.3s</span>
                         <button class="step-btn" type="button" data-step-key="noteLengthMs" data-step-delta="1" aria-label="Longer note length">+</button>
                     </div>
                     <div class="step-field">
-                        <span class="step-label" data-full="Note Gap" data-abbr="Gap">Note Gap</span>
+                        <span class="step-label">Note Gap</span>
                         <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="-1" aria-label="Smaller gap">-</button>
                         <span class="step-value" id="gapValue">0s</span>
                         <button class="step-btn" type="button" data-step-key="gapMs" data-step-delta="1" aria-label="Larger gap">+</button>
                     </div>
                     <div class="step-field">
-                        <span class="step-label" data-full="Key" data-abbr="Key">Key</span>
+                        <span class="step-label">Key</span>
                         <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
                         <span class="step-value" id="rootPitchValue">C4</span>
                         <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
@@ -93,84 +71,92 @@
                      segment row; its label lives inside the shell. -->
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Section Width" data-abbr="Wid">Section Width</span>
-                        <button class="vf-btn" data-section-length="1o" data-full="1 octave" data-abbr="1o">1 octave</button>
-                        <button class="vf-btn" data-section-length="1o+3" data-full="octave+3rd" data-abbr="1o+3">octave+3rd</button>
-                        <button class="vf-btn" data-section-length="1o+5" data-full="octave+5th" data-abbr="1o+5">octave+5th</button>
-                        <button class="vf-btn" data-section-length="2o" data-full="2 octaves" data-abbr="2o">2 octaves</button>
+                        <span class="step-label">Section Width</span>
+                        <button class="vf-btn" data-section-length="1o">1 octave</button>
+                        <button class="vf-btn" data-section-length="1o+3">octave+3rd</button>
+                        <button class="vf-btn" data-section-length="1o+5">octave+5th</button>
+                        <button class="vf-btn" data-section-length="2o">2 octaves</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Direction" data-abbr="Dir">Direction</span>
-                        <button class="vf-btn" data-direction="ascending" data-full="up" data-abbr="u">up</button>
-                        <button class="vf-btn" data-direction="descending" data-full="down" data-abbr="d">down</button>
-                        <button class="vf-btn" data-direction="both" data-full="up+down" data-abbr="u+d">up+down</button>
-                        <button class="vf-btn" data-direction="down_and_up" data-full="down+up" data-abbr="d+u">down+up</button>
+                        <span class="step-label">Direction</span>
+                        <button class="vf-btn" data-direction="ascending">up</button>
+                        <button class="vf-btn" data-direction="descending">down</button>
+                        <button class="vf-btn" data-direction="both">up+down</button>
+                        <button class="vf-btn" data-direction="down_and_up">down+up</button>
+                    </div>
+                </div>
+
+                <!-- Move and Leaps set one movement style between them:
+                     exactly one button across both rows is lit. -->
+                <div class="vf-row">
+                    <div class="segment-row">
+                        <span class="step-label">Move</span>
+                        <button class="vf-btn" data-movement="normal">normal</button>
+                        <button class="vf-btn" data-movement="stop_and_go">+1+2</button>
+                        <button class="vf-btn" data-movement="one_three_five">1-3-5</button>
+                        <button class="vf-btn" data-movement="neighbors">neighbors</button>
+                        <button class="vf-btn" data-movement="chords">chords</button>
+                        <button class="vf-btn" data-movement="from_one">from 1</button>
+                        <button class="vf-btn" data-movement="to_one">to 1</button>
+                        <button class="vf-btn" data-movement="plus_minus_one">+1-1</button>
+                        <button class="vf-btn" data-movement="chromatic_stop_and_go">+1+2 chrom</button>
+                        <button class="vf-btn" data-movement="plus_minus_half">+1-1 chrom</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Move" data-abbr="Mv">Move</span>
-                        <button class="vf-btn" data-movement="normal" data-full="normal" data-abbr="-">normal</button>
-                        <button class="vf-btn" data-movement="stop_and_go" data-full="+1+2" data-abbr="+1+2">+1+2</button>
-                        <button class="vf-btn" data-movement="one_three_five" data-full="1-3-5" data-abbr="1-3-5">1-3-5</button>
-                        <button class="vf-btn" data-movement="neighbors" data-full="neighbors" data-abbr="Nbr">neighbors</button>
-                        <button class="vf-btn" data-movement="chords" data-full="chords" data-abbr="Chd">chords</button>
-                        <button class="vf-btn" data-movement="from_one" data-full="from 1" data-abbr="fr1">from 1</button>
-                        <button class="vf-btn" data-movement="to_one" data-full="to 1" data-abbr="to1">to 1</button>
-                        <button class="vf-btn" data-movement="plus_minus_one" data-full="+1-1" data-abbr="+1-1">+1-1</button>
-                        <button class="vf-btn" data-movement="chromatic_stop_and_go" data-full="+1+2 chrom" data-abbr="+1+2c">+1+2 chrom</button>
-                        <button class="vf-btn" data-movement="plus_minus_half" data-full="+1-1 chrom" data-abbr="+1-1c">+1-1 chrom</button>
-                        <button class="vf-btn" data-movement="third_up" data-full="3rd up" data-abbr="3u">3rd up</button>
-                        <button class="vf-btn" data-movement="fourth_up" data-full="4th up" data-abbr="4u">4th up</button>
-                        <button class="vf-btn" data-movement="fifth_up" data-full="5th up" data-abbr="5u">5th up</button>
-                        <button class="vf-btn" data-movement="sixth_up" data-full="6th up" data-abbr="6u">6th up</button>
-                        <button class="vf-btn" data-movement="seventh_up" data-full="7th up" data-abbr="7u">7th up</button>
-                        <button class="vf-btn" data-movement="third_down" data-full="3rd down" data-abbr="3d">3rd down</button>
-                        <button class="vf-btn" data-movement="fourth_down" data-full="4th down" data-abbr="4d">4th down</button>
-                        <button class="vf-btn" data-movement="fifth_down" data-full="5th down" data-abbr="5d">5th down</button>
-                        <button class="vf-btn" data-movement="sixth_down" data-full="6th down" data-abbr="6d">6th down</button>
-                        <button class="vf-btn" data-movement="seventh_down" data-full="7th down" data-abbr="7d">7th down</button>
+                        <span class="step-label">Leaps</span>
+                        <button class="vf-btn" data-movement="third_up">3rd up</button>
+                        <button class="vf-btn" data-movement="fourth_up">4th up</button>
+                        <button class="vf-btn" data-movement="fifth_up">5th up</button>
+                        <button class="vf-btn" data-movement="sixth_up">6th up</button>
+                        <button class="vf-btn" data-movement="seventh_up">7th up</button>
+                        <button class="vf-btn" data-movement="third_down">3rd down</button>
+                        <button class="vf-btn" data-movement="fourth_down">4th down</button>
+                        <button class="vf-btn" data-movement="fifth_down">5th down</button>
+                        <button class="vf-btn" data-movement="sixth_down">6th down</button>
+                        <button class="vf-btn" data-movement="seventh_down">7th down</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Repeat" data-abbr="Rep">Repeat</span>
-                        <button class="vf-btn" data-repeat="1" data-full="once" data-abbr="1x">once</button>
-                        <button class="vf-btn" data-repeat="2" data-full="twice" data-abbr="2x">twice</button>
-                        <button class="vf-btn" data-repeat="Infinity" data-full="&#8734;" data-abbr="&#8734;">&#8734;</button>
-                        <button class="vf-btn" data-repeat="Infinity-nogap" data-full="&#8734;+no gap" data-abbr="&#8734; 0g">&#8734;+no gap</button>
+                        <span class="step-label">Repeat</span>
+                        <button class="vf-btn" data-repeat="1">once</button>
+                        <button class="vf-btn" data-repeat="2">twice</button>
+                        <button class="vf-btn" data-repeat="Infinity">&#8734;</button>
+                        <button class="vf-btn" data-repeat="Infinity-nogap">&#8734;+no gap</button>
                     </div>
                     <div class="segment-row">
-                        <span class="step-label" data-full="Rising" data-abbr="Ris">Rising</span>
-                        <button class="vf-btn" data-rising="0" data-full="off" data-abbr="off">off</button>
-                        <button class="vf-btn" data-rising="1" data-full="half" data-abbr="m2">half</button>
-                        <button class="vf-btn" data-rising="2" data-full="whole" data-abbr="M2">whole</button>
+                        <span class="step-label">Rising</span>
+                        <button class="vf-btn" data-rising="0">off</button>
+                        <button class="vf-btn" data-rising="1">half</button>
+                        <button class="vf-btn" data-rising="2">whole</button>
                     </div>
                 </div>
 
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Exercise" data-abbr="Ex">Exercise</span>
-                        <button class="vf-btn" data-exercise="none" data-full="full scale" data-abbr="-">full scale</button>
-                        <button class="vf-btn" data-exercise="five_note" data-full="5-note" data-abbr="5nt">5-note</button>
-                        <button class="vf-btn" data-exercise="octave_jump" data-full="octave jump" data-abbr="8va">octave jump</button>
-                        <button class="vf-btn" data-exercise="arpeggio_return" data-full="arp return" data-abbr="arp">arp return</button>
-                        <button class="vf-btn" data-exercise="thirds" data-full="thirds" data-abbr="3rds">thirds</button>
+                        <span class="step-label">Exercise</span>
+                        <button class="vf-btn" data-exercise="none">full scale</button>
+                        <button class="vf-btn" data-exercise="five_note">5-note</button>
+                        <button class="vf-btn" data-exercise="octave_jump">octave jump</button>
+                        <button class="vf-btn" data-exercise="arpeggio_return">arp return</button>
+                        <button class="vf-btn" data-exercise="thirds">thirds</button>
                     </div>
                     <div class="segment-row">
-                        <span class="step-label" data-full="Shifting" data-abbr="Shf">Shifting</span>
-                        <button class="vf-btn" data-shifting="0" data-full="off" data-abbr="off">off</button>
-                        <button class="vf-btn" data-shifting="1" data-full="on" data-abbr="on">on</button>
+                        <span class="step-label">Shifting</span>
+                        <button class="vf-btn" data-shifting="0">off</button>
+                        <button class="vf-btn" data-shifting="1">on</button>
                     </div>
                     <div class="segment-row">
-                        <span class="step-label" data-full="Chop Head" data-abbr="Chp">Chop Head</span>
-                        <button class="vf-btn" data-chop-head="0" data-full="off" data-abbr="off">off</button>
-                        <button class="vf-btn" data-chop-head="1" data-full="on" data-abbr="on">on</button>
+                        <span class="step-label">Chop Head</span>
+                        <button class="vf-btn" data-chop-head="0">off</button>
+                        <button class="vf-btn" data-chop-head="1">on</button>
                     </div>
                 </div>
 
@@ -179,19 +165,19 @@
                      new note (3-2-1, 4-3-2, ...). -->
                 <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Ladder" data-abbr="Lad">Ladder</span>
-                        <button class="vf-btn" data-ladder="off" data-full="off" data-abbr="off">off</button>
-                        <button class="vf-btn" data-ladder="on" data-full="on" data-abbr="on">on</button>
-                        <button class="vf-btn" data-ladder="reverse" data-full="reverse" data-abbr="rev">reverse</button>
+                        <span class="step-label">Ladder</span>
+                        <button class="vf-btn" data-ladder="off">off</button>
+                        <button class="vf-btn" data-ladder="on">on</button>
+                        <button class="vf-btn" data-ladder="reverse">reverse</button>
                     </div>
                     <div class="step-field">
-                        <span class="step-label" data-full="Rung Notes" data-abbr="Nts">Rung Notes</span>
+                        <span class="step-label">Rung Notes</span>
                         <button class="step-btn" type="button" data-step-key="ladderSize" data-step-delta="-1" aria-label="Fewer notes per rung">-</button>
                         <span class="step-value" id="ladderSizeValue">3</span>
                         <button class="step-btn" type="button" data-step-key="ladderSize" data-step-delta="1" aria-label="More notes per rung">+</button>
                     </div>
                     <div class="step-field">
-                        <span class="step-label" data-full="Rung Gap" data-abbr="RGap">Rung Gap</span>
+                        <span class="step-label">Rung Gap</span>
                         <button class="step-btn" type="button" data-step-key="ladderGapMs" data-step-delta="-1" aria-label="Shorter gap between rungs">-</button>
                         <span class="step-value" id="ladderGapValue">0.5s</span>
                         <button class="step-btn" type="button" data-step-key="ladderGapMs" data-step-delta="1" aria-label="Longer gap between rungs">+</button>
@@ -199,38 +185,20 @@
                 </div>
 
                 <div class="vf-row">
-                    <span class="vf-label" data-full="Display" data-abbr="Dsp">Display</span>
-                    <div class="vf-options">
-                        <label class="display-toggle">
-                            <input type="checkbox" id="showSequenceToggle">
-                            <span>show sequence</span>
-                        </label>
-                        <label class="display-toggle">
-                            <input type="checkbox" id="useAbbrevToggle">
-                            <span>abbreviations</span>
-                        </label>
-                        <label class="display-toggle">
-                            <input type="checkbox" id="echoCommandsToggle">
-                            <span>echo commands</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="vf-row">
                     <div class="segment-row">
-                        <span class="step-label" data-full="Scale" data-abbr="Scl">Scale</span>
-                        <button class="vf-btn" data-scale-type="major" data-full="major" data-abbr="Maj">major</button>
-                        <button class="vf-btn" data-scale-type="minor" data-full="minor" data-abbr="min">minor</button>
-                        <button class="vf-btn" data-scale-type="chromatic" data-full="chromatic" data-abbr="Chr">chromatic</button>
-                        <button class="vf-btn" data-scale-type="pentatonic" data-full="pentatonic" data-abbr="Pent">pentatonic</button>
-                        <button class="vf-btn" data-scale-type="harmonic_minor" data-full="harmonic minor" data-abbr="Hmin">harmonic minor</button>
-                        <button class="vf-btn" data-scale-type="melodic_minor" data-full="melodic minor" data-abbr="Mmin">melodic minor</button>
-                        <button class="vf-btn" data-scale-type="quarter_tone" data-full="quarter tone" data-abbr="24edo">quarter tone</button>
-                        <button class="vf-btn" data-scale-type="rast" data-full="rast" data-abbr="Rst">rast</button>
-                        <button class="vf-btn" data-scale-type="bayati" data-full="bayati" data-abbr="Bya">bayati</button>
-                        <button class="vf-btn" data-scale-type="sikah" data-full="sikah" data-abbr="Sik">sikah</button>
-                        <button class="vf-btn" data-scale-type="slendro" data-full="slendro" data-abbr="Sln">slendro</button>
-                        <button class="vf-btn" data-scale-type="just_major" data-full="just major" data-abbr="JMaj">just major</button>
+                        <span class="step-label">Scale</span>
+                        <button class="vf-btn" data-scale-type="major">major</button>
+                        <button class="vf-btn" data-scale-type="minor">minor</button>
+                        <button class="vf-btn" data-scale-type="chromatic">chromatic</button>
+                        <button class="vf-btn" data-scale-type="pentatonic">pentatonic</button>
+                        <button class="vf-btn" data-scale-type="harmonic_minor">harmonic minor</button>
+                        <button class="vf-btn" data-scale-type="melodic_minor">melodic minor</button>
+                        <button class="vf-btn" data-scale-type="quarter_tone">quarter tone</button>
+                        <button class="vf-btn" data-scale-type="rast">rast</button>
+                        <button class="vf-btn" data-scale-type="bayati">bayati</button>
+                        <button class="vf-btn" data-scale-type="sikah">sikah</button>
+                        <button class="vf-btn" data-scale-type="slendro">slendro</button>
+                        <button class="vf-btn" data-scale-type="just_major">just major</button>
                     </div>
                 </div>
 
@@ -238,13 +206,6 @@
                     <button id="resetBtn" class="panel-action-btn">Reset</button>
                     <button id="randomBtn" class="panel-action-btn">Random</button>
                 </div>
-            </div>
-
-            <!-- Voice Control Commands -->
-            <div class="voice-control-commands">
-                <span class="vcc-label">Voice controls:</span>
-                <code>stop</code>
-                <code>play</code>
             </div>
 
             <!-- Saved Configurations (Presets) -->
@@ -266,10 +227,10 @@
                 </div>
             </div>
 
-            <!-- Command History -->
+            <!-- What played, newest first, each with a replay button -->
             <div class="command-history" id="commandHistory">
                 <div class="history-header">
-                    <h3>Command History</h3>
+                    <h3>History</h3>
                     <div class="history-actions">
                         <button id="copyAllHistoryBtn" class="panel-action-btn" title="Copy all history">Copy
                             All</button>
@@ -277,39 +238,9 @@
                     </div>
                 </div>
                 <div class="history-list" id="historyList">
-                    <p class="history-empty">No commands yet</p>
+                    <p class="history-empty">Nothing played yet</p>
                 </div>
             </div>
-
-            <!-- Voice Settings (moved to bottom) -->
-            <details class="voice-settings-section">
-                <summary>Voice Settings</summary>
-                <div class="settings-row voice-settings">
-                    <div class="setting-group">
-                        <label for="voiceSelect">Voice:</label>
-                        <select id="voiceSelect">
-                            <option value="">Default</option>
-                        </select>
-                    </div>
-                    <div class="setting-group">
-                        <div class="step-field">
-                            <span class="step-label">Speed</span>
-                            <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="-1" aria-label="Slower voice">-</button>
-                            <span class="step-value" id="voiceRateValue">1x</span>
-                            <button class="step-btn" type="button" data-step-key="voiceRate" data-step-delta="1" aria-label="Faster voice">+</button>
-                        </div>
-                    </div>
-                    <div class="setting-group">
-                        <div class="step-field">
-                            <span class="step-label">Pitch</span>
-                            <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="-1" aria-label="Lower voice pitch">-</button>
-                            <span class="step-value" id="voicePitchValue">1.0</span>
-                            <button class="step-btn" type="button" data-step-key="voicePitch" data-step-delta="1" aria-label="Higher voice pitch">+</button>
-                        </div>
-                    </div>
-                    <button id="testVoiceBtn" class="panel-action-btn">Test</button>
-                </div>
-            </details>
 
             <footer class="page-footer">
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
@@ -327,32 +258,29 @@
     </aside>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=374"></script>
-    <script src="fuseki-stats.js?v=374"></script>
-    <script src="usage-stats.js?v=374"></script>
-    <script src="app-version.js?v=374"></script>
-    <script src="storage-keys.js?v=374"></script>
-    <script src="audio-volume.js?v=374"></script>
-    <script src="shared-header.js?v=374"></script>
-    <script src="music-constants.js?v=374"></script>
-    <script src="scales-patterns.js?v=374"></script>
-    <script src="voice-output.js?v=374"></script>
-    <script src="voice-command-core.js?v=374"></script>
-    <script src="scales-playback.js?v=374"></script>
-    <script src="scales-voice-maps.js?v=374"></script>
-    <script src="piano-core.js?v=374"></script>
-    <script src="piano-keyboard.js?v=374"></script>
-    <script src="pitch-detect-core.js?v=374"></script>
-    <script src="pitch-score.js?v=374"></script>
-    <script src="pitch-trace-view.js?v=374"></script>
-    <script src="render-throttle.js?v=374"></script>
-    <script src="practice-controls.js?v=374"></script>
-    <script src="history-list.js?v=374"></script>
-    <script src="settings-store.js?v=374"></script>
-    <script src="progress-store.js?v=374"></script>
-    <script src="media-session-core.js?v=374"></script>
-    <script src="pitch-test-panel.js?v=374"></script>
-    <script src="scales.js?v=374"></script>
+    <script src="dev-error-monitor.js?v=375"></script>
+    <script src="fuseki-stats.js?v=375"></script>
+    <script src="usage-stats.js?v=375"></script>
+    <script src="app-version.js?v=375"></script>
+    <script src="storage-keys.js?v=375"></script>
+    <script src="audio-volume.js?v=375"></script>
+    <script src="shared-header.js?v=375"></script>
+    <script src="music-constants.js?v=375"></script>
+    <script src="scales-patterns.js?v=375"></script>
+    <script src="scales-playback.js?v=375"></script>
+    <script src="piano-core.js?v=375"></script>
+    <script src="piano-keyboard.js?v=375"></script>
+    <script src="pitch-detect-core.js?v=375"></script>
+    <script src="pitch-score.js?v=375"></script>
+    <script src="pitch-trace-view.js?v=375"></script>
+    <script src="render-throttle.js?v=375"></script>
+    <script src="practice-controls.js?v=375"></script>
+    <script src="history-list.js?v=375"></script>
+    <script src="settings-store.js?v=375"></script>
+    <script src="progress-store.js?v=375"></script>
+    <script src="media-session-core.js?v=375"></script>
+    <script src="pitch-test-panel.js?v=375"></script>
+    <script src="scales.js?v=375"></script>
 </body>
 
 </html>

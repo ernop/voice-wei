@@ -60,14 +60,6 @@ interface Window {
     AppVersion?: { current: string };
     PracticeAudio?: any;
     ScalesPlayback?: { AudioCoordinator: typeof ScalesAudioCoordinator };
-    ScalesVoiceMaps?: {
-        normalizeScaleNoteName: (spoken: string | null | undefined) => string | null;
-        normalizeScaleModifier: (spoken: string | null | undefined) => string | null;
-        normalizeScaleTypeName: (spoken: string) => string;
-        spokenPitchClassName: (letter: string, modifier: string | null) => string;
-        NOTE_PHONETIC_MAP: Record<string, string>;
-        MODIFIER_PHONETIC_MAP: Record<string, string>;
-    };
     EarTraining?: {
         create: (options: any) => any;
     };

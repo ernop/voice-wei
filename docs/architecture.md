@@ -15,7 +15,7 @@ webpage/PDF imports for Books and linked-page requests.
 
 ```
 index.html               # Home: cards for every tool
-scales.html/js/css       # Scale practice (voice-first)
+scales.html/js/css       # Scale practice
 intervals.html/js/css    # Interval drills
 phrases.html/js/css      # Phrase practice
 staff.html/js/css        # Scrolling grand-staff sight singing
@@ -243,7 +243,6 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `app-version.js` | Runtime release version label | - |
 | `practice-audio.js` | Thin shared piano playback wrapper | - |
 | `scales-playback.js` | Scales sequence playback coordinator (token-cancelled loops; its playing flag is the page's transport state) | - |
-| `scales-voice-maps.js` | Scale voice-command phonetic maps | - |
 | `scales-patterns.js` | The note patterns Scales plays, as pure functions: a section walked by direction, ladder rungs, movement figures, exercises, rising repeats | - |
 | `piano-keyboard.js` + `piano-keyboard.css` | The Scales keyboard: which keys a pass needs, degrees, key-aware spelling, microtone markers, exact highlight | - |
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
@@ -565,7 +564,7 @@ The scales feature plays musical patterns built from:
 `scales-patterns.js` builds every pattern as a pure function of these
 (MIDI in, MIDI out); `scales.js` reads the settings, plays, and shows.
 `tests/test-scales-patterns.js` holds each movement style to its example
-in [scales-commands.md](scales-commands.md) and checks the first two rules
+in [scales-patterns.md](scales-patterns.md) and checks the first two rules
 below for every style and direction.
 
 Vital rules that have caused bugs before:
@@ -601,24 +600,25 @@ Vital rules that have caused bugs before:
   reflect over the peak (678, 787, 876), and a forever-no-gap up+down or
   down+up cycle is one seamless triangle whose loop seam reflects too
   (the seam gets the rung gap, not a cycle divider).
-- Voice commands reset the practice settings (never the preferences) to
-  defaults before applying modifiers.
 - **The settings are what plays.** `playScale()` takes no arguments and
-  plays exactly `this.settings`; a voice command writes its words into
-  the settings (`applyScaleCommand`) before anything plays, and a preset
-  or history row is a settings snapshot replayed through `applyConfig`.
-  The buttons, keyboard, readout, and history row therefore cannot
-  disagree with the sound.
-- **Practice defaults live once**, in `defaultSettings`: `settings` adds
-  the preferences to it, snapshots take their keys from it, and
-  `applyConfig` fills any key an older config lacks from it. `applyConfig`
-  applies every mode from the snapshot, off included, so a mode left on
-  beforehand never survives a replay.
+  plays exactly `this.settings`, which only the option buttons, steppers,
+  Reset, and Random change; a preset or history row is a settings
+  snapshot replayed through `applyConfig`. The buttons, keyboard,
+  readout, and history row therefore cannot disagree with the sound.
+- **Practice defaults live once**, in `defaultSettings`: `settings` starts
+  as a copy, saving and loading take their keys from it (so a retired
+  setting leaves storage at the next save), snapshots take their keys
+  from it, and `applyConfig` fills any key an older config lacks from it.
+  `applyConfig` applies every mode from the snapshot, off included, so a
+  mode left on beforehand never survives a replay.
 - **Stored values are repaired on load.** Saved settings and presets pass
   through `scalesRepairStored`: a root, scale type, section width,
-  direction, move, or exercise that names no current option loads as its
-  default, so retiring an option (the early 'centered' width) never
-  leaves an old value playing something its words cannot describe.
+  direction, move, exercise, or rising step that names no current option
+  loads as its default, so retiring an option (the early 'centered' width,
+  the voice-only rising steps) never leaves an old value playing
+  something its words cannot describe. A scale type stays valid while
+  `SCALE_PATTERNS` holds it, so a preset saved with a voice-only scale
+  (dorian, blues) still plays it with no Scale button lit.
 
 Exercise patterns are degree-offset templates with `'O'` as the
 octave placeholder (`five_note`, `octave_jump`, `arpeggio_return`,
@@ -677,7 +677,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 
 | Key constant | Purpose |
 |--------------|---------|
-| `SCALES_SETTINGS` | Scales page settings (includes UI toggles and voice TTS prefs) |
+| `SCALES_SETTINGS` | Scales practice settings (the keys of `defaultSettings`) |
 | `SCALES_PRESETS` | Saved scale configs |
 | `INTERVALS_SETTINGS` | Intervals patterns + ear-training mode settings |
 | `INTERVALS_EAR_STATS` | Lifetime per-interval identification stats |
@@ -1412,10 +1412,9 @@ One picker kind per value kind, everywhere:
 - **Multi-select** (Ears interval grid): vf multi-select chips - the only
   multi-value picker, and deliberately distinct.
 
-The only remaining `<select>` on the practice pages is the Scales TTS voice
-list (dynamic, OS-dependent, dozens of entries - a genuinely different
-picker). Books is a deliberately distinct non-practice tool and keeps its own
-selects for OpenAI TTS voice/model choices.
+The practice pages have no `<select>`. Books is a deliberately distinct
+non-practice tool and keeps its own selects for OpenAI TTS voice/model
+choices.
 
 ### Grouping rule (visual separability)
 

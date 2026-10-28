@@ -5,7 +5,7 @@
 // microtone markers, exact lookup); the view draws it edge to edge, lights
 // exactly what sounds, and keeps every label inside its key at phone
 // width; the page keeps the owner display rules, the buttons' words, its
-// settings round trips (Reset, voice commands, presets, history), and an
+// settings round trips (Reset, presets, history), and an
 // honest transport state for the car's play/pause toggle.
 
 const { BASE_URL, launchWithMic, collectErrors, installGrayTextScan, createReporter } = require('./helpers');
@@ -307,7 +307,6 @@ function waitForScalesReady(tab) {
 
     // ============ PAGE: owner display rules ============
     await tab.evaluate(installGrayTextScan);
-    await tab.click('.voice-settings-section summary');
     const gray = await tab.evaluate(() => {
         const c = window.scalesController;
         /** @type {Record<string, string[]>} */
@@ -324,15 +323,10 @@ function waitForScalesReady(tab) {
         Object.assign(c.settings, c.defaultSettings);
         c.onSettingChanged();
 
-        c.addToHistory(c.settingsCommand(), 'c major scale');
+        c.addToHistory();
         c.history.add({ type: 'error', message: 'Could not copy the history', details: { error: 'denied' }, timestamp: new Date() });
         c.saveCurrentAsPreset('warm-up');
-        c.voiceCore.transcript.show('c major scale');
-        /** @type {HTMLElement} */ (document.getElementById('showSequenceToggle')).click();
         scans.panels = window.__scanGrayText();
-        /** @type {HTMLElement} */ (document.getElementById('useAbbrevToggle')).click();
-        scans.abbreviated = window.__scanGrayText();
-        /** @type {HTMLElement} */ (document.getElementById('useAbbrevToggle')).click();
 
         c.loadFailure = 'Piano failed to load. Refresh to retry.';
         c.showIdle();
@@ -349,7 +343,7 @@ function waitForScalesReady(tab) {
     const phoneGray = await tab.evaluate(() => window.__scanGrayText().map(text => `phone: ${text}`));
     await tab.setViewportSize(DESKTOP);
     const offenders = [...gray, ...singGray, ...phoneGray];
-    report.check(`no gray or dimmed text in any state: rest, sounding, markers, panels, abbreviations, load failure, Sing, phone (${offenders.length} offenders${offenders.length ? ': ' + offenders.slice(0, 5).join('; ') : ''})`,
+    report.check(`no gray or dimmed text in any state: rest, sounding, markers, panels, load failure, Sing, phone (${offenders.length} offenders${offenders.length ? ': ' + offenders.slice(0, 5).join('; ') : ''})`,
         offenders.length === 0);
 
     /** @param {string} label */
@@ -357,13 +351,13 @@ function waitForScalesReady(tab) {
         const c = window.scalesController;
         /** @type {HTMLElement} */ (document.getElementById('clearHistoryBtn')).click();
         Object.assign(c.settings, c.defaultSettings);
-        c.addToHistory(c.settingsCommand(), null);
+        c.addToHistory();
         Object.assign(c.settings, {
             root: 'F#', scaleType: 'harmonic_minor', direction: 'down_and_up', sectionLength: '1o+5',
             movementStyle: 'seventh_down', ladder: 'reverse', ladderSize: 6, ladderGapMs: 1500,
             repeatCount: Infinity, repeatGapMs: 0, noteLengthMs: 1000, gapMs: 300
         });
-        c.addToHistory(c.settingsCommand(), 'f sharp harmonic minor down and up sevenths down reverse ladder of six forever no gap very slowly with a large gap');
+        c.addToHistory();
         c.history.add({ type: 'error', message: 'Unhandled Promise Rejection: a long reason that keeps on going well past the width of a phone', details: {}, timestamp: new Date() });
         c.presets.splice(0);
         c.saveCurrentAsPreset('a long name for a saved config that runs on');
@@ -418,15 +412,12 @@ function waitForScalesReady(tab) {
         /** @param {Element} btn @param {string} expected */
         const compare = (btn, expected) => {
             compared++;
-            const full = /** @type {HTMLElement} */ (btn).dataset.full;
-            if (full !== expected) mismatches.push(`${btn.outerHTML.match(/data-[a-z-]+="[^"]*"/)?.[0]}: "${expected}" vs "${full}"`);
+            const words = btn.textContent;
+            if (words !== expected) mismatches.push(`${btn.outerHTML.match(/data-[a-z-]+="[^"]*"/)?.[0]}: "${expected}" vs "${words}"`);
         };
         for (const [setting, attribute] of Object.entries(attributes)) {
             document.querySelectorAll(`.vf-btn[data-${attribute}]`).forEach(btn => {
-                const value = btn.getAttribute(`data-${attribute}`);
-                // Rising off has no words: descriptions leave it out.
-                if (setting === 'risingSemitones' && value === '0') return;
-                compare(btn, SCALES_OPTION_LABELS[setting][value]);
+                compare(btn, SCALES_OPTION_LABELS[setting][btn.getAttribute(`data-${attribute}`)]);
             });
         }
         document.querySelectorAll('.vf-btn[data-repeat]').forEach(btn => {
@@ -443,95 +434,91 @@ function waitForScalesReady(tab) {
 
     // ============ PAGE: settings round trips ============
     await tab.click('.vf-btn[data-direction="descending"]');
-    await tab.click('label:has(#useAbbrevToggle)');
-    await tab.click('.step-btn[data-step-key="voiceRate"][data-step-delta="1"]');
+    await tab.click('.vf-btn[data-movement="fifth_down"]');
+    await tab.click('.step-btn[data-step-key="noteLengthMs"][data-step-delta="1"]');
     await tab.click('#resetBtn');
-    const afterReset = await tab.evaluate(() => {
+    const notDefault = () => tab.evaluate(() => {
         const c = window.scalesController;
-        return `${c.settings.direction} abbrev=${c.settings.useAbbrev} rate=${c.voiceCore.settings.voiceRate}`;
+        return Object.keys(c.defaultSettings).filter(key => c.settings[key] !== c.defaultSettings[key]).join(',');
     });
+    const afterReset = await notDefault();
     await tab.reload({ waitUntil: 'networkidle' });
     await waitForScalesReady(tab);
-    const afterReload = await tab.evaluate(() => {
-        const c = window.scalesController;
-        return `${c.settings.direction} abbrev=${c.settings.useAbbrev} rate=${c.voiceCore.settings.voiceRate}`;
-    });
-    report.check(`Reset restores the practice settings and keeps the preferences, across a reload (${afterReset}; reloaded ${afterReload})`,
-        afterReset === 'ascending abbrev=true rate=1.1' && afterReload === afterReset);
-    await tab.click('label:has(#useAbbrevToggle)');
+    const afterReload = await notDefault();
+    report.check(`Reset restores every practice setting, across a reload (off default after Reset: ${afterReset || 'none'}; reloaded: ${afterReload || 'none'})`,
+        afterReset === '' && afterReload === '');
 
-    const voice = await tab.evaluate(async () => {
+    const buttons = await tab.evaluate(() => {
         const c = window.scalesController;
-        /** @param {string} text */
-        const say = async text => {
-            // Not awaited: a forever loop's command never finishes.
-            c.voiceCore.handleVoiceCommand(text);
-            await new Promise(resolve => setTimeout(resolve, 150));
-        };
+        /** @param {string} selector */
+        const click = selector => /** @type {HTMLElement} */ (document.querySelector(selector)).click();
         /** @param {string} attribute */
         const selected = attribute => [...document.querySelectorAll(`.vf-btn[${attribute}].selected`)]
             .map(btn => btn.getAttribute(attribute)).join(',');
         const plan = () => document.getElementById('pianoReadoutPlan').textContent;
 
-        await say('d major five note warmup');
-        const warmup = `${selected('data-exercise')} shifting=${selected('data-shifting')} repeat=${selected('data-repeat')} playing=${c.audio.isPlaying} "${plan()}"`;
-        c.stopPlayback();
-        await say('c major two octaves');
+        click('.vf-btn[data-exercise="five_note"]');
+        const warmup = `${selected('data-exercise')} shifting=${selected('data-shifting')} repeat=${selected('data-repeat')} "${plan()}"`;
+        click('#resetBtn');
+        click('.vf-btn[data-section-length="2o"]');
         const notes = c.patternNotes(0);
         const twoOctaves = `${selected('data-section-length')} ${notes[0]}-${notes[notes.length - 1]} "${plan()}"`;
-        c.stopPlayback();
-        await say('g major rising');
+        click('#resetBtn');
+        click('.vf-btn[data-rising="1"]');
         const rising = `rising=${selected('data-rising')} repeat=${selected('data-repeat')}`;
-        c.stopPlayback();
-        await say('e sharp major');
-        const eSharp = c.settings.root;
-        c.stopPlayback();
-        const spelled = ['c flat major', 'b sharp minor', 'f flat major'].map(text => c.parseScaleCommand(text).root).join(',');
-        await say('random');
+        click('#randomBtn');
         const stored = SettingsStore.peekData(StorageKeys.SCALES_SETTINGS);
         const randomKept = ['root', 'scaleType', 'direction', 'movementStyle', 'risingSemitones', 'noteLengthMs']
             .every(key => stored[key] === (c.settings[key] === Infinity ? -1 : c.settings[key]));
-        c.stopPlayback();
-        return { warmup, twoOctaves, rising, eSharp, spelled, randomKept };
+        click('#resetBtn');
+        return { warmup, twoOctaves, rising, randomKept };
     });
-    report.check(`a spoken exercise shows on its buttons and the readout (${voice.warmup})`,
-        voice.warmup === 'five_note shifting=1 repeat=Infinity playing=true "D4 major \u00b7 up \u00b7 5-note \u00b7 shifting \u00b7 repeat \u221e"');
-    report.check(`"two octaves" sets the section width and plays it (${voice.twoOctaves})`,
-        voice.twoOctaves === '2o 60-84 "C4 major \u00b7 up \u00b7 2 octaves"');
-    report.check(`spoken rising repeats forever (${voice.rising})`, voice.rising === 'rising=1 repeat=Infinity');
-    report.check(`spoken E sharp, C flat, B sharp, F flat name real keys (${voice.eSharp}; ${voice.spelled})`,
-        voice.eSharp === 'F' && voice.spelled === 'B,C,E');
-    report.check('spoken random persists what it picked', voice.randomKept);
+    report.check(`an exercise shows on its buttons and the readout (${buttons.warmup})`,
+        buttons.warmup === 'five_note shifting=1 repeat=Infinity "C4 major \u00b7 up \u00b7 5-note \u00b7 shifting \u00b7 repeat \u221e"');
+    report.check(`2 octaves sets the section width the board plans (${buttons.twoOctaves})`,
+        buttons.twoOctaves === '2o 60-84 "C4 major \u00b7 up \u00b7 2 octaves"');
+    report.check(`rising repeats forever (${buttons.rising})`, buttons.rising === 'rising=1 repeat=Infinity');
+    report.check('Random persists what it picked', buttons.randomKept);
 
-    const movementRule = await tab.evaluate(async () => {
+    const movement = await tab.evaluate(() => {
         const c = window.scalesController;
+        /** @param {string} selector */
+        const click = selector => /** @type {HTMLElement} */ (document.querySelector(selector)).click();
         /** @param {string} attribute */
         const selected = attribute => [...document.querySelectorAll(`.vf-btn[${attribute}].selected`)]
             .map(btn => btn.getAttribute(attribute)).join(',');
+        const rows = [...document.querySelectorAll('.segment-row')]
+            .filter(row => row.querySelector('[data-movement]'))
+            .map(row => `${row.querySelector('.step-label').textContent} ${row.querySelectorAll('[data-movement]').length}`)
+            .join(', ');
         Object.assign(c.settings, c.defaultSettings);
         c.onSettingChanged();
-        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-chop-head="1"]')).click();
-        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-movement="neighbors"]')).click();
-        const clicked = `${selected('data-movement')} chop=${selected('data-chop-head')}`;
-        /** @type {HTMLElement} */ (document.querySelector('.vf-btn[data-ladder="on"]')).click();
-        await c.voiceCore.handleVoiceCommand('neighbors');
-        const spoken = `${selected('data-movement')} ladder=${selected('data-ladder')}`;
-        await c.voiceCore.handleVoiceCommand('4 u');
-        const leap = selected('data-movement');
-        Object.assign(c.settings, c.defaultSettings);
-        c.onSettingChanged();
-        return { clicked, spoken, leap };
+        const rest = selected('data-movement');
+        click('.vf-btn[data-chop-head="1"]');
+        click('.vf-btn[data-movement="neighbors"]');
+        const figure = `${selected('data-movement')} chop=${selected('data-chop-head')}`;
+        click('.vf-btn[data-ladder="on"]');
+        click('.vf-btn[data-movement="fourth_up"]');
+        const leap = `${selected('data-movement')} ladder=${selected('data-ladder')}`;
+        click('.vf-btn[data-movement="normal"]');
+        const back = selected('data-movement');
+        return { rows, rest, figure, leap, back };
     });
-    report.check(`a movement figure turns chop head and the ladder off, by button or by voice (clicked ${movementRule.clicked}; spoken ${movementRule.spoken}; "4 u" ${movementRule.leap})`,
-        movementRule.clicked === 'neighbors chop=0' && movementRule.spoken === 'neighbors ladder=off'
-        && movementRule.leap === 'fourth_up');
+    report.check(`Move and Leaps are two labeled rows lighting one movement between them (${movement.rows}; rest ${movement.rest}, then ${movement.leap}, then ${movement.back})`,
+        movement.rows === 'Move 10, Leaps 10' && movement.rest === 'normal'
+        && movement.leap.startsWith('fourth_up ') && movement.back === 'normal');
+    report.check(`a movement figure or leap turns chop head and the ladder off (${movement.figure}; ${movement.leap})`,
+        movement.figure === 'neighbors chop=0' && movement.leap === 'fourth_up ladder=off');
 
     await tab.click('.vf-btn[data-repeat="Infinity-nogap"]');
     await tab.fill('#presetNameInput', 'forever-test');
     await tab.click('#savePresetBtn');
     await tab.evaluate(() => {
         const settings = SettingsStore.peekData(StorageKeys.SCALES_SETTINGS);
-        localStorage.setItem(StorageKeys.SCALES_SETTINGS, JSON.stringify({ ...settings, root: 'E#', sectionLength: 'centered' }));
+        localStorage.setItem(StorageKeys.SCALES_SETTINGS, JSON.stringify({
+            ...settings, root: 'E#', sectionLength: 'centered', risingSemitones: 7,
+            showSequence: true, useAbbrev: true, voiceRate: 1.5, echoCommands: true
+        }));
         const presets = SettingsStore.peekData(StorageKeys.SCALES_PRESETS);
         presets.push({ ...presets[0], id: 'stored-b-sharp', name: 'b-sharp', config: { ...presets[0].config, root: 'B#', movementStyle: 'retired' } });
         localStorage.setItem(StorageKeys.SCALES_PRESETS, JSON.stringify(presets));
@@ -544,7 +531,9 @@ function waitForScalesReady(tab) {
         const bSharp = c.presets.find(p => p.name === 'b-sharp');
         return {
             forever: forever ? `${forever.config.repeatCount} gap ${forever.config.repeatGapMs}` : 'missing',
-            settings: `${c.settings.root} ${c.settings.sectionLength}`,
+            settings: `${c.settings.root} ${c.settings.sectionLength} rising ${c.settings.risingSemitones}`,
+            retired: ['showSequence', 'useAbbrev', 'voiceRate', 'echoCommands']
+                .filter(key => key in SettingsStore.peekData(StorageKeys.SCALES_SETTINGS)).join(','),
             preset: bSharp ? `${bSharp.config.root} ${bSharp.config.movementStyle}` : 'missing',
             plan: document.getElementById('pianoReadoutPlan').textContent,
             board: c.keyboard.model.keys.length > 0
@@ -552,7 +541,9 @@ function waitForScalesReady(tab) {
     });
     report.check(`a forever preset survives a reload (${stored.forever})`, stored.forever === 'Infinity gap 0');
     report.check(`a stored value that names no current option loads as its default (settings ${stored.settings}, preset ${stored.preset}, "${stored.plan}")`,
-        stored.settings === 'C 1o' && stored.preset === 'C normal' && !stored.plan.includes('undefined') && stored.board);
+        stored.settings === 'C 1o rising 0' && stored.preset === 'C normal' && !stored.plan.includes('undefined') && stored.board);
+    report.check(`retired settings (sequence, abbreviations, voice) leave the stored settings (kept: ${stored.retired || 'none'})`,
+        stored.retired === '');
 
     const replay = await tab.evaluate(async () => {
         const c = window.scalesController;

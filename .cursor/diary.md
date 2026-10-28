@@ -1761,3 +1761,27 @@ For future mei:
   beats separate fire-and-forget timers.
 - A red validate on an unrelated suite is still worth reading: a check
   that fails only on slower machines can be the one place a real race shows.
+
+## 2026-10-27 - Scales without voice (v375)
+
+yui: voice input is no longer used, so remove it from Scales entirely;
+drop abbreviations, the sequence panel, and Echo commands; split Move into
+Move and Leaps; delete the voice parser; fix the stray `.orig` file. The
+microphone stays for the Sing test. `scales.js` went from 3043 lines to
+1371: the parser, voice maps, voice core wiring, TTS settings, and
+the sequence and abbreviation code are gone, and playback now reads
+`this.settings` directly instead of threading a voice "modifiers" object.
+Saving and loading take their keys from `defaultSettings`, so the retired
+toggles and voice preferences leave storage at the next save.
+
+For future mei:
+- Removing an input path removes what only it reached. Before deleting a
+  parser, list what it could select that no button offers (here: chords,
+  intervals, single notes, twelve registry scales, rising by 3/4/5/7) and
+  report it, so the loss is a decision, not a surprise.
+- Derive persisted keys from the defaults object instead of keeping a
+  second list; removing a setting then cleans storage without migration code.
+- `tests/test-deploy.js` holds `.gitignore` and `deploy/rsync-filter` in
+  step: a new ignore pattern needs the matching publish exclusion.
+- A screenshot taken right after a click can catch a 0.2s color transition
+  mid-fade; read classes, or wait, before calling two buttons lit.

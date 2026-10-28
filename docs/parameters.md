@@ -249,34 +249,30 @@ meaningful for one configuration).
 
 ## Scales (`scales-settings`)
 
-All settings are `live-restart`. Voice commands first reset every practice
-setting below to its default, then write the spoken words into them, so the
-page shows what plays; Play always plays the settings. Reset does the same
-reset by click.
+All settings are `live-restart`, and Play always plays the settings.
+Reset returns every setting below to its default.
 
 | Setting | Default | Behavior |
 |---------|---------|----------|
 | root + octave | C4 (root pitch stepper, shared C2-B5) | live-restart |
-| scaleType | major (UI offers 12 types incl. microtonal quarter_tone/rast/bayati/sikah/slendro/just_major; voice reaches every `SCALE_PATTERNS` key) | live-restart |
+| scaleType | major (12 buttons incl. microtonal quarter_tone/rast/bayati/sikah/slendro/just_major; a stored `SCALE_PATTERNS` key without a button still plays) | live-restart |
 | direction | ascending | live-restart |
 | noteLengthMs | 300 (shared note-length list) | live-restart |
 | gapMs | 0 (shared gap list; negative = overlap ratio) | live-restart |
 | repeatCount | 1 (Infinity = forever) | live-restart |
 | repeatGapMs | 1000 | live-restart |
-| risingSemitones | 0 (forces forever when > 0) | live-restart |
+| risingSemitones | 0 (off / 1 half / 2 whole; forces forever when > 0) | live-restart |
 | shiftingSteps | 0 (forces forever when > 0; excludes rising) | live-restart |
 | chopHead | 0 (excludes rising/shifting/exercise/movement/ladder; each pass drops the leading note) | live-restart |
 | ladder | off (on / reverse; excludes chop head/shifting/exercise/movement; overlapping rungs shifting one degree per rung; reverse leads each rung with the new note; terminal ends play out by clipping, turnarounds reflect, forever-no-gap up+down reflects at the loop seam) | live-restart |
 | ladderSize | 3 (2-8 notes per rung, clamped to the section) | live-restart |
 | ladderGapMs | 500 (shared time ladder 0-10s; pause between rungs, 0 plays straight through) | live-restart |
-| movementStyle | normal | live-restart |
+| movementStyle | normal (the Move row's figures and the Leaps row's 3rd-7th up/down share this one setting) | live-restart |
 | sectionLength | 1o (1o+3 / 1o+5 / 2o) | live-restart |
 | exercise | none | live-restart |
 
-Preferences ride in the same key and survive Reset and voice commands:
-show sequence, abbreviations, the dismissed tip, and the TTS voice, speed,
-pitch, and echo. Presets have their own key (`scales-presets-v1`) and store
-every practice setting, forever repeats included.
+The key holds exactly these settings. Presets have their own key
+(`scales-presets-v1`) and store every setting, forever repeats included.
 
 ## Intervals (`intervals-settings`)
 

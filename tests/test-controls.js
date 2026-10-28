@@ -53,9 +53,8 @@ async function gotoReady(tab, page, query = '') {
 async function sectionCanonicalControls(browser, errors) {
     // CANONICAL PICKERS AND CONTROLS: every page uses the shared kinds only.
     // Root/octave/single-pitch choosers are root-pitch steppers; no chip
-    // grids, sliders, or selects remain (except Scales' dynamic TTS voice
-    // list, the one deliberate select). Retired control dialects must not
-    // reappear anywhere.
+    // grids, sliders, or selects remain (Books' dynamic lists excepted).
+    // Retired control dialects must not reappear anywhere.
     const ctx = await browser.newContext();
     // Classes deleted during convergence; markup using them is a regression
     const retired = [
@@ -80,7 +79,7 @@ async function sectionCanonicalControls(browser, errors) {
     ].join(', ');
     /** @type {Array<{ page: keyof typeof READY_PROBES, steppers: string[], forbidden: string }>} */
     const expectations = [
-        { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], input[type="range"]' },
+        { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
         { page: 'intervals', steppers: ['rootPitch', 'rootRangeMid', 'droneNote'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
         { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
         { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
@@ -100,25 +99,14 @@ async function sectionCanonicalControls(browser, errors) {
             stray: Array.from(document.querySelectorAll(forbidden)).length,
             dialects: Array.from(document.querySelectorAll(retired)).length,
         }), { steppers, forbidden, retired });
-        const selects = page === 'scales'
-            ? await tab.evaluate(() => Array.from(document.querySelectorAll('select')).map(s => s.id))
-            : null;
         await tab.close();
-        /** @type {SectionCheck[]} */
-        const pageChecks = [{
+        return {
             label: `${page} canonical controls (missing: ${result.missing.join(',') || 'none'}, stray: ${result.stray}, retired: ${result.dialects})`,
             ok: result.missing.length === 0 && result.stray === 0 && result.dialects === 0
-        }];
-        if (selects) {
-            pageChecks.push({
-                label: `scales only select is the TTS voice list (${selects.join(',')})`,
-                ok: selects.length === 1 && selects[0] === 'voiceSelect'
-            });
-        }
-        return pageChecks;
+        };
     }));
     await ctx.close();
-    return checks.flat();
+    return checks;
 }
 
 /**

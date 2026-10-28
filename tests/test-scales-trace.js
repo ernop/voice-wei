@@ -1,7 +1,7 @@
 // @ts-check
 // scales and trace product behavior, extracted from the retired tab-functions monolith.
 
-const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter } = require('./helpers');
+const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./helpers');
 
 // Scales init is complete when setupMediaSession (the last init step) has
 // registered the page title; piano samples are loaded before that point.
@@ -15,62 +15,37 @@ function waitForScalesReady(tab) {
 (async () => {
     const report = createReporter('scales and trace');
     const browser = await launchWithMic();
-    // ============ SCALES: voice parser + execution + presets ============
+    // ============ SCALES: play, presets, playback rules ============
     {
         const tab = await browser.newPage();
         collectErrors(tab, 'scales', report.errors);
         await tab.goto(`${BASE_URL}/scales.html`, { waitUntil: 'networkidle' });
         await waitForScalesReady(tab);
 
-        const parses = await tab.evaluate(() => {
-            const c = window.scalesController;
-            const cases = [
-                ['d minor scale', cmd => cmd && cmd.type === 'scale' && cmd.root === 'D' && cmd.scaleType === 'minor'],
-                ['g major up and down', cmd => cmd && cmd.type === 'scale' && cmd.root === 'G' && cmd.modifiers.direction === 'both'],
-                ['slowly chromatic', cmd => cmd && cmd.scaleType === 'chromatic' && cmd.modifiers.tempo === 'slow'],
-                ['perfect fifth from a', cmd => cmd && cmd.type === 'interval'],
-                ['stop', cmd => cmd && cmd.type === 'stop'],
-                ['harmonic minor repeat forever', cmd => cmd && cmd.scaleType === 'harmonic_minor' && cmd.modifiers.repeat === Infinity],
-                ['d minor repeat forever no gap', cmd => cmd && cmd.root === 'D' && cmd.modifiers.repeat === Infinity && cmd.modifiers.repeatGapMs === 0],
-                ['b flat major', cmd => cmd && cmd.root === 'A#' && cmd.scaleType === 'major'],
-                ['c major and repeat', cmd => cmd && cmd.root === 'C' && cmd.modifiers.repeat === Infinity],
-                ['rast', cmd => cmd && cmd.type === 'scale' && cmd.root === 'C' && cmd.scaleType === 'rast'],
-                ['maqam bayati from d', cmd => cmd && cmd.root === 'D' && cmd.scaleType === 'bayati'],
-                ['quarter tone scale', cmd => cmd && cmd.scaleType === 'quarter_tone'],
-                ['d sikah scale', cmd => cmd && cmd.root === 'D' && cmd.scaleType === 'sikah'],
-                ['slendro', cmd => cmd && cmd.scaleType === 'slendro'],
-                ['slowly just major', cmd => cmd && cmd.scaleType === 'just_major' && cmd.modifiers.tempo === 'slow']
-            ];
-            return cases.map(([text, verify]) => {
-                let cmd = null;
-                try { cmd = c.parseScaleCommand(text); } catch (err) { return `${text} => THREW`; }
-                return `${text} => ${verify(cmd) ? 'ok' : JSON.stringify(cmd)}`;
-            });
-        });
-        parses.forEach(p => report.check(`scales parse "${p}"`, p.endsWith('ok')));
-
         const played = await tab.evaluate(async () => {
             const c = window.scalesController;
-            const cmd = c.parseScaleCommand('e minor scale');
-            c.executeScaleCommand(cmd, 'e minor scale');
+            c.settings.root = 'E';
+            c.settings.scaleType = 'minor';
+            c.syncUIToSettings();
+            c.playCurrentSettings();
             const deadline = performance.now() + 10000;
             while (!c.audio.isPlaying && performance.now() < deadline) {
                 await new Promise(r => setTimeout(r, 15));
             }
             const playing = c.audio.isPlaying;
             c.stopPlayback();
-            return playing && c.settings.root === 'E' && c.settings.scaleType === 'minor';
+            const entry = c.history.entries[0];
+            return playing && entry.config.root === 'E' && entry.config.scaleType === 'minor'
+                && entry.description === c.describeSettings(entry.config);
         });
-        report.check('scales voice command executes and plays', played);
+        report.check('scales Play plays the settings and records them in the history', played);
 
-        // Regression: the Play button must honor noteLengthMs exactly.
-        // It used to quantize through the coarse voice tempo names
-        // (0.3s -> "normal" -> 0.5s), so a mid-play setting change
-        // (live-restart reads the true setting) audibly sped playback up.
+        // Regression: the Play button must honor noteLengthMs exactly, and
+        // a setting changed mid-play (live restart) must keep that pacing.
         const pacing = await tab.evaluate(async () => {
             const c = window.scalesController;
             c.stopPlayback();
-            c.settings.noteLengthMs = 300; // between the 150/500 tempo presets
+            c.settings.noteLengthMs = 300;
             c.settings.gapMs = 0;
             c.settings.direction = 'both';
             c.settings.repeatCount = Infinity;
@@ -325,15 +300,6 @@ function waitForScalesReady(tab) {
                 degreesAscAll: cMajor, direction: 'ascending', size: 12, reverse: false, seamlessLoop: false
             });
 
-            // Voice grammar: standalone and inline forms.
-            const standalone = c.parseScaleCommand('reverse ladder of four');
-            const standaloneState = { ladder: c.settings.ladder, size: c.settings.ladderSize };
-            const gapCmd = c.parseScaleCommand('ladder gap 2 seconds');
-            const gapMsAfter = c.settings.ladderGapMs;
-            const offCmd = c.parseScaleCommand('ladder off');
-            const offState = c.settings.ladder;
-            const inline = c.parseScaleCommand('c major three note ladder');
-
             // Mutual exclusion with the other sequence generators.
             c.setChopHead(1);
             c.setLadder('on');
@@ -397,12 +363,6 @@ function waitForScalesReady(tab) {
                 clampedCount: clamped.groups.length,
                 clampedFirst: clamped.groups[0].notes.join(','),
                 clampedLast: clamped.groups[clamped.groups.length - 1].notes.join(','),
-                standaloneOk: standalone && standalone.type === 'setting' && standalone.setting === 'ladder'
-                    && standalone.value === 'reverse' && standaloneState.ladder === 'reverse' && standaloneState.size === 4,
-                gapOk: gapCmd && gapCmd.type === 'setting' && gapCmd.setting === 'ladderGapMs' && gapMsAfter === 2000,
-                offOk: offCmd && offCmd.value === 'off' && offState === 'off',
-                inlineOk: inline && inline.type === 'scale' && inline.root === 'C'
-                    && inline.modifiers.ladder === 'on' && inline.modifiers.ladderSize === 3,
                 chopClearedByLadder,
                 ladderClearedByExercise,
                 exerciseClearedByLadder,
@@ -431,8 +391,6 @@ function waitForScalesReady(tab) {
             && ladder.reverseFullFirsts === '64,65,67,69,71,72');
         report.check(`scales ladder rung size clamps to the section and plays out (${ladder.clampedCount} rungs, ${ladder.clampedFirst} ... ${ladder.clampedLast})`,
             ladder.clampedCount === 8 && ladder.clampedFirst === '60,62,64,65,67,69,71,72' && ladder.clampedLast === '72');
-        report.check('scales ladder voice grammar (standalone, gap, off, inline)',
-            ladder.standaloneOk && ladder.gapOk && ladder.offOk && ladder.inlineOk);
         report.check('scales ladder excludes chop head and exercises both ways',
             ladder.chopClearedByLadder && ladder.ladderClearedByExercise && ladder.exerciseClearedByLadder);
         report.check(`scales ladder playback shifts one degree per rung with the configured rung gap (${ladder.played}; ${ladder.rungGapSleeps} rung gaps)`,

@@ -15,13 +15,6 @@
  * @property {(repeatIndex: number) => number[]} getNotesForRepeat
  */
 
-/**
- * @typedef {Object} PlayChordSequenceOptions
- * @property {number} repeatCount
- * @property {number} gapMs - from one chord's start to the next
- * @property {ToneDuration} duration
- */
-
 class ScalesAudioCoordinator {
     /**
      * @param {(playing: boolean) => void} onPlayingChange - as sequence
@@ -104,38 +97,6 @@ class ScalesAudioCoordinator {
                 if (hasMore && this.isPlaybackValid(playId)) {
                     onRepeatEnd(r);
                     if (repeatGapMs > 0) await this.sleep(repeatGapMs);
-                }
-            }
-        } finally {
-            if (this.playbackId === playId) {
-                this.isPlaying = false;
-            }
-        }
-        return this.playbackId === playId;
-    }
-
-    /**
-     * Strike a chord repeatedly. It returns as the last strike sounds; the
-     * chord then rings for `duration`.
-     * @param {number[]} midiNotes
-     * @param {PlayChordSequenceOptions} options
-     * @returns {Promise<boolean>} whether it ran to its end (not stopped or replaced)
-     */
-    async playChordRepeated(midiNotes, options) {
-        const { repeatCount, gapMs, duration } = options;
-
-        const playId = this.requestSequencePlayback();
-        const isInfinite = repeatCount === Infinity;
-        let r = 0;
-
-        try {
-            while (this.isPlaybackValid(playId) && (isInfinite || r < repeatCount)) {
-                this.piano.playMidiChord(midiNotes, duration);
-                r++;
-
-                const hasMore = isInfinite || r < repeatCount;
-                if (hasMore && this.isPlaybackValid(playId)) {
-                    await this.sleep(gapMs);
                 }
             }
         } finally {

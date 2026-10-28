@@ -135,7 +135,7 @@ Voice / click / media keys
 | Surface | Entry | Notes |
 |---------|-------|-------|
 | Home | `index.html` | Card grid |
-| Scales | `scales.html` + `scales.js` | Largest practice page; voice grammar in `docs/scales-commands.md` |
+| Scales | `scales.html` + `scales.js` | Largest practice page; what each option plays in `docs/scales-patterns.md` |
 | Intervals + Ears | `intervals.html` + `intervals.js` (+ `ear-training.js`) | `ears.html` redirects with `?mode=ear` |
 | Phrases | `phrases.html` + `phrases.js` | Generators, take plan, Test panel |
 | Trace | `trace.html` + `trace.js` | Session + view directly (no embed panel) |

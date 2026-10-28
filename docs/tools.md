@@ -1,40 +1,29 @@
 # Tool Reference
 
 What each tab does and how to use it. Setting-change behavior for every
-control is defined in [parameters.md](parameters.md). The full scales voice
-command reference is [scales-commands.md](scales-commands.md).
+control is defined in [parameters.md](parameters.md). What each Scales
+option plays is in [scales-patterns.md](scales-patterns.md).
 
 ## Scales
 
-Voice-controlled scale trainer with realistic piano (Salamander samples).
-**Voice-first, click-second**: everything you can say is also visible and
-clickable, and both update the same state.
+Scale trainer with realistic piano (Salamander samples), driven by its
+option buttons: each one both shows and sets its setting, so the buttons,
+keyboard, readout, and history always say what plays. Scales takes no
+voice input (removed 2026-10-27); the microphone serves only the Sing
+test.
 
-The transport row is Play (primary, stretches wide), Stop, Listen.
-Click **Listen**, then say things like:
-
-- "D minor scale"
-- "slowly chromatic"
-- "G major up and down"
-- "perfect fifth from A"
-- "harmonic minor repeat forever"
-- "quarter tone scale", "rast", "bayati from D" (microtonal - see
-  [scales-commands.md](scales-commands.md) for the full list)
-
-Voice commands reset the practice settings to defaults, then write your
-words into them, so "D minor" always sounds the same regardless of previous
-UI state, and the buttons, keyboard, and history row show exactly what
-plays. **Play always plays the settings.** Clicked settings persist per tab
-and restart playback live when something is playing. **Reset** restores
-the practice settings and keeps the preferences (show sequence,
-abbreviations, the TTS voice, speed, pitch, and echo).
+The transport row is Play (primary, stretches wide), then Stop. **Play
+always plays the settings.** Clicked settings persist per tab and restart
+playback live when something is playing. **Reset** restores every practice
+setting.
 
 Features: direction / repeat / rising / shifting / chop head / ladder
 (overlapping rungs with rung-size and rung-gap steppers, plus a reverse
-variant that leads each rung with the new note) / movement styles /
+variant that leads each rung with the new note) / movement figures (the
+Move row) and leaps (the Leaps row, which shares Move's one setting) /
 exercises / section width controls; note length and gap steppers (gap goes
-negative for overlap); the keyboard (below); presets; command history (each
-row stores the settings it played, so replaying it plays the same notes and
+negative for overlap); the keyboard (below); presets; history (each row
+stores the settings it played, so replaying it plays the same notes and
 puts them back on the buttons); hardware media keys (play/pause, with an
 honest playing/paused state so a car's single toggle starts and stops);
 **Sing** is a bottom-dock toggle that opens the pitch-trace sheet seeded
@@ -81,12 +70,7 @@ and the page only says which notes a pass plays.
   baseline, so notes coming and going never move the status text or the
   board.
 - **What the board shows**: at rest, the first pass of the settings; while
-  a scale runs, each pass as it starts (rising and shifting move it); a
-  chord, arpeggio, or interval shows its own notes in its root's major
-  key, or minor for a minor quality.
-
-Phonetic aliases handle speech recognition quirks ("see" = C, "bee flat" =
-Bb). See [scales-commands.md](scales-commands.md) for the full grammar.
+  a scale runs, each pass as it starts (rising and shifting move it).
 
 ## Intervals
 

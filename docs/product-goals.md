@@ -36,7 +36,7 @@ and deliver a weaker version of the requested change.
 
 | Tab | Goal | Done well when |
 |-----|------|----------------|
-| Scales | Speak a practice pattern, hear it played correctly | Any reasonable spoken command produces the right notes with the right timing; settings are also clickable and persist |
+| Scales | Build a practice pattern, hear it played correctly | Every option button plays and shows exactly what it says, with the right notes and timing; the settings persist |
 | Intervals | Drill interval distances by level; ear training for naming and singing intervals | Patterns generate endlessly; ear mode adapts to weak intervals; lifetime stats persist |
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
 | Staff | Read notation fluently: sing a continuous generated line from the grand staff | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; past runs replay for review |
@@ -58,8 +58,12 @@ editor accepts no calls from fuseki.net
 
 ## System invariants
 
-- **Hands-free first**: voice commands, hardware media keys, large controls,
-  spoken feedback where it helps driving.
+- **Hands-free first**: hardware media keys, large controls, spoken
+  feedback where it helps driving, and voice commands on the pages that
+  keep them (Scales has none since 2026-10-27).
+- **Auxiliary panels can be turned off**: a secondary display a page keeps
+  beside its practice surface (a sequence readout, a log, helper text)
+  comes with a standard way to switch it off (yui, 2026-10-27).
 - **Exact audio control**: the piano engine knows every sounding voice;
   old-settings audio never overlaps new-settings audio; stop means stop.
 - **Practice test silence**: when a tool enters a sing/test mode, the page
@@ -129,6 +133,35 @@ and completed exercises with results. His own use is included.
 The home page says so in one line. Construction:
 [architecture.md](architecture.md), "Usage statistics"; the host side:
 [hosting-contract.md](hosting-contract.md), "Usage statistics endpoint".
+
+## Scales: buttons only (owner decision, 2026-10-27)
+
+yui: "in general we don't use voice inputs anymore, actually, so let's
+just remove that. if we need it again we can re-code it later; just
+totally remove it now please." The microphone still serves the Sing test.
+
+- **No voice input on Scales.** Gone: the Listen button, the "You said"
+  transcript, the spoken grammar and its parser, the phonetic maps, spoken
+  help, Echo commands, and the Voice Settings section (voice, speed,
+  pitch, Test). What only voice could reach went with it: single notes,
+  chords, arpeggios, intervals, the tuning A, tempo and gap words,
+  enharmonic roots ("E sharp"), rising by 3, 4, 5, or 7 semitones, and
+  the twelve `SCALE_PATTERNS` scales with no Scale button (modes, blues,
+  whole tone, ...). Bringing any of these back means new code, preferably
+  a button.
+- **No abbreviations.** Each option shows one set of words, and the
+  readout, presets, and history describe settings in those same words
+  (yui: "something minimal and correct; if we need to reintroduce
+  something removed later, that's okay").
+- **No sequence panel.** The keyboard and its readout show what plays.
+  Such panels, when a page has one, must be switchable off (see the
+  invariant above).
+- **Move and Leaps are two rows.** Move holds the ten figures (normal
+  included), Leaps the 3rd-7th up and down; they set one movement style
+  between them, so exactly one button across both rows is lit.
+- **Stored settings follow.** Saved settings keep only the current keys
+  (the retired toggles and voice preferences drop at the next save), and
+  a stored rising step with no button loads as off.
 
 ## Lyrics player: intended behavior and user needs
 
@@ -422,7 +455,7 @@ above; nothing here is a commitment.
 ### Platform
 
 - Progressive Web App: installable, offline caching of samples/playlists
-- Wake word ("Hey DJ" / "Hey Scales"); voice activity detection
+- Wake word ("Hey DJ"); voice activity detection
 - Haptic feedback on mobile; high-contrast and accessibility passes
 - Optional server endpoint for Claude calls (rate limiting, key never in
   browser)

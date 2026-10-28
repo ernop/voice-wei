@@ -782,5 +782,3 @@ interface VoiceMusicController {
     stopLibrarySong(): void;
     toggleLibrarySongFavorite(songId: string): void;
 }
-
-declare const ScalesVoiceMaps: NonNullable<Window['ScalesVoiceMaps']>;

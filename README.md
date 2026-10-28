@@ -47,7 +47,7 @@ complete index. The most-used docs:
 |-----|----------|
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
 | [docs/tools.md](docs/tools.md) | Per-tab usage reference |
-| [docs/scales-commands.md](docs/scales-commands.md) | Full scales voice command grammar |
+| [docs/scales-patterns.md](docs/scales-patterns.md) | What each Scales option plays |
 | [docs/parameters.md](docs/parameters.md) | Every setting: values, defaults, change behavior |
 | [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, engine rules, testing, deploy |
 | [docs/controls.md](docs/controls.md) | Button/control inventory and unification plan |
