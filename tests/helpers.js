@@ -4,6 +4,7 @@
 // `python3 -m http.server 8000` yourself) and Playwright Chromium installed.
 
 const { chromium, firefox } = require('playwright');
+const { fillCdnCache, routeCdnLibraries } = require('./cdn-libraries');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:8000';
 const TEST_BROWSER = process.env.TEST_BROWSER || 'chrome';
@@ -22,10 +23,11 @@ function launchOptions(extraArgs = []) {
     return options;
 }
 
-// Piano samples normally come from the Salamander CDN. The gate must never
-// depend on external network: under parallel load those fetches fail and
-// poison console-error assertions. Every page and context created from a
-// test browser transparently receives the same locally served silent WAV.
+// The gate must never depend on external network: under parallel load those
+// fetches fail and poison console-error assertions. Every page and context
+// created from a test browser gets a locally served silent WAV for each
+// Salamander piano sample and the cached copy of each cdnjs library
+// (tests/cdn-libraries.js).
 const SILENT_WAV = buildSilentWav();
 
 function buildSilentWav() {
@@ -57,18 +59,25 @@ async function routePianoSamples(target) {
     }));
 }
 
+/** @param {import('playwright').Page | import('playwright').BrowserContext} target */
+async function routeExternalFiles(target) {
+    await routePianoSamples(target);
+    await routeCdnLibraries(target);
+}
+
 /** @param {import('playwright').Browser} browser */
-function stubExternalAudio(browser) {
+async function stubExternalRequests(browser) {
+    await fillCdnCache();
     const newPage = browser.newPage.bind(browser);
     browser.newPage = async (...args) => {
         const page = await newPage(...args);
-        await routePianoSamples(page);
+        await routeExternalFiles(page);
         return page;
     };
     const newContext = browser.newContext.bind(browser);
     browser.newContext = async (...args) => {
         const context = await newContext(...args);
-        await routePianoSamples(context);
+        await routeExternalFiles(context);
         return context;
     };
     return browser;
@@ -76,7 +85,7 @@ function stubExternalAudio(browser) {
 
 function launch() {
     return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions())
-        .then(stubExternalAudio);
+        .then(stubExternalRequests);
 }
 
 // Fake microphone (emits a tone) for pages that listen.
@@ -84,7 +93,7 @@ function launchWithMic() {
     return (TEST_BROWSER === 'firefox' ? firefox : chromium).launch(launchOptions([
         '--use-fake-device-for-media-stream',
         '--use-fake-ui-for-media-stream'
-    ])).then(stubExternalAudio);
+    ])).then(stubExternalRequests);
 }
 
 /**

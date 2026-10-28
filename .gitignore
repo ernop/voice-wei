@@ -8,3 +8,4 @@ deploy-telemetry.json
 __pycache__/
 *.orig
 *.rej
+tests/.cdn-cache/

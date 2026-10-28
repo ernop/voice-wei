@@ -1353,7 +1353,12 @@ Three disciplines keep the gate fast and honest:
   (counts, ordering, persistence), it configures short durations.
 - **No external network.** `tests/helpers.js` transparently serves every
   Salamander piano-sample request as a locally generated silent WAV on all
-  pages and contexts, so the gate cannot flake on CDN availability.
+  pages and contexts, so the gate cannot flake on CDN availability. The
+  cdnjs libraries (Tone.js, VexFlow, pdf.js, JSZip) come from
+  `tests/.cdn-cache` (`tests/cdn-libraries.js`): `run-all.js` downloads
+  each pinned URL written in a root page or script once, and CI keeps the
+  directory in a cache keyed by that URL list. Before this, one run fetched
+  them 146 times, and a cdnjs stall timed out six suites (2026-10-28).
 - **An evaluate is a tap.** Playwright runs `evaluate` and `waitFor*`
   polling as user gestures, which give the page sticky user activation
   (`navigator.userActivation.hasBeenActive`). A test of behavior without a

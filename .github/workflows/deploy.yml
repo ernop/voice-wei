@@ -133,5 +133,18 @@ jobs:
           wait "$lint_pid" || status=1
           exit "$status"
 
+      # Test pages get Tone.js, VexFlow, pdf.js and JSZip from
+      # tests/.cdn-cache (tests/cdn-libraries.js). Keyed by the pinned cdnjs
+      # URLs, so CI downloads a file only when a page pins a new version.
+      - name: List pinned CDN libraries
+        id: cdn-list
+        run: echo "hash=$(node -e "console.log(require('./tests/cdn-libraries').siteCdnUrls().join(' '))" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache CDN libraries
+        uses: actions/cache@v5
+        with:
+          path: tests/.cdn-cache
+          key: cdn-libraries-${{ steps.cdn-list.outputs.hash }}
+
       - name: Browser test suite
         run: npm test

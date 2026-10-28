@@ -8,6 +8,7 @@
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const { fillCdnCache } = require('./cdn-libraries');
 
 const PORT = process.env.TEST_PORT || '8000';
 const ROOT = path.join(__dirname, '..');
@@ -89,6 +90,9 @@ function serverUp() {
 async function main() {
     const startedAt = Date.now();
     const { isolated, parallel } = suitesForArgs(process.argv.slice(2));
+    // Filled here once so parallel suites never each download a cold cache.
+    const fetched = await fillCdnCache();
+    if (fetched.length) console.log(`Cached ${fetched.length} CDN libraries in tests/.cdn-cache`);
     let server = null;
     if (!(await serverUp())) {
         server = spawn('python3', ['-m', 'http.server', PORT], { cwd: ROOT, stdio: 'ignore' });
