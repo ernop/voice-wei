@@ -824,7 +824,7 @@
         const step = Math.sign(to - from);
         const dp = PatternPracticeCore.degreesPerOctave(state.scaleType);
         for (let offset = from + step; offset !== to; offset += step) {
-            if (!allowedDegreeClasses || allowedDegreeClasses.has(PatternPracticeCore.positiveModulo(offset, dp))) {
+            if (!allowedDegreeClasses || allowedDegreeClasses.has(positiveModulo(offset, dp))) {
                 out.push(offset);
             }
         }
@@ -990,8 +990,7 @@
     function syncRepeatButton() {
         const btn = getEl('repeatBtn');
         if (!btn) return;
-        btn.classList.toggle('selected', state.loopCurrent);
-        btn.setAttribute('aria-pressed', String(state.loopCurrent));
+        PracticeControls.syncPressed(btn, state.loopCurrent);
         const text = btn.querySelector('.button-text');
         if (text) text.textContent = state.loopCurrent ? 'Repeat On' : 'Repeat Off';
     }
@@ -1176,36 +1175,12 @@
     }
 
     function syncBreakdownControls() {
-        const breakdownBtn = getEl('breakdownBtn');
-        if (breakdownBtn) {
-            breakdownBtn.classList.toggle('selected', state.breakdownEnabled);
-            breakdownBtn.setAttribute('aria-pressed', String(state.breakdownEnabled));
-        }
-        const powersetBtn = getEl('powersetBtn');
-        if (powersetBtn) {
-            powersetBtn.classList.toggle('selected', state.powersetEnabled);
-            powersetBtn.setAttribute('aria-pressed', String(state.powersetEnabled));
-        }
-        const reverseBtn = getEl('reverseBtn');
-        if (reverseBtn) {
-            reverseBtn.classList.toggle('selected', state.reverseAfterSection);
-            reverseBtn.setAttribute('aria-pressed', String(state.reverseAfterSection));
-        }
-        const autoBtn = getEl('autoStepBtn');
-        if (autoBtn) {
-            autoBtn.classList.toggle('selected', state.autoStep);
-            autoBtn.setAttribute('aria-pressed', String(state.autoStep));
-        }
-        const playOnStepBtn = getEl('playOnStepBtn');
-        if (playOnStepBtn) {
-            playOnStepBtn.classList.toggle('selected', state.playOnStep);
-            playOnStepBtn.setAttribute('aria-pressed', String(state.playOnStep));
-        }
-        const playOnNextBtn = getEl('playOnNextBtn');
-        if (playOnNextBtn) {
-            playOnNextBtn.classList.toggle('selected', state.playOnNext);
-            playOnNextBtn.setAttribute('aria-pressed', String(state.playOnNext));
-        }
+        PracticeControls.syncPressed('breakdownBtn', state.breakdownEnabled);
+        PracticeControls.syncPressed('powersetBtn', state.powersetEnabled);
+        PracticeControls.syncPressed('reverseBtn', state.reverseAfterSection);
+        PracticeControls.syncPressed('autoStepBtn', state.autoStep);
+        PracticeControls.syncPressed('playOnStepBtn', state.playOnStep);
+        PracticeControls.syncPressed('playOnNextBtn', state.playOnNext);
         const addBtn = getEl('addNoteBtn');
         if (addBtn instanceof HTMLButtonElement) {
             addBtn.hidden = !state.breakdownEnabled && !state.powersetEnabled;
@@ -1218,10 +1193,7 @@
 
     /** @param {boolean} open */
     function syncTestButton(open) {
-        const btn = getEl('testBtn');
-        if (!btn) return;
-        btn.classList.toggle('selected', open);
-        btn.setAttribute('aria-pressed', String(open));
+        PracticeControls.syncPressed('testBtn', open);
         document.getElementById('phraseTestDock')?.classList.toggle('open', open);
     }
 
@@ -1285,57 +1257,19 @@
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
             if (key === 'rangeLow' || key === 'rangeHigh') {
-                return steppedRangeValue(key, delta) === null;
+                return PatternPracticeCore.stepPhraseRange(state, key, delta) === null;
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
-    }
-
-    /**
-     * The next value for a range-endpoint stepper, or null at a bound.
-     * Endpoints move one scale degree per step; the low end may reach a
-     * full octave below unison, the high end two octaves up, and the two
-     * can never cross (low < high always).
-     * @param {'rangeLow' | 'rangeHigh'} key @param {number} delta
-     */
-    function steppedRangeValue(key, delta) {
-        const { lowMin, highMax } = PatternPracticeCore.phraseRangeLimits(state.scaleType);
-        const next = state[key] + delta;
-        if (key === 'rangeLow') {
-            return (next >= lowMin && next < state.rangeHigh) ? next : null;
-        }
-        return (next > state.rangeLow && next <= highMax) ? next : null;
     }
 
     function syncAnchorControls() {
         syncFillButtons();
     }
 
-    /**
-     * A boolean control drawn as one button: the label names the current
-     * state and a click flips it (same pattern as the Reflect button).
-     * @param {string} id @param {boolean} on
-     * @param {string} onLabel @param {string} offLabel
-     */
-    function syncBooleanPill(id, on, onLabel, offLabel) {
-        const btn = getEl(id);
-        if (!btn) return;
-        btn.classList.toggle('selected', on);
-        btn.setAttribute('aria-pressed', String(on));
-        btn.textContent = on ? onLabel : offLabel;
-    }
-
     function syncFillButtons() {
-        const fullBtn = getEl('fillFullBtn');
-        const chordBtn = getEl('fillChordBtn');
-        if (fullBtn) {
-            fullBtn.classList.toggle('selected', state.fillMode === 'full');
-            fullBtn.setAttribute('aria-pressed', String(state.fillMode === 'full'));
-        }
-        if (chordBtn) {
-            chordBtn.classList.toggle('selected', state.fillMode === 'chord');
-            chordBtn.setAttribute('aria-pressed', String(state.fillMode === 'chord'));
-        }
+        PracticeControls.syncPressed('fillFullBtn', state.fillMode === 'full');
+        PracticeControls.syncPressed('fillChordBtn', state.fillMode === 'chord');
     }
 
     function isLessonLocked(key) {
@@ -1349,24 +1283,19 @@
         saveSettings();
     }
 
-    function syncToggleControl(id, checked) {
-        const input = getEl(id);
-        if (!(input instanceof HTMLInputElement)) return;
-        input.checked = checked;
-    }
 
     function syncPresetControlledValues() {
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
         PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
-        syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
-        syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
-        syncToggleControl('hearTonesToggle', state.hearTones);
-        syncToggleControl('hearSpeechToggle', state.hearSpeech);
-        syncToggleControl('singNumbersToggle', state.singNumbers);
-        syncToggleControl('showNumbersToggle', state.showNumbers);
-        syncToggleControl('showNamesToggle', state.showNoteNames);
-        syncToggleControl('showStaffToggle', state.showStaff);
-        syncToggleControl('showPlayRowToggle', state.showPlayRow);
+        PracticeControls.syncPressed('startAnchorBtn', state.startAtOne, { on: 'start at 1', off: 'random start' });
+        PracticeControls.syncPressed('returnAnchorBtn', state.returnToInitial, { on: 'return to 1', off: 'no return' });
+        PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
+        PracticeControls.syncToggle('hearSpeechToggle', state.hearSpeech);
+        PracticeControls.syncToggle('singNumbersToggle', state.singNumbers);
+        PracticeControls.syncToggle('showNumbersToggle', state.showNumbers);
+        PracticeControls.syncToggle('showNamesToggle', state.showNoteNames);
+        PracticeControls.syncToggle('showStaffToggle', state.showStaff);
+        PracticeControls.syncToggle('showPlayRowToggle', state.showPlayRow);
         syncPhraseLessonControls();
         syncAnchorControls();
         syncAdjusterControls();
@@ -1414,7 +1343,7 @@
         state.phraseStyle = preset.style;
         state.phraseLesson = lesson;
         Object.assign(state, preset.defaults);
-        normalizeLengthBounds('maxLength');
+        PatternPracticeCore.orderLengthBounds(state, 'maxLength');
         state.lessonLockedKeys = preset.locks.slice();
         syncPresetControlledValues();
         syncLessonLocks();
@@ -1472,17 +1401,10 @@
         applyLessonPreset(lesson);
     }
 
-    function normalizeLengthBounds(key) {
-        if (state.minLength > state.maxLength) {
-            if (key === 'maxLength') state.minLength = state.maxLength;
-            else state.maxLength = state.minLength;
-        }
-    }
-
     function setAdjusterValue(key, value) {
         unlockLessonKey(key);
         state[key] = value;
-        normalizeLengthBounds(key);
+        PatternPracticeCore.orderLengthBounds(state, key);
         syncAdjusterControls();
         onSettingChanged(key);
     }
@@ -1507,7 +1429,7 @@
         }
 
         if (key === 'rangeLow' || key === 'rangeHigh') {
-            const next = steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */ (key), delta);
+            const next = PatternPracticeCore.stepPhraseRange(state, /** @type {'rangeLow' | 'rangeHigh'} */ (key), delta);
             if (next !== null) setAdjusterValue(key, next);
             return;
         }
@@ -1518,12 +1440,7 @@
 
     function toggleReflect() {
         state.reflected = !state.reflected;
-        const btn = getEl('reflectBtn');
-        if (btn) {
-            btn.classList.toggle('selected', state.reflected);
-            btn.setAttribute('aria-pressed', String(state.reflected));
-            btn.textContent = state.reflected ? 'reflect on' : 'reflect off';
-        }
+        PracticeControls.syncPressed('reflectBtn', state.reflected, { on: 'reflect on', off: 'reflect off' });
         updatePhraseDisplay();
     }
 
@@ -1554,13 +1471,13 @@
         getEl('startAnchorBtn')?.addEventListener('click', () => {
             unlockLessonKey('startAtOne');
             state.startAtOne = !state.startAtOne;
-            syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
+            PracticeControls.syncPressed('startAnchorBtn', state.startAtOne, { on: 'start at 1', off: 'random start' });
             onSettingChanged('startAtOne');
         });
         getEl('returnAnchorBtn')?.addEventListener('click', () => {
             unlockLessonKey('returnToInitial');
             state.returnToInitial = !state.returnToInitial;
-            syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
+            PracticeControls.syncPressed('returnAnchorBtn', state.returnToInitial, { on: 'return to 1', off: 'no return' });
             onSettingChanged('returnToInitial');
         });
         PracticeControls.wireSteppers(stepAdjusterValue);
@@ -1625,8 +1542,8 @@
         syncRepeatButton();
         syncBreakdownControls();
         syncAnchorControls();
-        syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
-        syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
+        PracticeControls.syncPressed('startAnchorBtn', state.startAtOne, { on: 'start at 1', off: 'random start' });
+        PracticeControls.syncPressed('returnAnchorBtn', state.returnToInitial, { on: 'return to 1', off: 'no return' });
         syncAdjusterControls();
         syncPhraseLessonControls();
         syncLessonLocks();

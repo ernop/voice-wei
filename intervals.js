@@ -521,10 +521,7 @@
             contentDurationMs: () => (currentInstance ? currentInstance.notes.length * state.lengthMs : 4000),
             playNote: (midi, durationSec) => { if (piano) piano.playMidi(midi, durationSec); },
             onOpenChange: open => {
-                const btn = document.getElementById('singBtn');
-                if (!btn) return;
-                btn.classList.toggle('selected', open);
-                btn.setAttribute('aria-pressed', String(open));
+                PracticeControls.syncPressed('singBtn', open);
                 document.getElementById('intervalsSingDock')?.classList.toggle('open', open);
             },
             progressTool: 'intervals-sing',

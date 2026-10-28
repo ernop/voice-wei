@@ -848,18 +848,6 @@
             offset, PatternPracticeCore.degreesPerOctave(state.scaleType));
     }
 
-    /**
-     * @param {'rangeLow' | 'rangeHigh'} key @param {number} delta
-     */
-    function steppedRangeValue(key, delta) {
-        const { lowMin, highMax } = PatternPracticeCore.phraseRangeLimits(state.scaleType);
-        const next = state[key] + delta;
-        if (key === 'rangeLow') {
-            return (next >= lowMin && next < state.rangeHigh) ? next : null;
-        }
-        return (next > state.rangeLow && next <= highMax) ? next : null;
-    }
-
     /** @param {number} beats */
     function formatRestBeats(beats) {
         if (beats === 0) return 'none';
@@ -894,7 +882,7 @@
                 return PracticeControls.rootStepDisabled(rootMidi(), delta);
             }
             if (key === 'rangeLow' || key === 'rangeHigh') {
-                return steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */(key), delta) === null;
+                return PatternPracticeCore.stepPhraseRange(state, /** @type {'rangeLow' | 'rangeHigh'} */(key), delta) === null;
             }
             return PracticeControls.stepDisabled(ADJUSTER_VALUES[key] || [], state[key], delta);
         });
@@ -934,12 +922,8 @@
     }
 
     function syncFullscreenButton() {
-        const btn = getEl('fullscreenBtn');
-        if (!btn) return;
-        const active = Boolean(document.fullscreenElement);
-        btn.classList.toggle('selected', active);
-        btn.setAttribute('aria-pressed', String(active));
-        btn.textContent = active ? 'exit full screen' : 'full screen';
+        PracticeControls.syncPressed('fullscreenBtn', Boolean(document.fullscreenElement),
+            { on: 'exit full screen', off: 'full screen' });
     }
 
     function initFullscreen() {
@@ -959,13 +943,6 @@
         });
         compactMedia.addEventListener('change', () => syncCompactLayout());
         syncCompactLayout();
-    }
-
-    function normalizeLengthBounds(key) {
-        if (state.minLength > state.maxLength) {
-            if (key === 'maxLength') state.minLength = state.maxLength;
-            else state.maxLength = state.minLength;
-        }
     }
 
     // Setting-change vocabulary (docs/parameters.md): generation shape
@@ -1011,7 +988,7 @@
 
     function setAdjusterValue(key, value) {
         state[key] = value;
-        normalizeLengthBounds(key);
+        PatternPracticeCore.orderLengthBounds(state, key);
         syncAdjusterControls();
         onSettingChanged(key);
     }
@@ -1033,7 +1010,7 @@
             return;
         }
         if (key === 'rangeLow' || key === 'rangeHigh') {
-            const next = steppedRangeValue(/** @type {'rangeLow' | 'rangeHigh'} */(key), delta);
+            const next = PatternPracticeCore.stepPhraseRange(state, /** @type {'rangeLow' | 'rangeHigh'} */(key), delta);
             if (next !== null) setAdjusterValue(key, next);
             return;
         }
@@ -1055,18 +1032,6 @@
     function syncDurationChips() {
         PracticeControls.syncMultiSelect('.staff-duration-row .vf-btn', 'data-duration-beats',
             value => state.durationBeats.includes(Number(value)));
-    }
-
-    /**
-     * @param {string} id @param {boolean} on
-     * @param {string} onLabel @param {string} offLabel
-     */
-    function syncBooleanPill(id, on, onLabel, offLabel) {
-        const btn = getEl(id);
-        if (!btn) return;
-        btn.classList.toggle('selected', on);
-        btn.setAttribute('aria-pressed', String(on));
-        btn.textContent = on ? onLabel : offLabel;
     }
 
     function syncLessonControls() {
@@ -1137,10 +1102,10 @@
         PracticeControls.syncSingleSelect('data-scale', state.scaleType);
         PracticeControls.syncSingleSelect('data-phrase-algo', state.phraseAlgo);
         PracticeControls.syncSingleSelect('data-staff-mode', state.mode);
-        syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
-        syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
-        syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
-        syncBooleanPill('revealBtn', state.revealAfterPhrase, 'reveal when done', 'reveal live');
+        PracticeControls.syncPressed('startAnchorBtn', state.startAtOne, { on: 'start at 1', off: 'random start' });
+        PracticeControls.syncPressed('returnAnchorBtn', state.returnToInitial, { on: 'return to 1', off: 'no return' });
+        PracticeControls.syncPressed('restToBarlineBtn', state.restToBarline, { on: 'then to end of bar', off: 'fixed rest' });
+        PracticeControls.syncPressed('revealBtn', state.revealAfterPhrase, { on: 'reveal when done', off: 'reveal live' });
         PracticeControls.syncToggle('hearTonesToggle', state.hearTones);
         PracticeControls.syncToggle('showDegreesToggle', state.showDegrees);
         PracticeControls.syncToggle('pitchGuidesToggle', state.showPitchGuides);
@@ -1208,17 +1173,17 @@
         });
         getEl('startAnchorBtn')?.addEventListener('click', () => {
             state.startAtOne = !state.startAtOne;
-            syncBooleanPill('startAnchorBtn', state.startAtOne, 'start at 1', 'random start');
+            PracticeControls.syncPressed('startAnchorBtn', state.startAtOne, { on: 'start at 1', off: 'random start' });
             onSettingChanged('startAtOne');
         });
         getEl('returnAnchorBtn')?.addEventListener('click', () => {
             state.returnToInitial = !state.returnToInitial;
-            syncBooleanPill('returnAnchorBtn', state.returnToInitial, 'return to 1', 'no return');
+            PracticeControls.syncPressed('returnAnchorBtn', state.returnToInitial, { on: 'return to 1', off: 'no return' });
             onSettingChanged('returnToInitial');
         });
         getEl('restToBarlineBtn')?.addEventListener('click', () => {
             state.restToBarline = !state.restToBarline;
-            syncBooleanPill('restToBarlineBtn', state.restToBarline, 'then to end of bar', 'fixed rest');
+            PracticeControls.syncPressed('restToBarlineBtn', state.restToBarline, { on: 'then to end of bar', off: 'fixed rest' });
             onSettingChanged('restToBarline');
         });
         getEl('revealBtn')?.addEventListener('click', () => {
@@ -1229,7 +1194,7 @@
                 state.nowFraction = 0.5;
                 syncAdjusterControls();
             }
-            syncBooleanPill('revealBtn', state.revealAfterPhrase, 'reveal when done', 'reveal live');
+            PracticeControls.syncPressed('revealBtn', state.revealAfterPhrase, { on: 'reveal when done', off: 'reveal live' });
             onSettingChanged('revealAfterPhrase');
         });
         getEl('hearRootBtn')?.addEventListener('click', async () => {

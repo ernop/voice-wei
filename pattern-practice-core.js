@@ -36,11 +36,6 @@ const PatternPracticeCore = (function () {
         return Math.max(min, Math.min(max, value));
     }
 
-    /** @param {number} n @param {number} modulus */
-    function positiveModulo(n, modulus) {
-        return ((n % modulus) + modulus) % modulus;
-    }
-
     /** @param {string} scaleType */
     function degreesPerOctave(scaleType) {
         const pattern = SCALE_PATTERNS[scaleType] || SCALE_PATTERNS.major;
@@ -280,6 +275,35 @@ const PatternPracticeCore = (function () {
         const high = clamp(Math.round(options.rangeHigh ?? dp), lowMin + 1, highMax);
         const low = clamp(Math.round(options.rangeLow ?? 0), lowMin, high - 1);
         return { min: low, max: high };
+    }
+
+    /**
+     * The next value for a range-endpoint stepper, or null at a bound.
+     * Endpoints move one scale degree per step within phraseRangeLimits,
+     * and the two can never cross (low < high always).
+     * @param {{ scaleType: string, rangeLow: number, rangeHigh: number }} range
+     * @param {'rangeLow' | 'rangeHigh'} key @param {number} delta
+     * @returns {number | null}
+     */
+    function stepPhraseRange(range, key, delta) {
+        const { lowMin, highMax } = phraseRangeLimits(range.scaleType);
+        const next = range[key] + delta;
+        if (key === 'rangeLow') {
+            return (next >= lowMin && next < range.rangeHigh) ? next : null;
+        }
+        return (next > range.rangeLow && next <= highMax) ? next : null;
+    }
+
+    /**
+     * Keep minLength <= maxLength after one of them changed: the other
+     * endpoint follows the one the user just moved.
+     * @param {{ minLength: number, maxLength: number }} lengths
+     * @param {string} changedKey
+     */
+    function orderLengthBounds(lengths, changedKey) {
+        if (lengths.minLength <= lengths.maxLength) return;
+        if (changedKey === 'maxLength') lengths.minLength = lengths.maxLength;
+        else lengths.maxLength = lengths.minLength;
     }
 
     /**
@@ -1512,9 +1536,10 @@ const PatternPracticeCore = (function () {
         randomInt,
         randomIntExcluding,
         clamp,
-        positiveModulo,
         rangeBounds,
         phraseRangeLimits,
+        stepPhraseRange,
+        orderLengthBounds,
         degreesPerOctave,
         baseIntervalsForScale,
         buildExtendedScale,

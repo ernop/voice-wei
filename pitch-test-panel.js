@@ -445,12 +445,8 @@ const PitchTestPanel = (function () {
                 listenBtn.textContent = session.listening ? 'Listening On' : 'Listening Off';
             }
 
-            const targetsBtn = getEl('TargetsBtn');
-            if (targetsBtn) {
-                targetsBtn.classList.toggle('selected', options.showTargets);
-                targetsBtn.setAttribute('aria-pressed', String(options.showTargets));
-                targetsBtn.textContent = options.showTargets ? 'Targets On' : 'Targets Off';
-            }
+            PracticeControls.syncPressed(getEl('TargetsBtn'), options.showTargets,
+                { on: 'Targets On', off: 'Targets Off' });
 
             PracticeControls.syncToggle(prefix + 'PauseToggle', options.pauseOnSilence);
             PracticeControls.syncToggle(prefix + 'WindowToggle', options.fixedWindow);

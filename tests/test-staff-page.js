@@ -463,7 +463,7 @@ const { BASE_URL, launchWithMic, collectErrors, createReporter } = require('./he
         })();
         const landmarks = span({ ...base, phraseStyle: 'staff', phraseLesson: 'staff_landmarks', rangeLow: 0, rangeHigh: 11, rangeGovernsLessons: true });
         const landmarkClassesOk = landmarks.values.every(offset =>
-            [0, 2, 4].includes(PatternPracticeCore.positiveModulo(offset, 7)));
+            [0, 2, 4].includes(positiveModulo(offset, 7)));
         const phrasesSteps = span({ ...base, phraseStyle: 'staff', phraseLesson: 'staff_steps', rangeLow: 0, rangeHigh: 7 });
         return {
             stepsSpan: `${steps.min}..${steps.max}`,

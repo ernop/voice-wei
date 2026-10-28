@@ -202,6 +202,21 @@ const PracticeControls = (function () {
         if (el) el.checked = value;
     }
 
+    /**
+     * A button that toggles a setting: the selected look and aria-pressed
+     * follow `on`, and with labels its text names the current state.
+     * @param {string | HTMLElement | null} target element or id
+     * @param {boolean} on
+     * @param {{ on: string, off: string }} [labels]
+     */
+    function syncPressed(target, on, labels) {
+        const el = typeof target === 'string' ? getEl(target) : target;
+        if (!el) return;
+        el.classList.toggle('selected', on);
+        el.setAttribute('aria-pressed', String(on));
+        if (labels) el.textContent = on ? labels.on : labels.off;
+    }
+
     return {
         ROOT_PITCH_MIN_MIDI,
         ROOT_PITCH_MAX_MIDI,
@@ -225,7 +240,8 @@ const PracticeControls = (function () {
         stepValue,
         stepDisabled,
         wireToggle,
-        syncToggle
+        syncToggle,
+        syncPressed
     };
 })();
 
