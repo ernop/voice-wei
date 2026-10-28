@@ -104,13 +104,6 @@
     font-size: 0.8rem;
 }
 
-/* Per-pass toggles for phrase repeats: this second row governs the
-   repeat passes only, so it exists only while Repeat is x2+. (.staff-
-   stage-meta's flex would beat the hidden attribute.) */
-.staff-repeat-meta[hidden] {
-    display: none;
-}
-
 .staff-repeat-meta-label {
     color: #fff;
     text-transform: uppercase;
@@ -181,12 +174,6 @@
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
     color: white;
     box-shadow: 0 4px 18px rgba(245, 158, 11, 0.32);
-}
-
-/* Only the selected style's lesson row shows (.segment-row's display
-   would otherwise beat the hidden attribute). */
-.staff-lesson-row[hidden] {
-    display: none;
 }
 
 .staff-palette-line {

@@ -15,6 +15,12 @@
     box-sizing: border-box;
 }
 
+/* The hidden attribute always hides, whatever display a class sets, so no
+   component needs its own [hidden] rule. */
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(145deg, #1a3a2e 0%, #0d2818 40%, #142b21 100%);

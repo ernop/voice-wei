@@ -284,10 +284,6 @@ body[data-page="phrases"] .transport-row .repeat-button {
     font-size: 0.78rem;
 }
 
-.phrase-lesson-row[hidden] {
-    display: none;
-}
-
 .phrase-algo-row,
 .phrase-scale-row,
 .phrase-genre-row {

@@ -74,10 +74,6 @@ body[data-page="music"] .header-lyric-line {
     text-align: left;
 }
 
-.now-playing[hidden] {
-    display: none;
-}
-
 .now-playing-info,
 .now-playing-controls {
     display: flex;
@@ -184,11 +180,6 @@ body[data-page="music"] .header-lyric-line {
     font-weight: 700;
     line-height: 1.25;
     color: #bfdbfe;
-}
-
-.now-playing-lyric[hidden],
-.now-playing-secondary[hidden] {
-    display: none;
 }
 
 /* Seek scale: the current value (elapsed) and time left are the large
@@ -507,10 +498,6 @@ body[data-page="music"] .header-lyric-line {
     text-align: left;
 }
 
-.request-card[hidden] {
-    display: none;
-}
-
 .request-label {
     flex: none;
     font-size: 0.9rem;
@@ -624,11 +611,6 @@ body[data-page="music"] .header-lyric-line {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-.youtube-list-card[hidden],
-.youtube-list-card [hidden] {
-    display: none;
 }
 
 .youtube-list-header,
@@ -952,10 +934,6 @@ body[data-page="music"] .header-lyric-line {
     text-align: center;
 }
 
-.playlist-empty[hidden] {
-    display: none;
-}
-
 .playlist-list {
     display: flex;
     flex-direction: column;
@@ -974,10 +952,6 @@ body[data-page="music"] .header-lyric-line {
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.2s ease;
-}
-
-.playlist-row[hidden] {
-    display: none;
 }
 
 .playlist-row:hover {
