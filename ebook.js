@@ -69,6 +69,9 @@ class BooksController {
         this.generationCancelled = false;
         this.voiceConfigOpen = false;
         this.rebuildAudioPlanArmed = false;
+        this.deleteBookArmed = false;
+        /** @type {Promise<void> | null} */
+        this.generationRun = null;
         this.showArchivedBooks = false;
         this.libraryQuery = '';
         this.readerQuery = '';
@@ -620,6 +623,7 @@ class BooksController {
         this.bindButton('deleteCurrentSegmentAudioBtn', () => this.deleteCurrentSegmentAudio());
         this.bindButton('deleteAllAudioBtn', () => this.deleteCurrentBookAudio());
         this.bindButton('rebuildAudioPlanBtn', () => this.requestRebuildAudioPlan());
+        this.bindButton('deleteBookBtn', () => this.requestDeleteCurrentBook());
         this.bindButton('backToLibraryBtn', () => this.backToLibrary());
         this.bindButton('clearLogBtn', () => this.clearLog());
     }
@@ -2196,7 +2200,7 @@ class BooksController {
 
     ensureGenerationWorker() {
         if (this.isGenerating) return;
-        this.runGenerationWorker();
+        this.generationRun = this.runGenerationWorker();
     }
 
     async runGenerationWorker() {
@@ -2769,19 +2773,33 @@ class BooksController {
         this.replaceSegment(segment);
     }
 
+    async requestDeleteCurrentBook() {
+        if (!this.currentBook) return;
+        if (!this.deleteBookArmed) {
+            this.deleteBookArmed = true;
+            const button = document.getElementById('deleteBookBtn');
+            if (button) button.textContent = 'Confirm: delete book';
+            this.updateStatus('Deleting removes this book, its generated audio, its listening history and its saved research from this device. Press the confirmation button to continue.');
+            return;
+        }
+        await this.deleteBook(this.currentBook.id);
+    }
+
     /** @param {string} id */
     async deleteBook(id) {
         if (!this.storage) return;
-        await this.storage.deleteBookCascade(id);
         if (this.currentBook?.id === id) {
+            this.backToLibrary();
+            // Stopping lets a part whose download already finished save; wait
+            // for that so the cascade below removes it too.
+            await this.generationRun;
             this.currentBook = null;
             this.sections = [];
             this.segments = [];
             this.researchEntries = [];
             this.currentSegmentId = null;
-            this.releaseAudioUrls();
-            this.showWorkspace(false);
         }
+        await this.storage.deleteBookCascade(id);
         await this.refreshLibrary();
         await this.updateStorageEstimate();
         this.updateStatus('Deleted saved book from this device');
@@ -2918,6 +2936,9 @@ class BooksController {
         this.rebuildAudioPlanArmed = false;
         const rebuildButton = document.getElementById('rebuildAudioPlanBtn');
         if (rebuildButton) rebuildButton.textContent = 'Rebuild sentence-safe audio plan';
+        this.deleteBookArmed = false;
+        const deleteButton = document.getElementById('deleteBookBtn');
+        if (deleteButton) deleteButton.textContent = 'Delete book';
         this.aiQuestionAbort?.abort();
         this.aiQuestionAbort = null;
         this.aiQuestionInFlight = false;

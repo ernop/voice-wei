@@ -663,7 +663,7 @@ keys, which remain plain strings).
 
 A page's saved settings are listed once, as its defaults object (Scales
 `defaultSettings`, Lyrics `PLAYER_SETTINGS_DEFAULTS` in
-`player-storage.js`). Loading and saving take their keys from it, so a
+`player-storage.js`, Books `BOOKS_SETTINGS_DEFAULTS` in `ebook-tts.js`). Loading and saving take their keys from it, so a
 retired setting leaves storage at the next save with no migration code.
 
 ### Envelope format

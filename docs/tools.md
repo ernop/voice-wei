@@ -931,7 +931,10 @@ OpenAI.
 - The library is a compact bookshelf: one row per book with title/author, read
   progress, generated audio time/percentage, estimated duration, and storage
   usage/quota. Opening a row reveals book actions inside the workspace.
-  Generated MP3s can be deleted separately from the original book.
+  Generated MP3s can be deleted separately from the original book. **Delete
+  book** removes the book with its audio, listening history and saved
+  research from the device; the first press only says so and arms the
+  button, the second deletes. **Move to archive** only hides a book.
 - localStorage is intentionally used only for small settings/secrets. Browser
   localStorage is commonly around 5-10 MB and string-only; raw books and MP3s
   belong in IndexedDB. Books requests persistent browser storage automatically

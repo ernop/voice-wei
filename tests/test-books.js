@@ -339,6 +339,28 @@ async function seedFrontMatterBook(page) {
     });
 }
 
+/** Records stored for one book in each Books object store. */
+async function countBookRecords(page, bookId) {
+    return page.evaluate(async (id) => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 5);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const counts = {};
+        for (const store of ['books', 'sections', 'segments', 'history', 'research']) {
+            const records = await new Promise((resolve, reject) => {
+                const req = db.transaction(store, 'readonly').objectStore(store).getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            counts[store] = records.filter(record => (store === 'books' ? record.id : record.bookId) === id).length;
+        }
+        db.close();
+        return counts;
+    }, bookId);
+}
+
 (async () => {
     const report = createReporter('books');
     const browser = await launch();
@@ -446,6 +468,31 @@ async function seedFrontMatterBook(page) {
             && archivedView.rowCount === 1 && archivedView.summary.includes('Archive progress')
             && restoreText === 'Restore to main list'
             && restoredArchiveRows === 0 && restoredMainRows === 2);
+
+        const deletedId = await page.evaluate(() => document.querySelector('.saved-book-item[data-book-id]')?.getAttribute('data-book-id') || '');
+        const storedBefore = await countBookRecords(page, deletedId);
+        await page.click(`.saved-book-item[data-book-id="${deletedId}"]`);
+        await page.waitForFunction(() => document.querySelector('.books-shell')?.classList.contains('book-open'));
+        await page.click('#deleteBookBtn');
+        const armed = await page.evaluate(() => ({
+            text: document.querySelector('#deleteBookBtn')?.textContent || '',
+            status: document.querySelector('#status')?.textContent || '',
+            open: Boolean(document.querySelector('.books-shell')?.classList.contains('book-open'))
+        }));
+        const storedWhileArmed = await countBookRecords(page, deletedId);
+        await page.click('#deleteBookBtn');
+        await page.waitForFunction(() => document.querySelector('#status')?.textContent === 'Deleted saved book from this device');
+        const storedAfter = await countBookRecords(page, deletedId);
+        const shelfAfter = await page.evaluate(() => ({
+            rowCount: document.querySelectorAll('.saved-book-item').length,
+            open: Boolean(document.querySelector('.books-shell')?.classList.contains('book-open'))
+        }));
+        report.check(`books delete a book on a confirming second press, with everything stored for it (before ${JSON.stringify(storedBefore)}, after ${JSON.stringify(storedAfter)})`,
+            storedBefore.books === 1 && storedBefore.sections > 0 && storedBefore.segments > 0
+            && armed.text === 'Confirm: delete book' && armed.status.includes('Deleting removes') && armed.open
+            && storedWhileArmed.books === 1
+            && Object.values(storedAfter).every(count => count === 0)
+            && shelfAfter.rowCount === 1 && !shelfAfter.open);
         await page.close();
     }
 
