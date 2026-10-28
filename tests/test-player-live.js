@@ -1,12 +1,12 @@
 // @ts-check
 // player live controls product behavior, extracted from the retired tab-functions monolith.
 
-const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter } = require('./helpers');
+const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 (async () => {
     const report = createReporter('player live controls');
-    const browser = await launchWithMic();
-    // ============ PLAYER VOICE: shared core drives commands and music requests ============
+    const browser = await launch();
+    // ============ PLAYER LIVE: model options, logs, now-playing title, media session ============
     {
         const ctx = await browser.newContext();
         await ctx.route('https://i.ytimg.com/**', route => route.fulfill({
@@ -14,75 +14,14 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             contentType: 'image/png',
             body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
         }));
-        // Lyric lookups for the searched song answer empty here instead of
-        // reaching LRCLIB, whose stalls surface as proxy 502s.
-        await ctx.route(/\/proxy\.php\?.*\blyrics=search\b/, route => route.fulfill({
-            contentType: 'application/json',
-            body: '[]'
-        }));
-        await ctx.route(/\/proxy\.php\?.*\bq=/, route => route.fulfill({
-            contentType: 'application/json',
-            body: JSON.stringify({
-                source: 'test-proxy',
-                results: [{
-                    videoId: 'voice000001',
-                    title: 'Test Artist - Voice Search Song',
-                    channelTitle: 'Test Artist',
-                    duration: 180,
-                    isAlbumTrack: true
-                }]
-            })
-        }));
-        // Fake key (long enough to pass the gate) and a controllable fake
-        // SpeechRecognition, installed before page scripts run.
+        // A fake key (long enough to pass the gate), installed before page scripts run.
         await ctx.addInitScript(() => {
             localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890');
-            window.__recs = [];
-            class FakeSpeechRecognition {
-                constructor() {
-                    window.__recs.push(this);
-                    this.continuous = false;
-                    this.interimResults = false;
-                    this.lang = '';
-                    // Real engines keep a growing per-session result list and
-                    // re-send it in every event; the fakes must do the same.
-                    this._results = [];
-                }
-                start() { this._results = []; this.onstart && this.onstart(); }
-                stop() { this.onend && this.onend(); }
-                abort() { this.onend && this.onend(); }
-            }
-            // Desktop pattern: each utterance appends a new result index.
-            window.__emitResult = (text, isFinal = true) => {
-                const rec = window.__recs[window.__recs.length - 1];
-                const result = [{ transcript: text }];
-                result.isFinal = isFinal;
-                rec._results.push(result);
-                rec.onresult({ resultIndex: rec._results.length - 1, results: rec._results });
-            };
-            // Android pattern: the SAME index is re-sent with grown
-            // cumulative text, repeatedly marked final.
-            window.__emitCumulative = (text, isFinal = true) => {
-                const rec = window.__recs[window.__recs.length - 1];
-                const result = [{ transcript: text }];
-                result.isFinal = isFinal;
-                const index = Math.max(0, rec._results.length - 1);
-                rec._results[index] = result;
-                rec.onresult({ resultIndex: index, results: rec._results });
-            };
-            window.SpeechRecognition = FakeSpeechRecognition;
-            window.webkitSpeechRecognition = FakeSpeechRecognition;
-            // Claude is unreachable in tests; fail fast so the flow resolves
-            const realFetch = window.fetch.bind(window);
-            window.fetch = (url, ...rest) => {
-                if (String(url).includes('anthropic')) return Promise.reject(new Error('offline test'));
-                return realFetch(url, ...rest);
-            };
         });
         const tab = await ctx.newPage();
         /** @type {string[]} */
-        const playerVoiceErrors = [];
-        collectErrors(tab, 'player-voice', playerVoiceErrors);
+        const playerLiveErrors = [];
+        collectErrors(tab, 'player-live', playerLiveErrors);
         await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
         await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
 
@@ -355,73 +294,6 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             && logHistory.currentVisible
             && logHistory.divider);
 
-        await tab.click('#listenBtn');
-        await tab.waitForTimeout(200);
-        const listeningStatus = await tab.textContent('#status');
-        await tab.evaluate(() => window.__emitResult('clear'));
-        await tab.waitForTimeout(400);
-        const afterClear = await tab.textContent('#status');
-        report.check(`player voice control ("${listeningStatus}" -> "${afterClear}")`,
-            listeningStatus === 'Listening...' && afterClear === 'Playlist is already empty');
-
-        // The following assertions own voice/search routing, not YouTube's
-        // external embed policy for the synthetic test video.
-        await tab.evaluate(() => {
-            window.musicController.playPlaylist = () => {};
-        });
-
-        // Manual mode: segments accumulate, spoken "submit" starts keyless search
-        await tab.click('#settingsBtn');
-        await tab.evaluate(() => document.getElementById('autoSubmitMode').click());
-        await tab.click('#closeSettingsBtn');
-        await tab.click('#listenBtn');
-        await tab.waitForTimeout(200);
-        const manualStatus = await tab.textContent('#status');
-        await tab.evaluate(() => window.__emitResult('play some jazz'));
-        await tab.waitForTimeout(200);
-        await tab.evaluate(() => window.__emitResult('submit'));
-        await tab.waitForTimeout(600);
-        const logged = await tab.evaluate(() =>
-            document.getElementById('logContent').textContent.includes('play some jazz'));
-        report.check(`player manual mode + spoken submit ("${manualStatus}", request logged: ${logged})`,
-            manualStatus.includes('say "submit"') && logged);
-
-        // Spoken requests use the primary keyless path even when the selected
-        // AI provider has no key.
-        const overlayAfterSubmit = await tab.evaluate(() =>
-            document.getElementById('apiKeyOverlay').style.display);
-        const voiceSearchRows = await tab.evaluate(() => window.musicController.playlist.length);
-        report.check('player spoken requests default to keyless YouTube search',
-            overlayAfterSubmit === 'none' && voiceSearchRows === 1);
-
-        // Android-style cumulative re-delivery (same index re-sent with
-        // grown text, marked final each time) must not duplicate anything
-        await tab.click('#listenBtn');
-        await tab.waitForTimeout(200);
-        await tab.evaluate(() => {
-            window.__emitCumulative('there was', true);
-            window.__emitCumulative('there was a guy', true);
-            window.__emitCumulative('there was a guy I think', true);
-        });
-        const liveText = await tab.evaluate(() =>
-            document.getElementById('transcript').textContent.trim());
-        await tab.evaluate(() => window.__emitResult('submit'));
-        await tab.waitForTimeout(600);
-        const cumulativeLogged = await tab.evaluate(() =>
-            document.getElementById('logContent').textContent.includes('there was a guy I think'));
-        report.check(`player cumulative re-delivery stays deduped ("${liveText}")`,
-            liveText === 'there was a guy I think' && cumulativeLogged);
-        // Cross-index cumulative finals (the other Android variant) collapse
-        const collapsed = await tab.evaluate(() => {
-            const tm = new window.TranscriptManager();
-            tm.updateSessionResult(0, 'there was', true);
-            tm.updateSessionResult(1, 'there was a guy', true);
-            tm.updateSessionResult(2, ' play it', true);
-            return tm.getFinalizedText();
-        });
-        report.check(`transcript collapses cumulative finals across indices ("${collapsed}")`,
-            collapsed === 'there was a guy play it');
-
         // The now-playing title (car / lock screen / tab / header line):
         // song identity for the first seconds, a countdown prefix while
         // an upcoming lyric line is still seconds away, then the bare
@@ -564,9 +436,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // (that session-only state was the "L shows but reload loses it"
         // class). The song stays unresolved and heals on the next attempt.
 
-        playerVoiceErrors
-            .filter(e => !e.includes('offline test'))
-            .forEach(e => report.errors.push(e));
+        playerLiveErrors.forEach(e => report.errors.push(e));
         await ctx.close();
     }
 

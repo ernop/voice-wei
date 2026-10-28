@@ -27,13 +27,13 @@ by choosing continuity as an unspoken constraint.
 
 | Tab | What it does |
 |-----|--------------|
-| [Scales](https://fuseki.net/voice-wei/scales.html) | Speak a practice pattern ("D minor scale", "harmonic minor repeat forever"), hear it on a real piano |
+| [Scales](https://fuseki.net/voice-wei/scales.html) | Build a practice pattern from option buttons (scale, direction, movement, repeat), hear it on a real piano |
 | [Intervals](https://fuseki.net/voice-wei/intervals.html) | Level-based interval drills: degree sequences and relative jumps |
 | [Phrases](https://fuseki.net/voice-wei/phrases.html) | Generate and reproduce melodic phrases; reproject across keys; embedded sing test |
 | [Trace](https://fuseki.net/voice-wei/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
 | [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
 | [Ears](https://fuseki.net/voice-wei/ears.html) | Interval ear training: identify them, sing them, drone matching |
-| [Lyrics](https://fuseki.net/voice-wei/player.html) | AI voice music player: "play some jazz" becomes a playlist (one AI-provider key required) |
+| [Lyrics](https://fuseki.net/voice-wei/player.html) | Music player with timed lyrics: typed artist/song terms become a keyless playlist; Ask AI (optional key) interprets fuzzy requests |
 | [Books](https://fuseki.net/voice-wei/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |
 
 Full usage details per tool: [docs/tools.md](docs/tools.md).

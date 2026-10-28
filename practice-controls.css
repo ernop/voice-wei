@@ -595,8 +595,8 @@ body:has(.pitch-test-dock) {
     transform: scale(0.98);
 }
 
-/* Disabled reads as an empty dashed outline (as on Listen); opacity
-   would turn the label gray. */
+/* Disabled reads as an empty dashed outline; opacity would turn the
+   label gray. */
 .stop-button:disabled,
 .play-button:disabled,
 .next-button:disabled,
@@ -616,14 +616,14 @@ body:has(.pitch-test-dock) {
     font-size: 1.2rem;
 }
 
-/* The sticky voice row: layout and responsive sizing */
+/* The sticky transport row: layout and responsive sizing */
 .voice-controls-row {
     display: flex;
     justify-content: center;
     align-items: stretch;
     gap: 8px;
     margin-bottom: 10px;
-    min-height: 120px;
+    min-height: 48px;
 
     /* Keep primary controls reachable while scrolling */
     position: sticky;
@@ -634,69 +634,35 @@ body:has(.pitch-test-dock) {
     backdrop-filter: blur(6px);
 }
 
-.voice-controls-row .listen-button {
-    flex: 1;
-    height: 120px;
-}
-
 .voice-controls-row .stop-button,
 .voice-controls-row .play-button,
 .voice-controls-row .next-button,
 .voice-controls-row .repeat-button {
-    height: 120px;
+    height: 48px;
 }
 
-/* Desktop: compact voice controls - the big buttons are for driving */
-@media (min-width: 769px) {
+/* Phones and tablets: taller touch targets, tighter padding so a full
+   transport set fits one row */
+@media (max-width: 768px) {
     .voice-controls-row {
-        min-height: 48px;
-    }
-
-    .voice-controls-row .listen-button {
-        height: 48px;
+        min-height: 72px;
     }
 
     .voice-controls-row .stop-button,
     .voice-controls-row .play-button,
     .voice-controls-row .next-button,
     .voice-controls-row .repeat-button {
-        height: 48px;
-    }
-}
-
-/* Tablet: moderate sizing */
-@media (min-width: 481px) and (max-width: 768px) {
-    .voice-controls-row {
-        min-height: 80px;
-    }
-
-    .voice-controls-row .listen-button {
-        height: 80px;
-    }
-}
-
-/* Rows without the big mic bar (phrases, intervals) are pure transport;
-   they don't need driving height, so give the page back vertical space */
-@media (max-width: 768px) {
-    .voice-controls-row:not(:has(.listen-button)) {
-        min-height: 72px;
-    }
-
-    .voice-controls-row:not(:has(.listen-button)) .stop-button,
-    .voice-controls-row:not(:has(.listen-button)) .play-button,
-    .voice-controls-row:not(:has(.listen-button)) .next-button,
-    .voice-controls-row:not(:has(.listen-button)) .repeat-button {
         height: 72px;
         padding: 8px 10px;
         min-width: 0;
         font-size: 1rem;
     }
 
-    .voice-controls-row:not(:has(.listen-button)) .button-text {
+    .voice-controls-row .button-text {
         font-size: 1rem;
     }
 
-    .voice-controls-row:not(:has(.listen-button)) .button-icon {
+    .voice-controls-row .button-icon {
         font-size: 1.1rem;
     }
 }

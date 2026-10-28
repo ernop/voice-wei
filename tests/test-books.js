@@ -614,20 +614,6 @@ async function seedFrontMatterBook(page) {
         collectErrors(page, 'books-player', report.errors);
         await page.addInitScript(() => {
             localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite');
-            /** @type {any} */ (window).SpeechRecognition = class {
-                start() {
-                    this.onstart?.();
-                    setTimeout(() => {
-                        const result = [{ transcript: 'What does this passage mean?' }];
-                        result.isFinal = true;
-                        this.onresult?.({ resultIndex: 0, results: [result] });
-                        this.onend?.();
-                    }, 0);
-                }
-                stop() {
-                    this.onend?.();
-                }
-            };
         });
         await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
         await clearBooksDb(page);
@@ -849,6 +835,10 @@ async function seedFrontMatterBook(page) {
         await page.click('#playFromProgressBtn');
         await page.waitForFunction(() => document.querySelector('#audioPlayer')?.dataset.segmentId === 'seg-0');
         await page.click('#aiQuestionBtn');
+        const questionFocused = await page.evaluate(() => document.activeElement?.id === 'aiQuestionInput');
+        report.check('books AI question opens the research panel with the question box focused', questionFocused);
+        await page.fill('#aiQuestionInput', 'What does this passage mean?');
+        await page.click('#askAiQuestionBtn');
         await page.waitForFunction(() => (window.__bookQuestionPayloads || []).length === 1);
         await page.waitForFunction(() => document.querySelector('#aiQuestionElapsed')?.textContent === '1s');
         const inFlight = await page.evaluate(() => ({

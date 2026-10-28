@@ -567,8 +567,6 @@ class BooksController {
         this.lastAudioTimeForHistory = 0;
         this.lastReadHistoryAt = 0;
         this.lastReadWordOffset = 0;
-        /** @type {VoiceCommandCore | null} */
-        this.aiQuestionVoiceCore = null;
         /** @type {string | null} */
         this.aiQuestionSegmentId = null;
         this.aiQuestionInFlight = false;
@@ -1175,7 +1173,7 @@ class BooksController {
                 if (!this.settings.speakAiAnswers && this.aiAnswerSpeaking) this.stopAiAnswerSpeech();
             });
         }
-        this.bindButton('aiQuestionBtn', () => this.toggleAiQuestionListening());
+        this.bindButton('aiQuestionBtn', () => this.openAiQuestion());
         this.bindButton('askAiQuestionBtn', () => this.askAiQuestionFromInput());
         this.bindButton('closeAiQuestionBtn', () => this.closeAiQuestionPanel());
         this.bindButton('repeatAiAnswerBtn', () => this.toggleAiAnswerSpeech());
@@ -1193,48 +1191,13 @@ class BooksController {
                 }
             });
         }
-
-        if (typeof VoiceCommandCore === 'undefined') {
-            this.updateAiQuestionStatus('Voice questions are unavailable in this browser; type a question instead.');
-            return;
-        }
-        this.aiQuestionVoiceCore = new VoiceCommandCore({
-            settings: { autoSubmitMode: true },
-            uiIds: {
-                listenBtn: 'aiQuestionListenBtn',
-                submitBtn: 'aiQuestionVoiceSubmitBtn',
-                statusEl: 'aiQuestionVoiceStatus',
-                transcriptContainer: 'aiQuestionTranscriptContainer',
-                transcriptText: 'aiQuestionTranscript'
-            },
-            onBeforeListen: () => this.prepareAiQuestion(),
-            onListeningChange: listening => this.renderAiQuestionListening(listening),
-            onError: message => this.updateAiQuestionStatus(message),
-            fallbackHandler: async transcript => {
-                const questionInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
-                if (questionInput) questionInput.value = transcript;
-                await this.askAiQuestion(transcript);
-            }
-        });
-        this.aiQuestionVoiceCore.init();
         const route = document.getElementById('aiResearchRoute');
         if (route) route.textContent = BOOK_QUESTION_MODEL_LABEL;
-        this.updateAiQuestionStatus('Tap AI question and speak, or type here and press Research.');
     }
 
-    toggleAiQuestionListening() {
+    openAiQuestion() {
         if (!this.prepareAiQuestion()) return;
-        if (!this.aiQuestionVoiceCore?.recognition) {
-            const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
-            input?.focus();
-            this.updateAiQuestionStatus('Voice recognition is unavailable; type a question and press Research.');
-            return;
-        }
-        if (this.aiQuestionVoiceCore.isListening) {
-            this.aiQuestionVoiceCore.stopListening();
-        } else {
-            this.aiQuestionVoiceCore.startListening();
-        }
+        /** @type {HTMLTextAreaElement} */ (document.getElementById('aiQuestionInput')).focus();
     }
 
     /** @returns {boolean} */
@@ -1267,20 +1230,7 @@ class BooksController {
         return this.getSegmentById(segmentId);
     }
 
-    renderAiQuestionListening(listening) {
-        const button = document.getElementById('aiQuestionBtn');
-        const text = button?.querySelector('.button-text');
-        button?.classList.toggle('listening', listening);
-        if (text) text.textContent = listening ? 'Listening...' : 'AI question';
-        if (listening) {
-            this.updateAiQuestionStatus('Listening...');
-        } else if (!this.aiQuestionInFlight) {
-            this.updateAiQuestionStatus('Tap AI question and speak, or type here and press Research.');
-        }
-    }
-
     closeAiQuestionPanel() {
-        this.aiQuestionVoiceCore?.stopListening();
         this.aiQuestionAbort?.abort();
         this.aiQuestionAbort = null;
         this.aiQuestionInFlight = false;
@@ -1289,12 +1239,10 @@ class BooksController {
         this.stopAiAnswerSpeech();
         const panel = document.getElementById('aiQuestionPanel');
         if (panel) panel.style.display = 'none';
-        this.renderAiQuestionListening(false);
     }
 
     async askAiQuestionFromInput() {
         const input = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiQuestionInput'));
-        this.aiQuestionVoiceCore?.stopListening();
         await this.askAiQuestion(input?.value.trim() || '');
     }
 
@@ -1302,7 +1250,7 @@ class BooksController {
     async askAiQuestion(question) {
         if (this.aiQuestionInFlight) return;
         if (!question) {
-            this.updateAiQuestionStatus('Say or type a question first.');
+            this.updateAiQuestionStatus('Type a question first.');
             return;
         }
         if (!this.apiKey) {
@@ -4200,7 +4148,6 @@ class BooksController {
         this.rebuildAudioPlanArmed = false;
         const rebuildButton = document.getElementById('rebuildAudioPlanBtn');
         if (rebuildButton) rebuildButton.textContent = 'Rebuild sentence-safe audio plan';
-        this.aiQuestionVoiceCore?.stopListening();
         this.aiQuestionAbort?.abort();
         this.aiQuestionAbort = null;
         this.aiQuestionInFlight = false;

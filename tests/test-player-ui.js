@@ -439,7 +439,7 @@ async function playTransition(browser, viewport, errors) {
         window.musicController.setMusicHistoryPanelVisible(true);
         document.getElementById('songLibraryPanel').style.display = 'block';
         window.musicController.toggleLogPanel();
-        window.musicController.transcript.show('a spoken request');
+        window.musicController.showRequest('a typed request');
         const panelOffenders = window.__scanGrayText();
         document.getElementById('settingsPanel').style.display = 'none';
         window.musicController.setMusicHistoryPanelVisible(false);
@@ -598,20 +598,10 @@ async function playTransition(browser, viewport, errors) {
         && curation.unloadStatus === 'Unloaded 2 unstarred songs; the playing song stays until you skip it'
         && curation.persisted?.join('|') === curation.afterUnload.join('|'));
 
-    // ---- Voice grammar reaches the same controls.
-    const voice = await tab.evaluate(() => {
-        const c = window.musicController;
-        return ['load favorites', 'play my favourites', 'star this', 'unstar this song', 'favorites only',
-            'show only starred songs', 'show all', 'unload unstarred', 'remove non-favorites', 'next', 'star wars theme']
-            .map(phrase => c.parseControlCommand(phrase));
-    });
-    report.check(`voice commands reach the curation controls (${voice.join(', ')})`,
-        voice.join('|') === 'loadfavorites|loadfavorites|star|unstar|favoritesonly|favoritesonly|showall|unloadunstarred|unloadunstarred|next|');
-
     // ---- A linked-page build ends visibly at "tap Play": status, request card, and Play all on screen.
     const linkedPage = await tab.evaluate(() => {
         const c = window.musicController;
-        c.transcript.show('Linked page (onlyURL=true): https://example.test/album');
+        c.showRequest('Linked page (onlyURL=true): https://example.test/album');
         c.updateStatus('Playlist ready: 6 songs - tap Play to start');
         const onScreen = id => {
             const box = /** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect();
@@ -619,11 +609,11 @@ async function playTransition(browser, viewport, errors) {
         };
         document.querySelector('main').scrollTop = 0;
         const main = /** @type {HTMLElement} */ (document.querySelector('main'));
-        const card = /** @type {HTMLElement} */ (document.getElementById('transcriptContainer'));
-        c.transcript.show('Linked page (onlyURL=true): https://en.wikipedia.org/wiki/Rumours_(album)?with=a-long-unbroken-query-string');
+        const card = /** @type {HTMLElement} */ (document.getElementById('requestCard'));
+        c.showRequest('Linked page (onlyURL=true): https://en.wikipedia.org/wiki/Rumours_(album)?with=a-long-unbroken-query-string');
         return {
             status: onScreen('status'),
-            request: onScreen('transcriptContainer'),
+            request: onScreen('requestCard'),
             play: onScreen('transportPlayPauseBtn'),
             urlWraps: card.scrollWidth <= card.clientWidth && main.scrollWidth <= main.clientWidth
         };

@@ -328,7 +328,6 @@ playback update, or lyric render without replaying anything.
 | claudeModel | claude-fable-5 | claude-fable-5, claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5 | immediate (next request); retired ids alias forward on load (sonnet-4-6 to sonnet-5, opus-4-5 to opus-4-8) |
 | llmMigration | fable-5-target | internal marker, not a control | one-time owner-directed switch: installs without the marker move to Claude Fable 5 on load, then every later provider/model choice is untouched |
 | openaiModel | gpt-5.5 | gpt-5.5, gpt-5.4, gpt-4.1 | immediate (next request); retired ids alias forward on load (gpt-5.2 to gpt-5.4) |
-| autoSubmitMode | true | toggle | immediate (auto submits after a pause; manual waits for "submit") |
 | readClaudeResponse | false | toggle | immediate (TTS reads AI responses) |
 | lyricsOnNowPlaying | true | toggle | immediate (relay timed lyrics on the first line and the selected identity/report value on the second) |
 | showSongNotes | false | Notes toggle in the playlist card's Order row | immediate (CSS class flip shows/hides every song's note on its own row line, no re-render) |

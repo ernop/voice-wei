@@ -1,0 +1,16 @@
+id: no-speech-recognition
+message: No page takes spoken input (owner decision, 2026-10-27). A new voice-input design starts in docs/product-goals.md ("No spoken input") and gives this rule one owner module.
+severity: error
+language: javascript
+files:
+  - "**/*.js"
+ignores:
+  - "**/tests/**"
+  - "**/types/**"
+rule:
+  any:
+    - kind: identifier
+      regex: "SpeechRecognition"
+    - kind: property_identifier
+      regex: "SpeechRecognition"
+note: "The shared recognition library (voice-command-core.js) and every Listen button were removed. The microphone serves pitch detection only (pitch-detect-core.js)."

@@ -42,8 +42,8 @@
     gap: 8px;
 }
 
-/* Control buttons: same layout as the shared voice row; button looks
-   come from the shared transport set (listen/stop/play). */
+/* Control buttons: the microphone Start button, then the shared
+   transport Stop. */
 .pitch-controls {
     display: flex;
     justify-content: center;
@@ -52,8 +52,73 @@
     margin-bottom: 20px;
 }
 
-.pitch-controls .listen-button {
+.pitch-listen-button {
     flex: 1;
+    height: 90px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: #000;
+    border: none;
+    font-size: 1.5rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(74, 222, 128, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pitch-listen-button:hover {
+    box-shadow: 0 15px 40px rgba(74, 222, 128, 0.4);
+}
+
+.pitch-listen-button:active {
+    transform: scale(0.95);
+}
+
+.pitch-listen-button:disabled {
+    background: transparent;
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    color: #fff;
+    cursor: not-allowed;
+    box-shadow: none;
+    animation: none;
+    transform: none;
+}
+
+.pitch-listen-button.listening {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    animation: pitch-listen-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pitch-listen-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 10px 30px rgba(245, 158, 11, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 10px 50px rgba(245, 158, 11, 0.8);
+    }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    .pitch-listen-button {
+        height: 80px;
+    }
+}
+
+@media (min-width: 769px) {
+    .pitch-listen-button {
+        height: 48px;
+        font-size: 1rem;
+        border-radius: 10px;
+        gap: 10px;
+    }
 }
 
 /* Real-time Pitch Display */

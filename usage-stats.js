@@ -34,7 +34,6 @@ const UsageStats = (function () {
         return (typeof PianoCore !== 'undefined'
                 && performance.now() - PianoCore.soundEndsAtMs() < RECENT_SOUND_MS)
             || (typeof PitchDetectCore !== 'undefined' && PitchDetectCore.isListening())
-            || (typeof VoiceCommandCore !== 'undefined' && VoiceCommandCore.isAnyListening())
             || (typeof VoiceOutput !== 'undefined' && VoiceOutput.isSpeaking())
             || (typeof MediaSessionCore !== 'undefined'
                 && MediaSessionCore.getReportedPlaybackState() === 'playing')

@@ -1,12 +1,12 @@
 // @ts-check
 // player playlist and lyric store product behavior, extracted from the retired tab-functions monolith.
 
-const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter } = require('./helpers');
+const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers');
 
 (async () => {
     const report = createReporter('player playlist and lyric store');
-    const browser = await launchWithMic();
-    // ============ PLAYER VOICE: shared core drives commands and music requests ============
+    const browser = await launch();
+    // ============ PLAYER: page with a saved (fake) Claude key ============
     {
         const ctx = await browser.newContext();
         await ctx.route('https://i.ytimg.com/**', route => route.fulfill({
@@ -14,45 +14,9 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             contentType: 'image/png',
             body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
         }));
-        // Fake key (long enough to pass the gate) and a controllable fake
-        // SpeechRecognition, installed before page scripts run.
+        // Fake key (long enough to pass the gate), installed before page scripts run.
         await ctx.addInitScript(() => {
             localStorage.setItem('claudeApiKey', 'test-key-not-real-1234567890');
-            window.__recs = [];
-            class FakeSpeechRecognition {
-                constructor() {
-                    window.__recs.push(this);
-                    this.continuous = false;
-                    this.interimResults = false;
-                    this.lang = '';
-                    // Real engines keep a growing per-session result list and
-                    // re-send it in every event; the fakes must do the same.
-                    this._results = [];
-                }
-                start() { this._results = []; this.onstart && this.onstart(); }
-                stop() { this.onend && this.onend(); }
-                abort() { this.onend && this.onend(); }
-            }
-            // Desktop pattern: each utterance appends a new result index.
-            window.__emitResult = (text, isFinal = true) => {
-                const rec = window.__recs[window.__recs.length - 1];
-                const result = [{ transcript: text }];
-                result.isFinal = isFinal;
-                rec._results.push(result);
-                rec.onresult({ resultIndex: rec._results.length - 1, results: rec._results });
-            };
-            // Android pattern: the SAME index is re-sent with grown
-            // cumulative text, repeatedly marked final.
-            window.__emitCumulative = (text, isFinal = true) => {
-                const rec = window.__recs[window.__recs.length - 1];
-                const result = [{ transcript: text }];
-                result.isFinal = isFinal;
-                const index = Math.max(0, rec._results.length - 1);
-                rec._results[index] = result;
-                rec.onresult({ resultIndex: index, results: rec._results });
-            };
-            window.SpeechRecognition = FakeSpeechRecognition;
-            window.webkitSpeechRecognition = FakeSpeechRecognition;
             // Claude is unreachable in tests; fail fast so the flow resolves
             const realFetch = window.fetch.bind(window);
             window.fetch = (url, ...rest) => {
@@ -61,11 +25,11 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
             };
         });
         const tab = await ctx.newPage();
-        // The manual-mode request intentionally fails at the stubbed Claude
-        // fetch; those logged errors are expected.
+        // Any AI request fails fast at the stubbed Claude fetch; those
+        // logged errors are expected.
         /** @type {string[]} */
-        const playerVoiceErrors = [];
-        collectErrors(tab, 'player-voice', playerVoiceErrors);
+        const playerErrors = [];
+        collectErrors(tab, 'player', playerErrors);
         await tab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
         await tab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
 
@@ -1701,7 +1665,7 @@ const { BASE_URL, launchWithMic, collectErrors, instrumentVoices, createReporter
         // installed metadata object. Position advances independently and is
         // never cleared or rewritten by a line transition.
 
-        playerVoiceErrors
+        playerErrors
             .filter(e => !e.includes('offline test'))
             .forEach(e => report.errors.push(e));
         await ctx.close();

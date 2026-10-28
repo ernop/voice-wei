@@ -57,7 +57,7 @@ must not be added together:
 | `longTasks` | main-thread tasks over 50ms reported by the browser |
 
 The named phases are controller construction/stored settings, configuration
-and key state, UI/voice wiring, lyrics-view settings, YouTube readiness
+and key state, UI wiring, lyrics-view settings, YouTube readiness
 wiring, local-library hydration, favorite-lyrics scheduling, playlist
 restoration, favorite-video repair scheduling, linked-song setup, and
 linked-page request parsing. `application initialization` contains those
@@ -249,7 +249,6 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math | - |
 | `music-constants.js` | Note math, scale patterns, frequency conversion | - |
-| `voice-command-core.js` | Speech recognition, auto/manual modes, spoken "submit", transcript UI | yes (webkitSpeechRecognition) |
 | `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
 | `notation-spelling.js` | Key signatures, VexFlow spellings, clef/staff-system choice | - |
 | `staff-view.js` | The Phrases snapshot staff (one phrase, formatter-spaced) | - |
@@ -684,7 +683,7 @@ Failures always log to the console as `[voice-wei persistence] ...`.
 | `PHRASES_SETTINGS` | Phrases page settings |
 | `TRACE_SETTINGS` | Trace page settings |
 | `PITCH_METER_SETTINGS` | Pitch tool settings |
-| `PLAYER_SETTINGS` | Music player voice/settings |
+| `PLAYER_SETTINGS` | Music player settings (AI provider/model, read-aloud, display) |
 | `PLAYER_PLAYLIST` | Working playlist (Songs + membership, no lyric runtime) + current index |
 | `PLAYER_FAVORITES` | Favorited tracks |
 | `PLAYER_LYRICS_CACHE` | Retired (lyrics moved to IndexedDB `lyricStates`); name stays reserved |
@@ -747,8 +746,8 @@ history is browser-local and serves navigation/progress UI. The OpenAI key and
 TTS settings use `api-keys-store.js` and `StorageKeys.EBOOK_SETTINGS`. The
 visible Log panel is DOM state only and is lost on refresh/navigation.
 
-Books AI Research reuses `voice-command-core.js` for one-utterance speech
-recognition and `voice-output.js` for optional spoken replies. The request
+Books AI Research takes a typed question and uses `voice-output.js` for
+optional spoken replies. The request
 snapshot is the active audio-part ID plus its complete stored text; playback time
 is not used to narrow or transcribe that text. The browser sends a direct
 OpenAI Responses request using the same browser-local key as TTS, with required
@@ -814,7 +813,7 @@ holding `<img onerror>` ran script on the origin that stores the API keys
 that pattern, and `tests/test-player-search.js` proves markup in a search
 title or AI field stays literal text and never runs.
 
-The default request boundary is keyless: voice fallback, Enter, and Search pass
+The default request boundary is keyless: Enter and Search pass
 one raw term to `searchYouTubeCandidates`, then turn up to ten ranked proxy
 results directly into playlist rows. `searchYouTube` is the one-result wrapper
 used when an AI-selected named song or identity repair needs a single recording
@@ -1100,7 +1099,6 @@ read at call time because each page loads a different subset:
 |--------------|-------------|
 | Piano or sine synth sounds, or sounded in the last 5 s (silences between drill notes and patterns) | `PianoCore.soundEndsAtMs()` |
 | A microphone capture is open | `PitchDetectCore.isListening()` |
-| Speech recognition listens | `VoiceCommandCore.isAnyListening()` |
 | Speech plays | `VoiceOutput.isSpeaking()` |
 | The page reported its transport playing (Lyrics, Phrases, Staff) | `MediaSessionCore.getReportedPlaybackState()` |
 | An `<audio>`/`<video>` element plays (Books) | the DOM, skipping `data-media-session-keep-alive` |
@@ -1143,7 +1141,7 @@ One representation per concept, conversions in one place:
 - **Pitch is MIDI integers internally.** All math, state, and module
   boundaries (piano engine, pitch detection, targets, rails) use MIDI.
   Note names ("D#", "Bb") and pitch strings ("D#3") exist only at the
-  edges: voice input, persisted settings, display. Every conversion goes
+  edges: persisted settings and display. Every conversion goes
   through `music-constants.js` (`noteNameToMidi`, `midiToPitchString`,
   `midiToNoteName`, scale-aware spelling helpers, `normalizePitchClassName`,
   `midiToFreq`/`freqToMidi`). Stored roots may be canonicalized to sharp
@@ -1422,7 +1420,7 @@ Controls must be identifiable as groups at a glance:
 
 1. **Every option group is visually bounded.** Either it sits in a
    segment shell (the bordered pill container) or it lives in a labeled
-   `vf-row` where the left label marks the boundary (the voice-first
+   `vf-row` where the left label marks the boundary (the practice
    pages). Bare chip runs where one group bleeds into the next are
    forbidden.
 2. **Numeric steppers cluster together.** All of a page's step fields
@@ -1456,12 +1454,12 @@ Beyond pickers, the rest of the control vocabulary is also fixed:
 - **Settings rows**: `vf-row` (labeled row) + `vf-label` (small-caps left
   label) + `vf-options` (wrapping option container, 5px gap). Standalone
   `vf-options` is the label-less chip row (phrases output/scale rows).
-- **Transport buttons**: `listen-button` (wide green mic bar),
-  `stop-button` (red), `play-button` (teal; `.listening` goes amber),
-  `next-button` (orange), `repeat-button` (indigo; `.selected` goes green
-  for latching repeat). Same classes in the sticky voice row and inside
-  panels (pitch-meter, trace). `pitch-test-launch-button` is the blue
-  Sing/Test variant of play.
+- **Transport buttons**: `stop-button` (red), `play-button` (teal;
+  `.listening` goes amber), `next-button` (orange), `repeat-button`
+  (indigo; `.selected` goes green for latching repeat). Same classes in
+  the sticky transport row and inside panels (pitch-meter, trace). The
+  Pitch page's microphone Start is its own `pitch-listen-button`.
+  `pitch-test-launch-button` is the blue Sing/Test variant of play.
 - **Panel action chips**: `panel-action-btn` for small corner/inline
   actions (Copy All, Clear, Save, Apply, Delete, Reset, Random, Test,
   Show, Select All). Add `.danger` for destructive actions (red hover).

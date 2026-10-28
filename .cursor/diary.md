@@ -1785,3 +1785,24 @@ For future mei:
   step: a new ignore pattern needs the matching publish exclusion.
 - A screenshot taken right after a click can catch a 0.2s color transition
   mid-fade; read classes, or wait, before calling two buttons lit.
+
+## 2026-10-27 - No spoken input anywhere (v376)
+
+yui: Ears, Lyrics, and Books stop listening for words too; if voice input
+returns it will be rewritten from scratch, properly. The shared recognition
+library (`voice-command-core.js`) is deleted, along with every Listen and
+Submit button, the "You said" transcripts, Lyrics' spoken control commands
+and Auto-Send/Hold modes, Ears' spoken interval answers, and Books' spoken
+AI questions. Spoken output (TTS) and the pitch microphone stay. Lyrics
+keeps one line naming the current request (`showRequest`). The lint rule
+`no-speech-recognition` now blocks the browser recognition API outright,
+and `docs/product-goals.md` ("No spoken input") is where a new design starts.
+
+For future mei:
+- When a shared library goes, sweep the call sites' neighbors too: dead
+  helpers that only it called (`showPrompt`, `hideClaudeResponse`), state
+  it owned (`resumeAfterListening`), saved-settings key lists, CSS whose
+  selectors only matched its buttons, and lint rules that named it.
+- A few files are stored with CRLF line endings. A Python read/write in text
+  mode converts them to LF and turns a 150-line change into a whole-file
+  diff; check `git diff --stat` for implausible counts before committing.

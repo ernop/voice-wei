@@ -8,33 +8,7 @@
     'use strict';
 
 //-------INTERVAL DEFINITIONS-------
-// Interval order/semitones/names come from music-constants.js (single owner).
-// Only the spoken-form aliases (voice recognition) are ear-training-specific.
-
-/** @type {Readonly<Record<string, string[]>>} Spoken forms accepted for each interval. */
-const INTERVAL_ALIASES = Object.freeze({
-    'm2': ['minor second', 'half step', 'semitone', 'm2', 'minor 2', 'minor two'],
-    'M2': ['major second', 'whole step', 'whole tone', 'M2', 'major 2', 'major two'],
-    'm3': ['minor third', 'm3', 'minor 3', 'minor three'],
-    'M3': ['major third', 'M3', 'major 3', 'major three'],
-    'P4': ['perfect fourth', 'fourth', 'P4', 'perfect 4', 'four'],
-    'TT': ['tritone', 'augmented fourth', 'diminished fifth', 'TT', 'tri tone', 'flat five', 'sharp four'],
-    'P5': ['perfect fifth', 'fifth', 'P5', 'perfect 5', 'five'],
-    'm6': ['minor sixth', 'm6', 'minor 6', 'minor six'],
-    'M6': ['major sixth', 'M6', 'major 6', 'major six'],
-    'm7': ['minor seventh', 'm7', 'minor 7', 'minor seven', 'flat seven'],
-    'M7': ['major seventh', 'M7', 'major 7', 'major seven'],
-    'P8': ['octave', 'perfect octave', 'P8', 'eighth', 'eight']
-});
-
-/** @type {Readonly<Record<string, { semitones: number, name: string, aliases: string[] }>>} */
-const INTERVALS = Object.freeze(Object.fromEntries(
-    INTERVAL_ORDER.map(id => [id, {
-        semitones: INTERVAL_SEMITONES[id],
-        name: INTERVAL_NAMES[id],
-        aliases: INTERVAL_ALIASES[id]
-    }])
-));
+// Interval order, semitones, and names come from music-constants.js.
 
 /** @type {Readonly<Record<string, string[]>>} Preset interval sets */
 const INTERVAL_PRESETS = Object.freeze({
@@ -147,10 +121,6 @@ class EarTrainingController {
         /** @type {ReturnType<typeof HistoryList.create> | null} */
         this.history = null;
 
-        // Voice recognition
-        /** @type {VoiceCommandCore | null} */
-        this.voiceCore = null;
-
         // DOM elements
         /** @type {HTMLElement | null} */
         this.intervalPrompt = null;
@@ -226,9 +196,6 @@ class EarTrainingController {
             this.setStatus('Piano failed to load. Refresh to retry.');
         }
 
-        // Initialize voice recognition
-        this.initVoiceRecognition();
-
         // Bind UI events
         this.bindEvents();
 
@@ -249,112 +216,7 @@ class EarTrainingController {
         }
     }
 
-    initVoiceRecognition() {
-        // @ts-ignore - VoiceCommandCore is loaded from voice-command-core.js
-        if (typeof VoiceCommandCore === 'undefined') {
-            console.warn('VoiceCommandCore not available');
-            return;
-        }
-
-        // @ts-ignore
-        this.voiceCore = new VoiceCommandCore({
-            onListeningChange: (isListening) => this.handleListeningChange(isListening),
-            onStatusChange: (msg) => {}, // We handle our own status
-            fallbackHandler: async (transcript) => this.handleVoiceCommand(transcript),
-        });
-
-        this.voiceCore.init();
-    }
-
-    /**
-     * @param {string} transcript
-     */
-    handleVoiceCommand(transcript) {
-        const lower = transcript.toLowerCase().trim();
-
-        // Control commands
-        if (/^(next|go|start)$/i.test(lower)) {
-            this.playNextInterval();
-            return;
-        }
-        if (/^(repeat|again|replay)$/i.test(lower)) {
-            this.repeatCurrentInterval();
-            return;
-        }
-        if (/^(skip)$/i.test(lower)) {
-            this.skipInterval();
-            return;
-        }
-        if (/^(stop|pause)$/i.test(lower)) {
-            this.voiceCore?.stopListening();
-            return;
-        }
-        if (/^(stats|score|statistics)$/i.test(lower)) {
-            this.speakStats();
-            return;
-        }
-
-        // If awaiting answer, try to match interval
-        if (this.awaitingAnswer && !this.answered) {
-            const matchedInterval = this.matchIntervalFromTranscript(lower);
-            if (matchedInterval) {
-                this.submitAnswer(matchedInterval);
-            } else {
-                this.showFeedback(`Didn't recognize: "${transcript}"`, 'info');
-            }
-        }
-    }
-
-    /**
-     * @param {boolean} isListening
-     */
-    handleListeningChange(isListening) {
-        const listenBtn = document.getElementById('earListenBtn');
-        if (listenBtn) {
-            listenBtn.classList.toggle('listening', isListening);
-            const textSpan = listenBtn.querySelector('.button-text');
-            if (textSpan) {
-                textSpan.textContent = isListening ? 'Stop' : 'Listen';
-            }
-        }
-    }
-
-    /**
-     * Match transcript to interval name
-     * @param {string} transcript
-     * @returns {string | null}
-     */
-    matchIntervalFromTranscript(transcript) {
-        const lower = transcript.toLowerCase();
-
-        for (const [key, info] of Object.entries(INTERVALS)) {
-            // Check exact key match
-            if (lower === key.toLowerCase()) return key;
-
-            // Check name match
-            if (lower === info.name.toLowerCase()) return key;
-
-            // Check aliases
-            for (const alias of info.aliases) {
-                if (lower === alias.toLowerCase()) return key;
-                // Fuzzy match - contains the alias
-                if (lower.includes(alias.toLowerCase())) return key;
-            }
-        }
-
-        return null;
-    }
-
     bindEvents() {
-        // Listen button
-        document.getElementById('earListenBtn')?.addEventListener('click', () => {
-            if (this.voiceCore?.isListening) {
-                this.voiceCore.stopListening();
-            } else {
-                this.voiceCore?.startListening();
-            }
-        });
-
         // Next button
         document.getElementById('earNextBtn')?.addEventListener('click', () => {
             this.playNextInterval();
@@ -672,8 +534,7 @@ class EarTrainingController {
         this.currentDirection = this.getDirection();
         this.currentRootMidi = this.selectRootMidi();
 
-        const intervalInfo = INTERVALS[this.currentInterval];
-        const semitones = intervalInfo.semitones;
+        const semitones = INTERVAL_SEMITONES[this.currentInterval];
 
         // Update display
         this.setStatus('Listen...');
@@ -732,7 +593,7 @@ class EarTrainingController {
             return;
         }
 
-        const semitones = INTERVALS[this.currentInterval].semitones;
+        const semitones = INTERVAL_SEMITONES[this.currentInterval];
 
         // In sing phase, just replay the reference note
         if (this.phase === 'singing') {
@@ -810,7 +671,7 @@ class EarTrainingController {
                 this.scheduleFollowUp(() => this.playNextInterval(), 1000);
             }
         } else {
-            const correctName = INTERVALS[this.currentInterval].name;
+            const correctName = INTERVAL_NAMES[this.currentInterval];
             this.showFeedback(`That was ${correctName}`, 'incorrect');
             if (this.drivingMode) this.speak(`That was ${correctName}`);
             this.revealAnswer();
@@ -980,12 +841,6 @@ class EarTrainingController {
     }
 
 
-    speakStats() {
-        const pct = this.sessionTotal > 0 ? Math.round(100 * this.sessionCorrect / this.sessionTotal) : 0;
-        const msg = `You've done ${this.sessionTotal} intervals, ${pct}% correct. Current streak: ${this.streak}.`;
-        this.speak(msg);
-    }
-
     /**
      * @param {string} text
      */
@@ -1010,9 +865,9 @@ class EarTrainingController {
         this.singGoodSamples = 0;
         this.clearSingTimeout();
 
-        const semitones = INTERVALS[this.currentInterval].semitones;
+        const semitones = INTERVAL_SEMITONES[this.currentInterval];
         const direction = this.currentDirection === 'descending' ? 'below' : 'above';
-        const intervalName = INTERVALS[this.currentInterval].name;
+        const intervalName = INTERVAL_NAMES[this.currentInterval];
 
         // Calculate target note
         const targetOffset = this.currentDirection === 'descending' ? -semitones : semitones;

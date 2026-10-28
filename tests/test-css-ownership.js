@@ -1,8 +1,8 @@
 // @ts-check
 // Page stylesheets must not redefine the look of classes owned by
-// practice-controls.css (or the shared voice-shell classes in style.css).
+// practice-controls.css (or the shared button-label classes in style.css).
 // Pages may add layout on top of shared classes in two ways only:
-//   - scoping under page context: `.pitch-controls .listen-button { flex: 1 }`
+//   - scoping under page context: `.pitch-controls .stop-button { flex: 1 }`
 //   - page modifier classes:      `.vf-row.vf-row-reset { margin-top: 8px }`
 // What they may NOT do is restate the bare class: `.next-button { ... }`.
 // That is exactly how the ears/practice-controls drift happened.
@@ -14,7 +14,7 @@ const { createReporter } = require('./helpers');
 const ROOT = path.join(__dirname, '..');
 
 // Shared classes defined in style.css that pages also must not redefine
-const STYLE_CSS_SHARED = ['listen-button', 'submit-button-large', 'button-text', 'button-icon'];
+const STYLE_CSS_SHARED = ['button-text', 'button-icon'];
 
 const PAGE_SHEETS = ['scales.css', 'intervals.css', 'phrases.css', 'staff.css', 'trace.css', 'pitch-meter.css', 'ebook.css', 'player.css', 'wording.css', 'games.css'];
 

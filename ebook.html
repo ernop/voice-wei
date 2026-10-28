@@ -277,9 +277,6 @@
                                 <button id="aiQuestionBtn" class="primary-btn ai-question-launch-btn" type="button">
                                     <span class="button-text">AI question</span>
                                 </button>
-                                <button id="aiQuestionListenBtn" type="button" hidden></button>
-                                <button id="aiQuestionVoiceSubmitBtn" type="button" hidden></button>
-                                <span id="aiQuestionVoiceStatus" hidden></span>
                                 <div class="ai-question-panel" id="aiQuestionPanel" style="display: none;">
                                     <div class="ai-question-header">
                                         <div>
@@ -292,9 +289,6 @@
                                         Your question
                                         <textarea id="aiQuestionInput" rows="3" placeholder="Ask about what you were just hearing"></textarea>
                                     </label>
-                                    <div id="aiQuestionTranscriptContainer" class="ai-question-transcript" style="display: none;">
-                                        Heard: <span id="aiQuestionTranscript"></span>
-                                    </div>
                                     <details class="ai-question-context" open>
                                         <summary>Full request sent around the book text</summary>
                                         <pre id="aiQuestionRequestPreview"></pre>
@@ -311,7 +305,7 @@
                                         <button id="askAiQuestionBtn" class="primary-btn" type="button">Research</button>
                                     </div>
                                     <div class="ai-question-flight">
-                                        <span id="aiQuestionStatus" class="ai-question-status">Tap AI question and speak, or type here and press Research.</span>
+                                        <span id="aiQuestionStatus" class="ai-question-status">Type a question and press Research.</span>
                                         <strong id="aiQuestionElapsed" class="ai-question-elapsed" style="display: none;">0s</strong>
                                     </div>
                                     <section id="aiQuestionAnswer" class="ai-question-answer" style="display: none;" aria-live="polite">
@@ -379,7 +373,6 @@
     <script src="settings-store.js?v=375"></script>
     <script src="api-keys-store.js?v=375"></script>
     <script src="voice-output.js?v=375"></script>
-    <script src="voice-command-core.js?v=375"></script>
     <script src="shared-header.js?v=375"></script>
     <script src="media-player.js?v=375"></script>
     <script src="ebook.js?v=375"></script>

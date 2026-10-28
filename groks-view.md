@@ -37,23 +37,23 @@ language (chips, steppers, transport buttons) aimed at phone-in-car use.
 
 | Tool | User story in one line |
 |------|------------------------|
-| **Scales** | Speak a practice pattern ("D minor scale", "harmonic minor repeat forever"), hear real piano, optionally Sing against a pitch trace. |
+| **Scales** | Build a practice pattern from option buttons, hear real piano, optionally Sing against a pitch trace. |
 | **Intervals** | Drill degree sequences or relative jumps by level; Sing the pattern; or switch to Ear training (identify / sing / both). |
 | **Phrases** | Generate or type a melodic shape, internalize it (Play / Repeat / Next / Breakdown), Test by singing it back. |
 | **Trace** | Free sing in a key while watching the pitch line against rails and optional typed guide patterns. |
 | **Pitch** | Structured accuracy: free practice, call-and-response, or play-along with scored results. |
 | **Ears** | Same Intervals page in ear mode (`ears.html` redirects); adaptive weighting toward weak intervals. |
-| **Music** | Speak a natural request ("play some jazz"); Claude builds a playlist; YouTube plays; lyrics and car media keys keep hands free. |
+| **Music** | Type artist/song terms for a keyless playlist, or Ask AI for a fuzzy request; YouTube plays; timed lyrics and car media keys keep hands free. |
 | **Books** | Import ebook / URL metabook → local library → read and/or generate OpenAI TTS audio that resumes where it stopped. |
 | **Games** | Fill the eight letters of the Find projection puzzle from either side; the score updates as you type, and no category word is named. |
 
 ### Experience principles (what it feels like)
 
-- **Hands-free first.** Voice in, spoken feedback out, hardware media keys,
-  large sticky controls, car Bluetooth / lock-screen now-playing.
-- **Voice-first, click-second on Scales.** Anything sayable is also
-  clickable; both update the same state. Voice commands reset to defaults
-  then apply modifiers so "D minor" always means the same thing.
+- **Hands-free first.** Spoken feedback, hardware media keys, large
+  sticky controls, car Bluetooth / lock-screen now-playing. No page takes
+  spoken input (removed 2026-10-27); the microphone hears singing only.
+- **Buttons are the settings on Scales.** Each option button shows and
+  sets one setting, so the buttons, keyboard, and readout always agree.
 - **Exact stop.** Stop kills sounding voices; old settings never overlap
   new settings in the audio.
 - **Sing modes stay honest.** Opening Test/Sing stops transport so a take
@@ -78,8 +78,8 @@ Intervals → Ear mode → Identify or Sing → adaptive presets lean into
 weak intervals → lifetime stats persist.
 
 **Driving music**  
-Music → Listen → "that Beatles song with the submarine" → playlist
-streams in → timed lyric line on the car display → next/pause by voice or
+Music → type "that Beatles song with the submarine" → Ask AI → playlist
+streams in → timed lyric line on the car display → next/pause by
 steering-wheel keys.
 
 **Long-form reading**  
@@ -161,7 +161,6 @@ recognition, `mediaSession` / `document.title`, `Tone.Frequency`).
 | Scored-take history / trends / weak spots | `progress-store.js` |
 | Note math, scale patterns | `music-constants.js` |
 | Degree / phrase math | `pattern-practice-core.js` |
-| Speech recognition UI modes | `voice-command-core.js` |
 | TTS | `voice-output.js` |
 | Now-playing + media keys | `media-session-core.js` |
 | Settings persistence | `settings-store.js` + `storage-keys.js` |

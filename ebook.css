@@ -1176,11 +1176,6 @@
     font-size: 1rem;
 }
 
-.ai-question-launch-btn.listening {
-    background: #ef4444;
-    border-color: #fca5a5;
-}
-
 .ai-question-panel {
     display: grid;
     gap: 10px;
@@ -1209,8 +1204,7 @@
 }
 
 .ai-question-header span,
-.ai-question-status,
-.ai-question-transcript {
+.ai-question-status {
     color: rgba(255, 255, 255, 0.68);
     font-size: 0.8rem;
 }

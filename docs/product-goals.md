@@ -42,8 +42,8 @@ and deliver a weaker version of the requested change.
 | Staff | Read notation fluently: sing a continuous generated line from the grand staff | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; past runs replay for review |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
-| Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw voice/typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
-| Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one spoken question launches source-critical web/image research with the exact request disclosed |
+| Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
+| Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one typed question launches source-critical web/image research with the exact request disclosed |
 | Wording | Score how cool a word sounds and coin new words from two word sets | Cool-sounding words outrank bland, gross, and unpronounceable ones; coined words are genuinely new, read as one word, and rank by how they sound when spoken |
 | Games | Play the Find projection puzzles | Eleven boards. The eight letters project through the six category lines, either side edits a letter, and the score updates on each edit. The page never names a category word |
 
@@ -58,9 +58,9 @@ editor accepts no calls from fuseki.net
 
 ## System invariants
 
-- **Hands-free first**: hardware media keys, large controls, spoken
-  feedback where it helps driving, and voice commands on the pages that
-  keep them (Scales has none since 2026-10-27).
+- **Hands-free first**: hardware media keys, large controls, and spoken
+  feedback where it helps driving. No page takes spoken input (yui,
+  2026-10-27); the microphone serves pitch detection only.
 - **Auxiliary panels can be turned off**: a secondary display a page keeps
   beside its practice surface (a sequence readout, a log, helper text)
   comes with a standard way to switch it off (yui, 2026-10-27).
@@ -111,7 +111,7 @@ and completed exercises with results. His own use is included.
 - **Active time**: the page is visible and had input in the last five
   minutes, or, because Voice-Wei is used hands-free (often driving with the
   screen off), the page is playing sound (piano, synth, speech, music, Books
-  audio) or the microphone or voice commands are listening.
+  audio) or the microphone is listening.
 - **Rounds** (`game`, at most one per round): mode `m`, result `r`, duration
   `d` in seconds, and the round's own score numbers.
   - Sing test take in Scales, Intervals, or Phrases: `m` = `scales`,
@@ -134,11 +134,39 @@ The home page says so in one line. Construction:
 [architecture.md](architecture.md), "Usage statistics"; the host side:
 [hosting-contract.md](hosting-contract.md), "Usage statistics endpoint".
 
+## No spoken input (owner decision, 2026-10-27)
+
+yui, on Scales: "in general we don't use voice inputs anymore, actually,
+so let's just remove that. if we need it again we can re-code it later;
+just totally remove it now please." Then for the rest of the site: "ears
+will no longer use voice input; nor will the listen button on lyrics
+work, nor on books, yes we're going remove that and if we want it later
+we'll rewrite from scratch more properly."
+
+- **Nothing listens for words.** The shared speech-recognition library
+  (`voice-command-core.js`) is deleted along with every page's Listen
+  button and transcript. Spoken input, if it returns, is a fresh design,
+  not a restore.
+- **The microphone stays for pitch**: the Sing and Test panels, Trace,
+  Staff, Pitch, and Ears' Sing mode.
+- **Spoken output stays**: Ears driving feedback, Lyrics' read-aloud
+  responses, Books narration and read-aloud research answers, Intervals'
+  spoken note numbers.
+- **Ears** answers by button only (the answer grid, Next, Repeat, Skip).
+  Gone: spoken interval names and the next / repeat / skip / stop / stats
+  commands, with the spoken stats summary only they could reach.
+- **Lyrics** searches by typing (Search or Enter) or Ask AI. Gone: Listen,
+  the auto-submit / hold setting, spoken "submit", the transport and
+  curation commands (play, next, star this, favorites only, ...) and the
+  spoken help and "what's playing" announcements. Every one of those
+  actions has a button. The Request line under the status still names
+  what the page is working on.
+- **Books** AI question opens the research panel with the question box
+  focused; the question is typed.
+
 ## Scales: buttons only (owner decision, 2026-10-27)
 
-yui: "in general we don't use voice inputs anymore, actually, so let's
-just remove that. if we need it again we can re-code it later; just
-totally remove it now please." The microphone still serves the Sing test.
+The Scales part of the decision above, with what went with it.
 
 - **No voice input on Scales.** Gone: the Listen button, the "You said"
   transcript, the spoken grammar and its parser, the phonetic maps, spoken
@@ -171,7 +199,7 @@ needs (behavior reference: [tools.md](tools.md); construction:
 checked against this list, and new standing intent gets added here.
 
 1. **"Search directly unless I ask for interpretation."** Raw artist/song
-   terms from voice, Enter, or Search go straight to the keyless YouTube
+   terms from Enter or Search go straight to the keyless YouTube
    proxy and return several playable results. Ask AI is a separate explicit
    action for fuzzy identification or curation. Searches prefer the ORIGINAL
    STUDIO RECORDING - never live, cover, remix, acoustic, karaoke, or reaction
@@ -205,7 +233,7 @@ checked against this list, and new standing intent gets added here.
    Favorites only hides unstarred songs live, and Unload unstarred or
    Clear removes songs (never the one that is playing, for Unload).
    What the list shows is what plays.
-6. **Hands and eyes stay free.** Voice in, spoken feedback out, one
+6. **Hands and eyes stay free while it plays.** Spoken feedback, one
    always-reachable now-playing card (sticks to the top when scrolling)
    whose Previous / Play-Pause / Next are the largest controls on the
    page, hardware media keys, and playable-video recovery (fresh
@@ -311,15 +339,15 @@ checked against this list, and new standing intent gets added here.
      lines for the same reason. `tests/test-player-ui.js` samples the card
      every frame across Play and Next at phone and wide widths and fails on
      any height change or layout shift.
-   - Everything else lives in cards below: Find music (Listen, search, Ask
-     AI, its model fold-out, History / Cache, Song Library), Playlist
+   - Everything else lives in cards below: Find music (search, Ask AI,
+     its model fold-out, History / Cache, Song Library), Playlist
      (always present, curation buttons first), Lyrics (collapsible, with
      the timing controls), and This song (Share, Song Report).
-   - Stars are one favorite everywhere (row, now playing, Big Lyrics,
-     voice). Favorites only follows star changes live; the status line says
+   - Stars are one favorite everywhere (row, now playing, Big Lyrics).
+     Favorites only follows star changes live; the status line says
      when an unstarred song was hidden.
-   - What the list shows is what plays: Previous/Next, media keys, voice,
-     and the advance at a song's end step through the shown songs, so a
+   - What the list shows is what plays: Previous/Next, media keys, and
+     the advance at a song's end step through the shown songs, so a
      filtered list never plays a hidden song. Show all clears every view.
    - Unload unstarred keeps the song that is playing or paused: list upkeep
      never cuts off the music.
@@ -369,7 +397,6 @@ checked against this list, and new standing intent gets added here.
      user, caches every answer for all browsers (six hours; a channel
      link's ID for 30 days), and refuses past its own budget (30 calls a
      minute, 300 an hour) with the wait, never queueing or retrying.
-   - Browsing the card is by touch; voice commands do not drive it.
    - Mixes (`list=RD...`), Watch later, and Liked videos belong to one
      viewer and cannot be listed; their links search as before.
 
@@ -390,13 +417,13 @@ checked against this list, and new standing intent gets added here.
    Pitch tool - the original lower-range/overshoot goal is now
    measurable). Next: generators biasing toward weak degrees;
    call-and-response variants on more tools.
-2. **Car mode**: larger UI preset, wake word, fewer on-screen elements.
+2. **Car mode**: larger UI preset, fewer on-screen elements.
    (The Lyrics page redo of 2026-09-27 did this for music: a lean sticky
    card with big transport and star, everything else below.)
 3. **Training content**: more coach-style exercises and preset packs;
    lower-range control drills specifically.
-4. **Conversational player**: follow-ups like "more like that" and playlist
-   operations by voice.
+4. **Conversational player**: typed follow-ups like "more like that" and
+   playlist operations.
 5. **Listening accompaniment**: correct the two-line Story Report contract,
    add source-grounded Musical Guide, then run the real phone/car microphone
    feasibility matrix before considering live song analysis.
@@ -427,7 +454,7 @@ above; nothing here is a commitment.
 
 - Conversational context: "more like that", "less like that", "only live
   versions", "90s only", multi-turn refinement
-- Playlist ops by voice: "remove song 3", "play the second one", "save
+- Playlist ops in words: "remove song 3", "play the second one", "save
   this playlist"; named playlists; queue management
 - Lyrics / sing-along surface: fetch lyrics by artist+title (research in
   music-lyrics-research.md), full-screen large-text overlay, then
@@ -455,11 +482,12 @@ above; nothing here is a commitment.
 ### Platform
 
 - Progressive Web App: installable, offline caching of samples/playlists
-- Wake word ("Hey DJ"); voice activity detection
 - Haptic feedback on mobile; high-contrast and accessibility passes
 - Optional server endpoint for Claude calls (rate limiting, key never in
   browser)
-- Multi-language voice support; whisper-mode recognition
+- Spoken input, designed fresh if wanted (removed 2026-10-27): wake word
+  ("Hey DJ"), voice activity detection, multi-language and whisper-mode
+  recognition
 
 ### Personal training focus
 

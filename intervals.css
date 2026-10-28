@@ -505,34 +505,6 @@
     font-size: 0.8rem;
 }
 
-/* Voice Commands Reference */
-.voice-control-commands {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin: 12px 0;
-    padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-}
-
-.voice-control-commands .vcc-label {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
-    font-weight: 500;
-}
-
-.voice-control-commands code {
-    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 0.8rem;
-    padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 5px;
-    color: rgba(255, 255, 255, 0.8);
-}
-
 /* Mobile Adjustments */
 @media (max-width: 600px) {
     .answer-grid {

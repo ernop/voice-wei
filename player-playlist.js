@@ -48,11 +48,6 @@ const PlayerPlaylist = (function () {
                 configurable: true,
                 get() { return this.playback.currentPlaylistIndex; },
                 set(value) { this.playback.currentPlaylistIndex = value; }
-            },
-            wasPlayingBeforeListening: {
-                configurable: true,
-                get() { return this.playback.resumeAfterListening; },
-                set(value) { this.playback.resumeAfterListening = value; }
             }
         });
 
@@ -2078,14 +2073,7 @@ const PlayerPlaylist = (function () {
                 this.clearPlaylistItems();
 
                 this.closeLyricsOverlay();
-
-                // Also hide transcript/response containers
-                this.hideClaudeResponse();
-                this.hidePrompt();
-                const transcriptContainer = document.getElementById('transcriptContainer');
-                if (transcriptContainer) {
-                    transcriptContainer.style.display = 'none';
-                }
+                this.hideRequest();
             },
 
             persistPlaylist() {

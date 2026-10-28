@@ -76,6 +76,9 @@ async function sectionCanonicalControls(browser, errors) {
         '.lyrics-overlay-transport-btn', '.lyrics-overlay-control-btn', '.lyrics-overlay-action-btn',
         '.lyrics-panel-hide-btn', '.typed-command-submit-btn', '.close-settings-btn',
         '.save-api-key-btn', '.api-key-action-btn', '.song-library-fav',
+        // Spoken input, removed site-wide (owner, 2026-10-27)
+        '.listen-button', '.submit-button-large', '.transcript-container', '.voice-control-commands',
+        '.ai-question-transcript',
     ].join(', ');
     /** @type {Array<{ page: keyof typeof READY_PROBES, steppers: string[], forbidden: string }>} */
     const expectations = [

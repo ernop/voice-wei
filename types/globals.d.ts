@@ -30,8 +30,6 @@ interface Window {
     scalesController?: import('../scales.js').ScalesController;
     musicController?: VoiceMusicController;
     pitchMeter?: import('../pitch-meter.js').PitchMeterController;
-    VoiceCommandCore?: any;
-    TranscriptManager?: any;
     VoiceOutput?: any;
     AudioVolume?: {
         PIANO_DB: number;

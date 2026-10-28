@@ -35,8 +35,6 @@ class PlaybackState {
         this.currentPlayingId = null;
         /** @type {number} Cursor into the playlist array (-1 = none) */
         this.currentPlaylistIndex = -1;
-        /** @type {boolean} Resume playback after a listening/LLM turn finishes */
-        this.resumeAfterListening = false;
         /** @type {number} Ignore ENDED auto-advance until this epoch-ms timestamp */
         this.suppressAutoAdvanceUntil = 0;
         /** @type {boolean} The current hidden period's one background continuation was used */
@@ -156,7 +154,6 @@ class PlaybackState {
         this.keepAlivePausesAtStart = 0;
         this.currentPlayingId = null;
         this.currentPlaylistIndex = -1;
-        this.resumeAfterListening = false;
         this.suppressAutoAdvanceUntil = 0;
         this.backgroundContinuationUsed = false;
         this.continuationReloadPending = false;

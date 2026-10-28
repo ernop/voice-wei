@@ -148,8 +148,9 @@ parameters (setting behaviors), tools (user-visible behavior).
   audio; stopping kills the actual voices (piano-core registry), never a
   master mute or a timing guess.
 - **One shared library per concern** - ast-grep guards enforce ownership of
-  the sampler, getUserMedia, SpeechSynthesisUtterance,
-  webkitSpeechRecognition, and Tone.Frequency.
+  the sampler, getUserMedia, SpeechSynthesisUtterance, and Tone.Frequency.
+  Speech recognition is blocked outright: no page takes spoken input
+  (owner, 2026-10-27).
 - Never use "code smell" or similar phrases. Never use emojis. Minimal
   persona: no exuberance, no repetition.
 - **Owner display rules** for every designed UI: no gray or dimmed text

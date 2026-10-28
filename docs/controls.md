@@ -22,9 +22,8 @@ surfaces" in architecture.md with its reasoning.
 | Small action chip (Copy, Clear, Save, Apply...) | `panel-action-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size neutral action | `secondary-btn` (+ `.danger`) | practice-controls.css |
 | Mid-size primary action (Import, Generate, Play) | `primary-btn` | practice-controls.css |
-| Practice transport | `listen-button`, `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`) | practice-controls.css / style.css |
+| Practice transport | `play-button` (+ `.listening`), `stop-button`, `next-button`, `repeat-button` (+ `.selected`) | practice-controls.css |
 | Pitch test / sing launch | `pitch-test-launch-button` in `.pitch-test-dock` (bottom sheet; not in the transport row) | practice-controls.css |
-| Primary submit | `submit-button-large` | style.css |
 | On/off toggle | `display-toggle` chip checkbox | practice-controls.css |
 | Text field | `text-input` (pages size it, never re-skin) | style.css |
 | Site chrome | `footer-btn`, `settings-btn` | style.css |
@@ -57,8 +56,8 @@ dialect class reappears.
 
 The Lyrics page consumes the canonical `vf-btn` segment rows,
 `panel-action-btn`, `secondary-btn`, `primary-btn`, `step-field` /
-`step-btn` / `step-value`, `display-toggle`, `listen-button`,
-`submit-button-large`, and `text-input`, plus two declared page surfaces:
+`step-btn` / `step-value`, `display-toggle`, and `text-input`, plus two
+declared page surfaces:
 
 | Class | Job | Where |
 |-------|-----|-------|
@@ -200,8 +199,8 @@ them there):
    heavier than the text beneath it, never both smaller and lighter.
 
 Buttons follow `.cursor/rules/06-ui-patterns.mdc`: white text in normal and
-hover states (black on the bright green primary and Listen buttons, per
-rule 1), hover changes the background only, 0.2s transitions.
+hover states (black on the bright green primary and Pitch Start buttons,
+per rule 1), hover changes the background only, 0.2s transitions.
 
 ## Dead classes (removed)
 
@@ -214,6 +213,10 @@ rule 1), hover changes the background only, 0.2s transitions.
 - `display-toggles` and `echo-toggle` (scales.css) - Scales' display
   toggles moved into the settings block, and were later removed with the
   page's voice input, sequence panel, and abbreviations (2026-10-27).
+- `listen-button`, `submit-button-large`, `transcript-container`,
+  `voice-control-commands`, `ai-question-transcript` - spoken input was
+  removed site-wide (2026-10-27); the Pitch page's microphone Start became
+  `pitch-listen-button`. Blocked by `tests/test-controls.js`.
 
 ## Stepper and Key labeling
 

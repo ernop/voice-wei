@@ -672,10 +672,8 @@ const PlayerYouTubeLists = (function () {
              * opens on the section its link names (or its first section).
              */
             async openYouTubeListLink(link) {
-                this.hideClaudeResponse();
-                this.hidePrompt();
                 this.logUserMessage(link.text);
-                this.transcript.show(link.text);
+                this.showRequest(link.text);
                 const state = newState(link);
                 this.youtubeList = state;
                 const filterInput = /** @type {HTMLInputElement | null} */ (document.getElementById('youtubeListFilterInput'));
@@ -683,7 +681,6 @@ const PlayerYouTubeLists = (function () {
                 setVisible('youtubeListCard', true);
                 render(this);
                 this.isProcessingCommand = true;
-                this.updateSubmitButton(true);
                 this.updateTypedCommandUI(true);
                 this.updateStatus(`Opening YouTube ${link.kind}...`);
                 try {
@@ -721,7 +718,6 @@ const PlayerYouTubeLists = (function () {
                     this.updateStatus(state.error);
                 } finally {
                     this.isProcessingCommand = false;
-                    this.updateSubmitButton(false);
                     this.updateTypedCommandUI(false);
                 }
             },

@@ -159,10 +159,6 @@
 
             <section id="earTrainingPanel" hidden>
             <div class="voice-controls-row">
-                <button id="earListenBtn" class="listen-button" aria-label="Start listening">
-                    <span class="button-text">Listen</span>
-                    <span class="button-icon">&#9835;</span>
-                </button>
                 <button id="earNextBtn" class="next-button" aria-label="Next interval">
                     <span class="button-text">Next</span>
                     <span class="button-icon">&#9654;</span>
@@ -171,11 +167,6 @@
                     <span class="button-text">Repeat</span>
                     <span class="button-icon">&#8634;</span>
                 </button>
-            </div>
-
-            <div class="transcript-container" id="transcriptContainer" style="display: none;">
-                <p class="transcript-label">You said:</p>
-                <p class="transcript" id="transcript"></p>
             </div>
 
             <div class="interval-display" id="intervalDisplay">
@@ -364,14 +355,6 @@
                 </div>
             </div>
 
-            <div class="voice-control-commands">
-                <span class="vcc-label">Voice:</span>
-                <code>next</code>
-                <code>repeat</code>
-                <code>skip</code>
-                <code>stats</code>
-                <code>[interval name]</code>
-            </div>
             </section>
 
             <footer class="page-footer">
@@ -399,7 +382,6 @@
     <script src="shared-header.js?v=375"></script>
     <script src="music-constants.js?v=375"></script>
     <script src="voice-output.js?v=375"></script>
-    <script src="voice-command-core.js?v=375"></script>
     <script src="pattern-practice-core.js?v=375"></script>
     <script src="piano-core.js?v=375"></script>
     <script src="pitch-detect-core.js?v=375"></script>

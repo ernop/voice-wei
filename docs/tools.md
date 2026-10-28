@@ -8,9 +8,9 @@ option plays is in [scales-patterns.md](scales-patterns.md).
 
 Scale trainer with realistic piano (Salamander samples), driven by its
 option buttons: each one both shows and sets its setting, so the buttons,
-keyboard, readout, and history always say what plays. Scales takes no
-voice input (removed 2026-10-27); the microphone serves only the Sing
-test.
+keyboard, readout, and history always say what plays. No page takes
+spoken input (removed 2026-10-27); on Scales the microphone serves only
+the Sing test.
 
 The transport row is Play (primary, stretches wide), then Stop. **Play
 always plays the settings.** Clicked settings persist per tab and restart
@@ -374,7 +374,7 @@ Ear training lives on the **Intervals** page under **Ear training** mode
 (`intervals.html?mode=ear`). The old `ears.html` URL redirects there.
 
 - **Identify**: hear an interval (ascending, descending, or harmonic),
-  name it by button or voice ("major third", "tritone", aliases accepted).
+  name it with the answer buttons.
 - **Sing**: hear a reference note, sing the prompted interval; pitch
   detection confirms when you hold the target (~1.5s within tolerance).
 - **Both**: identify first, then sing it. The identification is the recorded
@@ -386,10 +386,9 @@ Driving mode speaks feedback. Lifetime per-interval stats persist. The
 Drone Test plays a sustained reference tone and shows live cents while you
 match it.
 
-Voice commands: "next", "repeat", "skip" (an unanswered question counts as
-missed; after an answer it only moves on), "stats", or an interval name to
-answer. Hardware media keys: play/pause repeat the current interval, next
-plays a new one.
+Skip (in Sing mode) counts an unanswered question as missed; after an
+answer it only moves on. Hardware media keys: play/pause repeat the
+current interval, next plays a new one.
 
 What a settled question queues (auto-advance, Skip's move on, Both's sing
 step) waits one at a time, and Next drops it: pressing Next always gives
@@ -397,13 +396,13 @@ exactly one new question, never a second one landing on it moments later.
 
 ## Music
 
-Keyless voice music player: **say or type artist/song terms, get a playlist.**
+Keyless music player: **type artist/song terms, get a playlist.**
 
 - "The Beatles" - up to ten direct YouTube results, no API key
 - "Miles Davis Kind of Blue" - direct artist/title search, no API key
 - "That Beatles song with the submarine" - use **Ask AI** for interpretation
 
-The normal Search button, Enter key, and voice fallback send the words directly
+The normal Search button and Enter key send the words directly
 to the same-origin PHP endpoint, which queries Piped/Invidious without a YouTube
 API key. Its top ten video results become playlist rows; common
 `Artist - Track` titles are split locally for lyric identity, with channel/title
@@ -413,36 +412,14 @@ the same keyless YouTube search runs. Ask AI and Song Reports need one provider
 key stored in localStorage; invoking either action
 without its selected provider's key opens the optional key entry overlay on
 the spot (with a Close button to decline) alongside the persistent problem
-banner. Settings cover keys,
-auto-submit vs manual voice mode, model selection, and spoken responses.
+banner. Settings cover keys, model selection, spoken responses, and the
+car / lock-screen listening text.
 The page records `Startup: Ready in ...` in its Log after controls, stored
 settings, the local song library, and the restored playlist are usable. The
 browser console carries the full named phase, navigation, resource, and
 long-task tables when a slow load needs diagnosis.
 
-Transport voice commands:
-
-| Command | Action |
-|---------|--------|
-| "play" / "start" / "resume" | Play |
-| "pause" / "halt" | Pause |
-| "stop" | Stop |
-| "next" / "skip" | Next song |
-| "previous" / "back" | Previous song |
-| "fast forward" / "rewind" | Skip 5s forward / back |
-| "shuffle" | Shuffle playlist |
-| "clear" | Clear playlist |
-| "what's playing" | Announce current song |
-| "load favorites" / "play my favorites" | Load favorites (same as the button) |
-| "star this" / "unstar this" | Star or unstar the sounding song |
-| "favorites only" / "show only starred" | Turn on Favorites only |
-| "show all" | Show all (clears every playlist view) |
-| "unload unstarred" / "remove non-favorites" | Unload unstarred |
-| "submit" | Send pending command (manual mode) |
-
-Music pauses while you speak and resumes while the search runs.
-
-The **Find music** card holds Listen, the search box with **Search** and **Ask
+The **Find music** card holds the search box with **Search** and **Ask
 AI**, the **Ask AI model** fold-out, and the **History / Cache** and **Song
 Library** buttons. The typed box defaults to **Search**. **Ask AI** beside it
 uses the model named in the **Ask AI model** fold-out under the box; opening
@@ -492,7 +469,7 @@ after a tap on the page; a page tapped while the request runs starts playing.
 Once the link has run, `url` and `onlyURL` leave the address bar, so a reload
 keeps the built playlist; a reload mid-run (or after saving a missing key)
 runs the link again. The lookup is recorded in History and reruns with the
-same page and mode. Typed or spoken requests that contain a URL still work as
+same page and mode. Typed requests that contain a URL still work as
 before: their words decide what to take from the page. A YouTube channel or
 playlist link on its own is the exception (next).
 
@@ -710,8 +687,7 @@ hands and eyes, top to bottom:
   line) is disabled on tracks without timed lyrics.
 
 On wide screens the card splits into two columns: the song line and sung
-line on the left, the control cluster on the right. The Listen button
-scrolls with the page inside the **Find music** card.
+line on the left, the control cluster on the right.
 
 The status line under the card always holds two lines of space (a longer
 message is cut after its second line), so Play's loading and playing
@@ -753,8 +729,8 @@ Other surfaces on the page:
   ("Filtering for favorites only + timed lyrics only + \"sunset\" - 3 of 12
   shown") with a **Show all** button that clears all three. While Timed only
   is active, the status also counts text matches still waiting for lyric
-  resolution. What the list shows is what plays: Previous/Next (buttons,
-  media keys, voice) and the advance at a song's end step through the shown
+  resolution. What the list shows is what plays: Previous/Next (buttons
+  and media keys) and the advance at a song's end step through the shown
   songs only, wrapping at either end; Play starts the selected song when it
   is shown, otherwise the next shown one. The playlist order itself never
   changes.
@@ -777,8 +753,8 @@ Other surfaces on the page:
   lines labeled **Prebuffer probe**; they report player readiness, cold start,
   buffered seconds, warm-resume latency, and any YouTube errors. The probe is
   diagnostic only and is completely absent without the query parameter.
-- **Stars**: a row star, the now-playing star, the Big Lyrics star, and
-  the voice "star this" / "unstar this" all change the same favorite; every
+- **Stars**: a row star, the now-playing star, and the Big Lyrics star
+  all change the same favorite; every
   view of that song, the starred count, the Load favorites count, and
   Favorites only update together.
 - **Load favorites** appends every not-already-loaded favorite in one list
@@ -917,8 +893,8 @@ OpenAI.
   audio markers remain clickable. A toggle can keep about one hour generated
   ahead.
 - **AI Research** is a dedicated card immediately after the Listen card.
-  **AI question** pauses the current MP3 and starts one-utterance browser
-  speech recognition; questions remain editable/typable. Before sending, the
+  **AI question** pauses the current MP3 and opens the research panel with
+  the question box focused; the question is typed. Before sending, the
   card shows the exact full request body with only the book context replaced by
   an explicit placeholder, plus that complete source text in its own disclosure.
   Requests use the OpenAI Responses API with GPT-5.6 Sol, reasoning high, and

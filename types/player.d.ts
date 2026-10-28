@@ -5,7 +5,6 @@
 
 interface PlayerAppSettings {
     readClaudeResponse: boolean;
-    autoSubmitMode: boolean;
     claudeModel: string;
     openaiModel: string;
     aiProvider: string;
@@ -467,15 +466,10 @@ interface VoiceMusicController {
     readonly isPaused: boolean;
     readonly currentPlayingId: number | null;
     currentPlaylistIndex: number;
-    wasPlayingBeforeListening: boolean;
     progressDiff: ValueDiff;
     activeSeekStrip: HTMLElement | null;
     youtubeApiReadyPromise: Promise<void> | null;
     resolveYouTubeApiReady: (() => void) | null;
-    parseControlCommand(transcript: string): string | null;
-    executeControlCommand(command: string): void;
-    showHelp(): void;
-    announceCurrentSong(): void;
     processCommandWithLLM(request: MusicSearchRequest): Promise<any>;
     processCommandWithClaude(request: MusicSearchRequest): Promise<any>;
     processCommandWithOpenAI(request: MusicSearchRequest): Promise<any>;

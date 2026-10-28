@@ -139,8 +139,6 @@ const PlayerStartup = (function () {
 
 class VoiceMusicController {
     constructor() {
-        /** @type {VoiceCommandCore | null} */
-        this.voiceCore = null;
         /** @type {string} ISO time this page session began (splits stored logs into earlier/current) */
         this.sessionStartedAt = new Date().toISOString();
         /** @type {boolean} Earlier-session log lines already replayed into the panel */
@@ -168,7 +166,6 @@ class VoiceMusicController {
         /** @type {PlayerAppSettings} */
             this.settings = PlayerStorage.loadSettings({
             readClaudeResponse: false,
-            autoSubmitMode: true,
             claudeModel: 'claude-fable-5',
             openaiModel: 'gpt-5.5',
             aiProvider: 'claude',
@@ -222,8 +219,6 @@ class VoiceMusicController {
         this.mediaActionHandlersSet = false;
         /** @type {boolean} */
         this.isProcessingCommand = false;
-        /** @type {TranscriptManager | null} Set from the voice core in setupVoiceCore */
-        this.transcript = null;
 
         PlayerCommands.install(this);
         PlayerPlaylist.install(this);
@@ -246,10 +241,6 @@ class VoiceMusicController {
         PlayerStorage.saveLyricsViewSettings(this.lyricsViewSettings);
     }
 
-    get isListening() {
-        return this.voiceCore ? this.voiceCore.isListening : false;
-    }
-
     async init() {
         const endInitialization = PlayerStartup.begin('application initialization');
         try {
@@ -263,7 +254,7 @@ class VoiceMusicController {
             await this.loadConfig();
             endPhase();
 
-            endPhase = PlayerStartup.begin('UI and voice control wiring');
+            endPhase = PlayerStartup.begin('UI wiring');
             this.setupUI();
             endPhase();
 
@@ -813,49 +804,6 @@ class VoiceMusicController {
         }
     }
 
-    setupVoiceCore() {
-        this.voiceCore = new VoiceCommandCore({
-            settings: { autoSubmitMode: this.settings.autoSubmitMode },
-            onBeforeListen: () => {
-                // Pause playback while listening - music interferes with
-                // recognition accuracy. Resumes while the search runs.
-                this.wasPlayingBeforeListening = this.isPlaying && !this.isPaused;
-                if (this.wasPlayingBeforeListening) {
-                    this.pausePlayback();
-                }
-            },
-            onError: (/** @type {string} */ msg) => this.logError('Voice recognition', { message: msg })
-        });
-
-        // Transport/control commands ("pause", "next", "shuffle"...) run locally
-        this.voiceCore.registerHandler({
-            parse: (/** @type {string} */ transcript) => this.parseControlCommand(transcript),
-            execute: async (/** @type {any} */ command, /** @type {string} */ transcript) => {
-                this.hideClaudeResponse();
-                this.logUserMessage(transcript);
-                this.executeControlCommand(command);
-                this.hidePrompt();
-                // Control commands manage their own playback state
-                this.wasPlayingBeforeListening = false;
-            }
-        });
-
-        // Raw YouTube search is the primary/default voice path. AI
-        // interpretation remains an explicit typed action.
-        this.voiceCore.setFallbackHandler(async (/** @type {string} */ transcript) => {
-            await this.processDirectMusicSearch(transcript);
-        });
-
-        this.voiceCore.init();
-        this.transcript = this.voiceCore.transcript;
-
-        // The core's init sets status to Ready. Missing keys are only relevant
-        // when the visitor invokes an AI music request or Song Report.
-        if (!(this.config?.claudeApiKey || this.config?.openaiApiKey)) {
-            this.updateStatus('Ready - keyless search');
-        }
-    }
-
     setupUI() {
         // Setup API key management UI
         this.setupApiKeyUI();
@@ -875,17 +823,9 @@ class VoiceMusicController {
 
         // Update UI with saved settings
         const readClaudeEl = /** @type {HTMLInputElement | null} */ (document.getElementById('readClaudeResponse'));
-        const autoSubmitEl = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
 
         if (readClaudeEl) readClaudeEl.checked = this.settings.readClaudeResponse;
-        if (autoSubmitEl) autoSubmitEl.checked = this.settings.autoSubmitMode;
         PracticeControls.syncSingleSelect('data-claude-model', this.settings.claudeModel);
-        this.updateModeToggle();
-
-        // Voice recognition (shared core) - created after settings restore
-        // so the saved auto/manual mode applies from the start. The core
-        // wires the Listen and Submit buttons itself.
-        this.setupVoiceCore();
 
         // Settings change handlers - use 'input' for immediate response as user adjusts
         if (readClaudeEl) readClaudeEl.addEventListener('input', (e) => {
@@ -905,31 +845,11 @@ class VoiceMusicController {
             });
         }
 
-        if (autoSubmitEl) autoSubmitEl.addEventListener('input', (e) => {
-            const target = /** @type {HTMLInputElement} */ (e.target);
-            this.setAutoSubmitMode(target.checked);
-        });
-
         PracticeControls.wireSingleSelect('data-claude-model', String, this.settings.claudeModel, value => {
             this.settings.claudeModel = value;
             this.saveSettings();
             this.syncQueryModelPills();
         });
-
-        // Mode toggle button (if it exists in the UI). Listen and Submit
-        // buttons are wired by the voice core.
-        const modeToggleBtn = document.getElementById('modeToggleBtn');
-        if (modeToggleBtn) {
-            modeToggleBtn.addEventListener('click', () => {
-                this.setAutoSubmitMode(!this.settings.autoSubmitMode);
-                // Also update the settings checkbox
-                const autoSubmitCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById('autoSubmitMode'));
-                if (autoSubmitCheckbox) {
-                    autoSubmitCheckbox.checked = this.settings.autoSubmitMode;
-                }
-            });
-            this.updateModeToggle();
-        }
 
         // Per-query model chooser: the same persisted provider/model
         // settings, reachable at the request box. Both surfaces stay in
@@ -1279,38 +1199,6 @@ class VoiceMusicController {
         this.updateLyricsButtonLabels();
     }
 
-    stopListening() {
-        this.voiceCore?.stopListening();
-    }
-
-    setAutoSubmitMode(enabled) {
-        this.settings.autoSubmitMode = enabled;
-        this.saveSettings();
-        this.updateModeToggle();
-        // The core resets the transcript and stops listening on mode change
-        this.voiceCore?.setAutoSubmitMode(enabled);
-    }
-
-    updateSubmitButton(show) {
-        this.voiceCore?.updateSubmitButton(show);
-    }
-
-    updateModeToggle() {
-        const modeToggleBtn = document.getElementById('modeToggleBtn');
-        const modeLabel = document.getElementById('modeLabel');
-        if (modeToggleBtn && modeLabel) {
-            if (this.settings.autoSubmitMode) {
-                modeLabel.textContent = 'Auto-Send';
-                modeToggleBtn.classList.remove('manual-mode');
-                modeToggleBtn.title = 'Sends when you pause speaking. Tap to switch to Hold mode.';
-            } else {
-                modeLabel.textContent = 'Hold Mode';
-                modeToggleBtn.classList.add('manual-mode');
-                modeToggleBtn.title = 'Keeps listening until you say "submit". Tap to switch to Auto.';
-            }
-        }
-    }
-
     saveSettings() {
         PlayerStorage.saveSettings(this.settings);
     }
@@ -1409,10 +1297,6 @@ class VoiceMusicController {
             return;
         }
 
-        if (this.isListening) {
-            this.stopListening();
-        }
-
         // No refocus after the search returns: grabbing the text box would
         // pop the keyboard / steal focus mid-listen on the results.
         // A lone channel or playlist link opens the YouTube list card from
@@ -1434,6 +1318,21 @@ class VoiceMusicController {
         }
     }
 
+    /**
+     * The Request card names what the page is working on: a typed search,
+     * an Ask AI request, a YouTube list link, or a linked-page build.
+     * @param {string} text
+     */
+    showRequest(text) {
+        const card = /** @type {HTMLElement} */ (document.getElementById('requestCard'));
+        /** @type {HTMLElement} */ (document.getElementById('requestText')).textContent = text;
+        card.hidden = false;
+    }
+
+    hideRequest() {
+        /** @type {HTMLElement} */ (document.getElementById('requestCard')).hidden = true;
+    }
+
     async processDirectMusicSearch(transcript) {
         const query = transcript.trim();
         if (!query) {
@@ -1441,22 +1340,15 @@ class VoiceMusicController {
             return;
         }
 
-        this.hideClaudeResponse();
-        this.hidePrompt();
         this.logUserMessage(query);
-        this.transcript.show(query);
-        if (this.wasPlayingBeforeListening) {
-            this.playPlaylist();
-        }
+        this.showRequest(query);
 
         this.isProcessingCommand = true;
-        this.updateSubmitButton(true);
         this.updateTypedCommandUI(true);
         this.updateStatus(`Searching YouTube for ${this.truncateForStatus(query)}...`);
 
         try {
             const result = await this.searchDirectAndAddToPlaylist(query);
-            this.wasPlayingBeforeListening = false;
             if (result.addedCount === 0) {
                 this.updateStatus(`No YouTube matches for: ${this.truncateForStatus(query)}`);
                 return;
@@ -1470,9 +1362,7 @@ class VoiceMusicController {
             this.logError('Direct Music Search Error', error);
             this.updateStatus(`YouTube search failed: ${message}`);
         } finally {
-            this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;
-            this.updateSubmitButton(false);
             this.updateTypedCommandUI(false);
         }
     }
@@ -1519,16 +1409,10 @@ class VoiceMusicController {
      */
     async runMusicSearch(request) {
         const requestText = request.requestText;
-        this.hideClaudeResponse();
         this.logUserMessage(requestText);
-        this.transcript.show(requestText);
-
-        if (this.wasPlayingBeforeListening) {
-            this.playPlaylist();
-        }
+        this.showRequest(requestText);
 
         this.isProcessingCommand = true;
-        this.updateSubmitButton(true);
         this.updateTypedCommandUI(true);
         this.updateStatus(`Processing with ${this.activeModelLabel()}...`);
 
@@ -1536,13 +1420,8 @@ class VoiceMusicController {
             const result = await this.processCommandWithLLM(request);
             this.hideApiKeyProblem();
 
-            // Music that resumed during the Claude wait keeps playing while
-            // the YouTube searches run and the new playlist fills in.
-            this.wasPlayingBeforeListening = false;
-
             if (!result || !result.songList || result.songList.length === 0) {
                 this.updateStatus('No songs found. Try again.');
-                this.hidePrompt();
                 if (this.settings.readClaudeResponse) {
                     this.speakText('No songs found. Try again.');
                 }
@@ -1550,7 +1429,6 @@ class VoiceMusicController {
             }
 
             if (result.prompt) {
-                this.showPrompt(result.prompt);
                 this.logClaudeMessage(`Prompt sent:\n${result.prompt}`);
             }
 
@@ -1584,7 +1462,7 @@ class VoiceMusicController {
             if (this.settings.readClaudeResponse) {
                 const songNames = result.songList.map(s => s.searchTerm).slice(0, 3).join(', ');
                 const announcement = `Added ${addedCount} song${addedCount > 1 ? 's' : ''}${skipText}: ${songNames}`;
-                await this.speakTextAsync(announcement);
+                await this.speakText(announcement);
             }
 
             // Browsers refuse audible playback until the reader has touched
@@ -1621,7 +1499,6 @@ class VoiceMusicController {
                         error: 'NoSongsFoundError'
                     });
                 }
-                this.hidePrompt();
                 if (this.settings.readClaudeResponse) {
                     this.speakText(`No songs found for: ${requestSummary}`);
                 }
@@ -1634,12 +1511,9 @@ class VoiceMusicController {
             } else if (this.settings.readClaudeResponse) {
                 this.speakText(`Music lookup failed: ${message}`);
             }
-            this.hidePrompt();
             return error && error.missingKey === true ? 'missing-key' : 'failed';
         } finally {
-            this.wasPlayingBeforeListening = false;
             this.isProcessingCommand = false;
-            this.updateSubmitButton(false);
             this.updateTypedCommandUI(false);
         }
     }
@@ -1673,16 +1547,9 @@ class VoiceMusicController {
         }
     }
 
+    /** @param {string} text */
     speakText(text) {
-        return this.speakTextAsync(text);
-    }
-
-    speakTextAsync(text) {
-        if (typeof VoiceOutput !== 'undefined') {
-            return VoiceOutput.speak(text);
-        }
-        console.warn('[VoiceMusicController] VoiceOutput library not loaded');
-        return Promise.resolve();
+        return VoiceOutput.speak(text);
     }
 
     toggleFavorite(videoId, songData = null) {
@@ -1713,23 +1580,6 @@ class VoiceMusicController {
         return !!this.favorites[videoId];
     }
 
-    showClaudeResponse(text) {
-        // Log to messages panel instead of showing in main UI
-        this.addMessage('claude', 'Claude Response:', text);
-    }
-
-    hideClaudeResponse() {
-        // No-op, responses go to messages panel
-    }
-
-    showPrompt(promptText) {
-        // Log to messages panel instead of showing in main UI
-        this.addMessage('claude', 'Prompt:', promptText);
-    }
-
-    hidePrompt() {
-        // No-op, prompts go to messages panel
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -42,7 +42,7 @@ const RESTORED_PLAYLIST_SIZE = 883;
     const expectedPhases = [
         'controller construction and stored settings',
         'configuration and API key state',
-        'UI and voice control wiring',
+        'UI wiring',
         'lyrics view settings',
         'YouTube API readiness wiring',
         'local song library hydration',

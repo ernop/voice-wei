@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Voice-Wei: Voice-controlled music player">
+    <meta name="description" content="Voice-Wei: music player with live lyrics">
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -75,14 +75,6 @@
                 </label>
                 <p class="setting-description">Timed lyrics stay on the first now-playing line. The second line
                     shows either song identity or the active Song Report.</p>
-            </div>
-            <div class="setting-item">
-                <label class="display-toggle">
-                    <input type="checkbox" id="autoSubmitMode" checked />
-                    <span>Auto-submit when done talking</span>
-                </label>
-                <p class="setting-description">Auto: Submits after you pause. Manual: Keeps listening until you say
-                    "submit" or click Submit button.</p>
             </div>
             <div class="setting-item" id="claudeModelSection">
                 <label>Claude Model:</label>
@@ -186,9 +178,9 @@
 
             <div class="status" id="status">Initializing...</div>
 
-            <div class="transcript-container" id="transcriptContainer" style="display: none;">
-                <p class="transcript-label">Request:</p>
-                <p class="transcript" id="transcript"></p>
+            <div class="request-card" id="requestCard" hidden>
+                <span class="request-label">Request:</span>
+                <span class="request-text" id="requestText"></span>
             </div>
 
             <div class="api-key-problem" id="apiKeyProblemBanner" style="display: none;" role="alert">
@@ -200,14 +192,6 @@
                 <div class="lyrics-page-column">
                     <section class="player-card find-card" aria-labelledby="findMusicTitle">
                         <h2 class="player-card-title" id="findMusicTitle">Find music</h2>
-                        <div class="voice-controls-row">
-                            <button id="listenBtn" class="listen-button" aria-label="Start listening">
-                                <span class="button-text">Listen</span>
-                                <span class="button-icon">&#9834;</span>
-                            </button>
-                            <button id="submitBtn" class="submit-button-large" style="display: none;"
-                                aria-label="Submit">Submit</button>
-                        </div>
                         <label class="find-label" for="typedCommandInput">Search music (no API key needed)</label>
                         <div class="typed-command-row">
                             <textarea id="typedCommandInput" class="text-input typed-command-input" rows="1"
@@ -303,7 +287,7 @@
                             <span id="playlistFilterStatusText"></span>
                             <button id="playlistFilterCancelBtn" class="panel-action-btn" type="button">Show all</button>
                         </div>
-                        <div class="playlist-empty" id="playlistEmpty">No songs yet. Search or speak above, or press
+                        <div class="playlist-empty" id="playlistEmpty">No songs yet. Search above, or press
                             Load favorites.</div>
                         <div class="playlist-list" id="playlistBody"></div>
                     </section>
@@ -509,7 +493,6 @@
     <script src="render-throttle.js?v=375"></script>
     <script src="practice-controls.js?v=375"></script>
     <script src="voice-output.js?v=375"></script>
-    <script src="voice-command-core.js?v=375"></script>
     <script src="media-session-core.js?v=375"></script>
     <script src="player-songs.js?v=375"></script>
     <script src="player-storage.js?v=375"></script>

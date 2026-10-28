@@ -494,9 +494,35 @@ body[data-page="music"] .header-lyric-line {
     overflow: hidden;
 }
 
-.lyrics-page .transcript-container {
-    margin: 0;
+/* A request can be one long URL (linked-page links); it wraps rather than
+   widening the page. */
+.request-card {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: var(--radius-card);
     text-align: left;
+}
+
+.request-card[hidden] {
+    display: none;
+}
+
+.request-label {
+    flex: none;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.request-text {
+    min-width: 0;
+    font-size: 1.2rem;
+    font-weight: 500;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .api-key-problem {
@@ -542,22 +568,6 @@ body[data-page="music"] .header-lyric-line {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-/* The shared voice row is sticky on practice pages; here the now-playing
-   card is the sticky surface, so Listen scrolls with its card. */
-.find-card .voice-controls-row {
-    position: static;
-    min-height: 0;
-    margin: 0;
-    background: none;
-    border-bottom: none;
-    backdrop-filter: none;
-}
-
-.find-card .voice-controls-row .listen-button,
-.find-card .voice-controls-row .submit-button-large {
-    height: 60px;
 }
 
 .find-label {

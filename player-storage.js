@@ -8,7 +8,6 @@
 /** @type {string[]} */
 const PLAYER_SETTINGS_KEYS = [
     'readClaudeResponse',
-    'autoSubmitMode',
     'claudeModel',
     'openaiModel',
     'aiProvider',
