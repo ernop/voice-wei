@@ -5,6 +5,12 @@
 // (ebook-research.js) are libraries it calls.
 
 const AUTO_AHEAD_SECONDS = 60 * 60;
+// The Books link: ebook.html?url=<encoded page address>
+const BOOKS_LINK_URL_PARAM = 'url';
+// A page added by a Books link is narrated without a button press only when
+// it plays this long or less: anyone can make such a link, and narration is
+// billed to the owner's OpenAI key.
+const LINKED_PAGE_NARRATION_MAX_SECONDS = 3 * 60 * 60;
 // History names for the media player's jumps where Books recorded the same jump under an older
 // name, so old and new history read alike. Skips are named by direction; any other jump keeps the
 // player's own cause name.
@@ -127,6 +133,7 @@ class BooksController {
         this.loadSettings();
         this.setupUI();
         await this.setupStorage();
+        await this.addLinkedPage();
     }
 
     async setupStorage() {
@@ -170,6 +177,7 @@ class BooksController {
         const overlayInput = /** @type {HTMLInputElement | null} */ (document.getElementById('openaiApiKeyOverlayInput'));
         if (settingsInput) settingsInput.value = '';
         if (overlayInput) overlayInput.value = '';
+        void this.narrateIfMarked();
         return true;
     }
 
@@ -1388,6 +1396,70 @@ class BooksController {
     }
 
     /**
+     * A Books link, ebook.html?url=<encoded page address> (the parameter the
+     * Music page's linked-page link uses), saves that page as a book and
+     * narrates it, so a page can be sent to Books from anywhere a link opens.
+     * A page already saved from that address is opened, not read again. The
+     * parameter leaves the address bar once the link has run, so a reload or a
+     * restored tab does not run it again; a reload while the page is read does.
+     */
+    async addLinkedPage() {
+        const rawUrl = new URLSearchParams(location.search).get(BOOKS_LINK_URL_PARAM);
+        if (rawUrl === null || !this.storage) return;
+        /** @type {URL | null} */
+        let pageUrl = null;
+        try {
+            pageUrl = new URL(rawUrl.trim());
+        } catch (_invalidUrl) {
+            pageUrl = null;
+        }
+        if (!pageUrl || (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:')) {
+            this.updateStatus(`Books link needs a full http(s) page address in "${BOOKS_LINK_URL_PARAM}" (got "${rawUrl}")`);
+            this.clearLinkedPageFromLocation();
+            return;
+        }
+        const url = pageUrl.href;
+
+        let book = this.books.find(item => item.sourceUrl === url) || null;
+        if (!book) {
+            this.updateStatus(`Reading ${url} ...`);
+            try {
+                const page = await this.fetchWebPage(url);
+                this.log('info', `Read ${page.title || page.url}: ${page.text.length} chars, ${page.links.length} outbound links`);
+                book = (await this.saveWebBook(url, rawUrl.trim(), page, [])).book;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.log('error', `Could not read ${url}: ${message}`);
+                this.clearLinkedPageFromLocation();
+                const urlInput = /** @type {HTMLInputElement | null} */ (document.getElementById('urlInput'));
+                if (urlInput) urlInput.value = url;
+                this.updateStatus(`Could not read ${url}: ${message}. Press Add from web to try again.`);
+                return;
+            }
+            await this.refreshLibrary();
+            await this.updateStorageEstimate();
+        }
+        this.clearLinkedPageFromLocation();
+
+        const narrate = book.estimatedDurationSec <= LINKED_PAGE_NARRATION_MAX_SECONDS;
+        if (book.narrateWhenOpen !== narrate) {
+            book.narrateWhenOpen = narrate;
+            await this.storage.putBook(book);
+        }
+        await this.openBook(book.id);
+        if (!narrate) {
+            this.updateStatus(`${book.title} plays about ${this.formatDuration(book.estimatedDurationSec)}. A Books link narrates pages up to ${this.formatDuration(LINKED_PAGE_NARRATION_MAX_SECONDS)} by itself; press Whole book to narrate this one.`);
+        }
+    }
+
+    // Leaves every other parameter in place.
+    clearLinkedPageFromLocation() {
+        const url = new URL(location.href);
+        url.searchParams.delete(BOOKS_LINK_URL_PARAM);
+        history.replaceState(history.state, '', url.href);
+    }
+
+    /**
      * @param {string} url
      * @returns {Promise<WebPage>}
      */
@@ -1591,10 +1663,45 @@ class BooksController {
      */
     async buildMetabook(state, results) {
         if (!this.storage || !state.rootPage || state.cancelled) return;
-        const rootPage = state.rootPage;
+        /** @type {{ book: BookRecord, succeeded: number, failed: number }} */
+        let saved;
+        try {
+            saved = await this.saveWebBook(state.rootUrl, state.requestedUrl, state.rootPage, results);
+        } catch (error) {
+            this.updateStatus(error instanceof Error ? error.message : String(error));
+            this.cancelUrlImport();
+            return;
+        }
+        const { book, succeeded, failed } = saved;
+        this.closeUrlImportOverlay();
+        this.urlImport = null;
+        await this.refreshLibrary();
+        await this.updateStorageEstimate();
+        this.showWorkspace(false);
+        this.currentBook = null;
+        this.sections = [];
+        this.segments = [];
+        this.currentSegmentId = null;
+        this.renderLibrary();
+        const failNote = failed ? `, ${failed} link${failed === 1 ? '' : 's'} could not be read` : '';
+        this.updateStatus(`Built ${book.title}: contents + ${succeeded} chapter${succeeded === 1 ? '' : 's'}${failNote}`);
+        this.log('info', `Built web book ${book.title}: ${book.sectionCount} chapters (${succeeded} from links, ${failed} failed), ${book.segmentCount} internal audio parts planned`);
+    }
 
+    /**
+     * Saves a page read from the web as a book whose first chapter is the page
+     * and whose further chapters are the linked pages read with it, replacing
+     * the book saved before from the same address.
+     * @param {string} rootUrl
+     * @param {string} requestedUrl
+     * @param {WebPage} rootPage
+     * @param {UrlImportResult[]} results
+     * @returns {Promise<{ book: BookRecord, succeeded: number, failed: number }>}
+     */
+    async saveWebBook(rootUrl, requestedUrl, rootPage, results) {
+        if (!this.storage) throw new Error('IndexedDB is required for saved books.');
         const books = await this.storage.getBooks();
-        const existing = books.find(b => b.sourceUrl && b.sourceUrl === state.rootUrl);
+        const existing = books.find(b => b.sourceUrl && b.sourceUrl === rootUrl);
         const bookId = existing ? existing.id : this.createId('book');
 
         /** @type {RawBookSection[]} */
@@ -1621,31 +1728,22 @@ class BooksController {
             }
         }
 
-        const tocBody = [
-            rootPage.title,
-            '',
-            BooksParse.cleanText(rootPage.text),
-            '',
-            'Contents',
-            ''
-        ].join('\n');
-        const tocText = tocLines.length ? `${tocBody}\n${tocLines.join('\n')}` : tocBody;
+        const pageText = [rootPage.title, '', BooksParse.cleanText(rootPage.text)].join('\n');
+        const firstChapterText = tocLines.length
+            ? [pageText, '', 'Contents', '', ...tocLines].join('\n')
+            : pageText;
 
         /** @type {RawBookSection[]} */
-        const rawSections = [{ title: rootPage.title || 'Contents', text: BooksParse.cleanText(tocText), html: '' }, ...chapterSections]
+        const rawSections = [{ title: rootPage.title || 'Contents', text: BooksParse.cleanText(firstChapterText), html: '' }, ...chapterSections]
             .filter(section => section.text.length > 0);
-        if (rawSections.length === 0) {
-            this.updateStatus('No readable text collected');
-            this.cancelUrlImport();
-            return;
-        }
+        if (rawSections.length === 0) throw new Error('No readable text collected');
 
         if (existing) await this.storage.deleteBookCascade(existing.id);
         const { sections, segments, totalWords, charCount } = BooksParse.assembleSectionsAndSegments(bookId, rawSections, this.settings.speed);
-        const title = rootPage.title || state.rootUrl;
+        const title = rootPage.title || rootUrl;
         const snapshot = JSON.stringify({
-            rootUrl: state.rootUrl,
-            requestedUrl: state.requestedUrl,
+            rootUrl,
+            requestedUrl,
             fetchedAt: new Date().toISOString(),
             contents: { succeeded, failed },
             toc: tocLines,
@@ -1660,7 +1758,7 @@ class BooksController {
             schemaVersion: 4,
             audioPlanVersion: AUDIO_PLAN_VERSION,
             title,
-            author: this.hostnameFor(state.rootUrl),
+            author: this.hostnameFor(rootUrl),
             format: 'web',
             fileName: `${this.slugify(title)}.web.json`,
             fileType: 'application/json',
@@ -1684,28 +1782,17 @@ class BooksController {
             legacyAudioBlob: null,
             legacyAudioSize: 0,
             contentOrigin: 'url',
-            sourceUrl: state.rootUrl,
-            sourceRequestedUrl: state.requestedUrl,
+            sourceUrl: rootUrl,
+            sourceRequestedUrl: requestedUrl,
             lastFetchedAt: now,
-            sourcePageUrls: pageUrls
+            sourcePageUrls: pageUrls,
+            narrateWhenOpen: false
         };
 
         await this.storage.putBook(book);
         await this.storage.putSections(sections);
         await this.storage.putSegments(segments);
-        this.closeUrlImportOverlay();
-        this.urlImport = null;
-        await this.refreshLibrary();
-        await this.updateStorageEstimate();
-        this.showWorkspace(false);
-        this.currentBook = null;
-        this.sections = [];
-        this.segments = [];
-        this.currentSegmentId = null;
-        this.renderLibrary();
-        const failNote = failed ? `, ${failed} link${failed === 1 ? '' : 's'} could not be read` : '';
-        this.updateStatus(`Built ${title}: contents + ${succeeded} chapter${succeeded === 1 ? '' : 's'}${failNote}`);
-        this.log('info', `Built web book ${title}: ${sections.length} chapters (${succeeded} from links, ${failed} failed), ${segments.length} internal audio parts planned`);
+        return { book, succeeded, failed };
     }
 
     /** @param {number} done @param {number} total @param {string} label */
@@ -1857,6 +1944,14 @@ class BooksController {
         this.renderWorkspace();
         this.renderLibrary();
         this.updateStatus(`Opened ${book.title}`);
+        await this.narrateIfMarked();
+    }
+
+    /** Narrates every part of the open book still missing audio, when the book is marked to narrate when open. */
+    async narrateIfMarked() {
+        if (this.currentBook?.narrateWhenOpen !== true) return;
+        if (!this.segments.some(segment => this.isSegmentPending(segment))) return;
+        await this.generateAllRemaining();
     }
 
     shouldAutoRebuildLegacyTextPlan() {
@@ -2743,6 +2838,7 @@ class BooksController {
             book.updatedAt = new Date().toISOString();
             book.legacyAudioBlob = null;
             book.legacyAudioSize = 0;
+            book.narrateWhenOpen = false;
             await this.storage.putBook(book);
             if (this.currentBook?.id === id) this.currentBook = book;
         }

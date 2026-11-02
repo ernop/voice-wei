@@ -45,6 +45,9 @@ const RESEARCH_STORE = 'research';
  * @property {string} [sourceRequestedUrl]
  * @property {string} [lastFetchedAt]
  * @property {string[]} [sourcePageUrls]
+ * @property {boolean} [narrateWhenOpen] Opening the book narrates every part
+ *   that has no audio yet. A Books link sets it; deleting the book's audio
+ *   clears it. Books saved before links existed lack it and are not narrated.
  */
 
 /**

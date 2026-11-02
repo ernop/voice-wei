@@ -208,6 +208,47 @@ function readFixturePage(body, options = {}) {
             'Visible Song'
         ].join('\n'));
 
+    // Shaped like a LessWrong post page (2026-11-01): the post body is a
+    // postContent container whose first child is <div class="commentOnSelection">,
+    // and the comment threads follow it. Ending the container at the first
+    // comment-like class imported nothing, so posts were read from a mirror.
+    const forumPost = readFixturePage([
+        '<html><head><title>A Post \u2014 LessWrong</title></head><body>',
+        '<div class="PostsPage-postContent instapaper_body ContentStyles-base content ContentStyles-postBody">',
+        '<div class="commentOnSelection"><div id="postContent"><div><div>',
+        '<p id="block0">The first paragraph of the post.</p>',
+        '<div class="spoilers"><p>A paragraph inside a nested block.</p></div>',
+        '<p>The last paragraph, with <a href="/posts/abcdefghijklmnopq/linked-post">a linked post</a>.</p>',
+        '</div></div></div></div></div>',
+        '<div class="CommentsTableOfContents-root"><a href="#comment-1">First comment</a></div>',
+        '<div class="PostsPage-commentsSection"><div class="CommentsListSection-root">',
+        '<div class="CommentsNode-root"><p>A reader\'s comment, <a href="https://example.test/elsewhere">linking out</a>.</p></div>',
+        '</div></div></body></html>'
+    ].join(''));
+    report.check('a post container ends at its own closing tag: a LessWrong-shaped post reads whole, without its comments',
+        forumPost.status === 200
+        && forumPost.answer.text === [
+            'The first paragraph of the post.',
+            '',
+            'A paragraph inside a nested block.',
+            '',
+            'The last paragraph, with a linked post.'
+        ].join('\n')
+        && forumPost.answer.links.length === 1
+        && forumPost.answer.links[0].url === 'https://example.test/posts/abcdefghijklmnopq/linked-post');
+
+    const forumRoutes = [
+        'https://www.lesswrong.com/posts/3375SZNGA5dKHQMie/i-did-this-without-your-knowledge',
+        'https://www.lesswrong.com/s/5g5TkQTe9rmPS5vvM',
+        'https://www.alignmentforum.org/posts/f8R3B2zqqTJZjSAsm/deconfusing-corrigibility',
+        'https://forum.effectivealtruism.org/posts/abcdefghijklmnopq/a-post'
+    ].map(url => callProxyFunction('resolveReadablePageUrl', [url]));
+    report.check('LessWrong and Alignment Forum posts are read from the site; their other pages and the EA Forum go through GreaterWrong',
+        forumRoutes[0].value === 'https://www.lesswrong.com/posts/3375SZNGA5dKHQMie/i-did-this-without-your-knowledge'
+        && forumRoutes[1].value === 'https://www.greaterwrong.com/s/5g5TkQTe9rmPS5vvM'
+        && forumRoutes[2].value === 'https://www.alignmentforum.org/posts/f8R3B2zqqTJZjSAsm/deconfusing-corrigibility'
+        && forumRoutes[3].value === 'https://ea.greaterwrong.com/posts/abcdefghijklmnopq/a-post');
+
     const plainText = readFixturePage(
         'Setlist\r\n\r\n1. Airbag\r\n2. Paranoid  Android\n\n\n\nEncore:\n3. Lucky\n',
         { contentType: 'text/plain; charset=utf-8' }
@@ -259,7 +300,7 @@ function readFixturePage(body, options = {}) {
     report.check('utf8Prefix never splits a multibyte character',
         prefixes[0].value === 'ab' && prefixes[1].value === 'ab\u2013');
 
-    for (const result of [wikipedia, listPage, plainText, structured, emptyPage, exhausted, ...prefixes]) {
+    for (const result of [wikipedia, listPage, forumPost, ...forumRoutes, plainText, structured, emptyPage, exhausted, ...prefixes]) {
         if (result.failure) report.errors.push(result.failure);
     }
 

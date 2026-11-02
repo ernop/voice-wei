@@ -43,7 +43,7 @@ and deliver a weaker version of the requested change.
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
 | Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
-| Books | Read ebooks, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; one typed question launches source-critical web/image research with the exact request disclosed |
+| Books | Read ebooks and web pages, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; a page sent by a Books link is narrated and waiting when it is played; one typed question launches source-critical web/image research with the exact request disclosed |
 | Wording | Score how cool a word sounds and coin new words from two word sets | Cool-sounding words outrank bland, gross, and unpronounceable ones; coined words are genuinely new, read as one word, and rank by how they sound when spoken |
 | Games | Play the Find projection puzzles | Eleven boards. The eight letters project through the six category lines, either side edits a letter, and the score updates on each edit. The page never names a category word |
 
@@ -407,6 +407,39 @@ checked against this list, and new standing intent gets added here.
    > way to get all/by playlist/some/some subsection etc.? rather than
    > pasting them all in one by one?
 
+## Books: send a page now, hear it later in the car (2026-11-01)
+
+The owner's request (2026-11-01), verbatim:
+
+> id like a way to send texts to my voice-wei app, books tab, for
+> audio-conversion and listening to later. or, some similar setup. e.g. with
+> desired outcome that next time I'm in the car, i can easily listen to an
+> audio version of this:
+> https://www.lesswrong.com/posts/3375SZNGA5dKHQMie/i-did-this-without-your-knowledge
+
+1. **A link sends a page to Books.** Opening
+   `ebook.html?url=<encoded page URL>` on the phone saves the page as a
+   one-chapter book, opens it, and narrates it; nothing else to press. The
+   parameter is the one the Lyrics page's linked-page link uses. Behavior in
+   [tools.md](tools.md#books).
+2. **What was sent is ready when it is played.** Narration that stops early
+   (tab closed, browser froze the background tab, signal lost) resumes the
+   next time the book is opened, because a silent gap in the car is the
+   failure this exists to prevent. A link to a page already saved opens it
+   and reads nothing again.
+3. **A link spends a bounded amount.** Anyone can make a Books link, and
+   narration is billed to the owner's OpenAI key, so a link narrates a page
+   by itself only up to 3 hours of audio (about $2.70 with GPT-4o mini TTS);
+   a longer page is saved and opened and waits for Whole book.
+4. **Forum posts read whole.** LessWrong and Alignment Forum posts are read
+   from the sites themselves (GreaterWrong, the mirror used before, timed
+   out at 10 s on the request above); the EA Forum still goes through
+   GreaterWrong because it answers servers with a JavaScript check.
+5. **Open: how a page found on the desktop reaches the phone.** The link
+   works from anything that opens a link on the phone. A one-step desktop
+   sender (a Books inbox on fuseki.net, an Android share target, or a QR
+   bookmarklet) awaits the owner's choice; see Backlog > Books.
+
 ## Current priorities (deduplicated from the idea pool)
 
 1. **Deeper judgment**: per-note scoring in the shared sing panel (v86),
@@ -467,6 +500,15 @@ above; nothing here is a commitment.
 
 ### Books
 
+- One-step sending from the desktop to the phone's Books (owner decision
+  pending, 2026-11-01). A Books inbox on fuseki.net: a bookmarklet or any
+  device posts a page address with a per-device secret, `proxy.php` keeps the
+  list under the tenant's persistent `shared/` directory, and the phone's
+  Books adds and narrates everything waiting each time it opens; this is
+  the first server state Voice-Wei would keep. An Android share target (an
+  installed web app in the share sheet) covers only the phone, and
+  installing it has Chrome register the app with Google. A QR bookmarklet
+  keeps no server state but needs a QR library and the phone in hand.
 - Source-critical AI Research while listening: a question uses the whole current
   audio context, treats book claims as claims rather than truth, searches the
   web, returns cited sources/images, and persists the complete result per book.

@@ -339,6 +339,61 @@ async function seedFrontMatterBook(page) {
     });
 }
 
+/** Every saved book with what a Books link test checks: its chapters and how many parts have audio. */
+async function readSavedBooks(page) {
+    return page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 5);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const readAll = store => new Promise((resolve, reject) => {
+            const req = db.transaction(store, 'readonly').objectStore(store).getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const [books, sections, segments] = await Promise.all([readAll('books'), readAll('sections'), readAll('segments')]);
+        db.close();
+        return books.map(book => ({
+            id: book.id,
+            title: book.title,
+            format: book.format,
+            sourceUrl: book.sourceUrl,
+            narrateWhenOpen: book.narrateWhenOpen,
+            segmentCount: book.segmentCount,
+            sectionTexts: sections.filter(section => section.bookId === book.id).map(section => section.text),
+            segmentsWithAudio: segments.filter(segment => segment.bookId === book.id && segment.blob).length
+        }));
+    });
+}
+
+/** Drops the audio of a book's last part, as an interrupted narration leaves it. */
+async function dropLastPartAudio(page, bookId) {
+    await page.evaluate(async (id) => {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('voice-wei-books', 5);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction('segments', 'readwrite');
+            const store = tx.objectStore('segments');
+            const req = store.getAll();
+            req.onsuccess = () => {
+                const last = req.result
+                    .filter(segment => segment.bookId === id)
+                    .sort((a, b) => a.segmentIndex - b.segmentIndex)
+                    .pop();
+                Object.assign(last, { status: 'pending', blob: null, audioSize: 0, durationSec: 0, generatedAt: '', audioSettings: null });
+                store.put(last);
+            };
+            tx.oncomplete = () => resolve(undefined);
+            tx.onerror = () => reject(tx.error);
+        });
+        db.close();
+    }, bookId);
+}
+
 /** Records stored for one book in each Books object store. */
 async function countBookRecords(page, bookId) {
     return page.evaluate(async (id) => {
@@ -1278,6 +1333,144 @@ async function countBookRecords(page, bookId) {
         report.check('books keep latest-read and currently-selected audio section as separate reader jumps',
             separateReaderJumps[0] === 'reader-sec-3'
             && separateReaderJumps[1] === 'reader-sec-0');
+        await page.close();
+    }
+
+    {
+        const page = await browser.newPage();
+        /** @type {string[]} */
+        const pageErrors = [];
+        collectErrors(page, 'books-link', pageErrors);
+        const storyUrl = 'https://example.test/stories/linked-story';
+        const longUrl = 'https://example.test/stories/long-page';
+        const unreachableUrl = 'https://example.test/stories/unreachable';
+        const storyText = `LINKED_STORY_OPENING begins here. ${'The story goes on for a while. '.repeat(200)}LINKED_STORY_ENDING is here.`;
+        /** @type {Record<string, { status: number, body: object }>} */
+        const proxyAnswers = {
+            [storyUrl]: { status: 200, body: { url: storyUrl, requestedUrl: storyUrl, title: 'A Linked Story', text: storyText, links: [{ text: 'Another story', url: 'https://example.test/stories/another' }], truncated: false } },
+            [longUrl]: { status: 200, body: { url: longUrl, requestedUrl: longUrl, title: 'A Long Page', text: `LONG_PAGE_OPENING. ${'word '.repeat(30000)}`, links: [], truncated: false } },
+            [unreachableUrl]: { status: 502, body: { error: 'Failed to connect to example.test port 443' } }
+        };
+        /** @type {string[]} */
+        const readUrls = [];
+        await page.route('**/proxy.php?*', route => {
+            const readUrl = new URL(route.request().url()).searchParams.get('readUrl');
+            if (readUrl === null) return route.continue();
+            readUrls.push(readUrl);
+            const answer = proxyAnswers[readUrl] || { status: 404, body: { error: `no stub for ${readUrl}` } };
+            return route.fulfill({ status: answer.status, contentType: 'application/json', body: JSON.stringify(answer.body) });
+        });
+        await page.addInitScript(() => {
+            localStorage.setItem('voice-wei:api-key:openai', 'sk-test-books-suite');
+            window.__bookSpeechInputs = [];
+            const originalFetch = window.fetch.bind(window);
+            window.fetch = async (input, init) => {
+                const url = typeof input === 'string' ? input : input.url;
+                if (url === 'https://api.openai.com/v1/audio/speech') {
+                    window.__bookSpeechInputs.push(JSON.parse(String(init?.body || '{}')).input);
+                    return new Response(new Blob(['fake-linked-audio'], { type: 'audio/mpeg' }), { status: 200 });
+                }
+                return originalFetch(input, init);
+            };
+        });
+        const bookLink = url => `${BASE_URL}/ebook.html?url=${encodeURIComponent(url)}`;
+        const statusText = () => page.evaluate(() => document.querySelector('#status')?.textContent || '');
+        const waitForStatus = prefix => page.waitForFunction(
+            expected => (document.querySelector('#status')?.textContent || '').startsWith(expected), prefix);
+        const waitForNarrationDone = () => page.waitForFunction(() => {
+            const dots = document.querySelectorAll('.chunk-dot');
+            return dots.length > 0 && document.querySelectorAll('.chunk-dot.done').length === dots.length;
+        });
+        const speechInputs = () => page.evaluate(() => window.__bookSpeechInputs.slice());
+
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
+        await clearBooksDb(page);
+
+        await page.goto(bookLink(storyUrl), { waitUntil: 'load' });
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        await waitForNarrationDone();
+        const linkedSearch = await page.evaluate(() => location.search);
+        const linkedSpeech = await speechInputs();
+        const linkedBooks = await readSavedBooks(page);
+        const story = linkedBooks.find(book => book.sourceUrl === storyUrl);
+        report.check(`a Books link saves the page as a one-chapter book, opens it and narrates every part (reads ${readUrls.length}, parts ${story?.segmentCount}, narrated ${linkedSpeech.length})`,
+            readUrls.length === 1 && readUrls[0] === storyUrl
+            && linkedSearch === ''
+            && linkedBooks.length === 1
+            && story?.format === 'web'
+            && story.narrateWhenOpen === true
+            && story.sectionTexts.length === 1
+            && story.sectionTexts[0].startsWith('A Linked Story\n\nLINKED_STORY_OPENING')
+            && story.sectionTexts[0].endsWith('LINKED_STORY_ENDING is here.')
+            && story.segmentCount >= 2
+            && story.segmentsWithAudio === story.segmentCount
+            && linkedSpeech.length === story.segmentCount
+            && linkedSpeech[0].includes('LINKED_STORY_OPENING')
+            && linkedSpeech[linkedSpeech.length - 1].includes('LINKED_STORY_ENDING'));
+
+        await page.goto(bookLink(storyUrl), { waitUntil: 'load' });
+        await waitForStatus('Opened ');
+        const reopenStatus = await statusText();
+        const reopenSpeech = await speechInputs();
+        report.check('opening the same Books link again opens the saved book without reading the page or narrating it again',
+            readUrls.length === 1
+            && reopenStatus === 'Opened A Linked Story'
+            && reopenSpeech.length === 0
+            && (await readSavedBooks(page)).length === 1);
+
+        await dropLastPartAudio(page, story?.id);
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
+        await page.click(`.saved-book-item[data-book-id="${story?.id}"]`);
+        await page.waitForSelector('#bookWorkspace[style*="block"]');
+        await waitForNarrationDone();
+        const resumedSpeech = await speechInputs();
+        report.check('a book added by a Books link narrates the parts an interrupted narration left out when it is opened from the shelf',
+            resumedSpeech.length === 1 && resumedSpeech[0].includes('LINKED_STORY_ENDING'));
+
+        await page.evaluate(() => /** @type {HTMLButtonElement} */ (document.getElementById('deleteAllAudioBtn')).click());
+        await waitForStatus('Deleted generated MP3s');
+        await page.goto(`${BASE_URL}/ebook.html`, { waitUntil: 'load' });
+        await page.click(`.saved-book-item[data-book-id="${story?.id}"]`);
+        await waitForStatus('Opened ');
+        const afterDeleteStatus = await statusText();
+        const afterDelete = (await readSavedBooks(page)).find(book => book.id === story?.id);
+        report.check('deleting a linked book\'s audio stops it narrating when opened',
+            afterDeleteStatus === 'Opened A Linked Story'
+            && (await speechInputs()).length === 0
+            && afterDelete?.narrateWhenOpen === false
+            && afterDelete.segmentsWithAudio === 0);
+
+        await page.goto(bookLink(longUrl), { waitUntil: 'load' });
+        await waitForStatus('A Long Page plays about');
+        const longStatus = await statusText();
+        const longBook = (await readSavedBooks(page)).find(book => book.sourceUrl === longUrl);
+        report.check(`a Books link saves and opens a page over three hours but leaves narrating it to Whole book (${longStatus})`,
+            longStatus.includes('press Whole book')
+            && longBook?.narrateWhenOpen === false
+            && (await speechInputs()).length === 0);
+
+        await page.goto(bookLink(unreachableUrl), { waitUntil: 'load' });
+        await waitForStatus('Could not read');
+        const failure = await page.evaluate(() => ({
+            status: document.querySelector('#status')?.textContent || '',
+            input: /** @type {HTMLInputElement} */ (document.querySelector('#urlInput')).value,
+            search: location.search
+        }));
+        report.check(`a Books link to a page that cannot be read says why and leaves its address ready to retry (${failure.status})`,
+            failure.status.includes('Failed to connect to example.test')
+            && failure.input === unreachableUrl
+            && failure.search === ''
+            && !(await readSavedBooks(page)).some(book => book.sourceUrl === unreachableUrl));
+
+        const readsBeforeInvalid = readUrls.length;
+        await page.goto(`${BASE_URL}/ebook.html?url=not%20a%20page`, { waitUntil: 'load' });
+        await waitForStatus('Books link needs');
+        report.check('a Books link without a full http(s) page address reads nothing',
+            readUrls.length === readsBeforeInvalid
+            && await page.evaluate(() => location.search) === '');
+
+        // The browser logs the unreachable page's 502 answer; nothing else may log an error.
+        report.errors.push(...pageErrors.filter(error => !error.includes('status of 502')));
         await page.close();
     }
 

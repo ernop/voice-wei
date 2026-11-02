@@ -82,7 +82,8 @@ const BooksParse = (function () {
             listeningSegmentId: segments[0]?.id || '',
             listeningOffsetSec: 0,
             legacyAudioBlob: null,
-            legacyAudioSize: 0
+            legacyAudioSize: 0,
+            narrateWhenOpen: false
         };
         return { book, sections, segments };
     }

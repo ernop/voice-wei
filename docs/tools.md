@@ -842,11 +842,41 @@ OpenAI.
   page, tagged with `sourceUrl` and `contentOrigin: url`. This suits
   syllabus/reading-list pages whose real content lives across many linked
   essays.
+- **Books link: send a page to listen to later.** Open Books with the page's
+  address in `url` (URL-encoded):
+
+  ```
+  ebook.html?url=<encoded page URL>
+  https://fuseki.net/voice-wei/ebook.html?url=https%3A%2F%2Fwww.lesswrong.com%2Fposts%2F3375SZNGA5dKHQMie%2Fi-did-this-without-your-knowledge
+  ```
+
+  Books reads the page through the same `proxy.php?readUrl=` importer as web
+  import, saves it as a one-chapter book (no linked pages, so no Contents),
+  opens it, and narrates the whole page with the saved voice settings; the
+  first part is ready to play within seconds while the rest generates. Open
+  the link on the phone that will play it (from a QR code, a bookmark, or a
+  shared link): the audio is stored in that browser. A link to a page
+  already saved opens that book and never reads the page again. A book added
+  by a link narrates whatever parts still lack audio each time it is opened,
+  and when an API key is saved while it is open, so a narration cut short by
+  a closed tab, a frozen background tab, or lost signal finishes on the next
+  opening. **Delete all audio** ends that. A page that plays longer than
+  3 hours is saved and opened but not narrated until **Whole book** is
+  pressed: anyone can make such a link, and narration is billed to the saved
+  key. A page that cannot be read reports why and leaves its address in the
+  web-import box for a retry; a `url` that is not a full http(s) address
+  reads nothing. Once the link has run, `url` leaves the address bar, so a
+  reload does not run it again.
 - The web reader handles several common obstacles through the proxy:
-  LessWrong / EA Forum / Alignment Forum URLs are rewritten to their
-  server-rendered GreaterWrong mirrors; main-content narrowing prefers
-  `<article>` and post-content containers and truncates trailing comment
-  threads so reader text and link lists stay clean; and linked PDFs are
+  LessWrong and Alignment Forum posts are read from the sites themselves,
+  which serve each post's text in their own HTML; their other pages
+  (sequences, collections, tags) and all of the EA Forum, which answers
+  server requests with a JavaScript security check, are read from the
+  server-rendered GreaterWrong mirrors. Main-content narrowing prefers
+  `<article>` and post-content containers (a post-content container ends at
+  its own closing tag, so nothing inside a post is mistaken for its comments)
+  and truncates trailing comment threads so reader text and link lists stay
+  clean; and linked PDFs are
   fetched as bytes through an asset passthrough (`proxy.php?assetUrl=`) and
   parsed with the same client-side PDF.js path used for uploaded PDFs.
   Cloudflare-gated mirrors such as archive.is still cannot be read

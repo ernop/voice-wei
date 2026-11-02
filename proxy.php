@@ -56,6 +56,21 @@ function isPublicHttpUrl($url) {
     return publicUrlTarget($url) !== null;
 }
 
+// LessWrong and the Alignment Forum serve each post's text in their own HTML,
+// so a post (/posts/...) is read from the site itself; their other pages
+// (sequences, collections, tags) have no content container the reader
+// recognizes and are read from the GreaterWrong mirror. The EA Forum answers
+// server requests with a JavaScript challenge (Vercel's security checkpoint,
+// seen 2026-11-01), so all of it is read from GreaterWrong's EA mirror.
+const FORUM_MIRRORS = [
+    'lesswrong.com' => ['mirror' => 'https://www.greaterwrong.com', 'postsReadDirectly' => true],
+    'www.lesswrong.com' => ['mirror' => 'https://www.greaterwrong.com', 'postsReadDirectly' => true],
+    'alignmentforum.org' => ['mirror' => 'https://www.greaterwrong.com', 'postsReadDirectly' => true],
+    'www.alignmentforum.org' => ['mirror' => 'https://www.greaterwrong.com', 'postsReadDirectly' => true],
+    'forum.effectivealtruism.org' => ['mirror' => 'https://ea.greaterwrong.com', 'postsReadDirectly' => false],
+    'www.forum.effectivealtruism.org' => ['mirror' => 'https://ea.greaterwrong.com', 'postsReadDirectly' => false]
+];
+
 function resolveReadablePageUrl($url) {
     $parts = parse_url($url);
     if (!$parts || !isset($parts['host']) || !isset($parts['path'])) {
@@ -70,16 +85,9 @@ function resolveReadablePageUrl($url) {
         return 'https://allthetropes.org/wiki/Regional_Riff';
     }
 
-    // LessWrong / EA Forum / Alignment Forum render content client-side, but
-    // GreaterWrong serves the same posts as clean server-rendered HTML.
-    if ($host === 'lesswrong.com' || $host === 'www.lesswrong.com') {
-        return 'https://www.greaterwrong.com' . $path . $query;
-    }
-    if ($host === 'forum.effectivealtruism.org' || $host === 'www.forum.effectivealtruism.org') {
-        return 'https://ea.greaterwrong.com' . $path . $query;
-    }
-    if ($host === 'alignmentforum.org' || $host === 'www.alignmentforum.org') {
-        return 'https://www.greaterwrong.com' . $path . $query;
+    $forum = FORUM_MIRRORS[$host] ?? null;
+    if ($forum !== null && !($forum['postsReadDirectly'] && strpos($path, '/posts/') === 0)) {
+        return $forum['mirror'] . $path . $query;
     }
 
     return $url;
@@ -153,7 +161,6 @@ function requestPublicUrl($url, $accept, $maxBytes, $timeoutSeconds, $options = 
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: '';
         $error = curl_error($ch);
-        curl_close($ch);
 
         if ($tooLarge) {
             return ['response' => false, 'httpCode' => 413, 'contentType' => $contentType, 'error' => 'Remote content exceeds the import size limit'];
@@ -240,28 +247,53 @@ function stripTrailingComments($source) {
     return $source;
 }
 
-// Readable-content containers, most specific first: the opening tag and the
-// markers that end its content. The content is sliced by the offsets these
-// bounded patterns find. A lazy capture spanning the whole article exhausted
-// PCRE's backtrack limit on megabyte pages (every large Wikipedia article).
+// Readable-content containers, most specific first: the opening tag and where
+// its content ends, either at the first of some markers or at the container's
+// own matching closing tag. The content is sliced by the offsets these bounded
+// patterns find. A lazy capture spanning the whole article exhausted PCRE's
+// backtrack limit on megabyte pages (every large Wikipedia article).
+// A post body's own markup can carry any class name (LessWrong wraps every
+// post in <div class="commentOnSelection">), so a post container ends at its
+// matching </div>, not at the first element that looks like a comment section.
 const READABLE_CONTAINERS = [
     [
         'start' => '/<div[^>]+id=["\']mw-content-text["\'][^>]*>/i',
+        'boundary' => 'markers',
         'end' => '/<div[^>]+class=["\']printfooter|<div[^>]+id=["\']catlinks|<\/main>|<\/body>/i'
     ],
     [
         'start' => '/<article\b[^>]*>/i',
+        'boundary' => 'markers',
         'end' => '/<\/article>/i'
     ],
     [
         'start' => '/<div[^>]+class=["\'][^"\']*(?:entry-content|post-content|postcontent|article-content|post-body|markdown-body)[^"\']*["\'][^>]*>/i',
-        'end' => '/<footer\b|<div[^>]+(?:id|class)=["\'][^"\']*comment|<\/main>|<\/body>/i'
+        'boundary' => 'matching-close',
+        'tag' => 'div'
     ],
     [
         'start' => '/<main\b[^>]*>/i',
+        'boundary' => 'markers',
         'end' => '/<\/main>|<\/body>/i'
     ]
 ];
+
+// Offset of the closing tag that matches an opened <$tag> whose content starts
+// at $contentStart, counting the same tag nested inside it; null when the page
+// never closes it.
+function matchingCloseOffset($body, $contentStart, $tag) {
+    $pattern = '/<(\/?)' . $tag . '\b[^>]*>/i';
+    $depth = 1;
+    $offset = $contentStart;
+    while (pregMatchStrict($pattern, $body, $match, PREG_OFFSET_CAPTURE, $offset)) {
+        $depth += $match[1][0] === '/' ? -1 : 1;
+        if ($depth === 0) {
+            return $match[0][1];
+        }
+        $offset = $match[0][1] + strlen($match[0][0]);
+    }
+    return null;
+}
 
 function narrowToReadable($body) {
     foreach (READABLE_CONTAINERS as $container) {
@@ -269,10 +301,17 @@ function narrowToReadable($body) {
             continue;
         }
         $contentStart = $start[0][1] + strlen($start[0][0]);
-        if (!pregMatchStrict($container['end'], $body, $end, PREG_OFFSET_CAPTURE, $contentStart)) {
+        if ($container['boundary'] === 'matching-close') {
+            $contentEnd = matchingCloseOffset($body, $contentStart, $container['tag']);
+        } else {
+            $contentEnd = pregMatchStrict($container['end'], $body, $end, PREG_OFFSET_CAPTURE, $contentStart)
+                ? $end[0][1]
+                : null;
+        }
+        if ($contentEnd === null) {
             continue;
         }
-        return substr($body, $contentStart, $end[0][1] - $contentStart);
+        return substr($body, $contentStart, $contentEnd - $contentStart);
     }
     return $body;
 }

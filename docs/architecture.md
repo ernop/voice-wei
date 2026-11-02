@@ -180,7 +180,16 @@ Stripping tags alone fused adjacent cells, which ruined tracklists. The
 readable container (Wikipedia's `mw-content-text`, `<article>`, known
 post-body classes, `<main>`) is sliced by offsets from bounded start/end
 patterns, never captured by one lazy regex: a capture spanning a megabyte
-article exhausts PCRE's backtrack limit. Every extraction pattern goes
+article exhausts PCRE's backtrack limit. Each container names how it ends:
+at the first of some markers (the comment section, `</main>`), or, for
+post bodies, at the container's own matching `</div>`, found by counting
+nested `<div>` tags, because a post's own markup can carry any class name
+(LessWrong wraps every post in `commentOnSelection`, which once ended the
+post before its first word). `FORUM_MIRRORS` routes the LessWrong-family
+forums: LessWrong and Alignment Forum posts are read from the sites
+themselves; their other pages, which have no container the reader knows,
+and the whole EA Forum, which answers servers with Vercel's JavaScript
+security checkpoint, are read from GreaterWrong's server-rendered mirrors. Every extraction pattern goes
 through the strict `preg` wrappers, so an engine failure is a 500 naming the
 page, not silently degraded text. Plain-text pages keep their own lines. The
 answer also carries the page's parsed JSON-LD blocks as `structuredData`
@@ -768,7 +777,18 @@ punctuation (including closing quotes) is preferred below the API cap. TXT
 chapter extraction keeps the final occurrence of duplicated chapter headings,
 which removes contents-list duplicates before section assembly. Audio plan v2
 marks upgraded books; rebuild atomically replaces book/section/part records and
-maps listening by source character independently of reading progress. There is still no
+maps listening by source character independently of reading progress.
+
+A Books link (`ebook.html?url=<page>`, `addLinkedPage`) runs once storage is
+open: it finds a book by `sourceUrl` or reads the page and saves it through
+`saveWebBook`, the same record builder web import uses, with no linked pages.
+The book's `narrateWhenOpen` flag is what keeps it narrated: `openBook` (and
+saving a key) queues every part without audio when the flag is set, so
+narration interrupted by a closed or frozen tab resumes at the next opening
+rather than leaving a silent gap in the car. The link sets the flag when the
+page's estimated duration is at most `LINKED_PAGE_NARRATION_MAX_SECONDS`
+(3 hours), the most a link anyone can craft may spend on the owner's key;
+deleting the book's audio clears it. There is still no
 account identity or server-side audit trail; the site's usage statistics count
 Books only as active time (see Usage statistics). The durable
 history is browser-local and serves navigation/progress UI. The OpenAI key and
