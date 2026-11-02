@@ -1853,3 +1853,32 @@ For future mei:
 - `test-player-lifecycle.js` fails on this VM even on clean master while
   CI passes it; `test-playback-engine.js` "scales root-change" flaked red
   in CI (0 kills) and passes locally. Neither touches Staff.
+
+## 2026-11-01 - Books links: send a page, hear it in the car (v380)
+
+yui asked for a way to send texts to Books to narrate and listen to later,
+with a LessWrong story as the example. `ebook.html?url=<page>` now saves the
+page as a one-chapter book, opens it and narrates it. A book added that way
+narrates its missing parts whenever it opens (`narrateWhenOpen`), so an
+interrupted narration never leaves a silent gap in the car; a page over
+3 hours waits for Whole book. LessWrong and Alignment Forum posts are read
+from the sites; the EA Forum stays on GreaterWrong behind Vercel's
+JavaScript checkpoint. How a page found on the desktop reaches the phone
+(Books inbox, share target, or QR) awaits yui's choice.
+
+For future mei:
+- A workaround can hide a bug until the workaround fails. LessWrong went to
+  GreaterWrong in June (`377a08d`) because the direct read found nothing;
+  the cause was the post container's end marker matching LessWrong's own
+  `commentOnSelection` wrapper, a zero-length slice. When GreaterWrong
+  stopped answering within the 10 s connect timeout, every LessWrong import
+  failed. Before routing around a site, find out why reading it failed.
+- PHP runs locally without root: Ubuntu's php8.5 packages unpacked into
+  `~/.local/opt/php8.5` behind `~/.local/bin/php` (recorded in mybrowser's
+  `infrastructure/pc-linux-machine.md`), so `test-proxy.js` runs here. It
+  is 8.5 against the server's 8.3: 8.5 deprecates `curl_close()` (a no-op
+  since 8.0, now removed), and the wrapper runs with no php.ini, so under
+  `php -S` notices print into responses ahead of the JSON.
+- In a Books test, "Opened <title>" in the status proves nothing was queued:
+  `openBook` sets it and, when it narrates, "Generating N parts..." in the
+  same task. Negative checks need no wait.
