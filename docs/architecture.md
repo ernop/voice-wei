@@ -661,7 +661,11 @@ and owns only the sounding set; an identical model is a no-op, so the
 page shows every pass. Lookup is exact by pitch, so a highlight can never
 land on a neighbor or another octave. The page decides only which notes
 a pass plays (`settingsPass()`, `patternNotes()`), and the readout above
-the board is its status surface.
+the board is its status surface. Whether the keys print their pitch names
+is a view choice, not a musical fact: the model always carries each
+label, and `setNamesShown(boolean)` toggles the `kb-names-shown` host
+class that CSS requires before any `.kb-name` shows (Scales' `keyNames`
+setting, off by default).
 
 ## Persistence
 

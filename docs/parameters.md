@@ -251,8 +251,8 @@ meaningful for one configuration).
 
 ## Scales (`scales-settings`)
 
-All settings are `live-restart`, and Play always plays the settings.
-Reset returns every setting below to its default.
+All settings except `keyNames` are `live-restart`, and Play always plays
+the settings. Reset returns every setting below to its default.
 
 | Setting | Default | Behavior |
 |---------|---------|----------|
@@ -272,9 +272,12 @@ Reset returns every setting below to its default.
 | movementStyle | normal (the Move row's figures and the Leaps row's 3rd-7th up/down share this one setting) | live-restart |
 | sectionLength | 1o (1o+3 / 1o+5 / 2o) | live-restart |
 | exercise | none | live-restart |
+| keyNames | off (Note Names row: off shows degrees only on the keys; on adds each key's pitch name and the C keys' octave. Owner, 2026-11-03: letters on the keys are never the default) | display only: redraws the board, never restarts playback |
 
 The key holds exactly these settings. Presets have their own key
-(`scales-presets-v1`) and store every setting, forever repeats included.
+(`scales-presets-v1`) and store every setting, forever repeats included;
+applying a preset or history row leaves `keyNames` as it is, since it is a
+display preference rather than part of the scale.
 
 ## Intervals (`intervals-settings`)
 

@@ -191,6 +191,45 @@ function waitForScalesReady(tab) {
         view.lit === '64' && view.readout === '3E4' && view.litAfter === 0);
     report.check(`at rest the readout names what Play plays ("${view.plan}")`, view.plan === 'C4 major \u00b7 up');
 
+    // Pitch names on the keys are opt-in (owner, 2026-11-03): the
+    // default board shows degrees only, Note Names on prints them, and
+    // the toggle is display-only, so a running scale keeps playing.
+    const visibleNames = () => tab.evaluate(() => [...document.querySelectorAll('#pianoKeyboard .kb-name')]
+        .filter(el => el.getBoundingClientRect().width > 0).length);
+    const namesByDefault = await visibleNames();
+    const degreesByDefault = await tab.evaluate(() => [...document.querySelectorAll('#pianoKeyboard .kb-degree')]
+        .filter(el => el.getBoundingClientRect().width > 0).length);
+    await tab.evaluate(async () => {
+        const c = window.scalesController;
+        window.__stops = 0;
+        const stop = c.stopPlayback.bind(c);
+        c.stopPlayback = () => { window.__stops++; stop(); };
+        c.settings.repeatCount = Infinity;
+        c.playCurrentSettings();
+        const deadline = performance.now() + 10000;
+        while (!c.audio.isPlaying && performance.now() < deadline) await new Promise(r => setTimeout(r, 15));
+    });
+    await tab.click('[data-key-names="on"]');
+    const namesOn = await visibleNames();
+    const namesState = await tab.evaluate(() => {
+        const c = window.scalesController;
+        const state = {
+            stored: c.settings.keyNames,
+            stops: window.__stops,
+            playing: c.audio.isPlaying,
+            selected: document.querySelector('[data-key-names="on"]').classList.contains('selected')
+        };
+        delete c.stopPlayback;
+        c.stopPlayback();
+        c.settings.repeatCount = c.defaultSettings.repeatCount;
+        return state;
+    });
+    await tab.click('[data-key-names="off"]');
+    const namesOffAgain = await visibleNames();
+    report.check(`the keys show degrees but no pitch names by default; Note Names on prints them while a scale keeps playing (default ${namesByDefault} names / ${degreesByDefault} degrees, on ${namesOn}, off again ${namesOffAgain}, stops ${namesState.stops}, playing ${namesState.playing})`,
+        namesByDefault === 0 && degreesByDefault > 0 && namesOn > 0 && namesOffAgain === 0
+        && namesState.stored === 'on' && namesState.selected && namesState.stops === 0 && namesState.playing);
+
     // Readout, plan and board boxes at rest, then under one note, a
     // chord, and rest again: how many of those three differ from rest.
     const readoutMoves = () => tab.evaluate(() => {
@@ -285,8 +324,8 @@ function waitForScalesReady(tab) {
             ['C4 rast', { scaleType: 'rast' }]
         ];
         const results = boards.map(([label, overrides]) => {
-            Object.assign(c.settings, c.defaultSettings, overrides);
-            c.showIdle();
+            Object.assign(c.settings, c.defaultSettings, { keyNames: 'on' }, overrides);
+            c.syncUIToSettings();
             return { label, narrow: host.classList.contains('kb-narrow'), overflow: overflowing() };
         });
         Object.assign(c.settings, c.defaultSettings, { sectionLength: '2o' });

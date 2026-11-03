@@ -143,6 +143,11 @@
     font-size: clamp(8px, calc(var(--kb-key-width) * 0.22), 13px);
 }
 
+/* Pitch names are opt-in (setNamesShown); a bare board shows degrees only */
+.kb:not(.kb-names-shown) .kb-name {
+    display: none;
+}
+
 /* Black keys outside the scale stay unlabeled until they sound */
 .kb-black:not(.kb-member):not(.kb-sounding) .kb-name {
     visibility: hidden;

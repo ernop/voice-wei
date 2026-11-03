@@ -48,11 +48,15 @@ and the page only says which notes a pass plays.
 - **Marking**: scale notes are green, the tonic deeper; keys outside the
   played span are muted so the span reads first, and a green bar above the
   keys marks it. Each scale note carries its degree (context degrees count
-  in the scale: 5 6 7 below a major scale, 2 3 4 above) and its name; C
-  keys carry the octave so the board reads as a place.
-- **Spelling follows the key**: notes outside the scale use its accidentals
-  (C# in C major, Gb in Eb major); an off-scale black key shows its name
-  only while it sounds. A scale with no letter pattern (chromatic, the
+  in the scale: 5 6 7 below a major scale, 2 3 4 above).
+- **Pitch names are opt-in**: by default no key carries a letter (owner,
+  2026-11-03); the readout above the board still names what sounds. The
+  Note Names row turns them on: each scale note shows its name and C keys
+  carry the octave so the board reads as a place. It is a display
+  preference, so it never restarts a running scale.
+- **Spelling follows the key** (with Note Names on): notes outside the
+  scale use its accidentals (C# in C major, Gb in Eb major); an off-scale
+  black key shows its name only while it sounds. A scale with no letter pattern (chromatic, the
   maqams, slendro) spells with its root's accidentals, so Bb chromatic
   reads Bb B C Db and its root matches the Key stepper.
 - **Every pitch where it is**: whole notes are keys; microtonal degrees

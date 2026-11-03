@@ -31,7 +31,8 @@ const SCALES_OPTION_LABELS = {
         third_down: '3rd down', fourth_down: '4th down', fifth_down: '5th down', sixth_down: '6th down', seventh_down: '7th down'
     },
     exercise: { none: 'full scale', five_note: '5-note', octave_jump: 'octave jump', arpeggio_return: 'arp return', thirds: 'thirds' },
-    risingSemitones: { 0: 'off', 1: 'half', 2: 'whole' }
+    risingSemitones: { 0: 'off', 1: 'half', 2: 'whole' },
+    keyNames: { off: 'off', on: 'on' }
 };
 
 /**
@@ -64,7 +65,7 @@ function scalesRepairStored(stored, defaults) {
     if (!NOTE_NAMES.includes(stored.root)) stored.root = defaults.root;
     if (!(String(stored.scaleType) in SCALE_PATTERNS)) stored.scaleType = defaults.scaleType;
     if (!(String(stored.risingSemitones) in SCALES_OPTION_LABELS.risingSemitones)) stored.risingSemitones = defaults.risingSemitones;
-    for (const key of /** @type {const} */ (['sectionLength', 'direction', 'movementStyle', 'exercise'])) {
+    for (const key of /** @type {const} */ (['sectionLength', 'direction', 'movementStyle', 'exercise', 'keyNames'])) {
         if (!(String(stored[key]) in SCALES_OPTION_LABELS[key])) stored[key] = defaults[key];
     }
 }
@@ -95,6 +96,7 @@ const SCALES_SETTINGS_STORAGE_KEY = StorageKeys.SCALES_SETTINGS;
  * @property {string} ladder
  * @property {number} ladderSize
  * @property {number} ladderGapMs
+ * @property {string} keyNames - 'on' prints pitch names on the keys; off by default (owner, 2026-11-03)
  */
 
 /**
@@ -169,7 +171,8 @@ class ScalesController {
             // the new note first (321, 432, 543, ...).
             ladder: 'off',     // 'off', 'on', 'reverse'
             ladderSize: 3,     // notes per rung
-            ladderGapMs: 500   // pause between rungs; 0 plays straight through
+            ladderGapMs: 500,  // pause between rungs; 0 plays straight through
+            keyNames: 'off'    // pitch names on the keyboard: 'off' (degrees only) or 'on'
         };
         this.settings = { ...this.defaultSettings };
 
@@ -881,6 +884,8 @@ class ScalesController {
         PracticeControls.setValueText('ladderGapValue', PracticeControls.formatSeconds(this.settings.ladderGapMs));
         this.syncStepperLimits();
 
+        PracticeControls.syncSingleSelect('data-key-names', this.settings.keyNames);
+        this.keyboard.setNamesShown(this.settings.keyNames === 'on');
         // A running sequence keeps the board; it shows its own passes.
         if (!this.audio.isPlaying) this.showIdle();
     }
@@ -936,6 +941,14 @@ class ScalesController {
                 });
             });
         }
+
+        // A display preference, not part of the scale: it never restarts
+        // a running sequence.
+        PracticeControls.wireSingleSelect('data-key-names', String, this.settings.keyNames, value => {
+            this.settings.keyNames = value;
+            this.saveSettings();
+            this.keyboard.setNamesShown(value === 'on');
+        });
 
         // Root pitch / note length / gap steppers (shared control)
         PracticeControls.wireSteppers((key, delta) => this.stepSettingValue(key, delta));

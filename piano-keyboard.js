@@ -422,9 +422,19 @@ const PianoKeyboard = (function () {
             return sounding.filter(midi => !elements.has(pitchId(midi)));
         }
 
+        /**
+         * Show or hide the pitch names on the keys. Degrees always show;
+         * the names stay in the model (aria labels, the readout).
+         * @param {boolean} shown
+         */
+        function setNamesShown(shown) {
+            host.classList.toggle('kb-names-shown', shown);
+        }
+
         return {
             show,
             setSounding,
+            setNamesShown,
             /** The model on screen. */
             get model() { return model; },
             /** The pitches lit now. */
