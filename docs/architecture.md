@@ -354,15 +354,24 @@ produce (~280 lags; a frame costs ~0.3ms whether voiced or not, and
 nothing outside the band ever costs a multiply). A subharmonic check
 steps a pick down to a 1.5x/2x/3x-period peak only when that peak is
 clearly more periodic (a dominant harmonic masquerading as the note),
-and never below the band. It returns nothing when the signal is too
+and never below the band. "Clearly" depends on where the pick is: a pick
+above the band cannot be the singer and walks down on a 0.015 gain; a
+pick inside the band needs 0.05. A voice whose alternate cycles differ a
+little in loudness or length correlates better at twice its period while
+still sounding at its own pitch, and the single 0.015 margin read such
+voices an octave low (2026-11-03: a sung Bb4 drew on the Bb3 rail). It returns nothing when the signal is too
 quiet (RMS < 0.01), unclear (NSDF clarity < 0.8), or outside the
 singable band (VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's
 range: below a barbershop bass line's low notes up to just above a lead
 line's top; out-of-band detections are the room and the gear, not the
 singer, and read as silence). Otherwise it returns fractional MIDI plus
-cents deviation. Validated synthetically: sub-cent accuracy on clean and
-harmonic-dominant signals across the band, zero octave errors on
-jittered low notes, zero false positives on noise. The band is
+cents deviation. `tests/test-pitch-detect.js` holds the octave contract
+in Node against synthetic sung notes (glottal pulses with jitter and
+shimmer through vowel formants, with and without a phone's low cut):
+ordinary voices read on their note across D2-Bb4 with no octave errors,
+voices with alternating cycles stay on their note, a dominant 2nd
+harmonic still reads as the note, and out-of-band tones and noise read
+as no pitch. The band is
 deliberately the OWNER's instrument, not the exercise's: it never moves
 with the selected key, range, or targets, so it cannot re-introduce
 target-coupled filtering.
@@ -1372,7 +1381,9 @@ the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-coolness`, `test-find-puzzle`, `test-media-player`, `test-usage-stats`, `test-syntax`,
 `test-css-ownership`, `test-scales-keyboard` (the Scales keyboard model,
 view, and page round trips), `test-scales-patterns` (Scales note patterns
-in Node, against the documented examples), and `test-display-rules` (every
+in Node, against the documented examples), `test-pitch-detect` (the
+detector's octave contract in Node, against synthetic sung notes), and
+`test-display-rules` (every
 stylesheet: no gray, tinted near-white or near-black, translucent, or
 opacity-dimmed text, by the same color test the rendered scan in
 `tests/helpers.js` applies). Use

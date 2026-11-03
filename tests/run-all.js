@@ -44,6 +44,7 @@ const PARALLEL_SUITES = [
     'test-css-ownership.js',
     'test-display-rules.js',
     'test-scales-patterns.js',
+    'test-pitch-detect.js',
     'test-media-player.js'
 ];
 

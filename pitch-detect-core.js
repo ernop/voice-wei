@@ -52,7 +52,16 @@ const PitchDetectCore = (function () {
     // multiply, and a frame's cost is fixed (~280 lags), voiced or not.
     const MPM_CLARITY_MIN = 0.80;          // NSDF peak below this is not a voiced pitch
     const MPM_PEAK_RATIO = 0.90;           // pick the first peak within 90% of the tallest
-    const MPM_SUBHARMONIC_MARGIN = 0.015;  // walk down only when clearly more periodic
+    // Walking down to a longer period: a pick above the singable band
+    // cannot be the singer, so it is a harmonic and walks down on any
+    // clear gain. A pick inside the band is a plausible note and leaves
+    // only on a much larger gain: a voice whose alternate cycles differ
+    // a little in loudness or length (common in chest voice) correlates
+    // better at twice its period while still sounding at its own pitch,
+    // and the small margin read such voices an octave low (owner,
+    // 2026-11-03: singing Bb4 drew on the Bb3 rail).
+    const MPM_SUBHARMONIC_MARGIN = 0.015;
+    const MPM_IN_BAND_SUBHARMONIC_MARGIN = 0.05;
     const DETECT_DECIMATE = 2;             // detect at half rate: Bb4's period is still ~51 samples
 
     /** @type {Float32Array} half-rate signal scratch (detector only) */
@@ -150,9 +159,8 @@ const PitchDetectCore = (function () {
         // selection), then the subharmonic walk-down: when a longer
         // period at 1.5x/2x/3x the pick is CLEARLY more periodic (a
         // dominant harmonic was masquerading as the note), step down to
-        // it - but never below the singable band. For a true pick, the
-        // longer multiples correlate about equally, never clearly
-        // better, so real notes stay put.
+        // it - but never below the singable band. How clearly depends on
+        // where the pick is (see MPM_IN_BAND_SUBHARMONIC_MARGIN).
         let chosen = peaks[0];
         for (const peak of peaks) {
             if (peakValue(peak) >= tallest * MPM_PEAK_RATIO) {
@@ -162,6 +170,7 @@ const PitchDetectCore = (function () {
         }
         for (let pass = 0; pass < 3; pass++) {
             let improved = false;
+            const margin = chosen < tauMin ? MPM_SUBHARMONIC_MARGIN : MPM_IN_BAND_SUBHARMONIC_MARGIN;
             for (const multiple of [2, 1.5, 3]) {
                 const target = Math.round(chosen * multiple);
                 if (target > tauMax) continue;
@@ -172,7 +181,7 @@ const PitchDetectCore = (function () {
                         candidate = peak;
                     }
                 }
-                if (candidate > 0 && peakValue(candidate) > peakValue(chosen) + MPM_SUBHARMONIC_MARGIN) {
+                if (candidate > 0 && peakValue(candidate) > peakValue(chosen) + margin) {
                     chosen = candidate;
                     improved = true;
                     break;
