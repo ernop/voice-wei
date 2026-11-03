@@ -1882,3 +1882,23 @@ For future mei:
 - In a Books test, "Opened <title>" in the status proves nothing was queued:
   `openBook` sets it and, when it narrates, "Generating N parts..." in the
   same task. Negative checks need no wait.
+
+## 2026-11-03 - Scales: no letters on the keys by default (v381)
+
+Yui asked for two things on Scales. The keyboard printed each key's pitch
+name (C4, D, E...) under its degree; names are now off by default, and a
+Note Names off/on row (`keyNames`) brings them back. It is display-only:
+it does not restart a running scale, and presets and history replays
+leave it unchanged. The second report, that the Sing chart for a Bb3 key
+sits an octave too high, did not reproduce. At Bb3 the rails and targets
+run Bb3 (MIDI 58) to Bb4, the guide plays them at those pitches, and
+`detectPitch` reads voice-like Bb2-Bb4 signals (weak fundamental, vowel
+formants, vibrato) exactly. That held both locally and on the live page
+at phone width. I reported this to yui with the evidence and asked what
+the screen showed rather than moving the octave.
+
+For future mei:
+- A synthetic vibrato test signal must integrate phase
+  (`f0 * (t - d/(2*pi*r) * cos(2*pi*r*t))`), not multiply `f(t) * t`. The
+  naive form drifts the pitch by semitones and made a correct detector look
+  broken in the first run.
