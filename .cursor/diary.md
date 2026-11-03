@@ -1902,3 +1902,36 @@ For future mei:
   (`f0 * (t - d/(2*pi*r) * cos(2*pi*r*t))`), not multiply `f(t) * t`. The
   naive form drifts the pitch by semitones and made a correct detector look
   broken in the first run.
+
+## 2026-11-03 - Sing drew the voice an octave low (v382)
+
+Yui clarified the Bb3 report: the chart frame was right, but the sung line
+was not. Singing Bb3 drew nothing, and singing Bb4 drew on the Bb3 rail,
+so the detector was reading the voice an octave low. The cause was the
+MPM walk-down. It stepped any pick to a 2x-period peak that was only
+0.015 more periodic. A voice whose alternate glottal cycles differ a
+little in loudness (10% is enough, and a listener still hears the
+fundamental) correlates better at twice its period, and about a third of
+those frames read an octave low. Picks inside the band now need a 0.05
+gain to walk down. Picks above the band keep 0.015, because a pick above
+Bb4 can only be a harmonic, and that is the case the walk exists for
+("ah" at F4). `tests/test-pitch-detect.js` is new: before this, the
+detector's octave accuracy had no checked-in test at all.
+
+For future mei:
+- "Validated synthetically" with steady sinusoids proves little. Octave
+  errors live in cycle-to-cycle structure: jitter, shimmer, and
+  alternating cycles. Synthesize glottal pulses through formant
+  resonators, and fake the mic in Chrome with
+  `--use-file-for-fake-audio-capture=<wav>%noloop` to run the real page
+  end to end.
+- Per-frame NSDF heights cannot separate "harmonic lock" from "voice
+  with alternating cycles" at any single margin. Once a formant sits on
+  the 2nd harmonic, or on 1.5 f0, the ground truth itself becomes
+  ambiguous. Pick the margin from realistic voices, and say what stays
+  unproven.
+- Chrome's echo cancellation, noise suppression, and auto gain on the
+  fake device made no difference to the octave reads.
+- Low-frequency content (mic DC, car rumble around 50-60 Hz) makes the
+  detector go silent instead of reading wrong. It is not addressed yet;
+  if yui reports nothing showing in the car, look there.
