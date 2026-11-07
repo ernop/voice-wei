@@ -83,7 +83,7 @@ existing doc or deleted - never left dangling.
 
 | Doc | What it holds |
 |-----|---------------|
-| agents.md (this file) | Agent entry point: working method, doc tree, shipping steps |
+| AGENTS.md (this file) | Agent entry point: working method, doc tree, shipping steps |
 | [README.md](README.md) | Human-facing overview, dev setup, testing, version system |
 | [docs/product-goals.md](docs/product-goals.md) | What this is for, per-tool goals, invariants, priorities, backlog |
 | [docs/live-change.md](docs/live-change.md) | True requirements for “agent changed it → I know it’s live” (car loop) |

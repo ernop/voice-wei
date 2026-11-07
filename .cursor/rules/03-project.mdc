@@ -14,7 +14,7 @@ Tools (each is an `.html` + `.js` page sharing libraries): Scales, Intervals
 (Ears), Phrases, Trace, Pitch, Music (AI player), Books (ebook/TTS).
 
 Product intent: [docs/product-goals.md](docs/product-goals.md). Construction:
-[docs/architecture.md](docs/architecture.md). Agent entry: [agents.md](agents.md).
+[docs/architecture.md](docs/architecture.md). Agent entry: [AGENTS.md](AGENTS.md).
 
 ## Keys and config
 

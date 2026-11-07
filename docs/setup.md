@@ -1,7 +1,7 @@
 # Environment and Deployment Setup
 
 How to prepare a machine to work on this repo and how code reaches
-production. Shipping checklist: [agents.md](../agents.md). Test suites:
+production. Shipping checklist: [AGENTS.md](../AGENTS.md). Test suites:
 [architecture.md](architecture.md). Binding deploy/version rules:
 [`.cursor/rules/10-deploy-workflow.mdc`](../.cursor/rules/10-deploy-workflow.mdc).
 

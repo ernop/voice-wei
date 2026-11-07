@@ -235,7 +235,7 @@ allowed; internal "try two strategies" fallbacks are not.
 - `npm run test:full` — playback / mic / controls / cross-tab.
 - `npm run lint` (ast-grep), `npm run typecheck` (tsc checkJs) — zero
   errors, deploy-blocking.
-- Docs tree rooted at [agents.md](agents.md); behavior/design/control
+- Docs tree rooted at [AGENTS.md](AGENTS.md); behavior/design/control
   changes update the matching doc.
 
 ### What this overview deliberately skips

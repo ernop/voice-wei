@@ -40,7 +40,7 @@ Full usage details per tool: [docs/tools.md](docs/tools.md).
 
 ## Documentation map
 
-[agents.md](agents.md) is the root of the documentation tree and holds the
+[AGENTS.md](AGENTS.md) is the root of the documentation tree and holds the
 complete index. The most-used docs:
 
 | Doc | Contents |
@@ -52,7 +52,7 @@ complete index. The most-used docs:
 | [docs/architecture.md](docs/architecture.md) | Shared libraries, playback law, engine rules, testing, deploy |
 | [docs/controls.md](docs/controls.md) | Button/control inventory and unification plan |
 | [docs/setup.md](docs/setup.md) | Environment setup and deploy pipeline |
-| [agents.md](agents.md) | Entry point for AI agents working on this repo |
+| [AGENTS.md](AGENTS.md) | Entry point for AI agents working on this repo |
 
 ## Quick start
 
