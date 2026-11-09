@@ -14,6 +14,8 @@ const PlayerHistoryUI = (function () {
                 const loadSongsBtn = document.getElementById('historyLoadSelectedSongsBtn');
                 const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('knownSongsSearchInput'));
                 const loadShownBtn = document.getElementById('knownSongsLoadShownBtn');
+                const orderRecentBtn = document.getElementById('knownSongsOrderRecentBtn');
+                const orderListenedBtn = document.getElementById('knownSongsOrderListenedBtn');
 
                 toggleBtn?.addEventListener('click', () => this.toggleMusicHistoryPanel());
                 reloadBtn?.addEventListener('click', () => this.refreshMusicHistoryPanel());
@@ -24,6 +26,8 @@ const PlayerHistoryUI = (function () {
                     this.renderKnownSongsHistory(this.musicHistorySongs || []);
                 });
                 loadShownBtn?.addEventListener('click', () => this.loadShownKnownSongs());
+                orderRecentBtn?.addEventListener('click', () => this.setKnownSongsOrder('recent'));
+                orderListenedBtn?.addEventListener('click', () => this.setKnownSongsOrder('listened'));
             },
 
             setMusicHistoryPanelVisible(visible) {
@@ -43,14 +47,16 @@ const PlayerHistoryUI = (function () {
 
             async refreshMusicHistoryPanel() {
                 if (!window.PlayerHistoryDB) return;
-                const [lookups, songs, searches] = await Promise.all([
+                const [lookups, songs, searches, listening] = await Promise.all([
                     window.PlayerHistoryDB.listLookups(),
                     window.PlayerHistoryDB.listSongs(),
-                    window.PlayerHistoryDB.listYouTubeSearches()
+                    window.PlayerHistoryDB.listYouTubeSearches(),
+                    this.loadListening()
                 ]);
                 this.musicHistoryLookups = lookups;
                 this.musicHistorySongs = songs;
                 this.musicHistorySearches = searches;
+                this.musicHistoryListening = listening;
                 this.renderLookupHistory(lookups);
                 this.renderKnownSongsHistory(songs);
                 this.renderSearchCacheHistory(searches);
@@ -84,10 +90,37 @@ const PlayerHistoryUI = (function () {
                 });
             },
 
-            /** The Known Songs rows currently shown: the same live search the playlist filter uses. */
-            shownKnownSongs() {
+            /**
+             * Known Songs as shown: the playlist filter's live search, in the
+             * chosen order. The store lists them most recently seen first, so
+             * under Most played the songs never played keep that order.
+             */
+            knownSongsInView(songs) {
                 const query = this.knownSongsQuery || '';
-                return (this.musicHistorySongs || []).filter(song => PlayerSongs.songMatchesQuery(song, query));
+                const shown = songs.filter(song => PlayerSongs.songMatchesQuery(song, query));
+                if (this.knownSongsOrder !== 'listened') return shown;
+                return shown.sort(PlayerListening.compareMostListened(this.musicHistoryListening || new Map()));
+            },
+
+            /** The Known Songs rows currently shown, in their order. */
+            shownKnownSongs() {
+                return this.knownSongsInView(this.musicHistorySongs || []);
+            },
+
+            setKnownSongsOrder(order) {
+                this.knownSongsOrder = order;
+                this.updateKnownSongsOrderButtons();
+                this.renderKnownSongsHistory(this.musicHistorySongs || []);
+            },
+
+            updateKnownSongsOrderButtons() {
+                for (const [id, order] of [['knownSongsOrderRecentBtn', 'recent'], ['knownSongsOrderListenedBtn', 'listened']]) {
+                    const button = document.getElementById(id);
+                    if (!button) continue;
+                    const selected = this.knownSongsOrder === order;
+                    button.classList.toggle('selected', selected);
+                    button.setAttribute('aria-pressed', String(selected));
+                }
             },
 
             renderKnownSongsHistory(songs) {
@@ -98,20 +131,22 @@ const PlayerHistoryUI = (function () {
                     host.innerHTML = '<div class="music-history-empty">No known songs recorded yet.</div>';
                     return;
                 }
-                const query = this.knownSongsQuery || '';
-                const shown = songs.filter(song => PlayerSongs.songMatchesQuery(song, query));
+                const shown = this.knownSongsInView(songs);
                 if (!shown.length) {
                     host.innerHTML = '<div class="music-history-empty">No known songs match that search.</div>';
                     return;
                 }
+                const listening = this.musicHistoryListening || new Map();
                 shown.forEach(record => {
                     const title = record.name || record.title || record.searchTerm || record.videoId;
                     const artist = record.artist || record.channelTitle || '';
+                    const played = listening.get(record.videoId);
                     const item = document.createElement('div');
                     item.className = 'music-history-item';
                     item.innerHTML = `
                         <input type="checkbox" data-history-song-id="${escapeHtml(record.videoId)}" aria-label="Select song">
                         <span class="music-history-item-text"><span class="music-history-item-title">${escapeHtml(title)}</span><span class="music-history-item-meta">${escapeHtml(artist)} - ${escapeHtml(record.sourceKind || 'known')} - ${escapeHtml(record.lastSeenAt || '')}</span></span>
+                        <span class="music-history-item-listened">${played ? escapeHtml(this.describeListening(played)) : ''}</span>
                         <span class="music-history-item-actions">
                             <button class="panel-action-btn" type="button" data-load-song-id="${escapeHtml(record.videoId)}">Load</button>
                         </span>`;
@@ -215,8 +250,10 @@ const PlayerHistoryUI = (function () {
                 await this.loadKnownSongs([videoId]);
             },
 
+            /** Loads in the order given, which is the order the list shows. */
             async loadKnownSongs(videoIds) {
-                const songs = (this.musicHistorySongs || []).filter(song => videoIds.includes(song.videoId));
+                const byVideoId = new Map((this.musicHistorySongs || []).map(song => [song.videoId, song]));
+                const songs = videoIds.map(videoId => byVideoId.get(videoId)).filter(Boolean);
                 if (!songs.length) {
                     this.updateStatus('No known songs selected');
                     return;

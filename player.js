@@ -169,6 +169,12 @@ class PlayerController {
         this.playlistFilterQuery = '';
         /** @type {string} Live Known Songs search query (normalized; never persisted) */
         this.knownSongsQuery = '';
+        /** @type {KnownSongsOrder} Known Songs order (a live view; never persisted) */
+        this.knownSongsOrder = 'recent';
+        /** @type {Map<string, SongListeningRecord>} Listening by videoId, read with the History panel */
+        this.musicHistoryListening = new Map();
+        /** @type {ReturnType<typeof setInterval> | null} Saves the sounding song's time while it plays */
+        this.listeningCheckpointTimer = null;
         this.normalizeLlmSettings();
         /** @type {ReturnType<typeof setTimeout> | null} Deadline-clock wake-up (see scheduleNextProgressRender) */
         this.progressUpdateTimer = null;
@@ -215,6 +221,7 @@ class PlayerController {
         PlayerSongReport.install(this);
         PlayerSongLibrary.install(this);
         PlayerHistoryUI.install(this);
+        PlayerListening.install(this);
         PlayerYouTubeLists.install(this);
         PlayerLifecycle.start(this, text => {
             this.addMessage('claude', 'Playback diagnostic', text);
@@ -252,6 +259,7 @@ class PlayerController {
 
             endPhase = PlayerStartup.begin('YouTube API readiness wiring');
             this.setupYouTubeAPI();
+            this.setupListeningHistory();
             endPhase();
 
             endPhase = PlayerStartup.begin('local song library hydration');
@@ -972,6 +980,11 @@ class PlayerController {
         const sortYearBtn = document.getElementById('sortPlaylistYearBtn');
         if (sortYearBtn) {
             sortYearBtn.addEventListener('click', () => this.sortPlaylist('year'));
+        }
+
+        const sortListenedBtn = document.getElementById('sortPlaylistListenedBtn');
+        if (sortListenedBtn) {
+            sortListenedBtn.addEventListener('click', () => this.sortPlaylist('listened'));
         }
 
         // Live playlist view filter: filter as you type, cancel to see all

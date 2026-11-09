@@ -411,6 +411,137 @@ const FAKE_YOUTUBE_API = `(function () {
         && continuation.visiblePause.loads.length === 0
         && continuation.visiblePause.lines.length === 0);
 
+    // Listening history: plays and seconds heard per video, from the main
+    // player's own state reports, on a clock the test moves by hand. Video
+    // keys run opposite to listening, so neither key order nor equal
+    // first-seen times can pass for the Most played order.
+    const listeningTab = await browser.newPage();
+    collectErrors(listeningTab, 'listening-history', errors);
+    await listeningTab.route('**/iframe_api', route => route.fulfill({
+        contentType: 'application/javascript',
+        body: FAKE_YOUTUBE_API
+    }));
+    await listeningTab.route(/\/proxy\.php\?.*lyrics=search/, route => route.fulfill({
+        contentType: 'application/json',
+        body: '[]'
+    }));
+    await listeningTab.route('https://i.ytimg.com/**', route => route.fulfill({ status: 204, body: '' }));
+    await listeningTab.goto(`${BASE_URL}/player.html`, { waitUntil: 'domcontentloaded' });
+    await listeningTab.waitForFunction(() => window.__voiceWeiStartup?.ready === true);
+    const listening = await listeningTab.evaluate(async () => {
+        const c = window.musicController;
+        if (!c) throw new Error('Music controller missing');
+        let clockMs = performance.now();
+        performance.now = () => clockMs;
+        /** @param {number} seconds */
+        const listen = seconds => { clockMs += seconds * 1000; };
+        /** @param {DocumentVisibilityState} state */
+        const setVisibility = state => {
+            Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+            Object.defineProperty(document, 'hidden', { value: state === 'hidden', configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+        };
+        /** @param {Array<[string, string]>} pairs */
+        const songsFor = pairs => pairs.map(([videoId, name]) => PlayerSongs.createPlaylistItem({
+            videoId,
+            name,
+            artist: 'Listening Test',
+            duration: '3:20'
+        }, { sourceKind: 'search', sourceLabel: 'Listening test' }));
+        const catalog = songsFor([['listenAAA', 'Never'], ['listenBBB', 'Second'], ['listenCCC', 'Most']]);
+        PlayerHistoryDB.recordSongs(catalog, 'search');
+        c.appendPlaylistItems(songsFor([['listenCCC', 'Most'], ['listenBBB', 'Second']]));
+        const [most, second] = c.playlist;
+
+        await c.playVideo(most);
+        const player = window.__youtubePlayer;
+        await player.quiet();
+        listen(40);
+        c.pausePlayback();
+        await player.quiet();
+        listen(600);
+        c.playPlaylist();
+        await player.quiet();
+        listen(20);
+        setVisibility('hidden');
+        const checkpointed = (await PlayerHistoryDB.listSongListening())
+            .find(record => record.videoId === 'listenCCC')?.listenedSeconds;
+        player.browserPause();
+        await player.quiet();
+        const backgroundReloads = window.__youtubeLoads.length;
+        listen(10);
+        setVisibility('visible');
+
+        // Only Second is shown: Next loads it over Most, and its end replays it.
+        c.setPlaylistFilter('Second');
+        c.playNext();
+        await player.quiet();
+        listen(5);
+        player.report(0);
+        await player.quiet();
+        listen(7);
+        await c.playVideo(second);
+        await player.quiet();
+        listen(3);
+        c.clearPlaylistFilter();
+        c.clearPlaylist();
+        const records = await PlayerHistoryDB.listSongListening();
+
+        c.appendPlaylistItems(songsFor([['listenAAA', 'Never'], ['listenBBB', 'Second'], ['listenCCC', 'Most']]));
+        await c.sortPlaylist('listened');
+        const sortedPlaylist = c.playlist.map(item => item.name);
+        const sortStatus = document.getElementById('status')?.textContent || '';
+
+        while ((await PlayerHistoryDB.listSongs()).length < 3) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        c.setMusicHistoryPanelVisible(true);
+        await c.refreshMusicHistoryPanel();
+        document.getElementById('knownSongsOrderListenedBtn')?.click();
+        const knownRows = Array.from(document.querySelectorAll('#musicKnownSongsList .music-history-item'))
+            .map(row => ({
+                title: row.querySelector('.music-history-item-title')?.textContent || '',
+                listened: row.querySelector('.music-history-item-listened')?.textContent || ''
+            }));
+        const orderPressed = document.getElementById('knownSongsOrderListenedBtn')?.getAttribute('aria-pressed');
+        c.clearPlaylist();
+        await c.loadShownKnownSongs();
+        const loadedShown = c.playlist.map(item => item.name);
+
+        return {
+            records: records.map(({ videoId, playCount, listenedSeconds }) => ({ videoId, playCount, listenedSeconds })),
+            checkpointed,
+            backgroundReloads,
+            sortedPlaylist,
+            sortStatus,
+            knownRows,
+            orderPressed,
+            loadedShown
+        };
+    });
+    const recordFor = /** @param {string} videoId */ videoId => listening.records.find(record => record.videoId === videoId);
+    report.check(`a song's first PLAYING after a play request is one play; pause, resume, and the background reload are not (${JSON.stringify(recordFor('listenCCC'))})`,
+        listening.backgroundReloads === 1
+        && recordFor('listenCCC')?.playCount === 1
+        && recordFor('listenCCC')?.listenedSeconds === 70);
+    report.check(`a hidden page saves the sounding song's time so far (${listening.checkpointed})`,
+        listening.checkpointed === 60);
+    report.check(`an ended song played again is a play, a tap on the sounding row is not, and clearing the list saves the open time (${JSON.stringify(recordFor('listenBBB'))})`,
+        recordFor('listenBBB')?.playCount === 2
+        && recordFor('listenBBB')?.listenedSeconds === 15
+        && !recordFor('listenAAA'));
+    report.check(`Most played orders the playlist by time heard, then plays, never-played last (${listening.sortedPlaylist.join(', ')}; "${listening.sortStatus}")`,
+        listening.sortedPlaylist.join('|') === 'Most|Second|Never'
+        && listening.sortStatus === 'Most played first: 2 of 3 songs have been played');
+    report.check(`Known Songs shows plays and time heard, orders Most played, and loads in that order (${JSON.stringify(listening.knownRows)})`,
+        listening.orderPressed === 'true'
+        && JSON.stringify(listening.knownRows) === JSON.stringify([
+            { title: 'Most', listened: '1 play \u00b7 1:10' },
+            { title: 'Second', listened: '2 plays \u00b7 0:15' },
+            { title: 'Never', listened: '' }
+        ])
+        && listening.loadedShown.join('|') === 'Most|Second|Never');
+
     errors.forEach(error => report.errors.push(error));
     await browser.close();
     report.finish();

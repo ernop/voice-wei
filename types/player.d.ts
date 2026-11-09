@@ -137,7 +137,37 @@ interface YouTubeListState {
     error: string;
 }
 
-type PlaylistSortKey = 'artist' | 'year';
+type PlaylistSortKey = 'artist' | 'year' | 'listened';
+
+/** The Known Songs list's order: most recently seen first, or most listened first. */
+type KnownSongsOrder = 'recent' | 'listened';
+
+/** A stretch YouTube has reported PLAYING without a break, on performance.now()'s clock. */
+interface ListeningSpan {
+    videoId: string;
+    startedAtMs: number;
+}
+
+/** How long one video played (a whole span or the part of one so far). */
+interface ListenedTime {
+    videoId: string;
+    seconds: number;
+}
+
+/**
+ * One song's listening in the permanent store (IndexedDB `songListening`,
+ * keyed by the videoId that played). A play is YouTube starting the song
+ * after a request that begins it from the top; resuming a pause or the
+ * Android background reload is not a play. listenedSeconds is the
+ * wall-clock time YouTube reported PLAYING.
+ */
+interface SongListeningRecord {
+    videoId: string;
+    playCount: number;
+    listenedSeconds: number;
+    firstPlayedAt: string;
+    lastPlayedAt: string;
+}
 
 /** A Song's membership in the working playlist + runtime lyric state. */
 interface PlaylistItem extends Song {
@@ -363,6 +393,8 @@ interface PlayerHistoryDBApi {
     getLyricState(videoId: string): Promise<LyricStateRecord | null>;
     putSongReport(record: SongReportRecord): Promise<void>;
     getSongReport(videoId: string): Promise<SongReportRecord | null>;
+    addSongListening(addition: { videoId: string; playStarts: number; listenedSeconds: number }): Promise<void>;
+    listSongListening(): Promise<SongListeningRecord[]>;
 }
 
 interface AppConfig {
@@ -505,7 +537,7 @@ interface PlayerController {
     loadFavoritesToPlaylist(): number;
     unloadUnstarredSongs(): number;
     shufflePlaylist(): void;
-    sortPlaylist(key: PlaylistSortKey): void;
+    sortPlaylist(key: PlaylistSortKey): Promise<void>;
     playlistFilterQuery: string;
     setPlaylistFilter(value: string): void;
     setPlaylistFavoritesOnly(favoritesOnly: boolean): void;
@@ -643,6 +675,7 @@ interface PlayerController {
     musicHistoryLookups: any[];
     musicHistorySongs: any[];
     musicHistorySearches: any[];
+    musicHistoryListening: Map<string, SongListeningRecord>;
     setMusicHistoryPanelVisible(visible: boolean): void;
     toggleMusicHistoryPanel(): void;
     toggleSongLibraryPanel(): void;
@@ -652,6 +685,10 @@ interface PlayerController {
     renderKnownSongsHistory(songs: any[]): void;
     renderSearchCacheHistory(searches: any[]): void;
     knownSongsQuery: string;
+    knownSongsOrder: KnownSongsOrder;
+    setKnownSongsOrder(order: KnownSongsOrder): void;
+    updateKnownSongsOrderButtons(): void;
+    knownSongsInView(songs: any[]): any[];
     shownKnownSongs(): any[];
     loadShownKnownSongs(): Promise<void>;
     selectedLookupIds(): number[];
@@ -666,6 +703,15 @@ interface PlayerController {
     addKnownSongsToPlaylist(songs: any[]): void;
     loadCachedSearchFirstResult(query: string): Promise<void>;
     refreshCachedSearchQuery(query: string): Promise<void>;
+
+    listeningCheckpointTimer: ReturnType<typeof setInterval> | null;
+    setupListeningHistory(): void;
+    noteListeningState(state: number): void;
+    endListeningSpan(): void;
+    checkpointListening(): Promise<void>;
+    saveListening(videoId: string, playStarts: number, listenedSeconds: number): Promise<void>;
+    loadListening(): Promise<Map<string, SongListeningRecord>>;
+    describeListening(record: SongListeningRecord): string;
 
     youtubeList: YouTubeListState | null;
     setupYouTubeListUI(): void;

@@ -1039,6 +1039,33 @@ never touches this DB directly. Stores:
 - `librarySongs`: imported MIDI/MusicXML songs with their full note
   arrays, keyed by id (migrated out of localStorage, which their bulk
   was on course to exhaust).
+- `songListening` (database version 6): per-song running totals keyed by
+  the `videoId` that played - `playCount`, `listenedSeconds`,
+  `firstPlayedAt`, `lastPlayedAt` (`SongListeningRecord`). Totals rather
+  than a play log, because a log is a time-stream that P3 would cap, and
+  trimming it would silently lower every count. `addSongListening` reads
+  and writes in one transaction, so overlapping additions never lose each
+  other. Like lyrics and reports, listening does not follow an identity
+  transition: it belongs to the recording that was heard.
+
+The listening measure comes from the main player's own YouTube state
+reports, through `player-listening.js` (`PlayerListening`), with the span
+itself held in `PlaybackState`. Every PLAYING report opens a listening span
+(on `performance.now()`'s clock) unless one is open for that video; every
+other report (paused, buffering, ended, cued, unstarted) closes it and adds
+its seconds. A play is counted at the first PLAYING after `requestPlay`,
+which `playVideo` calls for a load or for play on an unstarted, cued, or
+ended video, never for resuming a paused or sounding one; the background
+continuation's reload does not go through `playVideo`, so it is not a play.
+Clearing the playlist destroys the player without a last report, so it
+closes the span itself. The open span's time so far is written every 30
+seconds while it lasts and whenever the page is hidden or unloaded
+(`visibilitychange`, `pagehide`), since Android can discard a hidden page
+with no further event; every reader (`loadListening`) takes that checkpoint
+first, so the sounding song's time is always included.
+`PlayerListening.compareMostListened` is the one Most played order (seconds
+heard, then plays) for both the playlist sort and Known Songs; each caller
+keeps its own order among songs that tie.
 
 Store-by-bulk is the dividing law (persistence principle P1):
 **localStorage** (a shared ~5MB quota) may hold only KB-scale state whose
@@ -1060,7 +1087,8 @@ append-only event streams grow with use forever, so they carry caps and
 trim loudly (`logs`/`favoriteEvents` 5000, `lookups` 2000): on nearing 90%
 the player posts a one-time "History storage" notice via the log panel;
 past the cap the oldest records (lowest primary key) are trimmed. Stores
-that mirror the library - `songs`, `lyricStates`, `songReports` - and the re-fetchable
+that mirror the library - `songs`, `lyricStates`, `songReports`,
+`songListening` - and the re-fetchable
 `youtubeSearches` cache have NO cap: trimming a library store would mean
 silent partial coverage (some songs with state, some without), and the
 library itself is their natural bound. IndexedDB quota is GB-scale;
@@ -1274,7 +1302,7 @@ in `types/`, required fields for required data, a throwing constructor.
 The music player is one controller (`PlayerController` in `player.js`)
 composed from feature modules that mix their methods onto it via
 `Object.assign(controller, ...)` (ai, playlist, lyrics, song-report,
-song-library, history-ui, youtube-lists). All of these are `@ts-check`, not `@ts-nocheck`: each install
+song-library, history-ui, listening, youtube-lists). All of these are `@ts-check`, not `@ts-nocheck`: each install
 wraps its method object in `/** @type {ThisType<PlayerController>} */` so
 `this` is the controller type inside every method, and the controller's full
 surface is declared in `types/player.d.ts` (merged with the `class`). Playback

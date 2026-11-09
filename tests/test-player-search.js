@@ -677,10 +677,10 @@ const { BASE_URL, launch, collectErrors, createReporter } = require('./helpers')
                 messages: [],
                 updateStatus(message) { this.statuses.push(message); },
                 truncateForStatus(value) { return String(value || ''); },
-                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); },
-                async refreshMusicHistoryPanel() {}
+                addMessage(kind, label, text) { this.messages.push({ kind, label, text }); }
             };
             PlayerHistoryUI.install(harness);
+            harness.refreshMusicHistoryPanel = async () => {};
             await harness.refreshCachedSearchQuery(query);
             window.fetch = realFetch;
             await new Promise(resolve => setTimeout(resolve, 100));

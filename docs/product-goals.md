@@ -406,6 +406,22 @@ checked against this list, and new standing intent gets added here.
    > then you iterate w/me through all their videos or help provide me some
    > way to get all/by playlist/some/some subsection etc.? rather than
    > pasting them all in one by one?
+15. **What I play most rises to the top.** Every song's plays and the time
+   actually heard are kept forever with the rest of the history, for the
+   recording that played. Time heard, not starts, is the main measure: a
+   song skipped after a few seconds does not outrank one heard through.
+   The playlist's Order row has **Most played**, and Known Songs shows each
+   song's plays and time and can be ordered Most played, so the most played
+   and replayed songs can be loaded together in that order. History before
+   the feature (v383) was never recorded and cannot be rebuilt.
+
+   The owner's request (2026-11-09), verbatim:
+
+   > within voice-wei, lyrics, do we have play count, play total time per
+   > song (i.e. not just starts but time listened) within history? i'd like
+   > that if we do. if we do have it, let's make a sorting function which
+   > sorts by that, with most played/replayed at the top please. do this
+   > now, then comimt, ship and release fully.
 
 ## Books: send a page now, hear it later in the car (2026-11-01)
 

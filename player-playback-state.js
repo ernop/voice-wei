@@ -4,9 +4,10 @@
 // The single authoritative location for music-player playback state:
 // the play/pause status, the one reused YouTube player handle and its
 // readiness, the active item/video the player holds and whether YouTube
-// has started it, the current item, the playlist cursor, and the
+// has started it, the current item, the playlist cursor, the
 // transient intents (resume-after-listening, auto-advance suppression,
-// the hidden page's one background continuation).
+// the hidden page's one background continuation), and the listening
+// span the listening history is measured from.
 //
 // Nothing outside this object stores playback state. All mutations go
 // through the named transitions below so the status, the active player,
@@ -41,6 +42,10 @@ class PlaybackState {
         this.backgroundContinuationUsed = false;
         /** @type {boolean} That continuation's reload has not settled; until it does, YouTube's time is not the song's position */
         this.continuationReloadPending = false;
+        /** @type {string | null} Video a play request waits on: its next PLAYING report is one play */
+        this.playRequestVideoId = null;
+        /** @type {ListeningSpan | null} The stretch YouTube has reported PLAYING without a break */
+        this.listeningSpan = null;
     }
 
     get isPlaying() {
@@ -143,6 +148,58 @@ class PlaybackState {
         return Date.now() < this.suppressAutoAdvanceUntil;
     }
 
+    /**
+     * A request that starts the song from its beginning (a load, or play on
+     * a cued or ended video): YouTube's next PLAYING report for it is one
+     * play. Resuming a paused song is not a request.
+     * @param {string} videoId
+     */
+    requestPlay(videoId) {
+        this.playRequestVideoId = videoId;
+    }
+
+    /**
+     * YouTube reported PLAYING for the active video: a listening span opens
+     * unless one is already open for it. A span never covers two videos, so
+     * an open span of another video ends here (YouTube normally reports a
+     * break between them first).
+     * @param {number} nowMs performance.now()
+     * @returns {{ playStarted: boolean, endedSpan: ListenedTime | null }}
+     */
+    startListening(nowMs) {
+        const videoId = this.activeVideoId;
+        const endedSpan = this.listeningSpan && this.listeningSpan.videoId !== videoId
+            ? this.stopListening(nowMs)
+            : null;
+        if (!this.listeningSpan) this.listeningSpan = { videoId, startedAtMs: nowMs };
+        const playStarted = this.playRequestVideoId === videoId;
+        if (playStarted) this.playRequestVideoId = null;
+        return { playStarted, endedSpan };
+    }
+
+    /**
+     * YouTube left PLAYING (or the player is going away): the open span ends.
+     * @param {number} nowMs performance.now()
+     * @returns {ListenedTime | null} the video and how long it played
+     */
+    stopListening(nowMs) {
+        const span = this.listeningSpan;
+        if (!span) return null;
+        this.listeningSpan = null;
+        return { videoId: span.videoId, seconds: Math.max(0, nowMs - span.startedAtMs) / 1000 };
+    }
+
+    /**
+     * The open span's time so far; the span goes on from now.
+     * @param {number} nowMs performance.now()
+     * @returns {ListenedTime | null}
+     */
+    takeListenedSoFar(nowMs) {
+        const listened = this.stopListening(nowMs);
+        if (listened) this.listeningSpan = { videoId: listened.videoId, startedAtMs: nowMs };
+        return listened;
+    }
+
     /** Return to the empty/idle baseline (playlist cleared). */
     reset() {
         this.status = 'idle';
@@ -157,6 +214,8 @@ class PlaybackState {
         this.suppressAutoAdvanceUntil = 0;
         this.backgroundContinuationUsed = false;
         this.continuationReloadPending = false;
+        this.playRequestVideoId = null;
+        this.listeningSpan = null;
     }
 }
 

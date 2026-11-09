@@ -9,9 +9,9 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Lyrics - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=382">
-    <link rel="stylesheet" href="practice-controls.css?v=382">
-    <link rel="stylesheet" href="player.css?v=382">
+    <link rel="stylesheet" href="style.css?v=383">
+    <link rel="stylesheet" href="practice-controls.css?v=383">
+    <link rel="stylesheet" href="player.css?v=383">
 </head>
 
 <body data-page="music" data-settings-button="true" data-lyric-heading="true">
@@ -278,6 +278,7 @@
                             <button id="shufflePlaylistBtn" class="panel-action-btn" type="button">Shuffle</button>
                             <button id="sortPlaylistArtistBtn" class="panel-action-btn" type="button">Artist</button>
                             <button id="sortPlaylistYearBtn" class="panel-action-btn" type="button">Year</button>
+                            <button id="sortPlaylistListenedBtn" class="panel-action-btn" type="button">Most played</button>
                             <label class="display-toggle">
                                 <input type="checkbox" id="playlistNotesToggle">
                                 <span>Notes</span>
@@ -367,6 +368,11 @@
                             <input type="search" id="knownSongsSearchInput" class="text-input music-history-search"
                                 placeholder="Search known songs" aria-label="Search known songs">
                             <button id="knownSongsLoadShownBtn" class="panel-action-btn" type="button">Load All Shown</button>
+                        </div>
+                        <div class="segment-row music-history-order" aria-label="Known songs order">
+                            <span class="step-label">Order</span>
+                            <button id="knownSongsOrderRecentBtn" class="vf-btn selected" type="button" aria-pressed="true">Recent</button>
+                            <button id="knownSongsOrderListenedBtn" class="vf-btn" type="button" aria-pressed="false">Most played</button>
                         </div>
                         <div id="musicKnownSongsList" class="music-history-list"></div>
                     </section>
@@ -479,37 +485,38 @@
     </div>
 
     <script async src="https://www.youtube.com/iframe_api"></script>
-    <script src="dev-error-monitor.js?v=382"></script>
-    <script src="fuseki-stats.js?v=382"></script>
-    <script src="usage-stats.js?v=382"></script>
-    <script src="app-version.js?v=382"></script>
-    <script src="storage-keys.js?v=382"></script>
-    <script src="audio-volume.js?v=382"></script>
-    <script src="shared-header.js?v=382"></script>
-    <script src="settings-store.js?v=382"></script>
-    <script src="music-constants.js?v=382"></script>
-    <script src="piano-core.js?v=382"></script>
-    <script src="api-keys-store.js?v=382"></script>
-    <script src="render-throttle.js?v=382"></script>
-    <script src="practice-controls.js?v=382"></script>
-    <script src="voice-output.js?v=382"></script>
-    <script src="media-session-core.js?v=382"></script>
-    <script src="player-songs.js?v=382"></script>
-    <script src="player-storage.js?v=382"></script>
-    <script src="player-playback-state.js?v=382"></script>
-    <script src="player-lifecycle.js?v=382"></script>
-    <script src="player-history-db.js?v=382"></script>
-    <script src="player-api-keys.js?v=382"></script>
-    <script src="player-ai.js?v=382"></script>
-    <script src="html-escape.js?v=382"></script>
-    <script src="player-playlist.js?v=382"></script>
-    <script src="player-prebuffer-probe.js?v=382"></script>
-    <script src="player-lyrics.js?v=382"></script>
-    <script src="player-song-report.js?v=382"></script>
-    <script src="player-song-library.js?v=382"></script>
-    <script src="player-history-ui.js?v=382"></script>
-    <script src="player-youtube-lists.js?v=382"></script>
-    <script src="player.js?v=382"></script>
+    <script src="dev-error-monitor.js?v=383"></script>
+    <script src="fuseki-stats.js?v=383"></script>
+    <script src="usage-stats.js?v=383"></script>
+    <script src="app-version.js?v=383"></script>
+    <script src="storage-keys.js?v=383"></script>
+    <script src="audio-volume.js?v=383"></script>
+    <script src="shared-header.js?v=383"></script>
+    <script src="settings-store.js?v=383"></script>
+    <script src="music-constants.js?v=383"></script>
+    <script src="piano-core.js?v=383"></script>
+    <script src="api-keys-store.js?v=383"></script>
+    <script src="render-throttle.js?v=383"></script>
+    <script src="practice-controls.js?v=383"></script>
+    <script src="voice-output.js?v=383"></script>
+    <script src="media-session-core.js?v=383"></script>
+    <script src="player-songs.js?v=383"></script>
+    <script src="player-storage.js?v=383"></script>
+    <script src="player-playback-state.js?v=383"></script>
+    <script src="player-lifecycle.js?v=383"></script>
+    <script src="player-history-db.js?v=383"></script>
+    <script src="player-api-keys.js?v=383"></script>
+    <script src="player-ai.js?v=383"></script>
+    <script src="html-escape.js?v=383"></script>
+    <script src="player-playlist.js?v=383"></script>
+    <script src="player-prebuffer-probe.js?v=383"></script>
+    <script src="player-lyrics.js?v=383"></script>
+    <script src="player-song-report.js?v=383"></script>
+    <script src="player-song-library.js?v=383"></script>
+    <script src="player-history-ui.js?v=383"></script>
+    <script src="player-listening.js?v=383"></script>
+    <script src="player-youtube-lists.js?v=383"></script>
+    <script src="player.js?v=383"></script>
 </body>
 
 </html>

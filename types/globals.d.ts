@@ -76,6 +76,7 @@ interface Window {
     PlayerSongs?: typeof PlayerSongs;
     PlayerHistoryDB?: PlayerHistoryDBApi;
     PlayerHistoryUI?: typeof PlayerHistoryUI;
+    PlayerListening?: typeof PlayerListening;
     PlayerYouTubeLists?: typeof PlayerYouTubeLists;
     PlayerLifecycle?: PlayerLifecycleApi;
     MediaSessionCore?: MediaSessionCoreApi;

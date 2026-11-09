@@ -69,7 +69,9 @@ Placement of the canonical controls: the Playlist card's curation row is
 `primary-btn` (Load favorites, with a `+N` count), a `display-toggle`
 (Favorites only), and `secondary-btn danger` (Unload unstarred, Clear); the
 filter row pairs the `text-input` with the Timed only toggle; the Order row
-is `panel-action-btn` (Shuffle, Artist, Year) plus the Notes toggle. The
+is `panel-action-btn` (Shuffle, Artist, Year, Most played) plus the Notes
+toggle. The History panel's Known Songs card adds a labeled `segment-row`
+(Order: Recent / Most played) under its search. The
 This song card uses a labeled `segment-row` (Second line: Identity / Song
 Report), a `step-field` (Every), `primary-btn` (Request Song Report), and a
 `vf-btn` toggle (Report Text); Share song is a `secondary-btn`. Search is a

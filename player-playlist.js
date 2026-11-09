@@ -206,10 +206,26 @@ const PlayerPlaylist = (function () {
             },
 
             /** @param {PlaylistSortKey} key */
-            sortPlaylist(key) {
+            async sortPlaylist(key) {
                 if (this.playlist.length < 2) return;
 
                 const text = (/** @type {string} */ value) => String(value || '').toLowerCase();
+                /** @param {PlaylistItem} a @param {PlaylistItem} b */
+                const byArtistThenName = (a, b) => text(a.artist).localeCompare(text(b.artist))
+                    || text(a.name).localeCompare(text(b.name));
+
+                if (key === 'listened') {
+                    // Time heard first, then plays; songs never played keep
+                    // the artist order at the end.
+                    const listening = await this.loadListening();
+                    const mostListened = PlayerListening.compareMostListened(listening);
+                    this.playlist.sort((a, b) => mostListened(a, b) || byArtistThenName(a, b));
+                    this.rerenderPlaylistDom();
+                    const played = this.playlist.filter(item => listening.has(item.videoId)).length;
+                    this.updateStatus(`Most played first: ${played} of ${this.playlist.length} songs have been played`);
+                    return;
+                }
+
                 this.playlist.sort((a, b) => {
                     if (key === 'year') {
                         // Unknown years sort last; ties fall through to artist
@@ -217,9 +233,7 @@ const PlayerPlaylist = (function () {
                         const yearB = Number(b.year) || Infinity;
                         if (yearA !== yearB) return yearA - yearB;
                     }
-                    const artistCompare = text(a.artist).localeCompare(text(b.artist));
-                    if (artistCompare !== 0) return artistCompare;
-                    return text(a.name).localeCompare(text(b.name));
+                    return byArtistThenName(a, b);
                 });
 
                 this.rerenderPlaylistDom();
@@ -1097,6 +1111,7 @@ const PlayerPlaylist = (function () {
                                 },
                                 onStateChange: (event) => {
                                     PlayerLifecycle.recordYouTubeState(event.data);
+                                    this.noteListeningState(event.data);
                                     if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED
                                         || event.data === YT.PlayerState.ENDED) {
                                         this.playback.settleContinuationReload();
@@ -1544,9 +1559,17 @@ const PlayerPlaylist = (function () {
                     try {
                         if (this.playback.activeVideoId !== item.videoId && typeof player.loadVideoById === 'function') {
                             this.playback.setActiveMedia(item.id, item.videoId);
+                            this.playback.requestPlay(item.videoId);
                             player.loadVideoById(item.videoId);
                         } else {
                             this.playback.setActiveMedia(item.id, item.videoId);
+                            // Starts the song over only from a stop; on a paused
+                            // or sounding song it resumes, which is not a play.
+                            const youtubeState = player.getPlayerState();
+                            if (youtubeState === YT.PlayerState.UNSTARTED || youtubeState === YT.PlayerState.CUED
+                                || youtubeState === YT.PlayerState.ENDED) {
+                                this.playback.requestPlay(item.videoId);
+                            }
                             player.playVideo();
                         }
                         this.playback.markPlaying(item.id);
@@ -2020,6 +2043,8 @@ const PlayerPlaylist = (function () {
              */
             clearPlaylistItems() {
                 this.cleanupPrebufferProbe();
+                // The player is destroyed below without reporting a last state.
+                this.endListeningSpan();
                 // Stop any playing video
                 if (this.currentPlayingId) {
                     const player = this.playback.player;

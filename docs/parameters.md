@@ -347,7 +347,8 @@ pickers and the query pills always mirror each other.
 
 The playlist filter box and the Known Songs search box are live view
 filters, not settings: they are never persisted and reset to "show all"
-on reload. Both use the one matcher in `player-songs.js`
+on reload. The Known Songs **Order** (Recent / Most played) is the same kind
+of live view: it starts at Recent on every load. Both use the one matcher in `player-songs.js`
 (`songMatchesQuery`: punctuation/apostrophe and diacritic differences are
 normalized, then every query word must appear in the visible name, artist,
 year, or album). Hidden notes, search terms, and raw YouTube metadata do not
@@ -385,7 +386,9 @@ Generated reports live in the same database's `songReports` store, keyed by
 display lines. **Request Song Report** replaces that song's saved report and
 activates Report mode when the save completes. It is an explicit action, not a
 background request. Report playback starts at line one immediately on return
-and at the beginning of every later replay.
+and at the beginning of every later replay. Each played video's plays and
+seconds heard live in the `songListening` store, keyed by `videoId`; they
+are records, not settings, and no control changes them.
 
 ## Books (`ebookSettings`, API key in `openaiApiKey`, library in IndexedDB)
 

@@ -565,7 +565,9 @@ the starred songs. Under it, four large buttons (two per row on a phone):
 **Load favorites** (its **+N** is how many favorites are not in the list
 yet), **Favorites only**, **Unload unstarred**, and **Clear**; then the live
 filter box with **Timed only**, and an **Order** row: **Shuffle**,
-**Artist**, **Year**, and **Notes**.
+**Artist**, **Year**, **Most played**, and **Notes**. **Most played** puts the
+songs heard longest first, then those with more plays; songs never played
+follow in artist order, and the status line says how many have been played.
 Behind the working list, every song ever seen is recorded durably in the
 known-songs catalog (IndexedDB), so clearing or replacing the playlist
 never loses song information. When a video refuses to play (embed
@@ -798,7 +800,22 @@ Other surfaces on the page:
   artist, source, time, then its buttons). The Known Songs card has the same
   punctuation/diacritic-insensitive live identity search as the playlist
   filter (name, artist, year, album), with per-row Load buttons and a "Load
-  All Shown" button that loads every matching song into the working playlist.
+  All Shown" button that loads every matching song into the working playlist,
+  in the order shown. A song that has played shows its plays and the time
+  heard before its Load button (`3 plays · 12:40`). **Order** chooses
+  **Recent** (most recently seen first) or **Most played** (time heard, then
+  plays; songs never played keep the Recent order after them).
+- **Listening history**: every song's plays and time heard are kept forever
+  in the `voice-wei-music` IndexedDB, for the exact YouTube video that
+  played. A play is the song starting after Play, Next, a row tap, or the
+  advance at a song's end, including the same song again after it ended;
+  resuming a pause and the Android background reload (above) are not plays,
+  and a tap on the row that is already sounding is not either. Time heard is
+  the time YouTube was actually playing it: pauses, buffering, and loading
+  do not count, and listening again to a part after a seek back does. The
+  time of the song playing now is saved every 30 seconds and whenever the
+  page is hidden. Counting began with v383; earlier listening was not
+  recorded.
 - **Log** opens with only lines from the current page session, and **Copy
   All** copies only those visible session lines. **Load Old Logs** explicitly
   prepends every earlier-session line still retained by the 5,000-line

@@ -1312,8 +1312,11 @@ body[data-page="music"] .header-lyric-line {
     margin: 0 0 10px;
 }
 
+/* minmax(0, ...): an auto column grows to a row's unbroken one-line text,
+   pushing a card's values and buttons past a phone's edge. */
 .music-history-grid {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
 }
 
@@ -1336,6 +1339,10 @@ body[data-page="music"] .header-lyric-line {
     min-width: 0;
     font-size: 0.85rem;
     padding: 6px 10px;
+}
+
+.music-history-order {
+    margin-top: 8px;
 }
 
 .music-history-list {
@@ -1377,6 +1384,16 @@ body[data-page="music"] .header-lyric-line {
 .music-history-item-meta::before {
     content: '\00b7';
     margin: 0 5px;
+}
+
+/* Plays and time heard: the row's values, in an aligned column before its buttons. */
+.music-history-item-listened {
+    flex: none;
+    font-size: 0.9rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: #fff;
 }
 
 .music-history-item-actions {
