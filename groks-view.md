@@ -176,7 +176,7 @@ selectors (enforced in tests).
 **A. Practice / pitch pipeline**
 
 ```
-Mic → pitch-detect-core (MPM, singable band D2–Bb4, glitch holdback,
+Mic → pitch-detect-core (MPM, singable band D2–D5, glitch holdback,
       voice-gated clock) → history samples
    → pitch-trace-view (rails, targets, sung line)
    → pitch-score (sequence alignment + cents bands)

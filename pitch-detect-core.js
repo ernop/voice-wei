@@ -31,11 +31,15 @@ const PitchDetectCore = (function () {
     // band is the room and the gear (harmonic locks, squeaks, hum,
     // rumble), not the singer, and reads as silence - it never reaches
     // the trace, the chart scale, scoring, or the voice clock. Band =
-    // the owner's range: D2 below a normal barbershop bass line's low
-    // notes, Bb4 just above a lead line's top (the owner sings lead/bari;
-    // the downward extension covers all four parts).
+    // D2 below a normal barbershop bass line's low notes, up to D5. The
+    // top must clear every note the default Scales key asks for (C4 up
+    // to C5): a pick above the band walks down to a subharmonic, so a
+    // note sung above the band never reads as silence - it draws an
+    // octave low (owner, 2026-11-08: a Bb4 top drew sung B4/C5 as B3/C4).
+    // Higher tops start reading low voices with a strong 2nd harmonic an
+    // octave high (G5: 5% of frames, C6: 11%).
     const VOICE_MIN_MIDI = 38; // D2, ~73 Hz
-    const VOICE_MAX_MIDI = 70; // Bb4, ~466 Hz
+    const VOICE_MAX_MIDI = 74; // D5, ~587 Hz
     const ANALYSER_FFT_SIZE = 2048;
     // onFrame fires every animation frame by default: live surfaces draw
     // per frame (smooth scroll); consumers throttle their own analysis.
@@ -62,7 +66,7 @@ const PitchDetectCore = (function () {
     // 2026-11-03: singing Bb4 drew on the Bb3 rail).
     const MPM_SUBHARMONIC_MARGIN = 0.015;
     const MPM_IN_BAND_SUBHARMONIC_MARGIN = 0.05;
-    const DETECT_DECIMATE = 2;             // detect at half rate: Bb4's period is still ~51 samples
+    const DETECT_DECIMATE = 2;             // detect at half rate: D5's period is still ~41 samples
 
     /** @type {Float32Array} half-rate signal scratch (detector only) */
     let mpmSignal = new Float32Array(0);
@@ -83,8 +87,8 @@ const PitchDetectCore = (function () {
         rms = Math.sqrt(rms / size);
         if (rms < 0.01) return -1;
 
-        // Half-rate copy (pair averaging): the band tops out at Bb4
-        // (~466 Hz), far below the decimated Nyquist, and the cost of
+        // Half-rate copy (pair averaging): the band tops out at D5
+        // (~587 Hz), far below the decimated Nyquist, and the cost of
         // every lag halves twice over.
         const rate = sampleRate / DETECT_DECIMATE;
         const len = Math.floor(size / DETECT_DECIMATE);

@@ -361,16 +361,24 @@ little in loudness or length correlates better at twice its period while
 still sounding at its own pitch, and the single 0.015 margin read such
 voices an octave low (2026-11-03: a sung Bb4 drew on the Bb3 rail). It returns nothing when the signal is too
 quiet (RMS < 0.01), unclear (NSDF clarity < 0.8), or outside the
-singable band (VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI Bb4 - the owner's
-range: below a barbershop bass line's low notes up to just above a lead
-line's top; out-of-band detections are the room and the gear, not the
-singer, and read as silence). Otherwise it returns fractional MIDI plus
-cents deviation. `tests/test-pitch-detect.js` holds the octave contract
-in Node against synthetic sung notes (glottal pulses with jitter and
-shimmer through vowel formants, with and without a phone's low cut):
-ordinary voices read on their note across D2-Bb4 with no octave errors,
-voices with alternating cycles stay on their note, a dominant 2nd
-harmonic still reads as the note, and out-of-band tones and noise read
+singable band (VOICE_MIN_MIDI D2 to VOICE_MAX_MIDI D5 - below a
+barbershop bass line's low notes up to a whole step above the default
+Scales key's top C5; out-of-band detections are the room and the gear,
+not the singer, and read as silence). The top must clear every note a
+default exercise asks for: the walk-down treats any pick above the band
+as a harmonic, so a note really sung above the band does not read as
+silence - it draws an octave low. With a Bb4 top, the default scale's
+B4 and C5 drew as B3 and C4 or nothing (2026-11-08). Raising the top
+further trades for octave-high reads of low voices with a strong 2nd
+harmonic (G5 top: 5% of such frames; C6: 11%). Otherwise it returns
+fractional MIDI plus cents deviation. `tests/test-pitch-detect.js` holds
+the octave contract in Node against synthetic sung notes (glottal pulses
+with jitter and shimmer through vowel formants, with and without a
+phone's low cut): ordinary voices read on their note across D2-Bb4 with
+no octave errors; B4-D5 read on their note with a few octave-low frames
+("ee" and "oo" put the first formant near half the sung pitch there);
+voices with alternating cycles stay on their note; a dominant 2nd
+harmonic still reads as the note; and out-of-band tones and noise read
 as no pitch. The band is
 deliberately the OWNER's instrument, not the exercise's: it never moves
 with the selected key, range, or targets, so it cannot re-introduce

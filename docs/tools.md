@@ -374,8 +374,8 @@ rolling-window width) sit below that; the pattern input stays above.
   clock, which used to squeeze the chart every frame.
 - Guide bands are bare outlines of the hit zone; they do not recolor
   from scoring (Trace has no scoring). Filtering is voice-physics only, never
-  exercise-based: detections outside the singable band (D2-Bb4:
-  barbershop bass low up to just above a lead's top) read as silence,
+  exercise-based: detections outside the singable band (D2-D5:
+  barbershop bass low up to a step above the default scale's top) read as silence,
   and a large instant jump must sustain for a few frames to count as
   voice (brief detector scrapes never reach the chart; real leaps are
   recorded whole).
@@ -1036,8 +1036,8 @@ those sit inside the frame too) and singing never resizes it, so a
 momentary low or high note cannot rescale the chart mid-take. Off-frame
 singing stays recorded at its true pitch and still scores, but draws
 off-screen; use Expand range for more room. Rejection is
-voice-physics only: detections outside the singable band (D2-Bb4:
-barbershop bass low up to just above a lead's top) are the room, not the
+voice-physics only: detections outside the singable band (D2-D5:
+barbershop bass low up to a step above the default scale's top) are the room, not the
 singer, and read as silence; and a large instant jump must sustain for a
 few frames to be voice (brief detector scrapes never reach the trace,
 confirmed jumps are recorded whole). Target bands are bare outlines of
