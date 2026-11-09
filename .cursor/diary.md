@@ -1935,3 +1935,30 @@ For future mei:
 - Low-frequency content (mic DC, car rumble around 50-60 Hz) makes the
   detector go silent instead of reading wrong. It is not addressed yet;
   if yui reports nothing showing in the car, look there.
+
+## 2026-11-09 - Lyrics: plays and time heard, Most played order (v383)
+
+The question was whether Lyrics already kept play counts and time
+listened. It did not: History held lookups, known songs, and the search
+cache, but nothing about listening. The new `songListening` store keeps
+running totals per videoId. A play is the first PLAYING after
+`PlaybackState.requestPlay`; time heard is the time between PLAYING and
+the next other state. The playlist Order row gains Most played, and Known
+Songs gains a Recent / Most played order with `N plays · m:ss` on each
+row. Counting starts at v383.
+
+For future mei:
+- `Install(harness)` is `Object.assign`. A stub declared in the harness's
+  object literal is overwritten by the real method, so it stubs nothing:
+  assign stubs after install. `test-player-search` had been running the
+  real History refresh for months without anyone noticing.
+- The History panel's one-column grid was `auto`, so on a phone a long
+  one-line row widened every card past the panel and hid the Load
+  buttons. Before this, nothing measured the panel at 390 px with rows in
+  it. Check `scrollWidth` against the panel width with real-length rows.
+- `deploy/verify-live.sh` wants the full commit hash. With a short one it
+  prints NOT LIVE even when the deploy is live, so pass
+  `$(git rev-parse HEAD)`.
+- The listening test controls time by replacing `performance.now` in the
+  page. This keeps the time totals exact (70 s, 60 s, 15 s) rather than
+  approximate.
