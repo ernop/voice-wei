@@ -1962,3 +1962,31 @@ For future mei:
 - The listening test controls time by replacing `performance.now` in the
   page. This keeps the time totals exact (70 s, 60 s, 15 s) rather than
   approximate.
+
+## 2026-11-08 - Sing drew the default scale's top an octave low (v384)
+
+Yui asked whether the Sing chart really shows what was sung, not a note
+an octave off. Below Bb4 it does: nothing between the detector and the
+canvas folds or shifts a pitch. Above Bb4 it did not. The default Scales
+key (C4, one octave) ends on B4 and C5, past the detector's Bb4 top. The
+walk-down treats any pick above the band as a harmonic, so a sung C5 did
+not read as silence: it walked to C4, passed the band filter, and drew.
+On continuous synthetic sung scales through the real band filter and
+glitch holdback, C4-A4 drew exactly and B4/C5 drew as B3, C4, F3, or
+nothing. Yui chose a D5 top (MIDI 74) over the alternatives.
+
+For future mei:
+- The band top is not just "the owner's range". It must clear every note
+  a default exercise targets, because singing above the top produces a
+  wrong note, not silence. Above D5 the trade is octave-HIGH reads of low
+  voices with a strong 2nd harmonic (G5 top: 5% of frames, C6: 11%).
+- The octave-low frames left at C5-D5 come only from "ee" and "oo": their
+  first formant (300-350 Hz) sits near half the sung pitch, and with
+  jitter that resonance repeats every two cycles. A plain pulse train
+  never reads low, and 4x-oversampled synthesis reads the same, so it is
+  not a test-synthesis artifact. Whether real singers hit it is unproven.
+- Per-note probes beat band-wide averages: the band-wide check passed
+  while A4/Bb4 already read an octave low on 6% of rough-voice frames,
+  diluted by 33 clean notes.
+- `deploy/verify-live.sh` now rejects a short commit hash outright,
+  instead of printing NOT LIVE for a live deploy.

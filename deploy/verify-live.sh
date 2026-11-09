@@ -24,6 +24,13 @@ if ! [[ $expected =~ $number_pattern ]]; then
     echo "EXPECTED_VERSION must be a number (got '$expected')" >&2
     exit 2
 fi
+# release.json holds the full hash; a short one would report a live
+# deploy as NOT LIVE.
+full_commit_pattern='^[0-9a-f]{40}$'
+if [ -n "$expected_commit" ] && ! [[ $expected_commit =~ $full_commit_pattern ]]; then
+    echo "EXPECTED_COMMIT must be a full 40-character hash (got '$expected_commit'); pass \$(git rev-parse HEAD)" >&2
+    exit 2
+fi
 
 not_live() {
     echo "NOT LIVE: $1" >&2
