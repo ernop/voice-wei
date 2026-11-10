@@ -2029,6 +2029,9 @@ For future mei:
 - A layout check for "one line per row" must compare the vertical
   centers of the visible children. Comparing their tops fails rows that
   center a taller button next to short text.
-- On this machine the untouched gate took 22.7s, not the ~13s in
-  AGENTS.md. After this change it took 24.2s. `gh run view --log`
-  returned empty output here, so CI suite timings were not available.
+- On this machine the untouched gate took 19.3s and 22.7s in two runs,
+  not the ~13s in AGENTS.md, so wall time varies by seconds between
+  runs. After this change it took about 24s. The stable cost is
+  `test-intervals-pitch.js`, which went from 10s to 15s because its
+  play-along exercise now runs to the end. `gh run view --log` returned
+  empty output here, so CI suite timings were not available.
