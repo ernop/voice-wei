@@ -252,6 +252,18 @@ function scalePattern(scaleType) {
 }
 
 /**
+ * The third of the scale's tonic triad, in semitones above the root: the
+ * major third when the scale has it and not the minor one, otherwise the
+ * minor third (chromatic, which has both, counts as minor).
+ * @param {string} scaleType
+ * @returns {3 | 4}
+ */
+function scaleThirdInterval(scaleType) {
+    const pattern = scalePattern(scaleType);
+    return pattern.includes(4) && !pattern.includes(3) ? 4 : 3;
+}
+
+/**
  * True when the scale's pattern has non-integer (microtonal) steps.
  * @param {string} scaleType
  * @returns {boolean}
@@ -494,6 +506,20 @@ function scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPrefere
 function scaleMidiToNoteName(root, octave, scaleType, midi, accidentalPreference = null) {
     if (!Number.isInteger(midi)) return midiToMicrotonalNoteName(midi);
     return scaleMidiToPitchString(root, octave, scaleType, midi, accidentalPreference).replace(/-?\d+$/, '');
+}
+
+/**
+ * Sharps or flats for the notes outside the scale, following the key:
+ * a flat key (Eb, or any scale spelled with flats) names its other notes
+ * with flats too.
+ * @param {string} root
+ * @param {string} scaleType
+ * @returns {'#' | 'b'}
+ */
+function scaleAccidentalPreference(root, scaleType) {
+    if (preferredScaleRootName(root)?.includes('b')) return 'b';
+    return scaleDegreeNotesInRange(root, 4, scaleType, 0, 12)
+        .some(note => /^[A-G]b/.test(note.noteName)) ? 'b' : '#';
 }
 
 /**

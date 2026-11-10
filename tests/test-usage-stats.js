@@ -5,7 +5,7 @@
 // https://fuseki.net/voice-wei/ through request routing - the one place the
 // client sends - and its pings are recorded in the page as they are sent and
 // answered locally, so nothing reaches the real host. One sing take, one ear
-// question, and one Pitch session each send exactly one round with their
+// question, and one Pitch exercise each send exactly one round with their
 // fields; engaged() follows the microphone and the piano, never the silent
 // media-session loop.
 
@@ -223,22 +223,27 @@ function pingsOf(tab) {
     report.check(`Both mode records a correct identification (${JSON.stringify({ ...before, ...both })})`,
         both.rounds.length === 1 && both.rounds[0].r === 'pass' && both.correct === before.correct + 1);
 
-    // ============ PITCH: one scored session, same player ============
+    // ============ PITCH: one scored exercise, same player ============
+    // Listening alone is unscored; a play-along run stopped part-way
+    // sends exactly one round.
     const pitch = await ctx.newPage();
     collectErrors(pitch, 'pitch-meter', report.errors);
     await pitch.goto(`${APP_URL}pitch-meter.html`, { waitUntil: 'networkidle' });
-    await pitch.waitForFunction(() => Boolean(window.pitchMeter && window.pitchMeter.samplerLoaded),
+    await pitch.waitForFunction(() => Boolean(window.pitchDebug && window.pitchDebug.pianoReady()),
         null, { timeout: WAIT_MS });
-    await pitch.click('[data-mode="free"]');
-    await pitch.click('#listenBtn');
-    // Any accepted sample from the fake device makes the session scorable.
-    await waitOn(pitch, () => window.pitchMeter.session.history.length > 0);
-    await pitch.click('#stopBtn');
+    await pitch.click('[data-mode="play-along"]');
+    await pitch.click('#exerciseBtn');
+    await waitOn(pitch, () => (document.getElementById('status')?.textContent || '').startsWith('Sing:'));
+    await pitch.evaluate(() => {
+        const start = window.pitchDebug.clockMs() + 1000;
+        for (let k = 0; k < 8; k++) window.pitchDebug.recordSample(60, start + k * 20);
+    });
+    await pitch.click('#exerciseBtn');
     const pitchPings = await pingsOf(pitch);
     const sessions = pitchPings.filter(ping => ping.e === 'game');
     const scored = sessions[0] || {};
-    report.check(`Pitch session sends one round (${JSON.stringify(scored)})`,
-        sessions.length === 1 && scored.m === 'pitch-free' && scored.r === 'done'
+    report.check(`Pitch exercise sends one round (${JSON.stringify(scored)})`,
+        sessions.length === 1 && scored.m === 'pitch-play-along' && scored.r === 'done'
         && Number(scored.total) > 0 && /^\d+$/.test(scored.acc) && Number(scored.d) > 0
         && scored.pg === '/voice-wei/pitch-meter.html');
     const pitchPlay = pitchPings.find(ping => ping.e === 'play');

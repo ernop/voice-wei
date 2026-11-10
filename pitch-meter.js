@@ -1,318 +1,827 @@
 // @ts-check
 //-----------------------------------------------------------------------
-// PITCH METER - Real-time pitch detection with practice modes
-// Consumes pitch-detect-core (mic + detection + glitch filtering),
-// piano-core (Salamander piano), and settings-store.
-//
-// Requires: music-constants.js (NOTE_NAMES, SCALE_PATTERNS, utility functions)
+// PITCH
+// The Pitch tab. Listen is the page's first job: the microphone draws
+// every sung note on a chromatic chart between the chosen Bottom and Top
+// notes, nothing plays, and the scale finder ranks the keys the singing
+// could be in. The scored exercises (call & response, play along) run
+// on the same chart and session.
+// Consumes pitch-detect-core (the one microphone owner), pitch-trace-view,
+// pitch-score, scale-finder, piano-core, practice-controls,
+// render-throttle, settings-store, and progress-store.
 //-----------------------------------------------------------------------
 
-//-------INSTRUMENT PRESETS-------
-/** @type {Readonly<Record<string, { octave: number, label: string }>>} */
-const INSTRUMENT_PRESETS = Object.freeze({
-    voice: { octave: 4, label: 'Voice' },
-    violin: { octave: 4, label: 'Violin' },
-    bass: { octave: 2, label: 'Bass' }
-});
+(function () {
+    'use strict';
 
-//-------PITCH METER CONTROLLER-------
+    /**
+     * @typedef {{ midi: number, label: string, emphasized: boolean, context: boolean, labelPriority: number }} PitchRail
+     * @typedef {{ midi: number, freq: number, name: string, noteName: string, octave: number }} TargetNote
+     * @typedef {{ matched: boolean, accuracy: number, avgCents: number | null, biasCents: number | null, reason: string, label: string, midi: number }} NoteResult
+     * @typedef {'call-response' | 'play-along'} ExerciseMode
+     * @typedef {{
+     *   mode: ExerciseMode,
+     *   keyLabel: string,
+     *   targets: TargetNote[],
+     *   startedMic: boolean,
+     *   startedAt: number,
+     *   noteResults: NoteResult[],
+     *   sampleStart: number | null
+     * }} ExerciseRun
+     */
 
-/**
- * @typedef {{ midi: number, freq: number, name: string, noteName: string, octave: number }} TargetNote
- * @typedef {{ time: number, freq: number, midi: number, note: string, cents: number, targetNote?: string }} PitchSample
- * @typedef {{ matched: boolean, accuracy: number, avgCents?: number, biasCents?: number, reason?: string, targetNote?: string, samples?: number, label?: string, midi?: number }} NoteResult
- */
-
-class PitchMeterController {
-    static STORAGE_KEY = StorageKeys.PITCH_METER_SETTINGS;
-    static PERSISTED_KEYS = ['mode', 'responseTime', 'instrument', 'rootNote', 'scaleType', 'octave'];
+    /** @type {readonly ExerciseMode[]} */
+    const EXERCISE_MODES = Object.freeze(['call-response', 'play-along']);
+    /** @type {Readonly<Record<string, number>>} The key octave each preset sets */
+    const INSTRUMENT_OCTAVES = Object.freeze({ voice: 4, violin: 4, bass: 2 });
     // Stored in seconds; the choices are the shared time ladder (a match
     // window under half a second is unplayable, so it starts at 0.5s).
-    static RESPONSE_TIME_VALUES = PracticeControls.TIME_VALUES_MS
+    const RESPONSE_TIME_VALUES = Object.freeze(PracticeControls.TIME_VALUES_MS
         .filter(ms => ms >= 500)
-        .map(ms => ms / 1000);
+        .map(ms => ms / 1000));
+    const WINDOW_VALUES_MS = PracticeControls.WINDOW_VALUES_MS;
+    // The chart offers the notes the detector can hear plus a whole step
+    // of room at each end; nothing outside the band is ever drawn.
+    const CHART_MIN_MIDI = PitchDetectCore.VOICE_MIN_MIDI - 2;
+    const CHART_MAX_MIDI = PitchDetectCore.VOICE_MAX_MIDI + 2;
+    // With time stopped in silence, a pause still leaves this much room:
+    // longer than the trace's line break, so phrases separate, and short
+    // enough that pauses never scroll the singing away.
+    const SILENCE_MARK_MS = 400;
+    const ANALYSIS_INTERVAL_MS = 500;
 
-    constructor() {
-        /** @type {boolean} */
-        this.isListening = false;
+    const state = {
+        bottomMidi: 48, // C3
+        topMidi: 72, // C5
+        windowMs: 20000,
+        timePassesInSilence: false,
+        showScaleFinder: true,
+        rootNote: 'C',
+        octave: 4,
+        scaleType: 'major',
+        mode: 'call-response',
+        responseTime: 2,
+        instrument: 'voice'
+    };
+    const STORAGE_KEY = StorageKeys.PITCH_METER_SETTINGS;
+    const PERSISTED_KEYS = [
+        'bottomMidi', 'topMidi', 'windowMs', 'timePassesInSilence', 'showScaleFinder',
+        'rootNote', 'octave', 'scaleType', 'mode', 'responseTime', 'instrument'
+    ];
 
-        // Mic capture + glitch-filtered recording (shared core)
-        this.session = PitchDetectCore.createTraceSession({
-            pauseOnSilence: () => false,
-            onAccepted: (sample) => this.onPitchAccepted(sample),
-            onSilence: () => this.clearPitchDisplay()
-        });
-        // While set, accepted samples are tagged and collected for scoring.
-        /** @type {PitchSample[] | null} */
-        this.captureSamples = null;
-        /** @type {string | null} */
-        this.captureTargetName = null;
+    const getEl = PracticeControls.getEl;
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const readoutGate = new RateGate(50);
+    const analysisGate = new RateGate(ANALYSIS_INTERVAL_MS);
+    const readoutDiff = new ValueDiff();
+    const finderDiff = new ValueDiff();
 
-        // Piano (shared core)
-        /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
-        this.piano = null;
-        /** @type {boolean} */
-        this.samplerLoaded = false;
-        /** @type {boolean} */
-        this.isPlayingScale = false;
+    /** @type {Awaited<ReturnType<typeof PianoCore.createPiano>> | null} */
+    let piano = null;
+    /** @type {ExerciseRun | null} */
+    let exercise = null;
+    let previewToken = 0;
+    /** @type {PitchRail[]} */
+    let rails = [];
+    /** @type {'#' | 'b'} */
+    let keySpelling = '#';
+    let segmenter = PitchScore.createSegmenter();
+    let segmentedCount = 0;
+    /** @type {HTMLElement[]} the 12 histogram columns, C first */
+    const finderBars = [];
 
-        // Practice mode
-        /** @type {'free' | 'call-response' | 'play-along'} */
-        this.mode = 'call-response';
-        /** @type {number} */
-        this.responseTime = 2;
-
-        // Current scale config
-        /** @type {string} */
-        this.instrument = 'voice';
-        /** @type {string} */
-        this.rootNote = 'C';
-        /** @type {string} */
-        this.scaleType = 'major';
-        /** @type {number} */
-        this.octave = 4;
-        /** @type {TargetNote[]} */
-        this.targetNotes = [];
-
-        // Call & Response tracking
-        /** @type {number} */
-        this.currentNoteIndex = 0;
-        /** @type {number} */
-        this.noteStartTime = 0;
-        /** @type {NoteResult[]} */
-        this.noteResults = [];
-        /** @type {boolean} */
-        this.sessionAborted = false;
-        /** @type {boolean} One progress entry per session */
-        this.sessionRecorded = false;
-
-        // Canvas handled by pitch-trace-view.js
-        /** @type {ReturnType<typeof PitchTraceView.create>} */
-        this.traceView = null;
-
-        // DOM elements
-        /** @type {HTMLElement | null} */
-        this.statusEl = null;
-        /** @type {HTMLElement | null} */
-        this.currentNoteEl = null;
-        /** @type {HTMLElement | null} */
-        this.currentCentsEl = null;
-        /** @type {HTMLElement | null} */
-        this.currentFreqEl = null;
-        /** @type {HTMLElement | null} */
-        this.centsMarkerEl = null;
-        this.pitchDisplayGate = new RateGate(50);
-        this.pitchDisplayDiff = new ValueDiff();
-
-        this.traceView = PitchTraceView.create({
-            canvasId: 'pitchChart',
-            defaultHeightPx: 300,
-            // The meter's whole job is showing whatever is sung, so the
-            // frame follows the voice here (test panels keep a stable
-            // rails/targets frame instead).
-            frameFollowsVoice: true,
-            rails: () => this.targetNotes.map(note => ({
-                midi: note.midi,
-                label: note.name,
-                emphasized: true
-            })),
-            targets: () => [],
-            history: () => this.session.history,
-            clockMs: () => this.session.clockMs(),
-            windowMs: () => {
-                const history = this.session.history;
-                if (history.length < 2) return 5000;
-                return Math.max(history[history.length - 1].time, 5000);
-            },
-            fixedWindow: () => false,
-            showPlayhead: () => this.isListening
-        });
-
-        this.init();
+    function saveSettings() {
+        SettingsStore.save(STORAGE_KEY, state, PERSISTED_KEYS);
     }
 
-    async init() {
-        // Get DOM elements
-        this.statusEl = document.getElementById('status');
-        this.currentNoteEl = document.getElementById('currentNote');
-        this.currentCentsEl = document.getElementById('currentCents');
-        this.currentFreqEl = document.getElementById('currentFreq');
-        this.centsMarkerEl = document.getElementById('centsMarker');
-
-        this.traceView.resize();
-        window.addEventListener('resize', () => this.traceView.resize());
-
-        // Set up controls
-        const listenBtn = document.getElementById('listenBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const playRefBtn = document.getElementById('playRefBtn');
-
-        if (listenBtn) listenBtn.addEventListener('click', () => this.toggleListening());
-        if (stopBtn) stopBtn.addEventListener('click', () => this.stopSession());
-        if (playRefBtn) playRefBtn.addEventListener('click', () => this.playReferenceScale());
-
-        SettingsStore.load(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
-
-        PracticeControls.wireSingleSelect('data-mode', String, this.mode, value => {
-            this.mode = /** @type {'free' | 'call-response' | 'play-along'} */ (value);
-            this.saveSettings();
-            this.updateModeUI();
-        });
-        PracticeControls.wireSingleSelect('data-instrument', String, this.instrument, value => {
-            this.instrument = value;
-            this.saveSettings();
-            this.applyInstrumentPreset();
-        });
-        PracticeControls.wireSingleSelect('data-scale', String, this.scaleType, value => {
-            this.scaleType = value;
-            this.saveSettings();
-            this.updateTargetNotes();
-        });
-        PracticeControls.wireSteppers((key, delta) => this.stepSetting(key, delta));
-        this.syncControls();
-
-        await this.initPiano();
-
-        this.updateTargetNotes();
-        this.updateModeUI();
-        this.traceView.draw();
+    function rootMidi() {
+        return noteNameToMidi(state.rootNote, state.octave);
     }
 
-    saveSettings() {
-        SettingsStore.save(PitchMeterController.STORAGE_KEY, this, PitchMeterController.PERSISTED_KEYS);
+    function setStatus(message) {
+        PracticeControls.setValueText('status', message);
     }
 
-    /** @param {string} key @param {number} delta */
-    stepSetting(key, delta) {
-        if (key === 'responseTime') {
-            const next = PracticeControls.stepValue(PitchMeterController.RESPONSE_TIME_VALUES, this.responseTime, delta);
-            if (next === null) return;
-            this.responseTime = next;
-        } else if (key === 'rootPitch') {
-            const midi = noteNameToMidi(this.rootNote, this.octave);
-            if (midi === null) return;
-            const bounded = PracticeControls.stepRootMidi(midi, delta);
-            const info = midiToNoteName(bounded);
-            this.rootNote = info.name;
-            this.octave = info.octave;
-            this.updateTargetNotes();
-        } else {
-            return;
-        }
-        this.saveSettings();
-        this.syncControls();
+    /** A note's name as the selected key spells it. @param {number} midi */
+    function noteLabel(midi) {
+        return scaleMidiToPitchString(state.rootNote, state.octave, state.scaleType, Math.round(midi), keySpelling);
     }
 
-    syncControls() {
-        PracticeControls.syncSingleSelect('data-mode', this.mode);
-        PracticeControls.syncSingleSelect('data-instrument', this.instrument);
-        PracticeControls.syncSingleSelect('data-scale', this.scaleType);
-        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(this.rootNote, this.octave));
-        PracticeControls.setValueText('responseTimeValue', `${this.responseTime}s`);
-        PracticeControls.syncStepperDisabled((key, delta) => {
-            if (key === 'responseTime') {
-                return PracticeControls.stepDisabled(PitchMeterController.RESPONSE_TIME_VALUES, this.responseTime, delta);
-            }
-            return PracticeControls.rootStepDisabled(noteNameToMidi(this.rootNote, this.octave), delta);
-        });
+    /**
+     * A pitch class's name as a given key spells it (no octave).
+     * @param {number} pitchClass @param {string} rootName @param {string} scaleType
+     */
+    function pitchClassName(pitchClass, rootName, scaleType) {
+        return scaleMidiToNoteName(rootName, 4, scaleType, 60 + pitchClass, scaleAccidentalPreference(rootName, scaleType));
     }
 
-    async initPiano() {
-        this.updateStatus('Loading piano...');
-        try {
-            this.piano = await PianoCore.createPiano();
-            this.samplerLoaded = true;
-            this.enableButtons();
-            this.updateStatus('Choose a mode and click Start');
-        } catch (err) {
-            console.error('Error loading piano samples:', err);
-            this.updateStatus('Failed to load piano. Refresh to retry.');
+    /** @param {string} scaleType */
+    function scaleMembers(scaleType) {
+        return new Set(scalePattern(scaleType).map(step => positiveModulo(step, 12)));
+    }
+
+    // Every semitone from Bottom to Top gets a rail: the key's notes solid
+    // with bold labels, its root in sky blue, the rest dashed. When rails
+    // crowd, labels give way in reverse order of use for orientation: the
+    // root's stay longest, then the fifth's, the third's, the other key
+    // notes', and the out-of-key notes' go first.
+    function rebuildRails() {
+        const root = rootMidi();
+        const members = scaleMembers(state.scaleType);
+        const third = scaleThirdInterval(state.scaleType);
+        rails = [];
+        for (let midi = state.bottomMidi; midi <= state.topMidi; midi++) {
+            const interval = positiveModulo(midi - root, 12);
+            const inKey = members.has(interval);
+            rails.push({
+                midi,
+                label: noteLabel(midi),
+                emphasized: inKey,
+                context: interval === 0,
+                labelPriority: interval === 0 ? 0 : !inKey ? 4 : interval === 7 ? 1 : interval === third ? 2 : 3
+            });
         }
     }
 
-    enableButtons() {
-        const listenBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('listenBtn'));
-        const playRefBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('playRefBtn'));
-        if (listenBtn) listenBtn.disabled = false;
-        if (playRefBtn) playRefBtn.disabled = false;
+    function silenceAllowanceMs() {
+        return state.timePassesInSilence ? Infinity : SILENCE_MARK_MS;
     }
 
-    updateModeUI() {
-        const responseTimeGroup = document.getElementById('responseTimeGroup');
-        const listenBtn = document.getElementById('listenBtn');
-        const btnText = listenBtn.querySelector('.button-text');
+    function verticalBounds() {
+        return { minMidi: state.bottomMidi - 0.5, maxMidi: state.topMidi + 0.5 };
+    }
 
-        // Show/hide response time selector based on mode
-        responseTimeGroup.style.display = this.mode === 'call-response' ? 'flex' : 'none';
-
-        // Update button text based on mode
-        if (this.mode === 'free') {
-            btnText.textContent = 'Start Listening';
-            this.updateStatus('Free Practice: Sing any notes and see your pitch');
-        } else if (this.mode === 'call-response') {
-            btnText.textContent = 'Start';
-            this.updateStatus('Call & Response: Piano plays a note, you match it');
-        } else if (this.mode === 'play-along') {
-            btnText.textContent = 'Start';
-            this.updateStatus('Play Along: Sing with the piano as it plays the scale');
+    // One voice clock for both silence settings: the switch changes how
+    // much of each pause counts (setMaxSilenceMs), so it applies mid-take
+    // without restarting it.
+    const session = PitchDetectCore.createTraceSession({
+        pauseOnSilence: () => true,
+        onAccepted: sample => updatePitchDisplay(sample.midi, sample.cents, sample.freq),
+        onSilence: () => clearPitchDisplay(),
+        onFrame: () => {
+            drawChart();
+            if (analysisGate.ready()) refreshAnalysis();
         }
+    });
+
+    const view = PitchTraceView.create({
+        canvasId: 'pitchChart',
+        defaultHeightPx: 360,
+        // The newest singing is at the right edge once the chart scrolls,
+        // so the note names are there too.
+        railLabelsBothSides: true,
+        rails: () => rails,
+        targets: () => [],
+        history: () => session.history,
+        clockMs: () => session.clockMs(),
+        windowMs: () => state.windowMs,
+        verticalBounds,
+        showPlayhead: () => session.listening
+    });
+
+    // Every animation frame redraws (an uneven cadence reads as twitching)
+    // unless nothing can have changed: no new samples, same clock.
+    let lastDrawKey = '';
+    function drawChart(force = false) {
+        const key = `${session.history.length}|${session.clockMs() | 0}`;
+        if (!force && key === lastDrawKey) return;
+        lastDrawKey = key;
+        view.draw();
     }
 
-    resizeCanvas() {
-        this.traceView.resize();
+    //-------READOUT-------
+
+    /** @param {number} midi @param {number} cents @param {number} freq */
+    function updatePitchDisplay(midi, cents, freq) {
+        if (!readoutGate.ready()) return;
+        const absCents = Math.abs(cents);
+        const color = absCents < 10 ? '#4ade80' : absCents < 25 ? '#facc15' : '#f87171';
+        const markerLeft = `${Math.max(0, Math.min(100, 50 + cents)).toFixed(1)}%`;
+        readoutDiff.text('note', getEl('currentNote'), noteLabel(midi));
+        readoutDiff.text('cents', getEl('currentCents'), `${formatCents(cents)} cents`);
+        readoutDiff.text('freq', getEl('currentFreq'), `${freq.toFixed(1)} Hz`);
+        readoutDiff.style('noteColor', getEl('currentNote'), 'color', color);
+        readoutDiff.style('markerLeft', getEl('centsMarker'), 'left', markerLeft);
+        readoutDiff.style('markerColor', getEl('centsMarker'), 'background', color);
     }
 
-    // Drawing is never throttled (uneven redraw cadence reads as
-    // twitching); this is sample-driven, so idle means no draws anyway.
-    drawChart() {
-        this.traceView.draw();
+    function clearPitchDisplay() {
+        readoutDiff.text('note', getEl('currentNote'), '--');
+        readoutDiff.text('cents', getEl('currentCents'), '-- cents');
+        readoutDiff.text('freq', getEl('currentFreq'), '-- Hz');
+        readoutDiff.style('noteColor', getEl('currentNote'), 'color', '#fff');
+        readoutDiff.style('markerLeft', getEl('centsMarker'), 'left', '50%');
+        readoutDiff.style('markerColor', getEl('centsMarker'), 'background', '#fff');
     }
 
-    applyInstrumentPreset() {
-        const preset = INSTRUMENT_PRESETS[this.instrument];
-        if (preset) {
-            this.octave = preset.octave;
-            this.saveSettings();
-            this.syncControls();
-            this.updateTargetNotes();
-        }
+    //-------HELD NOTES AND THE SCALE FINDER-------
+
+    /** Notes held since the last reset; each sample is segmented once. */
+    function heldNotes() {
+        const history = session.history;
+        while (segmentedCount < history.length) segmenter.push(history[segmentedCount++]);
+        return segmenter.segments().map(segment => ({
+            midi: segment.midi,
+            durationMs: segment.samples[segment.samples.length - 1].time - segment.samples[0].time
+        }));
     }
 
-    updateTargetNotes() {
-        this.targetNotes = buildScaleFrequencies(this.rootNote, this.octave, this.scaleType);
-        this.drawChart();
+    function refreshAnalysis() {
+        const notes = heldNotes();
+        const fitBtn = /** @type {HTMLButtonElement | null} */ (getEl('fitRangeBtn'));
+        if (fitBtn) fitBtn.disabled = notes.length === 0;
+        if (state.showScaleFinder) renderScaleFinder(ScaleFinder.rank(notes));
     }
 
-    /** @param {string} message */
-    updateStatus(message) {
-        if (this.statusEl) {
-            this.statusEl.textContent = message;
+    function buildFinderBars() {
+        const host = getEl('scaleFinderBars');
+        if (!host) return;
+        for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+            const bar = document.createElement('div');
+            bar.className = 'pitch-finder-bar';
+            const track = document.createElement('span');
+            track.className = 'pitch-finder-track';
+            const fill = document.createElement('span');
+            fill.className = 'pitch-finder-fill';
+            track.append(fill);
+            const name = document.createElement('span');
+            name.className = 'pitch-finder-note';
+            bar.append(track, name);
+            host.append(bar);
+            finderBars.push(bar);
         }
     }
 
     /**
-     * Persist a finished session's result and refresh the trend line.
+     * Bars show each pitch class's share of the singing, colored and
+     * spelled by the leading candidate (by the selected key until there is
+     * one): its tonic sky blue like the chart's root rails, its other
+     * notes green, notes outside it amber.
+     * @param {ReturnType<typeof ScaleFinder.rank>} result
+     */
+    function renderScaleFinder(result) {
+        const best = result.ready ? result.candidates[0] : null;
+        const spellRoot = best ? NOTE_NAMES[best.root] : state.rootNote;
+        const spellScale = best ? best.scaleType : state.scaleType;
+        const tonic = best ? best.root : midiPitchClass(rootMidi());
+        const members = scaleMembers(spellScale);
+        const maxShare = Math.max(...result.pitchClasses.map(entry => entry.share));
+        finderBars.forEach((bar, pitchClass) => {
+            const entry = result.pitchClasses[pitchClass];
+            const interval = positiveModulo(pitchClass - tonic, 12);
+            const fill = /** @type {HTMLElement} */ (bar.querySelector('.pitch-finder-fill'));
+            const height = maxShare > 0 ? Math.round(entry.share / maxShare * 100) : 0;
+            finderDiff.style(`height${pitchClass}`, fill, 'height', `${height}%`);
+            bar.classList.toggle('is-tonic', interval === 0);
+            bar.classList.toggle('is-outside', !members.has(interval));
+            finderDiff.text(`name${pitchClass}`, bar.querySelector('.pitch-finder-note'),
+                pitchClassName(pitchClass, spellRoot, spellScale));
+        });
+
+        let summary = 'Sing a few notes';
+        if (result.ready) {
+            const tuning = Math.abs(result.tuningCents) >= 5 ? `, tuning ${formatCents(result.tuningCents)}c` : '';
+            summary = `${result.noteCount} notes, ${Math.round(result.totalMs / 1000)}s${tuning}`;
+        } else if (result.noteCount) {
+            summary = `${result.noteCount} notes, ${result.distinctPitchClasses} different: needs `
+                + `${ScaleFinder.MIN_HELD_NOTES} notes, ${ScaleFinder.MIN_DISTINCT_PITCH_CLASSES} different`;
+        }
+        finderDiff.text('summary', getEl('scaleFinderSummary'), summary);
+
+        const list = getEl('scaleFinderList');
+        const listKey = result.candidates
+            .map(candidate => `${candidate.root}:${candidate.scaleType}:${Math.round(candidate.probability * 100)}:${candidate.outside.join('.')}`)
+            .join('|') + `|${state.rootNote}:${state.scaleType}`;
+        if (list && finderDiff.changed('list', listKey)) {
+            list.replaceChildren(...result.candidates.map(candidateRow));
+        }
+    }
+
+    /** @param {ReturnType<typeof ScaleFinder.rank>['candidates'][number]} candidate */
+    function candidateRow(candidate) {
+        const rootName = NOTE_NAMES[candidate.root];
+        const row = document.createElement('li');
+        row.className = 'pitch-finder-row';
+        const percent = document.createElement('span');
+        percent.className = 'pitch-finder-percent';
+        percent.textContent = `${Math.round(candidate.probability * 100)}%`;
+        const name = document.createElement('span');
+        name.className = 'pitch-finder-name';
+        name.textContent = candidate.name;
+        const outside = document.createElement('span');
+        outside.className = 'pitch-finder-outside';
+        outside.textContent = candidate.outside.length
+            ? `outside: ${candidate.outside.map(pitchClass => pitchClassName(pitchClass, rootName, candidate.scaleType)).join(' ')}`
+            : '';
+        const inUse = rootName === state.rootNote && candidate.scaleType === state.scaleType;
+        const use = document.createElement('button');
+        use.type = 'button';
+        use.className = 'panel-action-btn';
+        use.textContent = inUse ? 'In use' : 'Use';
+        use.disabled = inUse;
+        use.addEventListener('click', () => {
+            state.rootNote = rootName;
+            state.scaleType = candidate.scaleType;
+            keyChanged();
+        });
+        row.append(percent, name, outside, use);
+        return row;
+    }
+
+    //-------RANGE, KEY, AND SETTINGS-------
+
+    /** @param {number} bottom @param {number} top */
+    function setRange(bottom, top) {
+        state.bottomMidi = bottom;
+        state.topMidi = top;
+        saveSettings();
+        rebuildRails();
+        syncControls();
+        drawChart(true);
+    }
+
+    // One tap frames what was actually held (brief slides and scrapes
+    // between notes do not stretch it), with a semitone of room.
+    function fitRangeToSinging() {
+        const midis = heldNotes().map(note => Math.round(note.midi));
+        if (!midis.length) return;
+        const bottom = Math.max(CHART_MIN_MIDI, Math.min(...midis) - 1);
+        const top = Math.min(CHART_MAX_MIDI, Math.max(...midis) + 1);
+        setRange(bottom, Math.max(top, bottom + 1));
+    }
+
+    /**
+     * The exercise's notes must be on the chart: widen the frame (never
+     * narrow it) to hold each target with a semitone of room.
+     * @param {TargetNote[]} targets
+     */
+    function frameTargets(targets) {
+        const low = Math.min(...targets.map(note => note.midi)) - 1;
+        const high = Math.max(...targets.map(note => note.midi)) + 1;
+        if (low >= state.bottomMidi && high <= state.topMidi) return;
+        setRange(Math.max(CHART_MIN_MIDI, Math.min(state.bottomMidi, low)),
+            Math.min(CHART_MAX_MIDI, Math.max(state.topMidi, high)));
+    }
+
+    function keyChanged() {
+        keySpelling = scaleAccidentalPreference(state.rootNote, state.scaleType);
+        saveSettings();
+        rebuildRails();
+        syncControls();
+        refreshAnalysis();
+        drawChart(true);
+    }
+
+    /** @param {number} midi */
+    function setKeyFromMidi(midi) {
+        const info = midiToNoteName(PracticeControls.clampRootMidi(midi));
+        state.rootNote = info.name;
+        state.octave = info.octave;
+        keyChanged();
+    }
+
+    /** @param {string} key @param {number} delta */
+    function stepSetting(key, delta) {
+        if (key === 'bottomMidi') {
+            const next = state.bottomMidi + delta;
+            if (next >= CHART_MIN_MIDI && next < state.topMidi) setRange(next, state.topMidi);
+            return;
+        }
+        if (key === 'topMidi') {
+            const next = state.topMidi + delta;
+            if (next <= CHART_MAX_MIDI && next > state.bottomMidi) setRange(state.bottomMidi, next);
+            return;
+        }
+        if (key === 'rootPitch') {
+            setKeyFromMidi(PracticeControls.stepRootMidi(rootMidi(), delta));
+            return;
+        }
+        if (key === 'responseTime') {
+            const next = PracticeControls.stepValue(RESPONSE_TIME_VALUES, state.responseTime, delta);
+            if (next === null) return;
+            state.responseTime = next;
+            saveSettings();
+            syncControls();
+        }
+    }
+
+    // The Width slider walks the shared window list by index, so its
+    // notches are evenly spaced and every one is a labeled value.
+    function wireWidthSlider() {
+        const slider = /** @type {HTMLInputElement | null} */ (getEl('widthSlider'));
+        const scale = getEl('widthScale');
+        if (!slider || !scale) return;
+        const last = WINDOW_VALUES_MS.length - 1;
+        slider.min = '0';
+        slider.max = String(last);
+        slider.step = '1';
+        WINDOW_VALUES_MS.forEach((ms, index) => {
+            const left = `${index / last * 100}%`;
+            const notch = document.createElement('i');
+            notch.style.left = left;
+            const label = document.createElement('b');
+            label.textContent = PracticeControls.formatSeconds(ms);
+            label.style.left = left;
+            if (index === 0) label.className = 'is-start';
+            if (index === last) label.className = 'is-end';
+            scale.append(notch, label);
+        });
+        slider.addEventListener('input', () => {
+            state.windowMs = WINDOW_VALUES_MS[Number(slider.value)];
+            saveSettings();
+            syncControls();
+            drawChart(true);
+        });
+    }
+
+    function syncControls() {
+        PracticeControls.syncSingleSelect('data-scale', state.scaleType);
+        PracticeControls.syncSingleSelect('data-mode', state.mode);
+        PracticeControls.syncSingleSelect('data-instrument', state.instrument);
+        PracticeControls.setValueText('rootPitchValue', scaleRootPitchString(state.rootNote, state.octave));
+        PracticeControls.setValueText('bottomValue', noteLabel(state.bottomMidi));
+        PracticeControls.setValueText('topValue', noteLabel(state.topMidi));
+        PracticeControls.setValueText('responseTimeValue', `${state.responseTime}s`);
+        PracticeControls.setValueText('widthValue', PracticeControls.formatSeconds(state.windowMs));
+        const slider = /** @type {HTMLInputElement | null} */ (getEl('widthSlider'));
+        if (slider) slider.value = String(WINDOW_VALUES_MS.indexOf(state.windowMs));
+        PracticeControls.syncToggle('timePassesToggle', state.timePassesInSilence);
+        PracticeControls.syncToggle('scaleFinderToggle', state.showScaleFinder);
+        const finderCard = getEl('scaleFinderCard');
+        if (finderCard) finderCard.hidden = !state.showScaleFinder;
+        PracticeControls.syncStepperDisabled((key, delta) => {
+            if (key === 'bottomMidi') {
+                return delta < 0 ? state.bottomMidi <= CHART_MIN_MIDI : state.bottomMidi + 1 >= state.topMidi;
+            }
+            if (key === 'topMidi') {
+                return delta < 0 ? state.topMidi - 1 <= state.bottomMidi : state.topMidi >= CHART_MAX_MIDI;
+            }
+            if (key === 'responseTime') {
+                return PracticeControls.stepDisabled(RESPONSE_TIME_VALUES, state.responseTime, delta);
+            }
+            return PracticeControls.rootStepDisabled(rootMidi(), delta);
+        });
+
+        const listenBtn = getEl('listenBtn');
+        if (listenBtn) {
+            listenBtn.textContent = session.listening ? 'Stop' : 'Listen';
+            listenBtn.classList.toggle('listening', session.listening);
+        }
+        const exerciseBtn = /** @type {HTMLButtonElement | null} */ (getEl('exerciseBtn'));
+        if (exerciseBtn) {
+            exerciseBtn.disabled = !piano;
+            exerciseBtn.textContent = exercise ? 'Stop exercise' : 'Start exercise';
+        }
+        const previewBtn = /** @type {HTMLButtonElement | null} */ (getEl('previewBtn'));
+        if (previewBtn) previewBtn.disabled = !piano || exercise !== null;
+    }
+
+    //-------LISTENING-------
+
+    /** @returns {Promise<boolean>} false when the microphone is unavailable */
+    async function startListening() {
+        stopPreview();
+        const ok = await session.start();
+        if (!ok) {
+            setStatus('Microphone unavailable or access denied');
+            syncControls();
+            return false;
+        }
+        setStatus('Listening');
+        syncControls();
+        drawChart(true);
+        return true;
+    }
+
+    function stopMic() {
+        session.stop();
+        clearPitchDisplay();
+        syncControls();
+        refreshAnalysis();
+        drawChart(true);
+    }
+
+    function stopListening() {
+        if (exercise) endExercise(exercise);
+        else setStatus('Stopped');
+        stopMic();
+    }
+
+    async function toggleListening() {
+        if (session.listening) stopListening();
+        else await startListening();
+    }
+
+    // Reset starts a fresh take: the chart, the held notes the finder
+    // weighs, and any exercise in progress (abandoned without results).
+    function resetTake() {
+        if (exercise) {
+            exercise = null;
+            if (piano) piano.stopAll();
+        }
+        session.reset();
+        segmenter = PitchScore.createSegmenter();
+        segmentedCount = 0;
+        clearPitchDisplay();
+        const resultsPanel = getEl('resultsPanel');
+        if (resultsPanel) resultsPanel.hidden = true;
+        setStatus(session.listening ? 'Listening' : 'Press Listen and sing');
+        syncControls();
+        refreshAnalysis();
+        drawChart(true);
+    }
+
+    //-------EXERCISES-------
+
+    function targetNotes() {
+        return buildScaleFrequencies(state.rootNote, state.octave, state.scaleType);
+    }
+
+    async function playPreview() {
+        if (!piano) return;
+        const token = ++previewToken;
+        piano.stopAll();
+        await PianoCore.ensureStarted();
+        for (const note of targetNotes()) {
+            if (token !== previewToken) return;
+            piano.playMidi(note.midi, '4n');
+            await sleep(500);
+        }
+    }
+
+    function stopPreview() {
+        previewToken++;
+        if (piano) piano.stopAll();
+    }
+
+    async function toggleExercise() {
+        if (exercise) finishExercise(exercise);
+        else await startExercise();
+    }
+
+    // An exercise is a fresh take: it resets the chart like Reset, and
+    // when it had to start the microphone it stops it again at the end.
+    async function startExercise() {
+        if (!piano) return;
+        stopPreview();
+        const startedMic = !session.listening;
+        if (startedMic && !(await startListening())) return;
+        resetTake();
+        const targets = targetNotes();
+        frameTargets(targets);
+        /** @type {ExerciseRun} */
+        const run = {
+            mode: /** @type {ExerciseMode} */ (state.mode),
+            keyLabel: `${state.rootNote}${state.octave} ${state.scaleType}`,
+            targets,
+            startedMic,
+            startedAt: performance.now(),
+            noteResults: [],
+            sampleStart: null
+        };
+        exercise = run;
+        syncControls();
+        await PianoCore.ensureStarted();
+        if (exercise !== run) return;
+        if (run.mode === 'call-response') await runCallResponse(run);
+        else await runPlayAlong(run);
+    }
+
+    /** @param {ExerciseRun} run */
+    async function runCallResponse(run) {
+        const total = run.targets.length;
+        for (let index = 0; index < total; index++) {
+            const note = run.targets[index];
+            setStatus(`Note ${index + 1}/${total}: hear ${note.name}, then match it`);
+            piano.playMidi(note.midi, '2n');
+            await sleep(600);
+            if (exercise !== run) return;
+            setStatus(`Now sing ${note.name} (${state.responseTime}s)`);
+            const windowStart = session.history.length;
+            await sleep(state.responseTime * 1000);
+            if (exercise !== run) return;
+            const result = evaluateNoteMatch(note, session.history.slice(windowStart));
+            run.noteResults.push(result);
+            setStatus(result.matched ? `${note.name}: ${result.accuracy}% accurate` : `${note.name}: missed (${result.reason})`);
+            await sleep(500);
+            if (exercise !== run) return;
+        }
+        finishExercise(run);
+    }
+
+    /** @param {ExerciseRun} run */
+    async function runPlayAlong(run) {
+        setStatus('Get ready to sing along...');
+        await sleep(1000);
+        if (exercise !== run) return;
+        run.sampleStart = session.history.length;
+        for (const note of run.targets) {
+            setStatus(`Sing: ${note.name}`);
+            piano.playMidi(note.midi, '4n');
+            await sleep(state.responseTime * 1000);
+            if (exercise !== run) return;
+        }
+        finishExercise(run);
+    }
+
+    /** @param {ExerciseRun} run */
+    function finishExercise(run) {
+        endExercise(run);
+        if (run.startedMic) stopMic();
+    }
+
+    /**
+     * Stop the run's piano and report what was sung: per-note results for
+     * call & response, the nearest-note breakdown for play along.
+     * @param {ExerciseRun} run
+     */
+    function endExercise(run) {
+        exercise = null;
+        if (piano) piano.stopAll();
+        if (run.mode === 'call-response' && run.noteResults.length) {
+            showCallResponseResults(run);
+        } else if (run.mode === 'play-along' && run.sampleStart !== null && session.history.length > run.sampleStart) {
+            showPlayAlongResults(run, session.history.slice(run.sampleStart));
+        } else {
+            setStatus('Exercise stopped');
+        }
+        syncControls();
+    }
+
+    /**
+     * @param {TargetNote} targetNote
+     * @param {{ midi: number }[]} samples
+     * @returns {NoteResult}
+     */
+    function evaluateNoteMatch(targetNote, samples) {
+        const base = { label: targetNote.name, midi: targetNote.midi };
+        const score = PitchScore.scoreWindow(samples, targetNote.midi);
+        if (!score.attempted) {
+            return { ...base, matched: false, reason: 'no sound detected', accuracy: 0, avgCents: null, biasCents: null };
+        }
+        if (!score.matched) {
+            const sungNote = midiToNoteName(/** @type {number} */ (score.sungMidi)).full;
+            return { ...base, matched: false, reason: `sang ${sungNote} instead`, accuracy: 0, avgCents: null, biasCents: score.biasCents };
+        }
+        // Reached the note: 'good'/'ok' count as a hit; a matched-but-loose
+        // note (verdict 'missed') is reported with its sharp/flat direction.
+        const hit = score.verdict === 'good' || score.verdict === 'ok';
+        return {
+            ...base,
+            matched: hit,
+            reason: hit ? '' : `${score.biasCents > 0 ? 'sharp' : 'flat'} by ${Math.round(score.avgCents)}c`,
+            accuracy: score.accuracy,
+            avgCents: score.avgCents,
+            biasCents: score.biasCents
+        };
+    }
+
+    /** @param {ExerciseRun} run */
+    function showCallResponseResults(run) {
+        const matched = run.noteResults.filter(result => result.matched);
+        const total = run.noteResults.length;
+        const accuracy = matched.length
+            ? Math.round(matched.reduce((sum, result) => sum + result.accuracy, 0) / matched.length)
+            : 0;
+        const avgCents = matched.length
+            ? matched.reduce((sum, result) => sum + /** @type {number} */ (result.avgCents), 0) / matched.length
+            : null;
+        renderResultsSummary(accuracy, avgCents, matched.length, total);
+        recordProgress(run, matched.length, total, avgCents, accuracy, run.noteResults.map(result => ({
+            label: result.label,
+            midi: result.midi,
+            result: /** @type {'good' | 'ok' | 'missed'} */ (
+                result.matched ? PitchScore.verdictFor(/** @type {number} */ (result.avgCents)) : 'missed'),
+            avgCents: result.avgCents,
+            biasCents: result.biasCents
+        })));
+        renderNoteBreakdown('Per-note results', run.noteResults.map(result => {
+            /** @type {'good' | 'ok' | 'poor' | 'missed'} */
+            let status = 'missed';
+            if (result.avgCents !== null) {
+                const verdict = PitchScore.verdictFor(result.avgCents);
+                status = verdict === 'missed' ? 'poor' : verdict;
+            }
+            return {
+                name: result.label,
+                status,
+                deviation: result.matched ? `${result.accuracy}% (${Math.round(/** @type {number} */ (result.avgCents))} cents)` : result.reason
+            };
+        }));
+        setStatus(`Done: ${matched.length}/${total} notes matched, ${accuracy}% average accuracy`);
+    }
+
+    /**
+     * Play along has no per-note windows, so each sample goes to its
+     * nearest target (within the note-identity band) and each target is
+     * graded with the one shared correctness definition.
+     * @param {ExerciseRun} run
+     * @param {{ midi: number }[]} samples
+     */
+    function showPlayAlongResults(run, samples) {
+        const identitySemitones = PitchScore.IDENTITY_CENTS / 100;
+        /** @type {Map<number, { midi: number }[]>} */
+        const samplesByTarget = new Map(run.targets.map(note => [note.midi, []]));
+        for (const sample of samples) {
+            let nearestMidi = run.targets[0].midi;
+            for (const note of run.targets) {
+                if (Math.abs(sample.midi - note.midi) < Math.abs(sample.midi - nearestMidi)) nearestMidi = note.midi;
+            }
+            if (Math.abs(sample.midi - nearestMidi) <= identitySemitones) {
+                /** @type {{ midi: number }[]} */ (samplesByTarget.get(nearestMidi)).push(sample);
+            }
+        }
+        const scored = run.targets.map(note => ({
+            note,
+            score: PitchScore.scoreWindow(samplesByTarget.get(note.midi) || [], note.midi)
+        }));
+        const sung = scored.filter(entry => entry.score.attempted);
+        const hit = scored.filter(entry => entry.score.verdict === 'good' || entry.score.verdict === 'ok').length;
+        const avgCents = sung.length ? sung.reduce((sum, entry) => sum + entry.score.avgCents, 0) / sung.length : null;
+        const accuracy = sung.length ? sung.reduce((sum, entry) => sum + entry.score.accuracy, 0) / sung.length : 0;
+        renderResultsSummary(accuracy, avgCents, hit, run.targets.length);
+        recordProgress(run, hit, run.targets.length, avgCents, accuracy, scored.map(({ note, score }) => ({
+            label: note.name,
+            midi: note.midi,
+            result: score.verdict,
+            avgCents: score.attempted ? score.avgCents : null,
+            biasCents: score.attempted ? score.biasCents : null
+        })));
+        renderNoteBreakdown('Per-note breakdown', scored.map(({ note, score }) => ({
+            name: note.name,
+            status: !score.attempted ? 'missed' : score.verdict === 'missed' ? 'poor' : score.verdict,
+            deviation: score.attempted ? `${Math.round(score.avgCents)} cents avg` : 'not detected'
+        })));
+        setStatus(`Done: ${Math.round(accuracy)}% accuracy`);
+    }
+
+    /**
+     * @param {number} accuracyPercent @param {number | null} avgCents
+     * @param {number} notesHit @param {number} total
+     */
+    function renderResultsSummary(accuracyPercent, avgCents, notesHit, total) {
+        const resultsPanel = getEl('resultsPanel');
+        if (resultsPanel) resultsPanel.hidden = false;
+        PracticeControls.setValueText('overallAccuracy', `${Math.round(accuracyPercent)}%`);
+        PracticeControls.setValueText('avgDeviation', avgCents === null ? '-- cents' : `${avgCents.toFixed(1)} cents`);
+        PracticeControls.setValueText('notesHit', `${notesHit}/${total}`);
+        const accuracyEl = getEl('overallAccuracy');
+        if (accuracyEl) {
+            accuracyEl.style.color = accuracyPercent >= 80 ? '#4ade80' : accuracyPercent >= 60 ? '#facc15' : '#f87171';
+        }
+    }
+
+    /**
+     * @param {string} title
+     * @param {{ name: string, status: 'good' | 'ok' | 'poor' | 'missed', deviation: string }[]} items
+     */
+    function renderNoteBreakdown(title, items) {
+        const breakdown = getEl('noteBreakdown');
+        if (!breakdown) return;
+        const marks = { good: String.fromCharCode(10003), ok: '~', poor: '!', missed: 'x' };
+        const heading = document.createElement('h4');
+        heading.textContent = title;
+        breakdown.replaceChildren(heading, ...items.map(item => {
+            const row = document.createElement('div');
+            row.className = 'note-result';
+            const name = document.createElement('span');
+            name.className = 'note-name';
+            name.textContent = item.name;
+            const status = document.createElement('span');
+            status.className = `note-status note-${item.status}`;
+            status.textContent = marks[item.status];
+            const deviation = document.createElement('span');
+            deviation.className = 'note-deviation';
+            deviation.textContent = item.deviation;
+            row.append(name, status, deviation);
+            return row;
+        }));
+    }
+
+    /**
+     * Persist a finished exercise and refresh the trend lines.
+     * @param {ExerciseRun} run
      * @param {number} hit @param {number} total @param {number | null} avgCents
      * @param {number} accuracyPercent - the results panel's headline accuracy
-     * @param {ProgressNoteResult[]} [notes]
+     * @param {ProgressNoteResult[]} notes
      */
-    recordProgress(hit, total, avgCents, accuracyPercent, notes = []) {
-        if (this.sessionRecorded || total === 0) return;
-        this.sessionRecorded = true;
+    function recordProgress(run, hit, total, avgCents, accuracyPercent, notes) {
+        if (total === 0) return;
         ProgressStore.record({
             tool: 'pitch-meter',
-            context: `${this.mode} ${this.rootNote}${this.octave} ${this.scaleType}`,
+            context: `${run.mode} ${run.keyLabel}`,
             total,
             hit,
             avgCents,
             notes
         });
-        this.updateProgressLine();
+        PracticeControls.setValueText('progressSummary', ProgressStore.trendLine('pitch-meter'));
+        PracticeControls.setValueText('weakSpotsSummary', ProgressStore.weakSpotLine('pitch-meter'));
         try {
             if (window.FusekiStats) window.FusekiStats.game({
-                m: `pitch-${this.mode}`,
+                m: `pitch-${run.mode}`,
                 r: 'done',
-                d: (performance.now() - this.session.startedAt) / 1000,
+                d: (performance.now() - run.startedAt) / 1000,
                 hit,
                 total,
                 cents: avgCents,
@@ -323,511 +832,87 @@ class PitchMeterController {
         }
     }
 
-    updateProgressLine() {
-        const el = document.getElementById('progressSummary');
-        if (el) el.textContent = ProgressStore.trendLine('pitch-meter');
-        const weakEl = document.getElementById('weakSpotsSummary');
-        if (weakEl) weakEl.textContent = ProgressStore.weakSpotLine('pitch-meter');
+    //-------BOOT-------
+
+    function initUI() {
+        PracticeControls.wireSteppers(stepSetting);
+        PracticeControls.wireSingleSelect('data-scale', String, state.scaleType, value => {
+            state.scaleType = value;
+            keyChanged();
+        });
+        PracticeControls.wireSingleSelect('data-mode', String, state.mode, value => {
+            state.mode = value;
+            saveSettings();
+            syncControls();
+        });
+        PracticeControls.wireSingleSelect('data-instrument', String, state.instrument, value => {
+            state.instrument = value;
+            state.octave = INSTRUMENT_OCTAVES[value];
+            keyChanged();
+        });
+        PracticeControls.wireToggle('timePassesToggle', state.timePassesInSilence, checked => {
+            state.timePassesInSilence = checked;
+            session.setMaxSilenceMs(silenceAllowanceMs());
+            saveSettings();
+            drawChart(true);
+        });
+        PracticeControls.wireToggle('scaleFinderToggle', state.showScaleFinder, checked => {
+            state.showScaleFinder = checked;
+            saveSettings();
+            syncControls();
+            refreshAnalysis();
+        });
+        wireWidthSlider();
+        buildFinderBars();
+        getEl('listenBtn')?.addEventListener('click', toggleListening);
+        getEl('resetBtn')?.addEventListener('click', resetTake);
+        getEl('fitRangeBtn')?.addEventListener('click', fitRangeToSinging);
+        getEl('exerciseBtn')?.addEventListener('click', toggleExercise);
+        getEl('previewBtn')?.addEventListener('click', playPreview);
+        window.addEventListener('resize', () => view.resize());
+
+        keySpelling = scaleAccidentalPreference(state.rootNote, state.scaleType);
+        session.setMaxSilenceMs(silenceAllowanceMs());
+        rebuildRails();
+        syncControls();
+        view.resize();
+        refreshAnalysis();
+        setStatus('Press Listen and sing');
     }
 
-    async toggleListening() {
-        if (this.isListening) {
-            this.stopSession();
-        } else {
-            await this.startSession();
-        }
-    }
-
-    async startSession() {
-        this.stopScalePlayback();
-
-        const ok = await this.session.start();
-        if (!ok) {
-            this.updateStatus('Microphone access denied. Please allow microphone access.');
-            return;
-        }
-        this.session.reset();
-
-        this.isListening = true;
-        this.sessionAborted = false;
-        this.sessionRecorded = false;
-        this.noteResults = [];
-        this.currentNoteIndex = 0;
-        this.captureSamples = null;
-        this.captureTargetName = null;
-
-        // Update UI
-        const listenBtn = document.getElementById('listenBtn');
-        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
-        const resultsPanel = document.getElementById('resultsPanel');
-        if (listenBtn) {
-            listenBtn.classList.add('listening');
-            const btnText = listenBtn.querySelector('.button-text');
-            if (btnText) btnText.textContent = 'Listening...';
-        }
-        if (stopBtn) stopBtn.disabled = false;
-        if (resultsPanel) resultsPanel.style.display = 'none';
-
-        await PianoCore.ensureStarted();
-
-        // The shared session records continuously; modes only direct the
-        // piano and tag/collect samples through onPitchAccepted.
-        if (this.mode === 'free') {
-            this.updateStatus('Listening... Sing any notes');
-        } else if (this.mode === 'call-response') {
-            this.startCallResponseMode();
-        } else if (this.mode === 'play-along') {
-            this.startPlayAlongMode();
-        }
-    }
-
-    stopSession() {
-        this.sessionAborted = true;
-        this.isListening = false;
-        this.isPlayingScale = false;
-        this.captureSamples = null;
-        this.captureTargetName = null;
-
-        this.session.stop();
-
-        // Stop any playing notes
-        if (this.piano) {
-            this.piano.stopAll();
-        }
-
-        // Update UI
-        const listenBtn = document.getElementById('listenBtn');
-        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
-        if (listenBtn) listenBtn.classList.remove('listening');
-        this.updateModeUI();  // Reset button text
-        if (stopBtn) stopBtn.disabled = true;
-
-        this.updateStatus('Stopped');
-
-        // Show results if we have data
-        if (this.session.history.length > 0) {
-            if (this.mode === 'call-response' && this.noteResults.length > 0) {
-                this.analyzeCallResponseResults();
-            } else {
-                this.analyzeResults();
+    async function boot() {
+        SettingsStore.load(STORAGE_KEY, state, PERSISTED_KEYS);
+        // The retired free-practice mode ('free') may still be stored.
+        if (!EXERCISE_MODES.includes(/** @type {ExerciseMode} */ (state.mode))) state.mode = EXERCISE_MODES[0];
+        initUI();
+        // Named state inspection for the test suite, plus the explicit
+        // sample seam (the pitch test panel's recordSample pattern).
+        window.pitchDebug = {
+            settings: () => ({ ...state }),
+            rails: () => rails,
+            verticalBounds,
+            silenceAllowanceMs,
+            history: () => session.history,
+            clockMs: () => session.clockMs(),
+            listening: () => session.listening,
+            finder: () => ScaleFinder.rank(heldNotes()),
+            pianoReady: () => piano !== null,
+            exerciseRunning: () => exercise !== null,
+            recordSample(midi, timeMs) {
+                session.record({ time: timeMs, midi, freq: midiToFreq(midi), cents: 0, note: '' });
+                refreshAnalysis();
+                drawChart(true);
             }
-        }
-    }
-
-    //-------SAMPLE HANDLING-------
-
-    /** @param {PitchSample} sample */
-    onPitchAccepted(sample) {
-        this.updatePitchDisplay(sample.note, sample.cents, sample.freq);
-        if (this.captureTargetName) sample.targetNote = this.captureTargetName;
-        if (this.captureSamples) this.captureSamples.push(sample);
-        this.drawChart();
-    }
-
-    //-------CALL & RESPONSE MODE-------
-
-    async startCallResponseMode() {
-        this.currentNoteIndex = 0;
-        this.noteResults = [];
-        await this.playNextCallResponseNote();
-    }
-
-    async playNextCallResponseNote() {
-        if (!this.isListening || this.sessionAborted) return;
-        if (this.currentNoteIndex >= this.targetNotes.length) {
-            this.finishCallResponseMode();
-            return;
-        }
-
-        const note = this.targetNotes[this.currentNoteIndex];
-        const noteNum = this.currentNoteIndex + 1;
-        const total = this.targetNotes.length;
-
-        this.updateStatus(`Note ${noteNum}/${total}: Hear ${note.name}, then match it!`);
-
-        // Play the note
-        this.piano.playMidi(note.midi, '2n');
-
-        // Wait a moment for the note to sound, then start listening period
-        await this.sleep(600);
-
-        if (!this.isListening || this.sessionAborted) return;
-
-        this.updateStatus(`Now sing ${note.name}! (${this.responseTime}s)`);
-        this.noteStartTime = Date.now();
-
-        // Collect pitch data for the response time window; the shared
-        // session loop fills this through onPitchAccepted.
-        /** @type {PitchSample[]} */
-        const pitchSamples = [];
-        this.captureSamples = pitchSamples;
-        this.captureTargetName = note.name;
-        await this.sleep(this.responseTime * 1000);
-        this.captureSamples = null;
-        this.captureTargetName = null;
-
-        if (!this.isListening || this.sessionAborted) return;
-
-        // Analyze how well they matched
-        const result = this.evaluateNoteMatch(note, pitchSamples);
-        this.noteResults.push({ ...result, label: note.name, midi: note.midi });
-
-        // Brief feedback
-        if (result.matched) {
-            this.updateStatus(`${note.name}: ${result.accuracy}% accurate!`);
-        } else {
-            this.updateStatus(`${note.name}: Missed (${result.reason})`);
-        }
-
-        await this.sleep(500);
-
-        // Next note
-        this.currentNoteIndex++;
-        await this.playNextCallResponseNote();
-    }
-
-    /**
-     * @param {TargetNote} targetNote
-     * @param {PitchSample[]} pitchSamples
-     * @returns {NoteResult}
-     */
-    evaluateNoteMatch(targetNote, pitchSamples) {
-        const score = PitchScore.scoreWindow(pitchSamples, targetNote.midi);
-        if (!score.attempted) {
-            return { matched: false, reason: 'no sound detected', accuracy: 0 };
-        }
-        if (!score.matched) {
-            const sungNote = midiToNoteName(/** @type {number} */ (score.sungMidi)).full;
-            return { matched: false, reason: `sang ${sungNote} instead`, accuracy: 0, biasCents: score.biasCents };
-        }
-
-        // Reached the note. 'good'/'ok' count as a hit; a matched-but-loose note
-        // (verdict 'missed') is reported with its sharp/flat direction.
-        const hit = score.verdict === 'good' || score.verdict === 'ok';
-        if (!hit) {
-            return {
-                matched: false,
-                reason: `${score.biasCents > 0 ? 'sharp' : 'flat'} by ${Math.round(score.avgCents)}c`,
-                accuracy: score.accuracy,
-                avgCents: score.avgCents,
-                biasCents: score.biasCents,
-                targetNote: targetNote.name,
-                samples: score.onTargetCount
-            };
-        }
-
-        return {
-            matched: true,
-            accuracy: score.accuracy,
-            avgCents: score.avgCents,
-            biasCents: score.biasCents,
-            targetNote: targetNote.name,
-            samples: score.onTargetCount
         };
-    }
-
-    finishCallResponseMode() {
-        this.isListening = false;
-        this.isPlayingScale = false;
-
-        const listenBtn = document.getElementById('listenBtn');
-        const stopBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('stopBtn'));
-        if (listenBtn) listenBtn.classList.remove('listening');
-        this.updateModeUI();
-        if (stopBtn) stopBtn.disabled = true;
-
-        this.analyzeCallResponseResults();
-    }
-
-    /**
-     * Shared results summary header (accuracy %, avg cents, notes hit + color).
-     * @param {number} accuracyPercent @param {string} avgCentsText
-     * @param {number} notesHit @param {number} total
-     */
-    renderResultsSummary(accuracyPercent, avgCentsText, notesHit, total) {
-        document.getElementById('overallAccuracy').textContent = Math.round(accuracyPercent) + '%';
-        document.getElementById('avgDeviation').textContent = avgCentsText + ' cents';
-        document.getElementById('notesHit').textContent = notesHit + '/' + total;
-        const accEl = document.getElementById('overallAccuracy');
-        accEl.style.color = accuracyPercent >= 80 ? '#4ade80' : accuracyPercent >= 60 ? '#facc15' : '#f87171';
-    }
-
-    /**
-     * Shared per-note breakdown list. Each item: { name, status, deviation }
-     * where status is 'good' | 'ok' | 'poor' | 'missed'.
-     * @param {string} title
-     * @param {{ name: string, status: 'good' | 'ok' | 'poor' | 'missed', deviation: string }[]} items
-     */
-    renderNoteBreakdown(title, items) {
-        const breakdownEl = document.getElementById('noteBreakdown');
-        breakdownEl.innerHTML = `<h4>${title}</h4>`;
-        const icons = { good: String.fromCharCode(10003), ok: '~', poor: '!', missed: 'x' };
-        const classes = { good: 'note-good', ok: 'note-ok', poor: 'note-poor', missed: 'note-missed' };
-        items.forEach(item => {
-            const noteDiv = document.createElement('div');
-            noteDiv.className = 'note-result';
-            noteDiv.innerHTML = `
-                <span class="note-name">${item.name}</span>
-                <span class="note-status ${classes[item.status]}">${icons[item.status]}</span>
-                <span class="note-deviation">${item.deviation}</span>
-            `;
-            breakdownEl.appendChild(noteDiv);
-        });
-    }
-
-    analyzeCallResponseResults() {
-        const resultsPanel = document.getElementById('resultsPanel');
-        resultsPanel.style.display = 'block';
-
-        const matched = this.noteResults.filter(r => r.matched);
-        const notesHitCount = matched.length;
-        const totalNotes = this.noteResults.length;
-
-        const avgAccuracy = matched.length > 0
-            ? Math.round(matched.reduce((sum, r) => sum + r.accuracy, 0) / matched.length)
-            : 0;
-        const avgCents = matched.length > 0
-            ? (matched.reduce((sum, r) => sum + r.avgCents, 0) / matched.length).toFixed(1)
-            : '--';
-
-        this.renderResultsSummary(avgAccuracy, avgCents, notesHitCount, totalNotes);
-
-        const noteOutcomes = this.noteResults.map(r => ({
-            label: r.label || r.targetNote || '?',
-            midi: r.midi ?? 0,
-            result: /** @type {'good' | 'ok' | 'missed'} */ (
-                !r.matched ? 'missed' : PitchScore.verdictFor(r.avgCents ?? 99)),
-            avgCents: r.avgCents ?? null,
-            biasCents: r.biasCents ?? null
-        }));
-        this.recordProgress(notesHitCount, totalNotes, matched.length > 0 ? Number(avgCents) : null, avgAccuracy, noteOutcomes);
-
-        this.renderNoteBreakdown('Per-Note Results', this.noteResults.map((result, i) => {
-            const note = this.targetNotes[i];
-            /** @type {'good' | 'ok' | 'poor' | 'missed'} */
-            let status = 'missed';
-            if (result.matched) {
-                const verdict = PitchScore.verdictFor(result.avgCents ?? 99);
-                status = verdict === 'missed' ? 'poor' : verdict;
-            }
-            return {
-                name: note.name,
-                status,
-                deviation: result.matched ? `${result.accuracy}% (${result.avgCents.toFixed(0)} cents)` : result.reason
-            };
-        }));
-
-        this.updateStatus(`Done! ${notesHitCount}/${totalNotes} notes matched, ${avgAccuracy}% average accuracy`);
-    }
-
-    //-------PLAY ALONG MODE-------
-
-    async startPlayAlongMode() {
-        this.updateStatus('Get ready to sing along...');
-        await this.sleep(1000);
-
-        if (!this.isListening || this.sessionAborted) return;
-
-        this.isPlayingScale = true;
-
-        // Play scale while simultaneously listening; the shared session
-        // records and tags samples via captureTargetName.
-        for (let i = 0; i < this.targetNotes.length; i++) {
-            if (!this.isListening || this.sessionAborted) break;
-
-            const note = this.targetNotes[i];
-            this.updateStatus(`Sing: ${note.name}`);
-
-            this.piano.playMidi(note.midi, '4n');
-            this.captureTargetName = note.name;
-            await this.sleep(this.responseTime * 1000);
+        try {
+            piano = await PianoCore.createPiano();
+        } catch (err) {
+            // Listen needs no piano; only the exercises and the preview do.
+            console.error('Error loading piano samples:', err);
+            setStatus('Piano failed to load: exercises are off until a reload. Listen still works.');
         }
-        this.captureTargetName = null;
-
-        if (this.isListening && !this.sessionAborted) {
-            this.stopSession();
-        }
+        syncControls();
     }
 
-    //-------DISPLAY HELPERS-------
-
-    /**
-     * @param {string} noteName
-     * @param {number} cents
-     * @param {number} freq
-     */
-    updatePitchDisplay(noteName, cents, freq) {
-        if (!this.pitchDisplayGate.ready()) return;
-
-        const noteText = noteName;
-        const centsText = `${formatCents(cents)} cents`;
-        const freqText = freq.toFixed(1) + ' Hz';
-
-        const markerPos = 50 + (cents / 50) * 50;
-        const markerLeft = Math.max(0, Math.min(100, markerPos)).toFixed(1) + '%';
-
-        const absDeviation = Math.abs(cents);
-        let noteColor;
-        let markerColor;
-        if (absDeviation < 10) {
-            noteColor = '#4ade80';
-            markerColor = '#4ade80';
-        } else if (absDeviation < 25) {
-            noteColor = '#facc15';
-            markerColor = '#facc15';
-        } else {
-            noteColor = '#f87171';
-            markerColor = '#f87171';
-        }
-
-        const diff = this.pitchDisplayDiff;
-        diff.text('note', this.currentNoteEl, noteText);
-        diff.text('cents', this.currentCentsEl, centsText);
-        diff.text('freq', this.currentFreqEl, freqText);
-        diff.style('markerLeft', this.centsMarkerEl, 'left', markerLeft);
-        diff.style('noteColor', this.currentNoteEl, 'color', noteColor);
-        diff.style('markerColor', this.centsMarkerEl, 'background', markerColor);
-    }
-
-    clearPitchDisplay() {
-        const diff = this.pitchDisplayDiff;
-        diff.text('note', this.currentNoteEl, '--');
-        diff.text('cents', this.currentCentsEl, '-- cents');
-        diff.text('freq', this.currentFreqEl, '-- Hz');
-        diff.style('noteColor', this.currentNoteEl, 'color', 'rgba(255,255,255,0.5)');
-    }
-
-    //-------SCALE PLAYBACK (preview)-------
-
-    stopScalePlayback() {
-        this.isPlayingScale = false;
-        if (this.piano) {
-            this.piano.stopAll();
-        }
-    }
-
-    async playReferenceScale() {
-        this.stopScalePlayback();
-
-        if (!this.samplerLoaded) {
-            this.updateStatus('Piano not loaded yet');
-            return;
-        }
-
-        this.isPlayingScale = true;
-        await PianoCore.ensureStarted();
-
-        this.updateStatus('Playing ' + this.rootNote + ' ' + this.scaleType + ' scale...');
-
-        for (let i = 0; i < this.targetNotes.length; i++) {
-            if (!this.isPlayingScale) break;
-
-            const note = this.targetNotes[i];
-            this.piano.playMidi(note.midi, '4n');
-            await this.sleep(500);
-        }
-
-        this.isPlayingScale = false;
-        if (!this.isListening) {
-            this.updateModeUI();
-        }
-    }
-
-    //-------FREE PRACTICE RESULTS (same as before)-------
-
-    analyzeResults() {
-        const resultsPanel = document.getElementById('resultsPanel');
-        if (resultsPanel) resultsPanel.style.display = 'block';
-
-        // Free practice has no per-note time windows, so assign each voiced
-        // sample to its nearest target (within the note-identity band) and then
-        // grade each target with the one shared correctness definition.
-        const identitySemitones = PitchScore.IDENTITY_CENTS / 100;
-        /** @type {Map<number, { midi: number }[]>} */
-        const samplesByTarget = new Map();
-        this.targetNotes.forEach(note => samplesByTarget.set(note.midi, []));
-
-        this.session.history.forEach(sample => {
-            /** @type {number | null} */
-            let nearestMidi = null;
-            let nearestDist = Infinity;
-            this.targetNotes.forEach(note => {
-                const dist = Math.abs(sample.midi - note.midi);
-                if (dist < nearestDist) {
-                    nearestDist = dist;
-                    nearestMidi = note.midi;
-                }
-            });
-            if (nearestMidi !== null && nearestDist <= identitySemitones) {
-                const bucket = samplesByTarget.get(nearestMidi);
-                if (bucket) bucket.push(sample);
-            }
-        });
-
-        /** @type {Map<number, any>} */
-        const noteScoreByMidi = new Map();
-        this.targetNotes.forEach(note => {
-            noteScoreByMidi.set(note.midi, PitchScore.scoreWindow(samplesByTarget.get(note.midi) || [], note.midi));
-        });
-
-        const sungScores = this.targetNotes
-            .map(note => noteScoreByMidi.get(note.midi))
-            .filter(score => score && score.attempted);
-        const notesHitCount = this.targetNotes.filter(note => {
-            const score = noteScoreByMidi.get(note.midi);
-            return score && (score.verdict === 'good' || score.verdict === 'ok');
-        }).length;
-        const avgDeviation = sungScores.length
-            ? sungScores.reduce((sum, s) => sum + s.avgCents, 0) / sungScores.length
-            : 0;
-        const accuracy = sungScores.length
-            ? sungScores.reduce((sum, s) => sum + s.accuracy, 0) / sungScores.length
-            : 0;
-
-        const playAlongOutcomes = this.targetNotes.map(note => {
-            const score = noteScoreByMidi.get(note.midi);
-            return {
-                label: note.name,
-                midi: note.midi,
-                result: /** @type {'good' | 'ok' | 'missed'} */ (score ? score.verdict : 'missed'),
-                avgCents: score && score.attempted ? score.avgCents : null,
-                biasCents: score && score.attempted ? score.biasCents : null
-            };
-        });
-        this.recordProgress(notesHitCount, this.targetNotes.length, sungScores.length ? avgDeviation : null, accuracy, playAlongOutcomes);
-
-        this.renderResultsSummary(accuracy, avgDeviation.toFixed(1), notesHitCount, this.targetNotes.length);
-
-        this.renderNoteBreakdown('Per-Note Breakdown', this.targetNotes.map(note => {
-            const score = noteScoreByMidi.get(note.midi);
-            const wasHit = !!(score && score.attempted);
-            /** @type {'good' | 'ok' | 'poor' | 'missed'} */
-            let status = 'missed';
-            if (wasHit) {
-                status = score.verdict === 'good' ? 'good' : score.verdict === 'ok' ? 'ok' : 'poor';
-            }
-            return {
-                name: note.name,
-                status,
-                deviation: wasHit ? `${score.avgCents.toFixed(0)} cents avg` : 'not detected'
-            };
-        }));
-
-        this.updateStatus('Done! ' + accuracy.toFixed(0) + '% accuracy');
-    }
-
-    //-------UTILITIES-------
-
-    /**
-     * @param {number} ms
-     * @returns {Promise<void>}
-     */
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-    window.pitchMeter = new PitchMeterController();
-});
+    boot();
+})();

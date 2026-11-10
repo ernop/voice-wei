@@ -333,6 +333,16 @@ const PitchDetectCore = (function () {
      * samples are stamped with it and `clockMs()` returns it - so the
      * trace, targets, and playhead can never drift from the transport.
      *
+     * With pause-on-silence, each silence (and the wait before the first
+     * note) advances the voice clock by up to the silence allowance: 0
+     * (the default) stops the clock while nobody sings, Infinity lets it
+     * run through silence like wall time, a value between leaves a gap
+     * of at most that length. `setMaxSilenceMs` changes the allowance
+     * from that moment on: silence already counted stays counted, so the
+     * chart never jumps, and the history stays in time order (switching
+     * pause-on-silence itself mixes two clocks, which is why the pages
+     * that offer that switch restart the take).
+     *
      * @param {{
      *   pauseOnSilence: () => boolean,
      *   takeClockMs?: () => number | null,
@@ -361,6 +371,11 @@ const PitchDetectCore = (function () {
         let voiceElapsedMs = 0;
         /** @type {number | null} */
         let lastVoiceAt = null;
+        let maxSilenceMs = 0;
+        /** @type {number | null} Wall time the uncounted part of the current silence began; null while voiced or stopped */
+        let silenceFrom = null;
+        /** Silence the voice clock has already counted during the current silence */
+        let silenceCountedMs = 0;
         let lastFrameCallbackAt = 0;
         const frameCallbackIntervalMs = Math.max(0, options.frameCallbackIntervalMs ?? DEFAULT_FRAME_CALLBACK_INTERVAL_MS);
         // Rolling mic diagnostics: what happened to every frame since the
@@ -371,16 +386,49 @@ const PitchDetectCore = (function () {
             return options.takeClockMs ? options.takeClockMs() : null;
         }
 
+        /** Silence the voice clock counts but has not added yet. @param {number} now */
+        function uncountedSilenceMs(now) {
+            if (silenceFrom === null) return 0;
+            return Math.min(now - silenceFrom, Math.max(0, maxSilenceMs - silenceCountedMs));
+        }
+
+        /** Add the counted silence so far to the voice clock; the current silence continues. @param {number} now */
+        function countSilence(now) {
+            const counted = uncountedSilenceMs(now);
+            voiceElapsedMs += counted;
+            silenceCountedMs += counted;
+            if (silenceFrom !== null) silenceFrom = now;
+        }
+
+        /** @param {number} now */
+        function endSilence(now) {
+            countSilence(now);
+            silenceFrom = null;
+            silenceCountedMs = 0;
+        }
+
+        /** @param {number} now */
+        function beginSilence(now) {
+            silenceFrom = now;
+            silenceCountedMs = 0;
+        }
+
         function clockMs() {
             const external = externalClockMs();
             if (external !== null) return external;
-            if (options.pauseOnSilence()) return voiceElapsedMs;
+            if (options.pauseOnSilence()) return voiceElapsedMs + uncountedSilenceMs(performance.now());
             return startedAt ? performance.now() - startedAt : 0;
         }
 
-        // Voice-active clock: time only advances while singing is detected.
+        // Voice-active clock: time advances while singing is detected,
+        // plus each silence's allowance when voice returns.
         function nextVoiceTime() {
             const now = performance.now();
+            if (silenceFrom !== null) {
+                endSilence(now);
+                lastVoiceAt = now;
+                return voiceElapsedMs;
+            }
             if (lastVoiceAt === null) {
                 lastVoiceAt = now;
                 return voiceElapsedMs;
@@ -468,6 +516,7 @@ const PitchDetectCore = (function () {
                     else if (read.rejected === 'above-band') diagCounts.aboveBand++;
                 }
                 pendingJump = [];
+                if (silenceFrom === null) beginSilence(lastVoiceAt ?? performance.now());
                 lastVoiceAt = null;
                 if (options.onSilence) options.onSilence();
             }
@@ -520,6 +569,19 @@ const PitchDetectCore = (function () {
                 voiceElapsedMs = 0;
                 lastVoiceAt = null;
                 startedAt = performance.now();
+                silenceFrom = null;
+                silenceCountedMs = 0;
+                if (listening) beginSilence(startedAt);
+            },
+
+            /**
+             * Change the silence allowance (ms; Infinity = time always
+             * passes) from now on.
+             * @param {number} ms
+             */
+            setMaxSilenceMs(ms) {
+                countSilence(performance.now());
+                maxSilenceMs = ms;
             },
 
             // Returns false when microphone access is unavailable or denied.
@@ -528,10 +590,14 @@ const PitchDetectCore = (function () {
                 const ok = await capture.start();
                 if (!ok) return false;
                 listening = true;
+                lastVoiceAt = null;
+                beginSilence(performance.now());
                 frameLoop();
                 return true;
             },
 
+            // The clock keeps the silence it had counted, so a stopped
+            // chart stays where it was instead of snapping back.
             stop() {
                 listening = false;
                 if (animationId !== null) {
@@ -539,6 +605,7 @@ const PitchDetectCore = (function () {
                     animationId = null;
                 }
                 capture.stop();
+                endSilence(performance.now());
                 lastVoiceAt = null;
             }
         };

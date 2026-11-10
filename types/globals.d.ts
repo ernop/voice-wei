@@ -29,7 +29,6 @@ interface Window {
     // Our global instances (defined in JS files, declared here for cross-file access)
     scalesController?: import('../scales.js').ScalesController;
     musicController?: PlayerController;
-    pitchMeter?: import('../pitch-meter.js').PitchMeterController;
     VoiceOutput?: any;
     AudioVolume?: {
         PIANO_DB: number;
@@ -47,6 +46,7 @@ interface Window {
     RateGate?: typeof RateGate;
     ValueDiff?: typeof ValueDiff;
     PitchScore?: typeof PitchScore;
+    ScaleFinder?: typeof ScaleFinder;
     SettingsStore?: any;
     StorageKeys?: any;
     CoolnessScore?: any;
@@ -206,6 +206,32 @@ interface Window {
         rails: () => ScaleDegreeNote[];
         verticalBounds: () => { minMidi: number; maxMidi: number };
         windowMs: () => number;
+    };
+    pitchDebug?: {
+        settings: () => {
+            bottomMidi: number;
+            topMidi: number;
+            windowMs: number;
+            timePassesInSilence: boolean;
+            showScaleFinder: boolean;
+            rootNote: string;
+            octave: number;
+            scaleType: string;
+            mode: string;
+            responseTime: number;
+            instrument: string;
+        };
+        rails: () => Array<{ midi: number; label: string; emphasized: boolean; context: boolean; labelPriority: number }>;
+        verticalBounds: () => { minMidi: number; maxMidi: number };
+        silenceAllowanceMs: () => number;
+        history: () => Array<{ time: number; freq: number; midi: number; cents: number; note: string }>;
+        clockMs: () => number;
+        listening: () => boolean;
+        finder: () => ReturnType<typeof ScaleFinder.rank>;
+        pianoReady: () => boolean;
+        exerciseRunning: () => boolean;
+        /** Feed one accepted sample through the session (test seam) */
+        recordSample: (midi: number, timeMs: number) => void;
     };
 
     normalizeNoteName?: (spoken: string | null | undefined) => string | null;

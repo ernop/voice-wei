@@ -349,7 +349,6 @@ const PitchTestPanel = (function () {
             history: () => session.history,
             clockMs: () => session.clockMs(),
             windowMs,
-            fixedWindow: () => options.fixedWindow,
             showPlayhead: () => session.startedAt > 0
         });
 

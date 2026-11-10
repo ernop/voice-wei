@@ -29,6 +29,9 @@ const PracticeControls = (function () {
     // Negative gap values are overlap ratios of the note length
     // (-0.5 starts the next note halfway through the current one).
     const GAP_VALUES = Object.freeze([-0.5, -0.1, -0.05, ...TIME_VALUES_MS]);
+    // How much time a live pitch chart shows across its width (Trace's
+    // Window stepper, Pitch's Width slider).
+    const WINDOW_VALUES_MS = Object.freeze([2000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]);
 
     function getEl(id) { return document.getElementById(id); }
 
@@ -223,6 +226,7 @@ const PracticeControls = (function () {
         TIME_VALUES_MS,
         NOTE_LENGTH_VALUES,
         GAP_VALUES,
+        WINDOW_VALUES_MS,
         getEl,
         setValueText,
         formatSeconds,

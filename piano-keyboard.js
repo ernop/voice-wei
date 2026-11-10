@@ -93,19 +93,6 @@ const PianoKeyboard = (function () {
     }
 
     /**
-     * Sharps or flats for the notes outside the scale, following the key:
-     * a flat key (Eb, or any scale spelled with flats) names its other
-     * notes with flats too.
-     * @param {string} root @param {number} octave @param {string} scaleType
-     * @returns {'#' | 'b'}
-     */
-    function accidentalPreference(root, octave, scaleType) {
-        if (preferredScaleRootName(root)?.includes('b')) return 'b';
-        return scaleDegreeNotesInRange(root, octave, scaleType, 0, 12)
-            .some(note => /^[A-G]b/.test(note.noteName)) ? 'b' : '#';
-    }
-
-    /**
      * @param {PianoKeyboardSpec} spec
      * @returns {PianoKeyboardModel}
      */
@@ -144,7 +131,7 @@ const PianoKeyboard = (function () {
         }
 
         const origin = keyCenter(lowMidi) - 0.5;
-        const preference = accidentalPreference(root, octave, scaleType);
+        const preference = scaleAccidentalPreference(root, scaleType);
         const members = scaleDegreeNotesInRange(root, octave, scaleType, labeledLow - rootMidi, labeledHigh - rootMidi);
         /** @param {number} midi */
         const memberAt = midi => members.find(note => Math.abs(note.midi - midi) < EPSILON) || null;

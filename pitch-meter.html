@@ -8,9 +8,9 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Pitch - Voice-Wei</title>
-    <link rel="stylesheet" href="style.css?v=384">
-    <link rel="stylesheet" href="practice-controls.css?v=384">
-    <link rel="stylesheet" href="pitch-meter.css?v=384">
+    <link rel="stylesheet" href="style.css?v=385">
+    <link rel="stylesheet" href="practice-controls.css?v=385">
+    <link rel="stylesheet" href="pitch-meter.css?v=385">
 </head>
 
 <body data-page="pitch">
@@ -18,81 +18,60 @@
         <header id="siteHeader"></header>
 
         <main>
-            <div class="status" id="status">Loading piano...</div>
+            <div class="status" id="status">Press Listen and sing</div>
 
-            <!-- Practice Mode Selection -->
-            <div class="mode-settings">
-                <div class="setting-group">
-                    <span class="vf-label">Mode</span>
-                    <div class="segment-row">
-                        <button class="vf-btn" data-mode="free">free practice</button>
-                        <button class="vf-btn" data-mode="call-response">call &amp; response</button>
-                        <button class="vf-btn" data-mode="play-along">play along</button>
-                    </div>
+            <!-- The listening controls dock onto the top of the chart:
+                 Listen and Reset, the chart's note range, its time width,
+                 and the two display switches. -->
+            <section class="pitch-controls" aria-label="Listening controls">
+                <div class="pitch-controls-row">
+                    <button id="listenBtn" class="pitch-listen-button" type="button">Listen</button>
+                    <button id="resetBtn" class="secondary-btn" type="button">Reset</button>
                 </div>
-                <div class="setting-group" id="responseTimeGroup">
+                <div class="pitch-controls-row">
                     <div class="step-field">
-                        <span class="step-label">Match</span>
-                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="-1" aria-label="Shorter match time">-</button>
-                        <span class="step-value" id="responseTimeValue">2s</span>
-                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="1" aria-label="Longer match time">+</button>
+                        <span class="step-label">Bottom</span>
+                        <button class="step-btn" type="button" data-step-key="bottomMidi" data-step-delta="-1" aria-label="Lower bottom note">-</button>
+                        <span class="step-value" id="bottomValue">C3</span>
+                        <button class="step-btn" type="button" data-step-key="bottomMidi" data-step-delta="1" aria-label="Raise bottom note">+</button>
                     </div>
-                </div>
-            </div>
-
-            <!-- Scale Selection -->
-            <div class="pitch-settings">
-                <div class="setting-group">
-                    <span class="vf-label">Range</span>
-                    <div class="segment-row">
-                        <button class="vf-btn" data-instrument="voice">voice</button>
-                        <button class="vf-btn" data-instrument="violin">violin</button>
-                        <button class="vf-btn" data-instrument="bass">bass</button>
-                    </div>
-                </div>
-                <div class="setting-group">
                     <div class="step-field">
-                        <span class="step-label">Key</span>
-                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
-                        <span class="step-value" id="rootPitchValue">C4</span>
-                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
+                        <span class="step-label">Top</span>
+                        <button class="step-btn" type="button" data-step-key="topMidi" data-step-delta="-1" aria-label="Lower top note">-</button>
+                        <span class="step-value" id="topValue">C5</span>
+                        <button class="step-btn" type="button" data-step-key="topMidi" data-step-delta="1" aria-label="Raise top note">+</button>
                     </div>
+                    <button id="fitRangeBtn" class="secondary-btn" type="button" disabled>Fit to singing</button>
                 </div>
-                <div class="setting-group">
-                    <span class="vf-label">Scale</span>
-                    <div class="segment-row">
-                        <button class="vf-btn" data-scale="major">major</button>
-                        <button class="vf-btn" data-scale="minor">minor</button>
-                        <button class="vf-btn" data-scale="chromatic">chromatic</button>
-                        <button class="vf-btn" data-scale="pentatonic">pentatonic</button>
-                        <button class="vf-btn" data-scale="blues">blues</button>
+                <div class="pitch-width">
+                    <label class="pitch-width-label" for="widthSlider">Width</label>
+                    <div class="pitch-width-slider">
+                        <input type="range" id="widthSlider">
+                        <div class="pitch-width-scale" id="widthScale" aria-hidden="true"></div>
                     </div>
+                    <output class="pitch-width-value" id="widthValue" for="widthSlider">20s</output>
                 </div>
-            </div>
-
-            <!-- Control Buttons -->
-            <div class="pitch-controls">
-                <button id="listenBtn" class="pitch-listen-button" disabled>
-                    <span class="button-icon">&#127911;</span>
-                    <span class="button-text">Start</span>
-                </button>
-                <button id="stopBtn" class="stop-button" disabled>
-                    <span class="button-icon">&#9632;</span>
-                    <span class="button-text">Stop</span>
-                </button>
-                <button id="playRefBtn" class="play-button" disabled>
-                    <span class="button-icon">&#9835;</span>
-                    <span class="button-text">Preview Scale</span>
-                </button>
-            </div>
-
-            <!-- Real-time display -->
-            <div class="pitch-display">
-                <div class="current-pitch">
-                    <div class="pitch-note" id="currentNote">--</div>
-                    <div class="pitch-cents" id="currentCents">-- cents</div>
-                    <div class="pitch-freq" id="currentFreq">-- Hz</div>
+                <div class="pitch-controls-row">
+                    <label class="display-toggle">
+                        <input type="checkbox" id="timePassesToggle">
+                        <span>Time passes in silence</span>
+                    </label>
+                    <label class="display-toggle">
+                        <input type="checkbox" id="scaleFinderToggle" checked>
+                        <span>Scale finder</span>
+                    </label>
                 </div>
+            </section>
+
+            <section class="pitch-chart-wrap" aria-label="Pitch chart">
+                <canvas id="pitchChart"></canvas>
+            </section>
+
+            <!-- The live readout docks onto the bottom of the chart. -->
+            <section class="pitch-readout" aria-label="Current pitch">
+                <span class="pitch-note" id="currentNote">--</span>
+                <span class="pitch-cents" id="currentCents">-- cents</span>
+                <span class="pitch-freq" id="currentFreq">-- Hz</span>
                 <div class="pitch-indicator">
                     <div class="indicator-bar">
                         <div class="indicator-marker" id="centsMarker"></div>
@@ -104,15 +83,78 @@
                         <span>+50</span>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Pitch Chart Canvas -->
-            <div class="chart-container">
-                <canvas id="pitchChart"></canvas>
-            </div>
+            <section class="pitch-card vf-compact" aria-label="Key">
+                <div class="pitch-card-head">
+                    <h3>Key</h3>
+                    <span class="pitch-card-note">Colors the chart (key notes solid, the root blue) and sets the exercise notes.</span>
+                </div>
+                <div class="pitch-controls-row">
+                    <div class="step-field">
+                        <span class="step-label">Key</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="-1" aria-label="Lower key">-</button>
+                        <span class="step-value" id="rootPitchValue">C4</span>
+                        <button class="step-btn" type="button" data-step-key="rootPitch" data-step-delta="1" aria-label="Higher key">+</button>
+                    </div>
+                    <div class="segment-row">
+                        <span class="step-label">Scale</span>
+                        <button class="vf-btn" type="button" data-scale="major">major</button>
+                        <button class="vf-btn" type="button" data-scale="minor">minor</button>
+                        <button class="vf-btn" type="button" data-scale="harmonic_minor">h minor</button>
+                        <button class="vf-btn" type="button" data-scale="melodic_minor">m minor</button>
+                        <button class="vf-btn" type="button" data-scale="dorian">dorian</button>
+                        <button class="vf-btn" type="button" data-scale="phrygian">phrygian</button>
+                        <button class="vf-btn" type="button" data-scale="lydian">lydian</button>
+                        <button class="vf-btn" type="button" data-scale="mixolydian">mixolydian</button>
+                        <button class="vf-btn" type="button" data-scale="pentatonic">pentatonic</button>
+                        <button class="vf-btn" type="button" data-scale="minor_pentatonic">minor pent</button>
+                        <button class="vf-btn" type="button" data-scale="blues">blues</button>
+                        <button class="vf-btn" type="button" data-scale="chromatic">chromatic</button>
+                    </div>
+                </div>
+            </section>
 
-            <!-- Results Panel -->
-            <div class="results-panel" id="resultsPanel" style="display: none;">
+            <section class="pitch-card pitch-finder" id="scaleFinderCard" aria-label="Scale finder">
+                <div class="pitch-card-head">
+                    <h3>Scale finder</h3>
+                    <span class="pitch-finder-summary" id="scaleFinderSummary">Sing a few notes</span>
+                </div>
+                <div class="pitch-finder-bars" id="scaleFinderBars"></div>
+                <ol class="pitch-finder-list" id="scaleFinderList"></ol>
+            </section>
+
+            <section class="pitch-card vf-compact" aria-label="Exercises">
+                <div class="pitch-card-head">
+                    <h3>Exercises</h3>
+                    <span class="pitch-card-note">Scored practice in the key above, with piano.</span>
+                </div>
+                <div class="pitch-controls-row">
+                    <div class="segment-row">
+                        <span class="step-label">Exercise</span>
+                        <button class="vf-btn" type="button" data-mode="call-response">call &amp; response</button>
+                        <button class="vf-btn" type="button" data-mode="play-along">play along</button>
+                    </div>
+                    <div class="step-field">
+                        <span class="step-label">Per note</span>
+                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="-1" aria-label="Less time per note">-</button>
+                        <span class="step-value" id="responseTimeValue">2s</span>
+                        <button class="step-btn" type="button" data-step-key="responseTime" data-step-delta="1" aria-label="More time per note">+</button>
+                    </div>
+                    <div class="segment-row">
+                        <span class="step-label">Instrument</span>
+                        <button class="vf-btn" type="button" data-instrument="voice">voice</button>
+                        <button class="vf-btn" type="button" data-instrument="violin">violin</button>
+                        <button class="vf-btn" type="button" data-instrument="bass">bass</button>
+                    </div>
+                </div>
+                <div class="pitch-controls-row">
+                    <button id="exerciseBtn" class="primary-btn" type="button" disabled>Start exercise</button>
+                    <button id="previewBtn" class="secondary-btn" type="button" disabled>Preview scale</button>
+                </div>
+            </section>
+
+            <section class="results-panel" id="resultsPanel" hidden>
                 <h3>Results</h3>
                 <div class="results-summary">
                     <div class="result-item">
@@ -131,7 +173,7 @@
                 <div class="progress-summary" id="progressSummary"></div>
                 <div class="progress-summary" id="weakSpotsSummary"></div>
                 <div class="note-breakdown" id="noteBreakdown"></div>
-            </div>
+            </section>
 
             <footer class="page-footer">
                 <button onclick="location.reload(true)" class="footer-btn">Hard Refresh</button>
@@ -141,23 +183,24 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <script src="dev-error-monitor.js?v=384"></script>
-    <script src="fuseki-stats.js?v=384"></script>
-    <script src="usage-stats.js?v=384"></script>
-    <script src="app-version.js?v=384"></script>
-    <script src="storage-keys.js?v=384"></script>
-    <script src="audio-volume.js?v=384"></script>
-    <script src="shared-header.js?v=384"></script>
-    <script src="music-constants.js?v=384"></script>
-    <script src="piano-core.js?v=384"></script>
-    <script src="pitch-detect-core.js?v=384"></script>
-    <script src="pitch-score.js?v=384"></script>
-    <script src="pitch-trace-view.js?v=384"></script>
-    <script src="render-throttle.js?v=384"></script>
-    <script src="practice-controls.js?v=384"></script>
-    <script src="settings-store.js?v=384"></script>
-    <script src="progress-store.js?v=384"></script>
-    <script src="pitch-meter.js?v=384"></script>
+    <script src="dev-error-monitor.js?v=385"></script>
+    <script src="fuseki-stats.js?v=385"></script>
+    <script src="usage-stats.js?v=385"></script>
+    <script src="app-version.js?v=385"></script>
+    <script src="storage-keys.js?v=385"></script>
+    <script src="audio-volume.js?v=385"></script>
+    <script src="shared-header.js?v=385"></script>
+    <script src="music-constants.js?v=385"></script>
+    <script src="piano-core.js?v=385"></script>
+    <script src="pitch-detect-core.js?v=385"></script>
+    <script src="pitch-score.js?v=385"></script>
+    <script src="scale-finder.js?v=385"></script>
+    <script src="pitch-trace-view.js?v=385"></script>
+    <script src="render-throttle.js?v=385"></script>
+    <script src="practice-controls.js?v=385"></script>
+    <script src="settings-store.js?v=385"></script>
+    <script src="progress-store.js?v=385"></script>
+    <script src="pitch-meter.js?v=385"></script>
 </body>
 
 </html>

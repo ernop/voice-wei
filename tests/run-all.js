@@ -18,11 +18,11 @@ const ROOT = path.join(__dirname, '..');
 const ISOLATED_SUITES = ['test-player-startup.js'];
 // Ordered longest-first so the worker pool drains evenly.
 const PARALLEL_SUITES = [
+    'test-intervals-pitch.js',
     'test-books.js',
     'test-phrases.js',
     'test-controls.js',
     'test-playback-engine.js',
-    'test-intervals-pitch.js',
     'test-usage-stats.js',
     'test-staff-page.js',
     'test-staff-view.js',
@@ -32,6 +32,7 @@ const PARALLEL_SUITES = [
     'test-player-ui.js',
     'test-scales-keyboard.js',
     'test-scales-trace.js',
+    'test-pitch-page.js',
     'test-player-search.js',
     'test-player-youtube.js',
     'test-player-report.js',
@@ -45,6 +46,8 @@ const PARALLEL_SUITES = [
     'test-display-rules.js',
     'test-scales-patterns.js',
     'test-pitch-detect.js',
+    'test-trace-session.js',
+    'test-scale-finder.js',
     'test-media-player.js'
 ];
 

@@ -32,7 +32,7 @@
         'windowMs', 'rangeLowMidi', 'rangeHighMidi', 'rangeFollowsKey'
     ];
 
-    const WINDOW_VALUES_MS = Object.freeze([2000, 5000, 10000, 15000, 20000, 30000, 45000, 60000]);
+    const WINDOW_VALUES_MS = PracticeControls.WINDOW_VALUES_MS;
     const ADJUSTER_VALUES = {
         // Zero spacing would stack every guide target at t=0.
         guideIntervalMs: PracticeControls.NOTE_LENGTH_VALUES,
@@ -208,7 +208,6 @@
         history: () => session.history,
         clockMs: () => session.clockMs(),
         windowMs: () => chartModel.windowMs,
-        fixedWindow: () => state.fixedWindow,
         verticalBounds: () => ({ minMidi: state.rangeLowMidi, maxMidi: state.rangeHighMidi }),
         showPlayhead: () => session.startedAt > 0
     });

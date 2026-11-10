@@ -10,13 +10,15 @@
 // zoom) and are drawn alongside, but no target, score, or exercise
 // datum may move, hide, or recolor the voice line.
 //
-// The frame is equally a stable instrument face: rails and targets
-// define it, and the sung history never resizes it (one momentary low
-// note used to rescale the whole chart mid-take, crushing the lanes
-// and disorienting the singer). Out-of-frame singing stays recorded at
-// its true pitch but is clipped off-screen. Pages whose purpose is to
-// follow the voice wherever it goes (pitch-meter) opt into
-// `frameFollowsVoice` instead.
+// The frame is equally a stable instrument face: rails and targets (or
+// the page's explicit bounds) define it, and the sung history never
+// resizes it (one momentary low note used to rescale the whole chart
+// mid-take, crushing the lanes and disorienting the singer).
+// Out-of-frame singing stays recorded at its true pitch but is clipped
+// off-screen.
+//
+// Chart text is opaque (owner display rule: no gray or dimmed text);
+// tiers differ by weight and hue, and only the lines are translucent.
 //
 // Target bands are bare outlines of the hit zone (+/- BAND_CENTS).
 // Scoring verdicts never recolor them - judgment lives in readouts,
@@ -29,12 +31,12 @@ const PitchTraceView = (function () {
     const BACKGROUND = 'rgba(0, 0, 0, 0.5)';
     const RAIL_EMPHASIZED = 'rgba(134, 239, 172, 0.46)';
     const RAIL_DIMMED = 'rgba(134, 239, 172, 0.22)';
-    const RAIL_LABEL_EMPHASIZED = 'rgba(216, 252, 225, 0.92)';
-    const RAIL_LABEL_DIMMED = 'rgba(216, 252, 225, 0.55)';
+    const RAIL_LABEL_EMPHASIZED = '#fff';
+    const RAIL_LABEL_DIMMED = '#fff';
     // Context rails (the scale notes just beyond the core octave) get
     // their own hue - sky blue against the scale's green.
     const RAIL_CONTEXT = 'rgba(125, 211, 252, 0.4)';
-    const RAIL_LABEL_CONTEXT = 'rgba(186, 230, 253, 0.75)';
+    const RAIL_LABEL_CONTEXT = '#7dd3fc';
     const TRACE_COLOR = '#facc15';
     const MAX_TRACE_POINTS = 1200;
 
@@ -54,19 +56,25 @@ const PitchTraceView = (function () {
     const TARGET_OUTLINE = {
         fill: 'rgba(96, 165, 250, 0.12)',
         stroke: 'rgba(147, 197, 253, 0.75)',
-        label: 'rgba(219, 234, 254, 0.85)'
+        label: '#fff',
+        labelWeight: 'bold '
     };
     const TARGET_INACTIVE = {
         fill: 'rgba(148, 163, 184, 0.08)',
         stroke: 'rgba(148, 163, 184, 0.35)',
-        label: 'rgba(226, 232, 240, 0.4)'
+        label: '#fff',
+        labelWeight: ''
     };
 
     /**
      * Rails come in three tiers: emphasized (the core scale), context
      * (neighbor notes drawn in their own color), and dimmed (the rest).
+     * When rails sit closer than a label is tall, labels thin out:
+     * lower `labelPriority` claims room first (default by tier:
+     * emphasized 0, context 1, dimmed 2), and the rail of a skipped
+     * label still draws.
      *
-     * @typedef {{ midi: number, label: string, emphasized: boolean, context?: boolean }} Rail
+     * @typedef {{ midi: number, label: string, emphasized: boolean, context?: boolean, labelPriority?: number }} Rail
      * @typedef {{ midi: number, startMs: number, endMs: number, label: string, active?: boolean }} Target
      *
      * @param {{
@@ -80,22 +88,11 @@ const PitchTraceView = (function () {
      *   history: () => Array<{ time: number, midi: number, cents: number }>,
      *   clockMs: () => number,
      *   windowMs: () => number,
-     *   fixedWindow?: () => boolean,
      *   verticalBounds?: () => { minMidi: number, maxMidi: number },
-     *   frameFollowsVoice?: boolean,
      *   showPlayhead: () => boolean
      * }} options
      */
     function create(options) {
-        // frameFollowsVoice hysteresis: expand immediately to cover
-        // sung pitch, shrink only when history is cleared. Stops the
-        // chart from bouncing when a brief extreme leaves the visible
-        // window. Unused in the default stable-frame mode.
-        /** @type {number | null} */
-        let heldMinMidi = null;
-        /** @type {number | null} */
-        let heldMaxMidi = null;
-
         function canvasEl() {
             return /** @type {HTMLCanvasElement | null} */ (document.getElementById(options.canvasId));
         }
@@ -104,9 +101,9 @@ const PitchTraceView = (function () {
             return options.isVisible ? options.isVisible() : true;
         }
 
-        function resetVerticalRange() {
-            heldMinMidi = null;
-            heldMaxMidi = null;
+        /** @param {Rail} rail */
+        function defaultLabelPriority(rail) {
+            return rail.emphasized ? 0 : rail.context ? 1 : 2;
         }
 
         function resize() {
@@ -148,7 +145,7 @@ const PitchTraceView = (function () {
 
             const message = options.emptyMessage ? options.emptyMessage() : null;
             if (message) {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+                ctx.fillStyle = '#fff';
                 ctx.font = '14px system-ui';
                 ctx.textAlign = 'center';
                 ctx.fillText(message, width / 2, height / 2);
@@ -171,8 +168,6 @@ const PitchTraceView = (function () {
             // scanning back from the end - no per-point predicate over
             // the whole take every frame.
             const rawHistory = options.history();
-            if (!rawHistory.length) resetVerticalRange();
-
             const earliest = windowStart - PitchDetectCore.TRACE_BREAK_MS;
             let startIndex = rawHistory.length;
             while (startIndex > 0 && rawHistory[startIndex - 1].time >= earliest) startIndex--;
@@ -191,8 +186,8 @@ const PitchTraceView = (function () {
                 // Frame from the chart furniture: rails AND targets (a
                 // target above the rails - chords stacking a fifth over
                 // the octave - must sit inside the frame, not clipped at
-                // its edge). In the default stable mode the sung history
-                // never resizes the frame; see the instrument law above.
+                // its edge). The sung history never resizes the frame;
+                // see the instrument law above.
                 minMidi = Infinity;
                 maxMidi = -Infinity;
                 for (const rail of rails) {
@@ -203,36 +198,19 @@ const PitchTraceView = (function () {
                     if (target.midi < minMidi) minMidi = target.midi;
                     if (target.midi > maxMidi) maxMidi = target.midi;
                 }
-                if (options.frameFollowsVoice && rawHistory.length) {
-                    // Expand to cover what was sung. Held min/max never
-                    // shrink mid-take (avoids vertical bounce when
-                    // extremes scroll out of the visible window).
-                    // Because they are monotone for the take, only the
-                    // visible slice needs scanning per frame - every
-                    // sample is on screen the frame it arrives, so it
-                    // has already been folded in. A full scan happens
-                    // once, to seed an empty held range.
-                    const scan = heldMinMidi === null ? rawHistory : visibleHistory;
-                    for (const point of scan) {
-                        if (point.midi < minMidi) minMidi = point.midi;
-                        if (point.midi > maxMidi) maxMidi = point.midi;
-                    }
-                    if (heldMinMidi === null || minMidi < heldMinMidi) heldMinMidi = minMidi;
-                    if (heldMaxMidi === null || maxMidi > heldMaxMidi) heldMaxMidi = maxMidi;
-                    minMidi = /** @type {number} */ (heldMinMidi);
-                    maxMidi = /** @type {number} */ (heldMaxMidi);
-                } else if (!options.frameFollowsVoice) {
-                    minMidi -= FRAME_PAD_BELOW;
-                    maxMidi += FRAME_PAD_ABOVE;
-                }
+                minMidi -= FRAME_PAD_BELOW;
+                maxMidi += FRAME_PAD_ABOVE;
             }
             const midiRange = Math.max(maxMidi - minMidi, 1);
 
             // Gutters fit the actual rail labels; with labels mirrored
             // on both sides the right gutter matches the left.
-            ctx.font = width < 520 ? '11px system-ui' : '12px system-ui';
+            const railFontPx = width < 520 ? 11 : 12;
+            /** @param {Rail} rail */
+            const railFont = (rail) => `${rail.emphasized ? 'bold ' : ''}${railFontPx}px system-ui`;
             let labelWidth = 0;
             for (const rail of rails) {
+                ctx.font = railFont(rail);
                 labelWidth = Math.max(labelWidth, ctx.measureText(rail.label).width);
             }
             const gutter = Math.ceil(labelWidth) + 16;
@@ -247,6 +225,20 @@ const PitchTraceView = (function () {
             const midiToY = (midi) => top + (maxMidi - midi) / midiRange * graphHeight;
             /** @param {number} ms */
             const timeToX = (ms) => left + Math.max(0, Math.min(timeWindow, ms - windowStart)) / timeWindow * graphWidth;
+
+            /** @type {Set<Rail>} */
+            const labeledRails = new Set();
+            /** @type {number[]} */
+            const labelRowsY = [];
+            const labelRowPx = railFontPx + 2;
+            rails
+                .map((rail, index) => ({ rail, index, y: midiToY(rail.midi), priority: rail.labelPriority ?? defaultLabelPriority(rail) }))
+                .sort((a, b) => a.priority - b.priority || a.index - b.index)
+                .forEach(entry => {
+                    if (labelRowsY.some(y => Math.abs(y - entry.y) < labelRowPx)) return;
+                    labelRowsY.push(entry.y);
+                    labeledRails.add(entry.rail);
+                });
 
             ctx.textBaseline = 'middle';
             rails.forEach(rail => {
@@ -264,6 +256,8 @@ const PitchTraceView = (function () {
                 ctx.stroke();
                 ctx.setLineDash([]);
 
+                if (!labeledRails.has(rail)) return;
+                ctx.font = railFont(rail);
                 ctx.fillStyle = labelColor;
                 ctx.textAlign = 'right';
                 ctx.fillText(rail.label, left - 8, y);
@@ -291,7 +285,7 @@ const PitchTraceView = (function () {
 
             // Labels have no layout engine: keep a per-row cursor so a
             // wide label on a narrow span is skipped instead of colliding.
-            ctx.font = width < 520 ? '10px system-ui' : '11px system-ui';
+            const targetFontPx = width < 520 ? 10 : 11;
             ctx.textAlign = 'left';
             /** @type {Map<number, number>} label row y -> right edge of last label */
             const labelCursor = new Map();
@@ -313,6 +307,7 @@ const PitchTraceView = (function () {
 
                 const labelY = y - bandHalfPx - 8;
                 const band = Math.round(labelY / 12);
+                ctx.font = `${colors.labelWeight}${targetFontPx}px system-ui`;
                 const labelWidth = ctx.measureText(target.label).width;
                 const cursor = labelCursor.get(band) ?? -Infinity;
                 if (x1 + 4 >= cursor) {

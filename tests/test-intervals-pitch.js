@@ -150,31 +150,37 @@ function seedFastIntervalTimings(tab) {
         await ctx.close();
     }
 
-    // ============ PITCH METER: free session produces results ============
+    // ============ PITCH: a play-along exercise scores and records ============
     {
         const ctx = await browser.newContext({ permissions: ['microphone'] });
         const tab = await ctx.newPage();
         collectErrors(tab, 'pitch-meter', report.errors);
+        // Half a second per note keeps the eight-note run short.
+        await tab.addInitScript(() => {
+            localStorage.setItem('voice-wei:pitch-meter-settings',
+                JSON.stringify({ mode: 'play-along', responseTime: 0.5 }));
+        });
         await tab.goto(`${BASE_URL}/pitch-meter.html`, { waitUntil: 'networkidle' });
-        // Ready once the piano sampler has loaded and unlocked the controls.
-        await tab.waitForFunction(() => Boolean(window.pitchMeter && window.pitchMeter.samplerLoaded),
+        // The exercises unlock once the piano sampler has loaded.
+        await tab.waitForFunction(() => Boolean(window.pitchDebug && window.pitchDebug.pianoReady()),
             null, { timeout: WAIT_MS });
-        await tab.click('[data-mode="free"]');
-        await tab.click('#listenBtn');
-        // The fake device's tone sits mostly above the singable band
-        // (D2-C5), so only a handful of its samples register - which is
-        // the band doing its job. Any recorded sample proves the
-        // mic -> detector -> session pipeline end to end, so wait for the
-        // first accepted sample rather than padding a listening period.
-        await waitOn(tab, () => window.pitchMeter.session.history.length > 0);
-        const samples = await tab.evaluate(() => window.pitchMeter.session.history.length);
-        await tab.click('#stopBtn');
-        // stopSession analyzes and renders results synchronously inside
-        // the click handler.
-        const resultsShown = await tab.evaluate(() => document.getElementById('resultsPanel').style.display);
-        const notesHit = await tab.textContent('#notesHit');
-        report.check(`pitch-meter free session (${samples} samples, notesHit ${notesHit})`,
-            samples > 0 && resultsShown === 'block' && /^\d+\/\d+$/.test(notesHit));
+        await tab.click('#exerciseBtn');
+        // After the count-in the run listens for the sung notes; sing the
+        // first one (C4) through the sample seam, then let the run finish.
+        await waitOn(tab, () => (document.getElementById('status')?.textContent || '').startsWith('Sing:'));
+        await tab.evaluate(() => {
+            const start = window.pitchDebug.clockMs() + 1000;
+            for (let k = 0; k < 8; k++) window.pitchDebug.recordSample(60, start + k * 20);
+        });
+        await waitOn(tab, () => !window.pitchDebug.exerciseRunning());
+        const run = await tab.evaluate(() => ({
+            results: !document.getElementById('resultsPanel').hidden,
+            notesHit: document.getElementById('notesHit').textContent,
+            micOff: !window.pitchDebug.listening(),
+            button: document.getElementById('exerciseBtn').textContent
+        }));
+        report.check(`pitch play-along runs to the end and scores (${JSON.stringify(run)})`,
+            run.results && /^[1-9]\d*\/8$/.test(run.notesHit) && run.micOff && run.button === 'Start exercise');
 
         const pmProgress = await tab.evaluate(() => {
             const entries = SettingsStore.peekData(StorageKeys.PRACTICE_PROGRESS) || [];

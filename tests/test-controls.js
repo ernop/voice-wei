@@ -23,8 +23,8 @@ const READY_PROBES = {
     intervals: () => (document.getElementById('intervalPrompt')?.textContent || '').includes('Ready!'),
     // Set right after initUI() wires every phrases control.
     phrases: () => Boolean(window.phrasesDebug),
-    // Assigned after the constructor's synchronous wiring completes.
-    'pitch-meter': () => Boolean(window.pitchMeter),
+    // Set right after initUI() in the Pitch page's boot().
+    'pitch-meter': () => Boolean(window.pitchDebug),
     // Set right after initUI() in trace's boot().
     trace: () => Boolean(window.traceDebug),
     player: () => window.__voiceWeiStartup?.ready === true,
@@ -53,7 +53,8 @@ async function gotoReady(tab, page, query = '') {
 async function sectionCanonicalControls(browser, errors) {
     // CANONICAL PICKERS AND CONTROLS: every page uses the shared kinds only.
     // Root/octave/single-pitch choosers are root-pitch steppers; no chip
-    // grids, sliders, or selects remain (Books' dynamic lists excepted).
+    // grids, sliders, or selects remain (Books' dynamic lists, its volume
+    // slider, and Pitch's Width slider excepted).
     // Retired control dialects must not reappear anywhere.
     const ctx = await browser.newContext();
     // Classes deleted during convergence; markup using them is a regression
@@ -85,7 +86,10 @@ async function sectionCanonicalControls(browser, errors) {
         { page: 'scales', steppers: ['rootPitch'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
         { page: 'intervals', steppers: ['rootPitch', 'rootRangeMid', 'droneNote'], forbidden: '[data-root], [data-octave], select, input[type="range"]' },
         { page: 'phrases', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
-        { page: 'pitch-meter', steppers: ['rootPitch'], forbidden: 'select, input[type="range"]' },
+        // Pitch's Width slider is the owner-requested exception
+        // (2026-11-10); it shows its notches, both end values, and its
+        // value (owner display rule 5, checked in test-pitch-page.js).
+        { page: 'pitch-meter', steppers: ['rootPitch', 'bottomMidi', 'topMidi', 'responseTime'], forbidden: 'select, input[type="range"]:not(#widthSlider)' },
         { page: 'trace', steppers: ['rootPitch', 'rangeLowMidi', 'rangeHighMidi', 'guideIntervalMs', 'windowMs'], forbidden: 'select, input[type="range"]' },
         { page: 'player', steppers: [], forbidden: 'select, input[type="range"]' },
         // Books keeps its selects (dynamic voice/model lists, the declared
@@ -204,7 +208,7 @@ async function sectionPitchMeter(browser, errors) {
     collectErrors(tab, 'pitch-meter', errors);
     await gotoReady(tab, 'pitch-meter');
     await tab.click('[data-step-key="responseTime"][data-step-delta="1"]');
-    await tab.click('[data-mode="free"]');
+    await tab.click('[data-mode="play-along"]');
     await tab.click('[data-step-key="rootPitch"][data-step-delta="1"]');
     await tab.click('[data-scale="minor"]');
     // Control handlers update the display and save synchronously.
@@ -213,7 +217,7 @@ async function sectionPitchMeter(browser, errors) {
     /** @type {SectionCheck[]} */
     const checks = [{
         label: `pitch-meter controls root=${root}, saved mode=${saved.mode}`,
-        ok: root === 'C#4' && saved.mode === 'free' && saved.scaleType === 'minor'
+        ok: root === 'C#4' && saved.mode === 'play-along' && saved.scaleType === 'minor'
     }];
     await tab.click('[data-instrument="bass"]');
     const bassRoot = await tab.textContent('#rootPitchValue');
@@ -222,7 +226,7 @@ async function sectionPitchMeter(browser, errors) {
     await tab.waitForFunction(READY_PROBES['pitch-meter'], undefined, WAIT);
     const restoredMode = await tab.evaluate(() =>
         document.querySelector('[data-mode].selected')?.getAttribute('data-mode'));
-    checks.push({ label: 'pitch-meter restored mode', ok: restoredMode === 'free' });
+    checks.push({ label: 'pitch-meter restored mode', ok: restoredMode === 'play-along' });
     await ctx.close();
     return checks;
 }
