@@ -1990,3 +1990,45 @@ For future mei:
   diluted by 33 clean notes.
 - `deploy/verify-live.sh` now rejects a short commit hash outright,
   instead of printing NOT LIVE for a live deploy.
+
+## 2026-11-10 - Pitch becomes listen-first, with a scale finder (v385)
+
+Yui wanted Pitch to be a page to open, press Listen, and see which notes
+are being sung, with nothing playing. On top of that: a choice of whether
+time passes in silence, Reset, a Width slider, a scale finder, and easy
+Bottom/Top range setters. Listen now starts the microphone at once (the
+piano loads in the background, for the exercises only). The chart has a
+rail for every semitone, spelled for the selected key. Free practice is
+gone (Listen covers watching, the exercises cover scoring), and the
+exercises moved into a secondary card.
+
+For future mei:
+- A setting that changes how the clock counts must apply from that
+  moment on, not retroactively. The first silence switch read a live
+  allowance, so turning it on mid-pause made the chart jump forward by
+  the whole pause. `setMaxSilenceMs` banks the silence already counted;
+  `tests/test-trace-session.js` drives the real session on a fake clock
+  and microphone to hold this.
+- `frameFollowsVoice` is gone from `pitch-trace-view.js`. Pitch was its
+  only user, and a frame that grows with every stray note and never
+  shrinks is the twitch the instrument law exists to prevent. Pitch now
+  has explicit Bottom/Top bounds plus a Fit to singing action that uses
+  held notes (segmenter output), so a scrape cannot stretch the range.
+- Semitone rails on a phone need label thinning: `labelPriority` (root,
+  fifth, third, other key notes, out-of-key). The rail still draws when
+  its label is skipped.
+- Accidental preference was private to the Scales keyboard. Pitch needed
+  it too, so it moved to `music-constants.js` (`scaleAccidentalPreference`)
+  instead of getting a second copy.
+- `scale-finder.js` is a Temperley-style key model over held-note
+  durations, with priors favoring major, then natural minor. It is
+  calibrated in `tests/test-scale-finder.js` against Twinkle, Happy
+  Birthday, drones, blues, a chromatic run, and sharp or flat singing. Its
+  percentages stay below 90% when the notes fit several keys. If you
+  retune it, keep those cases passing.
+- A layout check for "one line per row" must compare the vertical
+  centers of the visible children. Comparing their tops fails rows that
+  center a taller button next to short text.
+- On this machine the untouched gate took 22.7s, not the ~13s in
+  AGENTS.md. After this change it took 24.2s. `gh run view --log`
+  returned empty output here, so CI suite timings were not available.

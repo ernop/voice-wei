@@ -368,8 +368,8 @@ rolling-window width) sit below that; the pattern input stays above.
   Targets outside the selected vertical frame stay off-screen.
 - Guide sound: piano (default) or sine beep.
 - Pause on silence (default on): the clock only advances while you sing.
-- Window width steps through 2, 5, 10, 15, 20, 30, 45, and 60 seconds;
-  the window toggle enables that scrolling viewport (default is a
+- Window width steps through 2, 5, 10, 15, 20, 30, 45, 60, 90, and 120
+  seconds; the window toggle enables that scrolling viewport (default is a
   content-sized scrolling viewport). The width never grows with the
   clock, which used to squeeze the chart every frame.
 - Guide bands are bare outlines of the hit zone; they do not recolor
@@ -382,17 +382,58 @@ rolling-window width) sit below that; the pattern input stays above.
 
 ## Pitch
 
-Structured accuracy practice with scoring.
+See which notes you are singing (owner, 2026-11-10): open the page, press
+Listen, sing. Listening plays nothing and scores nothing; it only draws.
+Scored exercises with the piano sit below as a secondary card.
 
-- **Free practice**: sing anything, watch the chart, stop to get per-note
-  accuracy against the selected scale.
-- **Call & response**: piano plays each scale note, you match it during the
-  response window, every note gets scored (match %, cents off).
-- **Play along**: sing with the piano as it walks the scale.
+- **Listen / Stop**: the large green button starts the microphone at once
+  (it never waits for the piano to load) and turns amber while listening.
+- **Reset**: clears the chart, the scale finder, the readout, and any
+  exercise results (abandoning a running exercise unscored); keeps
+  listening if it was.
+- **Chart**: one rail per semitone between Bottom and Top, labeled with
+  note names (spelled for the selected key) on both edges. The key's notes
+  are solid, the others faint, the key's root in sky blue. When labels
+  would collide (a phone, a wide range) they thin out: root first, then
+  the fifth, the third, the other key notes, then out-of-key notes.
+- **Time passes in silence** (off by default): off, the chart stops
+  moving while you are silent, after leaving a short visible gap (0.4s)
+  so separate phrases stay apart; on, the chart keeps scrolling through
+  pauses like a clock. Switching mid-pause never makes the chart jump.
+- **Bottom / Top**: semitone steppers for the chart's range (C2-E5,
+  Bottom always below Top). **Fit to singing** sets them to
+  the notes you have held, plus a semitone of room; it waits until
+  there is something to fit.
+- **Width**: a slider choosing how much time the chart shows, from 2 to
+  120 seconds, every value notched and labeled.
+- **Scale finder** (switch, on by default): a bar per pitch class shows
+  how long you have held each one (the leading candidate's tonic in sky
+  blue, notes outside it in amber), and a ranked list gives up to five
+  keys that fit, with a likelihood and the sung notes outside each.
+  It ranks once at least four held notes on three different pitch classes
+  exist; it prefers common keys (major, then natural minor) when the
+  notes fit several, and reports a tuning offset when you sing
+  consistently sharp or flat. **Use** sets that key on the page. It
+  reads held notes only, so slides and scrapes do not count.
+- **Key**: root stepper and scale row (also the spelling and rails of
+  the chart, and the exercises' key).
+- **Exercises** (secondary card, piano required; buttons enable once it
+  loads):
+  - **Call & response**: piano plays each scale note, you match it during
+    the response window ("Per note"), every note gets scored (match %,
+    cents off).
+  - **Play along**: sing with the piano as it walks the scale, one note
+    per "Per note" span.
+  - An exercise starts a fresh take, widens the chart's range to cover
+    its notes if needed (never narrows it), and turns the microphone off
+    again at the end if it turned it on. Instrument presets (voice/violin
+    /bass) set the octave. Preview scale plays the scale once. The
+    results panel shows overall accuracy, average deviation, notes hit,
+    the progress trend, weak spots, and a per-note breakdown.
 
-Range presets (voice/violin/bass) set the octave; root+octave, scale, and
-match-time are shared steppers/segment rows. Results panel shows overall
-accuracy, average deviation, and per-note breakdown.
+The old free-practice mode (sing, stop, get scored against the scale) is
+gone: Listen covers watching, exercises cover scoring. A stored free mode
+opens as call & response.
 
 ## Ears (within Intervals tab)
 
@@ -1060,7 +1101,7 @@ clears the scores with the trace.
 
 **Progress over time**: each completed take (all notes scored) is recorded,
 and the panel shows a per-day trend line - "Progress: Today 62% (5 takes)
-· Jun 9 48% (3)". The Pitch tool records its sessions the same way and
+· Jun 9 48% (3)". The Pitch tool records its exercises the same way and
 shows its trend in the results panel.
 
 **Weak spots**: every recorded note keeps its verdict and its SIGNED cents

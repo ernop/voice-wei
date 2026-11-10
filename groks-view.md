@@ -41,7 +41,7 @@ language (chips, steppers, transport buttons) aimed at phone-in-car use.
 | **Intervals** | Drill degree sequences or relative jumps by level; Sing the pattern; or switch to Ear training (identify / sing / both). |
 | **Phrases** | Generate or type a melodic shape, internalize it (Play / Repeat / Next / Breakdown), Test by singing it back. |
 | **Trace** | Free sing in a key while watching the pitch line against rails and optional typed guide patterns. |
-| **Pitch** | Structured accuracy: free practice, call-and-response, or play-along with scored results. |
+| **Pitch** | Press Listen and sing: the chart shows which notes you sing, nothing plays; a scale finder ranks keys that fit; call-and-response and play-along exercises score accuracy. |
 | **Ears** | Same Intervals page in ear mode (`ears.html` redirects); adaptive weighting toward weak intervals. |
 | **Music** | Type artist/song terms for a keyless playlist, or Ask AI for a fuzzy request; YouTube plays; timed lyrics and car media keys keep hands free. |
 | **Books** | Import ebook / URL metabook → local library → read and/or generate OpenAI TTS audio that resumes where it stopped. |
@@ -139,7 +139,7 @@ Voice / click / media keys
 | Intervals + Ears | `intervals.html` + `intervals.js` (+ `ear-training.js`) | `ears.html` redirects with `?mode=ear` |
 | Phrases | `phrases.html` + `phrases.js` | Generators, take plan, Test panel |
 | Trace | `trace.html` + `trace.js` | Session + view directly (no embed panel) |
-| Pitch | `pitch-meter.html` + `pitch-meter.js` | Free / C&R / play-along |
+| Pitch | `pitch-meter.html` + `pitch-meter.js` | Listen chart, `scale-finder.js`, C&R / play-along |
 | Music | `player.html` + `player.js` + `player-*.js` | `PlayerController` composed from mixins |
 | Books | `ebook.html` + `ebook.js` (`ebook-storage`, `-parse`, `-tts`, `-research` libraries) | Local library in IndexedDB `voice-wei-books` |
 | Games | `games.html` + `games.js` | Eleven Find puzzles; wiring and lexicon in `find-puzzle.js` |
@@ -158,6 +158,7 @@ recognition, `mediaSession` / `document.title`, `Tone.Frequency`).
 | Pitch-trace canvas | `pitch-trace-view.js` |
 | Embeddable Sing/Test panel | `pitch-test-panel.js` |
 | "Did you hit the note?" | `pitch-score.js` |
+| "What key does this singing fit?" | `scale-finder.js` |
 | Scored-take history / trends / weak spots | `progress-store.js` |
 | Note math, scale patterns | `music-constants.js` |
 | Degree / phrase math | `pattern-practice-core.js` |
@@ -185,7 +186,7 @@ Mic → pitch-detect-core (MPM, singable band D2–D5, glitch holdback,
 
 Embed path: Phrases / Scales / Intervals Sing use `pitch-test-panel.js`
 with a typed `PitchTestPanelConfig`. Trace and Pitch wire session/view
-(and Pitch's own modes) themselves. Playback law: every sounding note is a
+(and Pitch's scale finder and exercises) themselves. Playback law: every sounding note is a
 registered voice; `stopAll()` declicks each voice; loops use monotonic
 tokens so superseded playback exits.
 

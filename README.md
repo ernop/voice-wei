@@ -31,7 +31,7 @@ by choosing continuity as an unspoken constraint.
 | [Intervals](https://fuseki.net/voice-wei/intervals.html) | Level-based interval drills: degree sequences and relative jumps |
 | [Phrases](https://fuseki.net/voice-wei/phrases.html) | Generate and reproduce melodic phrases; reproject across keys; embedded sing test |
 | [Trace](https://fuseki.net/voice-wei/trace.html) | Free singing against key-aware pitch rails with typed guide patterns |
-| [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Scored practice: free, call-and-response, play-along |
+| [Pitch](https://fuseki.net/voice-wei/pitch-meter.html) | Press Listen and sing to see your notes on a chart (nothing plays); scale finder; scored call-and-response and play-along exercises |
 | [Ears](https://fuseki.net/voice-wei/ears.html) | Interval ear training: identify them, sing them, drone matching |
 | [Lyrics](https://fuseki.net/voice-wei/player.html) | Music player with timed lyrics: typed artist/song terms become a keyless playlist; Ask AI (optional key) interprets fuzzy requests |
 | [Books](https://fuseki.net/voice-wei/ebook.html) | Ebook to audiobook via OpenAI TTS (OpenAI key required) |

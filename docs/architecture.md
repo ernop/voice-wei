@@ -20,7 +20,7 @@ intervals.html/js/css    # Interval drills
 phrases.html/js/css      # Phrase practice
 staff.html/js/css        # Scrolling grand-staff sight singing
 trace.html/js/css        # Free pitch trace
-pitch-meter.html/js/css  # Scored pitch practice
+pitch-meter.html/js/css  # Pitch: listen-only chart, scale finder, scored exercises
 ears.html/js/css         # Redirects to intervals.html?mode=ear
 player.html/js/css       # Lyrics: keyless music player (player-*.js modules)
 ebook.html/js/css        # Books: ebook to audiobook (ebook-*.js libraries)
@@ -258,7 +258,8 @@ them are enforced by ast-grep lint guards (see `.ast-grep/rules/`).
 | `progress-store.js` | Scored-take history + daily trend lines (`practice-progress`) | - |
 | `media-session-core.js` | The whole now-playing surface: car/lock-screen metadata, document title, header heading, playback state, media keys, silent-WAV session keep-alive | yes (navigator.mediaSession, document.title writes) |
 | `pattern-practice-core.js` | Scale-degree offset and phrase math, including the phrase-range stepper and length-bound rules Phrases and Staff share | - |
-| `music-constants.js` | Note math, scale patterns, frequency conversion | - |
+| `music-constants.js` | Note math, scale patterns, frequency conversion, key-aware spelling (`scaleAccidentalPreference`, shared by the Scales keyboard and Pitch) | - |
+| `scale-finder.js` | Which keys fit a list of held notes: pitch-class shares, tuning offset, ranked scale candidates (pure; no audio or DOM) | - |
 | `history-list.js` | Capped newest-first history lists (pages provide renderItem) | - |
 | `notation-spelling.js` | Key signatures, VexFlow spellings, clef/staff-system choice | - |
 | `staff-view.js` | The Phrases snapshot staff (one phrase, formatter-spaced) | - |
@@ -339,8 +340,8 @@ pitch-trace-view.js - canvas renderer (rails, targets, sung line, playhead)
 pitch-test-panel.js - embeddable panel (owns session, canvas, guide, options)
  v  per-note windows
 pitch-score.js - the one definition of "did you hit the note"
- v
-progress-store.js - takes, trend lines, weak-spot analysis
+ v                                      (held notes, Pitch only)
+progress-store.js - takes, trend lines   scale-finder.js - which keys fit
 ```
 
 **Capture and detection** (`pitch-detect-core.js`, the only file allowed
@@ -398,6 +399,13 @@ Three mechanisms sit between detection and history:
 - *Voice-gated clock*: with pause-on-silence on (the default), time only
   advances while voice is detected, so a take does not scroll away while
   the singer breathes. Off means wall-clock from the last reset.
+  `setMaxSilenceMs` grants each pause an allowance: the clock keeps
+  running for up to that long into every silence, then stops (default
+  0). Pitch uses 400ms, so a pause leaves a visible gap wider than the
+  250ms line break, or no limit when its "Time passes in silence"
+  switch is on. A change applies from that moment on: silence already
+  counted stays counted, so switching mid-pause never jumps the chart
+  (`tests/test-trace-session.js`).
 - *External take clock*: a page whose exercise runs on its own transport
   (Staff's moving sheet) supplies `takeClockMs`; while it returns a
   number, that IS the take clock - samples are stamped with it and the
@@ -412,11 +420,12 @@ furniture: for the shared test panels it spans the rails AND targets
 low or high note used to rescale the whole chart mid-take, crushing the
 lanes and disorienting the singer. Out-of-frame singing stays recorded
 at its true pitch (and still scores) but is clipped off-screen. Trace
-supplies an absolute user-selected vertical frame with the same
-clipping. Pitch opts into `frameFollowsVoice`: its job is showing
-whatever is sung, so there the frame expands to cover the take (held
-monotone - it does not shrink when extremes scroll out of view). In
-every mode the frame never clamps, moves, or recolors the voice line.
+and Pitch supply an absolute user-selected vertical frame with the same
+clipping. Pitch's "Fit to singing" sets that frame from the held notes
+on request; the frame never follows the voice on its own (the old
+voice-following frame grew with every stray note and could not shrink
+until a reset). In every mode the frame never clamps, moves, or
+recolors the voice line.
 
 **Rendering** (`pitch-trace-view.js`). A pure canvas renderer that pulls
 everything through provider callbacks: `rails()`, `targets()`,
@@ -426,8 +435,13 @@ emphasized (the core scale, solid green), context (neighbor notes in
 their own sky-blue color - Trace uses this for the 3 scale notes below
 the root and the 3 above the octave), and dimmed (dashed faint green,
 e.g. expanded-range octaves). Label gutters are measured from the actual
-rail labels each draw, and `railLabelsBothSides` (Trace) mirrors the
-labels on the right edge with a matching gutter. The sung line breaks
+rail labels each draw, and `railLabelsBothSides` (Trace, Pitch) mirrors the
+labels on the right edge with a matching gutter. When rails sit closer
+than a label is tall (Pitch's semitone rails on a phone), labels thin
+out by `labelPriority` - Pitch ranks root, fifth, third, the other key
+notes, then out-of-key notes - and a rail whose label is skipped still
+draws. Chart text is opaque white or sky blue (owner display rules);
+only the lines are translucent. The sung line breaks
 across silences > 250ms and across unconfirmed fast jumps. Target bands
 are bare outlines of the hit zone (`BAND_CENTS`, matching scoring's OK
 tolerance by convention) - scoring verdicts never recolor them;
@@ -435,8 +449,9 @@ judgment lives in readouts and progress, not in the chart. The view
 does not load `pitch-score.js`.
 
 **Time axis is stable.** Window WIDTH comes from the page (content
-duration, or Trace's selected 2-60s rolling width) and does not grow
-with the clock. Growing it used to continuously squeeze the whole chart
+duration, or the 2-120s rolling width that Trace's Window stepper and
+Pitch's Width slider pick from `PracticeControls.WINDOW_VALUES_MS`)
+and does not grow with the clock. Growing it used to continuously squeeze the whole chart
 - the classic Trace twitch. The playhead always scrolls inside that
 fixed width.
 
@@ -468,11 +483,11 @@ panel segments incrementally (`PitchScore.createSegmenter`, pulled from
 (`alignSegments`); the phrases take plan is memoized on its input key
 (targets, rails, and duration all read it every tick); the view finds a
 fixed window's visible slice by scanning back from the end of the
-time-ordered history; the stable rails/targets frame and Trace's fixed
-vertical bounds require no history scan, and Pitch's voice-following
-range is monotone for a take, so each frame folds in only the visible
-slice (a full history scan happens once, to seed an empty held
-range); Trace rebuilds its
+time-ordered history; the stable rails/targets frame and the fixed
+vertical bounds of Trace and Pitch require no history scan; Pitch's
+scale finder segments incrementally the same way and re-ranks at most
+twice a second over held notes (work bounded by notes, not samples);
+Trace rebuilds its
 rails/targets/window model only when a setting or the pattern text
 changes and the frame loop just reads it back (no per-frame pattern
 parsing or scale spelling); and the detector stops scanning at the
@@ -483,9 +498,11 @@ per tick (plus allocation/GC pressure, the felt "grinding"); the
 incremental path is ~1.4ms.
 
 Consumers: the Trace page uses session + view directly; Phrases, Scales,
-Intervals, and Staff go through `pitch-test-panel.js`; pitch-meter uses the same
-session plus its own call-and-response/play-along modes (scored through
-the same `pitch-score.js`); ears uses low-level `createMicCapture` for
+Intervals, and Staff go through `pitch-test-panel.js`; Pitch uses session +
+view directly for its unscored listening chart, feeds held notes
+(`PitchScore.createSegmenter`) to `scale-finder.js`, and runs its
+call-and-response/play-along exercises on the same session (scored
+through the same `pitch-score.js`); ears uses low-level `createMicCapture` for
 its hold-detection loops. User-facing behavior per page is in
 [tools.md](tools.md); per-setting behavior in [parameters.md](parameters.md).
 
@@ -542,8 +559,8 @@ can be analyzed before changing playback architecture.
 ## Pitch correctness (one owner)
 
 `pitch-score.js` is the single definition of "did the singer hit this note,
-and how accurately?". The embedded sing/test panel, the Pitch tool's
-call-and-response, and Pitch free practice all go through it; no tool
+and how accurately?". The embedded sing/test panel and the Pitch tool's
+call-and-response and play-along exercises all go through it; no tool
 carries its own thresholds (they had previously drifted - a 1.5
 vs 1.5-but-`<` match window, 3 vs 5 minimum samples, 10/25 vs 15/30 bands).
 
@@ -583,8 +600,8 @@ The model, from one consistent idea of correct:
    punishing in real takes.)
 
 `biasCents` is always reported signed (+ sharp, - flat) so degree-level
-weak-spot analysis can say "you overshoot the 6th" - the training goal. Free
-practice has no time windows, so it bins each voiced sample to its nearest
+weak-spot analysis can say "you overshoot the 6th" - the training goal. Play
+along has no per-note windows, so it bins each voiced sample to its nearest
 target within the identity band, then grades each target with the same
 `scoreWindow` definition.
 
@@ -1214,7 +1231,8 @@ statistics script that fails to load costs only statistics.
   Scales, Intervals, and Phrases sing tests). Each consumer names its mode
   token through the required `statsMode` config; Intervals uses the sung
   pattern's own `levelId`, so a level change mid-take cannot mislabel it.
-- `pitch-meter.js` `recordProgress()`, once per scored session.
+- `pitch-meter.js` `recordProgress()`, once per scored exercise (listening
+  alone is unscored and sends nothing).
 - `ear-training.js` `reportQuestion()`, once per settled question: the answer,
   or a Skip of an unanswered question, in Identify and Both; the sing result
   in Sing. Skip after an answer only moves on.
@@ -1229,7 +1247,7 @@ the one exception to the anti-fallback rule, and the
 the tree as https://fuseki.net/voice-wei/ through request routing (pings
 answered locally, every other path on the host refused) and checks the play
 ping, exactly one round with its fields per sing take, ear question, and Pitch
-session, the engaged sources (microphone and piano yes, keep-alive no), and
+exercise, the engaged sources (microphone and piano yes, keep-alive no), and
 the player number across pages.
 
 ## Data representation law
@@ -1418,7 +1436,12 @@ the owner display rules), plus the standing `test-books`, `test-controls`,
 `test-css-ownership`, `test-scales-keyboard` (the Scales keyboard model,
 view, and page round trips), `test-scales-patterns` (Scales note patterns
 in Node, against the documented examples), `test-pitch-detect` (the
-detector's octave contract in Node, against synthetic sung notes), and
+detector's octave contract in Node, against synthetic sung notes),
+`test-trace-session` (the voice clock's silence allowance in Node, on a
+fake clock and microphone), `test-scale-finder` (the scale finder's
+rankings in Node, against known melodies, drones, and chromatic runs),
+`test-pitch-page` (the Pitch page: listening, scale finder, range,
+Width, and persistence), and
 `test-display-rules` (every
 stylesheet: no gray, tinted near-white or near-black, translucent, or
 opacity-dimmed text, by the same color test the rendered scan in
@@ -1429,7 +1452,7 @@ Three disciplines keep the gate fast and honest:
 
 - **No fixed sleeps where state is observable.** Tests wait on explicit
   signals - `window.__voiceWeiStartup.ready`, page debug handles
-  (`phrasesDebug`, `traceDebug`, `intervalsDebug`, `pitchMeter`),
+  (`phrasesDebug`, `traceDebug`, `intervalsDebug`, `pitchDebug`),
   `window.__voiceStarts` / `window.__trace` voice instrumentation,
   Media Session transport state, DOM text/classes, and store contents
   (`PRACTICE_PROGRESS`, settings keys) - never wall-clock pads. Where a
@@ -1504,7 +1527,10 @@ One picker kind per value kind, everywhere:
   (step field showing e.g. "D#3", +/- moves by semitone). No chip grids,
   octave rows, sliders, or selects for pitches.
 - **Ordered numeric value** (durations, gaps, lengths, TTS rate/pitch):
-  step field over a fixed value list.
+  step field over a fixed value list. The one practice-page exception is
+  Pitch's chart Width (owner-requested slider, 2026-11-10): a range input
+  over `WINDOW_VALUES_MS` with a notch and a label at every value, both
+  ends included, and its value shown beside it (owner display rule 5).
 - **Shared presets**: the root, note-length, and gap pickers use the
   single preset lists owned by `practice-controls.js`
   (`ROOT_PITCH_MIN/MAX_MIDI`, `NOTE_LENGTH_VALUES`, `GAP_VALUES`) - the
@@ -1564,16 +1590,19 @@ Beyond pickers, the rest of the control vocabulary is also fixed:
 - **Transport buttons**: `stop-button` (red), `play-button` (teal;
   `.listening` goes amber), `next-button` (orange), `repeat-button`
   (indigo; `.selected` goes green for latching repeat). Same classes in
-  the sticky transport row and inside panels (pitch-meter, trace). The
-  Pitch page's microphone Start is its own `pitch-listen-button`.
+  the sticky transport row and inside panels (trace). The Pitch page's
+  microphone button is its own large `pitch-listen-button` ("Listen" /
+  "Stop"; `.listening` goes amber).
   `pitch-test-launch-button` is the blue Sing/Test variant of play.
 - **Panel action chips**: `panel-action-btn` for small corner/inline
   actions (Copy All, Clear, Save, Apply, Delete, Reset, Random, Test,
   Show, Select All). Add `.danger` for destructive actions (red hover).
 - **Secondary buttons**: `secondary-btn` for mid-size neutral actions
-  (trace Reset, ears sing controls). Also takes `.danger`.
+  (trace Reset, Pitch Reset/Fit to singing/Preview scale, ears sing
+  controls). Also takes `.danger`.
 - **Primary buttons**: `primary-btn` for mid-size green "do the thing"
-  actions (Books import/generate/play-from-progress).
+  actions (Books import/generate/play-from-progress, Pitch Start
+  exercise).
 - **Text fields**: `text-input` base look; pages may size (width,
   font-size, resize), never re-skin.
 - **Selected state**: `.selected`, everywhere. No `.active` dialects.

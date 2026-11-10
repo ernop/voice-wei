@@ -41,7 +41,7 @@ and deliver a weaker version of the requested change.
 | Phrases | Remember and reproduce whole melodic shapes | Generated phrases respect the bounds; reproject cleanly across keys; the embedded test verifies the singing |
 | Staff | Read notation fluently: sing a continuous generated line from the grand staff; train harmony by singing a chosen interval above it ("sing above") | The staff is clean and readable (one position per pitch, no duplication across clefs); scroll mode paces the reading and the live trace shows where the singing landed; in sing-above the melody still sounds while every target marking moves to the harmony; past runs replay for review |
 | Trace | Free singing with eyes on the pitch line | Trace is accurate, glitch-free, and starts when the voice does |
-| Pitch | Structured accuracy practice with scoring | Call-and-response and play-along produce honest per-note results |
+| Pitch | See which notes you are singing: open it, press Listen, sing (owner, 2026-11-10); find the key the singing fits; scored accuracy exercises as a secondary card | Listen starts at once, plays nothing, and draws every sung note on a semitone chart whose range and width are one tap away; pauses stop the clock or let it run, by choice; the scale finder ranks keys from held notes only and says when it has too little to go on; call-and-response and play-along produce honest per-note results |
 | Lyrics | Hands-free music listening from ordinary artist/song searches, with AI interpretation when wanted | Raw typed terms produce a keyless playable playlist; Ask AI handles fuzzy or curated requests |
 | Books | Read ebooks and web pages, grow local generated audio, and research questions raised while listening | Originals, parsed text, MP3 chunks, and progress persist locally; generation resumes where it stopped; a page sent by a Books link is narrated and waiting when it is played; one typed question launches source-critical web/image research with the exact request disclosed |
 | Wording | Score how cool a word sounds and coin new words from two word sets | Cool-sounding words outrank bland, gross, and unpronounceable ones; coined words are genuinely new, read as one word, and rank by how they sound when spoken |
@@ -117,9 +117,9 @@ and completed exercises with results. His own use is included.
   - Sing test take in Scales, Intervals, or Phrases: `m` = `scales`,
     `intervals-<level>` (e.g. `intervals-a3`), or `phrases`; `r=done`; `hit`,
     `total`, `cents` (average error of the notes on pitch).
-  - Pitch session: `m` = `pitch-free`, `pitch-call-response`, or
-    `pitch-play-along`; `r=done`; `hit`, `total`, `cents`, `acc` (accuracy
-    percent).
+  - Pitch exercise: `m` = `pitch-call-response` or `pitch-play-along`;
+    `r=done`; `hit`, `total`, `cents`, `acc` (accuracy percent). Listening
+    alone is unscored and sends no round.
   - Ears question: `m` = `ears-identify`, `ears-sing`, or `ears-both`;
     `r=pass` or `fail`. In Both mode the identification decides it.
   - Trace, Staff, Lyrics, Books, Wording, and Games have no scored round; their use

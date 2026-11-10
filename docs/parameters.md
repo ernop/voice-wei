@@ -43,9 +43,10 @@ page that shows them:
 
 Every note/timing stepper walks the same shared ladder: note length, gap,
 the Phrases section pause (Sect), the Trace guide interval, and the Pitch
-page match window all step through the same numbers. Trace's rolling chart
-width is a viewport size rather than musical timing; its broad presets are
-2, 5, 10, 15, 20, 30, 45, and 60 seconds.
+page match window all step through the same numbers. A live chart's
+rolling width is a viewport size rather than musical timing; Trace's
+Window stepper and Pitch's Width slider share its broad presets
+(`WINDOW_VALUES_MS`): 2, 5, 10, 15, 20, 30, 45, 60, 90, and 120 seconds.
 
 Negative gap presets are overlap ratios of the note length (-50% starts
 the next note halfway through the current one); they display as
@@ -246,7 +247,7 @@ meaningful for one configuration).
 | pauseOnSilence | true | toggle | immediate + trace reset |
 | rangeLowMidi / rangeHighMidi | Bb2 / Ab4 for the default key | semitone note steppers, C1..B7; endpoints cannot cross | redraw (sets the absolute vertical frame; sung notes outside it remain recorded but off-screen) |
 | rangeFollowsKey | true | toggle | redraw (on recomputes the bounds from the selected key/scale; stepping either bound turns it off) |
-| windowMs | 20000 | 2, 5, 10, 15, 20, 30, 45, 60 seconds | redraw |
+| windowMs | 20000 | 2, 5, 10, 15, 20, 30, 45, 60, 90, 120 seconds | redraw |
 | fixedWindow | false | toggle | redraw (selected rolling width; off = content-sized scroll width; never grows with clock) |
 
 ## Scales (`scales-settings`)
@@ -300,13 +301,22 @@ The play loop reads settings when it generates each pattern.
 
 ## Pitch Meter (`pitch-meter-settings`)
 
+Nothing here restarts listening or clears the take; a running exercise
+keeps the notes it started with.
+
 | Setting | Default | Values | Behavior |
 |---------|---------|--------|----------|
-| mode | call-response | free / call-response / play-along segment row | next-round (next session) |
-| responseTime | 2s | shared time ladder from 0.5s (stored in seconds) | next-round |
-| instrument | voice | voice / violin / bass segment row | immediate (sets octave preset, redraws targets) |
-| rootNote + octave | C4 | root pitch stepper (shared C2-B5) | immediate (redraws targets) |
-| scaleType | major | major, minor, chromatic, pentatonic, blues | immediate (redraws targets) |
+| bottomMidi / topMidi | C3 / C5 | semitone steppers, C2..E5, Bottom below Top; Fit to singing sets both from held notes (+/- a semitone) | redraw (rails and frame) |
+| windowMs | 20000 | Width slider over the shared window presets, 2-120 seconds | redraw |
+| timePassesInSilence | false | toggle | immediate, from that moment on (off: the clock runs 0.4s into each pause then stops; on: it runs through pauses; silence already counted stays) |
+| showScaleFinder | true | toggle | immediate (shows/hides the finder card) |
+| rootNote + octave | C4 | root pitch stepper (shared C2-B5) | immediate (chart spelling and key rails, finder colors before it has a candidate, exercise notes) |
+| scaleType | major | major, minor, h minor, m minor, dorian, phrygian, lydian, mixolydian, pentatonic, minor pent, blues, chromatic | immediate (as root) |
+| mode | call-response | call-response / play-along segment row; a stored retired `free` loads as call-response | next exercise |
+| responseTime | 2s | shared time ladder from 0.5s (stored in seconds) | next note (a running exercise picks it up) |
+| instrument | voice | voice / violin / bass segment row | immediate (sets the octave: voice 4, violin 4, bass 2) |
+
+The scale finder's Use button sets rootNote and scaleType (octave kept).
 
 ## Ears (`ears-settings`, lifetime stats in `ears-stats`)
 

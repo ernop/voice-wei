@@ -46,6 +46,7 @@ vocabulary plus their declared gameplay surfaces:
 | Intervals | `answer-btn` (ear answer grid), `drone-btn` (drone test) |
 | Phrases | `phrase-stage-btn` (stage actions), `phrase-toggle-btn` (a `vf-btn` modifier) |
 | Scales | `kb-key`, `kb-marker` (the keyboard's keys and microtone markers, `piano-keyboard.css`) |
+| Pitch | `pitch-listen-button` (the large Listen/Stop), `pitch-width-*` (the Width slider: the one range input on the practice pages, owner-requested 2026-11-10, with a notch and label at every value, both ends, and its value shown), `pitch-finder-*` (scale-finder bars and one-line candidate rows; their Use is a `panel-action-btn`) |
 | Shared panel | `pitch-test-btn` (panel internals), `history-play-btn` (history rows) |
 
 `tests/test-css-ownership.js` enforces that these page sheets never
@@ -201,7 +202,7 @@ them there):
    heavier than the text beneath it, never both smaller and lighter.
 
 Buttons follow `.cursor/rules/06-ui-patterns.mdc`: white text in normal and
-hover states (black on the bright green primary and Pitch Start buttons,
+hover states (black on the bright green primary and Pitch Listen buttons,
 per rule 1), hover changes the background only, 0.2s transitions.
 
 ## Dead classes (removed)
@@ -232,7 +233,9 @@ The user-facing name for the root-pitch chooser is **Key** on every
 practice page (state keys may still say `root` / `rootPitch`).
 Trace's **Low** and **High** controls use the same semitone pitch-stepper
 surface for chart endpoints; its **Window** stepper is a discrete
-viewport-width picker (2-60s), not a musical note/gap timing control.
+viewport-width picker (2-120s), not a musical note/gap timing control.
+Pitch's **Bottom** and **Top** are the same pitch-stepper surface, and
+its **Width** slider picks from the same viewport-width presets.
 
 Pitch Test / Sing launches from a fixed bottom dock (`.pitch-test-dock`),
 not from the transport row. Transport is playback only
