@@ -72,8 +72,11 @@ deploy by pushing `master`.
 - Document root: `/srv/voice-wei/site`, a symlink to the live release since
   2026-10-12 (the releases layout below; [hosting-contract.md](hosting-contract.md),
   "Requests to the fuseki.net project")
-- GitHub's deploy key is restricted against forwarding and interactive shells;
-  the deploy scripts need only rsync
+- GitHub's deploy key (`github-actions-voice-wei`, public half in
+  `deploy/deploy_github_actions.pub`) is restricted against forwarding and
+  interactive shells; the deploy scripts need only rsync. Until 2026-11-11 the
+  key in GitHub's secret was unrestricted and that file held a different,
+  unused key; the unused key is no longer authorized on the server
 - nginx maps `/voice-wei/` to the dedicated document root, rate-limits
   `/voice-wei/proxy.php` for search and remote imports, and sends only that
   exact path to the `voicewei` PHP-FPM pool; every other `.php` request
